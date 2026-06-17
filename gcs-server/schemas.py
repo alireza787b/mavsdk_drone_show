@@ -612,6 +612,89 @@ class HeartbeatPostResponse(BaseModel):
     server_time: int = Field(..., description="Server timestamp (Unix ms)")
 
 
+class NodeBootStatusReport(BaseModel):
+    """Node boot/init progress reported before coordinator readiness."""
+
+    hw_id: str = Field(..., max_length=32, description="Hardware ID reporting boot/init status")
+    pos_id: Optional[int] = Field(None, ge=0, le=10000, description="Optional show position ID")
+    ip: Optional[str] = Field(None, max_length=128, description="Optional node-observed IP address")
+    runtime_mode: Optional[str] = Field(None, description="Canonical node runtime mode: real or sitl")
+    phase: str = Field(..., min_length=1, max_length=64, description="Current boot/init phase")
+    status: str = Field("running", max_length=16, description="running, success, warning, or error")
+    message: Optional[str] = Field(None, max_length=240, description="Short operator-facing status message")
+    source: str = Field("git-sync", max_length=64, description="Local node service reporting this status")
+    timestamp: Optional[int] = Field(None, ge=0, description="Optional client timestamp; server receipt time is used for evidence staleness")
+
+    @field_validator("hw_id", mode="before")
+    @classmethod
+    def normalize_boot_hw_id(cls, value):
+        if value is None:
+            raise ValueError("hw_id is required")
+        text = str(value).strip()
+        if not text:
+            raise ValueError("hw_id must not be empty")
+        return text
+
+    @field_validator("runtime_mode", mode="before")
+    @classmethod
+    def normalize_boot_runtime_mode(cls, value):
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if not normalized:
+            return None
+        if normalized in {"real", "sitl"}:
+            return normalized
+        raise ValueError("runtime_mode must be either real or sitl")
+
+    @field_validator("phase", "source", mode="before")
+    @classmethod
+    def normalize_boot_label(cls, value):
+        text = " ".join(str(value if value is not None else "").strip().split())
+        if not text:
+            raise ValueError("field must not be empty")
+        return text
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_boot_status(cls, value):
+        normalized = str(value if value is not None else "running").strip().lower().replace(" ", "_")
+        if normalized not in {"running", "success", "warning", "error"}:
+            raise ValueError("status must be one of running, success, warning, or error")
+        return normalized
+
+
+class NodeBootStatusData(NodeBootStatusReport):
+    """Stored node boot/init progress with first-seen metadata."""
+
+    first_seen: Optional[int] = Field(None, ge=0, description="First report timestamp for this boot sequence")
+    identity_trust: Optional[str] = Field(
+        None,
+        description="Evidence trust label; config_bound is not cryptographic node identity",
+    )
+    source_ip_matched: Optional[bool] = Field(
+        None,
+        description="True when request source IP matched configured node IP",
+    )
+
+
+class NodeBootStatusPostResponse(BaseModel):
+    """Response for POST /api/v1/fleet/node-boot-status."""
+
+    success: bool = Field(..., description="Boot/init status accepted")
+    message: str = Field(..., description="Status message")
+    node: NodeBootStatusData = Field(..., description="Stored node boot/init status")
+    server_time: int = Field(..., description="Server timestamp (Unix ms)")
+
+
+class NodeBootStatusResponse(BaseModel):
+    """Response for GET /api/v1/fleet/node-boot-status."""
+
+    nodes: Dict[str, NodeBootStatusData] = Field(default_factory=dict, description="Latest status by hardware ID")
+    total_nodes: int = Field(..., ge=0, description="Number of node boot/init records")
+    timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+
+
 # ============================================================================
 # Git Status Schemas
 # ============================================================================
@@ -684,6 +767,8 @@ class DroneGitSyncRuntimeStatus(BaseModel):
 
     status: str = Field(..., description="Latest node-local git sync runtime status")
     summary: str = Field(..., description="Operator-facing post-sync summary")
+    phase: str = Field("unknown", description="Current node-local git sync phase")
+    phase_message: str = Field("", description="Current node-local git sync phase summary")
     last_run_at_ms: Optional[int] = Field(None, description="Last node-local git sync timestamp")
     updated_units: List[str] = Field(default_factory=list, description="Systemd units updated by the last node sync")
     service_reload_status: str = Field("unknown", description="Latest systemd unit reload outcome")

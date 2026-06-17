@@ -108,7 +108,7 @@ python3 tools/generate_simurgh_tool_candidates.py --check
 python3 tools/generate_simurgh_docs_index.py --check
 pytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_env_registry.py tests/test_simurgh_dashboard_prompt_evals.py tests/test_simurgh_retrieval_quality.py
 python3 tools/run_simurgh_dashboard_prompt_evals.py
-python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --json
+python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --expected-runtime-mode sitl --json
 ```
 
 The smoke token must be temporary, revoked after the run, and never committed or

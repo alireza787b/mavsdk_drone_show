@@ -18,6 +18,7 @@ def test_read_git_sync_runtime_summary_defaults_to_home_state_path(monkeypatch, 
     result = read_git_sync_runtime_summary()
 
     assert result["status"] == "success"
+    assert result["phase"] == "unknown"
     assert result["summary"] == "ok"
 
 
@@ -192,6 +193,8 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
         "\n".join(
             [
                 "status=success",
+                "phase=runtime_reconcile",
+                "phase_message=Reconciling runtime sidecars",
                 "message=Git synchronization completed successfully",
                 "timestamp_ms=1770000000000",
                 "updated_units=coordinator.service,git_sync_mds.service",
@@ -216,6 +219,9 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
     result = read_git_sync_runtime_summary()
 
     assert result["status"] == "success"
+    assert result["phase"] == "runtime_reconcile"
+    assert result["phase_message"] == "Reconciling runtime sidecars"
+    assert "Phase: Reconciling runtime sidecars" in result["summary"]
     assert result["service_reload_status"] == "updated"
     assert result["mavsdk_runtime_status"] == "provisioned"
     assert result["coordinator_restart_scheduled"] is True

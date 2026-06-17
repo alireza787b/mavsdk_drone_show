@@ -203,7 +203,7 @@ def test_simurgh_assistant_turn_trace_exposes_read_only_plan(monkeypatch):
     assert "normalized_message" not in plan
 
 
-def test_simurgh_assistant_turn_streams_progress_delta_final_and_history(monkeypatch):
+def test_simurgh_assistant_turn_streams_live_progress_and_final_local_answer(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()
 
@@ -219,17 +219,14 @@ def test_simurgh_assistant_turn_streams_progress_delta_final_and_history(monkeyp
     events = _parse_sse_events(body)
     event_names = [event for event, _payload in events]
     assert event_names[:3] == ["progress", "progress", "progress"]
-    assert "delta" in event_names
+    assert "delta" not in event_names
     assert "final" in event_names
     assert event_names[-1] == "done"
     progress_labels = [payload["label"] for event, payload in events if event == "progress"]
-    assert "Understanding request" in progress_labels
-    assert "Streaming answer" in progress_labels
-    streamed_content = "".join(payload["text"] for event, payload in events if event == "delta")
+    assert any(label.startswith("Understanding:") for label in progress_labels)
     final_payload = next(payload for event, payload in events if event == "final")
     assert final_payload["provider"] == "mds-tools"
-    assert "configured drone" in streamed_content.lower()
-    assert streamed_content == final_payload["content"]
+    assert "configured drone" in final_payload["content"].lower()
 
     history = client.get("/api/v1/simurgh/assistant/turns", params={"actor": "operator"}).json()["turns"]
     assert [turn["id"] for turn in history] == [final_payload["id"]]
@@ -254,9 +251,9 @@ def test_simurgh_assistant_stream_reports_specific_registry_tool_progress(monkey
     assert plan_progress[-1]["tool_ids"] == ["mds.fleet.sidecar.node.read"]
     tool_progress = [payload for event, payload in events if event == "progress" and payload.get("stage") == "tool"]
     assert [payload["state"] for payload in tool_progress] == ["running", "complete"]
-    assert tool_progress[0]["label"] == "Checking Read fleet sidecar node"
+    assert tool_progress[0]["label"] == "Reading Read fleet sidecar node"
     assert tool_progress[0]["tool_id"] == "mds.fleet.sidecar.node.read"
-    assert tool_progress[-1]["label"] == "Checked Read fleet sidecar node"
+    assert tool_progress[-1]["label"] == "Read fleet sidecar node ready"
     assert tool_progress[-1]["tool_ids"] == ["mds.fleet.sidecar.node.read"]
     assert tool_progress[-1]["is_error"] is False
     final_payload = next(payload for event, payload in events if event == "final")
@@ -270,8 +267,8 @@ def test_simurgh_assistant_stream_labels_public_web_search(monkeypatch, tmp_path
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
 
-    def fake_post(self, payload, *, api_key):  # noqa: ANN001
-        return {
+    def fake_stream(self, payload, *, api_key, delta_callback):  # noqa: ANN001
+        response_payload = {
             "output": [
                 {"type": "web_search_call", "status": "completed", "action": {"type": "search"}},
                 {
@@ -292,8 +289,10 @@ def test_simurgh_assistant_stream_labels_public_web_search(monkeypatch, tmp_path
                 },
             ]
         }
+        delta_callback("Taipei weather should be checked against a local aviation weather source before flight.")
+        return response_payload
 
-    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_stream_response", fake_stream)
     client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
 
     with client.stream(
@@ -307,6 +306,7 @@ def test_simurgh_assistant_stream_labels_public_web_search(monkeypatch, tmp_path
     events = _parse_sse_events(body)
     progress = [payload for event, payload in events if event == "progress"]
     assert any(payload.get("stage") == "search" and payload.get("label") == "Searched public web" for payload in progress)
+    assert "".join(payload["text"] for event, payload in events if event == "delta").startswith("Taipei weather")
     final_payload = next(payload for event, payload in events if event == "final")
     assert final_payload["provider"] == "openai"
     assert final_payload["trace"]["provider_tools"] == {
@@ -327,8 +327,8 @@ def test_simurgh_assistant_stream_notes_public_web_search_without_citations(monk
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
 
-    def fake_post(self, payload, *, api_key):  # noqa: ANN001
-        return {
+    def fake_stream(self, payload, *, api_key, delta_callback):  # noqa: ANN001
+        response_payload = {
             "output": [
                 {"type": "web_search_call", "status": "completed", "action": {"type": "search"}},
                 {
@@ -343,8 +343,10 @@ def test_simurgh_assistant_stream_notes_public_web_search_without_citations(monk
                 },
             ]
         }
+        delta_callback("Current public weather conditions should be verified before flight.")
+        return response_payload
 
-    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_stream_response", fake_stream)
     client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
 
     with client.stream(

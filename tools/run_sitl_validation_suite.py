@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import normalize_drone_ids, write_json_report
+from tools.runtime_validation_support import fetch_and_require_sitl_runtime, normalize_drone_ids, write_json_report
 
 BUNDLED_PLAN_DIR = REPO_ROOT / "tools" / "sitl_plans"
 
@@ -1118,6 +1118,10 @@ def main() -> int:
         "started_at": datetime.now(timezone.utc).isoformat(),
         "steps": [],
     }
+
+    if not args.dry_run:
+        summary["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
+        write_suite_summary(args.artifact_dir / "suite-summary.json", summary, dry_run=False)
 
     for step in steps:
         result = run_step(step, dry_run=args.dry_run)

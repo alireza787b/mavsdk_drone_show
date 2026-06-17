@@ -40,6 +40,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tools.runtime_validation_support import fetch_and_require_sitl_runtime
+
 USING_FALLBACK_TIMEOUT_PARAMS = False
 
 try:
@@ -54,7 +56,11 @@ try:
     )
     from src.live_armability_utils import calculate_live_armability_request_timeout
     from src.params import Params
-    from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
+    from tools.runtime_validation_support import (
+        normalize_drone_ids,
+        parse_csv_drone_ids,
+        write_json_report,
+    )
 except Exception:  # pragma: no cover - fallback only
     USING_FALLBACK_TIMEOUT_PARAMS = True
 
@@ -653,6 +659,7 @@ def main() -> int:
 
     try:
         results["health"] = wait_api_ready(client, timeout=60)
+        results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
         baseline = wait_fleet_ready(client, ids, timeout=120)
         baseline_altitudes = {str(idx): float(baseline[str(idx)]["position_alt"]) for idx in ids}
         results["baseline_telemetry"] = baseline

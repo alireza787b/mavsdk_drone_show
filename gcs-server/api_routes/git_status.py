@@ -40,7 +40,7 @@ class FleetGitSyncDryRunRequest(BaseModel):
     include_offline: bool = False
 
 
-class FleetActionConfirmation(BaseModel):
+class GitSyncActionConfirmation(BaseModel):
     operator: str | None = None
     acknowledged_risks: bool = False
     confirmation_token: str | None = None
@@ -48,7 +48,7 @@ class FleetActionConfirmation(BaseModel):
 
 class FleetGitSyncApplyRequest(BaseModel):
     dry_run_id: str
-    confirmation: FleetActionConfirmation
+    confirmation: GitSyncActionConfirmation
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -197,6 +197,8 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 git_sync_runtime = DroneGitSyncRuntimeStatus(
                     status=raw_git_sync_runtime.get("status", "unknown"),
                     summary=raw_git_sync_runtime.get("summary", ""),
+                    phase=raw_git_sync_runtime.get("phase", "unknown"),
+                    phase_message=raw_git_sync_runtime.get("phase_message", ""),
                     last_run_at_ms=raw_git_sync_runtime.get("last_run_at_ms"),
                     updated_units=raw_git_sync_runtime.get("updated_units", []),
                     service_reload_status=raw_git_sync_runtime.get("service_reload_status", "unknown"),
@@ -508,7 +510,7 @@ def _build_git_sync_dry_run(deps: Any, request_payload: FleetGitSyncDryRunReques
     return job
 
 
-def _validate_git_sync_job(job: dict[str, Any], confirmation: FleetActionConfirmation) -> None:
+def _validate_git_sync_job(job: dict[str, Any], confirmation: GitSyncActionConfirmation) -> None:
     if job.get("applied"):
         raise HTTPException(status_code=409, detail="dry-run job was already applied")
     created_at = _safe_int(job.get("created_at"), 0)

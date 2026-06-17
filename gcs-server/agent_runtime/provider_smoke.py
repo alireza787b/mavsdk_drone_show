@@ -27,7 +27,9 @@ from .assistant import (
 )
 from .audit import InMemoryAuditSink
 from .models import AgentRuntimeError, stable_payload_hash
+from .policy import load_default_policy
 from .sessions import AgentSessionStore
+from src.settings.runtime import resolve_runtime_mode
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -222,6 +224,7 @@ class ProviderSmokeResult:
     adapter_version: str | None = None
     content_hash: str | None = None
     content_chars: int = 0
+    safety_posture: dict[str, object] | None = None
     content: str | None = None
 
     def to_json_dict(self, *, include_content: bool = False) -> dict[str, object]:
@@ -236,6 +239,7 @@ class ProviderSmokeResult:
             "adapter_version": self.adapter_version,
             "content_hash": self.content_hash,
             "content_chars": self.content_chars,
+            "safety_posture": self.safety_posture or {},
         }
         if include_content:
             payload["content"] = self.content or ""
@@ -273,6 +277,8 @@ class ProviderSmokeRunReport:
             if result.content_hash:
                 lines.append(f"  - content_hash: {result.content_hash}")
                 lines.append(f"  - content_chars: {result.content_chars}")
+            if result.safety_posture:
+                lines.append(f"  - safety_posture: {result.safety_posture}")
             if include_content and result.content:
                 lines.append("  - content:")
                 lines.extend(f"    {line}" for line in result.content.splitlines())
@@ -330,6 +336,36 @@ def _scenario_preflight_failures(scenario: ProviderSmokeScenario) -> list[str]:
     return failures
 
 
+def _runtime_safety_posture(expected_runtime_mode: str | None) -> tuple[dict[str, object], list[str]]:
+    try:
+        runtime = resolve_runtime_mode()
+        policy = load_default_policy()
+    except AgentRuntimeError as exc:
+        return {}, [f"provider smoke safety posture unavailable: {exc}"]
+
+    posture: dict[str, object] = {
+        "mode": runtime.mode,
+        "mode_source": runtime.source,
+        "policy_mode": policy.mode,
+        "action_circuit_breaker_enabled": policy.action_circuit_breaker_enabled,
+        "always_confirm_before_action": policy.always_confirm_before_action,
+    }
+    failures: list[str] = []
+    if policy.mode != runtime.mode:
+        failures.append(
+            f"provider smoke policy/runtime mode mismatch: policy={policy.mode}, runtime={runtime.mode}"
+        )
+    if expected_runtime_mode and runtime.mode != expected_runtime_mode:
+        failures.append(
+            f"provider smoke runtime mode mismatch: expected {expected_runtime_mode}, got {runtime.mode}"
+        )
+    if not policy.action_circuit_breaker_enabled:
+        failures.append("provider smoke requires the Simurgh action circuit breaker to be enabled")
+    if not policy.always_confirm_before_action:
+        failures.append("provider smoke requires always-confirm-before-action to be enabled")
+    return posture, failures
+
+
 def _evaluate_result(scenario: ProviderSmokeScenario, content: str, safety_notes: tuple[str, ...]) -> list[str]:
     expected = scenario.expected
     failures: list[str] = []
@@ -363,6 +399,7 @@ def run_provider_smoke_scenario(
     api_key_file: str | Path | None = None,
     live: bool = False,
     include_content: bool = False,
+    expected_runtime_mode: str | None = None,
 ) -> ProviderSmokeResult:
     """Run one provider smoke scenario.
 
@@ -370,7 +407,8 @@ def run_provider_smoke_scenario(
     never contacts the provider. Live mode requires an absolute 0600 key file.
     """
 
-    preflight_failures = _scenario_preflight_failures(scenario)
+    safety_posture, posture_failures = _runtime_safety_posture(expected_runtime_mode)
+    preflight_failures = posture_failures + _scenario_preflight_failures(scenario)
     if preflight_failures:
         return ProviderSmokeResult(
             scenario_id=scenario.id,
@@ -378,6 +416,7 @@ def run_provider_smoke_scenario(
             failures=tuple(preflight_failures),
             live_provider_request_made=False,
             provider_request_checked=False,
+            safety_posture=safety_posture,
         )
 
     if live:
@@ -389,6 +428,7 @@ def run_provider_smoke_scenario(
                 failures=(f"{OPENAI_API_KEY_FILE_ENV} is required for live provider smoke",),
                 live_provider_request_made=False,
                 provider_request_checked=False,
+                safety_posture=safety_posture,
             )
         try:
             key_path = _validate_key_file(effective_api_key_file)
@@ -399,6 +439,7 @@ def run_provider_smoke_scenario(
                 failures=(str(exc),),
                 live_provider_request_made=False,
                 provider_request_checked=False,
+                safety_posture=safety_posture,
             )
         temp_dir_context = nullcontext(None)
     else:
@@ -473,6 +514,7 @@ def run_provider_smoke_scenario(
             failures=failures,
             live_provider_request_made=live_provider_request_made,
             provider_request_checked=provider_request_checked,
+            safety_posture=safety_posture,
         )
     finally:
         OpenAIResponsesAssistantAdapter._post_response = original_post_response
@@ -498,6 +540,7 @@ def run_provider_smoke_scenario(
         adapter_version=record.turn.adapter_version,
         content_hash=content_hash,
         content_chars=len(record.turn.content),
+        safety_posture=safety_posture,
         content=record.turn.content if include_content else None,
     )
 
@@ -509,6 +552,7 @@ def run_provider_smoke_suite(
     api_key_file: str | Path | None = None,
     live: bool = False,
     include_content: bool = False,
+    expected_runtime_mode: str | None = None,
 ) -> ProviderSmokeRunReport:
     scenarios = (suite.select(scenario_id),) if scenario_id else suite.scenarios
     results = tuple(
@@ -517,6 +561,7 @@ def run_provider_smoke_suite(
             api_key_file=api_key_file,
             live=live,
             include_content=include_content,
+            expected_runtime_mode=expected_runtime_mode,
         )
         for scenario in scenarios
     )
@@ -529,6 +574,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scenario", help="scenario id to run; defaults to all scenarios")
     parser.add_argument("--api-key-file", type=Path, help="absolute 0600 OpenAI key file for --live")
     parser.add_argument("--live", action="store_true", help="call the configured live provider")
+    parser.add_argument(
+        "--expected-runtime-mode",
+        choices=("real", "sitl"),
+        required=True,
+        help="Canonical MDS_MODE expected on the validation host",
+    )
     parser.add_argument("--json", action="store_true", help="print JSON report")
     parser.add_argument("--show-content", action="store_true", help="include raw assistant content in output")
     args = parser.parse_args(argv)
@@ -539,6 +590,7 @@ def main(argv: list[str] | None = None) -> int:
         api_key_file=args.api_key_file,
         live=args.live,
         include_content=args.show_content,
+        expected_runtime_mode=args.expected_runtime_mode,
     )
     if args.json:
         print(json.dumps(report.to_json_dict(include_content=args.show_content), indent=2, sort_keys=True))

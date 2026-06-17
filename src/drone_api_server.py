@@ -368,6 +368,8 @@ class DroneManagedConnectivityRuntimeResponse(BaseModel):
 class DroneGitSyncRuntimeResponse(BaseModel):
     status: str
     summary: str
+    phase: str = "unknown"
+    phase_message: str = ""
     last_run_at_ms: Optional[int] = None
     updated_units: List[str] = Field(default_factory=list)
     service_reload_status: str = "unknown"

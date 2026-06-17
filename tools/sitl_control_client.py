@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -26,6 +27,7 @@ from src.gcs_api_routes import (  # noqa: E402
 from tools.runtime_validation_support import (  # noqa: E402
     build_sitl_reset_command,
     contiguous_fleet_reset_parameters,
+    fetch_and_require_sitl_runtime,
     normalize_drone_ids,
     write_json_report,
 )
@@ -61,6 +63,11 @@ def _optional_env(name: str) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _is_loopback_base_url(base_url: str) -> bool:
+    host = (urlparse(_normalize_base_url(base_url)).hostname or "").strip().lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
 
 
 def _request_json(
@@ -129,10 +136,15 @@ def get_operation(base_url: str, operation_id: str, *, timeout_sec: float = 10.0
 
 def is_api_usable(base_url: str, *, timeout_sec: float = 5.0) -> tuple[bool, dict[str, Any] | None, str | None]:
     try:
+        runtime_status = fetch_and_require_sitl_runtime(base_url, timeout_sec=timeout_sec)
+    except RuntimeError as exc:
+        raise SitlControlClientError(str(exc)) from exc
+    try:
         policy = get_policy(base_url, timeout_sec=timeout_sec)
     except SitlControlClientError as exc:
-        return False, None, str(exc)
+        return False, {"runtime_status": runtime_status}, str(exc)
 
+    policy["runtime_status"] = runtime_status
     docker = policy.get("docker") or {}
     if not bool(policy.get("sim_mode")):
         return False, policy, "SITL Control API is not in simulation mode"
@@ -244,6 +256,12 @@ def run_reconcile(
         raise SitlControlClientError(f"Unsupported reconcile mode: {mode}")
 
     if normalized_mode == "shell":
+        if not _is_loopback_base_url(base_url):
+            raise SitlControlClientError("Shell SITL reset is allowed only for a loopback GCS target")
+        try:
+            fetch_and_require_sitl_runtime(base_url)
+        except RuntimeError as exc:
+            raise SitlControlClientError(str(exc)) from exc
         return run_shell_reconcile(repo_root=repo_root, drone_ids=drone_ids)
 
     api_usable, policy, reason = is_api_usable(base_url)
@@ -260,6 +278,12 @@ def run_reconcile(
     if normalized_mode == "api":
         raise SitlControlClientError(reason or "SITL Control API is unavailable")
 
+    if not _is_loopback_base_url(base_url):
+        raise SitlControlClientError(
+            "SITL Control API is unavailable and shell fallback is prohibited for a remote target"
+        )
+    if not isinstance(policy, dict) or not isinstance(policy.get("runtime_status"), dict):
+        raise SitlControlClientError("SITL target identity was not verified; shell fallback is prohibited")
     log(f"SITL Control API unavailable, using shell fallback: {reason or 'unknown reason'}")
     report = run_shell_reconcile(repo_root=repo_root, drone_ids=drone_ids)
     report["api_fallback_reason"] = reason

@@ -77,7 +77,7 @@ class ReconcileDryRunRequest(BaseModel):
     mode: str = "fleet-merge"
 
 
-class FleetActionConfirmation(BaseModel):
+class SidecarActionConfirmation(BaseModel):
     model_config = {"extra": "forbid"}
 
     operator: str | None = None
@@ -90,7 +90,7 @@ class ReconcileApplyRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     dry_run_id: str
-    confirmation: FleetActionConfirmation
+    confirmation: SidecarActionConfirmation
 
 
 class PolicyDryRunRequest(BaseModel):
@@ -340,7 +340,7 @@ def _require_mutation_authority(request: Request) -> None:
         raise HTTPException(status_code=403, detail="invalid Fleet Ops mutation token")
 
 
-def _validate_job_confirmation(job: dict[str, Any], confirmation: FleetActionConfirmation) -> None:
+def _validate_job_confirmation(job: dict[str, Any], confirmation: SidecarActionConfirmation) -> None:
     if job.get("applied"):
         raise HTTPException(status_code=409, detail="dry-run job was already applied")
     try:

@@ -1,6 +1,7 @@
 """Shared canonical GCS route constants for runtime and tooling callers."""
 
 GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
+GCS_SYSTEM_RUNTIME_STATUS_ROUTE = "/api/v1/system/runtime-status"
 GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
 GCS_WS_TELEMETRY_ROUTE = "/ws/telemetry"
 GCS_WS_HEARTBEATS_ROUTE = "/ws/heartbeats"

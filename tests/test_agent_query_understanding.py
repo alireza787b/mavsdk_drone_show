@@ -172,6 +172,16 @@ def test_query_planner_public_metadata_is_bounded_and_safe():
     assert 0 < metadata["confidence"] <= 1
 
 
+def test_public_upstream_lookup_takes_precedence_over_online_connectivity_wording():
+    plan = build_assistant_query_plan(
+        "What is the latest stable PX4 Autopilot release? Verify it online and cite the source."
+    )
+
+    assert plan.domain == "general"
+    assert plan.response_mode == "interpret"
+    assert plan.reason == "general information question"
+
+
 def test_query_normalization_covers_field_typo_shapes():
     assert normalize_query_text("waht is the scoute droen IP?") == "what is the scout drone ip"
     assert normalize_query_text("circuit brake") == "circuit breaker"

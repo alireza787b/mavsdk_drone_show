@@ -65,19 +65,24 @@ before production use.
 Dry run:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py
+python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl
 ```
 
 Live smoke:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py --live --api-key-file /etc/mds/secrets/openai_api_key
+python3 tools/run_simurgh_provider_smoke.py \
+  --expected-runtime-mode real \
+  --live \
+  --api-key-file /etc/mds/secrets/openai_api_key
 ```
 
 The printed report omits raw assistant content by default and includes only
 safe metadata such as pass/fail state, content length, and a content hash. Use
 `--show-content` only on a trusted validation host when the scenario prompt and
-context are public.
+context are public. Set `--expected-runtime-mode` to the GCS mode you intend to
+validate. The smoke does not change modes or alter its workflow based on that
+value; it fails if the observed canonical `MDS_MODE` differs.
 
 ## Required Invariants
 
@@ -88,6 +93,9 @@ advisory shape:
 - `tools=[]`
 - `tool_choice="none"`
 - `parallel_tool_calls=false`
+- the canonical runtime mode matches `--expected-runtime-mode`
+- the action circuit breaker is enabled
+- always-confirm-before-action is enabled
 - no `messages`, `conversation`, or `previous_response_id`
 - no `stream`, `background`, uploaded-file, attachment, vector-store, or file-id
   fields

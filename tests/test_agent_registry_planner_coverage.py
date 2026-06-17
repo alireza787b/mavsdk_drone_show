@@ -183,6 +183,16 @@ def test_registry_planner_defers_all_drone_log_prompts_to_advisory_fanout():
     assert plan is None
 
 
+def test_registry_planner_does_not_treat_drone_suffix_as_one_record_request():
+    plan = plan_registry_read_tool_calls(
+        "how many drone do we have configured",
+        allowed_tools=list_policy_allowed_read_only_tools(channel="agent"),
+        local_intent="fleet_summary",
+    )
+
+    assert plan is None
+
+
 def test_registry_planner_extracts_json_launch_position_heading():
     tools = list_policy_allowed_read_only_tools(channel="assistant")
 

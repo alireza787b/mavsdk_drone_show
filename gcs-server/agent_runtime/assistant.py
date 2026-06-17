@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
 import httpx
@@ -34,7 +34,11 @@ from .mds_read_tools import (
 from .models import AgentRuntimeError, AgentSession, AuditEvent, ContextResource, stable_payload_hash, utc_now
 from .policy import load_default_policy
 from .query_adaptation import adapt_operator_query
-from .query_understanding import AssistantQueryPlan, build_assistant_query_plan
+from .query_understanding import (
+    AssistantQueryPlan,
+    build_assistant_query_plan,
+    looks_like_public_upstream_reference_query,
+)
 from .tool_executor import ADVISORY_ANSWER_TOOL_ID, execute_policy_allowed_advisory_tool
 from .retrieval import load_default_retriever, search_retriever_queries
 from .sessions import AgentSessionStore, sanitize_session_metadata
@@ -93,6 +97,7 @@ DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
 SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 SUPPORTED_OPENAI_TEXT_VERBOSITY = {"low", "medium", "high"}
 SUPPORTED_OPENAI_WEB_SEARCH_CONTEXT_SIZE = {"low", "medium", "high"}
+AssistantDeltaCallback = Callable[[str], None]
 
 
 def _string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
@@ -1042,6 +1047,7 @@ class OpenAIResponsesAssistantAdapter:
         context_documents: tuple[AssistantContextDocument, ...],
         language_profile: LanguageProfile | None = None,
         enable_web_search: bool = False,
+        delta_callback: AssistantDeltaCallback | None = None,
     ) -> AssistantTurnResult:
         mock_adapter = MockAssistantAdapter(config=self.config)
         sensitive_input_terms = mock_adapter._sensitive_input_terms(message)
@@ -1060,7 +1066,12 @@ class OpenAIResponsesAssistantAdapter:
             language_profile=language_profile,
             enable_web_search=enable_web_search,
         )
-        response_payload = self._post_response(request_payload, api_key=self.config.openai.read_api_key())
+        api_key = self.config.openai.read_api_key()
+        response_payload = (
+            self._stream_response(request_payload, api_key=api_key, delta_callback=delta_callback)
+            if delta_callback is not None
+            else self._post_response(request_payload, api_key=api_key)
+        )
         content = self._extract_response_text(response_payload)
         web_search_used = _response_used_web_search(response_payload)
         citations = _url_citations_from_response(response_payload)
@@ -1225,6 +1236,82 @@ class OpenAIResponsesAssistantAdapter:
         if not isinstance(decoded, dict):
             raise AgentRuntimeError("OpenAI assistant response must be a JSON object")
         return decoded
+
+    def _stream_response(
+        self,
+        payload: dict[str, Any],
+        *,
+        api_key: str,
+        delta_callback: AssistantDeltaCallback,
+    ) -> dict[str, Any]:
+        """Consume typed Responses API SSE events and return the completed response."""
+
+        url = f"{self.config.openai.base_url.rstrip('/')}/responses"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
+        request_payload = {**payload, "stream": True}
+        completed_response: dict[str, Any] | None = None
+        event_name = ""
+        data_lines: list[str] = []
+
+        def consume_event() -> None:
+            nonlocal completed_response, event_name, data_lines
+            if not data_lines:
+                event_name = ""
+                return
+            data_text = "\n".join(data_lines).strip()
+            data_lines = []
+            if not data_text or data_text == "[DONE]":
+                event_name = ""
+                return
+            try:
+                event_payload = json.loads(data_text)
+            except ValueError as exc:
+                raise AgentRuntimeError("OpenAI assistant stream returned invalid JSON") from exc
+            if not isinstance(event_payload, dict):
+                raise AgentRuntimeError("OpenAI assistant stream event must be a JSON object")
+            event_type = str(event_payload.get("type") or event_name or "").strip()
+            event_name = ""
+            if event_type == "response.output_text.delta":
+                delta = event_payload.get("delta")
+                if isinstance(delta, str) and delta:
+                    delta_callback(delta)
+                return
+            if event_type == "response.completed":
+                response_payload = event_payload.get("response")
+                if not isinstance(response_payload, dict):
+                    raise AgentRuntimeError("OpenAI assistant completed event omitted the response")
+                completed_response = response_payload
+                return
+            if event_type in {"error", "response.failed"}:
+                raise AgentRuntimeError("OpenAI assistant stream returned an error")
+
+        try:
+            with httpx.Client(timeout=self.config.openai.timeout_seconds) as client:
+                with client.stream("POST", url, headers=headers, json=request_payload) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if not line:
+                            consume_event()
+                        elif line.startswith("event:"):
+                            event_name = line[6:].strip()
+                        elif line.startswith("data:"):
+                            data_lines.append(line[5:].lstrip())
+                    consume_event()
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            raise AgentRuntimeError(f"OpenAI assistant request failed with HTTP {status_code}") from exc
+        except httpx.TimeoutException as exc:
+            raise AgentRuntimeError("OpenAI assistant request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise AgentRuntimeError("OpenAI assistant request failed") from exc
+
+        if completed_response is None:
+            raise AgentRuntimeError("OpenAI assistant stream ended before response.completed")
+        return completed_response
 
     def _extract_response_text(self, payload: Mapping[str, Any]) -> str:
         error = payload.get("error")
@@ -1495,72 +1582,13 @@ def _should_enable_web_search_for_turn(
     normalized = re.sub(r"\s+", " ", (routing_message or normalized_message).casefold()).strip()
     if not normalized:
         return False
-    if _has_public_upstream_lookup_signal(normalized):
+    if looks_like_public_upstream_reference_query(normalized):
         return True
     if _has_mds_private_or_state_signal(normalized):
         return False
     if _has_public_current_or_lookup_signal(normalized):
         return True
     return local_intent is None and query_plan.domain == "general" and query_plan.confidence < 0.4
-
-
-def _has_public_upstream_lookup_signal(normalized: str) -> bool:
-    """Allow current public upstream lookups without leaking MDS installation state."""
-
-    if not _has_any_text(
-        normalized,
-        (
-            "latest",
-            "newest",
-            "upstream",
-            "official release",
-            "release version",
-            "stable version",
-            "current release",
-            "current version",
-        ),
-    ):
-        return False
-    if _has_any_text(
-        normalized,
-        (
-            "our drone",
-            "our drones",
-            "this drone",
-            "this gcs",
-            "this mds",
-            "installed",
-            "running on",
-            "configured",
-            "fleet",
-            "telemetry",
-            "heartbeat",
-            "netbird",
-            "ip",
-            "drone 1",
-            "drone 2",
-            "drone 3",
-        ),
-    ):
-        return False
-    return _has_any_text(
-        normalized,
-        (
-            "px4",
-            "ardupilot",
-            "mavlink",
-            "mavsdk",
-            "qgroundcontrol",
-            "qgc",
-            "gazebo",
-            "ros 2",
-            "ros2",
-            "mapbox",
-            "openai",
-            "n8n",
-            "mcp",
-        ),
-    )
 
 
 def _has_mds_private_or_state_signal(normalized: str) -> bool:
@@ -2194,6 +2222,7 @@ def compose_read_only_tool_turn_with_provider(
     response_mode: str,
     evidence_metadata: Mapping[str, object] | None,
     language_profile: LanguageProfile | None = None,
+    delta_callback: AssistantDeltaCallback | None = None,
     first_safety_note: str = "Read-only Simurgh advisory registry tool was executed before provider composition.",
 ) -> ProviderToolCompositionResult:
     """Optionally compose a natural final answer from read-only tool evidence.
@@ -2230,6 +2259,7 @@ def compose_read_only_tool_turn_with_provider(
             ),
             context_documents=provider_context_documents,
             language_profile=language_profile or detect_language_profile(operator_message),
+            delta_callback=delta_callback,
         )
     except AgentRuntimeError as exc:
         return ProviderToolCompositionResult(
@@ -2495,6 +2525,7 @@ def create_assistant_turn(
     metadata: Mapping[str, object] | None = None,
     force_provider: str | None = None,
     allow_provider_for_local_tools: bool = False,
+    delta_callback: AssistantDeltaCallback | None = None,
 ) -> AssistantTurnRecord:
     """Create one assistant turn without command or mutation execution."""
 
@@ -2593,6 +2624,7 @@ def create_assistant_turn(
                     ),
                     context_documents=context_documents,
                     language_profile=language_profile,
+                    delta_callback=delta_callback,
                 )
             except AgentRuntimeError as exc:
                 if not _is_provider_runtime_recoverable(exc):
@@ -2639,6 +2671,7 @@ def create_assistant_turn(
                     ),
                     context_documents=followup_context_documents,
                     language_profile=language_profile,
+                    delta_callback=delta_callback,
                 )
             except AgentRuntimeError as exc:
                 if not _is_provider_runtime_recoverable(exc):
@@ -2738,6 +2771,7 @@ def create_assistant_turn(
                 response_mode=str(tool_response_mode or query_plan.response_mode),
                 evidence_metadata=raw_evidence if isinstance(raw_evidence, Mapping) else None,
                 language_profile=language_profile,
+                delta_callback=delta_callback,
             )
             turn = composition.turn
             context_documents = composition.context_documents
@@ -2767,6 +2801,7 @@ def create_assistant_turn(
                     context_documents=context_documents,
                     language_profile=language_profile,
                     enable_web_search=web_search_enabled_for_turn,
+                    delta_callback=delta_callback,
                 )
             except AgentRuntimeError as exc:
                 if not _is_provider_runtime_recoverable(exc):

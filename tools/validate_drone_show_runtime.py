@@ -51,7 +51,11 @@ from src.gcs_api_routes import (
     GCS_SHOW_IMPORT_ROUTE,
     GCS_SHOW_INFO_ROUTE,
 )
-from tools.runtime_validation_support import build_sitl_reset_command, write_json_report
+from tools.runtime_validation_support import (
+    build_sitl_reset_command,
+    fetch_and_require_sitl_runtime,
+    write_json_report,
+)
 
 
 SHOW_MISSION = 1
@@ -697,6 +701,7 @@ def main() -> int:
 
     try:
         wait_api_ready(client)
+        results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
         show_info = ensure_imported_show(client, args.import_source_dir, args.expected_show_count)
         custom_show = ensure_custom_show_ready(client)
         wait_for_show_launch_ready(client, args.drone_ids, timeout=120)

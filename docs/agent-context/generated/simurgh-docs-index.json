@@ -1,5 +1,5 @@
 {
-  "chunk_count": 810,
+  "chunk_count": 811,
   "chunks": [
     {
       "audience": "operator",
@@ -370,7 +370,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "14c748b482f04b52998bf81ff4ff8052604664c941022643c31da545151f3820",
+      "content_hash": "e064fdaa299119343eceba8deab2abba315578df9eba4e7c73530949fae5d3ee",
       "heading": "Provider Smoke",
       "id": "simurgh.operator_guide:007-01-provider-smoke",
       "links": [],
@@ -384,13 +384,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Provider Smoke\n\nThe manual provider smoke suite is:\n\n```bash\npython3 tools/run_simurgh_provider_smoke.py\n```\n\nDry mode is the default and does not call OpenAI. It validates the configured\nscenario prompts, builds an advisory OpenAI Responses request, and checks that\nthe request preserves `store=false`, `tools=[]`, `tool_choice=\"none\"`,\n`parallel_tool_calls=false`, no conversation state, and `mds_execution=none`.\n\nLive smoke requires an absolute restricted key file:\n\n```bash\npython3 tools/run_simurgh_provider_smoke.py --live --api-key-file /etc/mds/secrets/openai_api_key\n```\n\nUse live smoke only from a trusted validation host or maintenance window after\noffline tests pass. The smoke report omits raw response content by default and\nprints a content hash plus length. Keep\n`MDS_AGENT_ACTION_CIRCUIT_BREAKER=true` and\n`MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. MCP does not need to be enabled\nfor provider smoke; if it is enabled for a separate MCP validation, keep\n`MDS_MCP_REQUIRE_AUTH=true`. Do not change `MDS_MODE` for provider smoke; a\nproduction GCS can remain `MDS_MODE=real` while the Simurgh assistant path stays\nadvisory-only.",
+      "text": "## Provider Smoke\n\nThe manual provider smoke suite is:\n\n```bash\npython3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl\n```\n\nDry mode is the default and does not call OpenAI. It validates the configured\nscenario prompts, builds an advisory OpenAI Responses request, and checks that\nthe request preserves `store=false`, `tools=[]`, `tool_choice=\"none\"`,\n`parallel_tool_calls=false`, no conversation state, and `mds_execution=none`.\n\nLive smoke requires an absolute restricted key file:\n\n```bash\npython3 tools/run_simurgh_provider_smoke.py \\\n --expected-runtime-mode real \\\n --live \\\n --api-key-file /etc/mds/secrets/openai_api_key\n```\n\nUse live smoke only from a trusted validation host or maintenance window after\noffline tests pass. The smoke report omits raw response content by default and\nprints a content hash plus length. Keep\n`MDS_AGENT_ACTION_CIRCUIT_BREAKER=true` and\n`MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. MCP does not need to be enabled\nfor provider smoke; if it is enabled for a separate MCP validation, keep\n`MDS_MCP_REQUIRE_AUTH=true`. Do not change `MDS_MODE` for provider smoke; a\nproduction GCS can remain `MDS_MODE=real` while the Simurgh assistant path stays\nadvisory-only. Select the observed mode with `--expected-runtime-mode`; the\nsmoke fails on a mismatch and also verifies the circuit breaker and\nalways-confirm policy.",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "d8321c167c0e7d774f3efd69f243455766223bb823eaa20a463e8b3890b3b449",
+      "content_hash": "18fdd5e4846652e33a7bcdaed2555f517efea491500c9115496bbeee41e07cde",
       "heading": "MCP Smoke Client",
       "id": "simurgh.operator_guide:008-01-mcp-smoke-client",
       "links": [
@@ -406,7 +406,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,\n`resources/list`, `resources/read`, `mds.operator.question.answer`,\n`mds.docs.search`, `mds.docs.chunk.read`, and\n`mds.simurgh.tool_candidates.read`. It also fails if the tool menu exposes\nobvious raw/action/admin tool names, verifies that the live registry reports\nzero unpromoted generator-eligible read-only candidates, and verifies that a\ndirect action request is blocked or dry-run only. Use it before debugging a\nspecific external client, and never put bearer tokens in committed MCP client\nconfiguration.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
+      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --expected-runtime-mode real \\\n --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,\n`resources/list`, `resources/read`, `mds.operator.question.answer`,\n`mds.docs.search`, `mds.docs.chunk.read`, and\n`mds.simurgh.tool_candidates.read`. It also verifies protected-resource auth\nmetadata, the expected MCP protocol version, canonical `gcs_mode` /\n`gcs_mode_source`, structured read-only tool-registry posture, zero unpromoted\ngenerator-eligible read-only candidates, and a blocked or dry-run-only direct\naction request. Use it before debugging a specific external client, and never\nput bearer tokens in committed MCP client configuration. Use\n`--expected-runtime-mode sitl` for an isolated simulator deployment.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
       "title": "Simurgh operator guide"
     },
     {
@@ -1032,7 +1032,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "874bb3ed22884e95e6bc44a6c9c8e28065564814755e97305fd79c548cef58a0",
+      "content_hash": "b45a79e36eab0565c4f5b4a859692059d57b39dc2c6b2b1a1ccbdc8f8e2d20c7",
       "heading": "Scripted Smoke Test",
       "id": "simurgh.mcp_client_recipes:005-01-scripted-smoke-test",
       "links": [],
@@ -1047,7 +1047,28 @@
         "clients",
         "integrations"
       ],
-      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- `initialize` succeeds with the expected MCP protocol version;\n- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable and `mds://simurgh/status` can be read;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance;\n- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;\n- `mds.simurgh.tool_candidates.read` reports zero unpromoted\n generator-eligible read-only routes, proving the live registry and OpenAPI\n candidate inventory are still in sync;\n- a direct operational request such as launching the show is blocked or dry-run\n only.\n\nThis is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
+      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --expected-runtime-mode real \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url http://127.0.0.1:5030 \\\n --expected-runtime-mode sitl\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- the endpoint's OAuth protected-resource metadata says MCP auth is required,\n bearer header auth is supported, scopes are advertised, and the boundary is\n GCS-only;\n- `initialize` succeeds with the expected MCP protocol version;\n- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable, `mds://simurgh/status` can be read, and the\n status includes canonical `gcs_mode` and `gcs_mode_source` fields;\n- the canonical GCS mode matches `--expected-runtime-mode`, the circuit breaker\n is on, always-confirm is on, and actions are reported blocked;\n- every listed MCP tool is also present in `mds://simurgh/tool-registry` as\n `boundary=gcs`, `read_only=true`, `destructive=false`, and not excluded;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance;\n- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;\n- `mds.simurgh.tool_candidates.read` reports zero unpromoted\n generator-eligible read-only routes, proving the live registry and OpenAPI\n candidate inventory are still in sync;\n- a direct operational request such as launching the show is blocked or dry-run\n only.",
+      "title": "Simurgh MCP client recipes"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
+      "content_hash": "df7fa11f82d22e685525821c61105f42cae7f4878fd94614b3ed9d08c317a631",
+      "heading": "Scripted Smoke Test",
+      "id": "simurgh.mcp_client_recipes:005-02-scripted-smoke-test",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-mcp-clients.md",
+      "resource_id": "simurgh.mcp_client_recipes",
+      "route_hint": "/simurgh",
+      "summary": "External MCP client setup guidance for n8n, Claude, VS Code, and bridge modes.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "clients",
+        "integrations"
+      ],
+      "text": "This is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1331,7 +1352,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
-      "content_hash": "f3df0b334dcb935215cc0e64a6d5aa1ab116ce527cd2cdfd648696be6b071dae",
+      "content_hash": "05a8044ec04b4a9c01380cb7cb537d2b3222de082a40a87c2ce48b2875841960",
       "heading": "Validation Gate",
       "id": "simurgh.readonly_checkpoint:005-01-validation-gate",
       "links": [],
@@ -1347,7 +1368,7 @@
         "safety",
         "actions"
       ],
-      "text": "## Validation Gate\n\nRun these checks before PM/funder handoff, MCP client onboarding, or any\naction-enabled planning slice:\n\n```bash\npython3 tools/generate_mds_env_reference.py --check\npython3 tools/generate_simurgh_tool_candidates.py --check\npython3 tools/generate_simurgh_docs_index.py --check\npytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_env_registry.py tests/test_simurgh_dashboard_prompt_evals.py tests/test_simurgh_retrieval_quality.py\npython3 tools/run_simurgh_dashboard_prompt_evals.py\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --json\n```\n\nThe smoke token must be temporary, revoked after the run, and never committed or\nincluded in reports.",
+      "text": "## Validation Gate\n\nRun these checks before PM/funder handoff, MCP client onboarding, or any\naction-enabled planning slice:\n\n```bash\npython3 tools/generate_mds_env_reference.py --check\npython3 tools/generate_simurgh_tool_candidates.py --check\npython3 tools/generate_simurgh_docs_index.py --check\npytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_env_registry.py tests/test_simurgh_dashboard_prompt_evals.py tests/test_simurgh_retrieval_quality.py\npython3 tools/run_simurgh_dashboard_prompt_evals.py\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --expected-runtime-mode sitl --json\n```\n\nThe smoke token must be temporary, revoked after the run, and never committed or\nincluded in reports.",
       "title": "Simurgh read-only checkpoint"
     },
     {
@@ -16228,7 +16249,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "e018063c8e1d3da6ebcf83dd65d8ecedf48782f56a684414018cdfafa3c2a233",
+      "content_hash": "8e2d36d66fe0da24e5d56ccd61df7308427bbbb61b8fb23ae47812b544f0bd75",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16244,8 +16265,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "chunk_count": 13,
-      "content_hash": "0e0e7440b25708096e246301b753312888f7fdc4d5f1dcb4e4f9d38700fb6e5f",
+      "chunk_count": 14,
+      "content_hash": "4a590238e97946ba38b06e9085dc438f25685e89402a1a455663156978ec5282",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -16263,7 +16284,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
       "chunk_count": 9,
-      "content_hash": "2ad0d287bcbbf39c34ce707a892fb87d17b0d943172a7a2564ac4173cda927b1",
+      "content_hash": "48384044fd18a9a91f4cd06c0ba3ac18a3bc5207d322d2b671e5548e595d2b69",
       "id": "simurgh.readonly_checkpoint",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-readonly-checkpoint.md",

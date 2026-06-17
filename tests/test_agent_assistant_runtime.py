@@ -8,6 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 import yaml
 
@@ -179,6 +180,57 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     assert "simurgh.safety_policy" in str(captured["input"])
     assert "No tool execution" in record.turn.safety_notes[0]
     assert audit.list_events()[0].metadata["provider"] == "openai"
+
+
+def test_openai_assistant_stream_emits_typed_text_deltas_and_returns_completed_response(
+    monkeypatch,
+    tmp_path,
+):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    adapter = OpenAIResponsesAssistantAdapter(config=load_default_assistant_config())
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content.decode("utf-8")))
+        body = "\n\n".join(
+            [
+                'event: response.created\ndata: {"type":"response.created","response":{"id":"resp-stream"}}',
+                'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Live "}',
+                'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"answer."}',
+                (
+                    'event: response.completed\ndata: {"type":"response.completed","response":'
+                    '{"id":"resp-stream","status":"completed","output":[{"type":"message","content":'
+                    '[{"type":"output_text","text":"Live answer.","annotations":[]}]}]}}'
+                ),
+                "",
+            ]
+        )
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            text=body,
+        )
+
+    transport = httpx.MockTransport(handler)
+    original_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: original_client(transport=transport, **kwargs),
+    )
+    deltas: list[str] = []
+
+    turn = adapter.generate(
+        message="Give me a concise answer.",
+        context_documents=(),
+        delta_callback=deltas.append,
+    )
+
+    assert captured["stream"] is True
+    assert deltas == ["Live ", "answer."]
+    assert turn.content == "Live answer."
 
 
 def test_openai_response_parser_accepts_reasoning_items(monkeypatch, tmp_path):
@@ -382,7 +434,7 @@ def test_openai_assistant_turn_uses_web_search_for_public_px4_release_lookup(mon
         sessions=AgentSessionStore(),
         audit=InMemoryAuditSink(),
         actor="operator",
-        message="what is the latest PX4 stable release version?",
+        message="What is the latest stable PX4 Autopilot release? Verify it online and cite the source.",
     )
 
     assert record.turn.provider == "openai"

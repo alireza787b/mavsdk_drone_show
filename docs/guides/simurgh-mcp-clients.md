@@ -102,6 +102,7 @@ printing bearer tokens.
 python3 tools/simurgh_mcp_smoke_client.py \
   --base-url https://<gcs-host> \
   --token-file /path/to/agent-token \
+  --expected-runtime-mode real \
   --json
 ```
 
@@ -109,17 +110,27 @@ For a local validation host, a secret environment variable is also supported:
 
 ```bash
 MDS_MCP_BEARER_TOKEN="..." \
-python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030
+python3 tools/simurgh_mcp_smoke_client.py \
+  --base-url http://127.0.0.1:5030 \
+  --expected-runtime-mode sitl
 ```
 
 Do not commit tokens, paste tokens into prompts, or store tokens in public MCP
 client config files. The smoke validates:
 
+- the endpoint's OAuth protected-resource metadata says MCP auth is required,
+  bearer header auth is supported, scopes are advertised, and the boundary is
+  GCS-only;
 - `initialize` succeeds with the expected MCP protocol version;
 - `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;
 - `tools/list` exposes the expected read-only tools;
 - obvious raw/action/admin tool names are absent;
-- `resources/list` is reachable and `mds://simurgh/status` can be read;
+- `resources/list` is reachable, `mds://simurgh/status` can be read, and the
+  status includes canonical `gcs_mode` and `gcs_mode_source` fields;
+- the canonical GCS mode matches `--expected-runtime-mode`, the circuit breaker
+  is on, always-confirm is on, and actions are reported blocked;
+- every listed MCP tool is also present in `mds://simurgh/tool-registry` as
+  `boundary=gcs`, `read_only=true`, `destructive=false`, and not excluded;
 - `mds.operator.question.answer` can answer a read-only operator question;
 - `mds.docs.search` can retrieve public MDS guidance;
 - `mds.docs.chunk.read` can read the selected bounded public-docs chunk;

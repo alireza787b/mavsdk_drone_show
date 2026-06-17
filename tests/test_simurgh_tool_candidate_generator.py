@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
+import sys
 
 import yaml
 from pathlib import Path
@@ -16,6 +19,32 @@ def _load_generator():
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
+
+def test_live_openapi_candidate_generation_is_hash_seed_deterministic(tmp_path):
+    outputs = []
+    for seed in ("1", "2"):
+        output = tmp_path / f"candidates-{seed}.yaml"
+        env = os.environ.copy()
+        env["PYTHONHASHSEED"] = seed
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(GENERATOR_PATH),
+                "--output",
+                str(output),
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr + result.stdout
+        outputs.append(output.read_text(encoding="utf-8"))
+
+    assert outputs[0] == outputs[1]
 
 
 def _schema() -> dict:

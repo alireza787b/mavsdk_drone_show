@@ -687,14 +687,13 @@ def _looks_like_docs_or_workflow_prompt(text: str) -> bool:
 
 
 def _looks_like_typed_detail_prompt(text: str) -> bool:
-    return _has_any(
+    return bool(re.search(r"\bone\b", text)) or _has_any(
         text,
         (
             "detail",
             "details",
             "specific",
             "single",
-            "one ",
             " by id",
             " for id",
             " with id",

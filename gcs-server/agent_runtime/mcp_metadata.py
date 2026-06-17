@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from src.settings.runtime import resolve_runtime_mode
+
 from .audit import InMemoryAuditSink
 from .assistant import load_default_assistant_config
 from .context import AgentContextIndex, load_default_context_index
@@ -395,15 +397,26 @@ class SimurghMcpResourceProvider:
         registry = load_default_tool_registry()
         context_index = load_default_context_index()
         assistant_config = load_default_assistant_config()
+        gcs_runtime = resolve_runtime_mode()
         tools = registry.list_tools()
+        warnings: list[str] = []
+        if policy.mode != gcs_runtime.mode:
+            warnings.append(
+                "Simurgh policy mode did not resolve to canonical MDS_MODE; verify runtime configuration before testing."
+            )
+        if gcs_runtime.mode == "real" and not policy.action_circuit_breaker_enabled:
+            warnings.append("GCS is in real mode and the Simurgh action circuit breaker is off.")
         return {
             "agent_enabled": policy.agent_enabled,
             "mcp_enabled": policy.mcp_enabled,
+            "gcs_mode": gcs_runtime.mode,
+            "gcs_mode_source": gcs_runtime.source,
             "mode": policy.mode,
             "action_circuit_breaker_enabled": policy.action_circuit_breaker_enabled,
             "always_confirm_before_action": policy.always_confirm_before_action,
             "actions_blocked": policy.action_circuit_breaker_enabled,
             "action_policy_source": "circuit_breaker_and_mds_mode",
+            "warnings": warnings,
             "tool_registry_version": registry.version,
             "tool_count": len(tools),
             "allowed_tool_count": len([tool for tool in tools if tool.exposure.value == "allow"]),

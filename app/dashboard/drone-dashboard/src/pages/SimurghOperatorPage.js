@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MarkdownIt from 'markdown-it';
 import {
   FaChevronDown,
   FaChevronRight,
@@ -46,8 +47,7 @@ const STARTERS = [
   'Is there any drone connected?',
   'What formation swarm is defined right now?',
 ];
-const INLINE_MARKDOWN_PATTERN = /(\[([^\]\n]+)\]\(([^)\s]+)\)|`([^`\n]+)`|\*\*([^*\n]+)\*\*)/g;
-const AUTO_LINK_PATTERN = /(https:\/\/[^\s)\]]+|docs\/[A-Za-z0-9_./-]+\.md|\/[A-Za-z0-9][A-Za-z0-9/_{}.-]*)/g;
+const REFERENCE_LINK_PATTERN = /(https:\/\/[^\s)\]]+|docs\/[A-Za-z0-9_./-]+\.md|\/[A-Za-z0-9][A-Za-z0-9/_{}.-]*[.,;:]?)/g;
 const LINKABLE_DASHBOARD_ROUTES = Object.freeze([
   '/environments',
   '/fleet-enrollment',
@@ -78,6 +78,13 @@ const DOC_PATH_LINKS = Object.freeze({
   'docs/guides/simurgh-mcp-clients.md': '/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown',
   'docs/reference/mds-environment-registry.generated.md': '/api/v1/simurgh/context/mds.environment_registry/markdown',
 });
+const MARKDOWN_PARSER = new MarkdownIt({
+  html: false,
+  linkify: false,
+  breaks: false,
+  typographer: false,
+});
+MARKDOWN_PARSER.validateLink = () => true;
 
 const DEFAULT_SETTINGS = Object.freeze({
   agent_enabled: true,
@@ -111,11 +118,55 @@ function normalizeError(error, fallback = 'Simurgh request failed.') {
     || fallback;
 }
 
-function readStoredConversations() {
+function isRecoverableBackendSessionError(error) {
+  const detail = normalizeError(error, '').toLowerCase();
+  return (
+    detail.includes('unknown simurgh session')
+    || detail.includes('unknown session id')
+    || detail.includes('assistant session is closed')
+  );
+}
+
+function runtimeProviderLabel(status) {
+  if (!status) {
+    return '';
+  }
+  const provider = String(status.provider || status.assistant_provider || 'mock').trim() || 'mock';
+  const model = provider === 'openai'
+    ? String(status.model || status.assistant_model || status.openai_model || DEFAULT_MODEL).trim()
+    : String(status.model || status.assistant_model || 'mock-local').trim();
+  return `${provider} / ${model || (provider === 'openai' ? DEFAULT_MODEL : 'mock-local')}`;
+}
+
+function recoveredSessionMetadataFromMessages(messages = []) {
+  const previousAssistant = [...(Array.isArray(messages) ? messages : [])]
+    .reverse()
+    .find((message) => message?.role === 'assistant' && message.trace && typeof message.trace === 'object');
+  if (!previousAssistant) {
+    return {};
+  }
+  const trace = previousAssistant.trace || {};
+  const metadata = {};
+  const domain = compactTraceValue(trace?.query?.domain);
+  const intent = compactTraceValue(trace?.tool?.intent || trace?.query?.read_only_plan?.intent);
+  const responseMode = compactTraceValue(trace?.query?.response_mode);
+  if (domain) {
+    metadata.last_domain = domain;
+  }
+  if (intent) {
+    metadata.last_intent = intent;
+  }
+  if (responseMode) {
+    metadata.last_response_mode = responseMode;
+  }
+  return metadata;
+}
+
+function readStoredChatState() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
     const conversations = Array.isArray(parsed.conversations) ? parsed.conversations : [];
-    return conversations
+    const normalizedConversations = conversations
       .filter((conversation) => conversation && conversation.id)
       .map((conversation) => ({
         id: String(conversation.id),
@@ -137,12 +188,16 @@ function readStoredConversations() {
           : [],
       }))
       .slice(0, MAX_CONVERSATIONS);
+    const activeConversationId = normalizedConversations.some((conversation) => conversation.id === parsed.activeConversationId)
+      ? String(parsed.activeConversationId)
+      : (normalizedConversations[0]?.id || '');
+    return { conversations: normalizedConversations, activeConversationId };
   } catch (error) {
-    return [];
+    return { conversations: [], activeConversationId: '' };
   }
 }
 
-function writeStoredConversations(conversations) {
+function writeStoredConversations(conversations, activeConversationId = '') {
   try {
     const persisted = conversations.slice(0, MAX_CONVERSATIONS).map((conversation) => ({
       ...conversation,
@@ -163,9 +218,12 @@ function writeStoredConversations(conversations) {
             : [],
         })),
     }));
+    const selectedConversationId = persisted.some((conversation) => conversation.id === activeConversationId)
+      ? activeConversationId
+      : (persisted[0]?.id || '');
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ schema: 2, conversations: persisted })
+      JSON.stringify({ schema: 2, activeConversationId: selectedConversationId, conversations: persisted })
     );
   } catch (error) {
     // Local chat history is a convenience cache only.
@@ -967,18 +1025,20 @@ function renderPlainTextSegment(text, keyPrefix) {
   if (!value) {
     return [];
   }
-
   const nodes = [];
   let lastIndex = 0;
-  AUTO_LINK_PATTERN.lastIndex = 0;
-  value.replace(AUTO_LINK_PATTERN, (match, token, offset) => {
+  REFERENCE_LINK_PATTERN.lastIndex = 0;
+  value.replace(REFERENCE_LINK_PATTERN, (match, token, offset) => {
     if (offset > lastIndex) {
       nodes.push(value.slice(lastIndex, offset));
     }
     const { href, label, trailing } = hrefForAutoLinkToken(token || match);
-    const key = `${keyPrefix}-autolink-${offset}`;
     if (label && isSafeMarkdownHref(href)) {
-      nodes.push(<SafeMarkdownLink key={key} href={href}>{label}</SafeMarkdownLink>);
+      nodes.push(
+        <SafeMarkdownLink key={`${keyPrefix}-autolink-${offset}`} href={href}>
+          {label}
+        </SafeMarkdownLink>
+      );
     } else {
       nodes.push(label || match);
     }
@@ -988,45 +1048,10 @@ function renderPlainTextSegment(text, keyPrefix) {
     lastIndex = offset + match.length;
     return match;
   });
-
   if (lastIndex < value.length) {
     nodes.push(value.slice(lastIndex));
   }
   return nodes.length ? nodes : [value];
-}
-
-function renderInlineMarkdown(text, keyPrefix) {
-  const value = String(text || '');
-  const nodes = [];
-  let lastIndex = 0;
-
-  value.replace(
-    INLINE_MARKDOWN_PATTERN,
-    (match, _token, linkLabel, href, codeValue, strongValue, offset) => {
-      if (offset > lastIndex) {
-        nodes.push(...renderPlainTextSegment(value.slice(lastIndex, offset), `${keyPrefix}-text-${lastIndex}`));
-      }
-      const key = `${keyPrefix}-${offset}`;
-      if (linkLabel && href) {
-        nodes.push(
-          <SafeMarkdownLink key={key} href={href}>
-            {linkLabel}
-          </SafeMarkdownLink>
-        );
-      } else if (codeValue) {
-        nodes.push(<code key={key}>{codeValue}</code>);
-      } else if (strongValue) {
-        nodes.push(<strong key={key}>{strongValue}</strong>);
-      }
-      lastIndex = offset + match.length;
-      return match;
-    }
-  );
-
-  if (lastIndex < value.length) {
-    nodes.push(...renderPlainTextSegment(value.slice(lastIndex), `${keyPrefix}-text-${lastIndex}`));
-  }
-  return nodes.length ? nodes : value;
 }
 
 async function writeClipboardText(value) {
@@ -1086,16 +1111,6 @@ function parseTableCells(line, { dropEmpty = false } = {}) {
   return dropEmpty ? cells.filter((cell) => cell.length > 0) : cells;
 }
 
-function isTableRow(line) {
-  const value = String(line || '').trim();
-  return value.startsWith('|') && value.endsWith('|') && parseTableCells(value).length >= 2;
-}
-
-function isTableDivider(line) {
-  const cells = parseTableCells(line);
-  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
-}
-
 function canonicalTableRow(cells) {
   return `| ${cells.map((cell) => String(cell || '').trim()).join(' | ')} |`;
 }
@@ -1136,192 +1151,165 @@ function normalizeMarkdownContent(content) {
     .join('\n');
 }
 
-function getFenceLanguage(line) {
-  const language = String(line || '').trim().replace(/^```/, '').trim().split(/\s+/)[0] || '';
-  return language.replace(/[^A-Za-z0-9_+.#-]/g, '').slice(0, 32);
-}
-
-function isBlockBoundary(lines, index) {
-  const line = lines[index] || '';
-  const trimmed = line.trim();
-  if (!trimmed) {
-    return true;
-  }
-  if (trimmed.startsWith('```') || /^#{1,4}\s+/.test(trimmed) || /^>\s+/.test(trimmed)) {
-    return true;
-  }
-  if (/^\s*[-*]\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line)) {
-    return true;
-  }
-  return isTableRow(trimmed) && isTableDivider(lines[index + 1] || '');
-}
-
-function parseMarkdownBlocks(content) {
-  const lines = normalizeMarkdownContent(content).split('\n');
-  const blocks = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    if (!trimmed) {
-      index += 1;
-      continue;
-    }
-
-    if (trimmed.startsWith('```')) {
-      const codeLines = [];
-      const language = getFenceLanguage(trimmed);
-      index += 1;
-      while (index < lines.length && !lines[index].trim().startsWith('```')) {
-        codeLines.push(lines[index]);
-        index += 1;
-      }
-      if (index < lines.length) {
-        index += 1;
-      }
-      blocks.push({ type: 'code', content: codeLines.join('\n'), language });
-      continue;
-    }
-
-    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) {
-      blocks.push({ type: 'heading', depth: heading[1].length, content: heading[2].trim() });
-      index += 1;
-      continue;
-    }
-
-    if (isTableRow(trimmed) && isTableDivider(lines[index + 1] || '')) {
-      const headers = parseTableCells(trimmed);
-      index += 2;
-      const rows = [];
-      while (index < lines.length && isTableRow(lines[index])) {
-        const cells = parseTableCells(lines[index]);
-        rows.push(headers.map((_, cellIndex) => cells[cellIndex] || ''));
-        index += 1;
-      }
-      blocks.push({ type: 'table', headers, rows });
-      continue;
-    }
-
-    const quote = trimmed.match(/^>\s+(.+)$/);
-    if (quote) {
-      const quoteLines = [];
-      while (index < lines.length) {
-        const quoteMatch = lines[index].trim().match(/^>\s?(.*)$/);
-        if (!quoteMatch) {
-          break;
-        }
-        quoteLines.push(quoteMatch[1].trim());
-        index += 1;
-      }
-      blocks.push({ type: 'quote', content: quoteLines.join(' ') });
-      continue;
-    }
-
-    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
-    if (unordered || ordered) {
-      const type = unordered ? 'ul' : 'ol';
-      const items = [];
-      while (index < lines.length) {
-        const itemMatch = type === 'ul'
-          ? lines[index].match(/^\s*[-*]\s+(.+)$/)
-          : lines[index].match(/^\s*\d+[.)]\s+(.+)$/);
-        if (!itemMatch) {
-          break;
-        }
-        items.push(itemMatch[1].trim());
-        index += 1;
-      }
-      blocks.push({ type, items });
-      continue;
-    }
-
-    const paragraphLines = [trimmed];
-    index += 1;
-    while (index < lines.length && !isBlockBoundary(lines, index)) {
-      paragraphLines.push(lines[index].trim());
-      index += 1;
-    }
-    blocks.push({ type: 'p', content: paragraphLines.join(' ') });
-  }
-
-  return blocks;
-}
-
-function CodeBlock({ content, language, blockId }) {
+function CodeBlock({ content, language }) {
+  const copyContent = String(content || '').replace(/\n$/, '');
   return (
     <div className="simurgh-chat__code-block">
       <div className="simurgh-chat__code-header">
         <span>{language || 'code'}</span>
-        <CopyButton text={content} label="Copy code snippet" className="simurgh-chat__copy-button--code" />
+        <CopyButton text={copyContent} label="Copy code snippet" className="simurgh-chat__copy-button--code" />
       </div>
       <pre><code className={language ? `language-${language}` : undefined}>{content}</code></pre>
     </div>
   );
 }
 
-function MarkdownTable({ headers, rows, blockId }) {
+function MarkdownTable({ children }) {
   return (
     <div className="simurgh-chat__table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {headers.map((header, headerIndex) => (
-              <th key={`${blockId}-header-${headerIndex}`}>{renderInlineMarkdown(header, `${blockId}-header-${headerIndex}`)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={`${blockId}-row-${rowIndex}`}>
-              {headers.map((_, cellIndex) => (
-                <td key={`${blockId}-cell-${rowIndex}-${cellIndex}`}>
-                  {renderInlineMarkdown(row[cellIndex] || '', `${blockId}-cell-${rowIndex}-${cellIndex}`)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <table>{children}</table>
     </div>
   );
 }
 
+function markdownTokenTree(tokens) {
+  const root = { token: { type: 'root' }, children: [] };
+  const stack = [root];
+  (tokens || []).forEach((token) => {
+    if (token.nesting === 1) {
+      const node = { token, children: [] };
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    } else if (token.nesting === -1) {
+      if (stack.length > 1) {
+        stack.pop();
+      }
+    } else if (token.type === 'inline' && Array.isArray(token.children)) {
+      stack[stack.length - 1].children.push({
+        token,
+        children: markdownTokenTree(token.children),
+      });
+    } else {
+      stack[stack.length - 1].children.push({ token, children: [] });
+    }
+  });
+  return root.children;
+}
+
+function markdownAttr(token, name) {
+  const attrs = Array.isArray(token?.attrs) ? token.attrs : [];
+  const pair = attrs.find((item) => Array.isArray(item) && item[0] === name);
+  return pair ? String(pair[1] || '') : '';
+}
+
+function markdownPlainText(nodes = []) {
+  return (nodes || [])
+    .map((node) => {
+      const token = node?.token || {};
+      if (token.content) {
+        return String(token.content);
+      }
+      if (token.type === 'softbreak' || token.type === 'hardbreak') {
+        return ' ';
+      }
+      if (Array.isArray(node?.children) && node.children.length) {
+        return markdownPlainText(node.children);
+      }
+      return '';
+    })
+    .join('');
+}
+
+function renderMarkdownChildren(nodes, keyPrefix) {
+  return (nodes || []).map((node, index) => renderMarkdownNode(node, `${keyPrefix}-${index}`));
+}
+
+function renderInlineMarkdownChildren(nodes, keyPrefix) {
+  return (nodes || []).flatMap((node, index) => {
+    const token = node.token || {};
+    if (token.type === 'text') {
+      return renderPlainTextSegment(token.content || '', `${keyPrefix}-text-${index}`);
+    }
+    return [renderMarkdownNode(node, `${keyPrefix}-${index}`)];
+  });
+}
+
+function renderMarkdownNode(node, key) {
+  const token = node?.token || {};
+  const children = node?.children || [];
+  switch (token.type) {
+    case 'text':
+      return renderPlainTextSegment(token.content || '', `${key}-text`);
+    case 'softbreak':
+    case 'hardbreak':
+      return <br key={key} />;
+    case 'code_inline':
+      return <code key={key}>{token.content || ''}</code>;
+    case 'fence':
+    case 'code_block': {
+      const language = String(token.info || '').trim().split(/\s+/)[0] || '';
+      return <CodeBlock key={key} content={token.content || ''} language={language.replace(/[^A-Za-z0-9_+.#-]/g, '').slice(0, 32)} />;
+    }
+    case 'inline':
+      return <React.Fragment key={key}>{renderInlineMarkdownChildren(children, key)}</React.Fragment>;
+    case 'paragraph_open':
+      return <p key={key}>{renderMarkdownChildren(children, key)}</p>;
+    case 'heading_open': {
+      const depth = Number(String(token.tag || '').replace(/\D/g, '')) || 3;
+      const HeadingTag = depth <= 2 ? 'h2' : depth === 3 ? 'h3' : 'h4';
+      return <HeadingTag key={key}>{renderMarkdownChildren(children, key)}</HeadingTag>;
+    }
+    case 'bullet_list_open':
+      return <ul key={key}>{renderMarkdownChildren(children, key)}</ul>;
+    case 'ordered_list_open': {
+      const start = markdownAttr(token, 'start');
+      return <ol key={key} start={start ? Number(start) : undefined}>{renderMarkdownChildren(children, key)}</ol>;
+    }
+    case 'list_item_open':
+      return <li key={key}>{renderMarkdownChildren(children, key)}</li>;
+    case 'blockquote_open':
+      return <blockquote key={key}>{renderMarkdownChildren(children, key)}</blockquote>;
+    case 'table_open':
+      return <MarkdownTable key={key}>{renderMarkdownChildren(children, key)}</MarkdownTable>;
+    case 'thead_open':
+      return <thead key={key}>{renderMarkdownChildren(children, key)}</thead>;
+    case 'tbody_open':
+      return <tbody key={key}>{renderMarkdownChildren(children, key)}</tbody>;
+    case 'tr_open':
+      return <tr key={key}>{renderMarkdownChildren(children, key)}</tr>;
+    case 'th_open':
+      return <th key={key}>{renderMarkdownChildren(children, key)}</th>;
+    case 'td_open':
+      return <td key={key}>{renderMarkdownChildren(children, key)}</td>;
+    case 'strong_open':
+      return <strong key={key}>{renderMarkdownChildren(children, key)}</strong>;
+    case 'em_open':
+      return <em key={key}>{renderMarkdownChildren(children, key)}</em>;
+    case 's_open':
+      return <s key={key}>{renderMarkdownChildren(children, key)}</s>;
+    case 'link_open': {
+      const href = markdownAttr(token, 'href');
+      const label = markdownPlainText(children);
+      return <SafeMarkdownLink key={key} href={href}>{label}</SafeMarkdownLink>;
+    }
+    case 'hr':
+      return <hr key={key} />;
+    default:
+      if (children.length) {
+        return <React.Fragment key={key}>{renderMarkdownChildren(children, key)}</React.Fragment>;
+      }
+      if (token.content) {
+        return renderPlainTextSegment(token.content, `${key}-content`);
+      }
+      return null;
+  }
+}
+
 function MessageContent({ content }) {
-  const blocks = parseMarkdownBlocks(content);
+  const nodes = markdownTokenTree(MARKDOWN_PARSER.parse(normalizeMarkdownContent(content), {}));
   return (
     <div className="simurgh-chat__markdown">
-      {blocks.map((block, index) => {
-        const blockId = `block-${index}`;
-        if (block.type === 'heading') {
-          const HeadingTag = block.depth <= 2 ? 'h2' : block.depth === 3 ? 'h3' : 'h4';
-          return <HeadingTag key={`heading-${index}`}>{renderInlineMarkdown(block.content, `heading-${index}`)}</HeadingTag>;
-        }
-        if (block.type === 'code') {
-          return <CodeBlock key={`code-${index}`} content={block.content} language={block.language} blockId={blockId} />;
-        }
-        if (block.type === 'table') {
-          return <MarkdownTable key={`table-${index}`} headers={block.headers} rows={block.rows} blockId={blockId} />;
-        }
-        if (block.type === 'quote') {
-          return <blockquote key={`quote-${index}`}>{renderInlineMarkdown(block.content, `quote-${index}`)}</blockquote>;
-        }
-        if (block.type === 'ul' || block.type === 'ol') {
-          const ListTag = block.type;
-          return (
-            <ListTag key={`list-${index}`}>
-              {block.items.map((item, itemIndex) => (
-                <li key={`item-${index}-${itemIndex}`}>
-                  {renderInlineMarkdown(item, `item-${index}-${itemIndex}`)}
-                </li>
-              ))}
-            </ListTag>
-          );
-        }
-        return <p key={`p-${index}`}>{renderInlineMarkdown(block.content, `p-${index}`)}</p>;
-      })}
+      {renderMarkdownChildren(nodes, 'md')}
     </div>
   );
 }
@@ -1482,11 +1470,13 @@ export default function SimurghOperatorPage() {
   const [candidateReview, setCandidateReview] = useState(null);
   const [activeTools, setActiveTools] = useState(null);
   const [credentialDraft, setCredentialDraft] = useState('');
-  const [conversations, setConversations] = useState(() => {
-    const stored = readStoredConversations();
-    return stored.length ? stored : [newConversation()];
-  });
-  const [activeConversationId, setActiveConversationId] = useState(() => readStoredConversations()[0]?.id || '');
+  const [initialChatState] = useState(() => readStoredChatState());
+  const [conversations, setConversations] = useState(() => (
+    initialChatState.conversations.length ? initialChatState.conversations : [newConversation()]
+  ));
+  const [activeConversationId, setActiveConversationId] = useState(() => (
+    initialChatState.activeConversationId || initialChatState.conversations[0]?.id || ''
+  ));
   const [draft, setDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [chatError, setChatError] = useState('');
@@ -1505,8 +1495,8 @@ export default function SimurghOperatorPage() {
   }, [activeConversationId, conversations]);
 
   useEffect(() => {
-    writeStoredConversations(conversations);
-  }, [conversations]);
+    writeStoredConversations(conversations, activeConversationId);
+  }, [activeConversationId, conversations]);
 
   useEffect(() => {
     const transcript = transcriptRef.current;
@@ -1697,52 +1687,87 @@ export default function SimurghOperatorPage() {
         payload.session_id = activeConversation.backendSessionId;
       }
 
-      let finalData = null;
-      try {
-        const response = await streamSimurghAssistantTurnResponse(payload, {
-          signal: controller.signal,
-          onEvent: ({ event: streamEvent, data }) => {
-            if (streamEvent === 'progress') {
-              updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
-                ...currentMessage,
-                progress: appendProgressStep(currentMessage.progress || [], data),
-              }));
-            } else if (streamEvent === 'delta') {
-              const text = String(data?.text || '');
-              if (text) {
+      const requestTurn = async (turnPayload) => {
+        let streamedFinalData = null;
+        try {
+          const response = await streamSimurghAssistantTurnResponse(turnPayload, {
+            signal: controller.signal,
+            onEvent: ({ event: streamEvent, data }) => {
+              if (streamEvent === 'progress') {
                 updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
                   ...currentMessage,
-                  content: `${currentMessage.content || ''}${text}`,
+                  progress: appendProgressStep(currentMessage.progress || [], data),
+                }));
+              } else if (streamEvent === 'delta') {
+                const text = String(data?.text || '');
+                if (text) {
+                  updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                    ...currentMessage,
+                    content: `${currentMessage.content || ''}${text}`,
+                  }));
+                }
+              } else if (streamEvent === 'final') {
+                streamedFinalData = data || {};
+                updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                  ...currentMessage,
+                  id: streamedFinalData.id || currentMessage.id,
+                  content: streamedFinalData.content || currentMessage.content || 'No Simurgh response content was returned.',
+                  createdAt: streamedFinalData.created_at || currentMessage.createdAt || nowIso(),
+                  provider: streamedFinalData.provider,
+                  model: streamedFinalData.model,
+                  trace: streamedFinalData.trace || currentMessage.trace,
+                  context_resources: streamedFinalData.context_resources || currentMessage.context_resources || [],
+                  blocked_intents: streamedFinalData.blocked_intents || currentMessage.blocked_intents || [],
+                  safety_notes: streamedFinalData.safety_notes || currentMessage.safety_notes || [],
+                  audit_event_id: streamedFinalData.audit_event_id || currentMessage.audit_event_id,
+                  streaming: false,
+                  progress: finalizeProgressSteps(currentMessage.progress || [], streamedFinalData),
                 }));
               }
-            } else if (streamEvent === 'final') {
-              finalData = data || {};
-              updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
-                ...currentMessage,
-                id: finalData.id || currentMessage.id,
-                content: finalData.content || currentMessage.content || 'No Simurgh response content was returned.',
-                createdAt: finalData.created_at || currentMessage.createdAt || nowIso(),
-                provider: finalData.provider,
-                model: finalData.model,
-                trace: finalData.trace || currentMessage.trace,
-                context_resources: finalData.context_resources || currentMessage.context_resources || [],
-                blocked_intents: finalData.blocked_intents || currentMessage.blocked_intents || [],
-                safety_notes: finalData.safety_notes || currentMessage.safety_notes || [],
-                audit_event_id: finalData.audit_event_id || currentMessage.audit_event_id,
-                streaming: false,
-                progress: finalizeProgressSteps(currentMessage.progress || [], finalData),
-              }));
-            }
-          },
-        });
-        finalData = response?.data || finalData || {};
-      } catch (streamError) {
-        const canFallback = /not available|not readable/i.test(streamError?.message || '');
-        if (!canFallback) {
-          throw streamError;
+            },
+          });
+          return response?.data || streamedFinalData || {};
+        } catch (streamError) {
+          const canFallback = /not available|not readable/i.test(streamError?.message || '');
+          if (!canFallback) {
+            throw streamError;
+          }
+          const response = await createSimurghAssistantTurnResponse(turnPayload, { signal: controller.signal });
+          return response?.data || {};
         }
-        const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
-        finalData = response?.data || {};
+      };
+
+      let finalData;
+      try {
+        finalData = await requestTurn(payload);
+      } catch (requestError) {
+        if (!payload.session_id || !isRecoverableBackendSessionError(requestError)) {
+          throw requestError;
+        }
+        const retryPayload = {
+          ...payload,
+          metadata: {
+            ...payload.metadata,
+            ...recoveredSessionMetadataFromMessages(activeConversation.messages),
+          },
+        };
+        delete retryPayload.session_id;
+        updateConversation(conversationId, (conversation) => ({
+          ...conversation,
+          backendSessionId: '',
+          updatedAt: nowIso(),
+        }));
+        updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+          ...currentMessage,
+          id: assistantMessageId,
+          content: '',
+          streaming: true,
+          progress: appendProgressStep(
+            currentMessage.progress || [],
+            { stage: 'session', state: 'complete', label: 'Started a fresh backend session' },
+          ),
+        }));
+        finalData = await requestTurn(retryPayload);
       }
 
       updateConversation(conversationId, (conversation) => ({
@@ -1802,7 +1827,7 @@ export default function SimurghOperatorPage() {
   const activeMessages = activeConversation?.messages || [];
   const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
   const subtitle = status
-    ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
+    ? runtimeProviderLabel(status)
     : loading ? 'Loading runtime' : 'Runtime unavailable';
 
   return (
@@ -1835,7 +1860,14 @@ export default function SimurghOperatorPage() {
           onDeleteChat={handleDeleteChat}
         />
         <section className="simurgh-chat__main" aria-label="Simurgh assistant">
-          <div className="simurgh-chat__transcript" ref={transcriptRef}>
+          <div
+            className="simurgh-chat__transcript"
+            ref={transcriptRef}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-atomic="false"
+          >
             {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
             {activeMessages.map((message) => <MessageBubble key={message.id} message={message} />)}
           </div>

@@ -25,3 +25,14 @@ def test_git_sync_does_not_delete_git_lock_files_broadly():
 
     assert "rm -f \"$lock_file\"" not in cleanup_function
     assert "leaving in place" in cleanup_function
+
+
+def test_git_sync_reports_boot_status_without_using_command_heartbeat():
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "report_git_sync_phase" in source
+    assert "/api/v1/fleet/node-boot-status" in source
+    assert "/api/v1/fleet/heartbeats" not in source
+    assert "MDS_GCS_API_TOKEN_FILE" in source
+    assert "phase=" in source
+    assert "phase_message=" in source

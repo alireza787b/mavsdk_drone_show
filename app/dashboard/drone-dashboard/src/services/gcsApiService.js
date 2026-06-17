@@ -521,6 +521,19 @@ function parseServerSentEventBlock(block) {
   return { event, data };
 }
 
+function simurghStreamErrorFromEventData(data) {
+  if (typeof data === 'string') {
+    return { message: data || 'Simurgh stream failed.', statusCode: undefined };
+  }
+  if (data && typeof data === 'object') {
+    return {
+      message: data.detail || data.message || data.error || 'Simurgh stream failed.',
+      statusCode: data.status_code || data.statusCode,
+    };
+  }
+  return { message: 'Simurgh stream failed.', statusCode: undefined };
+}
+
 async function readStreamError(response) {
   try {
     const payload = await response.json();
@@ -555,7 +568,9 @@ export async function streamSimurghAssistantTurnResponse(payload = {}, config = 
   });
 
   if (!response.ok) {
-    throw new Error(await readStreamError(response));
+    const error = new Error(await readStreamError(response));
+    error.statusCode = response.status;
+    throw error;
   }
   if (!response.body || typeof response.body.getReader !== 'function') {
     throw new Error('Simurgh stream response is not readable.');
@@ -585,8 +600,9 @@ export async function streamSimurghAssistantTurnResponse(payload = {}, config = 
       if (eventPayload.event === 'final') {
         finalPayload = eventPayload.data;
       } else if (eventPayload.event === 'error') {
-        const error = new Error(eventPayload.data?.detail || 'Simurgh stream failed.');
-        error.statusCode = eventPayload.data?.status_code;
+        const streamError = simurghStreamErrorFromEventData(eventPayload.data);
+        const error = new Error(streamError.message);
+        error.statusCode = streamError.statusCode;
         throw error;
       }
     }
@@ -602,13 +618,17 @@ export async function streamSimurghAssistantTurnResponse(payload = {}, config = 
       if (eventPayload.event === 'final') {
         finalPayload = eventPayload.data;
       } else if (eventPayload.event === 'error') {
-        const error = new Error(eventPayload.data?.detail || 'Simurgh stream failed.');
-        error.statusCode = eventPayload.data?.status_code;
+        const streamError = simurghStreamErrorFromEventData(eventPayload.data);
+        const error = new Error(streamError.message);
+        error.statusCode = streamError.statusCode;
         throw error;
       }
     }
   }
 
+  if (!finalPayload) {
+    throw new Error('Simurgh stream ended before a final answer was received.');
+  }
   return { data: finalPayload };
 }
 

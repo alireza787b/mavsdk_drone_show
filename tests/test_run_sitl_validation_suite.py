@@ -4,6 +4,19 @@ import sys
 from pathlib import Path
 
 
+STANDALONE_MUTATING_VALIDATORS = (
+    "validate_actions_runtime.py",
+    "validate_configuration_runtime.py",
+    "validate_drone_show_runtime.py",
+    "validate_integrated_runtime.py",
+    "validate_onboard_ulog_runtime.py",
+    "validate_px4_params_runtime.py",
+    "validate_quickscout_runtime.py",
+    "validate_smart_swarm_runtime.py",
+    "validate_swarm_trajectory_runtime.py",
+)
+
+
 def _load_module():
     module_path = Path(__file__).resolve().parents[1] / "tools" / "run_sitl_validation_suite.py"
     spec = importlib.util.spec_from_file_location("run_sitl_validation_suite", module_path)
@@ -105,6 +118,14 @@ def _build_args(suite, tmp_path, **overrides):
     for key, value in values.items():
         setattr(args, key, value)
     return args
+
+
+def test_every_standalone_mutating_validator_requires_verified_sitl_runtime():
+    tools_root = Path(__file__).resolve().parents[1] / "tools"
+
+    for filename in STANDALONE_MUTATING_VALIDATORS:
+        source = (tools_root / filename).read_text(encoding="utf-8")
+        assert "fetch_and_require_sitl_runtime(" in source, filename
 
 
 def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path):

@@ -35,6 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tools.runtime_validation_support import fetch_and_require_sitl_runtime
+
 USING_FALLBACK_TIMEOUT_PARAMS = False
 
 try:
@@ -1341,6 +1343,7 @@ def main() -> int:
 
     try:
         results["health"] = wait_api_ready(client)
+        results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
         baseline = wait_for_idle(client, args.drone_ids, timeout=180)
         results["baseline_ids"] = sorted(int(key) for key in baseline.keys())
         baselines = {idx: float(baseline[str(idx)]["position_alt"]) for idx in args.drone_ids}

@@ -71,6 +71,10 @@ def _make_app():
     async def heartbeat_post():
         return {"success": True}
 
+    @app.post("/api/v1/fleet/node-boot-status")
+    async def node_boot_status_post():
+        return {"success": True}
+
     @app.get("/api/v1/origin/bootstrap")
     async def origin_bootstrap_get():
         return {"lat": 0.0, "lon": 0.0, "alt": 0.0}
@@ -251,6 +255,7 @@ def test_machine_endpoint_open_until_api_auth_enabled(monkeypatch, tmp_path):
     client = TestClient(_make_app())
 
     assert client.post("/api/v1/fleet/heartbeats").status_code == 200
+    assert client.post("/api/v1/fleet/node-boot-status").status_code == 200
     assert client.get("/api/v1/origin/bootstrap").status_code == 200
     assert client.post("/api/sar/mission/mission-1/progress").status_code == 200
 
@@ -263,9 +268,12 @@ def test_machine_endpoint_requires_bearer_when_api_auth_enabled(monkeypatch, tmp
     client = TestClient(_make_app())
 
     assert client.post("/api/v1/fleet/heartbeats").status_code == 401
+    assert client.post("/api/v1/fleet/node-boot-status").status_code == 401
     assert client.get("/api/v1/origin/bootstrap").status_code == 401
     assert client.post("/api/sar/mission/mission-1/progress").status_code == 401
     response = client.post("/api/v1/fleet/heartbeats", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    response = client.post("/api/v1/fleet/node-boot-status", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     response = client.get("/api/v1/origin/bootstrap", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200

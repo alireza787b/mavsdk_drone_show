@@ -37,7 +37,7 @@ python3 tools/run_simurgh_advisory_evals.py
 Run the provider smoke workflow without live provider calls:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py
+python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl
 ```
 
 Refresh the OpenAPI candidate menu after GCS API changes:

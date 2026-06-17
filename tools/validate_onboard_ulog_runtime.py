@@ -18,7 +18,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
+    from tools.runtime_validation_support import (
+        fetch_and_require_sitl_runtime,
+        normalize_drone_ids,
+        parse_csv_drone_ids,
+        write_json_report,
+    )
     from tools.validate_actions_runtime import (
         ApiClient,
         LAND,
@@ -158,6 +163,7 @@ def main() -> None:
     }
 
     wait_api_ready(client, timeout=60)
+    results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
     baseline_rows = wait_fleet_ready(client, [target_id], timeout=120)
     baseline_altitudes = {
         str(target_id): float(baseline_rows[str(target_id)].get("position_alt", 0.0) or 0.0)

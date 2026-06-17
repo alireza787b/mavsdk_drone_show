@@ -243,7 +243,7 @@ def test_agent_bearer_scope_is_restricted_to_simurgh_paths(monkeypatch, tmp_path
         json={"command": "noop"},
     )
     assert outside_simurgh.status_code == 403
-    assert outside_simurgh.json()["message"] == "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
+    assert outside_simurgh.json()["message"] == "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints."
 
     mcp_allowed = client.post(
         MCP_PATH,
@@ -272,7 +272,7 @@ def test_agent_bearer_scope_is_restricted_to_simurgh_paths(monkeypatch, tmp_path
         params={"limit": 5},
     )
     assert direct_log_denied.status_code == 403
-    assert direct_log_denied.json()["message"] == "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
+    assert direct_log_denied.json()["message"] == "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints."
 
     mcp_log_allowed = client.post(
         MCP_PATH,
@@ -285,6 +285,35 @@ def test_agent_bearer_scope_is_restricted_to_simurgh_paths(monkeypatch, tmp_path
     assert mcp_log_allowed.status_code == 200
     assert mcp_log_allowed.json()["result"]["isError"] is False
     assert mcp_log_allowed.json()["result"]["structuredContent"]["session_id"] == "s_20260525_001"
+
+
+def test_agent_bearer_cannot_access_simurgh_admin_or_future_routes(monkeypatch, tmp_path):
+    _enable_mcp(monkeypatch, require_auth=True)
+    _set_auth_env(monkeypatch, tmp_path)
+    service = AuthService(AuthSettings.from_env())
+    agent_token = service.store.create_token("agent", scopes=["agent"], ttl_seconds=3600)["token"]
+    client = _auth_client()
+    headers = {"Authorization": f"Bearer {agent_token}"}
+
+    blocked_requests = (
+        client.get("/api/v1/simurgh/runtime-settings", headers=headers),
+        client.put("/api/v1/simurgh/runtime-settings", headers=headers, json={}),
+        client.get("/api/v1/simurgh/provider-credentials", headers=headers),
+        client.put("/api/v1/simurgh/provider-credentials", headers=headers, json={"openai_api_key": "x" * 24}),
+        client.request("DELETE", "/api/v1/simurgh/provider-credentials", headers=headers, json={}),
+        client.delete("/api/v1/simurgh/sessions/session-unknown", headers=headers),
+        client.post("/api/v1/simurgh/future-admin-route", headers=headers, json={}),
+    )
+
+    assert all(response.status_code == 403 for response in blocked_requests)
+    assert all(
+        response.json()["message"]
+        in {
+            "Admin role required for security/runtime administration.",
+            "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints.",
+        }
+        for response in blocked_requests
+    )
 
 
 def test_simurgh_mcp_required_scopes_ignore_weak_overrides(monkeypatch, tmp_path):
@@ -396,6 +425,9 @@ def test_simurgh_mcp_lists_and_reads_metadata_resources(monkeypatch):
     status = json.loads(content["text"])
     assert status["agent_enabled"] is True
     assert status["mcp_enabled"] is True
+    assert status["gcs_mode"] in {"real", "sitl"}
+    assert status["gcs_mode_source"]
+    assert isinstance(status["warnings"], list)
     assert status["assistant_provider"] == "mock"
     assert status["assistant_external_provider"] is False
     assert status["policy_path"] == "config/agent_policy.yaml"

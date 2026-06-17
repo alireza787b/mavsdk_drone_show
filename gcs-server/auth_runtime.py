@@ -44,6 +44,24 @@ ADMIN_PREFIXES = (
     "/api/v1/simurgh/runtime-settings",
     "/api/v1/simurgh/provider-credentials",
 )
+AGENT_EXACT_ROUTES = {
+    ("POST", MCP_ENDPOINT_PATH),
+    ("GET", "/api/v1/simurgh/status"),
+    ("GET", "/api/v1/simurgh/policy"),
+    ("GET", "/api/v1/simurgh/tools"),
+    ("GET", "/api/v1/simurgh/tool-candidates"),
+    ("GET", "/api/v1/simurgh/context"),
+    ("POST", "/api/v1/simurgh/sessions"),
+    ("GET", "/api/v1/simurgh/sessions"),
+    ("GET", "/api/v1/simurgh/audit"),
+    ("POST", "/api/v1/simurgh/assistant/turns"),
+    ("POST", "/api/v1/simurgh/assistant/turns/stream"),
+    ("GET", "/api/v1/simurgh/assistant/turns"),
+}
+AGENT_GET_PREFIXES = (
+    "/api/v1/simurgh/tools/",
+    "/api/v1/simurgh/context/",
+)
 SELF_SERVICE_MUTATION_PATHS = {
     "/api/v1/auth/me/password",
 }
@@ -101,6 +119,20 @@ def _is_machine_endpoint(method: str, path: str) -> bool:
     )
 
 
+def _agent_role_allows_request(method: str, path: str) -> bool:
+    """Allow only reviewed Simurgh read/chat routes for agent bearer tokens.
+
+    This is intentionally an allowlist instead of a `/simurgh/*` prefix rule:
+    new administrative or action routes must not inherit agent scope merely
+    because they are added under the Simurgh namespace.
+    """
+
+    normalized_method = method.upper()
+    if (normalized_method, path) in AGENT_EXACT_ROUTES:
+        return True
+    return normalized_method == "GET" and any(path.startswith(prefix) for prefix in AGENT_GET_PREFIXES)
+
+
 def _is_internal_tool_call(request: Request) -> bool:
     return bool(
         request.client
@@ -113,12 +145,12 @@ def _role_allows_request(role: str, method: str, path: str) -> tuple[bool, str |
     normalized_role = (role or "viewer").lower()
     if normalized_role == "admin":
         return True, None
-    if normalized_role == "agent":
-        if path == MCP_ENDPOINT_PATH or path.startswith("/api/v1/simurgh/"):
-            return True, None
-        return False, "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
     if _is_admin_path(path):
         return False, "Admin role required for security/runtime administration."
+    if normalized_role == "agent":
+        if _agent_role_allows_request(method, path):
+            return True, None
+        return False, "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints."
     if path in SELF_SERVICE_MUTATION_PATHS:
         return True, None
     if normalized_role == "viewer" and method.upper() not in SAFE_METHODS:

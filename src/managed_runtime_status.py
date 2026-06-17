@@ -553,6 +553,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
     if not state_path.is_file():
         return {
             "status": "unknown",
+            "phase": "unknown",
+            "phase_message": "",
             "summary": "No node-local git sync runtime state has been recorded yet.",
             "last_run_at_ms": None,
             "updated_units": [],
@@ -575,6 +577,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
     except OSError:
         return {
             "status": "unknown",
+            "phase": "unknown",
+            "phase_message": "",
             "summary": "Node-local git sync runtime state is unreadable.",
             "last_run_at_ms": None,
             "updated_units": [],
@@ -599,6 +603,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
         item.strip() for item in str(data.get("deferred_unit_actions") or "").split(",") if item.strip()
     ]
     status = str(data.get("status") or "unknown").strip().lower() or "unknown"
+    phase = str(data.get("phase") or "unknown").strip().lower() or "unknown"
+    phase_message = str(data.get("phase_message") or "").strip()
     message = str(data.get("message") or "").strip()
     service_reload_status = str(data.get("service_reload_status") or "unknown").strip() or "unknown"
     service_reload_message = str(data.get("service_reload_message") or "").strip()
@@ -614,6 +620,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
     summary_parts: List[str] = []
     if message:
         summary_parts.append(message)
+    if phase_message and phase_message != message:
+        summary_parts.append(f"Phase: {phase_message}")
     if updated_units:
         summary_parts.append(f"Updated units: {', '.join(updated_units)}")
     if service_reload_message and service_reload_message != message:
@@ -646,6 +654,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
 
     return {
         "status": status,
+        "phase": phase,
+        "phase_message": phase_message,
         "summary": " · ".join(summary_parts) if summary_parts else "No node-local git sync runtime details recorded.",
         "last_run_at_ms": last_run_at_ms,
         "updated_units": updated_units,

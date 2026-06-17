@@ -36,7 +36,22 @@ def test_build_reconcile_request_uses_contiguous_drone_ids_and_env(monkeypatch):
 def test_run_reconcile_auto_falls_back_to_shell(tmp_path, monkeypatch):
     client = _load_module()
 
-    monkeypatch.setattr(client, "is_api_usable", lambda base_url: (False, None, "policy unavailable"))
+    monkeypatch.setattr(
+        client,
+        "is_api_usable",
+        lambda base_url: (
+            False,
+            {
+                "runtime_status": {
+                    "mode": "sitl",
+                    "configured_mode": "sitl",
+                    "configured_sim_mode": True,
+                    "restart_required": False,
+                }
+            },
+            "policy unavailable",
+        ),
+    )
     monkeypatch.setattr(
         client,
         "run_shell_reconcile",
@@ -59,6 +74,40 @@ def test_run_reconcile_auto_falls_back_to_shell(tmp_path, monkeypatch):
 
     assert payload["execution_mode"] == "shell"
     assert payload["api_fallback_reason"] == "policy unavailable"
+
+
+def test_run_reconcile_refuses_remote_shell_fallback(tmp_path, monkeypatch):
+    client = _load_module()
+    monkeypatch.setattr(
+        client,
+        "is_api_usable",
+        lambda base_url: (
+            False,
+            {
+                "runtime_status": {
+                    "mode": "sitl",
+                    "configured_mode": "sitl",
+                    "configured_sim_mode": True,
+                    "restart_required": False,
+                }
+            },
+            "policy unavailable",
+        ),
+    )
+
+    try:
+        client.run_reconcile(
+            base_url="http://198.51.100.5:5030",
+            repo_root=tmp_path,
+            drone_ids=[1, 2],
+            mode="auto",
+            timeout_sec=180.0,
+            poll_interval_sec=1.0,
+        )
+    except client.SitlControlClientError as exc:
+        assert "shell fallback is prohibited for a remote target" in str(exc)
+    else:
+        raise AssertionError("remote shell fallback must fail closed")
 
 
 def test_wait_for_operation_returns_final_success(monkeypatch):

@@ -142,7 +142,7 @@ field logs.
 The manual provider smoke suite is:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py
+python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl
 ```
 
 Dry mode is the default and does not call OpenAI. It validates the configured
@@ -153,7 +153,10 @@ the request preserves `store=false`, `tools=[]`, `tool_choice="none"`,
 Live smoke requires an absolute restricted key file:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py --live --api-key-file /etc/mds/secrets/openai_api_key
+python3 tools/run_simurgh_provider_smoke.py \
+  --expected-runtime-mode real \
+  --live \
+  --api-key-file /etc/mds/secrets/openai_api_key
 ```
 
 Use live smoke only from a trusted validation host or maintenance window after
@@ -164,26 +167,33 @@ prints a content hash plus length. Keep
 for provider smoke; if it is enabled for a separate MCP validation, keep
 `MDS_MCP_REQUIRE_AUTH=true`. Do not change `MDS_MODE` for provider smoke; a
 production GCS can remain `MDS_MODE=real` while the Simurgh assistant path stays
-advisory-only.
+advisory-only. Select the observed mode with `--expected-runtime-mode`; the
+smoke fails on a mismatch and also verifies the circuit breaker and
+always-confirm policy.
 
 ## MCP Smoke Client
 
 The external MCP validation client is:
 
 ```bash
-python3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json
+python3 tools/simurgh_mcp_smoke_client.py \
+  --base-url https://<gcs-host> \
+  --token-file /path/to/agent-token \
+  --expected-runtime-mode real \
+  --json
 ```
 
 It validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom
 agents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,
 `resources/list`, `resources/read`, `mds.operator.question.answer`,
 `mds.docs.search`, `mds.docs.chunk.read`, and
-`mds.simurgh.tool_candidates.read`. It also fails if the tool menu exposes
-obvious raw/action/admin tool names, verifies that the live registry reports
-zero unpromoted generator-eligible read-only candidates, and verifies that a
-direct action request is blocked or dry-run only. Use it before debugging a
-specific external client, and never put bearer tokens in committed MCP client
-configuration.
+`mds.simurgh.tool_candidates.read`. It also verifies protected-resource auth
+metadata, the expected MCP protocol version, canonical `gcs_mode` /
+`gcs_mode_source`, structured read-only tool-registry posture, zero unpromoted
+generator-eligible read-only candidates, and a blocked or dry-run-only direct
+action request. Use it before debugging a specific external client, and never
+put bearer tokens in committed MCP client configuration. Use
+`--expected-runtime-mode sitl` for an isolated simulator deployment.
 
 When field logs produce new lessons, do not paste raw artifacts into eval
 fixtures or context files. Follow

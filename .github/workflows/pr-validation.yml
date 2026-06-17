@@ -6,6 +6,76 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-asyncio pytest-cov pytest-mock pytest-timeout hypothesis
+
+      - name: Validate generated contracts
+        run: |
+          python3 tools/generate_mds_env_reference.py --check
+          python3 tools/generate_simurgh_tool_candidates.py --check
+          python3 tools/generate_simurgh_docs_index.py --check
+          python3 tools/audit_mds_env_registry.py
+
+      - name: Run Simurgh and validation safety tests
+        run: |
+          pytest \
+            tests/test_agent_assistant_evals.py \
+            tests/test_agent_assistant_runtime.py \
+            tests/test_agent_provider_smoke.py \
+            tests/test_api_route_inventory.py \
+            tests/test_env_registry.py \
+            tests/test_gcs_simurgh_mcp.py \
+            tests/test_gcs_simurgh_routes.py \
+            tests/test_mds_auth.py \
+            tests/test_node_boot_status_routes.py \
+            tests/test_run_sitl_validation_suite.py \
+            tests/test_runtime_validation_support.py \
+            tests/test_simurgh_dashboard_prompt_evals.py \
+            tests/test_simurgh_mcp_smoke_client.py \
+            tests/test_simurgh_retrieval_quality.py \
+            tests/test_simurgh_tool_candidate_generator.py \
+            tests/test_sitl_control_client.py
+          python3 tools/run_simurgh_dashboard_prompt_evals.py
+          python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl --json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/dashboard/drone-dashboard/package-lock.json
+
+      - name: Validate dashboard
+        working-directory: app/dashboard/drone-dashboard
+        run: |
+          npm ci
+          CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
+            src/pages/SimurghOperatorPage.test.js \
+            src/services/gcsApiService.test.js \
+            src/config/routeDocs.test.js \
+            src/components/SidebarMenu.test.js \
+            src/App.test.js
+          npm run build
+
   validate:
     runs-on: ubuntu-latest
     permissions:
@@ -19,7 +89,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 

@@ -46,7 +46,12 @@ from src.gcs_api_routes import (
     GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE,
     GCS_CONFIG_SWARM_ROUTE,
 )
-from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    normalize_drone_ids,
+    parse_csv_drone_ids,
+    write_json_report,
+)
 from tools.validate_actions_runtime import (
     ApiClient as BaseApiClient,
     HOLD,
@@ -322,6 +327,7 @@ def main() -> int:
 
     try:
         results["health"] = wait_api_ready(client, timeout=60)
+        results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
         baseline = wait_fleet_ready(client, ids, timeout=120)
         baseline_altitudes = {str(idx): float(baseline[str(idx)]["position_alt"]) for idx in ids}
         results["baseline_telemetry"] = baseline

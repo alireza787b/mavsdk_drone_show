@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebS
 from fastapi.responses import JSONResponse
 
 from auth_runtime import authorize_websocket
+from node_boot_status import get_all_node_boot_statuses, handle_node_boot_status_post
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
     HealthCheckResponse,
@@ -17,6 +18,9 @@ from schemas import (
     HeartbeatResponse,
     HeartbeatStreamMessage,
     NetworkStatusResponse,
+    NodeBootStatusPostResponse,
+    NodeBootStatusReport,
+    NodeBootStatusResponse,
     TelemetryResponse,
     TelemetryStreamMessage,
 )
@@ -137,6 +141,93 @@ def _build_network_status_response(deps: Any) -> NetworkStatusResponse:
     )
 
 
+def _build_node_boot_status_response() -> NodeBootStatusResponse:
+    nodes = get_all_node_boot_statuses()
+    return NodeBootStatusResponse(
+        nodes=nodes,
+        total_nodes=len(nodes),
+        timestamp=int(time.time() * 1000),
+    )
+
+
+def _configured_node_metadata(deps: Any) -> dict[str, dict[str, Any]]:
+    loader = getattr(deps, "load_config", None)
+    if not callable(loader):
+        return {}
+    try:
+        rows = loader()
+    except Exception as exc:
+        raise ValueError(f"Unable to load fleet configuration for node boot status: {exc}") from exc
+    if not isinstance(rows, list):
+        return {}
+
+    configured: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if isinstance(row, dict):
+            value = row.get("hw_id")
+            pos_id = row.get("pos_id")
+            ip = row.get("ip")
+        else:
+            value = getattr(row, "hw_id", None)
+            pos_id = getattr(row, "pos_id", None)
+            ip = getattr(row, "ip", None)
+        text = str(value if value is not None else "").strip()
+        if text:
+            configured[text] = {
+                "pos_id": pos_id,
+                "ip": str(ip).strip() if ip not in (None, "") else None,
+            }
+    return configured
+
+
+def _accept_node_boot_status(deps: Any, report: NodeBootStatusReport, request: Request) -> NodeBootStatusPostResponse:
+    client_ip = request.client.host if request.client else None
+    configured_nodes = _configured_node_metadata(deps)
+    if not configured_nodes:
+        raise ValueError("Node boot status requires configured fleet hardware IDs")
+    node_config = configured_nodes.get(str(report.hw_id).strip())
+    if not node_config:
+        raise ValueError(f"Node boot status rejected for unconfigured hw_id={report.hw_id}")
+
+    configured_pos_id = node_config.get("pos_id")
+    try:
+        configured_pos_id = int(configured_pos_id) if configured_pos_id not in (None, "") else None
+    except (TypeError, ValueError):
+        configured_pos_id = None
+    if report.pos_id is not None and configured_pos_id is not None and int(report.pos_id) != configured_pos_id:
+        raise ValueError(
+            f"Node boot status rejected for hw_id={report.hw_id}: pos_id does not match fleet configuration"
+        )
+
+    configured_ip = str(node_config.get("ip") or "").strip() or None
+    if report.ip and configured_ip and report.ip.strip() != configured_ip:
+        raise ValueError(
+            f"Node boot status rejected for hw_id={report.hw_id}: ip does not match fleet configuration"
+        )
+    source_ip_matched = bool(configured_ip and client_ip == configured_ip)
+    identity_trust = "source_ip_matched" if source_ip_matched else "config_bound"
+    result = handle_node_boot_status_post(
+        hw_id=report.hw_id,
+        pos_id=configured_pos_id if configured_pos_id is not None else report.pos_id,
+        ip=configured_ip or report.ip or client_ip,
+        runtime_mode=report.runtime_mode,
+        phase=report.phase,
+        status=report.status,
+        message=report.message,
+        source=report.source,
+        timestamp=report.timestamp,
+        allowed_hw_ids=set(configured_nodes),
+        identity_trust=identity_trust,
+        source_ip_matched=source_ip_matched,
+    )
+    return NodeBootStatusPostResponse(
+        success=True,
+        message="Node boot status received",
+        node=result["node"],
+        server_time=int(time.time() * 1000),
+    )
+
+
 def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) -> HeartbeatPostResponse:
     client_ip = request.client.host if request.client else None
     heartbeat_ip = heartbeat.ip.strip() if heartbeat.ip else None
@@ -223,6 +314,17 @@ def create_core_router(deps: Any) -> APIRouter:
             return _accept_heartbeat(deps, heartbeat, request)
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post("/api/v1/fleet/node-boot-status", response_model=NodeBootStatusPostResponse, tags=["Fleet"])
+    async def post_node_boot_status(report: NodeBootStatusReport, request: Request):
+        try:
+            return _accept_node_boot_status(deps, report, request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.get("/api/v1/fleet/node-boot-status", response_model=NodeBootStatusResponse, tags=["Fleet"])
+    async def get_node_boot_status():
+        return _build_node_boot_status_response()
 
     @router.get("/api/v1/fleet/heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
     async def get_heartbeats():

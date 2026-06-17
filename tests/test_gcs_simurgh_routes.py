@@ -87,10 +87,10 @@ def test_simurgh_assistant_stream_emits_structured_activity_contract(monkeypatch
     assert understanding
     assert understanding[0]["domain"] == "fleet"
     assert understanding[0]["response_mode"] == "status"
-    assert "Understood:" in understanding[0]["label"]
+    assert "Understanding:" in understanding[0]["label"]
     assert "fleet" in understanding[0]["label"].lower()
     assert any(payload.get("stage") in {"tool", "provider", "search"} for payload in progress_payloads)
-    assert any(event == "delta" and payload.get("text") for event, payload in events)
+    assert not any(event == "delta" for event, _payload in events)
     assert any(event == "final" and payload.get("trace") for event, payload in events)
 
 

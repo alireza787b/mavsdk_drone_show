@@ -40,7 +40,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    normalize_drone_ids,
+    parse_csv_drone_ids,
+    write_json_report,
+)
 
 try:
     from src.gcs_api_routes import (
@@ -459,6 +464,7 @@ def main() -> int:
 
     try:
         results["health"] = wait_api_ready(client)
+        results["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
         gcs_config = client.get_gcs_config()
         results["gcs_config"] = gcs_config
         if gcs_config.get("git_auto_push"):

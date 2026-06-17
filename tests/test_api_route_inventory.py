@@ -153,6 +153,7 @@ GCS_EXPECTED_HTTP = {
     },
     "POST": {
         "/api/v1/fleet/heartbeats",
+        "/api/v1/fleet/node-boot-status",
         "/api/v1/fleet/candidates/announce",
         "/api/v1/fleet/git-sync/apply",
         "/api/v1/fleet/git-sync/dry-run",

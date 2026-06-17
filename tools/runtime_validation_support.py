@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
+
+from src.gcs_api_routes import GCS_SYSTEM_RUNTIME_STATUS_ROUTE
 
 
 def require(condition: bool, message: str) -> None:
@@ -47,6 +51,38 @@ def build_sitl_reset_command(drone_ids: Iterable[int]) -> list[str]:
     if params["start_id"] != 1:
         command.extend(["--start-id", str(params["start_id"]), "--start-ip", str(params["start_ip"])])
     return command
+
+
+def require_sitl_runtime_status(payload: dict[str, Any]) -> dict[str, Any]:
+    """Fail closed unless the target process and configured runtime are SITL."""
+
+    mode = str(payload.get("mode") or "").strip().lower()
+    configured_mode = str(payload.get("configured_mode") or "").strip().lower()
+    configured_sim_mode = payload.get("configured_sim_mode")
+    restart_required = bool(payload.get("restart_required"))
+    require(mode == "sitl", f"Refusing SITL validation against target runtime mode {mode or 'unknown'}")
+    require(
+        configured_mode == "sitl" and configured_sim_mode is True,
+        "Refusing SITL validation because the configured runtime is not canonical SITL",
+    )
+    require(
+        not restart_required,
+        "Refusing SITL validation because the configured and running runtime modes are not reconciled",
+    )
+    return payload
+
+
+def fetch_and_require_sitl_runtime(base_url: str, *, timeout_sec: float = 5.0) -> dict[str, Any]:
+    """Read and validate the target runtime identity before test-side mutations."""
+
+    url = f"{str(base_url).rstrip('/')}{GCS_SYSTEM_RUNTIME_STATUS_ROUTE}"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout_sec) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+        raise RuntimeError(f"Cannot verify SITL target identity at {url}: {exc}") from exc
+    require(isinstance(payload, dict), "SITL runtime-status response must be a JSON object")
+    return require_sitl_runtime_status(payload)
 
 
 def write_json_report(path: Path | str | None, payload: dict[str, Any]) -> None:

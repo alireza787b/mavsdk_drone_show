@@ -48,6 +48,7 @@ from agent_runtime import (
     sensitive_input_matches,
 )
 from agent_runtime.assistant import (
+    AssistantDeltaCallback,
     READ_TOOL_ADAPTER_VERSION,
     READ_TOOL_MODEL,
     READ_TOOL_PROVIDER,
@@ -577,58 +578,27 @@ def _assistant_sse_event(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
-def _assistant_content_chunks(content: str, chunk_size: int = 96):
-    text = str(content or "")
-    if not text:
-        return
-    for line in text.splitlines(keepends=True):
-        while line:
-            yield line[:chunk_size]
-            line = line[chunk_size:]
-
-
-def _tool_titles_for_progress(tool_ids: list[str]) -> list[str]:
-    if not tool_ids:
-        return []
-    try:
-        registry = load_default_tool_registry()
-    except AgentRuntimeError:
-        return tool_ids[:3]
-    titles: list[str] = []
-    for tool_id in tool_ids[:3]:
-        tool = registry.get(tool_id)
-        titles.append(tool.title if tool else tool_id)
-    return titles
-
-
-def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _assistant_answer_ready_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
     trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
     tool = trace.get("tool") if isinstance(trace.get("tool"), dict) else {}
     tool_ids = [str(item).strip() for item in (tool.get("ids") or []) if str(item).strip()]
-    tool_intent = str(tool.get("intent") or "").strip()
     provider = str(payload.get("provider") or "").strip()
     provider_tools = trace.get("provider_tools") if isinstance(trace.get("provider_tools"), dict) else {}
-
     if tool_ids:
-        titles = _tool_titles_for_progress(tool_ids)
-        joined_titles = "; ".join(titles)
-        if len(tool_ids) > len(titles):
-            joined_titles = f"{joined_titles}; +{len(tool_ids) - len(titles)} more" if joined_titles else f"{len(tool_ids)} tools"
-        label = (
-            f"Read-only evidence ready: {joined_titles}"
-            if len(tool_ids) == 1
-            else f"Read-only evidence ready from {len(tool_ids)} sources: {joined_titles}"
-        )
-        return {"stage": "tool", "state": "complete", "label": label, "intent": tool_intent, "tool_ids": tool_ids}
-
-    if tool_intent:
-        return {"stage": "tool", "state": "complete", "label": f"Evidence ready: {tool_intent.replace('_', ' ')}", "intent": tool_intent}
+        return {
+            "stage": "tool",
+            "state": "complete",
+            "label": f"Read-only evidence ready from {len(tool_ids)} source(s)",
+            "tool_ids": tool_ids,
+            "intent": str(tool.get("intent") or "").strip(),
+        }
     if provider == "openai" and provider_tools.get("web_search_requested") is True:
-        returned = provider_tools.get("web_search_returned") is True
         return {
             "stage": "search",
-            "state": "complete" if returned else "requested",
-            "label": "Public web search ready" if returned else "Public web search requested",
+            "state": "complete" if provider_tools.get("web_search_returned") is True else "requested",
+            "label": "Searched public web"
+            if provider_tools.get("web_search_returned") is True
+            else "Requested public web search",
             "provider": "openai",
             "scope": "public_general_only",
         }
@@ -1513,6 +1483,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         plan,
         allow_provider_composition: bool = False,
         progress_callback: AssistantProgressCallback | None = None,
+        delta_callback: AssistantDeltaCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
         if not policy.agent_enabled:
@@ -1591,7 +1562,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 progress_callback,
                 {"stage": "provider", "state": "running", "label": "Composing answer with provider evidence context"},
             )
-            composition = compose_read_only_tool_turn_with_provider(
+            composition = await asyncio.to_thread(
+                compose_read_only_tool_turn_with_provider,
                 config=assistant_config,
                 operator_message=turn_request.message.strip(),
                 base_turn=local_registry_turn,
@@ -1600,6 +1572,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 tool_ids=tool_ids,
                 response_mode="status",
                 evidence_metadata=read_only_evidence,
+                delta_callback=delta_callback,
                 first_safety_note=(
                     "Policy-allowed read-only Simurgh registry tools were executed before provider composition."
                 ),
@@ -1686,6 +1659,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         turn_request: SimurghAssistantTurnRequest,
         *,
         progress_callback: AssistantProgressCallback | None = None,
+        delta_callback: AssistantDeltaCallback | None = None,
     ):
         try:
             assistant_config = load_default_assistant_config()
@@ -1763,10 +1737,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     plan=registry_plan,
                     allow_provider_composition=provider_auth_allowed,
                     progress_callback=progress_callback,
+                    delta_callback=delta_callback,
                 )
             else:
                 request_deps = _request_scoped_deps(deps, http_request)
-                record = create_assistant_turn(
+                record = await asyncio.to_thread(
+                    create_assistant_turn,
                     sessions=sessions,
                     audit=audit,
                     actor=actor,
@@ -1777,6 +1753,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
                     metadata=_bounded_metadata(turn_request.metadata),
                     allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,
+                    delta_callback=delta_callback,
                 )
             history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:
@@ -1808,9 +1785,23 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 await asyncio.sleep(0)
 
                 progress_queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+                loop = asyncio.get_running_loop()
+                answer_started = False
 
                 async def progress_callback(payload: dict[str, Any]) -> None:
                     await progress_queue.put(("progress", payload))
+
+                def delta_callback(text: str) -> None:
+                    nonlocal answer_started
+                    if not text:
+                        return
+                    if not answer_started:
+                        answer_started = True
+                        loop.call_soon_threadsafe(
+                            progress_queue.put_nowait,
+                            ("progress", {"stage": "answer", "state": "running", "label": "Writing answer"}),
+                        )
+                    loop.call_soon_threadsafe(progress_queue.put_nowait, ("delta", {"text": text}))
 
                 async def run_turn() -> None:
                     try:
@@ -1818,6 +1809,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                             http_request,
                             request,
                             progress_callback=progress_callback,
+                            delta_callback=delta_callback,
                         )
                         await progress_queue.put(("final", _assistant_turn_response_payload(record, history_record)))
                     except HTTPException as exc:
@@ -1829,15 +1821,18 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
 
                 turn_task = asyncio.create_task(run_turn())
                 payload: dict[str, Any] | None = None
-                saw_tool_progress = False
+                saw_evidence_or_provider_progress = False
                 while True:
                     event_name, event_payload = await progress_queue.get()
                     if event_name == "finished":
                         break
                     if event_name == "progress":
-                        if event_payload.get("stage") == "tool":
-                            saw_tool_progress = True
+                        if event_payload.get("stage") in {"tool", "search", "provider"}:
+                            saw_evidence_or_provider_progress = True
                         yield _assistant_sse_event("progress", event_payload)
+                        await asyncio.sleep(0)
+                    elif event_name == "delta":
+                        yield _assistant_sse_event("delta", event_payload)
                         await asyncio.sleep(0)
                     elif event_name == "final":
                         payload = event_payload
@@ -1850,16 +1845,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 if payload is None:
                     yield _assistant_sse_event("error", {"status_code": 500, "detail": "Simurgh stream did not produce a final answer."})
                     return
-                if not saw_tool_progress:
-                    yield _assistant_sse_event("progress", _assistant_tool_progress_payload(payload))
-                await asyncio.sleep(0)
-                content = str(payload.get("content") or "")
-                if content:
-                    yield _assistant_sse_event("progress", {"stage": "answer", "state": "running", "label": "Writing answer"})
+                if not saw_evidence_or_provider_progress:
+                    yield _assistant_sse_event("progress", _assistant_answer_ready_progress_payload(payload))
                     await asyncio.sleep(0)
-                    for chunk in _assistant_content_chunks(content):
-                        yield _assistant_sse_event("delta", {"text": chunk})
-                        await asyncio.sleep(0)
                 yield _assistant_sse_event("final", payload)
                 session = payload.get("session") if isinstance(payload.get("session"), dict) else {}
                 yield _assistant_sse_event("done", {"id": payload.get("id"), "session_id": session.get("id")})

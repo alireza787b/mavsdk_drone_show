@@ -766,6 +766,59 @@ describe('gcsApiService', () => {
     }));
   });
 
+  it('preserves HTTP status for Simurgh stream recovery decisions', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: jest.fn().mockResolvedValue({ detail: 'unknown Simurgh session: expired' }),
+    });
+
+    await expect(streamSimurghAssistantTurnResponse(
+      { message: 'status?', session_id: 'expired' },
+      { fetchImpl },
+    )).rejects.toMatchObject({
+      message: 'unknown Simurgh session: expired',
+      statusCode: 404,
+    });
+  });
+
+  it('preserves plain-text SSE error details for Simurgh stream recovery decisions', async () => {
+    const reader = {
+      read: jest.fn()
+        .mockResolvedValueOnce({
+          value: Buffer.from('event: error\ndata: unknown Simurgh session: expired\n\n'),
+          done: false,
+        })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+
+    await expect(streamSimurghAssistantTurnResponse(
+      { message: 'status?', session_id: 'expired' },
+      { fetchImpl },
+    )).rejects.toThrow('unknown Simurgh session: expired');
+  });
+
+  it('rejects Simurgh streams that end before a final answer', async () => {
+    const reader = {
+      read: jest.fn()
+        .mockResolvedValueOnce({ value: Buffer.from('event: progress\ndata: {"label":"Working"}\n\n'), done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+
+    await expect(streamSimurghAssistantTurnResponse(
+      { message: 'status?' },
+      { fetchImpl },
+    )).rejects.toThrow('Simurgh stream ended before a final answer was received.');
+  });
+
   it('fetches detailed fleet network metadata from the canonical network-details route', async () => {
     axios.get.mockResolvedValue({ data: [] });
 

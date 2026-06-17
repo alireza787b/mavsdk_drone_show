@@ -100,6 +100,8 @@ GIT_SYNC_LOCK_MODE="none"
 GIT_SYNC_RECOVERY_ACTION="none"
 GIT_SYNC_RECOVERY_BACKUP_PATH=""
 GIT_LOCKS_PRESENT=false
+GIT_SYNC_PHASE="unknown"
+GIT_SYNC_PHASE_MESSAGE=""
 declare -a COORDINATOR_RESTART_REASONS=()
 declare -a UPDATED_SYSTEMD_UNITS=()
 declare -a DEFERRED_UNIT_ACTIONS=()
@@ -160,7 +162,7 @@ exit_with_failure_result() {
 
     log_error "$component" "$message"
     set_led_status "$led_state"
-    persist_git_sync_state "error" "${component}: ${message}"
+    report_git_sync_phase "error" "${component}: ${message}" "error"
     emit_structured_failure_result "$component" "$message"
     cleanup_on_exit
     exit "$exit_code"
@@ -211,6 +213,8 @@ persist_git_sync_state() {
 
     {
         printf 'status=%s\n' "$(sanitize_state_value "${sync_status}")"
+        printf 'phase=%s\n' "$(sanitize_state_value "${GIT_SYNC_PHASE:-unknown}")"
+        printf 'phase_message=%s\n' "$(sanitize_state_value "${GIT_SYNC_PHASE_MESSAGE:-}")"
         printf 'branch=%s\n' "$(sanitize_state_value "${BRANCH_NAME:-unknown}")"
         printf 'commit=%s\n' "$(sanitize_state_value "${commit_hash}")"
         printf 'timestamp_ms=%s\n' "$(sanitize_state_value "${timestamp_ms}")"
@@ -232,6 +236,71 @@ persist_git_sync_state() {
     } > "${state_tmp}"
 
     mv "${state_tmp}" "${state_file}" 2>/dev/null || rm -f "${state_tmp}"
+}
+
+json_string() {
+    local raw="${1:-}"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import json, sys; print(json.dumps(sys.argv[1]))" "$raw" 2>/dev/null && return 0
+    fi
+    printf '"%s"' "$raw"
+}
+
+resolve_gcs_boot_status_url() {
+    local base_url="${MDS_GCS_API_BASE_URL:-}"
+    local host="${MDS_GCS_IP:-${GCS_IP:-}}"
+    local port="${MDS_GCS_API_PORT:-5030}"
+
+    if [[ -z "$base_url" && -n "$host" ]]; then
+        base_url="http://${host}:${port}"
+    fi
+    [[ -n "$base_url" ]] || return 1
+    printf '%s/api/v1/fleet/node-boot-status\n' "${base_url%/}"
+}
+
+post_node_boot_status() {
+    local phase="$1"
+    local message="$2"
+    local status_text="${3:-running}"
+    local hw_id="${MDS_HW_ID:-${HW_ID:-}}"
+    local pos_id="${MDS_POS_ID:-}"
+    local runtime_mode="${MDS_MODE:-}"
+    local token_file="${MDS_GCS_API_TOKEN_FILE:-}"
+    local token=""
+    local url=""
+    local timestamp_ms=""
+    local payload=""
+    local -a curl_args=(-fsS --max-time 2 -H "Content-Type: application/json")
+
+    [[ -n "$hw_id" ]] || return 0
+    url="$(resolve_gcs_boot_status_url 2>/dev/null || true)"
+    [[ -n "$url" ]] || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+
+    if [[ -n "$token_file" && -r "$token_file" ]]; then
+        token="$(tr -d '\r\n' < "$token_file")"
+        if [[ -n "$token" ]]; then
+            curl_args+=(-H "Authorization: Bearer ${token}")
+        fi
+    fi
+
+    timestamp_ms=$(date +%s%3N 2>/dev/null || echo "")
+    if [[ ! "$pos_id" =~ ^[0-9]+$ ]]; then
+        pos_id="null"
+    fi
+    payload="{\"hw_id\":$(json_string "$hw_id"),\"pos_id\":${pos_id},\"runtime_mode\":$(json_string "$runtime_mode"),\"phase\":$(json_string "$phase"),\"status\":$(json_string "$status_text"),\"message\":$(json_string "$message"),\"source\":\"git-sync\",\"timestamp\":${timestamp_ms:-null}}"
+    curl "${curl_args[@]}" -X POST -d "$payload" "$url" >/dev/null 2>&1 || true
+}
+
+report_git_sync_phase() {
+    local phase="$1"
+    local message="$2"
+    local status_text="${3:-running}"
+
+    GIT_SYNC_PHASE="$phase"
+    GIT_SYNC_PHASE_MESSAGE="$message"
+    persist_git_sync_state "$status_text" "$message"
+    post_node_boot_status "$phase" "$message" "$status_text"
 }
 
 # ----------------------------------
@@ -1910,14 +1979,17 @@ main() {
     log_info "CONFIG" "Recovery Strategy: $RECOVERY_STRATEGY"
     log_info "CONFIG" "Environment: $ENVIRONMENT"
     configure_git_ssh_auth "$REPO_URL"
+    report_git_sync_phase "starting" "Git sync service started for ${BRANCH_NAME}" "running"
     
     # Acquire exclusive lock
     acquire_lock 60
+    report_git_sync_phase "locked" "Git sync lock acquired" "running"
     
     # Set initial status - GIT_SYNCING (cyan)
     set_led_status "GIT_SYNCING"
     
     # Validate repository directory
+    report_git_sync_phase "validation" "Validating local repository" "running"
     if [[ ! -d "$REPO_DIR" ]]; then
         log_error_and_exit "VALIDATION" "Repository directory does not exist: $REPO_DIR"
     fi
@@ -1935,10 +2007,12 @@ main() {
     cleanup_git_locks "$REPO_DIR"
     
     # Check network connectivity
+    report_git_sync_phase "network" "Checking network before git fetch" "running"
     check_network_connectivity
     
     # FIXED: Determine optimal git URL without variable corruption
     local git_url
+    report_git_sync_phase "git_url" "Resolving repository access" "running"
     git_url=$(determine_git_url "$REPO_URL")
     
     # Update remote origin if necessary
@@ -1951,17 +2025,19 @@ main() {
     
     # Stash local changes
     if git status --porcelain | grep -q .; then
+        report_git_sync_phase "stash" "Stashing local repository changes before sync" "running"
         log_info "GIT-STASH" "Stashing local changes..."
         git stash push --include-untracked -m "Auto-stash before sync at $(date)" || \
             log_error_and_exit "GIT-STASH" "Failed to stash local changes"
     fi
     
     # Perform git fetch with retry logic
+    report_git_sync_phase "fetch" "Fetching repository updates" "running"
     if ! perform_git_fetch "$git_url"; then
         if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
             set_led_status "GIT_FAILED_CONTINUING"  # Yellow - indicates cached code being used
-            persist_git_sync_state "warning" "Fetch failed, continuing with cached repository state"
+            report_git_sync_phase "fetch_failed_cached" "Fetch failed; continuing with cached repository state" "warning"
             echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$BRANCH_NAME\",\"error\":\"fetch_failed_graceful\",\"message\":\"Fetch failed, using cached code\"}"
             exit 0
         else
@@ -1977,6 +2053,7 @@ main() {
     local detached_target=false
     current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     if [[ "$current_branch" != "$BRANCH_NAME" ]]; then
+        report_git_sync_phase "checkout" "Switching repository to ${BRANCH_NAME}" "running"
         log_info "GIT-BRANCH" "Switching from '$current_branch' to '$BRANCH_NAME'"
         if ! git checkout "$BRANCH_NAME"; then
             log_warn "GIT-BRANCH" "Local branch checkout failed; attempting detached origin/$BRANCH_NAME checkout (worktree-safe)"
@@ -1989,6 +2066,7 @@ main() {
     fi
     
     # Reset to match origin
+    report_git_sync_phase "reset" "Resetting runtime repository to origin/${BRANCH_NAME}" "running"
     log_info "GIT-RESET" "Resetting $BRANCH_NAME to origin/$BRANCH_NAME"
     if ! retry_with_backoff "$MAX_RETRIES" "GIT-RESET" git reset --hard "origin/$BRANCH_NAME"; then
         log_error_and_exit "GIT-RESET" "Failed to reset branch $BRANCH_NAME"
@@ -2006,6 +2084,7 @@ main() {
     maybe_reexec_updated_sync_script "$previous_head" "$current_head"
     check_runtime_process_updates "$previous_head" "$current_head"
     check_repo_update_restart_policy "$previous_head" "$current_head"
+    report_git_sync_phase "validate" "Validating pulled runtime changes" "running"
     if ! preflight_validate_post_sync_runtime_changes "$previous_head" "$current_head"; then
         set_led_status "GIT_FAILED_CONTINUING"
         if rollback_repository_to_previous_head "$previous_head" "POST-SYNC-ROLLBACK"; then
@@ -2016,6 +2095,7 @@ main() {
     if ! check_service_updates; then
         exit_with_failure_result "SERVICE-UPDATE" "Post-sync systemd unit reconcile failed and requires manual recovery" 1 "GIT_FAILED_CONTINUING"
     fi
+    report_git_sync_phase "runtime_reconcile" "Reconciling managed node runtimes" "running"
     ensure_mavsdk_runtime_artifact
     check_connectivity_updates
     check_mavlink_runtime_updates
@@ -2042,7 +2122,7 @@ main() {
     log_info "SUCCESS" "Commit: $commit_hash - $commit_message"
     log_info "SUCCESS" "Duration: ${duration}s"
     log_info "SUCCESS" "=========================================="
-    persist_git_sync_state "success" "Git synchronization completed successfully"
+    report_git_sync_phase "success" "Git synchronization completed successfully" "success"
 
     # Structured result for machine parsing (used by actions.py)
     # Escape quotes/backslashes in commit message for valid JSON

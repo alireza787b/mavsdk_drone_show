@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -31,6 +32,10 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools.runtime_validation_support import fetch_and_require_sitl_runtime
 
 try:
     from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
@@ -42,7 +47,11 @@ try:
         GCS_SYSTEM_HEALTH_ROUTE,
     )
     from src.params import Params
-    from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
+    from tools.runtime_validation_support import (
+        normalize_drone_ids,
+        parse_csv_drone_ids,
+        write_json_report,
+    )
 except Exception:  # pragma: no cover - fallback only
     class _FallbackParams:
         TELEMETRY_POLLING_TIMEOUT = 10
@@ -946,6 +955,7 @@ def main() -> int:
 
     health = wait_api_ready(client)
     artifacts["stages"]["health"] = health
+    artifacts["stages"]["target_runtime"] = fetch_and_require_sitl_runtime(args.base_url)
 
     baseline_rows = wait_fleet_ready(client, selected_ids)
     artifacts["stages"]["baseline_ready"] = baseline_rows
