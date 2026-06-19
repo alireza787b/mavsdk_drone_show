@@ -162,4 +162,4 @@ Current local answers using the shared composer include fleet/IP lookup, connect
 
 The current external-protocol alignment remains:
 - MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools
-- OpenAI Responses provider calls remain tool-disabled for advisory generation in this slice; local/MCP tool execution is handled by MDS policy gates, not by free-form provider tool calls. Reference: https://developers.openai.com/api/reference/resources/responses/methods/create
+- OpenAI Responses provider calls remain tool-disabled for text generation; local/MCP tool execution is handled by MDS policy gates, not by free-form provider tool calls. Reference: https://developers.openai.com/api/reference/resources/responses/methods/create

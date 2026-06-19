@@ -1,20 +1,30 @@
 # Simurgh Read-Only Checkpoint
 
-Status: read-only checkpoint before action-enabled Simurgh slices, updated
-2026-06-06.
+Status: historical read-only checkpoint, superseded by guarded action-enabled
+Simurgh slices, updated 2026-06-18.
 
-This guide is the public-safe handoff for the current Simurgh Operator phase. It
-summarizes what is intentionally available today, what must remain blocked, how
-future MCP/API work should be promoted, and which gates must pass before action
-execution is added.
+This guide is the public-safe baseline for the Simurgh Operator read-only phase.
+It remains useful for MCP/API promotion rules and regression prompts, but it is
+no longer the complete current runtime scope because selected guarded actions
+now exist.
 
 ## Current Scope
 
-Simurgh is currently a read-only operator assistant and MCP interoperability
-surface for GCS-side MDS state. It can inspect approved MDS/GCS information,
-answer operator questions, search public MDS docs, explain setup/workflows, and
-use optional advisory OpenAI text composition or public web search for safe
-general questions.
+Simurgh can inspect approved MDS/GCS information, answer operator questions,
+search public MDS docs, explain setup/workflows, and use optional text-only
+OpenAI composition or public web search for safe general questions.
+
+The current implementation also supports selected guarded actions through the
+same curated registry and policy executor:
+
+- SITL instance create/reconcile/restart/remove through canonical GCS SITL
+  Control routes when `MDS_MODE=sitl` and policy allows `simulate` risk;
+- curated flight-command drafts through the canonical GCS command tracker;
+- human confirmation when `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`;
+- final no-execute dry-run reporting when
+  `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`;
+- actual route submission only after typed planning, approval, policy check,
+  and circuit-breaker-off state.
 
 The current scope includes:
 
@@ -48,14 +58,16 @@ The current scope includes:
 
 ## Safety Boundary
 
-The read-only checkpoint deliberately does not expose mutation or flight actions.
+The original read-only checkpoint deliberately did not expose mutation or flight
+actions. Current guarded-action slices expose only reviewed registry tools, not
+raw APIs.
 
 Blocked boundaries:
 
 - no direct drone-local API exposure to models or external MCP clients;
 - no raw `POST /api/v1/commands` access;
-- no mission launch, upload, parameter write, environment write, git write, or
-  service restart tool exposed through Simurgh/MCP;
+- no unreviewed mission launch, upload, parameter write, environment write, git
+  write, or service restart tool exposed through Simurgh/MCP;
 - no automatic OpenAPI-to-MCP execution;
 - no model-side tool execution against GCS state;
 - no raw prompts, credentials, private logs, or unbounded telemetry in persisted
@@ -63,7 +75,7 @@ Blocked boundaries:
 
 `MDS_MODE` remains the only real-vs-SITL runtime switch. Simurgh does not have a
 separate real/SITL mode. The action circuit breaker is the final executor stop
-for any future non-read-only tool: upstream planning may explain what would be
+for every non-read-only tool: upstream planning may explain what would be
 called, but the executor must not mutate state while
 `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`. `Always confirm actions` is the human
 approval gate immediately before that final executor layer.
@@ -108,7 +120,7 @@ python3 tools/generate_simurgh_tool_candidates.py --check
 python3 tools/generate_simurgh_docs_index.py --check
 pytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_env_registry.py tests/test_simurgh_dashboard_prompt_evals.py tests/test_simurgh_retrieval_quality.py
 python3 tools/run_simurgh_dashboard_prompt_evals.py
-python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --expected-runtime-mode sitl --json
+python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --json
 ```
 
 The smoke token must be temporary, revoked after the run, and never committed or
@@ -139,28 +151,28 @@ about MDS, use public/general knowledge or web search only for safe public
 questions, remember the previous topic for follow-ups, and avoid repeating an
 unrelated tool summary.
 
-## Action-Enabled Roadmap
+## Historical Action-Enabled Roadmap
 
-Action-enabled Simurgh should be added in staged slices only after PM/safety
-approval of this read-only checkpoint.
+This was the original staged roadmap after the read-only checkpoint. The first
+guarded action slices are now implemented; keep the sequence as a review model
+for broadening scope.
 
-Recommended sequence:
+Sequence and current state:
 
-1. **Action proposal schema**: produce structured dry-run plans for future
-   actions without executing them.
-2. **Action candidate inventory**: classify existing mutation/flight APIs as
-   blocked, guarded, SITL-only, or future-real candidates.
-3. **SITL-only wrappers**: expose a tiny set of reviewed actions in SITL with
-   typed args, always-confirm, audit, and circuit-breaker enforcement.
-4. **Progress monitor**: stream action status, logs, cancellation state, and
-   final evidence through the same Simurgh activity event model.
-5. **Scenario evals**: add PM-style dry-run, SITL, rejection, and interruption
-   prompts before broadening action scope.
-6. **Field shadow mode**: run real-mode advisory/dry-run next to human actions
-   and compare proposed actions against operator decisions.
-7. **Limited real-mode actions**: only after written PM/safety approval, allow a
-   narrow real-mode set with explicit confirmation, circuit-breaker off by a
-   human, strong audit, and field checklist alignment.
+1. **Action proposal schema**: implemented for selected curated actions.
+2. **Action candidate inventory**: implemented through generated candidates plus
+   curated registry promotion.
+3. **SITL lifecycle wrappers**: implemented for create/reconcile/restart/remove
+   through GCS SITL Control routes.
+4. **Curated flight-command drafts**: implemented for the initial reviewed
+   command set through the canonical GCS command tracker.
+5. **Progress monitor**: initial streaming exists; richer operation follow-up
+   and cancellation remain active roadmap items.
+6. **Scenario evals**: PM-style regression tests exist and must expand as each
+   new action surface is promoted.
+7. **Field shadow mode and broader real-mode actions**: remain future work and
+   require written PM/safety approval, strong audit, and field checklist
+   alignment.
 
 Do not start with broad model autonomy. Deterministic state, tool scoping,
 approval, monitoring, and evals are the product foundation.

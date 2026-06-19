@@ -32,7 +32,7 @@ term_replacements:
     aliases: [cehck]
     canonical: check
   - id: typo.drone
-    aliases: [doren, droen, droens]
+    aliases: [doren, dorens, dorne, dornes, droen, droens]
     canonical: drone
   - id: typo.fleet
     aliases: [flee, fleed, fleat]
@@ -58,9 +58,24 @@ term_replacements:
   - id: typo.there
     aliases: [ther]
     canonical: there
+  - id: typo.for
+    aliases: [tfor, fo r]
+    canonical: for
   - id: typo.ready
     aliases: [reay, rpeady, rady]
     canonical: ready
+  - id: typo.report
+    aliases: [rpeort, reprot]
+    canonical: report
+  - id: typo.telemetry
+    aliases: [telemtery, telemtry, telmreya, telmery, telemreya, telemetrya, ahvetelmreya, ahvetelemetry]
+    canonical: telemetry
+  - id: typo.have
+    aliases: [ahve, hvae, hve]
+    canonical: have
+  - id: typo.and
+    aliases: [nd]
+    canonical: and
   - id: typo.swarm
     aliases: [searm, sawrm, swram]
     canonical: swarm
@@ -149,7 +164,7 @@ term_replacements:
     aliases: [launch, lancer, lanzar, lançar, avviare, پرتاب, شروع پرواز]
     canonical: launch
   - id: action.takeoff
-    aliases: [takeoff, take off, décoller, decolle, despegar, decolar, برخاست]
+    aliases: [takeoff, take off, take of, takeeof, takeeoff, teakeof, teakeeof, teakeoff, took off, tooked off, décoller, decolle, despegar, decolar, برخاست]
     canonical: takeoff
   - id: action.land
     aliases: [land, landing, atterrir, aterrizar, pousar, فرود]

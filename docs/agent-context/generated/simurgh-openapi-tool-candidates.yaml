@@ -1861,7 +1861,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response List Sidecars Api V1 Fleet Sidecars Get
     type: object
   review_status: needs_review
@@ -1903,7 +1902,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Table Api V1 Fleet Sidecars  Sidecar  Get
     type: object
   review_status: needs_review
@@ -1945,7 +1943,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Baseline Api V1 Fleet Sidecars  Sidecar  Baseline Get
     type: object
   review_status: needs_review
@@ -1994,7 +1991,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Node Api V1 Fleet Sidecars  Sidecar  Nodes  Hw Id  Get
     type: object
   review_status: needs_review
@@ -2070,7 +2066,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Job Api V1 Fleet Sidecars Jobs  Job Id  Get
     type: object
   review_status: needs_review
@@ -2347,8 +2342,8 @@ candidates:
     schema:
       default: 0
       description: Formation heading (degrees)
-      exclusiveMaximum: 360
-      minimum: 0
+      exclusiveMaximum: 360.0
+      minimum: 0.0
       title: Heading
       type: number
   - description: Output format (json/csv/kml)
@@ -6090,7 +6085,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Apply Policy Api V1 Fleet Sidecars  Sidecar  Policy Apply Post
     type: object
   review_status: needs_review
@@ -6133,7 +6127,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Dry Run Policy Api V1 Fleet Sidecars  Sidecar  Policy Dry Run Post
     type: object
   review_status: needs_review
@@ -6176,7 +6169,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Promote Reference Draft Api V1 Fleet Sidecars  Sidecar  Promote Draft Post
     type: object
   review_status: needs_review
@@ -6220,7 +6212,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Apply Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Apply Post
     type: object
   review_status: needs_review
@@ -6263,7 +6254,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Dry Run Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Dry Run Post
     type: object
   review_status: needs_review
@@ -7761,7 +7751,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 81af3eda369668b2d15558bcd83dbf7949b2947fa163795949ff37d3dfd6b6a1
+  openapi_sha256: 703e525c08fbfe990b8211e4f25286e3a68ad8ea5f8163c1f6cc22df924251cd
   title: GCS Server API
   version: '5.5'
 summary:

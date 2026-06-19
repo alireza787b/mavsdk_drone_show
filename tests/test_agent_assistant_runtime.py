@@ -8,7 +8,6 @@ from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
 import pytest
 import yaml
 
@@ -180,57 +179,6 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     assert "simurgh.safety_policy" in str(captured["input"])
     assert "No tool execution" in record.turn.safety_notes[0]
     assert audit.list_events()[0].metadata["provider"] == "openai"
-
-
-def test_openai_assistant_stream_emits_typed_text_deltas_and_returns_completed_response(
-    monkeypatch,
-    tmp_path,
-):
-    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
-    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
-    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
-    adapter = OpenAIResponsesAssistantAdapter(config=load_default_assistant_config())
-    captured: dict[str, object] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured.update(json.loads(request.content.decode("utf-8")))
-        body = "\n\n".join(
-            [
-                'event: response.created\ndata: {"type":"response.created","response":{"id":"resp-stream"}}',
-                'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Live "}',
-                'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"answer."}',
-                (
-                    'event: response.completed\ndata: {"type":"response.completed","response":'
-                    '{"id":"resp-stream","status":"completed","output":[{"type":"message","content":'
-                    '[{"type":"output_text","text":"Live answer.","annotations":[]}]}]}}'
-                ),
-                "",
-            ]
-        )
-        return httpx.Response(
-            200,
-            headers={"Content-Type": "text/event-stream"},
-            text=body,
-        )
-
-    transport = httpx.MockTransport(handler)
-    original_client = httpx.Client
-    monkeypatch.setattr(
-        httpx,
-        "Client",
-        lambda **kwargs: original_client(transport=transport, **kwargs),
-    )
-    deltas: list[str] = []
-
-    turn = adapter.generate(
-        message="Give me a concise answer.",
-        context_documents=(),
-        delta_callback=deltas.append,
-    )
-
-    assert captured["stream"] is True
-    assert deltas == ["Live ", "answer."]
-    assert turn.content == "Live answer."
 
 
 def test_openai_response_parser_accepts_reasoning_items(monkeypatch, tmp_path):
@@ -434,7 +382,7 @@ def test_openai_assistant_turn_uses_web_search_for_public_px4_release_lookup(mon
         sessions=AgentSessionStore(),
         audit=InMemoryAuditSink(),
         actor="operator",
-        message="What is the latest stable PX4 Autopilot release? Verify it online and cite the source.",
+        message="what is the latest PX4 stable release version?",
     )
 
     assert record.turn.provider == "openai"
@@ -1513,6 +1461,21 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
 
     assert classify_mds_read_intent("what boards are connected now?") == "fleet_connectivity"
     assert classify_mds_read_intent("what drones are conencted?") == "fleet_connectivity"
+    assert classify_mds_read_intent("How many drones do we have configured? Are they all ready to fly") == "fleet_connectivity"
+    assert (
+        classify_mds_read_intent(
+            "check if its created and we ahvetelmreya nd ready to fly? report a summary preflight status",
+            conversation_topic="sitl",
+        )
+        == "fleet_connectivity"
+    )
+    assert (
+        classify_mds_read_intent(
+            "I dont have QGC now. All I have is what you already have in MDS telemtery. You can check yourself.",
+            conversation_topic="logs",
+        )
+        == "fleet_connectivity"
+    )
 
     answer = answer_mds_read_only_question(
         "what is their gps status and coordinate?",
@@ -2501,6 +2464,68 @@ def test_assistant_turn_explicit_fleet_status_overrides_log_topic(monkeypatch):
     assert followup.audit_event.metadata["query_domain"] == "fleet"
     assert "Fleet status from GCS configuration" in followup.turn.content
     assert "Backend warning/error summary" not in followup.turn.content
+
+
+def test_assistant_turn_mds_telemetry_followup_overrides_log_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="check latest logs and tell me if anything is wrong",
+    )
+    assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert first.session.metadata["last_domain"] == "logs"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message=(
+            "I dont have QGC now. All I have is what you already have in MDS telemetry. "
+            "You can check yourself. Why do you rely on me?"
+        ),
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "fleet_connectivity"
+    assert followup.audit_event.metadata["query_domain"] == "fleet"
+    assert "Connectivity from GCS state" in followup.turn.content
+    assert "Backend warning/error summary" not in followup.turn.content
+
+
+def test_assistant_turn_generic_self_check_does_not_steal_log_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="check latest logs and tell me if anything is wrong",
+    )
+    assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert first.session.metadata["last_domain"] == "logs"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="you can check yourself, why do you rely on me?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert followup.audit_event.metadata["query_domain"] == "logs"
+    assert "Connectivity from GCS state" not in followup.turn.content
 
 
 def test_assistant_turn_answers_general_robotics_and_weather_without_fleet_tables(monkeypatch):

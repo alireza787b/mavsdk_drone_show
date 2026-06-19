@@ -24,6 +24,11 @@ PRIVATE_CONTEXT_KEYS = {
     "last_routing_message",
     "last_tool_intent",
     "last_read_only_evidence",
+    "last_action_draft",
+    "last_action_draft_id",
+    "last_action_draft_hash",
+    "last_action_request_message",
+    "last_submitted_action",
 }
 MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
 SAFE_SESSION_METADATA_VALUES = {
@@ -34,6 +39,7 @@ SAFE_SESSION_METADATA_VALUES = {
         "docs",
         "drone_show",
         "fleet",
+        "flight",
         "general",
         "logs",
         "mcp",
@@ -56,6 +62,7 @@ SAFE_SESSION_METADATA_VALUES = {
         "docs_help",
         "fleet_connectivity",
         "fleet_summary",
+        "flight_action",
         "mission_mode_comparison",
         "operator_help",
         "autopilot_support",

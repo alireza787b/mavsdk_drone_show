@@ -3,11 +3,11 @@ metadata:
   owner: simurgh-operator
   boundary: gcs-only
   policy_summary: >
-    Simurgh's non-executing mock assistant is enabled by default. The first supported behavior is
-    read-only observation through curated GCS tools. Real-world commands,
-    raw command submission, direct drone APIs, auth/admin mutation, and
-    destructive operations are denied unless a later policy slice explicitly
-    adds audited wrappers.
+    Simurgh is governed by the canonical MDS runtime mode, a human approval
+    gate, and a final circuit breaker. Read-only tools are directly callable
+    through the curated registry. Flight actions may only pass through audited
+    GCS-side wrappers; raw command submission, direct drone APIs, auth/admin
+    mutation, and destructive operations remain excluded.
 defaults:
   agent_enabled: true
   mcp_enabled: false
@@ -41,22 +41,24 @@ runtime_modes:
       - sensitive_observe
       - plan
       - simulate
-    denied_risks:
       - operate
+    denied_risks:
       - admin
       - destructive
     approval_required_risks:
       - plan
       - simulate
+      - operate
   real:
     allowed_risks:
       - observe
       - sensitive_observe
       - plan
+      - operate
     denied_risks:
       - simulate
-      - operate
       - admin
       - destructive
     approval_required_risks:
       - plan
+      - operate

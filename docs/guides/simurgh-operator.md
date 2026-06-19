@@ -1,10 +1,10 @@
 # Simurgh Operator
 
-Simurgh Operator is the MDS agent-safe control-plane foundation for future MCP
-servers and dashboard assistant workflows.
+Simurgh Operator is the MDS agent-safe control-plane foundation for MCP servers
+and dashboard assistant workflows.
 
-The current implementation is still deny-by-default, but it now includes a
-usable read-only operator slice:
+The current implementation is deny-by-default, but it now includes a usable
+read-only operator slice plus selected guarded actions:
 
 - provider-neutral runtime primitives
 - deny-by-default policy evaluation
@@ -15,7 +15,7 @@ usable read-only operator slice:
 - dashboard assistant progress and answer streaming over a GCS-side SSE route
 - compact activity trace that shows the current step, fades the last one or two
   evidence steps, and hides detailed trace rows behind an in-message disclosure
-- optional advisory-only OpenAI Responses adapter
+- optional text-only OpenAI Responses adapter
 - optional public web search for safe current/public facts, separated from local
   MDS state so installed firmware, fleet state, logs, IPs, and credentials stay
   on approved local tools
@@ -28,7 +28,8 @@ usable read-only operator slice:
 - generated public docs/chunk index with MCP search and bounded chunk retrieval
 - read-only drone log and onboard PX4 ULog metadata summaries through approved
   GCS-side log endpoints, without raw ULog download/erase exposure
-- no real-world command execution
+- guarded SITL lifecycle actions through canonical GCS SITL Control routes
+- guarded curated flight-command drafts through canonical GCS command routes
 - no direct drone API exposure
 
 ## Dashboard Chat UX Contract
@@ -142,21 +143,18 @@ field logs.
 The manual provider smoke suite is:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl
+python3 tools/run_simurgh_provider_smoke.py
 ```
 
 Dry mode is the default and does not call OpenAI. It validates the configured
-scenario prompts, builds an advisory OpenAI Responses request, and checks that
+scenario prompts, builds a text-only OpenAI Responses request, and checks that
 the request preserves `store=false`, `tools=[]`, `tool_choice="none"`,
 `parallel_tool_calls=false`, no conversation state, and `mds_execution=none`.
 
 Live smoke requires an absolute restricted key file:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py \
-  --expected-runtime-mode real \
-  --live \
-  --api-key-file /etc/mds/secrets/openai_api_key
+python3 tools/run_simurgh_provider_smoke.py --live --api-key-file /etc/mds/secrets/openai_api_key
 ```
 
 Use live smoke only from a trusted validation host or maintenance window after
@@ -165,35 +163,27 @@ prints a content hash plus length. Keep
 `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true` and
 `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. MCP does not need to be enabled
 for provider smoke; if it is enabled for a separate MCP validation, keep
-`MDS_MCP_REQUIRE_AUTH=true`. Do not change `MDS_MODE` for provider smoke; a
-production GCS can remain `MDS_MODE=real` while the Simurgh assistant path stays
-advisory-only. Select the observed mode with `--expected-runtime-mode`; the
-smoke fails on a mismatch and also verifies the circuit breaker and
-always-confirm policy.
+`MDS_MCP_REQUIRE_AUTH=true`. Do not change `MDS_MODE` for provider smoke; the
+OpenAI provider smoke path is text-only and does not execute tools.
 
 ## MCP Smoke Client
 
 The external MCP validation client is:
 
 ```bash
-python3 tools/simurgh_mcp_smoke_client.py \
-  --base-url https://<gcs-host> \
-  --token-file /path/to/agent-token \
-  --expected-runtime-mode real \
-  --json
+python3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json
 ```
 
 It validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom
 agents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,
 `resources/list`, `resources/read`, `mds.operator.question.answer`,
 `mds.docs.search`, `mds.docs.chunk.read`, and
-`mds.simurgh.tool_candidates.read`. It also verifies protected-resource auth
-metadata, the expected MCP protocol version, canonical `gcs_mode` /
-`gcs_mode_source`, structured read-only tool-registry posture, zero unpromoted
-generator-eligible read-only candidates, and a blocked or dry-run-only direct
-action request. Use it before debugging a specific external client, and never
-put bearer tokens in committed MCP client configuration. Use
-`--expected-runtime-mode sitl` for an isolated simulator deployment.
+`mds.simurgh.tool_candidates.read`. It also fails if the tool menu exposes
+obvious raw/action/admin tool names, verifies that the live registry reports
+zero unpromoted generator-eligible read-only candidates, and verifies that a
+direct action request is blocked or dry-run only. Use it before debugging a
+specific external client, and never put bearer tokens in committed MCP client
+configuration.
 
 When field logs produce new lessons, do not paste raw artifacts into eval
 fixtures or context files. Follow
@@ -228,9 +218,8 @@ Operator-facing controls should stay small:
   what would be called, but the executor must not run non-read-only tools while
   this is enabled.
 - **Always confirm actions** maps to
-  `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true` for future action-capable
-  wrappers. It is the approval gate immediately before the final executor layer.
-  Current production assistant turns remain advisory-only.
+  `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. It is the approval gate
+  immediately before the final executor layer.
 - **OpenAI provider/model/key file** map to `MDS_AGENT_PROVIDER`,
   `MDS_AGENT_OPENAI_MODEL`, and `MDS_AGENT_OPENAI_API_KEY_FILE`.
 - **Web search** maps to `MDS_AGENT_WEB_SEARCH_ENABLED`. It is only used for
@@ -251,8 +240,94 @@ a dry-run explanation of the tool and arguments it would use, but the final
 executor layer must not perform the action. If the circuit breaker is off, the
 current `MDS_MODE`, tool risk policy, and human-confirmation rules still apply.
 
+## Guarded Actions
+
+Simurgh uses one action workflow for simulation and real operations:
+
+1. interpret the operator request;
+2. draft a typed payload for one curated registry tool;
+3. ask for confirmation when policy requires it;
+4. evaluate runtime policy and the final circuit breaker;
+5. submit only through the canonical GCS route for that tool when allowed;
+6. when the operator asks to wait, report progress, or run a dependent cleanup,
+   monitor the matching command/operation status until terminal success,
+   terminal failure, cancellation, or a bounded timeout.
+
+The active `MDS_MODE` only changes which registry tools are valid. It does not
+create a separate agent mode. In `sitl`, guarded simulation tools can draft and
+submit:
+
+- `mds.sitl.instances.create` for one new SITL instance via
+  `POST /api/v1/system/sitl/instances`;
+- `mds.sitl.fleet.reconcile` for a requested fleet count such as “create 4 SITL
+  drones” via `POST /api/v1/system/sitl/reconcile`;
+- `mds.sitl.instances.action` for restart/remove of explicitly named SITL
+  instances via `POST /api/v1/system/sitl/instances/actions`.
+
+Direct lifecycle wording such as “build one SITL”, “start a SITL”, “create one
+SITL instance”, or the same request phrased as “create one drone instance” while
+the active session topic is SITL is treated as an action request and must produce
+a guarded draft. Instructional wording such as “how do I build a SITL instance?”
+remains help/docs guidance and must not create a pending action.
+If the operator asks to "report when ready", "report when created", or uses
+equivalent rough wording, the draft should request operation monitoring so the
+assistant reports terminal create/reconcile status in chat instead of handing
+the operator a raw status endpoint as the primary next step.
+
+In `real`, those tools are denied by policy because their risk class is
+`simulate`.
+
+Flight commands use `mds.flight.command.execute`, which wraps a small typed set
+of GCS command payloads and never exposes raw command submission. SITL lifecycle
+actions use the same confirmation, audit, progress, and circuit breaker path.
+For follow-up action turns, Simurgh may infer an implicit target such as "the
+drone" only from the previous submitted action in the same assistant session. It
+must say that target was inferred and keep the same policy/circuit-breaker gate.
+When a single SITL create/reconcile result clearly identifies `drone-N`, Simurgh
+stores that as the next single follow-up target for the same session. If multiple
+targets are possible, it must ask for the target instead of guessing.
+
+Action wording is normalized through the shared operator-query adaptation layer,
+so common typos and phrases such as `take of` route the same way as `takeoff`.
+This normalization is for routing only; the submitted payload remains typed and
+validated by the GCS schema.
+
+Long-running action monitoring is status-based, not sleep-based. Flight commands
+poll the canonical command tracker. SITL create/reconcile/restart/remove actions
+poll the SITL operation endpoint returned by the curated registry route. A
+dependent post-action such as "land, wait until disarmed, then remove the SITL
+instance" runs only after the command reaches terminal success; it is skipped on
+failure, cancellation, or timeout.
+
+Compound flight requests may produce a primary command plus bounded dependent
+post-actions. For example, “takeoff to 10 m, wait 10 s, then move 10 m north and
+RTL” drafts one monitored TAKE_OFF command followed by a bounded delay, a typed
+PRECISION_MOVE command, and a final RETURN_RTL command. The final executor,
+confirmation, command tracker, and circuit breaker rules are identical in SITL
+and real runtime.
+
+Guarded action confirmations are local runtime decisions, not provider-composed
+answers. When a pending draft is shown in dashboard chat, the UI presents compact
+**Confirm** and **Reject** controls tied to that draft id. Typed confirmations
+such as `confirm action act-...` use the same path. If a browser stream or
+network request drops before the next turn, Simurgh may recover exactly one
+recent pending draft for the same operator and execute it after policy
+evaluation. If there is no pending draft, or there are multiple recent pending
+drafts, Simurgh must not guess; it gives a local no-execute answer using the live
+runtime policy state and asks for the specific draft id or a fresh action
+request. Public context defaults must not be used to answer confirmation-state
+questions.
+
+If the operator cancels a draft or asks a follow-up such as "read again",
+"same sequence", "do the job", or "try again", Simurgh may replay the last
+action request text stored in the private session context. Replay still creates
+a fresh draft id and still requires the normal confirmation/policy path. It must
+not re-run an old draft blindly, and it must preserve the last submitted action
+context, such as the single SITL `drone-N` target created earlier in the same
+session.
+
 Keep `MDS_AGENT_PROVIDER=mock` on unauthenticated or field-reachable GCS
-services. If `MDS_AGENT_PROVIDER=openai` is enabled for advisory text, the
+services. If `MDS_AGENT_PROVIDER=openai` is enabled for text composition, the
 assistant API refuses turns unless the request has an authenticated MDS
 operator/admin session or a bearer token with `agent`, `operator`, or `admin`
 scope. Drone-only bearer tokens are not accepted for external provider calls.
@@ -322,8 +397,8 @@ misleading.
 
 Provider-specific credentials use server-side secret files only. The dashboard
 can paste/update an OpenAI key, but the API never returns the raw key; it only
-shows ready/fingerprint/updated status. To enable the advisory-only OpenAI
-adapter manually, set:
+shows ready/fingerprint/updated status. To enable the text-only OpenAI adapter
+manually, set:
 
 ```text
 MDS_AGENT_PROVIDER=openai
@@ -378,6 +453,12 @@ text. The local wrapper also infers a response mode, for example `status`,
 there any uploaded?` or `what does it mean?` can reuse the right evidence source
 without repeating the previous template. Prompts outside those curated read-only
 intents use the configured provider subject to the auth and safety gates above.
+
+After a SITL lifecycle action, readiness follow-ups such as “is it alive?”, “do
+we have telemetry?”, “ready to fly?”, or “preflight summary” must route to live
+fleet heartbeat/telemetry evidence. They must not answer from command queues,
+docs, or generic provider text unless live evidence is unavailable and the answer
+explicitly says what evidence is missing.
 
 General robotics/MDS-adjacent answers that should not be misrouted to live GCS
 tools are curated in `config/agent_general_knowledge.yaml`. Keep that file small
@@ -440,20 +521,21 @@ The target loop for each turn is:
    when the first evidence source is insufficient;
 5. compose the answer from cited evidence, preserving exact MDS facts and safety
    caveats;
-6. for future mutation/flight actions, produce an action proposal, require human
-   confirmation when policy says so, then let the final executor enforce the
-   circuit breaker and runtime mode before anything reaches GCS or a drone path;
+6. for supported guarded mutation/flight actions, produce an action proposal,
+   require human confirmation when policy says so, then let the final executor
+   enforce the circuit breaker and runtime mode before anything reaches GCS or a
+   drone path;
 7. monitor approved long-running work through explicit status tools and stream
    progress until completion, cancellation, or a bounded timeout.
 
-Current production scope implements the first procedural foundation for
-read-only registry tools and the public/general OpenAI web-search lane: the SSE
-route emits safe understand/policy/context events, plan events, per-tool
-running/complete/error events, public-web/provider progress, answer deltas,
-final, and done. Future deeper web research, external MCP connector lanes, and
-action-monitoring lanes must plug into the same event and policy model. They
-must not create a second hardcoded chatbot path or bypass the
-registry/audit/circuit-breaker layers.
+Current production scope implements the procedural foundation for read-only
+registry tools, selected guarded actions, bounded command/operation monitoring,
+and the public/general OpenAI web-search lane. The SSE route emits safe
+understand/policy/context events, plan events, per-tool running/complete/error
+events, action/monitor progress, public-web/provider progress, answer deltas,
+final, and done. Future deeper web research and external MCP connector lanes
+must plug into the same event and policy model. They must not create a second
+hardcoded chatbot path or bypass the registry/audit/circuit-breaker layers.
 
 The retrieval artifact is
 `docs/agent-context/generated/simurgh-docs-index.json`, generated from approved
@@ -824,15 +906,16 @@ the agent runtime, operators and maintainers can still inspect policy, tool
 metadata, and context resources.
 
 Assistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is
-deterministic `mock`. The optional `openai` adapter is advisory-only and calls
-the OpenAI Responses API after the same policy, actor/session, message-size,
+deterministic `mock`. The optional `openai` adapter is text-only and calls the
+OpenAI Responses API after the same policy, actor/session, message-size,
 metadata-size, and public-context checks pass. Provider adapters assemble public
 context from `config/agent_assistant.yaml` and
 `docs/agent-context/context-index.yaml`, record an audit hash, and do not expose
 model-driven tools in this slice. Common MDS state questions may be answered
-before the provider call by local read-only GCS context tools backed by the same
-registry/policy direction used for MCP. If `MDS_AGENT_PROVIDER` is set to an
-unsupported provider, the route returns a not-implemented error.
+before the provider call by local read-only GCS context tools, and selected
+guarded actions may be drafted/executed by local Simurgh registry tools before
+any provider path. If `MDS_AGENT_PROVIDER` is set to an unsupported provider, the
+route returns a not-implemented error.
 
 `GET /api/v1/simurgh/status` reports `assistant_provider`,
 `assistant_model`, and `assistant_external_provider` so dashboards and agent

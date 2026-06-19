@@ -175,6 +175,8 @@ def test_enabled_read_only_policy_allows_observe_and_denies_non_read_only_planni
     plan = policy.evaluate_tool(registry.require("mds.sar.mission.plan"))
     raw = policy.evaluate_tool(registry.require("mds.commands.raw_submit"))
     sitl_create = policy.evaluate_tool(registry.require("mds.sitl.instances.create"))
+    sitl_action = policy.evaluate_tool(registry.require("mds.sitl.instances.action"))
+    sitl_reconcile = policy.evaluate_tool(registry.require("mds.sitl.fleet.reconcile"))
 
     assert health.status is PolicyDecisionStatus.ALLOW
     assert plan.status is PolicyDecisionStatus.DENY
@@ -184,6 +186,10 @@ def test_enabled_read_only_policy_allows_observe_and_denies_non_read_only_planni
     assert "tool is explicitly excluded" in raw.reasons
     assert sitl_create.status is PolicyDecisionStatus.DENY
     assert "risk class 'simulate' is denied in mode 'read_only'" in sitl_create.reasons
+    assert sitl_action.status is PolicyDecisionStatus.DENY
+    assert "risk class 'simulate' is denied in mode 'read_only'" in sitl_action.reasons
+    assert sitl_reconcile.status is PolicyDecisionStatus.DENY
+    assert "risk class 'simulate' is denied in mode 'read_only'" in sitl_reconcile.reasons
 
 
 def test_mcp_channel_requires_separate_mcp_enablement():
@@ -200,6 +206,9 @@ def test_sitl_policy_approval_gate_runs_before_final_circuit_breaker_stop():
     registry = load_default_tool_registry()
     policy = AgentPolicy.from_mapping(_enabled_policy_payload(mode="sitl"), path=POLICY_PATH)
     tool = registry.require("mds.sitl.instances.create")
+    batch_action_tool = registry.require("mds.sitl.instances.action")
+    reconcile_tool = registry.require("mds.sitl.fleet.reconcile")
+    flight_tool = registry.require("mds.flight.command.execute")
 
     assert policy.action_circuit_breaker_enabled is True
     approval = policy.evaluate_tool(tool)
@@ -211,12 +220,26 @@ def test_sitl_policy_approval_gate_runs_before_final_circuit_breaker_stop():
     assert "Simurgh action circuit breaker is enabled" in blocked.reasons
     assert "circuit breaker is the final execution stop" in blocked.reasons
 
+    reconcile_blocked = policy.evaluate_tool(reconcile_tool, approved=True)
+    assert reconcile_blocked.status is PolicyDecisionStatus.DENY
+    assert "Simurgh action circuit breaker is enabled" in reconcile_blocked.reasons
+
+    batch_blocked = policy.evaluate_tool(batch_action_tool, approved=True)
+    assert batch_blocked.status is PolicyDecisionStatus.DENY
+    assert "Simurgh action circuit breaker is enabled" in batch_blocked.reasons
+
     payload = _enabled_policy_payload(mode="sitl")
     payload["defaults"]["action_circuit_breaker_enabled"] = False
     policy = AgentPolicy.from_mapping(payload, path=POLICY_PATH)
 
     assert policy.evaluate_tool(tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
     assert policy.evaluate_tool(tool, approved=True).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(batch_action_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(batch_action_tool, approved=True).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(reconcile_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(reconcile_tool, approved=True).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(flight_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(flight_tool, approved=True).status is PolicyDecisionStatus.ALLOW
     assert policy.evaluate_tool(registry.require("mds.sar.mission.plan")).status is PolicyDecisionStatus.REQUIRE_APPROVAL
     assert policy.evaluate_tool(registry.require("mds.sar.mission.plan"), approved=True).status is PolicyDecisionStatus.ALLOW
     assert policy.evaluate_tool(registry.require("mds.sar.mission.launch"), approved=True).status is PolicyDecisionStatus.DENY

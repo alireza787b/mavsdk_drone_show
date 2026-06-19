@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
+import { getAuthStatusResponse } from './services/gcsApiService';
 
 // Mock primary routed pages
 jest.mock('./pages/Overview', () => ({ __esModule: true, default: () => <div data-testid="overview" /> }));
@@ -95,6 +96,21 @@ describe('App', () => {
       'href',
       expect.stringContaining('/docs/guides/dashboard-operator.md')
     );
+  });
+
+  test('requires login when API auth is enabled even if dashboard auth is open', async () => {
+    getAuthStatusResponse.mockResolvedValueOnce({
+      data: {
+        dashboard_auth_enabled: false,
+        api_auth_enabled: true,
+        authenticated: false,
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /operator login/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
   });
 
   test('uses overlay navigation on mobile viewports', async () => {

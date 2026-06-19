@@ -16,7 +16,7 @@ Primary artifacts:
 - `field-log-review-workflow.md`: sanitized field-log intake, evidence, and
   eval-conversion workflow.
 - `provider-smoke-workflow.md`: dry-run and live-provider smoke procedure for
-  the advisory-only OpenAI adapter.
+  the text-only OpenAI adapter.
 - `context-index.yaml`: resource index loaded by `agent_runtime.context`.
 - `config/agent_provider_smoke.yaml`: configurable provider smoke scenarios.
 - `prompts/`: editable prompt templates.
@@ -28,7 +28,7 @@ Primary artifacts:
 - `evals/simurgh-advisory-provider.yaml`: runnable offline assistant-provider
   scenarios for advisory regression checks.
 
-Run the advisory eval suite without live provider calls:
+Run the provider/regression eval suite without live provider calls:
 
 ```bash
 python3 tools/run_simurgh_advisory_evals.py
@@ -37,7 +37,7 @@ python3 tools/run_simurgh_advisory_evals.py
 Run the provider smoke workflow without live provider calls:
 
 ```bash
-python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl
+python3 tools/run_simurgh_provider_smoke.py
 ```
 
 Refresh the OpenAPI candidate menu after GCS API changes:
@@ -82,8 +82,8 @@ Live provider smoke is manual and requires an absolute, restricted key file via
 `--api-key-file`. Keep `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`,
 `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`, and `MDS_MCP_ENABLED=false`.
 
-Scenarios that use provider fixtures must remain advisory-only and must not
-require raw API keys, MCP tools, direct drone APIs, or real command execution.
+Scenarios that use provider fixtures must remain text-only and must not require
+raw API keys, MCP tools, direct drone APIs, or real command execution.
 Even when live-provider mode is explicitly enabled, fixture-backed scenarios
 stay offline; only scenarios without fixtures may call a configured live
 provider.

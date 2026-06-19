@@ -97,6 +97,21 @@ class ReadOnlyToolCallResult:
         return payload
 
 
+@dataclass(frozen=True)
+class GuardedToolCallResult:
+    """Result of one approved guarded GCS route tool call."""
+
+    text: str
+    is_error: bool
+    structured_content: Any | None = None
+    status_code: int | None = None
+    truncated: bool = False
+
+    @classmethod
+    def error(cls, message: str, *, status_code: int | None = None) -> "GuardedToolCallResult":
+        return cls(text=message, is_error=True, status_code=status_code)
+
+
 def is_read_only_route_tool(tool: ToolDefinition) -> bool:
     """Return whether a registry tool is callable by the current read-only adapter."""
 
@@ -126,6 +141,19 @@ def is_read_only_callable_tool(tool: ToolDefinition) -> bool:
     """Return whether the current adapter can execute a read-only registry tool."""
 
     return is_read_only_route_tool(tool) or is_read_only_advisory_tool(tool)
+
+
+def is_guarded_route_tool(tool: ToolDefinition) -> bool:
+    """Return whether the current adapter can execute an approved guarded GCS route tool."""
+
+    return bool(
+        tool.boundary == "gcs"
+        and not tool.read_only
+        and not tool.destructive
+        and tool.exposure is ToolExposure.GUARDED
+        and tool.route_method in {"POST", "PUT", "PATCH", "DELETE"}
+        and tool.route_path
+    )
 
 
 def list_policy_allowed_read_only_tools(
@@ -258,6 +286,71 @@ async def execute_policy_allowed_read_only_tool(
         status_code=response.status_code,
         truncated=truncated,
         evidence=evidence,
+    )
+
+
+async def execute_policy_allowed_guarded_route_tool(
+    request: Request,
+    *,
+    name: str,
+    arguments: dict[str, Any],
+    channel: str,
+    approved: bool,
+    registry: ToolRegistry | None = None,
+    policy: AgentPolicy | None = None,
+    timeout_seconds: float = DEFAULT_INTERNAL_TOOL_TIMEOUT_SECONDS,
+    max_response_chars: int = DEFAULT_TOOL_MAX_RESPONSE_CHARS,
+) -> GuardedToolCallResult:
+    """Execute one approved guarded GCS route tool through policy gates."""
+
+    active_registry = registry or load_default_tool_registry()
+    tool = active_registry.get(name)
+    if tool is None:
+        return GuardedToolCallResult.error(f"Unknown Simurgh tool: {name}")
+    active_policy = policy or load_default_policy()
+    decision = active_policy.evaluate_tool(tool, channel=channel, approved=approved)
+    if decision.status is not PolicyDecisionStatus.ALLOW:
+        return GuardedToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
+    if not is_guarded_route_tool(tool):
+        return GuardedToolCallResult.error("Only approved guarded non-destructive GCS route tools are callable.")
+
+    schema_error = _validate_tool_arguments(arguments, dict(tool.input_schema or {}))
+    if schema_error:
+        return GuardedToolCallResult.error(schema_error)
+
+    path_param_names = tuple(_PATH_PARAM_RE.findall(tool.route_path or ""))
+    route_path = tool.route_path or ""
+    for path_param in path_param_names:
+        if path_param not in arguments:
+            return GuardedToolCallResult.error(f"Missing required path argument: {path_param}")
+        route_path = route_path.replace("{" + path_param + "}", quote(str(arguments[path_param]), safe=""))
+    body = {key: value for key, value in arguments.items() if key not in path_param_names}
+
+    headers: dict[str, str] = {INTERNAL_TOOL_CALL_HEADER: INTERNAL_TOOL_CALL_VALUE}
+    transport = httpx.ASGITransport(app=request.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url=str(request.base_url).rstrip("/"),
+        timeout=timeout_seconds,
+    ) as client:
+        response = await client.request(str(tool.route_method), route_path, headers=headers, json=body)
+
+    content_type = response.headers.get("content-type", "")
+    try:
+        structured = response.json() if "application/json" in content_type else None
+    except ValueError:
+        structured = None
+    text = json.dumps(structured, indent=2, sort_keys=True, default=str) if structured is not None else response.text
+    truncated = False
+    if len(text) > max_response_chars:
+        text = text[:max_response_chars] + "\n...[truncated by Simurgh response limit]"
+        truncated = True
+    return GuardedToolCallResult(
+        text=text,
+        is_error=response.status_code >= 400,
+        structured_content=structured,
+        status_code=response.status_code,
+        truncated=truncated,
     )
 
 
@@ -452,6 +545,21 @@ def _validate_one_argument(name: str, value: Any, schema: dict[str, Any]) -> str
     elif expected_type == "boolean":
         if not isinstance(value, bool):
             return f"Argument {name} must be a boolean."
+    elif expected_type == "array":
+        if not isinstance(value, list):
+            return f"Argument {name} must be an array."
+        min_items = schema.get("minItems")
+        max_items = schema.get("maxItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            return f"Argument {name} must contain at least {min_items} item(s)."
+        if isinstance(max_items, int) and len(value) > max_items:
+            return f"Argument {name} must contain at most {max_items} item(s)."
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                error = _validate_one_argument(f"{name}[{index}]", item, item_schema)
+                if error:
+                    return error
     enum = schema.get("enum")
     if isinstance(enum, list) and enum and value not in enum:
         return f"Argument {name} must be one of: " + ", ".join(str(item) for item in enum)

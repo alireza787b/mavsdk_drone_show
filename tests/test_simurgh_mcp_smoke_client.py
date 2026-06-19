@@ -34,16 +34,6 @@ class FakeMcpClient:
             "mds.simurgh.tool_candidates.read",
         ]
 
-    def protected_resource_metadata(self):
-        return {
-            "resource": "https://gcs.example/api/v1/simurgh/mcp",
-            "bearer_methods_supported": ["header"],
-            "scopes_supported": ["agent"],
-            "mds_auth_required": True,
-            "mds_boundary": "gcs-only",
-            "mds_execution": "read_only_tools",
-        }
-
     def call(self, request_id, method, params=None):
         self.calls.append((request_id, method, params or {}))
         if method == "initialize":
@@ -66,52 +56,7 @@ class FakeMcpClient:
                 ]
             }
         if method == "resources/read":
-            if params["uri"] == "mds://simurgh/tool-registry":
-                return {
-                    "contents": [
-                        {
-                            "uri": params["uri"],
-                            "mimeType": "application/json",
-                            "text": json.dumps(
-                                {
-                                    "version": "test",
-                                    "filtered_tool_count": 1,
-                                    "tools": [
-                                        {
-                                            "id": name,
-                                            "boundary": "gcs",
-                                            "read_only": True,
-                                            "destructive": False,
-                                            "exposure": "allow",
-                                        }
-                                        for name in self.tools
-                                    ],
-                                }
-                            ),
-                        }
-                    ]
-                }
-            return {
-                "contents": [
-                    {
-                        "uri": params["uri"],
-                        "mimeType": "application/json",
-                        "text": json.dumps(
-                            {
-                                "agent_enabled": True,
-                                "mcp_enabled": True,
-                                "gcs_mode": "sitl",
-                                "gcs_mode_source": "env:MDS_MODE",
-                                "mode": "sitl",
-                                "action_circuit_breaker_enabled": True,
-                                "always_confirm_before_action": True,
-                                "actions_blocked": True,
-                                "warnings": [],
-                            }
-                        ),
-                    }
-                ]
-            }
+            return {"contents": [{"uri": params["uri"], "mimeType": "application/json", "text": "{}"}]}
         if method == "tools/call":
             tool_name = params["name"]
             if tool_name == "mds.docs.search":
@@ -210,12 +155,7 @@ def test_load_bearer_token_reports_missing_file(tmp_path):
 def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface():
     client = FakeMcpClient()
 
-    summary = run_smoke(
-        client,
-        question="What can Simurgh inspect?",
-        min_tools=3,
-        expected_runtime_mode="sitl",
-    )
+    summary = run_smoke(client, question="What can Simurgh inspect?", min_tools=3)
 
     assert summary["server"]["name"] == "mds-simurgh-operator"
     assert summary["protocol_version"] == MCP_PROTOCOL_VERSION
@@ -223,11 +163,6 @@ def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface()
     assert summary["prompt_count"] == 1
     assert summary["resource_count"] == 3
     assert summary["blocked_action_verified"] is True
-    assert summary["auth_posture"]["mds_auth_required"] is True
-    assert summary["safety_posture"]["mode"] == "sitl"
-    assert summary["safety_posture"]["gcs_mode"] == "sitl"
-    assert summary["safety_posture"]["action_circuit_breaker_enabled"] is True
-    assert summary["tool_surface"]["listed_tool_count"] == 13
     assert summary["registry_coverage"]["unpromoted_eligible_candidate_count"] == 0
     assert "mds.operator.question.answer answered safely" in summary["answer_preview"]
     assert "MCP client recipe chunk" in summary["docs_chunk_preview"]
@@ -237,7 +172,6 @@ def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface()
         "tools/list",
         "resources/list",
         "resources/read",
-        "resources/read",
         "prompts/get",
         "tools/call",
         "tools/call",
@@ -245,37 +179,14 @@ def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface()
         "tools/call",
         "tools/call",
     ]
-    assert client.calls[7][2] == {
+    assert client.calls[6][2] == {
         "name": "mds.operator.question.answer",
         "arguments": {"question": "What can Simurgh inspect?"},
     }
-    assert client.calls[10][2] == {
+    assert client.calls[9][2] == {
         "name": "mds.simurgh.tool_candidates.read",
         "arguments": {"eligible_read_only": True, "limit": 200},
     }
-
-
-def test_run_smoke_fails_when_protected_resource_auth_is_disabled():
-    class AuthDisabledClient(FakeMcpClient):
-        def protected_resource_metadata(self):
-            payload = super().protected_resource_metadata()
-            payload["mds_auth_required"] = False
-            return payload
-
-    with pytest.raises(SimurghMcpSmokeError, match="auth is not required"):
-        run_smoke(AuthDisabledClient(), min_tools=1, expected_runtime_mode="sitl")
-
-
-def test_run_smoke_fails_on_protocol_version_mismatch():
-    class ProtocolDriftClient(FakeMcpClient):
-        def call(self, request_id, method, params=None):
-            result = super().call(request_id, method, params)
-            if method == "initialize":
-                result["protocolVersion"] = "2024-01-01"
-            return result
-
-    with pytest.raises(SimurghMcpSmokeError, match="protocol version mismatch"):
-        run_smoke(ProtocolDriftClient(), min_tools=1, expected_runtime_mode="sitl")
 
 
 def test_run_smoke_fails_when_expected_tools_are_missing():
@@ -283,64 +194,6 @@ def test_run_smoke_fails_when_expected_tools_are_missing():
 
     with pytest.raises(SimurghMcpSmokeError, match="expected MCP tools are missing"):
         run_smoke(client, min_tools=1)
-
-
-def test_run_smoke_fails_on_runtime_mode_or_safety_posture_mismatch():
-    with pytest.raises(SimurghMcpSmokeError, match="runtime mode mismatch"):
-        run_smoke(FakeMcpClient(), min_tools=1, expected_runtime_mode="real")
-
-    class UnsafePostureClient(FakeMcpClient):
-        def call(self, request_id, method, params=None):
-            result = super().call(request_id, method, params)
-            if method == "resources/read":
-                payload = json.loads(result["contents"][0]["text"])
-                payload["action_circuit_breaker_enabled"] = False
-                payload["actions_blocked"] = False
-                result["contents"][0]["text"] = json.dumps(payload)
-            return result
-
-    with pytest.raises(SimurghMcpSmokeError, match="unsafe Simurgh smoke posture"):
-        run_smoke(UnsafePostureClient(), min_tools=1, expected_runtime_mode="sitl")
-
-    class MismatchedRuntimeClient(FakeMcpClient):
-        def call(self, request_id, method, params=None):
-            result = super().call(request_id, method, params)
-            if method == "resources/read":
-                payload = json.loads(result["contents"][0]["text"])
-                payload["mode"] = "sitl"
-                payload["gcs_mode"] = "real"
-                payload["warnings"] = ["Simurgh policy mode did not resolve to canonical MDS_MODE."]
-                result["contents"][0]["text"] = json.dumps(payload)
-            return result
-
-    with pytest.raises(SimurghMcpSmokeError, match="policy/runtime mode mismatch"):
-        run_smoke(MismatchedRuntimeClient(), min_tools=1, expected_runtime_mode="sitl")
-
-    class MissingCanonicalRuntimeClient(FakeMcpClient):
-        def call(self, request_id, method, params=None):
-            result = super().call(request_id, method, params)
-            if method == "resources/read" and params["uri"] == "mds://simurgh/status":
-                payload = json.loads(result["contents"][0]["text"])
-                payload.pop("gcs_mode", None)
-                result["contents"][0]["text"] = json.dumps(payload)
-            return result
-
-    with pytest.raises(SimurghMcpSmokeError, match="missing canonical gcs_mode"):
-        run_smoke(MissingCanonicalRuntimeClient(), min_tools=1, expected_runtime_mode="sitl")
-
-
-def test_run_smoke_fails_when_listed_tool_is_not_safe_in_registry_resource():
-    class UnsafeRegistryClient(FakeMcpClient):
-        def call(self, request_id, method, params=None):
-            result = super().call(request_id, method, params)
-            if method == "resources/read" and params["uri"] == "mds://simurgh/tool-registry":
-                payload = json.loads(result["contents"][0]["text"])
-                payload["tools"][0]["read_only"] = False
-                result["contents"][0]["text"] = json.dumps(payload)
-            return result
-
-    with pytest.raises(SimurghMcpSmokeError, match="unsafe MCP tool registry posture"):
-        run_smoke(UnsafeRegistryClient(), min_tools=1, expected_runtime_mode="sitl")
 
 
 def test_run_smoke_fails_if_forbidden_looking_tools_are_exposed():

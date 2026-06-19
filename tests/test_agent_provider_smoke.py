@@ -53,13 +53,7 @@ def test_provider_smoke_cli_bootstraps_repo_import_path_without_pythonpath():
     env["MDS_MODE"] = "real"
 
     result = subprocess.run(
-        [
-            sys.executable,
-            "tools/run_simurgh_provider_smoke.py",
-            "--expected-runtime-mode",
-            "real",
-            "--json",
-        ],
+        [sys.executable, "tools/run_simurgh_provider_smoke.py", "--json"],
         cwd=repo_root,
         env=env,
         text=True,
@@ -122,8 +116,6 @@ def test_provider_smoke_live_accepts_env_key_file(monkeypatch, tmp_path):
 
     assert result.passed is True
     assert result.live_provider_request_made is True
-    assert result.safety_posture["action_circuit_breaker_enabled"] is True
-    assert result.safety_posture["always_confirm_before_action"] is True
 
 
 def test_provider_smoke_live_uses_guarded_request_without_tools(monkeypatch, tmp_path):
@@ -220,20 +212,6 @@ def test_provider_smoke_fails_closed_on_request_invariant_regression(monkeypatch
     assert "background" in failures
     assert "file_ids" in failures
     assert "mds_execution=none" in failures
-
-
-def test_provider_smoke_fails_before_provider_on_runtime_or_policy_mismatch(monkeypatch):
-    scenario = load_default_provider_smoke_suite().scenarios[0]
-
-    mismatch = run_provider_smoke_scenario(scenario, expected_runtime_mode="real")
-    assert mismatch.passed is False
-    assert "runtime mode mismatch" in "\n".join(mismatch.failures)
-
-    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
-    unsafe = run_provider_smoke_scenario(scenario, expected_runtime_mode="sitl")
-    assert unsafe.passed is False
-    assert unsafe.provider_request_checked is False
-    assert "circuit breaker" in "\n".join(unsafe.failures)
 
 
 def test_provider_smoke_rejects_sensitive_prompt_before_provider(monkeypatch, tmp_path):

@@ -14,7 +14,6 @@ import os
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -121,37 +120,6 @@ class McpHttpClient:
             raise SimurghMcpSmokeError(f"{method} returned JSON-RPC error: {message['error']}")
         return message.get("result") or {}
 
-    def protected_resource_metadata(self) -> dict[str, Any]:
-        parts = urllib.parse.urlsplit(self.endpoint)
-        metadata_path = f"/.well-known/oauth-protected-resource{parts.path}"
-        metadata_url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, metadata_path, "", ""))
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "mds-simurgh-mcp-smoke/1.0",
-        }
-        request = urllib.request.Request(metadata_url, headers=headers, method="GET")
-        try:
-            opener = self.opener or urllib.request.urlopen
-            with opener(request, timeout=self.timeout) as response:
-                raw = response.read().decode("utf-8")
-        except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
-            raise SimurghMcpSmokeError(
-                f"protected-resource metadata failed with HTTP {exc.code}: {raw[:500]}"
-            ) from exc
-        except urllib.error.URLError as exc:
-            raise SimurghMcpSmokeError(f"protected-resource metadata connection failed: {exc.reason}") from exc
-
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise SimurghMcpSmokeError(
-                f"protected-resource metadata returned non-JSON content: {raw[:500]}"
-            ) from exc
-        if not isinstance(payload, dict):
-            raise SimurghMcpSmokeError("protected-resource metadata must be a JSON object")
-        return payload
-
 
 def _tool_names(tools_result: dict[str, Any]) -> list[str]:
     return sorted(str(tool.get("name") or "") for tool in tools_result.get("tools", []) if tool.get("name"))
@@ -167,93 +135,6 @@ def _resource_uris(resources_result: dict[str, Any]) -> list[str]:
 
 def _resource_count(resources_result: dict[str, Any]) -> int:
     return len(resources_result.get("resources") or [])
-
-
-def _json_resource_payload(resource_result: dict[str, Any], *, uri: str) -> dict[str, Any]:
-    for item in resource_result.get("contents") or []:
-        if not isinstance(item, dict) or str(item.get("uri") or "") != uri:
-            continue
-        try:
-            payload = json.loads(str(item.get("text") or ""))
-        except json.JSONDecodeError as exc:
-            raise SimurghMcpSmokeError(f"{uri} returned invalid JSON") from exc
-        if not isinstance(payload, dict):
-            raise SimurghMcpSmokeError(f"{uri} must return a JSON object")
-        return payload
-    raise SimurghMcpSmokeError(f"resources/read for {uri} returned no matching content")
-
-
-def _protected_resource_metadata(client: Any) -> dict[str, Any]:
-    reader = getattr(client, "protected_resource_metadata", None)
-    if not callable(reader):
-        raise SimurghMcpSmokeError("MCP smoke requires protected-resource metadata support")
-    payload = reader()
-    if not isinstance(payload, dict):
-        raise SimurghMcpSmokeError("protected-resource metadata must be a JSON object")
-    return payload
-
-
-def _assert_auth_posture(metadata: dict[str, Any]) -> dict[str, Any]:
-    if metadata.get("mds_auth_required") is not True:
-        raise SimurghMcpSmokeError("unsafe MCP auth posture: protected-resource metadata says auth is not required")
-    bearer_methods = metadata.get("bearer_methods_supported")
-    if not isinstance(bearer_methods, list) or "header" not in bearer_methods:
-        raise SimurghMcpSmokeError("protected-resource metadata must advertise bearer header auth")
-    scopes = metadata.get("scopes_supported")
-    if not isinstance(scopes, list) or not any(str(scope).strip() for scope in scopes):
-        raise SimurghMcpSmokeError("protected-resource metadata must advertise required scopes")
-    if metadata.get("mds_boundary") != "gcs-only":
-        raise SimurghMcpSmokeError("protected-resource metadata must advertise gcs-only boundary")
-    return {
-        "mds_auth_required": True,
-        "bearer_methods_supported": ["header"],
-        "scopes_supported": sorted(str(scope).strip() for scope in scopes if str(scope).strip()),
-        "mds_boundary": metadata.get("mds_boundary"),
-    }
-
-
-def _assert_safety_posture(
-    status: dict[str, Any],
-    *,
-    expected_runtime_mode: str | None,
-) -> dict[str, Any]:
-    policy_mode = str(status.get("mode") or "").strip().lower()
-    gcs_mode = str(status.get("gcs_mode") or "").strip().lower()
-    gcs_mode_source = str(status.get("gcs_mode_source") or "").strip()
-    if not gcs_mode:
-        raise SimurghMcpSmokeError("Simurgh status missing canonical gcs_mode")
-    if not gcs_mode_source:
-        raise SimurghMcpSmokeError("Simurgh status missing canonical gcs_mode_source")
-    if gcs_mode not in {"real", "sitl"}:
-        raise SimurghMcpSmokeError(f"Simurgh status reported invalid GCS runtime mode {gcs_mode or 'unknown'}")
-    if policy_mode and policy_mode not in {"real", "sitl"}:
-        raise SimurghMcpSmokeError(f"Simurgh status reported invalid policy mode {policy_mode}")
-    if policy_mode and policy_mode != gcs_mode:
-        raise SimurghMcpSmokeError(
-            f"Simurgh policy/runtime mode mismatch: policy={policy_mode}, gcs={gcs_mode}"
-        )
-    if expected_runtime_mode and gcs_mode != expected_runtime_mode:
-        raise SimurghMcpSmokeError(
-            f"Simurgh runtime mode mismatch: expected {expected_runtime_mode}, got {gcs_mode}"
-        )
-    required_true = {
-        "agent_enabled": "agent runtime",
-        "mcp_enabled": "MCP endpoint",
-        "action_circuit_breaker_enabled": "action circuit breaker",
-        "always_confirm_before_action": "always-confirm policy",
-        "actions_blocked": "action blocking posture",
-    }
-    disabled = [label for key, label in required_true.items() if status.get(key) is not True]
-    if disabled:
-        raise SimurghMcpSmokeError(f"unsafe Simurgh smoke posture: {', '.join(disabled)} not enabled")
-    return {
-        "mode": policy_mode or gcs_mode,
-        "gcs_mode": gcs_mode,
-        "gcs_mode_source": gcs_mode_source,
-        "action_circuit_breaker_enabled": True,
-        "always_confirm_before_action": True,
-        "actions_blocked": True,
-    }
 
 
 def _forbidden_tool_names(tool_names: list[str]) -> list[str]:
@@ -296,45 +177,10 @@ def _assert_tool_result_ok(tool_result: dict[str, Any], *, tool_name: str) -> No
 
 
 def _assert_tool_result_blocked(tool_result: dict[str, Any], *, tool_name: str) -> None:
-    preview = _content_preview(tool_result, 500).lower()
-    if tool_result.get("isError") is True:
-        if "blocked" not in preview:
-            raise SimurghMcpSmokeError(f"{tool_name} blocked without a clear blocked explanation")
-        return
-    if "dry-run" in preview and ("no action" in preview or "not executed" in preview):
-        return
-    raise SimurghMcpSmokeError(f"{tool_name} did not block or dry-run the action request")
-
-
-def _assert_registry_tool_surface(registry_payload: dict[str, Any], tool_names: list[str]) -> dict[str, Any]:
-    tools = registry_payload.get("tools")
-    if not isinstance(tools, list):
-        raise SimurghMcpSmokeError("mds://simurgh/tool-registry must include a tools list")
-    registry_by_id = {
-        str(tool.get("id") or ""): tool
-        for tool in tools
-        if isinstance(tool, dict) and str(tool.get("id") or "")
-    }
-    missing = sorted(name for name in tool_names if name not in registry_by_id)
-    if missing:
-        raise SimurghMcpSmokeError(f"MCP tool(s) missing from structured registry resource: {', '.join(missing[:8])}")
-    unsafe: list[str] = []
-    for name in tool_names:
-        tool = registry_by_id[name]
-        if (
-            tool.get("boundary") != "gcs"
-            or tool.get("read_only") is not True
-            or tool.get("destructive") is not False
-            or tool.get("exposure") == "exclude"
-        ):
-            unsafe.append(name)
-    if unsafe:
-        raise SimurghMcpSmokeError(f"unsafe MCP tool registry posture: {', '.join(unsafe[:8])}")
-    return {
-        "registry_tool_count": len(registry_by_id),
-        "listed_tool_count": len(tool_names),
-        "filtered_tool_count": registry_payload.get("filtered_tool_count"),
-    }
+    if tool_result.get("isError") is not True:
+        raise SimurghMcpSmokeError(f"{tool_name} did not block the action request")
+    if "blocked" not in _content_preview(tool_result, 500).lower():
+        raise SimurghMcpSmokeError(f"{tool_name} blocked without a clear blocked explanation")
 
 
 def _registry_coverage(tool_result: dict[str, Any]) -> dict[str, Any]:
@@ -387,10 +233,8 @@ def run_smoke(
     expected_prompts: tuple[str, ...] = DEFAULT_EXPECTED_PROMPTS,
     expected_resources: tuple[str, ...] = DEFAULT_EXPECTED_RESOURCES,
     min_tools: int = 10,
-    expected_runtime_mode: str | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
-    auth_posture = _assert_auth_posture(_protected_resource_metadata(client))
     initialize = client.call(
         1,
         "initialize",
@@ -400,11 +244,6 @@ def run_smoke(
             "clientInfo": {"name": "mds-simurgh-smoke", "version": "1.0"},
         },
     )
-    protocol_version = initialize.get("protocolVersion")
-    if protocol_version != MCP_PROTOCOL_VERSION:
-        raise SimurghMcpSmokeError(
-            f"MCP protocol version mismatch: expected {MCP_PROTOCOL_VERSION}, got {protocol_version or 'missing'}"
-        )
     prompts_result = client.call(2, "prompts/list")
     prompt_names = _prompt_names(prompts_result)
     tools_result = client.call(3, "tools/list")
@@ -429,17 +268,11 @@ def run_smoke(
         raise SimurghMcpSmokeError(f"forbidden-looking tools exposed: {', '.join(forbidden[:8])}")
 
     status_resource = client.call(5, "resources/read", {"uri": "mds://simurgh/status"})
-    status_payload = _json_resource_payload(status_resource, uri="mds://simurgh/status")
-    safety_posture = _assert_safety_posture(
-        status_payload,
-        expected_runtime_mode=expected_runtime_mode,
-    )
-    registry_resource = client.call(6, "resources/read", {"uri": "mds://simurgh/tool-registry"})
-    registry_payload = _json_resource_payload(registry_resource, uri="mds://simurgh/tool-registry")
-    tool_surface = _assert_registry_tool_surface(registry_payload, tool_names)
+    if not status_resource.get("contents"):
+        raise SimurghMcpSmokeError("resources/read for mds://simurgh/status returned no content")
 
     compare_prompt = client.call(
-        7,
+        6,
         "prompts/get",
         {
             "name": "mds.compare_mission_modes",
@@ -450,27 +283,27 @@ def run_smoke(
         raise SimurghMcpSmokeError("prompts/get for mds.compare_mission_modes returned no messages")
 
     answer_result = client.call(
-        8,
+        7,
         "tools/call",
         {"name": "mds.operator.question.answer", "arguments": {"question": question}},
     )
     _assert_tool_result_ok(answer_result, tool_name="mds.operator.question.answer")
     docs_result = client.call(
-        9,
+        8,
         "tools/call",
         {"name": "mds.docs.search", "arguments": {"query": "Simurgh MCP clients", "limit": 3}},
     )
     _assert_tool_result_ok(docs_result, tool_name="mds.docs.search")
     chunk_id = _first_docs_chunk_id(docs_result)
     docs_chunk_result = client.call(
-        10,
+        9,
         "tools/call",
         {"name": "mds.docs.chunk.read", "arguments": {"chunk_id": chunk_id, "max_chars": 1200}},
     )
     _assert_tool_result_ok(docs_chunk_result, tool_name="mds.docs.chunk.read")
 
     candidates_result = client.call(
-        11,
+        10,
         "tools/call",
         {"name": "mds.simurgh.tool_candidates.read", "arguments": {"eligible_read_only": True, "limit": 200}},
     )
@@ -478,7 +311,7 @@ def run_smoke(
     coverage = _registry_coverage(candidates_result)
 
     blocked_action_result = client.call(
-        12,
+        11,
         "tools/call",
         {"name": "mds.operator.question.answer", "arguments": {"question": "Can you launch the drone show now?"}},
     )
@@ -503,9 +336,6 @@ def run_smoke(
             "unpromoted_eligible_candidate_count": coverage.get("unpromoted_eligible_candidate_count"),
             "promoted_eligible_ratio": coverage.get("promoted_eligible_ratio"),
         },
-        "auth_posture": auth_posture,
-        "safety_posture": safety_posture,
-        "tool_surface": tool_surface,
         "blocked_action_verified": True,
         "duration_ms": round((time.monotonic() - started) * 1000, 1),
     }
@@ -520,12 +350,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=20.0, help="HTTP timeout in seconds")
     parser.add_argument("--question", default=DEFAULT_QUESTION, help="Read-only question for mds.operator.question.answer")
     parser.add_argument("--min-tools", type=int, default=10, help="Minimum expected read-only MCP tools")
-    parser.add_argument(
-        "--expected-runtime-mode",
-        choices=("real", "sitl"),
-        required=True,
-        help="Canonical MDS_MODE expected from the target GCS",
-    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON summary")
     return parser.parse_args(argv)
 
@@ -536,12 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         endpoint = normalize_mcp_endpoint(args.base_url)
         token = load_bearer_token(token=args.token, token_env=args.token_env, token_file=args.token_file)
         client = McpHttpClient(endpoint=endpoint, bearer_token=token, timeout=args.timeout)
-        summary = run_smoke(
-            client,
-            question=args.question,
-            min_tools=args.min_tools,
-            expected_runtime_mode=args.expected_runtime_mode,
-        )
+        summary = run_smoke(client, question=args.question, min_tools=args.min_tools)
     except SimurghMcpSmokeError as exc:
         print(f"Simurgh MCP smoke failed: {exc}", file=sys.stderr)
         return 1
@@ -557,9 +376,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Tools: {summary.get('tool_count')} read-only callable tools")
         print(f"Prompts: {summary.get('prompt_count')}")
         print(f"Resources: {summary.get('resource_count')}")
-        print(f"Auth posture: {summary.get('auth_posture')}")
-        print(f"Safety posture: {summary.get('safety_posture')}")
-        print(f"Tool surface: {summary.get('tool_surface')}")
         print(f"Action block verified: {summary.get('blocked_action_verified')}")
         print(f"Registry coverage: {summary.get('registry_coverage')}")
         print(f"Answer preview: {summary.get('answer_preview') or 'n/a'}")

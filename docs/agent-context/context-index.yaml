@@ -75,7 +75,7 @@ resources:
   mime_type: text/markdown
   audience: developer
   sensitivity: public
-  summary: Dry-run and live-provider smoke workflow for advisory-only OpenAI adapter
+  summary: Dry-run and live-provider smoke workflow for text-only OpenAI adapter
     validation.
   tags:
   - simurgh
@@ -89,7 +89,7 @@ resources:
   mime_type: application/yaml
   audience: developer
   sensitivity: public
-  summary: Configurable advisory-only provider smoke scenarios.
+  summary: Configurable text-only provider smoke scenarios.
   tags:
   - simurgh
   - provider

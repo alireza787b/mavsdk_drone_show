@@ -444,6 +444,52 @@
   box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
+.simurgh-chat__action-draft-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+  margin-top: var(--spacing-xs);
+}
+
+.simurgh-chat__action-draft-button {
+  min-height: var(--button-height-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.simurgh-chat__action-draft-button svg {
+  font-size: 0.82rem;
+}
+
+.simurgh-chat__action-draft-button:hover,
+.simurgh-chat__action-draft-button:focus-visible {
+  border-color: var(--color-border-secondary);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.simurgh-chat__action-draft-button--confirm {
+  border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border-primary));
+  color: var(--color-success);
+}
+
+.simurgh-chat__action-draft-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .simurgh-chat__activity {
   display: grid;
   gap: 0.22rem;

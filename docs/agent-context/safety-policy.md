@@ -28,12 +28,15 @@ Non-negotiable boundaries:
   non-read-only tool while it is enabled. Planning and approval layers may
   still produce a dry-run explanation of what would be called, but the executor
   must not perform the action. It is independent from `MDS_MODE`; real hardware
-  operation can continue for human operators while Simurgh remains advisory-only.
+  operation can continue for human operators while Simurgh remains stopped at
+  its final action layer.
 - `MDS_MODE` is the canonical real/SITL runtime source for Simurgh policy posture; there is no separate user-facing Simurgh mode or real-command override. Invalid `MDS_MODE` fails closed for Simurgh policy.
 - Assistant transcript history is not an MCP resource and does not authorize
   future tool calls.
-- Provider adapters are advisory-only in this phase. OpenAI Responses requests
-  must use `store=false`, `tools=[]`, `tool_choice="none"`,
+- Provider adapters are text-only in this phase. They may compose answers from
+  supplied local evidence or supplied guarded-action results, but they do not
+  receive provider-native tools and cannot execute side effects themselves.
+  OpenAI Responses requests must use `store=false`, `tools=[]`, `tool_choice="none"`,
   `parallel_tool_calls=false`, no conversation state, no streaming, no
   background jobs, no uploaded files, and the official
   `https://api.openai.com/v1` base URL.

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from agent_runtime.tool_executor import GuardedToolCallResult
 from api_routes.simurgh import create_simurgh_router
 
 
@@ -87,11 +91,1291 @@ def test_simurgh_assistant_stream_emits_structured_activity_contract(monkeypatch
     assert understanding
     assert understanding[0]["domain"] == "fleet"
     assert understanding[0]["response_mode"] == "status"
-    assert "Understanding:" in understanding[0]["label"]
+    assert understanding[0]["label"].startswith(("Understood:", "Understanding:"))
     assert "fleet" in understanding[0]["label"].lower()
     assert any(payload.get("stage") in {"tool", "provider", "search"} for payload in progress_payloads)
-    assert not any(event == "delta" for event, _payload in events)
+    assert any(event == "delta" and payload.get("text") for event, payload in events)
     assert any(event == "final" and payload.get("trace") for event, payload in events)
+
+
+def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m and report when done"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "guarded action draft" in content
+    assert "Action: takeoff" in content
+    assert '"mission_type": 10' in content
+    assert '"target_drone_ids": [' in content
+    assert '"1"' in content
+    assert '"takeoff_altitude": 10.0' in content
+    assert "Circuit breaker is ON" in content
+    assert "No action was executed" in content
+    assert "Simurgh Operator mock assistant is active" not in content
+    assert "Blocked intent signals" not in content
+    assert payload["blocked_intents"] == []
+    assert payload["trace"]["tool"]["id"] == "mds.flight.command.execute"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["action_draft"]["mission_name"] == "TAKE_OFF"
+
+
+def test_simurgh_confirmed_action_stops_at_final_circuit_breaker(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Circuit breaker stopped this at the final execution layer" in payload["content"]
+    assert "would submit this guarded GCS action" in payload["content"]
+    assert "No action was executed" in payload["content"]
+    assert payload["blocked_intents"] == []
+    assert payload["trace"]["safety"]["action_execution"] == "blocked_by_circuit_breaker"
+    assert payload["trace"]["safety"]["policy_reasons"]
+
+
+def test_simurgh_confirmed_action_submits_when_circuit_breaker_off(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": "cmd-simurgh-1",
+            "idempotency_key": command.idempotency_key,
+            "replayed": False,
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": "TAKE_OFF",
+            "target_drones": command.target_drone_ids,
+            "submitted_count": 1,
+            "message": "fake command accepted",
+            "timestamp": 1,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    )
+    assert draft_response.status_code == 200
+    assert submitted == []
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded flight command" in payload["content"]
+    assert "`cmd-simurgh-1`" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert len(submitted) == 1
+    command = submitted[0]
+    assert command.mission_type == 10
+    assert command.target_drone_ids == ["1"]
+    assert command.takeoff_altitude == 10.0
+    assert command.idempotency_key == f"simurgh:{draft_id}"
+
+
+def test_simurgh_bare_confirm_recovers_single_pending_action_after_lost_session(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": "cmd-recovered-confirm",
+            "idempotency_key": command.idempotency_key,
+            "replayed": False,
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": "TAKE_OFF",
+            "target_drones": command.target_drone_ids,
+            "submitted_count": 1,
+            "message": "fake command accepted",
+            "timestamp": 1,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    )
+    assert draft_response.status_code == 200
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Confirm"},
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded flight command" in payload["content"]
+    assert "`cmd-recovered-confirm`" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert len(submitted) == 1
+    assert submitted[0].target_drone_ids == ["1"]
+
+
+def test_simurgh_bare_confirm_without_pending_action_uses_live_policy_not_provider_context(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Confirm"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "I do not have a pending guarded action" in content
+    assert "Circuit breaker: OFF" in content
+    assert "Human confirmation: ON" in content
+    assert "OpenAI answer ready" not in content
+    assert "External provider calls are text-only" not in content
+    assert "No action was executed" in content
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["safety"]["action_execution"] == "no_pending_confirmation"
+
+
+def test_simurgh_bare_confirm_refuses_ambiguous_recent_pending_actions(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    assert client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    ).status_code == 200
+    assert client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 1 sitl instance so I can test with"},
+    ).status_code == 200
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Confirm"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "I found 2 recent pending guarded actions" in payload["content"]
+    assert "confirm action <draft_id>" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "no_pending_confirmation"
+    assert submitted == []
+
+
+def test_simurgh_rejects_pending_action_without_execution(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    reject_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"cancel action {draft_id}",
+        },
+    )
+
+    assert reject_response.status_code == 200
+    reject_payload = reject_response.json()
+    assert "Cancelled the pending guarded action draft" in reject_payload["content"]
+    assert reject_payload["trace"]["safety"]["action_execution"] == "cancelled_confirmation"
+    assert submitted == []
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+    assert confirm_response.status_code == 200
+    assert "I do not have a pending guarded action" in confirm_response.json()["content"]
+    assert submitted == []
+
+
+def test_simurgh_followup_land_monitors_previous_drone_and_removes_sitl(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+    post_actions = []
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+                "progress": {
+                    "label": "Command completed",
+                    "message": "Vehicle reached terminal success.",
+                },
+            }
+
+    class FakeDeps:
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        mission_name = "TAKE_OFF" if command.mission_type == 10 else "LAND"
+        return {
+            "success": True,
+            "command_id": f"cmd-{mission_name.lower()}-{len(submitted)}",
+            "idempotency_key": command.idempotency_key,
+            "replayed": False,
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": mission_name,
+            "target_drones": command.target_drone_ids,
+            "submitted_count": len(command.target_drone_ids),
+            "message": "fake command accepted",
+            "timestamp": 1,
+            "results_summary": {"accepted": len(command.target_drone_ids), "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        post_actions.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "channel": channel,
+                "approved": approved,
+                "policy_mode": policy.mode,
+            }
+        )
+        return GuardedToolCallResult(
+            text="Removed SITL instance(s)",
+            is_error=False,
+            structured_content={
+                "status": "succeeded",
+                "summary": "Removed drone-1",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    client = _client()
+
+    takeoff_draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m and report when done"},
+    )
+    assert takeoff_draft_response.status_code == 200
+    takeoff_draft_payload = takeoff_draft_response.json()
+    takeoff_draft_id = re.search(r"act-[0-9a-f]+", takeoff_draft_payload["content"]).group(0)
+
+    takeoff_confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": takeoff_draft_payload["session"]["id"],
+            "message": f"confirm action {takeoff_draft_id}",
+        },
+    )
+    assert takeoff_confirm_response.status_code == 200
+    assert "Monitor: terminal_success" in takeoff_confirm_response.json()["content"]
+
+    land_draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": takeoff_draft_payload["session"]["id"],
+            "message": "Now land the drone and once disarmed, report and remove the sitl instance clean it up",
+        },
+    )
+    assert land_draft_response.status_code == 200
+    land_draft_payload = land_draft_response.json()
+    land_content = land_draft_payload["content"]
+    assert "Action: land" in land_content
+    assert "Target: drone 1" in land_content
+    assert "Target inferred from: previous_submitted_action" in land_content
+    assert "remove SITL instance(s)" in land_content
+    assert land_draft_payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    action_draft = land_draft_payload["trace"]["safety"]["action_draft"]
+    assert action_draft["target_drone_ids"] == ["1"]
+    assert action_draft["post_actions"][0]["arguments"] == {
+        "action": "remove",
+        "instance_names": ["drone-1"],
+    }
+    land_draft_id = re.search(r"act-[0-9a-f]+", land_content).group(0)
+
+    land_confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": takeoff_draft_payload["session"]["id"],
+            "message": f"confirm action {land_draft_id}",
+        },
+    )
+
+    assert land_confirm_response.status_code == 200
+    payload = land_confirm_response.json()
+    assert "Submitted the guarded flight command" in payload["content"]
+    assert "Mission: LAND" in payload["content"]
+    assert "Monitor: terminal_success" in payload["content"]
+    assert "Post-action `remove SITL instance(s)`: succeeded" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert [command.mission_type for command in submitted] == [10, 101]
+    assert submitted[-1].target_drone_ids == ["1"]
+    assert post_actions == [
+        {
+            "name": "mds.sitl.instances.action",
+            "arguments": {
+                "action": "remove",
+                "instance_names": ["drone-1"],
+            },
+            "channel": "agent",
+            "approved": True,
+            "policy_mode": "sitl",
+        }
+    ]
+
+
+def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    monkeypatch.setattr("api_routes.simurgh.ACTION_SEQUENCE_MAX_DELAY_SECONDS", 0.0)
+    guarded_submissions = []
+    submitted_commands = []
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+                "progress": {"message": "Command completed."},
+            }
+
+    class FakeDeps:
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        guarded_submissions.append({"name": name, "arguments": arguments, "approved": approved})
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-create-compound",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "Creating drone-1",
+            },
+            status_code=200,
+        )
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted_commands.append(command)
+        mission_name = {
+            10: "TAKE_OFF",
+            104: "RETURN_RTL",
+            112: "PRECISION_MOVE",
+        }.get(command.mission_type, "UNKNOWN")
+        return {
+            "success": True,
+            "command_id": f"cmd-{len(submitted_commands)}",
+            "idempotency_key": command.idempotency_key,
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": mission_name,
+            "target_drones": command.target_drone_ids,
+            "submitted_count": len(command.target_drone_ids),
+            "results_summary": {"accepted": len(command.target_drone_ids), "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/operations/{operation_id}")
+    async def fake_sitl_operation(operation_id):
+        return {
+            "operation_id": operation_id,
+            "status": "succeeded",
+            "summary": "Created drone-1",
+        }
+
+    app.include_router(create_simurgh_router())
+    client = TestClient(app)
+
+    sitl_status = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "is there any sitl instance running?"},
+    ).json()
+    create_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "create one drone instance and report when ready",
+        },
+    ).json()
+    create_draft_id = re.search(r"act-[0-9a-f]+", create_draft["content"]).group(0)
+    create_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {create_draft_id}",
+        },
+    )
+    assert create_confirm.status_code == 200
+    assert "Created drone-1" in create_confirm.json()["content"]
+
+    flight_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "ok good . lets now teakeeof to 10m, then wait there tfor about 10s . then fly 10m north and then RTL back",
+        },
+    )
+    assert flight_draft.status_code == 200
+    flight_payload = flight_draft.json()
+    assert "Target: drone 1" in flight_payload["content"]
+    assert "Target inferred from: single_previous_action_target" in flight_payload["content"]
+    action_draft = flight_payload["trace"]["safety"]["action_draft"]
+    assert action_draft["target_drone_ids"] == ["1"]
+    assert action_draft["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in action_draft["post_actions"]] == ["delay", "flight_command", "flight_command"]
+    assert action_draft["post_actions"][0]["delay_seconds"] == 10.0
+    assert action_draft["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["north"] == 10.0
+    assert action_draft["post_actions"][2]["arguments"]["mission_type"] == 104
+
+    flight_draft_id = re.search(r"act-[0-9a-f]+", flight_payload["content"]).group(0)
+    cancel_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"cancel action {flight_draft_id}",
+        },
+    )
+    assert cancel_response.status_code == 200
+    assert "Cancelled the pending guarded action draft" in cancel_response.json()["content"]
+
+    replay_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "no there were several commands. read again",
+        },
+    )
+    assert replay_draft.status_code == 200
+    replay_payload = replay_draft.json()
+    assert "Action: takeoff" in replay_payload["content"]
+    assert "Target: drone 1" in replay_payload["content"]
+    replay_action_draft = replay_payload["trace"]["safety"]["action_draft"]
+    assert replay_action_draft["target_drone_ids"] == ["1"]
+    assert [item["type"] for item in replay_action_draft["post_actions"]] == ["delay", "flight_command", "flight_command"]
+    assert replay_action_draft["post_actions"][0]["delay_seconds"] == 10.0
+    assert replay_action_draft["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["north"] == 10.0
+    assert replay_action_draft["post_actions"][2]["arguments"]["mission_type"] == 104
+
+    flight_draft_id = re.search(r"act-[0-9a-f]+", replay_payload["content"]).group(0)
+    flight_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {flight_draft_id}",
+        },
+    )
+    assert flight_confirm.status_code == 200
+    content = flight_confirm.json()["content"]
+    assert "Submitted the guarded flight command" in content
+    assert "Post-action `wait 10 second(s)`: completed" in content
+    assert "Post-action `precision move`: terminal_success" in content
+    assert "Post-action `return rtl`: terminal_success" in content
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104]
+    assert submitted_commands[0].target_drone_ids == ["1"]
+    assert submitted_commands[0].takeoff_altitude == 10.0
+    assert submitted_commands[1].target_drone_ids == ["1"]
+    assert submitted_commands[1].precision_move.translation_m["north"] == 10.0
+    assert submitted_commands[2].target_drone_ids == ["1"]
+    assert guarded_submissions[0]["name"] == "mds.sitl.instances.create"
+
+
+def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 4 SITL drones and report progress"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "guarded action draft" in content
+    assert "mds.sitl.fleet.reconcile" in content
+    assert '"target_count": 4' in content
+    assert "Circuit breaker is ON" in content
+    assert "No action was executed" in content
+    assert payload["blocked_intents"] == []
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.fleet.reconcile"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["action_draft"]["arguments"]["target_count"] == 4
+
+
+def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 1 sitl instance so I can test with"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "guarded action draft" in content
+    assert "mds.sitl.instances.create" in content
+    assert "advisory-only" not in content
+    assert "No action was executed" in content
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "git_sync_enabled": True,
+        "requirements_sync_enabled": True,
+    }
+
+
+def test_simurgh_bare_singular_sitl_create_language_returns_guarded_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Build one sitl so I can do some tests with that"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "guarded action draft" in content
+    assert "mds.sitl.instances.create" in content
+    assert "did not build" not in content.lower()
+    assert "read-only" not in content.lower()
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "git_sync_enabled": True,
+        "requirements_sync_enabled": True,
+    }
+
+
+def test_simurgh_sitl_instructions_do_not_create_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "How do I build one SITL instance for testing?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "guarded action draft" not in payload["content"]
+    assert payload["trace"].get("safety", {}).get("action_execution") != "awaiting_confirmation"
+    assert payload["trace"]["tool"]["intent"] != "sitl_lifecycle_action"
+
+
+def test_simurgh_streamed_sitl_action_progress_is_not_read_only_evidence(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={"actor": "operator", "message": "Build one sitl so I can test with it"},
+    )
+
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    progress_labels = [
+        str(payload.get("label") or "")
+        for event, payload in events
+        if event == "progress"
+    ]
+    assert any("Action draft ready" in label for label in progress_labels)
+    assert not any("Read-only evidence" in label for label in progress_labels)
+    final_payloads = [payload for event, payload in events if event == "final"]
+    assert final_payloads
+    final_payload = final_payloads[-1]
+    assert final_payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert final_payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+
+
+def test_simurgh_confirmed_single_sitl_create_submits_when_circuit_breaker_off(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        submitted.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "channel": channel,
+                "approved": approved,
+                "policy_mode": policy.mode,
+            }
+        )
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-1",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "SITL instance create accepted",
+                "detail": "drone-1 will be created.",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 1 sitl instance so I can test with"},
+    )
+    assert draft_response.status_code == 200
+    assert submitted == []
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded GCS action" in payload["content"]
+    assert "`sitl-op-1`" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert submitted == [
+        {
+            "name": "mds.sitl.instances.create",
+            "arguments": {
+                "git_sync_enabled": True,
+                "requirements_sync_enabled": True,
+            },
+            "channel": "agent",
+            "approved": True,
+            "policy_mode": "sitl",
+        }
+    ]
+
+
+def test_simurgh_direct_sitl_restart_request_returns_guarded_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "restart SITL instance 2 and report progress"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "mds.sitl.instances.action" in payload["content"]
+    assert '"action": "restart"' in payload["content"]
+    assert '"drone-2"' in payload["content"]
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "action": "restart",
+        "instance_names": ["drone-2"],
+    }
+
+
+def test_simurgh_direct_sitl_remove_request_needs_named_instances(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "remove the SITL containers"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "I can plan this guarded action" in payload["content"]
+    assert "Missing: instance_names" in payload["content"]
+    assert "No action was executed" in payload["content"]
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
+    assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+
+
+def test_simurgh_confirmed_sitl_reconcile_stops_at_final_circuit_breaker(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Build 4 SITL containers"},
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Circuit breaker stopped this at the final execution layer" in payload["content"]
+    assert "mds.sitl.fleet.reconcile" in payload["content"]
+    assert '"target_count": 4' in payload["content"]
+    assert "No action was executed" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "blocked_by_circuit_breaker"
+
+
+def test_simurgh_confirmed_sitl_reconcile_submits_when_circuit_breaker_off(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        submitted.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "channel": channel,
+                "approved": approved,
+                "policy_mode": policy.mode,
+            }
+        )
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-4",
+                "operation_type": "reconcile_fleet",
+                "status": "queued",
+                "summary": "SITL fleet reconcile accepted",
+                "detail": "4 desired container(s) will be reconciled.",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 4 SITL drones"},
+    )
+    assert draft_response.status_code == 200
+    assert submitted == []
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded GCS action" in payload["content"]
+    assert "`sitl-op-4`" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert submitted == [
+        {
+            "name": "mds.sitl.fleet.reconcile",
+            "arguments": {
+                "target_count": 4,
+                "start_id": 1,
+                "start_ip": 2,
+                "git_sync_enabled": True,
+                "requirements_sync_enabled": True,
+            },
+            "channel": "agent",
+            "approved": True,
+            "policy_mode": "sitl",
+        }
+    ]
+
+
+def test_simurgh_confirmed_sitl_create_monitors_operation_when_requested(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        submitted.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "channel": channel,
+                "approved": approved,
+                "policy_mode": policy.mode,
+            }
+        )
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-create-monitored",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "Creating drone-1",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/operations/{operation_id}")
+    async def fake_sitl_operation(operation_id):
+        return {
+            "operation_id": operation_id,
+            "status": "succeeded",
+            "summary": "SITL instance drone-1 is running.",
+        }
+
+    app.include_router(create_simurgh_router())
+    client = TestClient(app)
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "create a new droen isntance sitl so I can test and try with that . reprot when created and ready",
+        },
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+    assert draft_payload["trace"]["safety"]["action_draft"]["monitor_requested"] is True
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded GCS action" in payload["content"]
+    assert "`sitl-op-create-monitored`" in payload["content"]
+    assert "Monitor: succeeded" in payload["content"]
+    assert "SITL instance drone-1 is running." in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert payload["trace"]["safety"]["action_monitor"]["status"] == "succeeded"
+    assert submitted == [
+        {
+            "name": "mds.sitl.instances.create",
+            "arguments": {
+                "git_sync_enabled": True,
+                "requirements_sync_enabled": True,
+            },
+            "channel": "agent",
+            "approved": True,
+            "policy_mode": "sitl",
+        }
+    ]
+
+
+def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    # Keep this fixture independent of pytest runtime duration; the assertion is
+    # about routing to live telemetry evidence, not the presence timeout boundary.
+    now = time.time() + 600.0
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "172.18.0.2",
+                "mavlink_port": 14563,
+            }
+        ],
+        get_all_drone_positions=lambda: [],
+        load_swarm=lambda: [],
+        get_all_heartbeats=lambda: {"1": {"timestamp": int(now * 1000), "ip": "172.18.0.2"}},
+        telemetry_data_all_drones={
+            "1": {
+                "telemetry_available": True,
+                "position_lat": 47.397742,
+                "position_long": 8.545594,
+                "relative_altitude_m": 0.3,
+                "global_position_valid": True,
+                "gps_fix_type": 3,
+                "satellites_visible": 12,
+                "battery_voltage": 16.1,
+                "battery_remaining_percent": 0.91,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "flight_mode_name": "HOLD",
+                "system_status_name": "STANDBY",
+                "timestamp": int(now * 1000),
+            }
+        },
+        last_telemetry_time={"1": now},
+        data_lock=None,
+    )
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-ready-followup",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "Creating drone-1",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/operations/{operation_id}")
+    async def fake_sitl_operation(operation_id):
+        return {
+            "operation_id": operation_id,
+            "status": "succeeded",
+            "summary": "Created drone-1",
+        }
+
+    app.include_router(create_simurgh_router(deps))
+    client = TestClient(app)
+
+    sitl_status = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "is there any sitl instance running?"},
+    ).json()
+    create_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "create one drone instance and report when ready",
+        },
+    ).json()
+    create_draft_id = re.search(r"act-[0-9a-f]+", create_draft["content"]).group(0)
+    create_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {create_draft_id}",
+        },
+    )
+    assert create_confirm.status_code == 200
+
+    readiness = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "check if its created and we ahvetelmreya nd ready to fly? report a summary preflight status",
+        },
+    )
+    assert readiness.status_code == 200
+    payload = readiness.json()
+    content = payload["content"]
+    assert "Connectivity from GCS state: 1/1 drone(s) currently look live." in content
+    assert "Battery" in content
+    assert "Ready" in content
+    assert "16.10 V / 91%" in content
+    assert "Active commands" not in content
+    assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+
+
+def test_simurgh_sitl_monitor_fails_fast_when_operation_status_is_unavailable(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-missing",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "Creating drone-1",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    app = FastAPI()
+    app.include_router(create_simurgh_router())
+    client = TestClient(app)
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 1 sitl instance and report progress"},
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Monitor: failed" in payload["content"]
+    assert payload["trace"]["safety"]["action_monitor"]["status"] == "failed"
+    assert payload["trace"]["safety"]["action_monitor"]["http_status"] == 404
+
+
+def test_simurgh_confirmed_sitl_create_submits_when_circuit_breaker_off(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_guarded_route_tool(_request, *, name, arguments, channel, approved, registry, policy):
+        submitted.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "channel": channel,
+                "approved": approved,
+                "policy_mode": policy.mode,
+            }
+        )
+        return GuardedToolCallResult(
+            text="{}",
+            is_error=False,
+            structured_content={
+                "operation_id": "sitl-op-create-1",
+                "operation_type": "create_instance",
+                "status": "queued",
+                "summary": "Creating drone-1",
+            },
+            status_code=200,
+        )
+
+    monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Create 1 sitl instance so I can test with"},
+    )
+    assert draft_response.status_code == 200
+    draft_payload = draft_response.json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    payload = confirm_response.json()
+    assert "Submitted the guarded GCS action" in payload["content"]
+    assert "`sitl-op-create-1`" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    assert submitted == [
+        {
+            "name": "mds.sitl.instances.create",
+            "arguments": {
+                "git_sync_enabled": True,
+                "requirements_sync_enabled": True,
+            },
+            "channel": "agent",
+            "approved": True,
+            "policy_mode": "sitl",
+        }
+    ]
 
 
 def test_simurgh_tools_expose_registry_metadata_without_executing_tools():

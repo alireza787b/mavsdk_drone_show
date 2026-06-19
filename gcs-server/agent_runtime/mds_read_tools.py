@@ -31,7 +31,7 @@ from .answer_composer import AnswerComposer
 from .evidence import ReadOnlyEvidenceBundle
 from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_matching_text, normalize_operator_query_text
-from .query_understanding import build_assistant_query_plan, looks_like_public_upstream_reference_query
+from .query_understanding import build_assistant_query_plan
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -185,6 +185,13 @@ FLEET_LIVE_TERMS = (
     "system status",
     "health",
     "failsafe",
+    "ready",
+    "readiness",
+    "ready to fly",
+    "flight ready",
+    "fly ready",
+    "preflight",
+    "pre-flight",
 )
 FLEET_POSITION_TERMS = (
     "gps",
@@ -213,6 +220,13 @@ FLEET_HEALTH_TERMS = (
     "system status",
     "health",
     "failsafe",
+    "ready",
+    "readiness",
+    "ready to fly",
+    "flight ready",
+    "fly ready",
+    "preflight",
+    "pre-flight",
 )
 
 REGISTRY_DOMAIN_LABELS: Mapping[str, str] = {
@@ -309,8 +323,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return None
     if _looks_like_previous_answer_transform(normalized):
         return None
-    if looks_like_public_upstream_reference_query(normalized):
-        return "general_knowledge"
     if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
         return "general_knowledge"
     if _looks_like_public_geography_question(normalized):
@@ -321,6 +333,9 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "autopilot_support"
     if _looks_like_non_mds_general_question(normalized):
         return None
+
+    if _looks_like_mds_fleet_evidence_request(normalized):
+        return "fleet_connectivity"
 
     if _looks_like_node_boot_status_question(normalized):
         return "node_boot_status"
@@ -437,10 +452,10 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     )
     if show_requested:
         return "show_summary"
-    if _looks_like_live_fleet_state_question(normalized):
-        return "fleet_connectivity"
     if _looks_like_swarm_readiness_question(normalized):
         return "swarm_readiness"
+    if _looks_like_live_fleet_state_question(normalized):
+        return "fleet_connectivity"
     if _has_any(normalized, ("swarm", "formation", "cluster", "offset", "follow", "geometry", "distance")):
         return "swarm_topology"
     if _has_any(normalized, ("how many drones", "fleet", "drone", "drones", "ip of", "what is the ip")) or (
@@ -3845,6 +3860,10 @@ def _deployment_mcp_endpoint(deps: Any | None = None) -> tuple[str, str]:
     if request_base and _is_absolute_http_url(request_base):
         return f"{request_base}{MCP_ENDPOINT_PATH}", "derived from this dashboard/API request"
 
+    public_base = _configured_public_gcs_base_url()
+    if public_base:
+        return f"{public_base}{MCP_ENDPOINT_PATH}", "derived from public GCS host/port environment"
+
     return MCP_ENDPOINT_PATH, "path only; set `MDS_MCP_RESOURCE_URL` to pin a public reverse-proxy URL"
 
 
@@ -3854,6 +3873,24 @@ def _is_absolute_http_url(value: str) -> bool:
     except ValueError:
         return False
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc) and not parsed.query and not parsed.fragment
+
+
+def _configured_public_gcs_base_url() -> str:
+    for env_name in ("MDS_PUBLIC_GCS_API_BASE_URL", "MDS_GCS_PUBLIC_BASE_URL", "MDS_GCS_API_BASE_URL"):
+        value = os.getenv(env_name, "").strip().rstrip("/")
+        if value and _is_absolute_http_url(value):
+            return value
+    host = os.getenv("MDS_GCS_PUBLIC_HOST", os.getenv("MDS_PUBLIC_HOST", "")).strip()
+    if not host:
+        return ""
+    scheme = os.getenv("MDS_GCS_PUBLIC_SCHEME", "http").strip().lower() or "http"
+    if scheme not in {"http", "https"}:
+        scheme = "http"
+    port = os.getenv("MDS_GCS_API_PORT", os.getenv("MDS_DEFAULT_GCS_API_PORT", "5030")).strip()
+    netloc = host
+    if port and ":" not in host and not (scheme == "https" and port == "443") and not (scheme == "http" and port == "80"):
+        netloc = f"{host}:{port}"
+    return f"{scheme}://{netloc}" if netloc else ""
 
 
 def _format_duration_seconds(seconds: int | None) -> str:
@@ -4615,6 +4652,74 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
             "system status",
             "health",
             "failsafe",
+            "telemetry",
+            "ready",
+            "readiness",
+            "ready to fly",
+            "flight ready",
+            "fly ready",
+            "preflight",
+            "pre-flight",
+        ),
+    )
+
+
+def _looks_like_mds_fleet_evidence_request(normalized: str) -> bool:
+    """Detect operator prompts that ask the assistant to use live GCS evidence.
+
+    This intentionally sits above sticky conversation-topic routing. If an
+    operator says they only have MDS/GCS telemetry or asks the assistant to
+    check what it can see, the assistant should inspect fleet evidence instead
+    of repeating a previous log/checklist answer.
+    """
+
+    if _has_any(normalized, ("log", "logs", "warning", "warnings", "error", "errors")) and not _has_any(
+        normalized,
+        ("telemetry", "telemtery", "telemtry", "fleet", "drone", "drones", "vehicle", "vehicles", "ready", "preflight"),
+    ):
+        return False
+
+    local_evidence_signal = _has_any(
+        normalized,
+        (
+            "mds telemetry",
+            "mds telemtery",
+            "mds telemtry",
+            "gcs telemetry",
+            "gcs telemtery",
+            "dashboard telemetry",
+            "telemetry you have",
+            "telemtery you have",
+            "what you already have",
+            "you already have",
+            "you have all",
+            "you have in mds",
+            "you can check",
+            "check yourself",
+            "use mds",
+            "use gcs",
+            "from mds",
+            "from gcs",
+            "in mds",
+            "in gcs",
+        ),
+    )
+    if not local_evidence_signal:
+        return False
+
+    return _has_domain_signal(
+        normalized,
+        (
+            *FLEET_LIVE_TERMS,
+            "qgc",
+            "px4",
+            "mavlink",
+            "takeoff",
+            "fly",
+            "flight",
+            "preflight",
+            "readiness",
+            "ready",
         ),
     )
 

@@ -60,3 +60,8 @@ def test_normalize_operator_query_text_is_legacy_safe():
     assert "warning" in normalize_operator_query_text("report any warnign in gcs")
     assert "fleet status" in normalize_operator_query_text("current flee status")
     assert "swarm mission ready" in normalize_operator_query_text("searm mission reay")
+    assert "have telemetry and ready" in normalize_operator_query_text("ahve telmreya nd ready")
+    assert "takeoff now to 10m" == normalize_operator_query_text("take of now to 10m")
+    assert "report when created and ready" in normalize_operator_query_text("reprot when created and ready")
+    assert "wait there for about 10s" in normalize_operator_query_text("wait there tfor about 10s")
+    assert "drone 1" in normalize_operator_query_text("dorne 1")

@@ -4,7 +4,7 @@ metadata:
   boundary: gcs-only
   purpose: >
     Configurable provider smoke scenarios for manually validating the optional
-    advisory-only OpenAI adapter without exposing tools, raw drone APIs, raw
+    text-only OpenAI adapter without exposing tools, raw drone APIs, raw
     field artifacts, or real-world command paths.
 scenarios:
   - id: openai_basic_advisory_sanity

@@ -77,7 +77,7 @@ When a real field issue teaches a reusable lesson:
 3. State the safe diagnostic order.
 4. Add the expected assistant response to
    `docs/agent-context/evals/simurgh-advisory-provider.yaml`.
-5. Add or update tests that prove the scenario stays advisory-only.
+5. Add or update tests that prove the scenario stays text-only/no-action.
 6. Update this context or the operator guidance if the workflow changed.
 7. Run the advisory eval suite and focused backend tests on the validation host.
 8. Request independent reviewer approval before moving to the next slice.

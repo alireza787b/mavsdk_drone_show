@@ -113,11 +113,11 @@ const AuthLoadingFallback = () => (
 const AuthGate = ({ children }) => {
   const auth = useAuth();
 
-  if (auth.loading && !auth.status?.dashboard_auth_enabled) {
+  if (auth.loading && !auth.authRequired) {
     return <AuthLoadingFallback />;
   }
 
-  if (auth.dashboardAuthEnabled && !auth.authenticated) {
+  if (auth.authRequired && !auth.authenticated) {
     return (
       <Suspense fallback={<AuthLoadingFallback />}>
         <LoginPage />

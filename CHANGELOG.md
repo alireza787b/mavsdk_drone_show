@@ -14,15 +14,24 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   polish, and hover-only copy controls for a cleaner operator experience.
 - Simurgh documentation/context coverage for PX4-first MDS support boundaries,
   MAVLink routing, and read-only fleet/telemetry guidance.
+- Simurgh guarded action monitoring for long-running flight commands and SITL
+  lifecycle operations, including same-session implicit target inference and
+  conditional post-action cleanup after terminal success.
 
 ### Changed
-- Refreshed the public MEGA SITL image link for the official image rebuilt from
-  commit `e1eb69d`.
 - Simurgh fleet questions now distinguish configured fleet inventory from live
   connectivity/GPS/position evidence, including board/CM4 follow-up wording.
 - Static public-place alias matching now uses a lightweight normalizer instead
   of the full query-adaptation path, avoiding repeated config loads during
   geography-style general questions.
+- Simurgh action traces now expose sanitized monitor and post-action result
+  fields for dashboard progress rendering instead of requiring text scraping.
+
+### Fixed
+- Simurgh guarded action routing now preserves last submitted action context
+  across cancelled drafts, replays the last action request for "read again" /
+  "same sequence" follow-ups, and plans chained takeoff-wait-move-RTL requests
+  instead of collapsing them to the final RTL command.
 
 ---
 

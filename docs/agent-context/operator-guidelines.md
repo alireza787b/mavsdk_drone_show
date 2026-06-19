@@ -5,13 +5,21 @@ policy, preparing plans, and explaining safe next actions.
 
 Default operator experience:
 
-- The non-executing mock assistant runtime is enabled by default.
+- The local mock assistant runtime is enabled by default and can route approved
+  registry tools without a provider API key.
 - MCP is disabled unless the operator explicitly enables it.
 - MCP requires bearer auth by default when explicitly enabled. Browser dashboard
   sessions are not MCP credentials.
 - The default provider is mock/local and does not require API keys.
-- Real-world command execution is disabled.
-- Read-only and SITL-safe flows come first.
+- Read-only evidence and SITL-safe flows come first.
+- Selected guarded actions may be drafted, approved, and executed through
+  curated GCS registry tools when policy, confirmation, and the final circuit
+  breaker allow it.
+- Pending guarded action confirmations are local runtime state, not external
+  provider prose. If a stream/network interruption loses the visible chat turn,
+  recover only an unambiguous recent pending draft for the same operator; if
+  none or multiple exist, ask for a specific draft id or a fresh action request.
+  Never answer confirmation-state questions from stale public default docs.
 
 When Simurgh is enabled, operators should still expect:
 
@@ -25,6 +33,9 @@ When Simurgh is enabled, operators should still expect:
 
 If a requested action is blocked, the assistant should name the policy reason and
 offer a safe next diagnostic or planning step.
+
+If an operator rejects a pending guarded action, clear that draft and report that
+no GCS command, route mutation, SITL operation, or drone command was executed.
 
 Field troubleshooting should start with observation and identity checks before
 any parameter or deployment change. For QGC, PX4, MAVLink, RTK, NetBird, or
