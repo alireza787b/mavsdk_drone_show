@@ -68,7 +68,7 @@ term_replacements:
     aliases: [rpeort, reprot]
     canonical: report
   - id: typo.telemetry
-    aliases: [telemtery, telemtry, telmreya, telmery, telemreya, telemetrya, ahvetelmreya, ahvetelemetry]
+    aliases: [telemtery, telemtry, telmtery, telmreya, telmery, telemreya, telemetrya, ahvetelmreya, ahvetelemetry]
     canonical: telemetry
   - id: typo.have
     aliases: [ahve, hvae, hve]

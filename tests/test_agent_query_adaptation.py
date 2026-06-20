@@ -5,6 +5,7 @@ from agent_runtime.query_adaptation import (
     load_default_query_adaptation_config,
     normalize_operator_query_text,
 )
+from agent_runtime.mds_read_tools import build_mds_read_only_plan, classify_mds_read_intent
 from agent_runtime.language import detect_language_profile
 
 
@@ -65,3 +66,25 @@ def test_normalize_operator_query_text_is_legacy_safe():
     assert "report when created and ready" in normalize_operator_query_text("reprot when created and ready")
     assert "wait there for about 10s" in normalize_operator_query_text("wait there tfor about 10s")
     assert "drone 1" in normalize_operator_query_text("dorne 1")
+    assert "telemetry is healthy" in normalize_operator_query_text("telmtery is healthy")
+
+
+def test_sitl_created_vehicle_readiness_routes_to_live_telemetry():
+    message = normalize_operator_query_text(
+        "give me a summary of the drone sitl we created and if its ready for flight or not ?"
+    )
+
+    plan = build_mds_read_only_plan(message, conversation_topic="sitl")
+
+    assert plan.intent == "fleet_connectivity"
+    assert plan.tool_ids == (
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+        "mds.fleet.network_status.read",
+    )
+
+
+def test_sitl_setup_help_still_routes_to_docs():
+    message = normalize_operator_query_text("how do I create a SITL demo before trying this for real?")
+
+    assert classify_mds_read_intent(message, conversation_topic="sitl") == "sitl_help"

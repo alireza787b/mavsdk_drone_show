@@ -1246,7 +1246,7 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
-            "message": "check if its created and we ahvetelmreya nd ready to fly? report a summary preflight status",
+            "message": "give me a summary of the drone sitl we created and if its ready for flight or not ?",
         },
     )
     assert readiness.status_code == 200
@@ -1256,6 +1256,7 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
     assert "Battery" in content
     assert "Ready" in content
     assert "16.10 V / 91%" in content
+    assert "SITL should be started" not in content
     assert "Active commands" not in content
     assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
 

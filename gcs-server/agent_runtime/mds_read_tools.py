@@ -377,6 +377,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         ("check", "see", "show", "what", "which", "any", "have", "list", "summary"),
     ):
         return "backend_log_summary"
+    if _looks_like_sitl_vehicle_readiness_question(normalized):
+        return "fleet_connectivity"
     if _has_any(normalized, ("sitl", "simulation", "simulator")) and _has_any(
         normalized,
         ("how", "go to", "switch", "change", "create", "demo", "setup", "runtime", "mode", "read", "link", "doc", "guide"),
@@ -974,6 +976,7 @@ class MdsReadOnlyTools:
         config_lookup = {_as_str(drone.get("hw_id")): drone for drone in config}
         live_count = 0
         rows: list[tuple[str, ...]] = []
+        health_verdict_rows: list[dict[str, Any]] = []
         now = time.time()
         for hw_id in all_hw_ids:
             heartbeat = _copy_mapping(heartbeats.get(hw_id) or heartbeats.get(_maybe_int_key(hw_id)))
@@ -1003,6 +1006,15 @@ class MdsReadOnlyTools:
             if wants_position and wants_health:
                 lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
                 health = _fleet_health_summary(telemetry_row)
+                health_verdict_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "live": live,
+                        "ready": health["ready"],
+                        "armed": health["armed"],
+                        "gps": gps_label,
+                    }
+                )
                 country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
                 position = f"lat {_fmt_coordinate(lat)}, lon {_fmt_coordinate(lon)}, alt {_fmt_altitude_m(alt)}, {country}"
                 rows.append(
@@ -1036,6 +1048,15 @@ class MdsReadOnlyTools:
                 )
             elif wants_health:
                 health = _fleet_health_summary(telemetry_row)
+                health_verdict_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "live": live,
+                        "ready": health["ready"],
+                        "armed": health["armed"],
+                        "gps": health["gps"],
+                    }
+                )
                 rows.append(
                     (
                         f"Drone {hw_id}",
@@ -1062,6 +1083,8 @@ class MdsReadOnlyTools:
             composer.line("This is a read-only presence check; no drone command was sent.")
         else:
             composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
+            if wants_health:
+                composer.line(_fleet_health_verdict_line(health_verdict_rows))
             if wants_position and wants_health:
                 composer.blank().table(
                     ("Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Ready", "Mode", "System", "Evidence"),
@@ -4035,6 +4058,8 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
         if _has_any(normalized, ("mcp", "tool", "tools", "api", "apis", "menu", "client", "n8n", "claude", "vscode")) or _looks_like_generic_contextual_followup(normalized):
             return "capability_catalog"
     if topic == "sitl":
+        if _looks_like_sitl_vehicle_readiness_question(normalized) or _looks_like_live_fleet_state_question(normalized):
+            return "fleet_connectivity"
         if _has_any(normalized, ("how", "where", "switch", "change", "setup", "demo", "doc", "docs", "link")) or _looks_like_generic_contextual_followup(normalized):
             return "sitl_help"
     if topic == "public_geography":
@@ -4664,6 +4689,81 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
     )
 
 
+def _looks_like_sitl_vehicle_readiness_question(normalized: str) -> bool:
+    """Route SITL vehicle health questions to live telemetry, not setup docs.
+
+    Operators naturally say "the SITL we created" when they mean the simulated
+    vehicle that should now be streaming heartbeats and telemetry. Those prompts
+    are current-state evidence requests; SITL docs are only appropriate for
+    setup/workflow questions.
+    """
+
+    if not _has_domain_signal(normalized, ("sitl", "simulation", "simulator")):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "drone",
+            "drones",
+            "vehicle",
+            "vehicles",
+            "instance",
+            "instances",
+            "instace",
+            "instaces",
+            "isntance",
+            "isntances",
+            "created",
+            "createda",
+            "running",
+            "live",
+            "one",
+            "that",
+            "it",
+        ),
+    ):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "ready",
+            "ready to fly",
+            "flight ready",
+            "fly ready",
+            "preflight",
+            "pre-flight",
+            "health",
+            "healthy",
+            "telemetry",
+            "heartbeat",
+            "status",
+            "summary",
+            "report",
+            "gps",
+            "battery",
+            "armed",
+            "arming",
+        ),
+    ):
+        return False
+    if _has_domain_signal(
+        normalized,
+        (
+            "how do i create",
+            "how to create",
+            "how do i setup",
+            "how to setup",
+            "setup guide",
+            "docs",
+            "documentation",
+            "guide",
+            "manual",
+        ),
+    ):
+        return False
+    return True
+
+
 def _looks_like_mds_fleet_evidence_request(normalized: str) -> bool:
     """Detect operator prompts that ask the assistant to use live GCS evidence.
 
@@ -5001,6 +5101,22 @@ def _fleet_health_summary(telemetry_row: Mapping[str, Any]) -> dict[str, str]:
         "system": _fmt_optional_value(system),
         "gps": gps,
     }
+
+
+def _fleet_health_verdict_line(rows: Sequence[Mapping[str, Any]]) -> str:
+    if not rows:
+        return "Telemetry verdict: no drone telemetry rows are visible."
+    live_rows = [row for row in rows if bool(row.get("live"))]
+    ready_rows = [row for row in live_rows if str(row.get("ready") or "").casefold() == "yes"]
+    if len(live_rows) == 1:
+        row = live_rows[0]
+        return (
+            f"Telemetry verdict: {row.get('drone', 'the drone')} is live, "
+            f"Ready={row.get('ready', 'unknown')}, Armed={row.get('armed', 'unknown')}, GPS={row.get('gps', 'unknown')}."
+        )
+    if not live_rows:
+        return "Telemetry verdict: no live drone telemetry is visible, so MDS cannot call any vehicle ready."
+    return f"Telemetry verdict: {len(live_rows)}/{len(rows)} live; {len(ready_rows)} report Ready=Yes."
 
 
 def _fmt_battery(voltage: float | None, remaining: float | None = None) -> str:

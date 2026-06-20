@@ -32,6 +32,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   across cancelled drafts, replays the last action request for "read again" /
   "same sequence" follow-ups, and plans chained takeoff-wait-move-RTL requests
   instead of collapsing them to the final RTL command.
+- Simurgh now routes SITL-created-drone readiness follow-ups to live fleet
+  heartbeat/telemetry evidence instead of SITL setup docs, with a concise
+  telemetry verdict for operator readiness summaries.
 
 ---
 
