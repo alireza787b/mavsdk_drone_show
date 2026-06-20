@@ -18,6 +18,12 @@ Default rule:
 - Keep sensitive evidence detection configurable in `config/agent_assistant.yaml`
   through `sensitive_input_terms` and `sensitive_input_patterns`; update those
   guardrails when new field artifact names or identifier formats appear.
+- Safe inventory/status questions are different from raw artifact review. For
+  example, Simurgh may answer whether approved GCS endpoints show per-drone log
+  sessions or ULog file metadata, and may correlate that with command-tracker
+  summaries. It must still block pasted/downloaded/attached ULog, QGC, MAVLink,
+  screenshot, archive, or customer field evidence before provider calls or
+  public repo updates.
 
 ## Intake
 

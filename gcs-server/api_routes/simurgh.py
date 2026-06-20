@@ -38,6 +38,7 @@ from agent_runtime import (
     ToolExposure,
     blocked_intent_matches,
     create_assistant_turn,
+    filter_safe_read_only_sensitive_input_matches,
     is_mcp_auth_required,
     is_mcp_origin_allowed,
     is_previous_evidence_followup_message,
@@ -3234,6 +3235,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         + sensitive_input_matches(assistant_config, routing_message)
                     )
                 )
+            )
+            sensitive_matches = filter_safe_read_only_sensitive_input_matches(
+                sensitive_matches,
+                message=turn_request.message,
+                routing_message=routing_message,
+                local_intent=local_intent,
             )
             effective_action_request = (
                 _turn_request_with_message(turn_request, message=turn_intent.action.request_message)

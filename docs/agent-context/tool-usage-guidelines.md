@@ -61,6 +61,11 @@ Current callable argument scope:
 - `mds.logs.session.read` accepts a required sanitized `session_id`, required
   bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight
   logs, ULog archives, drone-local log actions, or private evidence exports.
+- Drone log/ULog inventory questions such as “do we have a ULog stored?” stay
+  on the local advisory/read-only path. Simurgh may summarize command-tracker
+  records, per-drone log sessions, and ULog file metadata that the approved GCS
+  endpoints already expose. It must not download, parse, erase, paste, stream,
+  or send raw ULog/QGC/field-log artifacts to a provider or public context.
 - SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,
   `mds.shows.skybrush.safety_report.read`, and
   `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current

@@ -77,6 +77,53 @@ DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 900
 DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
 DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE = "medium"
+LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS = frozenset(
+    {
+        "drone_log_summary",
+        "registry_domain_tool_summary",
+    }
+)
+SAFE_READ_ONLY_SENSITIVE_MATCHES_BY_INTENT = {
+    "drone_log_summary": frozenset({"ULog artifact"}),
+}
+UNSAFE_ULOG_INVENTORY_TERMS = (
+    "analyze",
+    "archive",
+    "attach",
+    "attached",
+    "below",
+    "content",
+    "customer",
+    "delete",
+    "download",
+    "erase",
+    "excerpt",
+    "open",
+    "parse",
+    "pasted",
+    "raw",
+    "remove",
+    "stream",
+    "upload",
+)
+SAFE_ULOG_INVENTORY_TERMS = (
+    "available",
+    "check",
+    "count",
+    "do we have",
+    "does it have",
+    "have",
+    "latest",
+    "list",
+    "log",
+    "logs",
+    "metadata",
+    "report",
+    "see",
+    "show",
+    "stored",
+    "summary",
+)
 WEB_SEARCH_SOURCE_REQUIREMENTS = """Public web-search source requirements:
 - Use the web-search evidence for current/public factual claims.
 - Prefer official or otherwise reputable sources, and keep the answer concise.
@@ -87,7 +134,6 @@ WEB_SEARCH_NO_CITATION_NOTE = (
     "Verify current/public facts against a trusted source before operational use."
 )
 DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
-LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS = frozenset({"registry_domain_tool_summary"})
 DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
 DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
 SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
@@ -1021,6 +1067,38 @@ def sensitive_input_matches(config: AssistantConfig, message: str) -> tuple[str,
     """Return configured sensitive-input matches for a candidate operator message."""
 
     return MockAssistantAdapter(config=config)._sensitive_input_terms(message)
+
+
+def filter_safe_read_only_sensitive_input_matches(
+    matches: tuple[str, ...],
+    *,
+    message: str,
+    routing_message: str = "",
+    local_intent: str | None = None,
+) -> tuple[str, ...]:
+    """Allow safe local inventory questions without weakening provider blocking.
+
+    Raw field artifacts must never be sent to an external provider. A short
+    operator question such as "do we have a ULog stored?" is different: it asks
+    MDS to inspect already-owned metadata through local read-only tools. Keep
+    that path local and deterministic, while still blocking pasted archives,
+    excerpts, downloads, parsing, deletes, or customer field evidence.
+    """
+
+    if not matches:
+        return ()
+    intent = str(local_intent or "").strip()
+    allowed = SAFE_READ_ONLY_SENSITIVE_MATCHES_BY_INTENT.get(intent)
+    if not allowed or any(match not in allowed for match in matches):
+        return matches
+    text = " ".join((message or "", routing_message or "")).casefold()
+    if not (re.search(r"\bulogs?\b", text) or ".ulg" in text):
+        return matches
+    if any(term in text for term in UNSAFE_ULOG_INVENTORY_TERMS):
+        return matches
+    if not any(term in text for term in SAFE_ULOG_INVENTORY_TERMS):
+        return matches
+    return ()
 
 
 def blocked_intent_matches(config: AssistantConfig, message: str) -> tuple[str, ...]:
@@ -2567,6 +2645,12 @@ def create_assistant_turn(
             )
         )
     )
+    sensitive_matches = filter_safe_read_only_sensitive_input_matches(
+        sensitive_matches,
+        message=normalized_message,
+        routing_message=routing_message,
+        local_intent=read_only_plan.intent,
+    )
     local_intent = None
     tool_result = None
     tool_intent = None
@@ -2727,6 +2811,7 @@ def create_assistant_turn(
             and config.provider == OPENAI_ASSISTANT_PROVIDER
             and not blocked_matches
             and not sensitive_matches
+            and str(tool_intent or "") not in LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS
         ):
             composition = compose_read_only_tool_turn_with_provider(
                 config=config,

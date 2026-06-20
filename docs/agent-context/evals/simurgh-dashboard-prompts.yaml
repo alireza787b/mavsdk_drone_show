@@ -108,6 +108,33 @@ conversations:
           must_not_include:
             - Simurgh capabilities
 
+  - id: drone_log_and_ulog_inventory
+    provider: mock
+    actor: operator
+    tags: [logs, ulog, commands]
+    turns:
+      - prompt: "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?"
+        expected:
+          provider: mds-tools
+          tool_intent: drone_log_summary
+          response_mode: status
+          query_domain: logs
+          session_topic: logs
+          tool_ids:
+            - mds.logs.drone_sessions.read
+            - mds.logs.drone_ulog_files.read
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Drone log evidence
+          must_include:
+            - Drone log evidence
+            - Recent command tracker evidence
+            - ULog download
+          must_not_include:
+            - Simurgh Operator mock assistant is active
+            - Blocked intent signals
+
   - id: setup_third_drone_and_scripts
     provider: mock
     actor: operator

@@ -1783,6 +1783,79 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
     assert "mds.logs.drone_ulog_files.read" in answer.tool_ids
 
 
+def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "192.0.2.33",
+                "mavlink_port": 14550,
+            }
+        ],
+        get_command_tracker=lambda: SimpleNamespace(
+            _stats={
+                "total_commands": 3,
+                "successful_commands": 3,
+                "failed_commands": 0,
+                "partial_commands": 0,
+            },
+            _commands={
+                "takeoff": SimpleNamespace(
+                    command_id="cmd-takeoff",
+                    mission_name="TAKE_OFF",
+                    phase="terminal",
+                    status="completed",
+                    outcome="success",
+                    target_drones=[1],
+                    created_at=None,
+                    updated_at=None,
+                ),
+                "move": SimpleNamespace(
+                    command_id="cmd-move",
+                    mission_name="PRECISION_MOVE",
+                    phase="terminal",
+                    status="completed",
+                    outcome="success",
+                    target_drones=[1],
+                    created_at=None,
+                    updated_at=None,
+                ),
+            },
+        ),
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        assert drone_ip == "192.0.2.33"
+        if path == "/api/logs/sessions":
+            return {"sessions": [{"session_id": "s_drone_1", "size_bytes": 1234, "modified": 1780000000.0}]}, ""
+        if path == "/api/logs/sessions/s_drone_1":
+            return {"session_id": "s_drone_1", "lines": [{"level": "INFO", "message": "ok"}]}, ""
+        if path == "/api/v1/ulog/files":
+            return {"files": [{"id": 7, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 4096}]}, ""
+        raise AssertionError(f"unexpected drone log path: {path}")
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question(
+        "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert answer.intent == "drone_log_summary"
+    assert "Recent command tracker evidence" in answer.content
+    assert "TAKE_OFF" in answer.content
+    assert "PRECISION_MOVE" in answer.content
+    assert "Drone log evidence" in answer.content
+    assert "Drone 1" in answer.content
+    assert "4.0 KB" in answer.content
+    assert "ULog download job" in answer.content
+
+
 def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     sessions = AgentSessionStore()

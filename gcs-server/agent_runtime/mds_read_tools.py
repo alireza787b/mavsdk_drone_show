@@ -334,6 +334,10 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if _looks_like_non_mds_general_question(normalized):
         return None
 
+    if _looks_like_action_capability_question(normalized):
+        return "action_capability"
+    if _looks_like_registry_domain_tool_question(normalized, topic=topic):
+        return "registry_domain_tool_summary"
     if _looks_like_sidecar_status_question(normalized):
         return "sidecar_status"
     if _looks_like_mds_fleet_evidence_request(normalized):
@@ -356,10 +360,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
 
     if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
         return "fleet_connectivity"
-    if _looks_like_action_capability_question(normalized):
-        return "action_capability"
-    if _looks_like_registry_domain_tool_question(normalized, topic=topic):
-        return "registry_domain_tool_summary"
     if _looks_like_command_summary_question(normalized):
         return "command_summary"
     if _looks_like_git_status_question(normalized):
@@ -2613,8 +2613,12 @@ class MdsReadOnlyTools:
 
     def drone_log_summary(self, message: str = "") -> MdsReadToolAnswer:
         config = self._fleet_config()
+        normalized_message = _normalize_text(message)
         composer = AnswerComposer()
         composer.line("Drone log evidence from the GCS log proxy:")
+
+        if _looks_like_operation_log_verification_question(normalized_message):
+            self._append_recent_command_evidence(composer)
 
         if not config:
             composer.blank().line(
@@ -2715,6 +2719,34 @@ class MdsReadOnlyTools:
                 "No direct UI-to-drone access, command, ULog download job, ULog content fetch, or erase action was attempted.",
                 "Flight duration requires a separate approved ULog parsing workflow; it was not inferred from filenames or backend logs.",
             ),
+        )
+
+    def _append_recent_command_evidence(self, composer: AnswerComposer) -> None:
+        snapshot = self._command_tracker_snapshot()
+        composer.blank().line("Recent command tracker evidence:")
+        if not snapshot.get("available"):
+            composer.line("The command tracker is not available from this Simurgh process.")
+            return
+        recent = snapshot.get("recent") if isinstance(snapshot.get("recent"), list) else []
+        if not recent:
+            composer.line("No active/recent command records are currently retained in the tracker.")
+            return
+        composer.table(
+            ("Command", "Mission", "Phase", "Status", "Outcome", "Targets"),
+            (
+                (
+                    str(item.get("command_id") or "")[:12],
+                    str(item.get("mission_name") or item.get("mission_type") or "-"),
+                    str(item.get("phase") or "-"),
+                    str(item.get("status") or "-"),
+                    str(item.get("outcome") or "-"),
+                    ", ".join(str(target) for target in item.get("target_drones") or ()) or "-",
+                )
+                for item in recent[:6]
+            ),
+        )
+        composer.line(
+            "Use this as command-tracker evidence only; exact trajectory quality still requires live telemetry history or a parsed ULog."
         )
 
     def _fetch_drone_json(
@@ -4599,6 +4631,46 @@ def _looks_like_drone_log_summary_question(normalized: str) -> bool:
             "ulog",
             "ulogs",
             ".ulg",
+        ),
+    )
+
+
+def _looks_like_operation_log_verification_question(normalized: str) -> bool:
+    if not _has_domain_signal(
+        normalized,
+        (
+            "action",
+            "actions",
+            "command",
+            "commands",
+            "completed",
+            "correct",
+            "currect",
+            "done",
+            "flight",
+            "happen",
+            "happend",
+            "happened",
+            "mission",
+            "sequence",
+            "test",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "check",
+            "confirm",
+            "correct",
+            "currect",
+            "did",
+            "happen",
+            "happend",
+            "happened",
+            "report",
+            "verify",
+            "whether",
         ),
     )
 

@@ -658,7 +658,12 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
     if not isinstance(raw_question, str) or not raw_question.strip():
         return ReadOnlyToolCallResult.error(f"{tool.id} requires a non-empty string argument: question")
 
-    from .assistant import blocked_intent_matches, load_default_assistant_config, sensitive_input_matches
+    from .assistant import (
+        blocked_intent_matches,
+        filter_safe_read_only_sensitive_input_matches,
+        load_default_assistant_config,
+        sensitive_input_matches,
+    )
     from .language import detect_language_profile
     from .mds_read_tools import answer_mds_read_only_question, classify_mds_read_intent, is_safe_blocked_term_read_only_intent
     from .query_adaptation import adapt_operator_query
@@ -681,6 +686,12 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
         sorted(set(sensitive_input_matches(config, question) + sensitive_input_matches(config, routing_question)))
     )
     intent = classify_mds_read_intent(routing_question, conversation_topic=conversation_topic)
+    sensitive_matches = filter_safe_read_only_sensitive_input_matches(
+        sensitive_matches,
+        message=question,
+        routing_message=routing_question,
+        local_intent=intent,
+    )
     safe_blocked_term = is_safe_blocked_term_read_only_intent(routing_question, intent)
     if sensitive_matches or (blocked_matches and intent != "action_capability" and not safe_blocked_term):
         blocked = tuple(sorted(set(blocked_matches + sensitive_matches)))

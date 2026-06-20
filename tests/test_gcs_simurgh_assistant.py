@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -594,6 +595,88 @@ def test_simurgh_assistant_turn_allows_local_mds_tool_answer_without_external_pr
     assert payload["trace"]["tool"]["intent"] == "fleet_summary"
     assert payload["trace"]["language"]["language"] == "en"
     assert "How many drones" not in str(payload["trace"])
+
+
+def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch, tmp_path):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("safe ULog inventory must stay local and not call provider")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        assert drone_ip == "192.0.2.33"
+        if path == "/api/logs/sessions":
+            return {"sessions": [{"session_id": "s_drone_1", "size_bytes": 1234, "modified": 1780000000.0}]}, ""
+        if path == "/api/logs/sessions/s_drone_1":
+            return {"session_id": "s_drone_1", "lines": [{"level": "INFO", "message": "ok"}]}, ""
+        if path == "/api/v1/ulog/files":
+            return {"files": [{"id": 7, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 4096}]}, ""
+        raise AssertionError(f"unexpected drone log path: {path}")
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "192.0.2.33",
+                "mavlink_port": 14550,
+            }
+        ],
+        get_command_tracker=lambda: SimpleNamespace(
+            _stats={"total_commands": 1, "successful_commands": 1, "failed_commands": 0, "partial_commands": 0},
+            _commands={
+                "move": SimpleNamespace(
+                    command_id="cmd-move",
+                    mission_name="PRECISION_MOVE",
+                    phase="terminal",
+                    status="completed",
+                    outcome="success",
+                    target_drones=[1],
+                    created_at=None,
+                    updated_at=None,
+                )
+            },
+        ),
+    )
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _inject_auth_context(request, call_next):  # noqa: ANN001
+        request.state.mds_auth_context = {"kind": "session", "role": "operator", "username": "operator"}
+        return await call_next(request)
+
+    app.include_router(create_simurgh_router(deps))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "drone_log_summary"
+    assert payload["blocked_intents"] == []
+    assert "Recent command tracker evidence" in payload["content"]
+    assert "PRECISION_MOVE" in payload["content"]
+    assert "Drone log evidence" in payload["content"]
+    assert "Drone 1" in payload["content"]
+    assert "4.0 KB" in payload["content"]
+    assert "Blocked intent signals" not in payload["content"]
 
 
 def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_authenticated(monkeypatch, tmp_path):
