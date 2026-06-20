@@ -32,6 +32,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   fields for dashboard progress rendering instead of requiring text scraping.
 
 ### Fixed
+- Simurgh no longer treats fresh action requests that contain approval-like
+  wording such as "send it to test flight" as bare confirmations; PM-style
+  takeoff-wait-move-return sequences now reach the guarded action planner.
 - Simurgh guarded action routing now preserves last submitted action context
   across cancelled drafts, replays the last action request for "read again" /
   "same sequence" follow-ups, and plans chained takeoff-wait-move-RTL requests

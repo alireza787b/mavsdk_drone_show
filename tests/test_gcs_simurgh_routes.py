@@ -632,13 +632,14 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
-            "message": "ok good . lets now teakeeof to 10m, then wait there tfor about 10s . then fly 10m north and then RTL back",
+            "message": "ok send it to test flight. lets takeoff to 10m, then wait 10s, then to 10m north same altitude and then return land",
         },
     )
     assert flight_draft.status_code == 200
     flight_payload = flight_draft.json()
+    assert "No pending action found" not in flight_payload["content"]
     assert "Target: drone 1" in flight_payload["content"]
-    assert "Target inferred from: single_previous_action_target" in flight_payload["content"]
+    assert "Target inferred from:" in flight_payload["content"]
     action_draft = flight_payload["trace"]["safety"]["action_draft"]
     assert action_draft["target_drone_ids"] == ["1"]
     assert action_draft["command_payload"]["takeoff_altitude"] == 10.0

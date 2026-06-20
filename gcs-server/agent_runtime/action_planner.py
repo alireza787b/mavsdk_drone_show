@@ -172,6 +172,10 @@ def is_action_confirmation_message(message: str, *, draft_id: str | None = None)
         return False
     if draft_id and str(draft_id).lower() in normalized:
         return bool(re.search(r"\b(confirm|approve|execute|send|run|go ahead|yes)\b", normalized))
+    if re.search(r"\bact-[0-9a-f]{6,}\b", normalized):
+        return bool(re.search(r"\b(confirm|approve|execute|send|run|go ahead|yes)\b", normalized))
+    if _looks_like_fresh_action_instruction(normalized):
+        return False
     return bool(
         re.search(
             r"\b(confirm|approved|approve|yes|go ahead|execute it|send it|run it|do it|confirmed)\b",
@@ -203,6 +207,21 @@ def looks_like_action_replay_request(message: str) -> bool:
             r"\b(read\s+again|do\s+the\s+job|do\s+what\s+i\s+asked|previous\s+request|last\s+request|that\s+sequence|same\s+sequence|plan\s+that|try\s+again)\b",
             normalized,
         )
+    )
+
+
+def _looks_like_fresh_action_instruction(normalized: str) -> bool:
+    """Return true when an approval-looking phrase also carries a new plan.
+
+    Operators naturally say things like "ok send it to test flight, take off,
+    wait, move north, then RTL". That is a fresh guarded-action request, not a
+    confirmation of an existing draft. Bare confirmations such as "confirm",
+    "go ahead", or "send it" still pass through the confirmation path.
+    """
+
+    return bool(
+        looks_like_direct_flight_action_request(normalized)
+        or looks_like_direct_sitl_lifecycle_request(normalized)
     )
 
 
@@ -686,7 +705,11 @@ def _extract_mission_name(normalized: str) -> str | None:
 
 
 def _looks_like_rtl(normalized: str) -> bool:
-    return bool(re.search(r"\b(rtl|return\s+to\s+launch|return\s+home|rtl\s+back|return\s+back)\b", normalized))
+    return bool(
+        re.search(r"\b(rtl|return\s+to\s+launch|return\s+home|rtl\s+back|return\s+back)\b", normalized)
+        or re.search(r"\b(?:return|come\s+back)\b.{0,50}\bland\b", normalized)
+        or re.search(r"\bland\b.{0,50}\b(?:return|come\s+back)\b", normalized)
+    )
 
 
 def _looks_like_precision_move(normalized: str) -> bool:
