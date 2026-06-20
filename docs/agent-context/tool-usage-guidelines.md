@@ -106,7 +106,30 @@ review input for PM, MCP, safety, backend, and field-ops reviewers.
 
 Simurgh treats language adaptation as an orchestration concern, not a collection of hardcoded demo phrases. Each assistant turn gets a safe language/tone profile before routing. Provider turns receive explicit guidance to answer in the operator language when confidence is reasonable, while preserving exact MDS identifiers, routes, APIs, commands, and document links.
 
-Current query adaptation uses `config/agent_query_adaptation.yaml` and `agent_runtime.query_adaptation` to produce canonical routing text for deterministic classifiers and retrieval. Add typos, aliases, and multilingual routing hints in that config, not inside answer templates. Every new rule needs focused eval coverage because a bad alias can route a real operator question to the wrong evidence source.
+Current query adaptation uses `config/agent_query_adaptation.yaml` and
+`agent_runtime.query_adaptation` to produce canonical routing text for
+deterministic classifiers and retrieval. That file is a narrow guardrail and
+routing aid, not Simurgh's intelligence layer. Do not keep expanding it to
+mirror every PM typo, operator habit, language, phrase, or tone. Broad
+paraphrase understanding, multilingual interpretation, expertise/tone matching,
+and multi-step intent decomposition belong in the structured semantic
+understanding layer described below, with deterministic policy still enforcing
+what is allowed.
+
+Add a query-adaptation rule only when it fits one of these categories:
+
+- safety, sensitive-data, or blocked-action wording that must be caught before a
+  provider call;
+- exact MDS/PX4/MAVLink/SITL/Smart Swarm/GCS domain terms and public aliases
+  that protect tool routing;
+- high-frequency operator typos or multilingual aliases that are backed by a
+  sanitized eval case and are too risky to leave to provider-only routing;
+- temporary compatibility rules with an explicit removal or replacement plan.
+
+Every new rule needs focused eval coverage because a bad alias can route a real
+operator question to the wrong evidence source. If a prompt failure is caused by
+missing context selection, target memory, action sequencing, or conversational
+understanding, fix that layer instead of adding more aliases.
 
 Current contract:
 
@@ -116,6 +139,24 @@ Current contract:
 - Prefer structured rewrite/adaptation output: detected language, normalized intent, domain, response mode, confidence, and refusal/safety notes.
 - Do not let localization bypass policy, confirmation, or circuit-breaker layers.
 - Do not send local GCS state such as fleet IPs, logs, or runtime config to an external provider purely for translation unless a future approved data-egress policy explicitly permits it.
+
+Target semantic-understanding contract:
+
+- Input is sanitized operator text, session topic/action memory, language/tone
+  profile, public capability metadata, and policy posture. Do not include raw
+  fleet IPs, logs, credentials, exact coordinates, or private runtime state
+  unless the configured data-egress policy explicitly allows it.
+- Output is structured and schema-validated: detected language, tone,
+  expertise level, normalized intent, domain, task kind, response mode,
+  evidence needs, candidate tool domains, target references, possible action
+  sequence, confidence, clarifying question, and safety notes.
+- The semantic output is advisory routing evidence. It must not authorize an
+  action, pick an unsafe target by itself, bypass registry schemas, disable
+  confirmation, or override the circuit breaker.
+- Deterministic safety checks run before and after semantic understanding on
+  both original and normalized text.
+- Low-confidence semantic output should trigger either a concise clarification
+  or a safe read-only evidence pass, not a generic docs dump.
 
 ## Answer Composition Contract
 

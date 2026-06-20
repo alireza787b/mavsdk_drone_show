@@ -1,5 +1,5 @@
 {
-  "chunk_count": 814,
+  "chunk_count": 815,
   "chunks": [
     {
       "audience": "operator",
@@ -167,7 +167,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "7150be0dbd2b6cdbf0570bbb6398d37e23fa9fdf611d5d10bf28d18b46be9cd7",
+      "content_hash": "8bb44f5c8823a126b44a4b533b522102878237ee7fc24abea20b3022ba91156f",
       "heading": "Language And Query Adaptation",
       "id": "simurgh.tool_usage:002-01-language-and-query-adaptation",
       "links": [],
@@ -181,7 +181,27 @@
         "tools",
         "mcp"
       ],
-      "text": "## Language And Query Adaptation\n\nSimurgh treats language adaptation as an orchestration concern, not a collection of hardcoded demo phrases. Each assistant turn gets a safe language/tone profile before routing. Provider turns receive explicit guidance to answer in the operator language when confidence is reasonable, while preserving exact MDS identifiers, routes, APIs, commands, and document links.\n\nCurrent query adaptation uses `config/agent_query_adaptation.yaml` and `agent_runtime.query_adaptation` to produce canonical routing text for deterministic classifiers and retrieval. Add typos, aliases, and multilingual routing hints in that config, not inside answer templates. Every new rule needs focused eval coverage because a bad alias can route a real operator question to the wrong evidence source.\n\nCurrent contract:\n\n- Run sensitive-input and blocked-action detection against both original operator text and adapted routing text.\n- Keep adapted routing text out of trace/history; expose only language, strategy, confidence, and applied rule ids.\n- Evaluate routing quality separately from generation quality.\n- Prefer structured rewrite/adaptation output: detected language, normalized intent, domain, response mode, confidence, and refusal/safety notes.\n- Do not let localization bypass policy, confirmation, or circuit-breaker layers.\n- Do not send local GCS state such as fleet IPs, logs, or runtime config to an external provider purely for translation unless a future approved data-egress policy explicitly permits it.",
+      "text": "## Language And Query Adaptation\n\nSimurgh treats language adaptation as an orchestration concern, not a collection of hardcoded demo phrases. Each assistant turn gets a safe language/tone profile before routing. Provider turns receive explicit guidance to answer in the operator language when confidence is reasonable, while preserving exact MDS identifiers, routes, APIs, commands, and document links.\n\nCurrent query adaptation uses `config/agent_query_adaptation.yaml` and\n`agent_runtime.query_adaptation` to produce canonical routing text for\ndeterministic classifiers and retrieval. That file is a narrow guardrail and\nrouting aid, not Simurgh's intelligence layer. Do not keep expanding it to\nmirror every PM typo, operator habit, language, phrase, or tone. Broad\nparaphrase understanding, multilingual interpretation, expertise/tone matching,\nand multi-step intent decomposition belong in the structured semantic\nunderstanding layer described below, with deterministic policy still enforcing\nwhat is allowed.\n\nAdd a query-adaptation rule only when it fits one of these categories:\n\n- safety, sensitive-data, or blocked-action wording that must be caught before a\n provider call;\n- exact MDS/PX4/MAVLink/SITL/Smart Swarm/GCS domain terms and public aliases\n that protect tool routing;\n- high-frequency operator typos or multilingual aliases that are backed by a\n sanitized eval case and are too risky to leave to provider-only routing;\n- temporary compatibility rules with an explicit removal or replacement plan.\n\nEvery new rule needs focused eval coverage because a bad alias can route a real\noperator question to the wrong evidence source. If a prompt failure is caused by\nmissing context selection, target memory, action sequencing, or conversational\nunderstanding, fix that layer instead of adding more aliases.\n\nCurrent contract:",
+      "title": "Simurgh tool usage guidelines"
+    },
+    {
+      "audience": "agent",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
+      "content_hash": "3c17a029d003194277cb36dfed572a638e7caef2b197e1a1d82b5500ab882476",
+      "heading": "Language And Query Adaptation",
+      "id": "simurgh.tool_usage:002-02-language-and-query-adaptation",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/agent-context/tool-usage-guidelines.md",
+      "resource_id": "simurgh.tool_usage",
+      "route_hint": null,
+      "summary": "Tool registry semantics and adapter expectations.",
+      "tags": [
+        "simurgh",
+        "tools",
+        "mcp"
+      ],
+      "text": "- Run sensitive-input and blocked-action detection against both original operator text and adapted routing text.\n- Keep adapted routing text out of trace/history; expose only language, strategy, confidence, and applied rule ids.\n- Evaluate routing quality separately from generation quality.\n- Prefer structured rewrite/adaptation output: detected language, normalized intent, domain, response mode, confidence, and refusal/safety notes.\n- Do not let localization bypass policy, confirmation, or circuit-breaker layers.\n- Do not send local GCS state such as fleet IPs, logs, or runtime config to an external provider purely for translation unless a future approved data-egress policy explicitly permits it.\n\nTarget semantic-understanding contract:\n\n- Input is sanitized operator text, session topic/action memory, language/tone\n profile, public capability metadata, and policy posture. Do not include raw\n fleet IPs, logs, credentials, exact coordinates, or private runtime state\n unless the configured data-egress policy explicitly allows it.\n- Output is structured and schema-validated: detected language, tone,\n expertise level, normalized intent, domain, task kind, response mode,\n evidence needs, candidate tool domains, target references, possible action\n sequence, confidence, clarifying question, and safety notes.\n- The semantic output is advisory routing evidence. It must not authorize an\n action, pick an unsafe target by itself, bypass registry schemas, disable\n confirmation, or override the circuit breaker.\n- Deterministic safety checks run before and after semantic understanding on\n both original and normalized text.\n- Low-confidence semantic output should trigger either a concise clarification\n or a safe read-only evidence pass, not a generic docs dump.",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -16289,8 +16309,8 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "chunk_count": 7,
-      "content_hash": "5f1dd2c7535e00ae6c43f233c11fa428a21eee9bfd22c161845379995aec39ec",
+      "chunk_count": 8,
+      "content_hash": "321c3ba6a93fb63e0f94574eb7604c85a43dd0be1fcd5c02ce6e0b294e0c5276",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",

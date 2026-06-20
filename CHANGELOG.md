@@ -21,6 +21,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Changed
 - Simurgh fleet questions now distinguish configured fleet inventory from live
   connectivity/GPS/position evidence, including board/CM4 follow-up wording.
+- Simurgh language/query-adaptation guidance now explicitly limits deterministic
+  alias rules to safety, domain, and eval-backed routing cases, with a documented
+  semantic-understanding roadmap for multilingual, typo-heavy, tone-sensitive,
+  and multi-step prompts.
 - Static public-place alias matching now uses a lightweight normalizer instead
   of the full query-adaptation path, avoiding repeated config loads during
   geography-style general questions.

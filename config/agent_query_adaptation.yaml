@@ -9,6 +9,7 @@ metadata:
   notes:
   - Keep this file small, reviewed, and evidence-backed by evals.
   - Add aliases here instead of hardcoding one-off demo prompts in Python.
+  - Do not use this file as a broad NLP layer; see docs/plans/2026-06-20-simurgh-language-intent-modernization.md.
   - Rules may introduce canonical English routing hints, but traces must expose
     only rule ids and metadata, never raw private prompts.
 max_rule_applications: 80
