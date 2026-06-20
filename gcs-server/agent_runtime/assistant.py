@@ -2855,6 +2855,11 @@ def create_assistant_turn(
             "provider_composed_from_previous_evidence": provider_composed_from_previous_evidence,
             "evidence_followup_kind": evidence_followup_kind if tool_intent == "evidence_followup" else None,
             "provider_composition_error": provider_composition_error,
+            "turn_intent": (
+                dict(metadata.get("turn_intent") or {})
+                if isinstance(metadata, Mapping) and isinstance(metadata.get("turn_intent"), Mapping)
+                else {}
+            ),
             "query_adaptation": query_adaptation.public_metadata(),
             "routing_strategy": query_adaptation.strategy,
             "routing_language": query_adaptation.routing_language,

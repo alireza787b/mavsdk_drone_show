@@ -14,6 +14,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   polish, and hover-only copy controls for a cleaner operator experience.
 - Simurgh documentation/context coverage for PX4-first MDS support boundaries,
   MAVLink routing, and read-only fleet/telemetry guidance.
+- Simurgh turn-level semantic intent frame for one coherent route decision per
+  operator message before confirmation, action drafting, read-only tools, or
+  provider fallback, with sanitized trace metadata for PM/test inspection.
 - Simurgh guarded action monitoring for long-running flight commands and SITL
   lifecycle operations, including same-session implicit target inference and
   conditional post-action cleanup after terminal success.
@@ -32,6 +35,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   fields for dashboard progress rendering instead of requiring text scraping.
 
 ### Fixed
+- Simurgh no longer lets bare approval wording such as "go ahead" confirm an
+  old pending action when the same message is actually a new read/status task.
+- Simurgh no longer drafts flight actions from advisory motion-status questions
+  such as asking whether a drone should land or can RTL safely.
 - Simurgh no longer treats fresh action requests that contain approval-like
   wording such as "send it to test flight" as bare confirmations; PM-style
   takeoff-wait-move-return sequences now reach the guarded action planner.

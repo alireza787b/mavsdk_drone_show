@@ -28,9 +28,42 @@ read-only operator slice plus selected guarded actions:
 - generated public docs/chunk index with MCP search and bounded chunk retrieval
 - read-only drone log and onboard PX4 ULog metadata summaries through approved
   GCS-side log endpoints, without raw ULog download/erase exposure
+- a provider-neutral turn-level semantic intent frame that produces one coherent
+  routing decision before confirmation, action drafting, read-only tools, or
+  provider fallback
 - guarded SITL lifecycle actions through canonical GCS SITL Control routes
 - guarded curated flight-command drafts through canonical GCS command routes
 - no direct drone API exposure
+
+## Semantic Understanding Boundary
+
+Simurgh should not rely on scattered keyword checks as the user-facing
+intelligence layer. Each assistant turn is first interpreted as one structured
+intent frame that records the adapted routing text, read-only plan, possible
+action draft, confirmation/rejection signal, confidence, and reasons. The route
+then consumes that single frame instead of independently asking several regex
+classifiers whether the message is a confirmation, action, read-only query, or
+provider turn.
+
+The sanitized response trace exposes this frame under `trace.intent` so PM
+tests, dashboard UI, and future agent tooling can explain why a turn routed as a
+read-only check, action draft, confirmation, rejection, or provider fallback
+without scraping answer prose.
+
+This frame is an interpretation layer, not an authority layer:
+
+- semantic interpretation may decide that "go ahead and check SITL instances" is
+  a read/status task instead of an approval;
+- semantic interpretation may preserve a multi-step action plan such as
+  takeoff, wait, move north, then RTL;
+- deterministic enforcement still owns registry schema validation, runtime mode,
+  approval, circuit breaker, auth, command submission, monitoring, and audit.
+
+Future provider-backed structured-output classifiers should plug into this same
+frame contract. They may improve language, tone, paraphrase, and target-memory
+understanding, but they must still emit typed plans that the existing policy and
+executor layers validate. Provider prose must never be treated as approval or as
+proof that an action executed.
 
 ## Dashboard Chat UX Contract
 

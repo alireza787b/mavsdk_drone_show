@@ -39,6 +39,9 @@ Implemented:
 
 - deterministic language/tone profile;
 - config-driven query adaptation in `config/agent_query_adaptation.yaml`;
+- provider-neutral turn-level semantic intent frame in
+  `gcs-server/agent_runtime/turn_intent.py`, consumed by the dashboard
+  assistant route before confirmation/action/read-only/provider branching;
 - local read-only tool routing and selected guarded actions;
 - provider composition for safe text turns;
 - optional public web-search lane for public/current facts;
@@ -46,12 +49,12 @@ Implemented:
   prose;
 - dashboard prompt evals for PM-style conversations.
 
-Gap:
+Remaining gap:
 
-- route selection still leans too heavily on deterministic wording rules;
-- multi-step action intent can collapse to the last command when the planner
-  misses sequence semantics;
-- target memory is not yet treated as a first-class structured input/output;
+- provider-backed structured-output semantic classification is not yet enabled
+  in the action path; the current frame is provider-neutral and testable;
+- target memory is partially structured through last action/result context, but
+  broader live-fleet target inference still needs careful safety review;
 - some failures still answer from docs instead of running the most relevant
   local evidence tool;
 - answer localization and tone adaptation are not yet uniformly available for
@@ -188,12 +191,26 @@ understanding, target memory, planner, executor, answer composition, or UI.
 - New failures add evals first; aliases are added only when they meet the rule
   boundary above.
 
-## Current Handoff Note
+## Current Implementation Checkpoint
 
-This document does not change runtime behavior. The deployed `v5.5.96` fix for
-SITL-created-drone readiness follow-ups remains the current PM-test baseline.
-The next Simurgh slice should implement semantic-understanding dry-run and
-evals before more alias expansion.
+The first implementation slice adds a structured, provider-neutral
+`TurnIntentFrame`, routes dashboard assistant turns through it, and exposes the
+sanitized interpretation under `trace.intent`. The frame prevents two PM-visible
+failures:
+
+- approval-like wording with a new read/status task, such as "go ahead and
+  check SITL instances now", no longer confirms an old pending action;
+- advisory motion questions, such as "tell me if drone 1 should land", no
+  longer draft guarded flight commands.
+
+Regression coverage now includes frame-level tests and dashboard-route tests for
+PM-style compound action plans, exact draft confirmations, read/status task
+arbitration, and advisory-vs-command flight wording.
+
+The next Simurgh slice should use the same frame contract for optional
+provider-backed structured semantic classification, broader target memory, and
+multilingual/tone-sensitive evals. Do not add broad alias lists as a substitute
+for this frame.
 
 ## References Reviewed
 

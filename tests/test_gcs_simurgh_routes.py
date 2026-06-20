@@ -272,6 +272,95 @@ def test_simurgh_bare_confirm_recovers_single_pending_action_after_lost_session(
     assert submitted[0].target_drone_ids == ["1"]
 
 
+def test_simurgh_task_with_go_ahead_does_not_confirm_pending_action(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": "cmd-should-not-run",
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "target_drones": command.target_drone_ids,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    draft_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Send drone 1 to takeoff to 10m"},
+    )
+    assert draft_response.status_code == 200
+    session_id = draft_response.json()["session"]["id"]
+    draft_id = re.search(r"act-[0-9a-f]+", draft_response.json()["content"]).group(0)
+
+    read_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": session_id,
+            "message": "go ahead and check SITL instances now",
+        },
+    )
+
+    assert read_response.status_code == 200
+    read_payload = read_response.json()
+    assert "Submitted the guarded flight command" not in read_payload["content"]
+    assert read_payload["trace"]["safety"]["action_execution"] == "none"
+    assert read_payload["trace"]["intent"]["route"] == "read_only"
+    assert read_payload["trace"]["intent"]["confirmation_message"] is False
+    assert submitted == []
+
+    confirm_response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": session_id,
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert confirm_response.status_code == 200
+    assert "Submitted the guarded flight command" in confirm_response.json()["content"]
+    assert len(submitted) == 1
+
+
+def test_simurgh_motion_status_question_does_not_create_action_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    async def fake_submit_tracked_command(_deps, command):
+        submitted.append(command)
+        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "tell me if drone 1 should land"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "guarded action draft" not in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "none"
+    assert payload["trace"]["intent"]["route"] != "action_draft"
+    assert submitted == []
+
+
 def test_simurgh_bare_confirm_without_pending_action_uses_live_policy_not_provider_context(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -640,6 +729,8 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert "No pending action found" not in flight_payload["content"]
     assert "Target: drone 1" in flight_payload["content"]
     assert "Target inferred from:" in flight_payload["content"]
+    assert flight_payload["trace"]["intent"]["route"] == "action_draft"
+    assert flight_payload["trace"]["intent"]["confirmation_message"] is False
     action_draft = flight_payload["trace"]["safety"]["action_draft"]
     assert action_draft["target_drone_ids"] == ["1"]
     assert action_draft["command_payload"]["takeoff_altitude"] == 10.0
@@ -1260,6 +1351,7 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
     assert "SITL should be started" not in content
     assert "Active commands" not in content
     assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+    assert payload["trace"]["intent"]["route"] == "read_only"
 
 
 def test_simurgh_sitl_monitor_fails_fast_when_operation_status_is_unavailable(monkeypatch):

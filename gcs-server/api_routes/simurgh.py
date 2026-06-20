@@ -75,22 +75,16 @@ from agent_runtime.action_planner import (
     build_sitl_reconcile_action_draft,
     is_action_confirmation_message,
     is_action_rejection_message,
-    looks_like_action_replay_request,
-    looks_like_flight_followup_action_request,
-    looks_like_direct_flight_action_request,
-    looks_like_direct_sitl_lifecycle_request,
 )
 from agent_runtime.mds_read_tools import (
     apply_runtime_settings,
     build_provider_credentials_payload,
-    build_mds_read_only_plan,
     build_runtime_settings_payload,
     delete_provider_credentials,
     update_provider_credentials,
 )
 from agent_runtime.models import AgentSession, AuditEvent, ContextResource, ToolDefinition, stable_payload_hash, utc_now
 from agent_runtime.query_adaptation import normalize_operator_query_text
-from agent_runtime.query_understanding import build_assistant_query_plan
 from agent_runtime.registry_chat import (
     REGISTRY_READ_EXECUTION_INTENT,
     RegistryReadToolResult,
@@ -99,6 +93,7 @@ from agent_runtime.registry_chat import (
     plan_registry_read_tool_calls,
 )
 from agent_runtime.tool_candidates import candidate_review_payload, load_default_tool_candidate_artifact
+from agent_runtime.turn_intent import build_turn_intent_frame
 from command_submission import submit_tracked_command
 from schemas import SubmitCommandRequest
 from simurgh_internal_auth import INTERNAL_TOOL_CALL_HEADER, INTERNAL_TOOL_CALL_VALUE
@@ -368,6 +363,7 @@ class SimurghAssistantTurnTraceResponse(BaseModel):
     model: str | None = None
     adapter_version: str | None = None
     provider_tools: dict[str, Any] = Field(default_factory=dict)
+    intent: dict[str, Any] = Field(default_factory=dict)
     session: dict[str, Any] = Field(default_factory=dict)
     language: dict[str, Any] = Field(default_factory=dict)
     adaptation: dict[str, Any] = Field(default_factory=dict)
@@ -492,6 +488,7 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
     """Return sanitized orchestration trace metadata for PM/test inspection."""
 
     metadata = dict(record.audit_event.metadata or {})
+    turn_intent = metadata.get("turn_intent") if isinstance(metadata.get("turn_intent"), dict) else {}
     language = metadata.get("language_profile") if isinstance(metadata.get("language_profile"), dict) else {}
     adaptation = metadata.get("query_adaptation") if isinstance(metadata.get("query_adaptation"), dict) else {}
     provider_tools = metadata.get("provider_tools") if isinstance(metadata.get("provider_tools"), dict) else {}
@@ -547,6 +544,7 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
             "citation_count": citation_count,
             "source_status": source_status,
         },
+        intent=dict(turn_intent),
         session={
             "id": record.session.id,
             "mode": record.session.mode,
@@ -1827,6 +1825,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         *,
         actor: str,
         candidate_count: int = 0,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
@@ -1933,6 +1932,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_confidence": 1.0,
                 "query_unclear": False,
                 "query_reason": "bare_confirmation_without_unambiguous_pending_action",
+                "turn_intent": dict(turn_intent_metadata or {}),
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "action_execution": "no_pending_confirmation",
@@ -1950,6 +1950,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         actor: str,
         draft: ActionDraft,
         session_id: str,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
@@ -2047,6 +2048,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_confidence": 1.0,
                 "query_unclear": False,
                 "query_reason": "guarded_action_rejected_by_operator",
+                "turn_intent": dict(turn_intent_metadata or {}),
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "action_execution": "cancelled_confirmation",
@@ -2567,6 +2569,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         actor: str,
         draft: ActionDraft | None = None,
         confirmed: bool = False,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
@@ -2862,6 +2865,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_confidence": 1.0,
                 "query_unclear": False,
                 "query_reason": "guarded_action_draft",
+                "turn_intent": dict(turn_intent_metadata or {}),
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "action_execution": action_execution,
@@ -2888,6 +2892,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         actor: str,
         plan,
         allow_provider_composition: bool = False,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
@@ -3047,6 +3052,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_confidence": 1.0,
                 "query_unclear": False,
                 "query_reason": "registry_read_tool_plan",
+                "turn_intent": dict(turn_intent_metadata or {}),
                 "read_only_plan": plan.public_metadata(),
                 "read_only_evidence": read_only_evidence,
                 "retrieved_context_count": retrieved_context_count,
@@ -3074,14 +3080,20 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     previous_context = sessions.get_private_context(turn_request.session_id)
                 except KeyError:
                     conversation_topic = None
-            routing_message = normalize_operator_query_text(turn_request.message)
+            turn_intent = build_turn_intent_frame(
+                turn_request.message,
+                conversation_topic=conversation_topic,
+                previous_action=_stored_last_submitted_action(turn_request.session_id),
+                previous_action_request_message=_stored_last_action_request_message(turn_request.session_id),
+            )
+            routing_message = turn_intent.routing_message
             previous_evidence_followup = bool(
                 previous_context.get("last_assistant_content")
                 and previous_context.get("last_read_only_evidence")
                 and is_previous_evidence_followup_message(routing_message)
             )
-            read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=conversation_topic)
-            query_plan = build_assistant_query_plan(routing_message, conversation_topic=conversation_topic)
+            read_only_plan = turn_intent.read_only_plan
+            query_plan = turn_intent.query_plan
             await _emit_assistant_progress(
                 progress_callback,
                 _assistant_understanding_progress_payload(
@@ -3093,7 +3105,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             actor = _resolve_actor(http_request, turn_request.actor)
             local_intent = read_only_plan.intent
             stored_draft = _stored_action_draft(turn_request.session_id)
-            rejection_message = is_action_rejection_message(routing_message)
+            rejection_message = turn_intent.rejection_message
             if rejection_message:
                 if stored_draft and is_action_rejection_message(
                     routing_message,
@@ -3105,11 +3117,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=stored_draft,
                         session_id=turn_request.session_id or "",
+                        turn_intent_metadata=turn_intent.public_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
                     return record, history_record
-                explicit_draft_id = _extract_action_draft_id(routing_message)
+                explicit_draft_id = turn_intent.explicit_action_draft_id
                 pending_matches = _recent_pending_action_drafts_for_actor(
                     actor=actor,
                     draft_id=explicit_draft_id,
@@ -3126,6 +3139,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=recovered_draft,
                         session_id=recovered_session.id,
+                        turn_intent_metadata=turn_intent.public_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3135,12 +3149,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     candidate_count=len(pending_matches),
+                    turn_intent_metadata=turn_intent.public_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
                 return record, history_record
 
-            confirmation_message = is_action_confirmation_message(routing_message)
+            confirmation_message = turn_intent.confirmation_message
             if confirmation_message:
                 if stored_draft and is_action_confirmation_message(
                     routing_message,
@@ -3152,12 +3167,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=stored_draft,
                         confirmed=True,
+                        turn_intent_metadata=turn_intent.public_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
                     return record, history_record
 
-                explicit_draft_id = _extract_action_draft_id(routing_message)
+                explicit_draft_id = turn_intent.explicit_action_draft_id
                 pending_matches = _recent_pending_action_drafts_for_actor(
                     actor=actor,
                     draft_id=explicit_draft_id,
@@ -3186,6 +3202,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=recovered_draft,
                         confirmed=True,
+                        turn_intent_metadata=turn_intent.public_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3196,6 +3213,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     candidate_count=len(pending_matches),
+                    turn_intent_metadata=turn_intent.public_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3217,32 +3235,19 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     )
                 )
             )
-            replay_action_message = ""
-            if not sensitive_matches and looks_like_action_replay_request(routing_message):
-                replay_action_message = _stored_last_action_request_message(turn_request.session_id)
             effective_action_request = (
-                _turn_request_with_message(turn_request, message=replay_action_message)
-                if replay_action_message
+                _turn_request_with_message(turn_request, message=turn_intent.action.request_message)
+                if turn_intent.action.replayed_previous_request
                 else turn_request
             )
-            effective_action_routing_message = normalize_operator_query_text(effective_action_request.message)
-            if not sensitive_matches and (
-                bool(replay_action_message)
-                or looks_like_direct_flight_action_request(effective_action_routing_message)
-                or looks_like_flight_followup_action_request(
-                    effective_action_routing_message,
-                    conversation_topic=conversation_topic,
-                )
-                or looks_like_direct_sitl_lifecycle_request(
-                    effective_action_routing_message,
-                    conversation_topic=conversation_topic,
-                )
-            ):
+            if not sensitive_matches and turn_intent.is_action_route:
                 record = await _create_action_record(
                     http_request,
                     effective_action_request,
                     actor=actor,
+                    draft=turn_intent.action.draft,
                     confirmed=False,
+                    turn_intent_metadata=turn_intent.public_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3268,6 +3273,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     actor=actor,
                     plan=registry_plan,
                     allow_provider_composition=provider_auth_allowed,
+                    turn_intent_metadata=turn_intent.public_metadata(),
                     progress_callback=progress_callback,
                 )
             else:
@@ -3281,7 +3287,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     session_id=turn_request.session_id,
                     mode=turn_request.mode,
                     context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
-                    metadata=_bounded_metadata(turn_request.metadata),
+                    metadata=_bounded_metadata(
+                        {
+                            **dict(turn_request.metadata or {}),
+                            "turn_intent": turn_intent.public_metadata(),
+                        }
+                    ),
                     allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,
                 )
             history_record = history.append_turn(record=record, message=turn_request.message)

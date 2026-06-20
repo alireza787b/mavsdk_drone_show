@@ -657,6 +657,19 @@ def _extract_sitl_instance_names(normalized: str) -> list[str]:
 
 
 def _looks_conceptual(normalized: str) -> bool:
+    flight_action_terms = r"land|landing|rtl|return|take\s*off|takeoff"
+    advisory_terms = r"status|ready|safe|safely|should|whether|if"
+    if re.search(
+        rf"\b(tell\s+me|show\s+me|check|report)\b.{{0,80}}\b(?:{flight_action_terms})\b.{{0,80}}\b(?:{advisory_terms})\b",
+        normalized,
+    ):
+        return True
+    if re.search(rf"\b(?:{advisory_terms})\b.{{0,80}}\b(?:{flight_action_terms})\b", normalized):
+        return True
+    if re.search(rf"\b(?:{flight_action_terms})\b.{{0,80}}\b(?:{advisory_terms})\b", normalized):
+        return True
+    if re.search(r"\bcan\s+(?:drone|vehicle|aircraft)\s+\d+\b.{0,80}\b(land|rtl|return)\b", normalized):
+        return True
     instructional = (
         "how to",
         "how do i",
