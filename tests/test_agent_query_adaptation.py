@@ -84,6 +84,16 @@ def test_sitl_created_vehicle_readiness_routes_to_live_telemetry():
     )
 
 
+def test_sitl_created_vehicle_health_followup_routes_to_live_telemetry():
+    message = normalize_operator_query_text(
+        "you createda a drone sitl!! now check that and see if the one you created telmtery is healthy and status ready or not !"
+    )
+
+    plan = build_mds_read_only_plan(message, conversation_topic="sitl")
+
+    assert plan.intent == "fleet_connectivity"
+
+
 def test_sitl_setup_help_still_routes_to_docs():
     message = normalize_operator_query_text("how do I create a SITL demo before trying this for real?")
 
