@@ -334,6 +334,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if _looks_like_non_mds_general_question(normalized):
         return None
 
+    if _looks_like_sidecar_status_question(normalized):
+        return "sidecar_status"
     if _looks_like_mds_fleet_evidence_request(normalized):
         return "fleet_connectivity"
 
@@ -352,6 +354,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if contextual_intent:
         return contextual_intent
 
+    if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
+        return "fleet_connectivity"
     if _looks_like_action_capability_question(normalized):
         return "action_capability"
     if _looks_like_registry_domain_tool_question(normalized, topic=topic):
@@ -362,8 +366,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "git_status_summary"
     if _looks_like_origin_status_question(normalized):
         return "origin_status"
-    if _looks_like_sidecar_status_question(normalized):
-        return "sidecar_status"
     if _looks_like_fleet_enrollment_question(normalized):
         return "fleet_enrollment_summary"
     if _looks_like_system_status_question(normalized):
@@ -377,7 +379,7 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         ("check", "see", "show", "what", "which", "any", "have", "list", "summary"),
     ):
         return "backend_log_summary"
-    if _looks_like_sitl_vehicle_readiness_question(normalized):
+    if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
         return "fleet_connectivity"
     if _has_any(normalized, ("sitl", "simulation", "simulator")) and _has_any(
         normalized,
@@ -4689,7 +4691,11 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
     )
 
 
-def _looks_like_sitl_vehicle_readiness_question(normalized: str) -> bool:
+def _looks_like_sitl_vehicle_readiness_question(
+    normalized: str,
+    *,
+    conversation_topic: str | None = None,
+) -> bool:
     """Route SITL vehicle health questions to live telemetry, not setup docs.
 
     Operators naturally say "the SITL we created" when they mean the simulated
@@ -4698,9 +4704,25 @@ def _looks_like_sitl_vehicle_readiness_question(normalized: str) -> bool:
     setup/workflow questions.
     """
 
-    if not _has_domain_signal(normalized, ("sitl", "simulation", "simulator")):
+    topic = _normalize_conversation_topic(conversation_topic)
+    has_sitl_context = topic == "sitl" or _has_domain_signal(
+        normalized,
+        (
+            "sitl",
+            "simulation",
+            "simulator",
+            "container",
+            "containers",
+            "docker",
+            "px4",
+            "mavlink",
+            "telemetry",
+            "telemtery",
+        ),
+    )
+    if not has_sitl_context:
         return False
-    if not _has_domain_signal(
+    has_target_context = topic == "sitl" or _has_domain_signal(
         normalized,
         (
             "drone",
@@ -4720,8 +4742,16 @@ def _looks_like_sitl_vehicle_readiness_question(normalized: str) -> bool:
             "one",
             "that",
             "it",
+            "container",
+            "containers",
+            "docker",
+            "px4",
+            "mavlink",
+            "telemetry",
+            "telemtery",
         ),
-    ):
+    )
+    if not has_target_context:
         return False
     if not _has_domain_signal(
         normalized,
@@ -4739,6 +4769,10 @@ def _looks_like_sitl_vehicle_readiness_question(normalized: str) -> bool:
             "status",
             "summary",
             "report",
+            "reprot",
+            "do it",
+            "why not",
+            "test",
             "gps",
             "battery",
             "armed",

@@ -40,7 +40,12 @@ def _client_with_registry_probe_routes(auth_context=None) -> TestClient:
 
     @app.get("/api/v1/system/sitl/instances")
     def sitl_instances():
-        return {"total_instances": 1, "instances": [{"id": "sim-1", "state": "running"}]}
+        return {
+            "total_instances": 1,
+            "instances": [{"id": "drone-1", "name": "drone-1", "state": "running"}],
+            "docker": {"daemon_reachable": True, "available": True},
+            "timestamp": 1781957156007,
+        }
 
     @app.get("/api/v1/system/sitl/policy")
     def sitl_policy():
@@ -48,7 +53,41 @@ def _client_with_registry_probe_routes(auth_context=None) -> TestClient:
 
     @app.get("/api/v1/system/sitl/host")
     def sitl_host():
-        return {"host": "test-sitl-host", "available": True}
+        return {"host": "test-sitl-host", "available": True, "docker": {"daemon_reachable": True}}
+
+    @app.get("/api/v1/fleet/heartbeats")
+    def fleet_heartbeats():
+        return {
+            "heartbeats": [
+                {"hw_id": "1", "online": True, "presence_state": "live", "ip": "172.18.0.2"},
+            ],
+            "total_drones": 4,
+            "online_count": 1,
+            "timestamp": 1781957157000,
+        }
+
+    @app.get("/api/v1/fleet/telemetry")
+    def fleet_telemetry():
+        return {
+            "telemetry": {
+                "1": {
+                    "hw_id": "1",
+                    "telemetry_available": True,
+                    "is_ready_to_arm": True,
+                    "is_armed": False,
+                    "flight_mode_name": "HOLD",
+                    "system_status_name": "STANDBY",
+                    "gps_fix_type": 3,
+                    "satellites_visible": 12,
+                    "battery_voltage": 16.1,
+                    "battery_remaining_percent": 0.91,
+                    "timestamp": 1781957155500,
+                }
+            },
+            "total_drones": 1,
+            "online_drones": 1,
+            "timestamp": 1781957157000,
+        }
 
     @app.get("/api/v1/config/fleet")
     def fleet_config():
@@ -846,6 +885,66 @@ def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
 
     audit_events = client.get("/api/v1/simurgh/audit").json()["events"]
     assert audit_events[0]["metadata"]["read_only_evidence"]["content_hash"] == evidence["content_hash"]
+
+
+def test_simurgh_assistant_reports_sitl_px4_readiness_instead_of_docs_or_tool_menu(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "is it healty and ready to test? report onthe docker container status adn the px4 status and preflight",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.host.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+    ]
+    assert payload["trace"]["query"]["read_only_plan"]["selection_source"] == "sitl_px4_readiness_rules"
+    assert "Verdict: ready for a SITL test" in payload["content"]
+    assert "Docker/SITL: 1 instance(s), 1 active; Docker reachable: Yes." in payload["content"]
+    assert "Drone 1" in payload["content"]
+    assert "Preflight" in payload["content"]
+    assert "16.10 V / 91%" in payload["content"]
+    assert "Registry-backed read-only capability summary" not in payload["content"]
+    assert "SITL should be started" not in payload["content"]
+
+
+def test_simurgh_assistant_correction_prompt_executes_sitl_readiness_tools(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "why not???? you have access to droen telemtery and sitl instance docker stuffs thogh api and mcp so why not ? do it and reprot .",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.host.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+    ]
+    assert "Verdict: ready for a SITL test" in payload["content"]
+    assert "Docker/SITL" in payload["content"]
+    assert "PX4/MAVLink" in payload["content"]
+    assert "This answer only describes the approved capability surface" not in payload["content"]
 
 
 def test_simurgh_assistant_routes_typo_sitl_running_prompt_to_instance_state(monkeypatch):

@@ -135,6 +135,13 @@ _SITL_RUNTIME_STATE_TERMS = (
     "state",
 )
 
+_SITL_READINESS_TOOL_IDS = (
+    "mds.sitl.instances.read",
+    "mds.sitl.host.read",
+    "mds.fleet.heartbeats.read",
+    "mds.fleet.telemetry.read",
+)
+
 _ARGUMENT_STATE_TERMS = _STATE_TERMS + (
     "details",
     "detail",
@@ -389,22 +396,28 @@ def plan_registry_read_tool_calls(
     normalized = " ".join(str(message or "").casefold().split())
     if not normalized:
         return None
-    if _looks_like_capability_catalog_prompt(normalized):
+    live_sitl_readiness = _looks_like_sitl_px4_readiness_prompt(
+        normalized,
+        conversation_topic=conversation_topic,
+    )
+    if _looks_like_capability_catalog_prompt(normalized) and not live_sitl_readiness:
         return None
     if _has_direct_action_term(normalized):
         return None
-    if _looks_like_docs_or_workflow_prompt(normalized):
+    if _looks_like_docs_or_workflow_prompt(normalized) and not live_sitl_readiness:
         return None
-    if not _has_any(normalized, _STATE_TERMS):
+    if not _has_any(normalized, _STATE_TERMS) and not live_sitl_readiness:
         return None
 
     allowed_by_id = {tool.id: tool for tool in allowed_tools}
     plan = build_assistant_query_plan(normalized, conversation_topic=conversation_topic)
     compound_ids, compound_label = _compound_state_tool_ids_for_query(normalized)
-    selected_ids: list[str] = list(compound_ids)
+    selected_ids: list[str] = list(_SITL_READINESS_TOOL_IDS if live_sitl_readiness else compound_ids)
     label = "read-only GCS state"
-    selection_source = "compound_state_rules" if selected_ids else "domain_rules"
-    if compound_label:
+    selection_source = "sitl_px4_readiness_rules" if live_sitl_readiness else ("compound_state_rules" if selected_ids else "domain_rules")
+    if live_sitl_readiness:
+        label = "SITL/PX4 readiness state"
+    elif compound_label:
         label = compound_label
     if not selected_ids:
         for signals, tool_ids, candidate_label in _DOMAIN_TOOLS:
@@ -444,6 +457,12 @@ def plan_registry_read_tool_calls(
         argument_ids = missing_typed_metadata_ids
         argument_label = missing_typed_metadata_label or "typed read-only GCS state"
         selection_source = "metadata_typed_discovery"
+    if live_sitl_readiness:
+        argument_ids = ()
+        argument_label = ""
+        missing_typed_metadata_ids = ()
+        missing_typed_metadata_label = ""
+        selection_source = "sitl_px4_readiness_rules"
     advisory_defer_argument_ids = argument_ids if had_argument_rule_ids else ()
     if _should_defer_to_advisory(local_intent, normalized, argument_ids=advisory_defer_argument_ids):
         return None
@@ -466,7 +485,7 @@ def plan_registry_read_tool_calls(
             label = metadata_label
         if selected_ids:
             selection_source = "metadata_ranker"
-    elif selected_ids and not argument_ids:
+    elif selected_ids and not argument_ids and not live_sitl_readiness:
         metadata_ids, _metadata_label = _metadata_ranked_tool_ids(
             normalized,
             allowed_tools,
@@ -577,6 +596,8 @@ def _compound_state_tool_ids_for_query(text: str) -> tuple[tuple[str, ...], str]
 
 def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
     intent = str(local_intent or "").strip()
+    if _looks_like_sitl_px4_readiness_prompt(text):
+        return False
     if intent not in _ADVISORY_FIRST_INTENTS:
         return False
     if intent == "drone_log_summary":
@@ -640,6 +661,10 @@ def format_registry_read_results(
 ) -> str:
     """Format bounded registry tool evidence for the dashboard chat renderer."""
 
+    sitl_readiness_summary = _format_sitl_px4_readiness_state(results)
+    if sitl_readiness_summary:
+        return sitl_readiness_summary
+
     compound_summary = _format_compound_fleet_sitl_state(results)
     if compound_summary:
         return compound_summary
@@ -664,6 +689,85 @@ def format_registry_read_results(
         )
     composer.blank()
     composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
+    return composer.render()
+
+
+def _format_sitl_px4_readiness_state(results: Sequence[RegistryReadToolResult]) -> str:
+    by_id = {item.tool.id: item for item in results}
+    sitl_instances = by_id.get("mds.sitl.instances.read")
+    telemetry = by_id.get("mds.fleet.telemetry.read")
+    heartbeats = by_id.get("mds.fleet.heartbeats.read")
+    if sitl_instances is None or telemetry is None:
+        return ""
+
+    instance_payload = sitl_instances.result.structured_content
+    telemetry_payload = telemetry.result.structured_content
+    heartbeat_payload = heartbeats.result.structured_content if heartbeats else None
+    instances = _sitl_instance_rows(instance_payload)
+    active_instances = [item for item in instances if _sitl_instance_is_active(item)]
+    total = _sitl_instance_total(instance_payload)
+    active = _sitl_active_count(instance_payload)
+    docker = _mapping_value(instance_payload, ("docker",))
+    docker_available = _mapping_value(docker, ("daemon_reachable", "available", "socket_exists")) if isinstance(docker, Mapping) else None
+    telemetry_rows = _telemetry_rows_by_drone_id(telemetry_payload)
+    heartbeat_rows = _heartbeat_rows_by_drone_id(heartbeat_payload)
+
+    target_ids = _readiness_target_ids(active_instances, telemetry_rows, heartbeat_rows)
+    readiness_rows: list[tuple[str, str, str, str, str, str, str, str]] = []
+    ready_values: list[bool | None] = []
+    for drone_id in target_ids:
+        row = telemetry_rows.get(drone_id, {})
+        hb = heartbeat_rows.get(drone_id, {})
+        ready = _telemetry_ready_value(row)
+        ready_values.append(ready)
+        readiness_rows.append(
+            (
+                f"Drone {drone_id}",
+                _telemetry_presence_label(row, hb),
+                _yes_no_unknown(ready),
+                _yes_no_unknown(_mapping_value(row, ("is_armed", "armed"))),
+                _telemetry_mode_label(row),
+                _telemetry_gps_label(row),
+                _telemetry_battery_label(row),
+                _telemetry_age_label(row, telemetry_payload),
+            )
+        )
+
+    active_ok = bool(active_instances) or (active is not None and active > 0)
+    telemetry_ok = any(_telemetry_present(row) for row in telemetry_rows.values())
+    ready_ok = any(value is True for value in ready_values)
+    if active_ok and telemetry_ok and ready_ok:
+        verdict = "Verdict: ready for a SITL test from current GCS evidence."
+    elif active_ok and telemetry_ok:
+        verdict = "Verdict: SITL is running, but PX4/preflight readiness is not confirmed green."
+    elif active_ok:
+        verdict = "Verdict: SITL container is running, but live PX4 telemetry is not available yet."
+    else:
+        verdict = "Verdict: not ready; no active SITL instance is confirmed."
+
+    composer = AnswerComposer()
+    composer.line(verdict)
+    active_text = "unknown" if active is None else str(active)
+    total_text = "unknown" if total is None else str(total)
+    docker_text = _yes_no_unknown(docker_available)
+    composer.line(f"Docker/SITL: {total_text} instance(s), {active_text} active; Docker reachable: {docker_text}.")
+    if active_instances:
+        instance_bits = []
+        for item in active_instances[:4]:
+            name = _sitl_instance_name(item) or "SITL instance"
+            state = _sitl_instance_state(item)
+            instance_bits.append(f"{name}={state}")
+        composer.line("Active container(s): " + ", ".join(instance_bits) + ".")
+    elif instances:
+        composer.line("Active container(s): none in the SITL inventory.")
+    if readiness_rows:
+        composer.blank().table(
+            ("Drone", "PX4/MAVLink", "Preflight", "Armed", "Mode", "GPS", "Battery", "Telemetry age"),
+            readiness_rows,
+        )
+    else:
+        composer.line("PX4 telemetry: no drone telemetry rows are visible to this GCS runtime.")
+    composer.blank().line("Read-only check only; no SITL action, flight command, config write, or drone-local API call was sent.")
     return composer.render()
 
 
@@ -702,6 +806,222 @@ def _format_compound_fleet_sitl_state(results: Sequence[RegistryReadToolResult])
         composer.line("No simulator drone instance is currently running.")
     composer.line("Read-only check only; no SITL action or drone command was sent.")
     return composer.render()
+
+
+def _sitl_instance_rows(value: Any) -> list[Mapping[str, Any]]:
+    instances: Any = None
+    if isinstance(value, Mapping):
+        instances = value.get("instances")
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        instances = value
+    if not isinstance(instances, Sequence) or isinstance(instances, (str, bytes, bytearray)):
+        return []
+    return [item for item in instances if isinstance(item, Mapping)]
+
+
+def _sitl_instance_is_active(item: Mapping[str, Any]) -> bool:
+    state = _sitl_instance_state(item).casefold()
+    return bool(state and state not in {"stopped", "exited", "dead", "removed", "created", "unknown"})
+
+
+def _sitl_instance_name(item: Mapping[str, Any]) -> str:
+    for key in ("name", "container_name", "instance_name", "id", "container_id"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _sitl_instance_state(item: Mapping[str, Any]) -> str:
+    for key in ("state", "status", "container_status", "health"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return "unknown"
+
+
+def _telemetry_rows_by_drone_id(value: Any) -> dict[str, Mapping[str, Any]]:
+    raw_rows: Any = None
+    if isinstance(value, Mapping):
+        for key in ("telemetry", "data", "drones", "items"):
+            candidate = value.get(key)
+            if candidate is not None:
+                raw_rows = candidate
+                break
+        if raw_rows is None and all(isinstance(item, Mapping) for item in value.values()):
+            raw_rows = value
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        raw_rows = value
+    rows: dict[str, Mapping[str, Any]] = {}
+    if isinstance(raw_rows, Mapping):
+        for key, item in raw_rows.items():
+            if isinstance(item, Mapping):
+                drone_id = _drone_id_from_row(item, fallback=key)
+                if drone_id:
+                    rows[drone_id] = item
+    elif isinstance(raw_rows, Sequence) and not isinstance(raw_rows, (str, bytes, bytearray)):
+        for index, item in enumerate(raw_rows, start=1):
+            if isinstance(item, Mapping):
+                drone_id = _drone_id_from_row(item, fallback=index)
+                if drone_id:
+                    rows[drone_id] = item
+    return rows
+
+
+def _heartbeat_rows_by_drone_id(value: Any) -> dict[str, Mapping[str, Any]]:
+    raw_rows: Any = None
+    if isinstance(value, Mapping):
+        for key in ("heartbeats", "data", "items"):
+            candidate = value.get(key)
+            if candidate is not None:
+                raw_rows = candidate
+                break
+        if raw_rows is None and all(isinstance(item, Mapping) for item in value.values()):
+            raw_rows = value
+    rows: dict[str, Mapping[str, Any]] = {}
+    if isinstance(raw_rows, Mapping):
+        for key, item in raw_rows.items():
+            if isinstance(item, Mapping):
+                drone_id = _drone_id_from_row(item, fallback=key)
+                if drone_id:
+                    rows[drone_id] = item
+    elif isinstance(raw_rows, Sequence) and not isinstance(raw_rows, (str, bytes, bytearray)):
+        for index, item in enumerate(raw_rows, start=1):
+            if isinstance(item, Mapping):
+                drone_id = _drone_id_from_row(item, fallback=index)
+                if drone_id:
+                    rows[drone_id] = item
+    return rows
+
+
+def _drone_id_from_row(row: Mapping[str, Any], *, fallback: Any = "") -> str:
+    for key in ("hw_id", "drone_id", "id", "pos_id"):
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            match = re.search(r"\d+", str(value))
+            return match.group(0) if match else str(value).strip()
+    match = re.search(r"\d+", str(fallback))
+    return match.group(0) if match else str(fallback).strip()
+
+
+def _readiness_target_ids(
+    active_instances: Sequence[Mapping[str, Any]],
+    telemetry_rows: Mapping[str, Mapping[str, Any]],
+    heartbeat_rows: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    ids: list[str] = []
+    for item in active_instances:
+        name = _sitl_instance_name(item)
+        match = re.search(r"\bdrone-(\d+)\b", name.casefold())
+        if match and match.group(1) not in ids:
+            ids.append(match.group(1))
+    for source in (telemetry_rows, heartbeat_rows):
+        for key in source:
+            key_text = str(key)
+            if key_text and key_text not in ids:
+                ids.append(key_text)
+    return ids[:8]
+
+
+def _telemetry_present(row: Mapping[str, Any]) -> bool:
+    value = _mapping_value(row, ("telemetry_available", "available", "online"))
+    if value is None:
+        return bool(row)
+    return _bool_or_none(value) is not False
+
+
+def _telemetry_ready_value(row: Mapping[str, Any]) -> bool | None:
+    return _bool_or_none(_mapping_value(row, ("is_ready_to_arm", "ready_to_arm", "ready", "preflight_ready")))
+
+
+def _telemetry_presence_label(row: Mapping[str, Any], heartbeat: Mapping[str, Any]) -> str:
+    if _telemetry_present(row):
+        return "telemetry"
+    online = _bool_or_none(_mapping_value(heartbeat, ("online",)))
+    state = _mapping_value(heartbeat, ("presence_state", "state"))
+    if online is True:
+        return "heartbeat"
+    if state is not None:
+        return str(state)
+    return "not seen"
+
+
+def _telemetry_mode_label(row: Mapping[str, Any]) -> str:
+    value = _mapping_value(row, ("flight_mode_name", "mode_name", "flight_mode", "mode"))
+    return str(value) if value is not None and str(value).strip() else "unknown"
+
+
+def _telemetry_gps_label(row: Mapping[str, Any]) -> str:
+    fix = _mapping_value(row, ("gps_fix_type", "fix_type", "gps_fix"))
+    sats = _mapping_value(row, ("satellites_visible", "gps_satellites_visible", "satellites"))
+    if fix is None and sats is None:
+        return "unknown"
+    parts = []
+    if fix is not None:
+        parts.append(f"fix {fix}")
+    if sats is not None:
+        parts.append(f"{sats} sats")
+    return ", ".join(parts)
+
+
+def _telemetry_battery_label(row: Mapping[str, Any]) -> str:
+    voltage = _mapping_value(row, ("battery_voltage", "voltage", "battery_v"))
+    percent = _mapping_value(row, ("battery_remaining_percent", "battery_percent", "battery_remaining"))
+    parts = []
+    try:
+        if voltage is not None:
+            parts.append(f"{float(voltage):.2f} V")
+    except (TypeError, ValueError):
+        parts.append(str(voltage))
+    try:
+        if percent is not None:
+            pct = float(percent)
+            if pct <= 1.0:
+                pct *= 100.0
+            parts.append(f"{pct:.0f}%")
+    except (TypeError, ValueError):
+        parts.append(str(percent))
+    return " / ".join(parts) if parts else "unknown"
+
+
+def _telemetry_age_label(row: Mapping[str, Any], telemetry_payload: Any) -> str:
+    timestamp = _mapping_value(row, ("timestamp", "updated_at", "last_update_ms"))
+    server_time = _mapping_value(telemetry_payload, ("timestamp", "server_time", "server_time_ms")) if isinstance(telemetry_payload, Mapping) else None
+    try:
+        ts = float(timestamp)
+        now = float(server_time) if server_time is not None else 0.0
+    except (TypeError, ValueError):
+        return "unknown"
+    if ts <= 0 or now <= 0:
+        return "available"
+    if ts < 10_000_000_000:
+        ts *= 1000.0
+    if now < 10_000_000_000:
+        now *= 1000.0
+    age = max(0.0, (now - ts) / 1000.0)
+    return f"{age:.1f}s"
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    text = str(value).strip().casefold()
+    if text in {"1", "true", "yes", "y", "ready", "healthy", "online", "live"}:
+        return True
+    if text in {"0", "false", "no", "n", "not_ready", "not ready", "offline", "stale"}:
+        return False
+    return None
+
+
+def _yes_no_unknown(value: Any) -> str:
+    bool_value = _bool_or_none(value)
+    if bool_value is True:
+        return "Yes"
+    if bool_value is False:
+        return "No"
+    return "Unknown"
 
 
 def _fleet_config_count(value: Any) -> int | None:
@@ -889,6 +1209,96 @@ def _looks_like_capability_catalog_prompt(text: str) -> bool:
             "which read only",
         ),
     )
+
+
+def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str | None = None) -> bool:
+    """Prefer live evidence over docs/tool menus for SITL vehicle readiness reports."""
+
+    topic = str(conversation_topic or "").strip().casefold()
+    if _has_any(text, ("mavlink-anywhere", "mavlink dashboard", "sidecar", "sidecars", "wifi manager")) and not _has_any(
+        text,
+        ("sitl", "simulation", "simulator", "container", "containers", "docker", "px4", "preflight", "pre-flight"),
+    ):
+        return False
+    if _looks_like_capability_catalog_prompt(text) and not _has_any(
+        text,
+        (
+            "check",
+            "do it",
+            "healthy",
+            "healty",
+            "pre-flight",
+            "preflight",
+            "ready",
+            "readiness",
+            "report",
+            "reprot",
+        ),
+    ):
+        return False
+    sitl_context = topic == "sitl" or _has_any(
+        text,
+        (
+            "sitl",
+            "simulator",
+            "simulation",
+            "instance",
+            "instances",
+            "instace",
+            "instaces",
+            "isntance",
+            "isntances",
+            "container",
+            "containers",
+            "docker",
+            "px4",
+            "preflight",
+            "pre-flight",
+        ),
+    )
+    if not sitl_context:
+        return False
+    readiness_signal = _has_any(
+        text,
+        (
+            "alive",
+            "arm",
+            "armed",
+            "arming",
+            "battery",
+            "container status",
+            "current",
+            "do it",
+            "flight ready",
+            "fly ready",
+            "gps",
+            "health",
+            "healthy",
+            "healty",
+            "heartbeat",
+            "mavlink",
+            "pre-flight",
+            "preflight",
+            "px4 status",
+            "ready",
+            "readiness",
+            "report",
+            "reprot",
+            "status",
+            "telemetry",
+            "telemtery",
+            "test",
+            "why not",
+        ),
+    )
+    if not readiness_signal:
+        return False
+    if _has_any(text, ("how do i", "how to", "setup guide", "documentation", "manual")) and not _has_any(
+        text,
+        ("current", "status", "ready", "report", "do it", "check"),
+    ):
+        return False
+    return True
 
 
 def _metadata_ranked_tool_ids(

@@ -1307,6 +1307,39 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
             "summary": "Created drone-1",
         }
 
+    @app.get("/api/v1/system/sitl/instances")
+    async def fake_sitl_instances():
+        return {
+            "total_instances": 1,
+            "instances": [{"name": "drone-1", "state": "running"}],
+            "docker": {"daemon_reachable": True, "available": True},
+            "timestamp": int(now * 1000),
+        }
+
+    @app.get("/api/v1/system/sitl/host")
+    async def fake_sitl_host():
+        return {"host": "test-host", "available": True, "docker": {"daemon_reachable": True}}
+
+    @app.get("/api/v1/fleet/heartbeats")
+    async def fake_fleet_heartbeats():
+        return {
+            "heartbeats": [
+                {"hw_id": "1", "online": True, "presence_state": "live", "ip": "172.18.0.2"},
+            ],
+            "total_drones": 1,
+            "online_count": 1,
+            "timestamp": int(now * 1000),
+        }
+
+    @app.get("/api/v1/fleet/telemetry")
+    async def fake_fleet_telemetry():
+        return {
+            "telemetry": deps.telemetry_data_all_drones,
+            "total_drones": 1,
+            "online_drones": 1,
+            "timestamp": int(now * 1000),
+        }
+
     app.include_router(create_simurgh_router(deps))
     client = TestClient(app)
 
@@ -1344,13 +1377,22 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
     assert readiness.status_code == 200
     payload = readiness.json()
     content = payload["content"]
-    assert "Connectivity from GCS state: 1/1 drone(s) currently look live." in content
+    assert "Verdict: ready for a SITL test" in content
+    assert "Docker/SITL: 1 instance(s), 1 active; Docker reachable: Yes." in content
+    assert "Drone 1" in content
+    assert "Preflight" in content
     assert "Battery" in content
-    assert "Ready" in content
     assert "16.10 V / 91%" in content
     assert "SITL should be started" not in content
+    assert "Registry-backed read-only capability summary" not in content
     assert "Active commands" not in content
-    assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.host.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+    ]
     assert payload["trace"]["intent"]["route"] == "read_only"
 
 
