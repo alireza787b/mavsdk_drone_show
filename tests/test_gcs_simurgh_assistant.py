@@ -50,6 +50,15 @@ def _client_with_registry_probe_routes(auth_context=None) -> TestClient:
     def sitl_host():
         return {"host": "test-sitl-host", "available": True}
 
+    @app.get("/api/v1/config/fleet")
+    def fleet_config():
+        return [
+            {"hw_id": 1, "callsign": "SCOUT", "ip": "172.18.0.2", "mavlink_port": 14563},
+            {"hw_id": 2, "callsign": "NET-LEADER", "ip": "172.18.0.3", "mavlink_port": 14564},
+            {"hw_id": 3, "callsign": "NET-LEFT", "ip": "172.18.0.4", "mavlink_port": 14565},
+            {"hw_id": 4, "callsign": "NET-RIGHT", "ip": "172.18.0.5", "mavlink_port": 14566},
+        ]
+
     @app.get("/api/sar/missions")
     def sar_missions():
         return {"count": 1, "missions": [{"mission_id": "sar-1", "status": "draft", "finding_count": 0}]}
@@ -856,6 +865,35 @@ def test_simurgh_assistant_routes_typo_sitl_running_prompt_to_instance_state(mon
     assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
     assert "Read-only registry check for SITL runtime state" in payload["content"]
     assert "mds.sitl.instances.read" in payload["content"]
+
+
+def test_simurgh_assistant_compound_fleet_and_sitl_status_is_concise(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "How many drones do we have configured? what about sitl isntances? any active?",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
+    assert "Configured fleet: 4 drone(s)." in payload["content"]
+    assert "SITL instances: 1 total, 1 active." in payload["content"]
+    assert "Read-only check only" in payload["content"]
+    assert "Read-only registry check" not in payload["content"]
+    assert "MCP `tools/call`" not in payload["content"]
 
 
 def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatch):

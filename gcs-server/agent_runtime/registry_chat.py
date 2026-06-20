@@ -280,6 +280,19 @@ _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("system health", "health check", "server health", "gcs health"), ("mds.system.health.read", "mds.system.runtime_status.read"), "GCS system health"),
 )
 
+_COMPOUND_STATE_TOOL_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    (
+        "fleet",
+        ("mds.config.fleet.read",),
+        "configured fleet",
+    ),
+    (
+        "sitl",
+        ("mds.sitl.instances.read", "mds.sitl.policy.read"),
+        "SITL runtime state",
+    ),
+)
+
 _DOMAIN_SEARCH_ALIASES: Mapping[str, tuple[str, ...]] = {
     "capabilities": ("simurgh", "tool", "tools", "mcp", "api"),
     "docs": ("docs", "documentation", "context", "simurgh"),
@@ -387,14 +400,18 @@ def plan_registry_read_tool_calls(
 
     allowed_by_id = {tool.id: tool for tool in allowed_tools}
     plan = build_assistant_query_plan(normalized, conversation_topic=conversation_topic)
-    selected_ids: list[str] = []
+    compound_ids, compound_label = _compound_state_tool_ids_for_query(normalized)
+    selected_ids: list[str] = list(compound_ids)
     label = "read-only GCS state"
-    selection_source = "domain_rules"
-    for signals, tool_ids, candidate_label in _DOMAIN_TOOLS:
-        if _has_any(normalized, signals):
-            selected_ids.extend(tool_ids)
-            label = candidate_label
-            break
+    selection_source = "compound_state_rules" if selected_ids else "domain_rules"
+    if compound_label:
+        label = compound_label
+    if not selected_ids:
+        for signals, tool_ids, candidate_label in _DOMAIN_TOOLS:
+            if _has_any(normalized, signals):
+                selected_ids.extend(tool_ids)
+                label = candidate_label
+                break
 
     argument_ids, argument_label = _argument_tool_ids_for_query(normalized, domain=plan.domain)
     had_argument_rule_ids = bool(argument_ids)
@@ -533,6 +550,31 @@ def _merge_specific_tool_ids(preferred: Sequence[str], fallback: Sequence[str], 
     return tuple(merged)
 
 
+def _compound_state_tool_ids_for_query(text: str) -> tuple[tuple[str, ...], str]:
+    """Return merged read tools when one normal question spans state domains."""
+
+    domains: list[str] = []
+    if _has_any(text, ("how many drones", "configured drones", "drones configured", "fleet configured")) or (
+        _has_any(text, ("configured",))
+        and _has_any(text, ("drone", "drones", "fleet", "vehicle", "vehicles"))
+    ):
+        domains.append("fleet")
+    if _has_any(text, ("sitl", "simulator", "simulation")) and _has_any(text, _SITL_RUNTIME_STATE_TERMS + ("active",)):
+        domains.append("sitl")
+    if len(domains) < 2:
+        return (), ""
+    selected: list[str] = []
+    labels: list[str] = []
+    for domain, tool_ids, label in _COMPOUND_STATE_TOOL_GROUPS:
+        if domain not in domains:
+            continue
+        labels.append(label)
+        for tool_id in tool_ids:
+            if tool_id not in selected:
+                selected.append(tool_id)
+    return tuple(selected[:4]), " and ".join(labels) if labels else "read-only GCS state"
+
+
 def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
     intent = str(local_intent or "").strip()
     if intent not in _ADVISORY_FIRST_INTENTS:
@@ -598,6 +640,10 @@ def format_registry_read_results(
 ) -> str:
     """Format bounded registry tool evidence for the dashboard chat renderer."""
 
+    compound_summary = _format_compound_fleet_sitl_state(results)
+    if compound_summary:
+        return compound_summary
+
     composer = AnswerComposer()
     composer.line(f"Read-only registry check for {plan.label}:")
     composer.line(
@@ -619,6 +665,99 @@ def format_registry_read_results(
     composer.blank()
     composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
     return composer.render()
+
+
+def _format_compound_fleet_sitl_state(results: Sequence[RegistryReadToolResult]) -> str:
+    by_id = {item.tool.id: item for item in results}
+    fleet = by_id.get("mds.config.fleet.read")
+    sitl_instances = by_id.get("mds.sitl.instances.read")
+    if fleet is None or sitl_instances is None:
+        return ""
+
+    fleet_count = _fleet_config_count(fleet.result.structured_content)
+    sitl_total = _sitl_instance_total(sitl_instances.result.structured_content)
+    sitl_active = _sitl_active_count(sitl_instances.result.structured_content)
+    policy = by_id.get("mds.sitl.policy.read")
+    sim_mode = _mapping_value(policy.result.structured_content if policy else None, ("sim_mode", "enabled"))
+    read_only = _mapping_value(policy.result.structured_content if policy else None, ("read_only",))
+
+    composer = AnswerComposer()
+    if fleet_count is None:
+        composer.line("Configured fleet: not available from the fleet config response.")
+    else:
+        composer.line(f"Configured fleet: {fleet_count} drone(s).")
+    if sitl_total is None:
+        composer.line("SITL instances: not available from the SITL status response.")
+    else:
+        active_text = f"{sitl_active} active" if sitl_active is not None else "active count unknown"
+        composer.line(f"SITL instances: {sitl_total} total, {active_text}.")
+    if sim_mode is not None or read_only is not None:
+        policy_bits = []
+        if sim_mode is not None:
+            policy_bits.append(f"sim_mode={sim_mode}")
+        if read_only is not None:
+            policy_bits.append(f"read_only={read_only}")
+        composer.line("SITL policy: " + ", ".join(policy_bits) + ".")
+    if sitl_total == 0:
+        composer.line("No simulator drone instance is currently running.")
+    composer.line("Read-only check only; no SITL action or drone command was sent.")
+    return composer.render()
+
+
+def _fleet_config_count(value: Any) -> int | None:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return len(value)
+    if isinstance(value, Mapping):
+        for key in ("count", "total", "total_drones", "configured_drones"):
+            item = value.get(key)
+            if isinstance(item, int) and not isinstance(item, bool):
+                return item
+        for key in ("drones", "fleet", "items", "entries"):
+            item = value.get(key)
+            if isinstance(item, Sequence) and not isinstance(item, (str, bytes, bytearray)):
+                return len(item)
+    return None
+
+
+def _sitl_instance_total(value: Any) -> int | None:
+    if isinstance(value, Mapping):
+        item = value.get("total_instances")
+        if isinstance(item, int) and not isinstance(item, bool):
+            return item
+        instances = value.get("instances")
+        if isinstance(instances, Sequence) and not isinstance(instances, (str, bytes, bytearray)):
+            return len(instances)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return len(value)
+    return None
+
+
+def _sitl_active_count(value: Any) -> int | None:
+    instances: Any = None
+    if isinstance(value, Mapping):
+        instances = value.get("instances")
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        instances = value
+    if not isinstance(instances, Sequence) or isinstance(instances, (str, bytes, bytearray)):
+        return None
+    active = 0
+    for item in instances:
+        if not isinstance(item, Mapping):
+            continue
+        state = str(item.get("state") or item.get("status") or "").casefold()
+        if state and state not in {"stopped", "exited", "dead", "removed", "created"}:
+            active += 1
+    return active
+
+
+def _mapping_value(value: Any, keys: Sequence[str]) -> Any | None:
+    if not isinstance(value, Mapping):
+        return None
+    for key in keys:
+        item = value.get(key)
+        if item is not None:
+            return item
+    return None
 
 
 def build_registry_read_evidence_bundle(

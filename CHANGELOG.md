@@ -35,6 +35,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   fields for dashboard progress rendering instead of requiring text scraping.
 
 ### Fixed
+- Simurgh compound status questions such as configured drone count plus active
+  SITL instances now merge the relevant read-only tools and return a concise
+  operator summary instead of a raw registry/MCP evidence dump.
 - Simurgh no longer lets bare approval wording such as "go ahead" confirm an
   old pending action when the same message is actually a new read/status task.
 - Simurgh no longer drafts flight actions from advisory motion-status questions
