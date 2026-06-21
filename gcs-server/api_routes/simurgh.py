@@ -167,6 +167,31 @@ SEMANTIC_REWRITE_HELP_INTENTS = {
     "board_setup_help",
     "companion_setup_help",
 }
+SEMANTIC_REWRITE_LOCAL_CAPABILITY_INTENTS = {
+    "action_capability",
+    "capability_catalog",
+    "registry_domain_tool_summary",
+}
+SEMANTIC_REWRITE_INTENT_DOMAINS = {
+    "backend_log_summary": {"logs"},
+    "command_summary": {"commands", "fleet", "runtime"},
+    "drone_log_summary": {"logs", "fleet"},
+    "environment_summary": {"runtime"},
+    "fleet_connectivity": {"fleet"},
+    "fleet_enrollment_summary": {"fleet", "setup"},
+    "fleet_summary": {"fleet"},
+    "git_status_summary": {"git", "runtime"},
+    "node_boot_status": {"fleet", "runtime"},
+    "origin_status": {"origin", "fleet"},
+    "px4_params_summary": {"px4_params", "safety"},
+    "runtime_summary": {"runtime"},
+    "sar_summary": {"sar"},
+    "sidecar_status": {"fleet", "runtime"},
+    "show_summary": {"drone_show"},
+    "swarm_readiness": {"swarm", "fleet"},
+    "swarm_topology": {"swarm"},
+    "system_status": {"runtime", "safety"},
+}
 
 
 class SimurghRouteRef(BaseModel):
@@ -1085,6 +1110,38 @@ def _semantic_rewrite_previous_action_summary(previous_action: Mapping[str, Any]
     return "; ".join(parts)[:240]
 
 
+def _semantic_rewrite_read_intent_matches_domain(intent: str, query_domain: str) -> bool:
+    intent_name = str(intent or "").strip()
+    domain = str(query_domain or "").strip()
+    if not intent_name or not domain or domain == "general":
+        return False
+    domains = SEMANTIC_REWRITE_INTENT_DOMAINS.get(intent_name)
+    return bool(domains and domain in domains)
+
+
+def _semantic_rewrite_read_only_needs_provider(turn_intent: Any) -> bool:
+    read_plan = getattr(turn_intent, "read_only_plan", None)
+    intent = str(getattr(read_plan, "intent", "") or "")
+    query_domain = str(getattr(read_plan, "query_domain", "") or "")
+    try:
+        confidence = float(getattr(read_plan, "confidence", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if not intent:
+        return True
+    if intent in SEMANTIC_REWRITE_LOCAL_CAPABILITY_INTENTS:
+        return False
+    if is_previous_evidence_followup_message(getattr(turn_intent, "routing_message", "")):
+        return False
+    if intent in SEMANTIC_REWRITE_HELP_INTENTS:
+        return True
+    if _semantic_rewrite_read_intent_matches_domain(intent, query_domain):
+        return False
+    if query_domain == "general":
+        return False
+    return confidence < 0.5
+
+
 def _semantic_rewrite_is_safe_to_try(
     *,
     assistant_config: Any,
@@ -1098,14 +1155,15 @@ def _semantic_rewrite_is_safe_to_try(
     if route in SEMANTIC_REWRITE_TERMINAL_ROUTES:
         return False
     if route == "read_only":
-        read_plan = getattr(turn_intent, "read_only_plan", None)
-        intent = str(getattr(read_plan, "intent", "") or "")
-        try:
-            confidence = float(getattr(read_plan, "confidence", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            confidence = 0.0
-        if intent not in SEMANTIC_REWRITE_HELP_INTENTS and confidence >= 0.75:
+        if not _semantic_rewrite_read_only_needs_provider(turn_intent):
             return False
+    elif route == "provider_or_registry":
+        query_plan = getattr(turn_intent, "query_plan", None)
+        query_domain = str(getattr(query_plan, "domain", "") or "")
+        if query_domain == "general":
+            return False
+    else:
+        return False
     if not _has_external_assistant_provider_auth(request):
         return False
     if sensitive_input_matches(assistant_config, original_message):

@@ -42,6 +42,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh compound status questions such as configured drone count plus active
   SITL instances now merge the relevant read-only tools and return a concise
   operator summary instead of a raw registry/MCP evidence dump.
+- Simurgh semantic routing now stays out of concrete local status,
+  capability, and previous-evidence follow-up turns, while still using the
+  provider rewrite fallback when weak local routing contradicts the detected
+  MDS domain.
 - Simurgh no longer lets bare approval wording such as "go ahead" confirm an
   old pending action when the same message is actually a new read/status task.
 - Simurgh no longer drafts flight actions from advisory motion-status questions
