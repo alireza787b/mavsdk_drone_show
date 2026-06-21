@@ -1,5 +1,5 @@
 {
-  "chunk_count": 817,
+  "chunk_count": 818,
   "chunks": [
     {
       "audience": "operator",
@@ -288,9 +288,29 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "2f5f1f440f3ac13bb48ce0e668af9c574ae46fa1247118b78dc9c30ef9532752",
+      "content_hash": "4e51fb5171e14fb9bdc2021760d14414a749b2dfe04a12c92a92983607ee8c07",
       "heading": "Simurgh Operator",
       "id": "simurgh.operator_guide:001-01-simurgh-operator",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for MCP servers\nand dashboard assistant workflows.\n\nThe current implementation is deny-by-default, but it now includes a usable\nread-only operator slice plus selected guarded actions:",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "4f47c3b678b52ff8434b09bcb9873afef112f80f467f716895f4ad4930a15605",
+      "heading": "Simurgh Operator",
+      "id": "simurgh.operator_guide:001-02-simurgh-operator",
       "links": [
         "docs/chunk"
       ],
@@ -304,13 +324,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for MCP servers\nand dashboard assistant workflows.\n\nThe current implementation is deny-by-default, but it now includes a usable\nread-only operator slice plus selected guarded actions:\n\n- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- compact activity trace that shows the current step, fades the last one or two\n evidence steps, and hides detailed trace rows behind an in-message disclosure\n- optional text-only OpenAI Responses adapter\n- optional public web search for safe current/public facts, separated from local\n MDS state so installed firmware, fleet state, logs, IPs, and credentials stay\n on approved local tools\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- read-only drone log, onboard PX4 ULog metadata, and derived ULog summaries\n through approved GCS-side log endpoints, without raw ULog content or erase\n exposure\n- a provider-neutral turn-level semantic intent frame that produces one coherent\n routing decision before confirmation, action drafting, read-only tools, or\n provider fallback\n- guarded SITL lifecycle actions through canonical GCS SITL Control routes\n- guarded curated flight-command drafts through canonical GCS command routes\n- no direct drone API exposure",
+      "text": "- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- compact activity trace that shows the current step, fades the last one or two\n evidence steps, and hides detailed trace rows behind an in-message disclosure\n- optional text-only OpenAI Responses adapter\n- optional public web search for safe current/public facts, separated from local\n MDS state so installed firmware, fleet state, logs, IPs, and credentials stay\n on approved local tools\n- authenticated provider-backed semantic routing normalization for typo-heavy,\n multilingual, tone-varying, and wrong-term-but-inferable prompts, without\n sending telemetry/log evidence to the provider\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- read-only drone log, onboard PX4 ULog metadata, and derived ULog summaries\n through approved GCS-side log endpoints, without raw ULog content or erase\n exposure\n- a provider-neutral turn-level semantic intent frame that produces one coherent\n routing decision before confirmation, action drafting, read-only tools, or\n provider fallback\n- guarded SITL lifecycle actions through canonical GCS SITL Control routes\n- guarded curated flight-command drafts through canonical GCS command routes\n- no direct drone API exposure",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "dbdd8918a441db40802169ad50eb6f7ba0c4035cdfb60913722a7d9a88b340df",
+      "content_hash": "da56dad01f416f7fd087321f78c1a9487e1801af7090c991ea6b3fc91b53a21a",
       "heading": "Semantic Understanding Boundary",
       "id": "simurgh.operator_guide:002-01-semantic-understanding-boundary",
       "links": [],
@@ -324,7 +344,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Semantic Understanding Boundary\n\nSimurgh should not rely on scattered keyword checks as the user-facing\nintelligence layer. Each assistant turn is first interpreted as one structured\nintent frame that records the adapted routing text, read-only plan, possible\naction draft, confirmation/rejection signal, confidence, and reasons. The route\nthen consumes that single frame instead of independently asking several regex\nclassifiers whether the message is a confirmation, action, read-only query, or\nprovider turn.\n\nThe sanitized response trace exposes this frame under `trace.intent` so PM\ntests, dashboard UI, and future agent tooling can explain why a turn routed as a\nread-only check, action draft, confirmation, rejection, or provider fallback\nwithout scraping answer prose.\n\nThis frame is an interpretation layer, not an authority layer:\n\n- semantic interpretation may decide that \"go ahead and check SITL instances\" is\n a read/status task instead of an approval;\n- semantic interpretation may preserve a multi-step action plan such as\n takeoff, wait, move north, then RTL;\n- deterministic enforcement still owns registry schema validation, runtime mode,\n approval, circuit breaker, auth, command submission, monitoring, and audit.\n\nFuture provider-backed structured-output classifiers should plug into this same\nframe contract. They may improve language, tone, paraphrase, and target-memory\nunderstanding, but they must still emit typed plans that the existing policy and\nexecutor layers validate. Provider prose must never be treated as approval or as\nproof that an action executed.",
+      "text": "## Semantic Understanding Boundary\n\nSimurgh should not rely on scattered keyword checks as the user-facing\nintelligence layer. Each assistant turn is first interpreted as one structured\nintent frame that records the adapted routing text, read-only plan, possible\naction draft, confirmation/rejection signal, confidence, and reasons. The route\nthen consumes that single frame instead of independently asking several regex\nclassifiers whether the message is a confirmation, action, read-only query, or\nprovider turn.\n\nThe sanitized response trace exposes this frame under `trace.intent` so PM\ntests, dashboard UI, and future agent tooling can explain why a turn routed as a\nread-only check, action draft, confirmation, rejection, or provider fallback\nwithout scraping answer prose.\n\nThis frame is an interpretation layer, not an authority layer:\n\n- semantic interpretation may decide that \"go ahead and check SITL instances\" is\n a read/status task instead of an approval;\n- semantic interpretation may preserve a multi-step action plan such as\n takeoff, wait, move north, then RTL;\n- deterministic enforcement still owns registry schema validation, runtime mode,\n approval, circuit breaker, auth, command submission, monitoring, and audit.\n\nAuthenticated provider-backed semantic normalization now plugs into this same\nframe contract for weak first-pass routes. It may improve typo, language, tone,\nparaphrase, wrong technical term, and target-memory understanding, but it only\nreturns concise routing text plus metadata. It receives no telemetry, logs,\nULog content, IPs, coordinates, tokens, or tool results, and it never approves\nor executes an action. The local typed planner, registry schema validation,\nruntime mode, approval gate, circuit breaker, command submission, monitoring,\nand audit layers remain the authority.",
       "title": "Simurgh operator guide"
     },
     {
@@ -16367,8 +16387,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 38,
-      "content_hash": "bab391eee5e4719c122cc73af780d7ace8adda915b43a7884eb9583342a5a36c",
+      "chunk_count": 39,
+      "content_hash": "f653f983d2ef5e3d0d7cd301cf43e29605ddc3e1dd466c8a4ed59efd7999f2c5",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

@@ -849,6 +849,57 @@ def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(
     }
 
 
+def test_simurgh_provider_semantic_rewrite_routes_typo_heavy_sitl_create(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    def fake_rewrite_operator_message_with_provider(**_kwargs):
+        return SimpleNamespace(
+            normalized_message="create one SITL instance and report when ready to test and fly with",
+            route_hint="draft_sitl_lifecycle_action",
+            usable_for_routing=True,
+            public_metadata=lambda: {
+                "provider": "openai",
+                "model": "test",
+                "adapter_version": "test-semantic-rewrite",
+                "route_hint": "draft_sitl_lifecycle_action",
+                "confidence": 0.93,
+                "needs_clarification": False,
+                "usable_for_routing": True,
+            },
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "crete one sitl intstance and report when ready to test and fly with",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "guarded action draft" in content
+    assert "mds.sitl.instances.create" in content
+    assert "text-only provider" not in content
+    assert "I can’t create" not in content
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["intent"]["provider_semantic_rewrite"]["route_hint"] == "draft_sitl_lifecycle_action"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+
+
 def test_simurgh_bare_singular_sitl_create_language_returns_guarded_action_draft(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")

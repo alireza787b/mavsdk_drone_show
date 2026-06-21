@@ -767,7 +767,6 @@ def _format_sitl_px4_readiness_state(results: Sequence[RegistryReadToolResult]) 
         )
     else:
         composer.line("PX4 telemetry: no drone telemetry rows are visible to this GCS runtime.")
-    composer.blank().line("Read-only check only; no SITL action, flight command, config write, or drone-local API call was sent.")
     return composer.render()
 
 
@@ -804,7 +803,6 @@ def _format_compound_fleet_sitl_state(results: Sequence[RegistryReadToolResult])
         composer.line("SITL policy: " + ", ".join(policy_bits) + ".")
     if sitl_total == 0:
         composer.line("No simulator drone instance is currently running.")
-    composer.line("Read-only check only; no SITL action or drone command was sent.")
     return composer.render()
 
 

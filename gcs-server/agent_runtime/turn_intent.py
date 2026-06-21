@@ -131,6 +131,7 @@ def build_turn_intent_frame(
     conversation_topic: str | None = None,
     previous_action: Mapping[str, Any] | None = None,
     previous_action_request_message: str = "",
+    semantic_routing_message: str | None = None,
     draft_id_factory: Callable[[], str] | None = None,
 ) -> TurnIntentFrame:
     """Return the single routing frame for an assistant turn.
@@ -141,7 +142,8 @@ def build_turn_intent_frame(
     """
 
     original_message = str(message or "")
-    routing_message = normalize_operator_query_text(original_message)
+    semantic_message = str(semantic_routing_message or "").strip()
+    routing_message = normalize_operator_query_text(semantic_message or original_message)
     topic = str(conversation_topic or "").strip()
     query_plan = build_assistant_query_plan(routing_message, conversation_topic=topic)
     read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=topic)
@@ -149,7 +151,7 @@ def build_turn_intent_frame(
     replayed_message = ""
     if looks_like_action_replay_request(routing_message):
         replayed_message = str(previous_action_request_message or "").strip()
-    action_message = replayed_message or original_message
+    action_message = replayed_message or semantic_message or original_message
     action_routing_message = normalize_operator_query_text(action_message)
 
     direct_flight = looks_like_direct_flight_action_request(action_routing_message)

@@ -1090,7 +1090,7 @@ def test_simurgh_assistant_compound_fleet_and_sitl_status_is_concise(monkeypatch
     ]
     assert "Configured fleet: 4 drone(s)." in payload["content"]
     assert "SITL instances: 1 total, 1 active." in payload["content"]
-    assert "Read-only check only" in payload["content"]
+    assert "Read-only check only" not in payload["content"]
     assert "Read-only registry check" not in payload["content"]
     assert "MCP `tools/call`" not in payload["content"]
 

@@ -69,3 +69,17 @@ def test_turn_intent_compound_pm_prompt_builds_sequence_not_confirmation():
     ]
     assert payload["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["north"] == 10.0
     assert payload["post_actions"][2]["arguments"]["mission_type"] == 104
+
+
+def test_turn_intent_uses_semantic_routing_message_for_typo_heavy_sitl_action():
+    frame = build_turn_intent_frame(
+        "crete one sitl intstance and report when ready to test and fly with",
+        semantic_routing_message="create one SITL instance and report when ready to test and fly with",
+    )
+
+    assert frame.route == "action_draft"
+    assert frame.action.sitl_lifecycle_request is True
+    assert frame.action.draft is not None
+    payload = frame.action.draft.public_payload()
+    assert payload["tool_id"] == "mds.sitl.instances.create"
+    assert payload["monitor_requested"] is True

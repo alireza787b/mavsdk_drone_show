@@ -69,6 +69,7 @@ ASSISTANT_HISTORY_SCHEMA_VERSION = 1
 MOCK_ASSISTANT_ADAPTER_VERSION = "mock-v1"
 MOCK_ASSISTANT_MODEL = "mock-local"
 OPENAI_ASSISTANT_ADAPTER_VERSION = "openai-responses-v1"
+OPENAI_SEMANTIC_REWRITE_ADAPTER_VERSION = "openai-semantic-rewrite-v1"
 DEFAULT_OPENAI_MODEL = "gpt-5.5"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 ALLOWED_OPENAI_BASE_URLS = (DEFAULT_OPENAI_BASE_URL,)
@@ -676,6 +677,48 @@ class ProviderToolCompositionResult:
     retrieved_context_count_delta: int = 0
     provider_composed_from_tool: bool = False
     provider_composition_error: str = ""
+
+
+@dataclass(frozen=True)
+class ProviderSemanticRewrite:
+    """Provider-backed semantic routing rewrite.
+
+    The rewrite is advisory routing evidence only. It is not an answer, approval,
+    target authority, or executable tool payload.
+    """
+
+    normalized_message: str
+    language: str
+    route_hint: str
+    confidence: float
+    needs_clarification: bool = False
+    clarification_question: str = ""
+    notes: tuple[str, ...] = ()
+    provider: str = OPENAI_ASSISTANT_PROVIDER
+    model: str = ""
+    adapter_version: str = OPENAI_SEMANTIC_REWRITE_ADAPTER_VERSION
+
+    @property
+    def usable_for_routing(self) -> bool:
+        if self.needs_clarification:
+            return False
+        if self.confidence < 0.62:
+            return False
+        return bool(self.normalized_message.strip())
+
+    def public_metadata(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "adapter_version": self.adapter_version,
+            "language": self.language,
+            "route_hint": self.route_hint,
+            "confidence": round(float(self.confidence), 3),
+            "needs_clarification": self.needs_clarification,
+            "clarification_question_present": bool(self.clarification_question),
+            "notes": list(self.notes[:8]),
+            "usable_for_routing": self.usable_for_routing,
+        }
 
 
 @dataclass(frozen=True)
@@ -1353,6 +1396,181 @@ def _adapter_for_config(config: AssistantConfig) -> MockAssistantAdapter | OpenA
     if config.provider == OPENAI_ASSISTANT_PROVIDER:
         return OpenAIResponsesAssistantAdapter(config=config)
     raise AgentRuntimeError(f"assistant provider {config.provider!r} is not implemented in this slice")
+
+
+def rewrite_operator_message_with_provider(
+    *,
+    config: AssistantConfig,
+    message: str,
+    conversation_topic: str = "",
+    runtime_mode: str = "",
+    previous_action_summary: str = "",
+) -> ProviderSemanticRewrite | None:
+    """Use OpenAI as a semantic routing normalizer for authenticated chat.
+
+    The provider receives no fleet telemetry, logs, IPs, coordinates, secrets, or
+    runtime evidence. It only sees the operator message and a small public
+    vocabulary/route contract so it can correct typos, language, tone, and
+    wrong-but-inferable technical wording. The returned text is fed back into
+    the local typed planner; it does not execute or approve anything.
+    """
+
+    if config.provider != OPENAI_ASSISTANT_PROVIDER:
+        return None
+    adapter = _adapter_for_config(config)
+    if not isinstance(adapter, OpenAIResponsesAssistantAdapter):
+        return None
+    original = str(message or "").strip()
+    if not original:
+        return None
+
+    request_payload = {
+        "operator_message": original[:4000],
+        "conversation_topic": str(conversation_topic or "")[:80],
+        "runtime_mode": str(runtime_mode or "")[:40],
+        "previous_action_summary": str(previous_action_summary or "")[:240],
+        "routing_contract": {
+            "allowed_task_kinds": [
+                "read_status",
+                "general_question",
+                "draft_sitl_lifecycle_action",
+                "draft_flight_action",
+                "confirm_pending_action",
+                "reject_pending_action",
+                "clarify",
+            ],
+            "important_domains": [
+                "MDS",
+                "Simurgh",
+                "GCS",
+                "SITL",
+                "PX4",
+                "MAVLink",
+                "fleet",
+                "drone telemetry",
+                "ULog",
+                "logs",
+                "Smart Swarm",
+                "QuickScout",
+                "MCP",
+            ],
+            "action_boundary": "Only normalize intent text. Do not approve, execute, or create tool payloads.",
+        },
+    }
+    payload = {
+        "model": config.openai.model,
+        "instructions": _semantic_rewrite_instructions(),
+        "input": json.dumps(request_payload, ensure_ascii=False, sort_keys=True),
+        "max_output_tokens": min(max(config.openai.max_output_tokens, 200), 700),
+        "reasoning": {"effort": "low"},
+        "text": {"format": {"type": "text"}, "verbosity": "low"},
+        "store": False,
+        "include": [],
+        "tools": [],
+        "tool_choice": "none",
+        "parallel_tool_calls": False,
+        "metadata": {
+            "mds_component": "simurgh_semantic_rewrite",
+            "mds_execution": "none",
+            "mds_web_search": "disabled",
+        },
+    }
+    response = adapter._post_response(payload, api_key=config.openai.read_api_key())
+    text = adapter._extract_response_text(response)
+    decoded = _extract_semantic_rewrite_json(text)
+    if not decoded:
+        raise AgentRuntimeError("OpenAI semantic rewrite did not return valid JSON")
+    return _semantic_rewrite_from_payload(decoded, config=config)
+
+
+def _semantic_rewrite_instructions() -> str:
+    return """You are the semantic-understanding layer for Simurgh, an MDS drone GCS assistant.
+
+Return exactly one JSON object and no Markdown.
+
+Your job:
+- infer what the operator means across typos, wrong technical words, mixed language, casual tone, and expert shorthand;
+- rewrite the operator request into concise English routing text that preserves all numbers, units, directions, drone IDs, draft IDs, wait times, and ordering;
+- classify only the task kind; never answer the user and never execute or approve anything.
+
+Rules:
+- If the operator intends Simurgh to make a SITL/simulator/drone instance available for testing, normalize that as a draft_sitl_lifecycle_action.
+- If the operator is only asking how to do something, for docs, or for a procedure, do not convert it into an action.
+- If the operator gives a flight sequence, preserve the full sequence in normalized_message.
+- If the operator asks for status/readiness/telemetry/log/ULog/system state, normalize as read_status.
+- If the operator says confirm/cancel with a draft id, preserve that exact id.
+- If multiple safety-relevant meanings are genuinely possible, set needs_clarification=true and ask one short clarification.
+- Do not include private state, tool payloads, code blocks, or explanations.
+
+JSON schema:
+{
+  "normalized_message": "string",
+  "language": "BCP47 or short language label",
+  "route_hint": "read_status|general_question|draft_sitl_lifecycle_action|draft_flight_action|confirm_pending_action|reject_pending_action|clarify",
+  "confidence": 0.0,
+  "needs_clarification": false,
+  "clarification_question": "",
+  "notes": ["short-safe-note"]
+}"""
+
+
+def _extract_semantic_rewrite_json(text: str) -> Mapping[str, Any] | None:
+    candidate = str(text or "").strip()
+    if not candidate:
+        return None
+    if candidate.startswith("```"):
+        candidate = re.sub(r"^```(?:json)?\s*", "", candidate)
+        candidate = re.sub(r"\s*```$", "", candidate).strip()
+    try:
+        decoded = json.loads(candidate)
+    except ValueError:
+        match = re.search(r"\{.*\}", candidate, flags=re.DOTALL)
+        if not match:
+            return None
+        try:
+            decoded = json.loads(match.group(0))
+        except ValueError:
+            return None
+    return decoded if isinstance(decoded, Mapping) else None
+
+
+def _semantic_rewrite_from_payload(
+    payload: Mapping[str, Any],
+    *,
+    config: AssistantConfig,
+) -> ProviderSemanticRewrite:
+    normalized = re.sub(r"\s+", " ", str(payload.get("normalized_message") or "")).strip()
+    language = str(payload.get("language") or "").strip()[:40]
+    route_hint = str(payload.get("route_hint") or "").strip().lower().replace("-", "_")[:80]
+    try:
+        confidence = float(payload.get("confidence"))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+    notes_raw = payload.get("notes")
+    notes: list[str] = []
+    if isinstance(notes_raw, list):
+        notes = [str(item).strip()[:120] for item in notes_raw if str(item).strip()]
+    if route_hint not in {
+        "read_status",
+        "general_question",
+        "draft_sitl_lifecycle_action",
+        "draft_flight_action",
+        "confirm_pending_action",
+        "reject_pending_action",
+        "clarify",
+    }:
+        route_hint = "clarify" if bool(payload.get("needs_clarification")) else "general_question"
+    return ProviderSemanticRewrite(
+        normalized_message=normalized,
+        language=language or "unknown",
+        route_hint=route_hint,
+        confidence=confidence,
+        needs_clarification=bool(payload.get("needs_clarification")),
+        clarification_question=str(payload.get("clarification_question") or "").strip()[:240],
+        notes=tuple(notes),
+        model=config.openai.model,
+    )
 
 
 def _safe_assistant_session_metadata(metadata: Mapping[str, object] | None) -> dict[str, object]:

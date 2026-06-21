@@ -59,6 +59,7 @@ from agent_runtime.assistant import (
     READ_TOOL_MODEL,
     READ_TOOL_PROVIDER,
     compose_read_only_tool_turn_with_provider,
+    rewrite_operator_message_with_provider,
 )
 from agent_runtime.action_planner import (
     ACTION_ADAPTER_VERSION,
@@ -147,6 +148,24 @@ QUERY_RESPONSE_MODE_PROGRESS_LABELS = {
     "interpret": "explanation",
     "status": "status check",
     "workflow": "workflow guidance",
+}
+SEMANTIC_REWRITE_TERMINAL_ROUTES = {
+    "action_draft",
+    "action_confirmation",
+    "action_rejection",
+}
+SEMANTIC_REWRITE_ACTION_HINTS = {
+    "draft_sitl_lifecycle_action",
+    "draft_flight_action",
+    "confirm_pending_action",
+    "reject_pending_action",
+}
+SEMANTIC_REWRITE_HELP_INTENTS = {
+    "docs_help",
+    "sitl_help",
+    "operator_help",
+    "board_setup_help",
+    "companion_setup_help",
 }
 
 
@@ -1048,6 +1067,79 @@ def _turn_request_with_message(
     if hasattr(turn_request, "model_copy"):
         return turn_request.model_copy(update={"message": message})
     return turn_request.copy(update={"message": message})
+
+
+def _semantic_rewrite_previous_action_summary(previous_action: Mapping[str, Any]) -> str:
+    if not isinstance(previous_action, Mapping) or not previous_action:
+        return ""
+    parts: list[str] = []
+    for key in ("tool_id", "action_label", "operation_id", "command_id"):
+        value = previous_action.get(key)
+        if value is not None and str(value).strip():
+            parts.append(f"{key}={str(value).strip()[:80]}")
+    targets = previous_action.get("inferred_target_drone_ids")
+    if isinstance(targets, (list, tuple)) and targets:
+        clean_targets = [str(item).strip() for item in targets if str(item).strip()]
+        if clean_targets:
+            parts.append("targets=" + ",".join(clean_targets[:8]))
+    return "; ".join(parts)[:240]
+
+
+def _semantic_rewrite_is_safe_to_try(
+    *,
+    assistant_config: Any,
+    request: Request,
+    original_message: str,
+    turn_intent: Any,
+) -> bool:
+    if assistant_config.provider == "mock":
+        return False
+    route = str(getattr(turn_intent, "route", "") or "")
+    if route in SEMANTIC_REWRITE_TERMINAL_ROUTES:
+        return False
+    if route == "read_only":
+        read_plan = getattr(turn_intent, "read_only_plan", None)
+        intent = str(getattr(read_plan, "intent", "") or "")
+        try:
+            confidence = float(getattr(read_plan, "confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if intent not in SEMANTIC_REWRITE_HELP_INTENTS and confidence >= 0.75:
+            return False
+    if not _has_external_assistant_provider_auth(request):
+        return False
+    if sensitive_input_matches(assistant_config, original_message):
+        return False
+    return True
+
+
+def _should_accept_semantic_rewrite(
+    *,
+    initial_intent: Any,
+    rewritten_intent: Any,
+    semantic_rewrite: Any,
+) -> bool:
+    """Accept provider normalization only when it improves local typed routing."""
+
+    if not getattr(semantic_rewrite, "usable_for_routing", False):
+        return False
+    route_hint = str(getattr(semantic_rewrite, "route_hint", "") or "")
+    initial_route = str(getattr(initial_intent, "route", "") or "")
+    rewritten_route = str(getattr(rewritten_intent, "route", "") or "")
+    if rewritten_route in SEMANTIC_REWRITE_TERMINAL_ROUTES:
+        if route_hint in SEMANTIC_REWRITE_ACTION_HINTS:
+            return True
+        return initial_route not in SEMANTIC_REWRITE_TERMINAL_ROUTES
+    if route_hint == "read_status" and rewritten_route == "read_only":
+        initial_read = getattr(initial_intent, "read_only_plan", None)
+        rewritten_read = getattr(rewritten_intent, "read_only_plan", None)
+        initial_intent_name = str(getattr(initial_read, "intent", "") or "")
+        rewritten_intent_name = str(getattr(rewritten_read, "intent", "") or "")
+        if initial_route != "read_only":
+            return True
+        if initial_intent_name in SEMANTIC_REWRITE_HELP_INTENTS and rewritten_intent_name not in SEMANTIC_REWRITE_HELP_INTENTS:
+            return True
+    return False
 
 
 def _extract_action_draft_id(message: str) -> str:
@@ -3081,12 +3173,55 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     previous_context = sessions.get_private_context(turn_request.session_id)
                 except KeyError:
                     conversation_topic = None
+            previous_action = _stored_last_submitted_action(turn_request.session_id)
+            previous_action_request_message = _stored_last_action_request_message(turn_request.session_id)
             turn_intent = build_turn_intent_frame(
                 turn_request.message,
                 conversation_topic=conversation_topic,
-                previous_action=_stored_last_submitted_action(turn_request.session_id),
-                previous_action_request_message=_stored_last_action_request_message(turn_request.session_id),
+                previous_action=previous_action,
+                previous_action_request_message=previous_action_request_message,
             )
+            semantic_rewrite = None
+            semantic_rewrite_error = ""
+            if _semantic_rewrite_is_safe_to_try(
+                assistant_config=assistant_config,
+                request=http_request,
+                original_message=turn_request.message,
+                turn_intent=turn_intent,
+            ):
+                try:
+                    semantic_rewrite = rewrite_operator_message_with_provider(
+                        config=assistant_config,
+                        message=turn_request.message,
+                        conversation_topic=conversation_topic or "",
+                        runtime_mode=resolve_runtime_mode().mode,
+                        previous_action_summary=_semantic_rewrite_previous_action_summary(previous_action),
+                    )
+                except AgentRuntimeError as exc:
+                    semantic_rewrite_error = str(exc)[:180]
+                if semantic_rewrite is not None and semantic_rewrite.usable_for_routing:
+                    rewritten_intent = build_turn_intent_frame(
+                        turn_request.message,
+                        conversation_topic=conversation_topic,
+                        previous_action=previous_action,
+                        previous_action_request_message=previous_action_request_message,
+                        semantic_routing_message=semantic_rewrite.normalized_message,
+                    )
+                    if _should_accept_semantic_rewrite(
+                        initial_intent=turn_intent,
+                        rewritten_intent=rewritten_intent,
+                        semantic_rewrite=semantic_rewrite,
+                    ):
+                        turn_intent = rewritten_intent
+
+            def turn_intent_metadata() -> dict[str, Any]:
+                metadata = turn_intent.public_metadata()
+                if semantic_rewrite is not None:
+                    metadata["provider_semantic_rewrite"] = semantic_rewrite.public_metadata()
+                if semantic_rewrite_error:
+                    metadata["provider_semantic_rewrite_error"] = semantic_rewrite_error
+                return metadata
+
             routing_message = turn_intent.routing_message
             previous_evidence_followup = bool(
                 previous_context.get("last_assistant_content")
@@ -3118,7 +3253,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=stored_draft,
                         session_id=turn_request.session_id or "",
-                        turn_intent_metadata=turn_intent.public_metadata(),
+                        turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3140,7 +3275,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=recovered_draft,
                         session_id=recovered_session.id,
-                        turn_intent_metadata=turn_intent.public_metadata(),
+                        turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3150,7 +3285,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     candidate_count=len(pending_matches),
-                    turn_intent_metadata=turn_intent.public_metadata(),
+                    turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3168,7 +3303,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=stored_draft,
                         confirmed=True,
-                        turn_intent_metadata=turn_intent.public_metadata(),
+                        turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3203,7 +3338,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=recovered_draft,
                         confirmed=True,
-                        turn_intent_metadata=turn_intent.public_metadata(),
+                        turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,
                     )
                     history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3214,7 +3349,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     candidate_count=len(pending_matches),
-                    turn_intent_metadata=turn_intent.public_metadata(),
+                    turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3254,7 +3389,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     actor=actor,
                     draft=turn_intent.action.draft,
                     confirmed=False,
-                    turn_intent_metadata=turn_intent.public_metadata(),
+                    turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -3280,7 +3415,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     actor=actor,
                     plan=registry_plan,
                     allow_provider_composition=provider_auth_allowed,
-                    turn_intent_metadata=turn_intent.public_metadata(),
+                    turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )
             else:
@@ -3297,7 +3432,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     metadata=_bounded_metadata(
                         {
                             **dict(turn_request.metadata or {}),
-                            "turn_intent": turn_intent.public_metadata(),
+                            "turn_intent": turn_intent_metadata(),
                         }
                     ),
                     allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,

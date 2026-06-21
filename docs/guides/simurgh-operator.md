@@ -19,6 +19,9 @@ read-only operator slice plus selected guarded actions:
 - optional public web search for safe current/public facts, separated from local
   MDS state so installed firmware, fleet state, logs, IPs, and credentials stay
   on approved local tools
+- authenticated provider-backed semantic routing normalization for typo-heavy,
+  multilingual, tone-varying, and wrong-term-but-inferable prompts, without
+  sending telemetry/log evidence to the provider
 - optional MCP endpoint with resources and policy-allowed read-only GCS tools
 - typed arguments for reviewed read-only MCP tools where needed
 - dashboard chat execution of selected read-only registry tools, including
@@ -60,11 +63,14 @@ This frame is an interpretation layer, not an authority layer:
 - deterministic enforcement still owns registry schema validation, runtime mode,
   approval, circuit breaker, auth, command submission, monitoring, and audit.
 
-Future provider-backed structured-output classifiers should plug into this same
-frame contract. They may improve language, tone, paraphrase, and target-memory
-understanding, but they must still emit typed plans that the existing policy and
-executor layers validate. Provider prose must never be treated as approval or as
-proof that an action executed.
+Authenticated provider-backed semantic normalization now plugs into this same
+frame contract for weak first-pass routes. It may improve typo, language, tone,
+paraphrase, wrong technical term, and target-memory understanding, but it only
+returns concise routing text plus metadata. It receives no telemetry, logs,
+ULog content, IPs, coordinates, tokens, or tool results, and it never approves
+or executes an action. The local typed planner, registry schema validation,
+runtime mode, approval gate, circuit breaker, command submission, monitoring,
+and audit layers remain the authority.
 
 ## Dashboard Chat UX Contract
 

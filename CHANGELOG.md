@@ -17,6 +17,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh turn-level semantic intent frame for one coherent route decision per
   operator message before confirmation, action drafting, read-only tools, or
   provider fallback, with sanitized trace metadata for PM/test inspection.
+- Authenticated OpenAI-backed semantic routing normalization for typo-heavy,
+  mixed-language, tone-varying operator prompts, feeding the local typed
+  planner without exposing telemetry/log evidence or treating provider text as
+  approval/execution authority.
 - Simurgh guarded action monitoring for long-running flight commands and SITL
   lifecycle operations, including same-session implicit target inference and
   conditional post-action cleanup after terminal success.
@@ -53,6 +57,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   Docker/SITL inventory plus PX4 heartbeat/telemetry evidence instead of SITL
   setup docs or capability menus, with a concise preflight-style verdict for
   operator readiness summaries.
+- Simurgh typo-heavy SITL lifecycle requests that deterministic routing would
+  otherwise miss can now recover through provider semantic normalization and
+  still produce normal guarded action drafts with the same confirmation,
+  circuit-breaker, and audit path.
 
 ---
 
