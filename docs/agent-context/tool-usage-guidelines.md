@@ -63,9 +63,13 @@ Current callable argument scope:
   logs, ULog archives, drone-local log actions, or private evidence exports.
 - Drone log/ULog inventory questions such as “do we have a ULog stored?” stay
   on the local advisory/read-only path. Simurgh may summarize command-tracker
-  records, per-drone log sessions, and ULog file metadata that the approved GCS
-  endpoints already expose. It must not download, parse, erase, paste, stream,
-  or send raw ULog/QGC/field-log artifacts to a provider or public context.
+  records, per-drone log sessions, ULog file metadata, and bounded local ULog
+  summary metrics that the approved GCS endpoints already expose. Safe summary
+  metrics include duration, topic/sample counts, local-position envelope,
+  battery range, command/ack counts, and dropout counts. It must not expose raw
+  ULog bytes, raw topic arrays, raw logged-message text, erase actions, browser
+  download content, pasted artifacts, streams, or raw ULog/QGC/field-log
+  artifacts to a provider or public context.
 - SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,
   `mds.shows.skybrush.safety_report.read`, and
   `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current

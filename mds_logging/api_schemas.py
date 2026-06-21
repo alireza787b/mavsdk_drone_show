@@ -97,6 +97,28 @@ class OnboardUlogListResponse(BaseModel):
     timestamp: int
 
 
+class OnboardUlogSummaryResponse(BaseModel):
+    hw_id: str
+    pos_id: int | None = None
+    log_id: int
+    source: dict[str, Any] = Field(default_factory=dict)
+    parser: dict[str, Any] = Field(default_factory=dict)
+    parsed: bool = False
+    duration_sec: float | None = None
+    dropouts: dict[str, Any] = Field(default_factory=dict)
+    logged_messages: dict[str, Any] = Field(default_factory=dict)
+    system: dict[str, Any] = Field(default_factory=dict)
+    local_position: dict[str, Any] | None = None
+    trajectory_setpoint: dict[str, Any] | None = None
+    battery: dict[str, Any] | None = None
+    vehicle_status: dict[str, Any] | None = None
+    land_detected: dict[str, Any] | None = None
+    commands: dict[str, Any] | None = None
+    staged_job_deleted: bool = True
+    raw_content_included: bool = False
+    timestamp: int
+
+
 class OnboardUlogDownloadRequest(BaseModel):
     pos_id: int | None = None
 

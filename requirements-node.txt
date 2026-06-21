@@ -28,6 +28,7 @@ idna==3.7
 # MAVLink/Drone Control
 mavsdk==3.10.2
 pymavlink==2.4.41
+pyulog>=1.2.2,<2
 
 # Geospatial / control math used on-node
 geographiclib==2.0

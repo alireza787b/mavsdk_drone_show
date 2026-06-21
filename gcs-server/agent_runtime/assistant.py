@@ -87,7 +87,6 @@ SAFE_READ_ONLY_SENSITIVE_MATCHES_BY_INTENT = {
     "drone_log_summary": frozenset({"ULog artifact"}),
 }
 UNSAFE_ULOG_INVENTORY_TERMS = (
-    "analyze",
     "archive",
     "attach",
     "attached",
@@ -99,7 +98,6 @@ UNSAFE_ULOG_INVENTORY_TERMS = (
     "erase",
     "excerpt",
     "open",
-    "parse",
     "pasted",
     "raw",
     "remove",
@@ -107,6 +105,7 @@ UNSAFE_ULOG_INVENTORY_TERMS = (
     "upload",
 )
 SAFE_ULOG_INVENTORY_TERMS = (
+    "analyze",
     "available",
     "check",
     "count",
@@ -118,6 +117,7 @@ SAFE_ULOG_INVENTORY_TERMS = (
     "log",
     "logs",
     "metadata",
+    "parse",
     "report",
     "see",
     "show",
@@ -1079,10 +1079,11 @@ def filter_safe_read_only_sensitive_input_matches(
     """Allow safe local inventory questions without weakening provider blocking.
 
     Raw field artifacts must never be sent to an external provider. A short
-    operator question such as "do we have a ULog stored?" is different: it asks
-    MDS to inspect already-owned metadata through local read-only tools. Keep
-    that path local and deterministic, while still blocking pasted archives,
-    excerpts, downloads, parsing, deletes, or customer field evidence.
+    operator question such as "do we have a ULog stored?" or "summarize the
+    latest ULog" is different: it asks MDS to inspect already-owned metadata or
+    derived local metrics through local read-only tools. Keep that path local
+    and deterministic, while still blocking pasted archives, excerpts, raw
+    content, downloads, deletes, streams, or customer field evidence.
     """
 
     if not matches:

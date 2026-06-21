@@ -123,6 +123,7 @@ conversations:
           tool_ids:
             - mds.logs.drone_sessions.read
             - mds.logs.drone_ulog_files.read
+            - mds.logs.drone_ulog_summary.read
           requires_evidence: true
           evidence_source: local_read_only_mds
           evidence_summary_must_include:
@@ -130,7 +131,7 @@ conversations:
           must_include:
             - Drone log evidence
             - Recent command tracker evidence
-            - ULog download
+            - ULog inventory
           must_not_include:
             - Simurgh Operator mock assistant is active
             - Blocked intent signals

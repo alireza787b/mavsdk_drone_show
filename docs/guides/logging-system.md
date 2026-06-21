@@ -198,11 +198,13 @@ registry = get_registry()
 | `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |
 | `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |
 | `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |
+| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary` | GET | Return a derived local PX4 ULog summary without returning raw ULog content |
 | `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |
 | `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |
+| `/api/logs/ulog/summary` | POST | Summarize one uploaded PX4 ULog locally without storing or returning raw content |
 | `/api/logs/frontend` | POST | Receive frontend error reports |
 | `/api/logs/export` | POST | Export sessions as JSONL or ZIP |
 | `/api/logs/config` | POST | Toggle background pull at runtime |
@@ -210,11 +212,22 @@ registry = get_registry()
 ### Simurgh Read-Only Log Use
 
 Simurgh may use reviewed read-only log tools to summarize per-drone log session
-counts, bounded latest-session warning/error lines, and onboard PX4 ULog file
-metadata. This path is for operator evidence only: it does not download ULog
-content, parse exact flight duration, erase logs, expose drone-local APIs to MCP
-clients, or treat backend API warnings as flight-log evidence. Exact flight time
-requires a separate human-approved ULog download and parsing workflow.
+counts, bounded latest-session warning/error lines, onboard PX4 ULog file
+metadata, and derived local ULog summaries. The ULog summary path uses the
+approved onboard staging policy, parses the selected log locally with `pyulog`,
+returns bounded metrics such as duration, topic/sample counts, local-position
+envelope, battery range, command/ack counts, and dropout counts, then deletes
+the staged job. This path is for operator evidence only: it does not return raw
+ULog bytes, raw topic arrays, raw logged-message text, browser download content,
+erase logs, expose unrestricted drone-local APIs to MCP clients, or treat
+backend API warnings as flight-log evidence.
+
+Operators and future dashboard dialogs may also use `POST /api/logs/ulog/summary`
+with one uploaded `.ulg` file. The GCS stores the upload only as a temporary
+file during parsing, applies `MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES`, returns the
+same derived summary contract, and deletes the temporary file before responding.
+This upload route is intentionally not part of the Simurgh/MCP callable registry
+in the current slice.
 
 ### SSE Stream Usage
 

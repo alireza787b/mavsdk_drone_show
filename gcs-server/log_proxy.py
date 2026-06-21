@@ -21,6 +21,7 @@ from src.drone_api_routes import (
     DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE,
     DRONE_ULOG_ERASE_ALL_ROUTE,
     DRONE_ULOG_FILES_ROUTE,
+    DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE,
     DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE,
     DRONE_ULOG_POLICY_ROUTE,
 )
@@ -112,6 +113,37 @@ async def _request_json(
     return resp.json()
 
 
+def fetch_drone_json_sync(
+    drone_ip: str,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    timeout: float | None = _TIMEOUT,
+) -> dict:
+    """Fetch a drone JSON endpoint through the GCS log-proxy boundary.
+
+    This synchronous helper exists for Simurgh's local read-tool path, which is
+    intentionally synchronous. Keep direct drone URL construction here so
+    dashboard routes, MCP tools, and assistant reads share one proxy boundary.
+    """
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.get(
+                _build_drone_url(drone_ip, path),
+                params=dict(params or {}),
+            )
+    except Exception as exc:
+        raise DroneProxyUnavailableError(str(exc)) from exc
+
+    if resp.status_code >= 400:
+        raise DroneProxyResponseError(resp.status_code, _extract_error_detail(resp))
+    payload = resp.json()
+    if not isinstance(payload, dict):
+        raise DroneProxyResponseError(502, "Drone proxy returned non-object JSON")
+    return payload
+
+
 async def fetch_drone_sessions(drone_ip: str) -> Optional[dict]:
     """Fetch session list from a drone. Returns None if unreachable."""
     try:
@@ -164,6 +196,15 @@ async def fetch_drone_ulog_policy(drone_ip: str) -> dict:
 
 async def fetch_drone_ulog_files(drone_ip: str) -> dict:
     return await _request_json("GET", drone_ip, DRONE_ULOG_FILES_ROUTE, timeout=_ULOG_TIMEOUT)
+
+
+async def fetch_drone_ulog_summary(drone_ip: str, log_id: int) -> dict:
+    return await _request_json(
+        "GET",
+        drone_ip,
+        DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE.format(log_id=int(log_id)),
+        timeout=float(os.getenv("MDS_ULOG_SUMMARY_TIMEOUT_SEC", "90")),
+    )
 
 
 async def create_drone_ulog_download_job(

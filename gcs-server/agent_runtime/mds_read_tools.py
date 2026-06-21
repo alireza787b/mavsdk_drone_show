@@ -1,8 +1,8 @@
 """Curated read-only MDS context tools for Simurgh assistant turns.
 
-The functions in this module do not call drone-side APIs and do not submit GCS
-commands. They summarize already-owned GCS state for the chat assistant and the
-future MCP tool adapter.
+The functions in this module do not submit GCS commands. Most answers summarize
+GCS-owned state; log/ULog answers may also use GCS-proxied drone read endpoints
+that return metadata or derived metrics without exposing raw artifacts.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
-import httpx
 import yaml
 from fastapi import HTTPException
 
@@ -46,6 +45,7 @@ MCP_ENDPOINT_PATH = "/api/v1/simurgh/mcp"
 MCP_RESOURCE_URL_ENV = "MDS_MCP_RESOURCE_URL"
 DRONE_LOG_PROXY_TIMEOUT_SECONDS = 2.5
 DRONE_ULOG_PROXY_TIMEOUT_SECONDS = 4.0
+DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS = 90.0
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 LATEST_SESSION_GROUP_SECONDS = 15
 QUICKSCOUT_FIELD_READY_STALE_SECONDS = 6 * 3600
@@ -71,7 +71,7 @@ READ_CONVERSATION_TOPICS = frozenset(
     }
 )
 READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability", "clarify"})
-READ_ONLY_ACTION_POSTURE = "read-only-local; no action, upload, config mutation, or drone-local API execution"
+READ_ONLY_ACTION_POSTURE = "read-only-local; no action, upload, config mutation, or raw artifact exposure"
 
 # Trace-only expected evidence IDs. Execution still records the actual tool IDs
 # returned by the selected local read-only answer.
@@ -92,6 +92,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "drone_log_summary": (
         "mds.logs.drone_sessions.read",
         "mds.logs.drone_ulog_files.read",
+        "mds.logs.drone_ulog_summary.read",
         "mds.logs.drone_session.read",
     ),
     "environment_summary": ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
@@ -2624,7 +2625,7 @@ class MdsReadOnlyTools:
             composer.blank().line(
                 "No configured drones are visible in the GCS fleet config, so there are no per-drone log endpoints to inspect."
             )
-            composer.line("This is read-only log inspection; no drone command, ULog download, or erase action was attempted.")
+            composer.line("This is read-only log inspection; no drone command, raw ULog export, or erase action was attempted.")
             return self._answer(
                 "drone_log_summary",
                 composer.render(),
@@ -2632,10 +2633,14 @@ class MdsReadOnlyTools:
             )
 
         rows: list[tuple[str, str, str, str, str, str]] = []
+        ulog_summary_rows: list[tuple[str, str, str, str, str, str]] = []
         total_sessions = 0
         total_ulogs = 0
         latest_warning_error_total = 0
         unavailable: list[str] = []
+        parse_latest_ulog = _looks_like_ulog_parse_summary_request(normalized_message)
+        max_ulog_summaries = _env_int("MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES", 2)
+        parsed_ulog_count = 0
 
         for drone in config:
             hw_id = _as_int(drone.get("hw_id"))
@@ -2677,6 +2682,29 @@ class MdsReadOnlyTools:
             total_ulogs += len(ulog_files)
             if ulog_error:
                 unavailable.append(f"Drone {hw_id} ULog list: {ulog_error}")
+            elif parse_latest_ulog and ulog_files and parsed_ulog_count < max_ulog_summaries:
+                log_id = _ulog_log_id(ulog_files[0])
+                if log_id is not None:
+                    summary_payload, summary_error = self._fetch_drone_json(
+                        ip,
+                        f"/api/v1/ulog/files/{log_id}/summary",
+                        timeout=DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS,
+                    )
+                    parsed_ulog_count += 1
+                    if summary_error:
+                        unavailable.append(f"Drone {hw_id} ULog summary id {log_id}: {summary_error}")
+                        ulog_summary_rows.append(
+                            (
+                                f"Drone {hw_id}",
+                                str(log_id),
+                                "unavailable",
+                                "-",
+                                "-",
+                                summary_error,
+                            )
+                        )
+                    else:
+                        ulog_summary_rows.append(_format_ulog_summary_row(hw_id, log_id, summary_payload))
 
             rows.append(
                 (
@@ -2698,8 +2726,18 @@ class MdsReadOnlyTools:
             f"{latest_warning_error_total} warning/error line(s) seen in the latest-session samples."
         )
         composer.line(
-            "Flight time: not available from the lightweight session/ULog list metadata. To calculate actual flight duration, download/parse a selected `.ulg` with an approved human-controlled log-analysis workflow."
+            "ULog inventory is metadata unless a parsed summary is shown below; raw `.ulg` content is not included in this answer."
         )
+        if ulog_summary_rows:
+            composer.blank().line("Parsed latest ULog summary:")
+            composer.table(
+                ("Drone", "Log id", "Duration", "Local movement", "Battery", "Command/ack evidence"),
+                ulog_summary_rows,
+            )
+        elif parse_latest_ulog and total_ulogs > 0 and max_ulog_summaries <= 0:
+            composer.line("ULog parsing was skipped because `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES=0`.")
+        elif parse_latest_ulog and total_ulogs == 0:
+            composer.line("No onboard ULog file is listed, so there is no ULog to parse from the current evidence.")
         if unavailable:
             composer.blank().line("Unavailable checks:")
             composer.bullets(unavailable[:6])
@@ -2708,16 +2746,23 @@ class MdsReadOnlyTools:
         composer.blank().line(
             "Open [Logs](/logs) for GCS logs and per-drone log views. API refs: `GET /api/logs/drone/{drone_id}/sessions` and `GET /api/logs/drone/{drone_id}/ulog/files`."
         )
-        composer.line("This is read-only GCS-proxied log inspection; no drone command, ULog download job, or erase action was attempted.")
+        composer.line(
+            "This is read-only GCS-proxied log inspection; no drone command, raw ULog export, persistent download job, or erase action was attempted."
+        )
         return self._answer(
             "drone_log_summary",
             composer.render(),
-            ("mds.logs.drone_sessions.read", "mds.logs.drone_ulog_files.read", "mds.logs.drone_session.read"),
+            (
+                "mds.logs.drone_sessions.read",
+                "mds.logs.drone_ulog_files.read",
+                "mds.logs.drone_ulog_summary.read",
+                "mds.logs.drone_session.read",
+            ),
             response_mode="status",
             safety_notes=(
                 "Answered from read-only GCS-proxied drone log endpoints.",
-                "No direct UI-to-drone access, command, ULog download job, ULog content fetch, or erase action was attempted.",
-                "Flight duration requires a separate approved ULog parsing workflow; it was not inferred from filenames or backend logs.",
+                "No command, erase action, raw ULog content fetch for the provider, or raw topic-array exposure was attempted.",
+                "ULog parsing, when available, returns derived local metrics only and cleans up the staged job after parsing.",
             ),
         )
 
@@ -2760,16 +2805,25 @@ class MdsReadOnlyTools:
         ip = str(drone_ip or "").strip()
         if not ip:
             return {}, "missing ip"
-        url = f"http://{ip}:{_drone_api_port()}{path}"
         try:
-            with httpx.Client(timeout=timeout) as client:
-                response = client.get(url, params=dict(params or {}))
-            if response.status_code >= 400:
-                return {}, f"HTTP {response.status_code}"
-            payload = response.json()
-        except httpx.TimeoutException:
-            return {}, "timeout"
-        except httpx.HTTPError as exc:
+            from log_proxy import (
+                DroneProxyResponseError,
+                DroneProxyUnavailableError,
+                fetch_drone_json_sync,
+            )
+        except Exception as exc:
+            return {}, _truncate_text(str(exc), 80) or "proxy unavailable"
+
+        try:
+            payload = fetch_drone_json_sync(
+                ip,
+                path,
+                params=dict(params or {}),
+                timeout=timeout,
+            )
+        except DroneProxyResponseError as exc:
+            return {}, f"HTTP {exc.status_code}: {_truncate_text(exc.detail, 80)}"
+        except DroneProxyUnavailableError as exc:
             return {}, _truncate_text(str(exc), 80) or "request failed"
         except ValueError:
             return {}, "invalid json"
@@ -3878,6 +3932,97 @@ def _latest_ulog_label(files: Sequence[Mapping[str, Any]]) -> str:
     size = _as_float(latest.get("size_bytes"), 0.0)
     size_label = _format_bytes(size) if size > 0 else "size n/a"
     return f"id {log_id}; {date}; {size_label}"
+
+
+def _ulog_log_id(file_item: Mapping[str, Any]) -> int | None:
+    return _as_int(file_item.get("id"))
+
+
+def _looks_like_ulog_parse_summary_request(normalized: str) -> bool:
+    if not _looks_like_drone_log_summary_question(normalized):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "analyze",
+            "analysis",
+            "correct",
+            "currect",
+            "did it",
+            "duration",
+            "flight time",
+            "happen",
+            "happend",
+            "happened",
+            "parse",
+            "preflight",
+            "ready",
+            "report",
+            "summary",
+            "test",
+            "ulog",
+            "ulogs",
+            ".ulg",
+        ),
+    )
+
+
+def _format_ulog_summary_row(hw_id: int, log_id: int, summary: Mapping[str, Any]) -> tuple[str, str, str, str, str, str]:
+    parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
+    parsed = bool(summary.get("parsed")) and str(parser.get("status") or "").lower() == "ok"
+    if not parsed:
+        error = str(parser.get("error") or parser.get("status") or "parser unavailable")
+        return (f"Drone {hw_id}", str(log_id), "not parsed", "-", "-", _truncate_text(error, 80))
+
+    duration = _as_float(summary.get("duration_sec"), -1.0)
+    duration_label = f"{duration:.1f}s" if duration >= 0 else "unknown"
+    local_position = summary.get("local_position") if isinstance(summary.get("local_position"), Mapping) else {}
+    movement_label = _format_ulog_local_movement(local_position)
+    battery = summary.get("battery") if isinstance(summary.get("battery"), Mapping) else {}
+    battery_label = _format_ulog_battery(battery)
+    commands = summary.get("commands") if isinstance(summary.get("commands"), Mapping) else {}
+    command_label = _format_ulog_command_summary(commands)
+    return (f"Drone {hw_id}", str(log_id), duration_label, movement_label, battery_label, command_label)
+
+
+def _format_ulog_local_movement(local_position: Mapping[str, Any]) -> str:
+    if not local_position:
+        return "local position unavailable"
+    horizontal = _as_float(local_position.get("max_horizontal_distance_from_start_m"), -1.0)
+    altitude = local_position.get("relative_altitude_range_m") if isinstance(local_position.get("relative_altitude_range_m"), Mapping) else {}
+    parts: list[str] = []
+    if horizontal >= 0:
+        parts.append(f"max horizontal {horizontal:.1f}m")
+    if altitude:
+        minimum = _as_float(altitude.get("min"), 0.0)
+        maximum = _as_float(altitude.get("max"), 0.0)
+        parts.append(f"rel alt {minimum:.1f}..{maximum:.1f}m")
+    return "; ".join(parts) or "local position present"
+
+
+def _format_ulog_battery(battery: Mapping[str, Any]) -> str:
+    voltage = battery.get("voltage_v") if isinstance(battery.get("voltage_v"), Mapping) else {}
+    if voltage:
+        minimum = _as_float(voltage.get("min"), 0.0)
+        maximum = _as_float(voltage.get("max"), 0.0)
+        return f"{minimum:.2f}..{maximum:.2f}V"
+    return "battery topic unavailable"
+
+
+def _format_ulog_command_summary(commands: Mapping[str, Any]) -> str:
+    command = commands.get("vehicle_command") if isinstance(commands.get("vehicle_command"), Mapping) else {}
+    ack = commands.get("vehicle_command_ack") if isinstance(commands.get("vehicle_command_ack"), Mapping) else {}
+    command_samples = _as_int(command.get("samples")) if command else None
+    ack_samples = _as_int(ack.get("samples")) if ack else None
+    parts: list[str] = []
+    if command_samples is not None:
+        parts.append(f"commands {command_samples}")
+    if ack_samples is not None:
+        parts.append(f"acks {ack_samples}")
+    ack_results = ack.get("result_counts") if isinstance(ack.get("result_counts"), Mapping) else {}
+    if ack_results:
+        parts.append("ack results " + ", ".join(f"{key}:{value}" for key, value in list(ack_results.items())[:4]))
+    return "; ".join(parts) or "command topics unavailable"
 
 
 def _warning_error_count_from_log_lines(payload: Mapping[str, Any]) -> int:
@@ -6902,6 +7047,11 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _env_int(name: str, default: int) -> int:
+    parsed = _as_int(os.getenv(name))
+    return default if parsed is None else parsed
 
 
 def _fmt_m(value: Any) -> str:

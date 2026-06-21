@@ -1874,6 +1874,58 @@ tools:
         minimum: 1
         maximum: 9999
         description: Hardware id of the configured drone.
+- id: mds.logs.drone_ulog_summary.read
+  title: Read drone ULog summary
+  description: Parse one onboard PX4 ULog through the GCS log proxy and return derived local metrics only, without returning raw ULog content.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/drone/{drone_id}/ulog/files/{log_id}/summary
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects:
+  - Creates and deletes a short-lived GCS/drone-local staging job so the GCS can parse derived ULog metrics; no raw content is returned to the caller.
+  sensitivity:
+  - logs
+  - fleet_identity
+  - evidence
+  tags:
+  - logs
+  - diagnostics
+  - drone
+  - ulog
+  - px4
+  - typed_args
+  - mcp
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Returns bounded derived metrics such as duration, topic/sample counts, local-position envelope, battery ranges, command/ack counts, and dropout counts.
+  - Does not expose raw ULog bytes, raw topic arrays, raw logged-message text, exact coordinates, erase actions, or browser download content.
+  - The staged ULog job and temporary GCS file are deleted after parsing.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - drone_id
+    - log_id
+    properties:
+      drone_id:
+        type: integer
+        minimum: 1
+        maximum: 9999
+        description: Hardware id of the configured drone.
+      log_id:
+        type: integer
+        minimum: 0
+        maximum: 2147483647
+        description: ULog id returned by mds.logs.drone_ulog_files.read.
 - id: mds.commands.statistics.read
   title: Read command statistics
   description: Read aggregate GCS command-tracker statistics without creating or

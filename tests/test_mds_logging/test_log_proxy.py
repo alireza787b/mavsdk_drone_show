@@ -102,6 +102,49 @@ class TestFetchDroneSessionContent:
             assert call_args.kwargs.get("params", {}).get("level") == "WARNING"
 
 
+class TestFetchDroneJsonSync:
+    def test_fetch_drone_json_sync_success(self):
+        from log_proxy import fetch_drone_json_sync
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"count": 1}
+
+        with patch("log_proxy.httpx.Client") as MockClient:
+            client_instance = MagicMock()
+            client_instance.get = MagicMock(return_value=mock_response)
+            client_instance.__enter__ = MagicMock(return_value=client_instance)
+            client_instance.__exit__ = MagicMock(return_value=None)
+            MockClient.return_value = client_instance
+
+            result = fetch_drone_json_sync("192.168.1.105", "/api/v1/ulog/files", params={"limit": 1})
+
+        assert result == {"count": 1}
+        call_args = client_instance.get.call_args
+        assert call_args.args[0] == "http://192.168.1.105:7070/api/v1/ulog/files"
+        assert call_args.kwargs["params"] == {"limit": 1}
+
+    def test_fetch_drone_json_sync_maps_http_errors(self):
+        from log_proxy import DroneProxyResponseError, fetch_drone_json_sync
+
+        mock_response = MagicMock()
+        mock_response.status_code = 409
+        mock_response.json.return_value = {"detail": "vehicle armed"}
+
+        with patch("log_proxy.httpx.Client") as MockClient:
+            client_instance = MagicMock()
+            client_instance.get = MagicMock(return_value=mock_response)
+            client_instance.__enter__ = MagicMock(return_value=client_instance)
+            client_instance.__exit__ = MagicMock(return_value=None)
+            MockClient.return_value = client_instance
+
+            with pytest.raises(DroneProxyResponseError) as exc_info:
+                fetch_drone_json_sync("192.168.1.105", "/api/v1/ulog/files/1/summary")
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == "vehicle armed"
+
+
 class TestStreamDroneLogs:
     def test_stream_error_emits_structured_warning_entry(self):
         from log_proxy import stream_drone_logs

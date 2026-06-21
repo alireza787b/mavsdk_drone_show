@@ -1,5 +1,5 @@
 {
-  "chunk_count": 816,
+  "chunk_count": 817,
   "chunks": [
     {
       "audience": "operator",
@@ -122,7 +122,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "f3b5fcd502da1cdbcb50e3ff11aff37103de776ef93505fa54dbc7e77f68c3ea",
+      "content_hash": "891c5bebd7d82d193a56d047ebaf1f3706e5add62e4ca936eb2163c1cb325adc",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-02-simurgh-tool-usage-guidelines",
       "links": [],
@@ -136,18 +136,17 @@
         "tools",
         "mcp"
       ],
-      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- Drone log/ULog inventory questions such as “do we have a ULog stored?” stay\n on the local advisory/read-only path. Simurgh may summarize command-tracker\n records, per-drone log sessions, and ULog file metadata that the approved GCS\n endpoints already expose. It must not download, parse, erase, paste, stream,\n or send raw ULog/QGC/field-log artifacts to a provider or public context.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops\n sync posture only. It must not run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained",
+      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- Drone log/ULog inventory questions such as “do we have a ULog stored?” stay\n on the local advisory/read-only path. Simurgh may summarize command-tracker\n records, per-drone log sessions, ULog file metadata, and bounded local ULog\n summary metrics that the approved GCS endpoints already expose. Safe summary\n metrics include duration, topic/sample counts, local-position envelope,\n battery range, command/ack counts, and dropout counts. It must not expose raw\n ULog bytes, raw topic arrays, raw logged-message text, erase actions, browser\n download content, pasted artifacts, streams, or raw ULog/QGC/field-log\n artifacts to a provider or public context.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops",
       "title": "Simurgh tool usage guidelines"
     },
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "fcc000e98f9c1c2c40cc4bb383f23e232835a8ff38a2f4f259c7eed7a7b8eb04",
+      "content_hash": "b8e3f6de0e6534ba2a8d461403e3f05716e7fa96f64684d0c2379a817bd332d8",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
       "links": [
         "docs/agent-context/generated/simurgh-docs-index.json",
-        "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml",
         "docs/context",
         "docs/plans/"
       ],
@@ -161,7 +160,29 @@
         "tools",
         "mcp"
       ],
-      "text": "run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,\n download, or artifact forms through this registry tool.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.\n\nThe provider-side retrieval context uses the same generated docs index and\n`agent_runtime.retrieval` interface as `mds.docs.search` and\n`mds.docs.chunk.read`, but it is not itself an executable tool call. Query\nplanning selects domain tags and rewritten search queries, retrieves bounded\npublic chunks, and injects them as `retrieved.*` context documents before an\nexternal provider is called. This layer must never bypass the registry, policy,\nor MCP authorization rules; factual live/configured GCS state still comes from\nreviewed read-only tools, not from documentation search. Future vector, hybrid,\nrerank, managed-search, or GraphRAG adapters must preserve the `RetrievalQuery` /\n`RetrievalHit` contract and add eval coverage before becoming default.\n\nThe OpenAPI candidate artifact is\n`docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`. Treat it as\nreview input for PM, MCP, safety, backend, and field-ops reviewers.",
+      "text": "plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops\n sync posture only. It must not run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,\n download, or artifact forms through this registry tool.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.\n\nThe provider-side retrieval context uses the same generated docs index and\n`agent_runtime.retrieval` interface as `mds.docs.search` and\n`mds.docs.chunk.read`, but it is not itself an executable tool call. Query\nplanning selects domain tags and rewritten search queries, retrieves bounded\npublic chunks, and injects them as `retrieved.*` context documents before an\nexternal provider is called. This layer must never bypass the registry, policy,\nor MCP authorization rules; factual live/configured GCS state still comes from\nreviewed read-only tools, not from documentation search. Future vector, hybrid,\nrerank, managed-search, or GraphRAG adapters must preserve the `RetrievalQuery` /\n`RetrievalHit` contract and add eval coverage before becoming default.",
+      "title": "Simurgh tool usage guidelines"
+    },
+    {
+      "audience": "agent",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
+      "content_hash": "61dda939b6a0b385e17b7cabb81452eb326cee7c96191fb7210f1de2edf23c44",
+      "heading": "Simurgh Tool Usage Guidelines",
+      "id": "simurgh.tool_usage:001-04-simurgh-tool-usage-guidelines",
+      "links": [
+        "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/agent-context/tool-usage-guidelines.md",
+      "resource_id": "simurgh.tool_usage",
+      "route_hint": null,
+      "summary": "Tool registry semantics and adapter expectations.",
+      "tags": [
+        "simurgh",
+        "tools",
+        "mcp"
+      ],
+      "text": "The OpenAPI candidate artifact is\n`docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`. Treat it as\nreview input for PM, MCP, safety, backend, and field-ops reviewers.",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -267,7 +288,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "fcc054e1e1c6b7c3ad64af32887d131a45f93b546503ad06501637906bc4cbba",
+      "content_hash": "2f5f1f440f3ac13bb48ce0e668af9c574ae46fa1247118b78dc9c30ef9532752",
       "heading": "Simurgh Operator",
       "id": "simurgh.operator_guide:001-01-simurgh-operator",
       "links": [
@@ -283,7 +304,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for MCP servers\nand dashboard assistant workflows.\n\nThe current implementation is deny-by-default, but it now includes a usable\nread-only operator slice plus selected guarded actions:\n\n- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- compact activity trace that shows the current step, fades the last one or two\n evidence steps, and hides detailed trace rows behind an in-message disclosure\n- optional text-only OpenAI Responses adapter\n- optional public web search for safe current/public facts, separated from local\n MDS state so installed firmware, fleet state, logs, IPs, and credentials stay\n on approved local tools\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- read-only drone log and onboard PX4 ULog metadata summaries through approved\n GCS-side log endpoints, without raw ULog download/erase exposure\n- a provider-neutral turn-level semantic intent frame that produces one coherent\n routing decision before confirmation, action drafting, read-only tools, or\n provider fallback\n- guarded SITL lifecycle actions through canonical GCS SITL Control routes\n- guarded curated flight-command drafts through canonical GCS command routes\n- no direct drone API exposure",
+      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for MCP servers\nand dashboard assistant workflows.\n\nThe current implementation is deny-by-default, but it now includes a usable\nread-only operator slice plus selected guarded actions:\n\n- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- compact activity trace that shows the current step, fades the last one or two\n evidence steps, and hides detailed trace rows behind an in-message disclosure\n- optional text-only OpenAI Responses adapter\n- optional public web search for safe current/public facts, separated from local\n MDS state so installed firmware, fleet state, logs, IPs, and credentials stay\n on approved local tools\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- read-only drone log, onboard PX4 ULog metadata, and derived ULog summaries\n through approved GCS-side log endpoints, without raw ULog content or erase\n exposure\n- a provider-neutral turn-level semantic intent frame that produces one coherent\n routing decision before confirmation, action drafting, read-only tools, or\n provider fallback\n- guarded SITL lifecycle actions through canonical GCS SITL Control routes\n- guarded curated flight-command drafts through canonical GCS command routes\n- no direct drone API exposure",
       "title": "Simurgh operator guide"
     },
     {
@@ -1193,7 +1214,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "0867f2826c48197d8b801d04c04888266147e293c467a754eb12a86729106936",
+      "content_hash": "a83824f71b50ed512c0292b819e2f71649a31eddafcf79248527f92304fc7b22",
       "heading": "External Client Compatibility Matrix",
       "id": "simurgh.mcp_client_recipes:006-02-external-client-compatibility-matrix",
       "links": [],
@@ -1208,7 +1229,7 @@
         "clients",
         "integrations"
       ],
-      "text": "The MCP layer is deliberately curated, not a raw automatic export of every GCS\nroute. OpenAPI candidates are generated automatically for reviewer visibility;\ncallable tools remain promoted through the registry/policy gate so new APIs can\nbe added quickly without exposing unsafe routes by accident.\n\nDrone log and ULog tools are metadata-first. They can list per-drone log\nsessions and onboard PX4 ULog files and inspect bounded session warning/error\nlines through GCS-side routes. They do not download ULog content, parse flight\nduration, erase logs, or expose drone-local APIs directly to external MCP\nclients.",
+      "text": "The MCP layer is deliberately curated, not a raw automatic export of every GCS\nroute. OpenAPI candidates are generated automatically for reviewer visibility;\ncallable tools remain promoted through the registry/policy gate so new APIs can\nbe added quickly without exposing unsafe routes by accident.\n\nDrone log and ULog tools are metadata-first. They can list per-drone log\nsessions and onboard PX4 ULog files and inspect bounded session warning/error\nlines through GCS-side routes. Reviewed ULog summary tools may also return\nbounded derived metrics such as duration, local movement envelope, battery\nrange, command/ack counts, and parser status. They do not stream or download\nraw ULog content, expose raw topic arrays or logged-message text, erase logs, or\nexpose unrestricted drone-local APIs directly to external MCP clients.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -15285,7 +15306,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "59f8d0d619e2da4d825ebe20b9da654c129f6c42f577e9819233b8769e1e855a",
+      "content_hash": "6bf175a3459f160866d0dcf2f3d031a1ad62f45372945ac738bd3a5686768d95",
       "heading": "GCS-Side Endpoints",
       "id": "mds.logging_system:021-01-gcs-side-endpoints",
       "links": [],
@@ -15298,13 +15319,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### GCS-Side Endpoints\n\n| Endpoint | Method | Description |\n|----------|--------|-------------|\n| `/api/logs/sources` | GET | List registered log components |\n| `/api/logs/sessions` | GET | List GCS sessions |\n| `/api/logs/sessions/{session_id}` | GET | Retrieve GCS session content |\n| `/api/logs/stream` | GET (SSE) | Real-time GCS log stream via SSE |\n| `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |\n| `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |\n| `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |\n| `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |\n| `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |\n| `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |\n| `/api/logs/frontend` | POST | Receive frontend error reports |\n| `/api/logs/export` | POST | Export sessions as JSONL or ZIP |\n| `/api/logs/config` | POST | Toggle background pull at runtime |",
+      "text": "### GCS-Side Endpoints\n\n| Endpoint | Method | Description |\n|----------|--------|-------------|\n| `/api/logs/sources` | GET | List registered log components |\n| `/api/logs/sessions` | GET | List GCS sessions |\n| `/api/logs/sessions/{session_id}` | GET | Retrieve GCS session content |\n| `/api/logs/stream` | GET (SSE) | Real-time GCS log stream via SSE |\n| `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |\n| `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |\n| `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |\n| `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |\n| `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary` | GET | Return a derived local PX4 ULog summary without returning raw ULog content |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |\n| `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |\n| `/api/logs/ulog/summary` | POST | Summarize one uploaded PX4 ULog locally without storing or returning raw content |\n| `/api/logs/frontend` | POST | Receive frontend error reports |\n| `/api/logs/export` | POST | Export sessions as JSONL or ZIP |\n| `/api/logs/config` | POST | Toggle background pull at runtime |",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "6fadbb1b55986a8df6e4b639b44792ad1f1a3fd8339a0e57936b0d2e732ccbf2",
+      "content_hash": "df364a190764412d99d97af17af09a490fded13b15518349ca48d3e5facd8185",
       "heading": "Simurgh Read-Only Log Use",
       "id": "mds.logging_system:022-01-simurgh-read-only-log-use",
       "links": [],
@@ -15317,7 +15338,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Simurgh Read-Only Log Use\n\nSimurgh may use reviewed read-only log tools to summarize per-drone log session\ncounts, bounded latest-session warning/error lines, and onboard PX4 ULog file\nmetadata. This path is for operator evidence only: it does not download ULog\ncontent, parse exact flight duration, erase logs, expose drone-local APIs to MCP\nclients, or treat backend API warnings as flight-log evidence. Exact flight time\nrequires a separate human-approved ULog download and parsing workflow.",
+      "text": "### Simurgh Read-Only Log Use\n\nSimurgh may use reviewed read-only log tools to summarize per-drone log session\ncounts, bounded latest-session warning/error lines, onboard PX4 ULog file\nmetadata, and derived local ULog summaries. The ULog summary path uses the\napproved onboard staging policy, parses the selected log locally with `pyulog`,\nreturns bounded metrics such as duration, topic/sample counts, local-position\nenvelope, battery range, command/ack counts, and dropout counts, then deletes\nthe staged job. This path is for operator evidence only: it does not return raw\nULog bytes, raw topic arrays, raw logged-message text, browser download content,\nerase logs, expose unrestricted drone-local APIs to MCP clients, or treat\nbackend API warnings as flight-log evidence.\n\nOperators and future dashboard dialogs may also use `POST /api/logs/ulog/summary`\nwith one uploaded `.ulg` file. The GCS stores the upload only as a temporary\nfile during parsing, applies `MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES`, returns the\nsame derived summary contract, and deletes the temporary file before responding.\nThis upload route is intentionally not part of the Simurgh/MCP callable registry\nin the current slice.",
       "title": "MDS logging system guide"
     },
     {
@@ -16329,8 +16350,8 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "chunk_count": 8,
-      "content_hash": "5d1ce02d74b36b2d969dfef4623f7348327b680f7b5f8f4456e32d5d12f5ef4b",
+      "chunk_count": 9,
+      "content_hash": "5f8e1436ea6e8fb89636ad1ca77f8745b75d8c88d4ee2ee2feb7f5a6284c27db",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -16347,7 +16368,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 38,
-      "content_hash": "2243c39e439a27b9f992cb7bbc0f0ad1dd45240be7a044b25c3f9ceea1296897",
+      "content_hash": "bab391eee5e4719c122cc73af780d7ace8adda915b43a7884eb9583342a5a36c",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16364,7 +16385,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "chunk_count": 13,
-      "content_hash": "0e0e7440b25708096e246301b753312888f7fdc4d5f1dcb4e4f9d38700fb6e5f",
+      "content_hash": "fcaa92cae07f059fc9a5d31c1ff71592327a1c2998c04f4fa00f40fffa00cac4",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -16607,7 +16628,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "chunk_count": 36,
-      "content_hash": "37caa95dcdf6d204649344bb74b2f00af3a7f0d1777547197a426ae36425a0df",
+      "content_hash": "f43ce9256bc6e62077874eaac6785f16e0947e7c4b193bb4025f118b4c3bd838",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",

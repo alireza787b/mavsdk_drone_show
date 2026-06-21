@@ -20,10 +20,12 @@ Default rule:
   guardrails when new field artifact names or identifier formats appear.
 - Safe inventory/status questions are different from raw artifact review. For
   example, Simurgh may answer whether approved GCS endpoints show per-drone log
-  sessions or ULog file metadata, and may correlate that with command-tracker
-  summaries. It must still block pasted/downloaded/attached ULog, QGC, MAVLink,
-  screenshot, archive, or customer field evidence before provider calls or
-  public repo updates.
+  sessions, ULog file metadata, or derived local ULog summary metrics, and may
+  correlate that with command-tracker summaries. It must still block pasted,
+  downloaded, attached, streamed, or raw ULog, QGC, MAVLink, screenshot,
+  archive, or customer field evidence before provider calls or public repo
+  updates. Derived summaries must not include raw topic arrays, raw logged-message
+  text, exact coordinates, or raw binary content.
 
 ## Intake
 

@@ -44,6 +44,22 @@ class _FakeDrone:
         self.log_files = _FakeLogFiles(entries=entries)
 
 
+class _TrackingLogFiles(_FakeLogFiles):
+    def __init__(self, entries=None):
+        super().__init__(entries=entries)
+        self.download_attempted = False
+
+    async def download_log_file(self, entry, path):
+        self.download_attempted = True
+        async for progress in super().download_log_file(entry, path):
+            yield progress
+
+
+class _TrackingDrone:
+    def __init__(self, entries=None):
+        self.log_files = _TrackingLogFiles(entries=entries)
+
+
 class _BrokenDrone:
     def __init__(self):
         self.log_files = _BrokenLogFiles()
@@ -131,6 +147,42 @@ async def test_create_and_complete_download_job_stages_named_file(tmp_path):
     stage_path, ready_job = await service.get_ready_file(queued.job.job_id)
     assert stage_path.exists()
     assert ready_job.download_filename.endswith(".ulg")
+
+
+@pytest.mark.asyncio
+async def test_summarize_entry_returns_derived_envelope_and_cleans_stage(tmp_path):
+    params = _make_params(tmp_path)
+    service = OnboardUlogService(params, hw_id="7", pos_id=3)
+    drone = _FakeDrone(
+        entries=[SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=512)]
+    )
+
+    summary = await service.summarize_entry(drone, 9, SimpleNamespace(pos_id=3))
+
+    assert summary.hw_id == "7"
+    assert summary.pos_id == 3
+    assert summary.log_id == 9
+    assert summary.raw_content_included is False
+    assert summary.staged_job_deleted is True
+    assert summary.source["log_id"] == 9
+    assert await service.get_job(next(iter(service._jobs), "missing")) is None
+
+
+@pytest.mark.asyncio
+async def test_summarize_entry_rejects_oversize_before_download(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_ULOG_SUMMARY_MAX_BYTES", "8")
+    params = _make_params(tmp_path)
+    service = OnboardUlogService(params, hw_id="7", pos_id=3)
+    drone = _TrackingDrone(
+        entries=[SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=512)]
+    )
+
+    with pytest.raises(ValueError, match="MDS_ULOG_SUMMARY_MAX_BYTES"):
+        await service.summarize_entry(drone, 9, SimpleNamespace(pos_id=3))
+
+    assert drone.log_files.download_attempted is False
+    assert service._jobs == {}
+    assert service._job_paths == {}
 
 
 @pytest.mark.asyncio

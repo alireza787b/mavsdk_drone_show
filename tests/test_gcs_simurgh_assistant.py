@@ -618,6 +618,21 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
             return {"session_id": "s_drone_1", "lines": [{"level": "INFO", "message": "ok"}]}, ""
         if path == "/api/v1/ulog/files":
             return {"files": [{"id": 7, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 4096}]}, ""
+        if path == "/api/v1/ulog/files/7/summary":
+            return {
+                "parsed": True,
+                "duration_sec": 25.0,
+                "parser": {"status": "ok"},
+                "local_position": {
+                    "max_horizontal_distance_from_start_m": 9.8,
+                    "relative_altitude_range_m": {"min": 0.0, "max": 10.1, "final": 0.0},
+                },
+                "battery": {"voltage_v": {"min": 16.0, "max": 16.2, "final": 16.1}},
+                "commands": {
+                    "vehicle_command": {"samples": 3},
+                    "vehicle_command_ack": {"samples": 3, "result_counts": {"0": 3}},
+                },
+            }, ""
         raise AssertionError(f"unexpected drone log path: {path}")
 
     monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
@@ -676,6 +691,8 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
     assert "Drone log evidence" in payload["content"]
     assert "Drone 1" in payload["content"]
     assert "4.0 KB" in payload["content"]
+    assert "Parsed latest ULog summary" in payload["content"]
+    assert "25.0s" in payload["content"]
     assert "Blocked intent signals" not in payload["content"]
 
 

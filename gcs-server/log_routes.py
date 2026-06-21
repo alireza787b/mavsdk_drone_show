@@ -15,9 +15,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
+import time
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from mds_logging.api_schemas import (
@@ -33,6 +36,7 @@ from mds_logging.api_schemas import (
     OnboardUlogJobDeleteResponse,
     OnboardUlogListResponse,
     OnboardUlogPolicyResponse,
+    OnboardUlogSummaryResponse,
 )
 from mds_logging.registry import get_registry
 from mds_logging.session import get_session_filepath, list_sessions, read_session_lines
@@ -41,6 +45,8 @@ from mds_logging.constants import get_log_dir
 from mds_logging import get_logger
 
 logger = get_logger("log_api")
+
+DEFAULT_ULOG_UPLOAD_SUMMARY_MAX_BYTES = 64 * 1024 * 1024
 
 
 def create_log_router(
@@ -64,6 +70,14 @@ def create_log_router(
         if not os.path.isfile(filepath):
             raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
         return filepath
+
+    def _ulog_upload_summary_max_bytes() -> int:
+        raw = os.getenv("MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES")
+        try:
+            value = int(raw) if raw is not None else DEFAULT_ULOG_UPLOAD_SUMMARY_MAX_BYTES
+        except (TypeError, ValueError):
+            value = DEFAULT_ULOG_UPLOAD_SUMMARY_MAX_BYTES
+        return max(1, value)
 
     @router.get("/sources", response_model=LogSourcesResponse)
     async def get_sources():
@@ -314,6 +328,81 @@ def create_log_router(
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
         except DroneProxyResponseError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.get(
+        "/drone/{drone_id}/ulog/files/{log_id}/summary",
+        response_model=OnboardUlogSummaryResponse,
+    )
+    async def summarize_drone_ulog_file_route(drone_id: int, log_id: int):
+        """Return a derived, GCS-local summary for one onboard PX4 ULog."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            fetch_drone_ulog_summary,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await fetch_drone_ulog_summary(ip, int(log_id))
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.post("/ulog/summary", response_model=OnboardUlogSummaryResponse)
+    async def summarize_uploaded_ulog_file_route(file: UploadFile = File(...)):
+        """Return a derived local summary for an uploaded PX4 ULog file."""
+        from mds_logging.ulog_analysis import summarize_ulog_file
+
+        filename = str(file.filename or "").strip()
+        if filename and not filename.lower().endswith(".ulg"):
+            raise HTTPException(status_code=400, detail="Only .ulg PX4 ULog files are accepted")
+
+        max_bytes = _ulog_upload_summary_max_bytes()
+        total_bytes = 0
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix="mds-uploaded-ulog-summary-", suffix=".ulg", delete=False) as handle:
+                temp_path = Path(handle.name)
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_bytes += len(chunk)
+                    if total_bytes > max_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"Uploaded ULog exceeds MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES ({max_bytes} bytes)",
+                        )
+                    handle.write(chunk)
+            if total_bytes <= 0:
+                raise HTTPException(status_code=400, detail="Uploaded ULog is empty")
+            summary = summarize_ulog_file(
+                temp_path,
+                source_metadata={
+                    "log_id": 0,
+                    "source_kind": "uploaded_file",
+                    "size_bytes": total_bytes,
+                },
+                max_bytes=max_bytes,
+            )
+            summary.pop("raw_content_included", None)
+            return OnboardUlogSummaryResponse(
+                hw_id="uploaded",
+                pos_id=None,
+                log_id=0,
+                staged_job_deleted=True,
+                raw_content_included=False,
+                timestamp=int(time.time() * 1000),
+                **summary,
+            )
+        finally:
+            await file.close()
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
     @router.post(
         "/drone/{drone_id}/ulog/files/{log_id}/download",

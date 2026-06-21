@@ -151,9 +151,11 @@ be added quickly without exposing unsafe routes by accident.
 
 Drone log and ULog tools are metadata-first. They can list per-drone log
 sessions and onboard PX4 ULog files and inspect bounded session warning/error
-lines through GCS-side routes. They do not download ULog content, parse flight
-duration, erase logs, or expose drone-local APIs directly to external MCP
-clients.
+lines through GCS-side routes. Reviewed ULog summary tools may also return
+bounded derived metrics such as duration, local movement envelope, battery
+range, command/ack counts, and parser status. They do not stream or download
+raw ULog content, expose raw topic arrays or logged-message text, erase logs, or
+expose unrestricted drone-local APIs directly to external MCP clients.
 
 ## n8n
 

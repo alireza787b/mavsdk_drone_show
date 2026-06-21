@@ -26,6 +26,7 @@ from mds_logging.api_schemas import (
     OnboardUlogListResponse,
     OnboardUlogPolicy,
     OnboardUlogPolicyResponse,
+    OnboardUlogSummaryResponse,
 )
 
 
@@ -202,6 +203,54 @@ class OnboardUlogService:
             if job.status != "ready" or not stage_path.exists():
                 raise RuntimeError(f"ULog download job {job_id} is not ready")
             return stage_path, job.model_copy(deep=True)
+
+    async def summarize_entry(
+        self,
+        drone: Any,
+        log_id: int,
+        request: OnboardUlogDownloadRequest,
+    ) -> OnboardUlogSummaryResponse:
+        """Stage, parse, summarize, and clean up one onboard ULog."""
+
+        from mds_logging.ulog_analysis import summarize_ulog_file
+
+        entries = await self._fetch_entries(drone)
+        entry = next((candidate for candidate in entries if candidate.id == int(log_id)), None)
+        if entry is None:
+            raise FileNotFoundError(f"Onboard ULog {log_id} not found")
+        max_summary_bytes = self._ulog_summary_max_bytes()
+        if int(entry.size_bytes) > max_summary_bytes:
+            raise ValueError(
+                f"Onboard ULog {log_id} is larger than MDS_ULOG_SUMMARY_MAX_BYTES ({max_summary_bytes} bytes)"
+            )
+
+        queued = await self.create_download_job(drone, int(log_id), request)
+        job_id = queued.job.job_id
+        stage_path: Path | None = None
+        ready_job: OnboardUlogDownloadJob | None = None
+        deleted = False
+        try:
+            completed = await self.perform_download(drone, job_id)
+            stage_path, ready_job = await self.get_ready_file(job_id)
+            source_metadata = {
+                "log_id": int(log_id),
+                "date_utc": completed.job.date_utc,
+                "size_bytes": completed.job.size_bytes,
+            }
+            summary = summarize_ulog_file(stage_path, source_metadata=source_metadata)
+        finally:
+            deleted = await self.delete_job(job_id)
+
+        job = ready_job or queued.job
+        summary.pop("raw_content_included", None)
+        return OnboardUlogSummaryResponse(
+            hw_id=self.hw_id,
+            pos_id=job.pos_id,
+            log_id=int(log_id),
+            staged_job_deleted=deleted,
+            timestamp=self._now_ms(),
+            **summary,
+        )
 
     async def erase_all(self, drone: Any, *, pos_id: int | None = None) -> OnboardUlogEraseAllResponse:
         fallback_deleted = self._erase_filesystem_logs()
@@ -490,3 +539,12 @@ class OnboardUlogService:
             return float(value)
         except (TypeError, ValueError):
             return float(default)
+
+    def _ulog_summary_max_bytes(self) -> int:
+        raw = os.getenv("MDS_ULOG_SUMMARY_MAX_BYTES")
+        default = 64 * 1024 * 1024
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            value = default
+        return max(1, value)

@@ -53,6 +53,7 @@ from mds_logging.api_schemas import (
     OnboardUlogCapability,
     OnboardUlogDownloadRequest,
     OnboardUlogJobDeleteResponse,
+    OnboardUlogSummaryResponse,
 )
 
 logger = get_logger("drone_api")
@@ -102,6 +103,7 @@ from src.drone_api_routes import (
     DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE,
     DRONE_ULOG_ERASE_ALL_ROUTE,
     DRONE_ULOG_FILES_ROUTE,
+    DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE,
     DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE,
     DRONE_ULOG_POLICY_ROUTE,
     DRONE_WS_STATE_ROUTE,
@@ -2036,6 +2038,32 @@ class DroneAPIServer:
             except Exception as exc:
                 logger.error(f"Error listing onboard ULogs: {exc}")
                 raise self._ulog_failure_http_exception("list_onboard_ulogs", exc) from exc
+
+        @self.app.get(DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE, response_model=OnboardUlogSummaryResponse)
+        async def summarize_onboard_ulog_file(log_id: int):
+            """Return a safe derived summary for one onboard PX4 ULog."""
+            self._assert_ulog_download_allowed()
+            try:
+                return await self._with_local_ulog_system(
+                    lambda drone: self._ulog_service.summarize_entry(
+                        drone,
+                        int(log_id),
+                        OnboardUlogDownloadRequest(pos_id=safe_int(getattr(self.drone_config, "pos_id", None), None)),
+                    )
+                )
+            except FileNotFoundError as exc:
+                if self._is_mavsdk_dependency_error(exc):
+                    raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=413, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error(f"Error summarizing onboard ULog {log_id}: {exc}")
+                raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
 
         @self.app.post(DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE)
         async def create_onboard_ulog_download(

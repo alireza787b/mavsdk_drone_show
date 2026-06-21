@@ -1759,6 +1759,21 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
                 "count": 2,
                 "files": [{"id": 9, "date_utc": "2026-06-05T10:00:00Z", "size_bytes": 2048}],
             }, ""
+        if path == "/api/v1/ulog/files/9/summary":
+            return {
+                "parsed": True,
+                "duration_sec": 42.5,
+                "parser": {"status": "ok"},
+                "local_position": {
+                    "max_horizontal_distance_from_start_m": 10.2,
+                    "relative_altitude_range_m": {"min": 0.0, "max": 10.0, "final": 0.1},
+                },
+                "battery": {"voltage_v": {"min": 15.9, "max": 16.2, "final": 16.0}},
+                "commands": {
+                    "vehicle_command": {"samples": 3},
+                    "vehicle_command_ack": {"samples": 3, "result_counts": {"0": 3}},
+                },
+            }, ""
         raise AssertionError(f"unexpected drone log path: {path}")
 
     monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
@@ -1778,8 +1793,11 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
     assert "Drone 1" in answer.content
     assert "2.0 KB" in answer.content
     assert "1 in latest session" in answer.content
-    assert "Flight time: not available" in answer.content
+    assert "Parsed latest ULog summary" in answer.content
+    assert "42.5s" in answer.content
+    assert "max horizontal 10.2m" in answer.content
     assert "Backend warning/error" not in answer.content
+    assert "mds.logs.drone_ulog_summary.read" in answer.tool_ids
     assert "mds.logs.drone_ulog_files.read" in answer.tool_ids
 
 
@@ -1836,6 +1854,21 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
             return {"session_id": "s_drone_1", "lines": [{"level": "INFO", "message": "ok"}]}, ""
         if path == "/api/v1/ulog/files":
             return {"files": [{"id": 7, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 4096}]}, ""
+        if path == "/api/v1/ulog/files/7/summary":
+            return {
+                "parsed": True,
+                "duration_sec": 25.0,
+                "parser": {"status": "ok"},
+                "local_position": {
+                    "max_horizontal_distance_from_start_m": 9.8,
+                    "relative_altitude_range_m": {"min": 0.0, "max": 10.1, "final": 0.0},
+                },
+                "battery": {"voltage_v": {"min": 16.0, "max": 16.2, "final": 16.1}},
+                "commands": {
+                    "vehicle_command": {"samples": 3},
+                    "vehicle_command_ack": {"samples": 3, "result_counts": {"0": 3}},
+                },
+            }, ""
         raise AssertionError(f"unexpected drone log path: {path}")
 
     monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
@@ -1853,7 +1886,9 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
     assert "Drone log evidence" in answer.content
     assert "Drone 1" in answer.content
     assert "4.0 KB" in answer.content
-    assert "ULog download job" in answer.content
+    assert "Parsed latest ULog summary" in answer.content
+    assert "25.0s" in answer.content
+    assert "acks 3" in answer.content
 
 
 def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):

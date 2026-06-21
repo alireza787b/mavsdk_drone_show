@@ -26,8 +26,9 @@ read-only operator slice plus selected guarded actions:
   through the same internal adapter used by MCP `tools/call`
 - generated OpenAPI candidate inventory that is not runtime-callable by default
 - generated public docs/chunk index with MCP search and bounded chunk retrieval
-- read-only drone log and onboard PX4 ULog metadata summaries through approved
-  GCS-side log endpoints, without raw ULog download/erase exposure
+- read-only drone log, onboard PX4 ULog metadata, and derived ULog summaries
+  through approved GCS-side log endpoints, without raw ULog content or erase
+  exposure
 - a provider-neutral turn-level semantic intent frame that produces one coherent
   routing decision before confirmation, action drafting, read-only tools, or
   provider fallback

@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 import pytest
 
 # Add gcs-server to path for imports
@@ -120,6 +121,67 @@ class TestFrontendReport:
         })
         assert resp.status_code == 400
         assert "Invalid log level" in resp.json()["detail"]
+
+
+class TestUlogSummaryUpload:
+    def test_upload_ulog_summary_returns_derived_metrics_and_deletes_temp(self, tmp_path, monkeypatch):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        captured = {}
+
+        def fake_summary(path, *, source_metadata=None, max_bytes=None):  # noqa: ANN001
+            captured["path"] = str(path)
+            captured["exists_during_parse"] = Path(path).exists()
+            captured["source_metadata"] = dict(source_metadata or {})
+            captured["max_bytes"] = max_bytes
+            return {
+                "source": {
+                    "source_kind": "uploaded_file",
+                    "log_id": 0,
+                    "size_bytes": captured["source_metadata"]["size_bytes"],
+                },
+                "parser": {"name": "pyulog", "available": True, "status": "ok"},
+                "parsed": True,
+                "duration_sec": 12.5,
+                "dropouts": {"count": 0},
+                "logged_messages": {"count": 0, "raw_text_included": False},
+                "system": {},
+                "local_position": {"max_horizontal_distance_from_start_m": 3.0},
+                "raw_content_included": False,
+            }
+
+        monkeypatch.setattr("mds_logging.ulog_analysis.summarize_ulog_file", fake_summary)
+        client = TestClient(_make_gcs_app(log_dir))
+
+        resp = client.post(
+            "/api/logs/ulog/summary",
+            files={"file": ("flight.ulg", b"fake-ulog-bytes", "application/octet-stream")},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["hw_id"] == "uploaded"
+        assert payload["log_id"] == 0
+        assert payload["parsed"] is True
+        assert payload["duration_sec"] == 12.5
+        assert payload["raw_content_included"] is False
+        assert captured["exists_during_parse"] is True
+        assert captured["source_metadata"]["source_kind"] == "uploaded_file"
+        assert captured["source_metadata"]["size_bytes"] == len(b"fake-ulog-bytes")
+        assert not Path(captured["path"]).exists()
+
+    def test_upload_ulog_summary_rejects_oversize_upload(self, tmp_path, monkeypatch):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        monkeypatch.setenv("MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES", "4")
+        client = TestClient(_make_gcs_app(log_dir))
+
+        resp = client.post(
+            "/api/logs/ulog/summary",
+            files={"file": ("flight.ulg", b"too-large", "application/octet-stream")},
+        )
+
+        assert resp.status_code == 413
 
 
 class TestExport:

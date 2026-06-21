@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 200
+candidate_count: 202
 candidates:
 - callable: false
   classification:
@@ -584,6 +584,53 @@ candidates:
     operation_id: list_drone_ulog_files_api_logs_drone__drone_id__ulog_files_get
     path: /api/logs/drone/{drone_id}/ulog/files
     summary: List Drone Ulog Files
+    tags:
+    - Logs
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - logs
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - drone-local log route
+  has_request_body: false
+  id: candidate.gcs.get.api.logs.drone.by.drone.id.ulog.files.by.log.id.summary
+  parameters:
+  - description: ''
+    in: path
+    name: drone_id
+    required: true
+    schema:
+      title: Drone Id
+      type: integer
+  - description: ''
+    in: path
+    name: log_id
+    required: true
+    schema:
+      title: Log Id
+      type: integer
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/OnboardUlogSummaryResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: summarize_drone_ulog_file_route_api_logs_drone__drone_id__ulog_files__log_id__summary_get
+    path: /api/logs/drone/{drone_id}/ulog/files/{log_id}/summary
+    summary: Summarize Drone Ulog File Route
     tags:
     - Logs
 - callable: false
@@ -1861,6 +1908,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response List Sidecars Api V1 Fleet Sidecars Get
     type: object
   review_status: needs_review
@@ -1902,6 +1950,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Get Sidecar Table Api V1 Fleet Sidecars  Sidecar  Get
     type: object
   review_status: needs_review
@@ -1943,6 +1992,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Get Sidecar Baseline Api V1 Fleet Sidecars  Sidecar  Baseline Get
     type: object
   review_status: needs_review
@@ -1991,6 +2041,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Get Sidecar Node Api V1 Fleet Sidecars  Sidecar  Nodes  Hw Id  Get
     type: object
   review_status: needs_review
@@ -2066,6 +2117,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Get Job Api V1 Fleet Sidecars Jobs  Job Id  Get
     type: object
   review_status: needs_review
@@ -2342,8 +2394,8 @@ candidates:
     schema:
       default: 0
       description: Formation heading (degrees)
-      exclusiveMaximum: 360.0
-      minimum: 0.0
+      exclusiveMaximum: 360
+      minimum: 0
       title: Heading
       type: number
   - description: Output format (json/csv/kml)
@@ -4862,6 +4914,40 @@ candidates:
     eligible_read_only_mcp_candidate: false
     inferred_risk_class: operate
     inferred_sensitivity:
+    - logs
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.logs.ulog.summary
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/OnboardUlogSummaryResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: summarize_uploaded_ulog_file_route_api_logs_ulog_summary_post
+    path: /api/logs/ulog/summary
+    summary: Summarize Uploaded Ulog File Route
+    tags:
+    - Logs
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
     - mission_state
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
@@ -6085,6 +6171,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Apply Policy Api V1 Fleet Sidecars  Sidecar  Policy Apply Post
     type: object
   review_status: needs_review
@@ -6127,6 +6214,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Dry Run Policy Api V1 Fleet Sidecars  Sidecar  Policy Dry Run Post
     type: object
   review_status: needs_review
@@ -6169,6 +6257,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Promote Reference Draft Api V1 Fleet Sidecars  Sidecar  Promote Draft Post
     type: object
   review_status: needs_review
@@ -6212,6 +6301,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Apply Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Apply Post
     type: object
   review_status: needs_review
@@ -6254,6 +6344,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
+    additionalProperties: true
     title: Response Dry Run Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Dry Run Post
     type: object
   review_status: needs_review
@@ -7751,7 +7842,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 703e525c08fbfe990b8211e4f25286e3a68ad8ea5f8163c1f6cc22df924251cd
+  openapi_sha256: 9d4b0cac9e195c6755b258f7581996469c0a5a3d1578e63efef367d0d7bdf039
   title: GCS Server API
   version: '5.5'
 summary:
@@ -7760,6 +7851,6 @@ summary:
     promoted_eligible_candidate_count: 79
     promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
-    registry_route_count: 94
+    registry_route_count: 97
     unpromoted_eligible_by_area: []
     unpromoted_eligible_candidate_count: 0
