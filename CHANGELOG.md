@@ -67,10 +67,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   across cancelled drafts, replays the last action request for "read again" /
   "same sequence" follow-ups, and plans chained takeoff-wait-move-RTL requests
   instead of collapsing them to the final RTL command.
+- Simurgh now preserves ordered movement clauses inside compound flight
+  requests, so "then" / punctuation-separated moves become separate monitored
+  precision-move steps while same-clause movement such as east plus climb stays
+  one combined move unless the operator clearly asks for sequential execution.
 - Simurgh now routes SITL-created-drone readiness follow-ups to live
   Docker/SITL inventory plus PX4 heartbeat/telemetry evidence instead of SITL
   setup docs or capability menus, with a concise preflight-style verdict for
   operator readiness summaries.
+- Simurgh now keeps SITL runtime-state prompts such as instance count/policy
+  checks separate from PX4/MAVLink readiness prompts, and authenticated provider
+  composition no longer steals local registry/docs/web-search routing.
 - Simurgh typo-heavy SITL lifecycle requests that deterministic routing would
   otherwise miss can now recover through provider semantic normalization and
   still produce normal guarded action drafts with the same confirmation,

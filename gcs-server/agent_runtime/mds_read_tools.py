@@ -56,6 +56,7 @@ READ_CONVERSATION_TOPICS = frozenset(
         "capabilities",
         "docs",
         "drone_show",
+        "flight",
         "fleet",
         "general",
         "logs",
@@ -184,6 +185,8 @@ FLEET_LIVE_TERMS = (
     "ready to arm",
     "flight mode",
     "system status",
+    "status report",
+    "report of status",
     "health",
     "failsafe",
     "ready",
@@ -219,6 +222,9 @@ FLEET_HEALTH_TERMS = (
     "flight mode",
     "mode",
     "system status",
+    "status",
+    "status report",
+    "report of status",
     "health",
     "failsafe",
     "ready",
@@ -4193,6 +4199,9 @@ def _truncate_text(text: str, limit: int) -> str:
 
 
 def _normalize_conversation_topic(value: str | None) -> str | None:
+    raw = str(value or "").strip().casefold().replace("-", "_").replace(" ", "_")
+    if raw in READ_CONVERSATION_TOPICS:
+        return raw
     normalized = _normalize_text(value or "")
     return normalized if normalized in READ_CONVERSATION_TOPICS else None
 
@@ -4268,6 +4277,11 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
             return "fleet_connectivity"
         if _has_any(normalized, ("how", "where", "switch", "change", "setup", "demo", "doc", "docs", "link")) or _looks_like_generic_contextual_followup(normalized):
             return "sitl_help"
+    if topic == "flight":
+        if _looks_like_action_history_summary_question(normalized):
+            return "command_summary"
+        if _looks_like_live_fleet_state_question(normalized) or _looks_like_generic_status_followup(normalized):
+            return "fleet_connectivity"
     if topic == "public_geography":
         if _looks_like_public_geography_slot_followup(normalized) or _looks_like_public_geography_question(normalized):
             return "public_geography"
@@ -4579,6 +4593,33 @@ def _looks_like_command_summary_question(normalized: str) -> bool:
             "last",
             "current",
             "tracker",
+        ),
+    )
+
+
+def _looks_like_generic_status_followup(normalized: str) -> bool:
+    if _looks_like_direct_execution_request(normalized):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "status",
+            "status report",
+            "report of status",
+            "give me a report",
+            "report",
+            "check again",
+            "again",
+            "up now",
+            "ready now",
+            "what happened",
+            "what happen",
+            "where is it",
+            "did it return",
+            "is it flying",
+            "is it landed",
+            "landed",
+            "flying",
         ),
     )
 
@@ -5079,6 +5120,9 @@ def _looks_like_sitl_vehicle_readiness_question(
             "battery",
             "armed",
             "arming",
+            "alive",
+            "check again",
+            "up now",
         ),
     ):
         return False

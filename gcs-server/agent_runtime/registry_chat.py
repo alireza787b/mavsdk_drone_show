@@ -475,7 +475,11 @@ def plan_registry_read_tool_calls(
         missing_typed_metadata_label = ""
         selection_source = "sitl_px4_readiness_rules"
     advisory_defer_argument_ids = argument_ids if had_argument_rule_ids else ()
-    if _should_defer_to_advisory(local_intent, normalized, argument_ids=advisory_defer_argument_ids):
+    if not live_sitl_readiness and _should_defer_to_advisory(
+        local_intent,
+        normalized,
+        argument_ids=advisory_defer_argument_ids,
+    ):
         return None
 
     if not selected_ids:
@@ -1379,8 +1383,8 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "armed",
             "arming",
             "battery",
+            "check again",
             "container status",
-            "current",
             "do it",
             "flight ready",
             "fly ready",
@@ -1395,20 +1399,18 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "px4 status",
             "ready",
             "readiness",
-            "report",
             "reprot",
-            "status",
             "telemetry",
             "telemtery",
-            "test",
+            "up now",
             "why not",
         ),
     )
     if not readiness_signal:
         return False
-    if _has_any(text, ("how do i", "how to", "setup guide", "documentation", "manual")) and not _has_any(
+    if _has_any(text, ("how do i", "how to", "setup guide", "documentation", "manual", "docs")) and not _has_any(
         text,
-        ("current", "status", "ready", "report", "do it", "check"),
+        ("current", "status", "ready", "readiness", "px4", "mavlink", "telemetry", "preflight", "pre-flight", "container status"),
     ):
         return False
     return True

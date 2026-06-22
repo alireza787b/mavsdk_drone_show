@@ -349,6 +349,23 @@ PRECISION_MOVE command, and a final RETURN_RTL command. The final executor,
 confirmation, command tracker, and circuit breaker rules are identical in SITL
 and real runtime.
 
+Sequence boundaries matter. Clauses separated by `then`, `after that`,
+punctuation, an explicit wait, or RTL/return wording become ordered monitored
+steps. Same-clause motion components stay together, so "move 10 m east and climb
+3 m at the same time" remains one precision move, while "move 10 m east, then
+climb 3 m" becomes two precision moves. If the operator wording is ambiguous
+and the target or ordering cannot be inferred from the active session, Simurgh
+must ask a concise clarification instead of collapsing the sequence to the final
+command.
+
+Status follow-ups after a guarded action should use the nearest live local
+evidence surface before any generic provider/docs answer. SITL instance-count
+and policy questions use the SITL registry state tools. SITL vehicle readiness
+questions use Docker/SITL instance state plus PX4/MAVLink heartbeat/telemetry
+where available. Flight-session summaries use the command tracker and local
+read-only fleet/log tools. Public web search and provider composition are only
+used after local MDS state is not the right evidence source.
+
 Guarded action confirmations are local runtime decisions, not provider-composed
 answers. When a pending draft is shown in dashboard chat, the UI presents compact
 **Confirm** and **Reject** controls tied to that draft id. Typed confirmations

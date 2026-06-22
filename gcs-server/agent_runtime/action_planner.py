@@ -436,38 +436,7 @@ def _build_post_actions(
 ) -> list[Mapping[str, Any]]:
     actions: list[Mapping[str, Any]] = []
     if mission_name == "TAKE_OFF" and target_drone_ids:
-        delay_seconds = _extract_wait_seconds(normalized)
-        precision_move = _extract_precision_move_payload(normalized)
-        if precision_move is not None and re.search(r"\b(?:then|after|and then|wait)\b", normalized):
-            if delay_seconds:
-                actions.append(
-                    {
-                        "type": "delay",
-                        "action_label": f"wait {delay_seconds:g} second(s)",
-                        "condition": "after_command_terminal_success",
-                        "delay_seconds": delay_seconds,
-                    }
-                )
-            actions.append(
-                {
-                    "type": "flight_command",
-                    "tool_id": ACTION_TOOL_ID,
-                    "tool_title": "Execute curated flight command",
-                    "action_label": "precision move",
-                    "condition": "after_command_terminal_success",
-                    "arguments": {
-                        "mission_type": _MISSION_TYPES["PRECISION_MOVE"],
-                        "trigger_time": 0,
-                        "target_drone_ids": list(target_drone_ids),
-                        "precision_move": precision_move,
-                        "operator_label": f"simurgh:{draft_id}:precision_move",
-                    },
-                    "monitor_requested": True,
-                    "wait_condition": "command_terminal_success",
-                }
-            )
-        if _looks_like_rtl(normalized) and re.search(r"\b(?:then|after|and then|return|rtl)\b", normalized):
-            actions.append(_flight_command_post_action(draft_id, target_drone_ids, "RETURN_RTL"))
+        actions.extend(_build_ordered_flight_sequence_post_actions(normalized, target_drone_ids, draft_id=draft_id))
     elif mission_name == "PRECISION_MOVE" and target_drone_ids:
         if _looks_like_rtl(normalized) and re.search(r"\b(?:then|after|and then|return|rtl)\b", normalized):
             actions.append(_flight_command_post_action(draft_id, target_drone_ids, "RETURN_RTL"))
@@ -496,6 +465,167 @@ def _build_post_actions(
         }
     )
     return actions
+
+
+def _build_ordered_flight_sequence_post_actions(
+    normalized: str,
+    target_drone_ids: tuple[str, ...],
+    *,
+    draft_id: str,
+) -> list[Mapping[str, Any]]:
+    """Build ordered post-actions from the part after the primary takeoff.
+
+    Movement components in the same clause stay together, so "east and climb
+    at the same time" remains one precision move. Components separated by
+    "then", "after", "next", punctuation, wait, or RTL/return become separate
+    monitored steps.
+    """
+
+    tail = _flight_sequence_tail_after_takeoff(normalized)
+    if not tail:
+        return []
+
+    actions: list[Mapping[str, Any]] = []
+    move_components: list[tuple[int, int, str, float]] = list(_iter_ned_translation_components(tail))
+    consumed_move_indexes: set[int] = set()
+
+    events: list[tuple[int, int, str, Any]] = []
+    for match in _iter_wait_matches(tail):
+        events.append((match.start(), match.end(), "delay", _wait_seconds_from_match(match)))
+    last_rtl_end = -1
+    for match in _iter_rtl_matches(tail):
+        if last_rtl_end >= 0 and not _has_sequence_boundary_between_moves(tail[last_rtl_end : match.start()]):
+            last_rtl_end = match.end()
+            continue
+        events.append((match.start(), match.end(), "rtl", None))
+        last_rtl_end = match.end()
+    for index, (start, end, _axis, _value) in enumerate(move_components):
+        events.append((start, end, "move", index))
+
+    events.sort(key=lambda item: (item[0], item[1]))
+    for start, end, event_type, value in events:
+        if event_type == "delay":
+            seconds = float(value)
+            actions.append(_delay_post_action(seconds))
+            continue
+        if event_type == "rtl":
+            actions.append(_flight_command_post_action(draft_id, target_drone_ids, "RETURN_RTL"))
+            continue
+        if event_type != "move":
+            continue
+        index = int(value)
+        if index in consumed_move_indexes:
+            continue
+        group = [move_components[index]]
+        consumed_move_indexes.add(index)
+        group_end = end
+        for next_index in range(index + 1, len(move_components)):
+            next_start, next_end, _next_axis, _next_value = move_components[next_index]
+            if next_index in consumed_move_indexes:
+                continue
+            between = tail[group_end:next_start]
+            if _has_sequence_boundary_between_moves(between):
+                break
+            if _has_implicit_move_boundary(tail, group[-1], move_components[next_index], between):
+                break
+            if _has_non_move_event_between(events, group_end, next_start):
+                break
+            group.append(move_components[next_index])
+            consumed_move_indexes.add(next_index)
+            group_end = next_end
+        precision_move = _precision_move_payload_from_components(group)
+        if precision_move is not None:
+            actions.append(_precision_move_post_action(draft_id, target_drone_ids, precision_move))
+    return actions
+
+
+def _flight_sequence_tail_after_takeoff(normalized: str) -> str:
+    match = _extract_takeoff_altitude_match(normalized)
+    if match:
+        return normalized[match.end() :]
+    takeoff = re.search(r"\b(?:take\s*off|takeoff)\b", normalized)
+    if takeoff:
+        return normalized[takeoff.end() :]
+    return normalized
+
+
+def _delay_post_action(delay_seconds: float) -> Mapping[str, Any]:
+    return {
+        "type": "delay",
+        "action_label": f"wait {delay_seconds:g} second(s)",
+        "condition": "after_command_terminal_success",
+        "delay_seconds": delay_seconds,
+    }
+
+
+def _precision_move_post_action(
+    draft_id: str,
+    target_drone_ids: tuple[str, ...],
+    precision_move: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    return {
+        "type": "flight_command",
+        "tool_id": ACTION_TOOL_ID,
+        "tool_title": "Execute curated flight command",
+        "action_label": "precision move",
+        "condition": "after_command_terminal_success",
+        "arguments": {
+            "mission_type": _MISSION_TYPES["PRECISION_MOVE"],
+            "trigger_time": 0,
+            "target_drone_ids": list(target_drone_ids),
+            "precision_move": dict(precision_move),
+            "operator_label": f"simurgh:{draft_id}:precision_move",
+        },
+        "monitor_requested": True,
+        "wait_condition": "command_terminal_success",
+    }
+
+
+def _has_sequence_boundary_between_moves(text: str) -> bool:
+    return bool(re.search(r"(?:[.,;]|\b(?:then|after\s+that|afterwards?|next|wait|rtl|return|land)\b)", text))
+
+
+def _has_implicit_move_boundary(
+    tail: str,
+    current_component: tuple[int, int, str, float],
+    next_component: tuple[int, int, str, float],
+    between: str,
+) -> bool:
+    """Recover ordered steps when punctuation was stripped by query cleanup."""
+
+    if between.strip():
+        return False
+    _current_start, current_end, current_axis, _current_value = current_component
+    next_start, next_end, next_axis, _next_value = next_component
+    if current_axis == next_axis:
+        return False
+    nearby = tail[max(0, current_end - 16) : min(len(tail), next_end + 24)]
+    if re.search(r"\b(?:same\s+time|simultaneously|together)\b", nearby):
+        return False
+    next_text = tail[next_start:next_end]
+    return next_axis == "up" and bool(re.search(r"\b(?:climb|ascend|descend|down|up)\b", next_text))
+
+
+def _has_non_move_event_between(events: list[tuple[int, int, str, Any]], start: int, end: int) -> bool:
+    return any(event_type != "move" and event_start >= start and event_start < end for event_start, _event_end, event_type, _value in events)
+
+
+def _precision_move_payload_from_components(components: list[tuple[int, int, str, float]]) -> dict[str, Any] | None:
+    if not components:
+        return None
+    values = {"north": 0.0, "east": 0.0, "up": 0.0}
+    for _start, _end, axis, value in components:
+        values[axis] += float(value)
+    if not any(abs(value) > 1e-9 for value in values.values()):
+        return None
+    return {
+        "frame": "ned",
+        "translation_m": {
+            "north": float(values["north"]),
+            "east": float(values["east"]),
+            "up": float(values["up"]),
+        },
+    }
 
 
 def _flight_command_post_action(
@@ -752,6 +882,8 @@ def _extract_mission_name(normalized: str) -> str | None:
 def _looks_like_rtl(normalized: str) -> bool:
     return bool(
         re.search(r"\b(rtl|return\s+to\s+launch|return\s+home|rtl\s+back|return\s+back)\b", normalized)
+        or re.search(r"\b(?:then|and\s+then|after\s+that|next)\s+return\b", normalized)
+        or re.search(r"\breturn\s+(?:and\s+)?(?:report|monitor|land)\b", normalized)
         or re.search(r"\b(?:return|come\s+back)\b.{0,50}\bland\b", normalized)
         or re.search(r"\bland\b.{0,50}\b(?:return|come\s+back)\b", normalized)
     )
@@ -766,17 +898,32 @@ def _looks_like_precision_move(normalized: str) -> bool:
 
 
 def _extract_wait_seconds(normalized: str) -> float | None:
-    match = re.search(
+    match = next(_iter_wait_matches(normalized), None)
+    if not match:
+        return None
+    return _wait_seconds_from_match(match)
+
+
+def _iter_wait_matches(normalized: str):
+    return re.finditer(
         r"\bwait(?:\s+(?:there|here))?(?:\s+for)?(?:\s+about|\s+around)?\s+(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>s|sec|secs|second|seconds|m|min|minute|minutes)\b(?:\s+(?:there|here))?",
         normalized,
     )
-    if not match:
-        return None
+
+
+def _wait_seconds_from_match(match: re.Match[str]) -> float:
     value = float(match.group("value"))
     unit = match.group("unit")
     if unit.startswith("m"):
         return value * 60.0
     return value
+
+
+def _iter_rtl_matches(normalized: str):
+    return re.finditer(
+        r"\b(?:rtl|return\s+to\s+launch|return\s+home|return\s+back|rtl\s+back|(?:then|and\s+then|after\s+that|next)\s+return|return\s+(?:and\s+)?(?:report|monitor|land))\b",
+        normalized,
+    )
 
 
 def _extract_precision_move_payload(normalized: str) -> dict[str, Any] | None:
@@ -800,6 +947,13 @@ def _extract_precision_move_payload(normalized: str) -> dict[str, Any] | None:
 def _extract_ned_translation(normalized: str) -> dict[str, float]:
     values = {"north": 0.0, "east": 0.0, "up": 0.0}
     matched = False
+    for _start, _end, axis, value in _iter_ned_translation_components(normalized):
+        values[axis] += value
+        matched = True
+    return values if matched else {}
+
+
+def _iter_ned_translation_components(normalized: str):
     direction_map = {
         "north": ("north", 1.0),
         "south": ("north", -1.0),
@@ -824,9 +978,7 @@ def _extract_ned_translation(normalized: str) -> dict[str, float]:
         if axis_sign is None:
             continue
         axis, sign = axis_sign
-        values[axis] += float(match.group("value")) * sign
-        matched = True
-    return values if matched else {}
+        yield (match.start(), match.end(), axis, float(match.group("value")) * sign)
 
 
 def _extract_yaw_payload(normalized: str) -> dict[str, Any] | None:
@@ -886,6 +1038,11 @@ def _extract_target_ids(normalized: str) -> list[str]:
 
 
 def _extract_takeoff_altitude_m(normalized: str) -> float | None:
+    match = _extract_takeoff_altitude_match(normalized)
+    return float(match.group("value")) if match else None
+
+
+def _extract_takeoff_altitude_match(normalized: str) -> re.Match[str] | None:
     patterns = (
         r"\b(?:take\s*off|takeoff)\b(?:(?!\b(?:then|and then)\b).){0,80}?\b(?:to|at|altitude|height)\s*(?P<value>\d+(?:\.\d+)?)\s*(?:m|meter|meters)\b",
         r"\b(?:take\s*off|takeoff)\s+(?P<value>\d+(?:\.\d+)?)\s*(?:m|meter|meters)\b",
@@ -894,5 +1051,5 @@ def _extract_takeoff_altitude_m(normalized: str) -> float | None:
     for pattern in patterns:
         match = re.search(pattern, normalized)
         if match:
-            return float(match.group("value"))
+            return match
     return None

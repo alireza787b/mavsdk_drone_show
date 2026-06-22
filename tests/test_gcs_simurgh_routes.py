@@ -670,6 +670,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     guarded_submissions = []
     submitted_commands = []
     terminal_failures = set()
+    now = time.time() + 600.0
 
     class FakeTracker:
         async def get_status(self, command_id):
@@ -690,6 +691,43 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
             }
 
     class FakeDeps:
+        telemetry_data_all_drones = {
+            "1": {
+                "telemetry_available": True,
+                "gps_fix_type": 3,
+                "satellites_visible": 10,
+                "battery_voltage": 16.2,
+                "battery_remaining_percent": 0.89,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "flight_mode_name": "HOLD",
+                "system_status_name": "STANDBY",
+                "timestamp": int(now * 1000),
+            }
+        }
+        last_telemetry_time = {"1": now}
+        data_lock = None
+
+        def load_config(self):
+            return [
+                {
+                    "hw_id": 1,
+                    "pos_id": 1,
+                    "callsign": "SCOUT",
+                    "ip": "172.18.0.2",
+                    "mavlink_port": 14563,
+                }
+            ]
+
+        def get_all_drone_positions(self):
+            return []
+
+        def load_swarm(self):
+            return []
+
+        def get_all_heartbeats(self):
+            return {"1": {"timestamp": int(now * 1000), "ip": "172.18.0.2"}}
+
         def get_command_tracker(self):
             return FakeTracker()
 
@@ -751,7 +789,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
-            "message": "create one drone instance and report when ready",
+            "message": "create one SITL instance and report when ready",
         },
     ).json()
     create_draft_id = re.search(r"act-[0-9a-f]+", create_draft["content"]).group(0)
@@ -836,6 +874,22 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert "Post-action `precision move`: terminal_success" in content
     assert "Post-action `return rtl`: terminal_success" in content
 
+    status_question = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "Give me a report of status",
+        },
+    )
+    assert status_question.status_code == 200
+    status_payload = status_question.json()
+    assert status_payload["trace"]["intent"]["route"] == "read_only"
+    assert "Drone 1" in status_payload["content"]
+    assert "Ready" in status_payload["content"]
+    assert "Public web sources" not in status_payload["content"]
+    assert "Simurgh assistant runtime" not in status_payload["content"]
+
     history_question = client.post(
         "/api/v1/simurgh/assistant/turns",
         json={
@@ -859,6 +913,60 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert submitted_commands[2].target_drone_ids == ["1"]
     assert guarded_submissions[0]["name"] == "mds.sitl.instances.create"
 
+    pm_sequence_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": (
+                "Ok now lets use drone of for below misison. Takeoff to 14m, "
+                "then for 5m south. Then climb 10m again . Then wait 5s . Then return and report"
+            ),
+        },
+    )
+    assert pm_sequence_draft.status_code == 200
+    pm_payload = pm_sequence_draft.json()
+    pm_action_draft = pm_payload["trace"]["safety"]["action_draft"]
+    assert pm_action_draft["target_drone_ids"] == ["1"]
+    assert pm_action_draft["command_payload"]["takeoff_altitude"] == 14.0
+    assert [item["type"] for item in pm_action_draft["post_actions"]] == [
+        "flight_command",
+        "flight_command",
+        "delay",
+        "flight_command",
+    ]
+    assert pm_action_draft["post_actions"][0]["arguments"]["precision_move"]["translation_m"] == {
+        "north": -5.0,
+        "east": 0.0,
+        "up": 0.0,
+    }
+    assert pm_action_draft["post_actions"][1]["arguments"]["precision_move"]["translation_m"] == {
+        "north": 0.0,
+        "east": 0.0,
+        "up": 10.0,
+    }
+    assert pm_action_draft["post_actions"][2]["delay_seconds"] == 5.0
+    assert pm_action_draft["post_actions"][3]["arguments"]["mission_type"] == 104
+
+    pm_sequence_id = re.search(r"act-[0-9a-f]+", pm_payload["content"]).group(0)
+    pm_sequence_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {pm_sequence_id}",
+        },
+    )
+    assert pm_sequence_confirm.status_code == 200
+    pm_confirm_content = pm_sequence_confirm.json()["content"]
+    assert "Post-action `precision move`: terminal_success" in pm_confirm_content
+    assert pm_confirm_content.count("Post-action `precision move`: terminal_success") == 2
+    assert "Post-action `wait 5 second(s)`: completed" in pm_confirm_content
+    assert "Post-action `return rtl`: terminal_success" in pm_confirm_content
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104]
+    assert submitted_commands[4].precision_move.translation_m == {"north": -5.0, "east": 0.0, "up": 0.0}
+    assert submitted_commands[5].precision_move.translation_m == {"north": 0.0, "east": 0.0, "up": 10.0}
+
     failed_sequence_draft = client.post(
         "/api/v1/simurgh/assistant/turns",
         json={
@@ -868,7 +976,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     ).json()
     failed_sequence_id = re.search(r"act-[0-9a-f]+", failed_sequence_draft["content"]).group(0)
-    terminal_failures.add("cmd-4")
+    terminal_failures.add("cmd-8")
     failed_confirm = client.post(
         "/api/v1/simurgh/assistant/turns/stream",
         json={
@@ -888,7 +996,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     failed_final = [payload for event, payload in failure_events if event == "final"][-1]
     assert "Monitor: terminal_non_success" in failed_final["content"]
     assert "Post-action" not in failed_final["content"]
-    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10]
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10]
 
     post_failure_draft = client.post(
         "/api/v1/simurgh/assistant/turns",
@@ -899,7 +1007,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     ).json()
     post_failure_id = re.search(r"act-[0-9a-f]+", post_failure_draft["content"]).group(0)
-    terminal_failures.add("cmd-6")
+    terminal_failures.add("cmd-10")
     post_failure_confirm = client.post(
         "/api/v1/simurgh/assistant/turns/stream",
         json={
@@ -921,7 +1029,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert "Post-action `wait 5 second(s)`: completed" in post_failure_final["content"]
     assert "Post-action `precision move`: terminal_non_success" in post_failure_final["content"]
     assert "Post-action `return rtl`: skipped" in post_failure_final["content"]
-    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 10, 112]
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10, 10, 112]
 
 
 def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monkeypatch):
@@ -1533,7 +1641,7 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
-            "message": "create one drone instance and report when ready",
+            "message": "create one SITL instance and report when ready",
         },
     ).json()
     create_draft_id = re.search(r"act-[0-9a-f]+", create_draft["content"]).group(0)
@@ -1575,6 +1683,29 @@ def test_simurgh_sitl_create_followup_readiness_uses_live_fleet_telemetry(monkey
         "mds.fleet.telemetry.read",
     ]
     assert payload["trace"]["intent"]["route"] == "read_only"
+
+    check_again = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "Check again if its up now?",
+        },
+    )
+    assert check_again.status_code == 200
+    check_payload = check_again.json()
+    assert "Verdict: ready for a SITL test" in check_payload["content"]
+    assert "Docker/SITL: 1 instance(s), 1 active; Docker reachable: Yes." in check_payload["content"]
+    assert "Drone 1" in check_payload["content"]
+    assert "Public web sources" not in check_payload["content"]
+    assert "SITL should be started" not in check_payload["content"]
+    assert check_payload["trace"]["tool"]["ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.host.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+    ]
+    assert check_payload["trace"]["intent"]["route"] in {"read_only", "provider_or_registry"}
 
 
 def test_simurgh_sitl_monitor_fails_fast_when_operation_status_is_unavailable(monkeypatch):

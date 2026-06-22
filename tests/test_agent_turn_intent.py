@@ -7,6 +7,7 @@ def test_turn_intent_does_not_treat_task_with_go_ahead_as_confirmation():
     assert frame.route == "read_only"
     assert frame.confirmation_message is False
     assert frame.read_only_plan.intent == "sitl_help"
+    assert frame.read_only_plan.query_domain == "sitl"
 
 
 def test_turn_intent_exact_draft_confirmation_stays_deterministic():
@@ -83,6 +84,15 @@ def test_turn_intent_uses_semantic_routing_message_for_typo_heavy_sitl_action():
     payload = frame.action.draft.public_payload()
     assert payload["tool_id"] == "mds.sitl.instances.create"
     assert payload["monitor_requested"] is True
+
+
+def test_turn_intent_sitl_check_again_uses_read_only_status():
+    frame = build_turn_intent_frame("Check again if its up now?", conversation_topic="sitl")
+
+    assert frame.route == "read_only"
+    assert frame.read_only_plan.intent == "fleet_connectivity"
+    assert frame.confirmation_message is False
+    assert frame.action.draft is None
 
 
 def test_turn_intent_retrospective_wait_question_does_not_draft_action():

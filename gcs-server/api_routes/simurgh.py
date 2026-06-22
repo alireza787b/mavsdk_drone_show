@@ -79,6 +79,7 @@ from agent_runtime.action_planner import (
     is_action_rejection_message,
 )
 from agent_runtime.mds_read_tools import (
+    answer_mds_read_only_question,
     apply_runtime_settings,
     build_provider_credentials_payload,
     build_runtime_settings_payload,
@@ -3707,6 +3708,137 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
+    async def _create_local_read_only_answer_record(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        actor: str,
+        routing_message: str,
+        read_only_plan,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
+        progress_callback: AssistantProgressCallback | None = None,
+    ) -> AssistantTurnRecord | None:
+        policy = load_default_policy()
+        if not policy.agent_enabled:
+            raise PermissionError("Simurgh agent runtime is disabled")
+        session = _require_or_create_assistant_session(policy=policy, actor=actor, turn_request=turn_request)
+        request_deps = _request_scoped_deps(deps, http_request)
+        conversation_topic = _session_conversation_topic(session)
+        answer = answer_mds_read_only_question(
+            routing_message,
+            deps=request_deps,
+            conversation_topic=conversation_topic,
+        )
+        if answer is None:
+            return None
+
+        await _emit_assistant_progress(
+            progress_callback,
+            {
+                "stage": "tool",
+                "state": "complete",
+                "label": "Evidence ready",
+                "intent": answer.intent,
+                "tool_id": answer.tool_ids[0] if answer.tool_ids else None,
+                "tool_ids": list(answer.tool_ids),
+            },
+        )
+
+        assistant_config = load_default_assistant_config()
+        context_documents = AssistantContextAssembler(config=assistant_config).assemble(
+            _bounded_context_resource_ids(turn_request.context_resource_ids)
+        )
+        language_profile = detect_language_profile(turn_request.message.strip())
+        query_adaptation = adapt_operator_query(
+            turn_request.message.strip(),
+            language_profile=language_profile,
+            conversation_topic=conversation_topic,
+        )
+        evidence = answer.evidence_metadata()
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=READ_TOOL_MODEL,
+            adapter_version=READ_TOOL_ADAPTER_VERSION,
+            content=answer.content,
+            context_documents=tuple(context_documents),
+            blocked_intents=(),
+            safety_notes=answer.safety_notes,
+        )
+        next_topic = str(read_only_plan.topic or read_only_plan.query_domain or answer.intent or "").strip()
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": next_topic,
+                "last_intent": answer.intent,
+                "last_response_mode": answer.response_mode,
+            },
+        )
+        sessions.update_private_context(
+            session.id,
+            {
+                "last_assistant_content": turn.content,
+                "last_assistant_provider": turn.provider,
+                "last_assistant_model": turn.model,
+                "last_domain": next_topic,
+                "last_intent": answer.intent,
+                "last_response_mode": answer.response_mode,
+                "last_user_message": turn_request.message,
+                "last_routing_message": normalize_operator_query_text(turn_request.message),
+                "last_tool_intent": answer.intent,
+                "last_read_only_evidence": json.dumps(
+                    evidence or {},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ),
+            },
+        )
+        event = audit.record(
+            "assistant_turn_created",
+            session_id=session.id,
+            actor=actor,
+            tool_id=answer.tool_ids[0] if answer.tool_ids else None,
+            decision=PolicyDecisionStatus.ALLOW.value,
+            payload={
+                "message": turn_request.message.strip(),
+                "context_resource_ids": [doc.id for doc in context_documents],
+                "metadata": dict(turn_request.metadata or {}),
+            },
+            metadata={
+                "provider": turn.provider,
+                "model": turn.model,
+                "adapter_version": turn.adapter_version,
+                "mode": session.mode,
+                "context_count": len(context_documents),
+                "blocked_intent_count": 0,
+                "tool_intent": answer.intent,
+                "tool_id": answer.tool_ids[0] if answer.tool_ids else None,
+                "tool_ids": list(answer.tool_ids),
+                "response_mode": answer.response_mode,
+                "query_domain": read_only_plan.query_domain,
+                "query_confidence": read_only_plan.confidence,
+                "query_unclear": read_only_plan.unclear,
+                "query_reason": read_only_plan.reason,
+                "turn_intent": dict(turn_intent_metadata or {}),
+                "read_only_plan": read_only_plan.public_metadata(),
+                "read_only_evidence": evidence or {},
+                "retrieved_context_count": 0,
+                "web_search_enabled": False,
+                "query_adaptation": query_adaptation.public_metadata(),
+                "routing_strategy": query_adaptation.strategy,
+                "routing_language": query_adaptation.routing_language,
+                "routing_rule_count": len(query_adaptation.applied_rules),
+                "language_profile": language_profile.public_metadata(),
+                "input_language": language_profile.language,
+                "input_script": language_profile.script,
+                "input_tone": language_profile.tone,
+                "localization_strategy": language_profile.localization_strategy,
+            },
+        )
+        return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
+
     async def _create_assistant_turn_record_for_request(
         http_request: Request,
         turn_request: SimurghAssistantTurnRequest,
@@ -3980,24 +4112,42 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     progress_callback=progress_callback,
                 )
             else:
-                request_deps = _request_scoped_deps(deps, http_request)
-                record = create_assistant_turn(
-                    sessions=sessions,
-                    audit=audit,
-                    actor=actor,
-                    message=turn_request.message,
-                    deps=request_deps,
-                    session_id=turn_request.session_id,
-                    mode=turn_request.mode,
-                    context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
-                    metadata=_bounded_metadata(
-                        {
-                            **dict(turn_request.metadata or {}),
-                            "turn_intent": turn_intent_metadata(),
-                        }
-                    ),
-                    allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,
-                )
+                record = None
+                if (
+                    local_intent
+                    and not provider_auth_allowed
+                    and not previous_evidence_followup
+                    and not blocked_matches
+                    and not sensitive_matches
+                ):
+                    record = await _create_local_read_only_answer_record(
+                        http_request,
+                        turn_request,
+                        actor=actor,
+                        routing_message=routing_message,
+                        read_only_plan=read_only_plan,
+                        turn_intent_metadata=turn_intent_metadata(),
+                        progress_callback=progress_callback,
+                    )
+                if record is None:
+                    request_deps = _request_scoped_deps(deps, http_request)
+                    record = create_assistant_turn(
+                        sessions=sessions,
+                        audit=audit,
+                        actor=actor,
+                        message=turn_request.message,
+                        deps=request_deps,
+                        session_id=turn_request.session_id,
+                        mode=turn_request.mode,
+                        context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
+                        metadata=_bounded_metadata(
+                            {
+                                **dict(turn_request.metadata or {}),
+                                "turn_intent": turn_intent_metadata(),
+                            }
+                        ),
+                        allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,
+                    )
             history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
