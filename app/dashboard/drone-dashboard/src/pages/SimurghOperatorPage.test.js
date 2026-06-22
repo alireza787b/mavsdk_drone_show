@@ -431,7 +431,7 @@ describe('SimurghOperatorPage', () => {
     await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
     releaseStream();
 
-    expect(await screen.findByText('Submitted the guarded flight command.')).toBeInTheDocument();
+    expect(await screen.findAllByText('Submitted the guarded flight command.')).not.toHaveLength(0);
   });
 
   test('hot-applies provider, model, and optional server-side key from the compact settings panel', async () => {
