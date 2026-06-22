@@ -60,10 +60,12 @@ _STATE_TERMS = (
     "configured",
     "current",
     "do we have",
+    "count",
     "is there",
     "list",
     "loaded",
     "now",
+    "how many",
     "read",
     "report",
     "running",
@@ -71,6 +73,7 @@ _STATE_TERMS = (
     "show me",
     "status",
     "state",
+    "total",
     "what is",
     "what are",
     "what's",
@@ -104,7 +107,9 @@ _CONCRETE_STATE_TERMS = (
     "check",
     "connected",
     "current",
+    "count",
     "details",
+    "how many",
     "inspect",
     "latest",
     "loaded",
@@ -116,6 +121,7 @@ _CONCRETE_STATE_TERMS = (
     "show me",
     "status",
     "state",
+    "total",
 )
 
 _SITL_RUNTIME_STATE_TERMS = (
@@ -289,9 +295,14 @@ _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
 
 _COMPOUND_STATE_TOOL_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
-        "fleet",
+        "fleet_config",
         ("mds.config.fleet.read",),
         "configured fleet",
+    ),
+    (
+        "fleet_live",
+        ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read"),
+        "live fleet",
     ),
     (
         "sitl",
@@ -573,12 +584,14 @@ def _compound_state_tool_ids_for_query(text: str) -> tuple[tuple[str, ...], str]
     """Return merged read tools when one normal question spans state domains."""
 
     domains: list[str] = []
-    if _has_any(text, ("how many drones", "configured drones", "drones configured", "fleet configured")) or (
-        _has_any(text, ("configured",))
-        and _has_any(text, ("drone", "drones", "fleet", "vehicle", "vehicles"))
-    ):
-        domains.append("fleet")
-    if _has_any(text, ("sitl", "simulator", "simulation")) and _has_any(text, _SITL_RUNTIME_STATE_TERMS + ("active",)):
+    if _looks_like_fleet_count_state_query(text):
+        configured_requested = _has_any(text, ("configured", "defined", "inventory"))
+        live_requested = _looks_like_live_fleet_state_query(text)
+        if configured_requested or not live_requested:
+            domains.append("fleet_config")
+        if live_requested:
+            domains.append("fleet_live")
+    if _looks_like_sitl_count_state_query(text):
         domains.append("sitl")
     if len(domains) < 2:
         return (), ""
@@ -594,9 +607,58 @@ def _compound_state_tool_ids_for_query(text: str) -> tuple[tuple[str, ...], str]
     return tuple(selected[:4]), " and ".join(labels) if labels else "read-only GCS state"
 
 
+def _looks_like_count_state_query(text: str) -> bool:
+    if _has_any(text, ("how many", "count", "counts", "number of", "total")):
+        return True
+    return bool(re.search(r"\bmany\b", text))
+
+
+def _looks_like_fleet_count_state_query(text: str) -> bool:
+    fleet_signal = _has_any(text, ("drone", "drones", "fleet", "vehicle", "vehicles"))
+    if not fleet_signal:
+        return False
+    if _has_any(text, ("configured drones", "drones configured", "fleet configured")):
+        return True
+    if _has_any(text, ("configured",)) and fleet_signal:
+        return True
+    return _looks_like_count_state_query(text)
+
+
+def _looks_like_live_fleet_state_query(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "connected",
+            "connection",
+            "online",
+            "live",
+            "reachable",
+            "heartbeat",
+            "heartbeats",
+            "telemetry",
+            "seen by gcs",
+        ),
+    )
+
+
+def _looks_like_sitl_count_state_query(text: str) -> bool:
+    if not _has_any(text, ("sitl", "simulator", "simulation")):
+        return False
+    if _has_any(text, _SITL_RUNTIME_STATE_TERMS + ("active",)):
+        return True
+    if _looks_like_count_state_query(text):
+        return True
+    return bool(
+        re.search(r"\bmany\b.{0,48}\b(sitl|simulator|simulation)\b", text)
+        or re.search(r"\b(sitl|simulator|simulation)\b.{0,48}\bmany\b", text)
+    )
+
+
 def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
     intent = str(local_intent or "").strip()
     if _looks_like_sitl_px4_readiness_prompt(text):
+        return False
+    if _compound_state_tool_ids_for_query(text)[0]:
         return False
     if intent not in _ADVISORY_FIRST_INTENTS:
         return False
@@ -623,7 +685,7 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         return True
     if intent == "docs_help" and _has_any(text, ("mission", "missions", "available", "current", "status", "running", "state")):
         return False
-    if intent == "sitl_help" and _has_any(text, _SITL_RUNTIME_STATE_TERMS):
+    if intent == "sitl_help" and (_has_any(text, _SITL_RUNTIME_STATE_TERMS) or _looks_like_sitl_count_state_query(text)):
         return False
     if intent == "sitl_help" and _has_any(text, ("host", "hosts")):
         return False
@@ -661,13 +723,13 @@ def format_registry_read_results(
 ) -> str:
     """Format bounded registry tool evidence for the dashboard chat renderer."""
 
-    sitl_readiness_summary = _format_sitl_px4_readiness_state(results)
-    if sitl_readiness_summary:
-        return sitl_readiness_summary
-
     compound_summary = _format_compound_fleet_sitl_state(results)
     if compound_summary:
         return compound_summary
+
+    sitl_readiness_summary = _format_sitl_px4_readiness_state(results)
+    if sitl_readiness_summary:
+        return sitl_readiness_summary
 
     composer = AnswerComposer()
     composer.line(f"Read-only registry check for {plan.label}:")
@@ -773,22 +835,37 @@ def _format_sitl_px4_readiness_state(results: Sequence[RegistryReadToolResult]) 
 def _format_compound_fleet_sitl_state(results: Sequence[RegistryReadToolResult]) -> str:
     by_id = {item.tool.id: item for item in results}
     fleet = by_id.get("mds.config.fleet.read")
+    heartbeats = by_id.get("mds.fleet.heartbeats.read")
+    telemetry = by_id.get("mds.fleet.telemetry.read")
     sitl_instances = by_id.get("mds.sitl.instances.read")
-    if fleet is None or sitl_instances is None:
+    policy = by_id.get("mds.sitl.policy.read")
+    live_compound_evidence = policy is not None and (heartbeats is not None or telemetry is not None)
+    if sitl_instances is None or (fleet is None and not live_compound_evidence):
         return ""
 
-    fleet_count = _fleet_config_count(fleet.result.structured_content)
+    fleet_count = _fleet_config_count(fleet.result.structured_content) if fleet else None
+    live_count, live_total = _fleet_live_counts(
+        heartbeats.result.structured_content if heartbeats else None,
+        telemetry.result.structured_content if telemetry else None,
+    )
     sitl_total = _sitl_instance_total(sitl_instances.result.structured_content)
     sitl_active = _sitl_active_count(sitl_instances.result.structured_content)
-    policy = by_id.get("mds.sitl.policy.read")
     sim_mode = _mapping_value(policy.result.structured_content if policy else None, ("sim_mode", "enabled"))
     read_only = _mapping_value(policy.result.structured_content if policy else None, ("read_only",))
 
     composer = AnswerComposer()
-    if fleet_count is None:
-        composer.line("Configured fleet: not available from the fleet config response.")
-    else:
-        composer.line(f"Configured fleet: {fleet_count} drone(s).")
+    if fleet is not None:
+        if fleet_count is None:
+            composer.line("Configured fleet: not available from the fleet config response.")
+        else:
+            composer.line(f"Configured fleet: {fleet_count} drone(s).")
+    if heartbeats is not None or telemetry is not None:
+        if live_count is None:
+            composer.line("Live fleet: connected count is not available from current heartbeat/telemetry evidence.")
+        elif live_total is None:
+            composer.line(f"Live fleet: {live_count} drone(s) connected now.")
+        else:
+            composer.line(f"Live fleet: {live_count}/{live_total} drone(s) connected now.")
     if sitl_total is None:
         composer.line("SITL instances: not available from the SITL status response.")
     else:
@@ -804,6 +881,44 @@ def _format_compound_fleet_sitl_state(results: Sequence[RegistryReadToolResult])
     if sitl_total == 0:
         composer.line("No simulator drone instance is currently running.")
     return composer.render()
+
+
+def _fleet_live_counts(heartbeat_value: Any, telemetry_value: Any) -> tuple[int | None, int | None]:
+    live_count = _mapping_int(heartbeat_value, ("online_count", "live_count", "connected_count", "online_drones"))
+    total_count = _mapping_int(heartbeat_value, ("total_drones", "total", "count"))
+    heartbeat_rows = _heartbeat_rows_by_drone_id(heartbeat_value)
+    if live_count is None and heartbeat_rows:
+        live_count = sum(1 for row in heartbeat_rows.values() if _heartbeat_row_is_live(row))
+    if total_count is None and heartbeat_rows:
+        total_count = len(heartbeat_rows)
+
+    if live_count is None:
+        live_count = _mapping_int(telemetry_value, ("online_drones", "online_count", "live_count"))
+    telemetry_rows = _telemetry_rows_by_drone_id(telemetry_value)
+    if live_count is None and telemetry_rows:
+        live_count = sum(1 for row in telemetry_rows.values() if _telemetry_present(row))
+    if total_count is None:
+        total_count = _mapping_int(telemetry_value, ("total_drones", "total", "count"))
+    if total_count is None and telemetry_rows:
+        total_count = len(telemetry_rows)
+    return live_count, total_count
+
+
+def _heartbeat_row_is_live(row: Mapping[str, Any]) -> bool:
+    online = _bool_or_none(_mapping_value(row, ("online", "connected", "is_online", "is_live")))
+    if online is not None:
+        return online
+    state = str(_mapping_value(row, ("presence_state", "status", "state")) or "").strip().casefold()
+    return state in {"live", "online", "connected", "ready"}
+
+
+def _mapping_int(value: Any, keys: Sequence[str]) -> int | None:
+    item = _mapping_value(value, keys)
+    if isinstance(item, int) and not isinstance(item, bool):
+        return item
+    if isinstance(item, float) and item.is_integer():
+        return int(item)
+    return None
 
 
 def _sitl_instance_rows(value: Any) -> list[Mapping[str, Any]]:

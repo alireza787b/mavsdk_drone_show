@@ -44,3 +44,14 @@ def test_bare_confirmation_still_works_without_new_action_plan():
     assert is_action_confirmation_message("send it")
     assert is_action_confirmation_message("confirm action act-91709278")
     assert is_action_confirmation_message("go ahead")
+
+
+def test_retrospective_sequence_question_is_not_a_new_flight_action():
+    message = "just one question . did you also do teh waits between takeoff and precission move ? or skipped that?"
+
+    assert not looks_like_direct_flight_action_request(message)
+    assert build_flight_action_draft(
+        message,
+        draft_id="act-history",
+        previous_action={"target_drone_ids": ["1"]},
+    ) is None

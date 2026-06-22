@@ -9,8 +9,9 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from agent_runtime.action_planner import FlightActionDraft
 from agent_runtime.tool_executor import GuardedToolCallResult
-from api_routes.simurgh import create_simurgh_router
+from api_routes.simurgh import _submitted_action_progress_outcome, create_simurgh_router
 
 
 def _client() -> TestClient:
@@ -38,6 +39,46 @@ def _sse_events(body: str) -> list[tuple[str, dict]]:
     if data_lines:
         events.append((event_name, json.loads("\n".join(data_lines))))
     return events
+
+
+def test_sequence_progress_outcome_reflects_terminal_results():
+    draft = FlightActionDraft(
+        draft_id="act-sequence",
+        mission_name="TAKE_OFF",
+        mission_type=10,
+        target_drone_ids=("1",),
+        command_payload={"mission_type": 10, "target_drone_ids": ["1"]},
+        monitor_requested=True,
+        post_actions=(
+            {"type": "delay", "action_label": "wait"},
+            {"type": "flight_command", "action_label": "return rtl"},
+        ),
+    )
+
+    assert _submitted_action_progress_outcome(
+        draft,
+        monitor_result={"success": True, "timed_out": False},
+        post_action_results=(
+            {"status": "completed", "is_error": False},
+            {"status": "terminal_success", "is_error": False},
+        ),
+    ) == ("complete", "Command sequence complete")
+    assert _submitted_action_progress_outcome(
+        draft,
+        monitor_result={"success": False, "timed_out": True},
+    ) == ("timeout", "Command sequence monitoring timed out")
+    assert _submitted_action_progress_outcome(
+        draft,
+        monitor_result={"success": False, "timed_out": False},
+    ) == ("failed", "Command sequence stopped after primary command")
+    assert _submitted_action_progress_outcome(
+        draft,
+        monitor_result={"success": True, "timed_out": False},
+        post_action_results=(
+            {"status": "terminal_non_success", "is_error": True},
+            {"status": "skipped", "is_error": True},
+        ),
+    ) == ("failed", "Command sequence stopped before all steps completed")
 
 
 def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_relative_paths(monkeypatch):
@@ -628,9 +669,18 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     monkeypatch.setattr("api_routes.simurgh.ACTION_SEQUENCE_MAX_DELAY_SECONDS", 0.0)
     guarded_submissions = []
     submitted_commands = []
+    terminal_failures = set()
 
     class FakeTracker:
         async def get_status(self, command_id):
+            if command_id in terminal_failures:
+                return {
+                    "command_id": command_id,
+                    "status": "failed",
+                    "phase": "terminal",
+                    "outcome": "failed",
+                    "progress": {"message": "Command failed."},
+                }
             return {
                 "command_id": command_id,
                 "status": "completed",
@@ -785,6 +835,22 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert "Post-action `wait 10 second(s)`: completed" in content
     assert "Post-action `precision move`: terminal_success" in content
     assert "Post-action `return rtl`: terminal_success" in content
+
+    history_question = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "just one question . did you also do teh waits between takeoff and precission move ? or skipped that?",
+        },
+    )
+    assert history_question.status_code == 200
+    history_payload = history_question.json()
+    assert history_payload["trace"]["safety"]["action_execution"] == "previous_action_summary"
+    assert "retained Simurgh action record shows the wait step was executed" in history_payload["content"]
+    assert "wait 10 second(s): completed" in history_payload["content"]
+    assert "No new action was executed." in history_payload["content"]
+    assert "Action draft" not in history_payload["content"]
     assert [command.mission_type for command in submitted_commands] == [10, 112, 104]
     assert submitted_commands[0].target_drone_ids == ["1"]
     assert submitted_commands[0].takeoff_altitude == 10.0
@@ -792,6 +858,70 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert submitted_commands[1].precision_move.translation_m["north"] == 10.0
     assert submitted_commands[2].target_drone_ids == ["1"]
     assert guarded_submissions[0]["name"] == "mds.sitl.instances.create"
+
+    failed_sequence_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "takeoff drone 1 to 10m, wait 5s, move 10m north, then RTL",
+        },
+    ).json()
+    failed_sequence_id = re.search(r"act-[0-9a-f]+", failed_sequence_draft["content"]).group(0)
+    terminal_failures.add("cmd-4")
+    failed_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {failed_sequence_id}",
+        },
+    )
+
+    assert failed_confirm.status_code == 200
+    failure_events = _sse_events(failed_confirm.text)
+    failure_progress = [payload for event, payload in failure_events if event == "progress"]
+    assert any(
+        payload.get("state") == "failed" and payload.get("label") == "Command sequence stopped after primary command"
+        for payload in failure_progress
+    )
+    failed_final = [payload for event, payload in failure_events if event == "final"][-1]
+    assert "Monitor: terminal_non_success" in failed_final["content"]
+    assert "Post-action" not in failed_final["content"]
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10]
+
+    post_failure_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "takeoff drone 1 to 10m, wait 5s, move 10m north, then RTL",
+        },
+    ).json()
+    post_failure_id = re.search(r"act-[0-9a-f]+", post_failure_draft["content"]).group(0)
+    terminal_failures.add("cmd-6")
+    post_failure_confirm = client.post(
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": f"confirm action {post_failure_id}",
+        },
+    )
+
+    assert post_failure_confirm.status_code == 200
+    post_failure_events = _sse_events(post_failure_confirm.text)
+    post_failure_progress = [payload for event, payload in post_failure_events if event == "progress"]
+    assert any(
+        payload.get("state") == "failed"
+        and payload.get("label") == "Command sequence stopped before all steps completed"
+        for payload in post_failure_progress
+    )
+    post_failure_final = [payload for event, payload in post_failure_events if event == "final"][-1]
+    assert "Post-action `wait 5 second(s)`: completed" in post_failure_final["content"]
+    assert "Post-action `precision move`: terminal_non_success" in post_failure_final["content"]
+    assert "Post-action `return rtl`: skipped" in post_failure_final["content"]
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 10, 112]
 
 
 def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monkeypatch):

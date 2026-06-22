@@ -673,27 +673,33 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
     app.include_router(create_simurgh_router(deps))
     client = TestClient(app)
 
-    response = client.post(
-        "/api/v1/simurgh/assistant/turns",
-        json={
-            "actor": "operator",
-            "message": "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
-        },
+    messages = (
+        "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
+        "great. can you check the logs and see if anythign during misison went wrong or anythign unexpected? give me a sumamry of flight also from the ulog",
     )
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["provider"] == "mds-tools"
-    assert payload["trace"]["tool"]["intent"] == "drone_log_summary"
-    assert payload["blocked_intents"] == []
-    assert "Recent command tracker evidence" in payload["content"]
-    assert "PRECISION_MOVE" in payload["content"]
-    assert "Drone log evidence" in payload["content"]
-    assert "Drone 1" in payload["content"]
-    assert "4.0 KB" in payload["content"]
-    assert "Parsed latest ULog summary" in payload["content"]
-    assert "25.0s" in payload["content"]
-    assert "Blocked intent signals" not in payload["content"]
+    for message in messages:
+        response = client.post(
+            "/api/v1/simurgh/assistant/turns",
+            json={
+                "actor": "operator",
+                "message": message,
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["provider"] == "mds-tools"
+        assert payload["trace"]["tool"]["intent"] == "drone_log_summary"
+        assert payload["blocked_intents"] == []
+        assert "Recent command tracker evidence" in payload["content"]
+        assert "PRECISION_MOVE" in payload["content"]
+        assert "Drone log evidence" in payload["content"]
+        assert "Drone 1" in payload["content"]
+        assert "4.0 KB" in payload["content"]
+        assert "Parsed latest ULog summary" in payload["content"]
+        assert "25.0s" in payload["content"]
+        assert "Blocked intent signals" not in payload["content"]
 
 
 def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_authenticated(monkeypatch, tmp_path):
@@ -1093,6 +1099,63 @@ def test_simurgh_assistant_compound_fleet_and_sitl_status_is_concise(monkeypatch
     assert "Read-only check only" not in payload["content"]
     assert "Read-only registry check" not in payload["content"]
     assert "MCP `tools/call`" not in payload["content"]
+
+
+def test_simurgh_assistant_compound_count_prompt_without_spacing_uses_state_tools(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "How many drones do we have configured?hwow many SITL?",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
+    assert "Configured fleet: 4 drone(s)." in payload["content"]
+    assert "SITL instances: 1 total, 1 active." in payload["content"]
+    assert "SITL should be started" not in payload["content"]
+    assert "Read-only registry check" not in payload["content"]
+
+
+def test_simurgh_assistant_compound_live_fleet_and_sitl_count_uses_live_evidence(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "How many drones are connected now and how many SITL instances are active?",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == [
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
+    assert payload["trace"]["query"]["read_only_plan"]["tool_ids"] == payload["trace"]["tool"]["ids"]
+    assert "Live fleet: 1/4 drone(s) connected now." in payload["content"]
+    assert "Configured fleet:" not in payload["content"]
+    assert "SITL instances: 1 total, 1 active." in payload["content"]
 
 
 def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatch):

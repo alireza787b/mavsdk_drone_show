@@ -359,6 +359,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if contextual_intent:
         return contextual_intent
 
+    if _looks_like_compound_fleet_sitl_state_question(normalized):
+        return "runtime_summary"
     if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
         return "fleet_connectivity"
     if _looks_like_command_summary_question(normalized):
@@ -661,6 +663,31 @@ def build_mds_read_only_plan(message: str, *, conversation_topic: str | None = N
     if not topic and query_plan.domain in READ_CONVERSATION_TOPICS:
         topic = query_plan.domain
     execution_layer = "local_advisory" if intent else "provider_or_clarify"
+    normalized_message = _normalize_text(message)
+    tool_ids = LOCAL_INTENT_TOOL_IDS.get(str(intent or ""), ())
+    if _looks_like_compound_fleet_sitl_state_question(normalized_message):
+        configured_requested = _has_domain_signal(normalized_message, ("configured", "defined", "inventory"))
+        live_requested = _looks_like_live_fleet_count_state_question(normalized_message)
+        if configured_requested and live_requested:
+            tool_ids = (
+                "mds.config.fleet.read",
+                "mds.fleet.heartbeats.read",
+                "mds.sitl.instances.read",
+                "mds.sitl.policy.read",
+            )
+        elif live_requested:
+            tool_ids = (
+                "mds.fleet.heartbeats.read",
+                "mds.fleet.telemetry.read",
+                "mds.sitl.instances.read",
+                "mds.sitl.policy.read",
+            )
+        else:
+            tool_ids = (
+                "mds.config.fleet.read",
+                "mds.sitl.instances.read",
+                "mds.sitl.policy.read",
+            )
     return MdsReadOnlyPlan(
         intent=intent,
         response_mode=response_mode if response_mode in READ_RESPONSE_MODES else "status",
@@ -669,7 +696,7 @@ def build_mds_read_only_plan(message: str, *, conversation_topic: str | None = N
         confidence=query_plan.confidence,
         unclear=query_plan.unclear,
         reason=query_plan.reason,
-        tool_ids=LOCAL_INTENT_TOOL_IDS.get(str(intent or ""), ()),
+        tool_ids=tool_ids,
         missing_arguments=(),
         execution_layer=execution_layer,
         safety_posture=READ_ONLY_ACTION_POSTURE,
@@ -4531,6 +4558,8 @@ def _looks_like_px4_params_question(normalized: str) -> bool:
 def _looks_like_command_summary_question(normalized: str) -> bool:
     if _looks_like_direct_execution_request(normalized):
         return False
+    if _looks_like_action_history_summary_question(normalized):
+        return True
     if not _has_domain_signal(normalized, ("command", "commands", "command tracker", "gcs tracker", "action", "actions")):
         return False
     return _has_domain_signal(
@@ -4550,6 +4579,62 @@ def _looks_like_command_summary_question(normalized: str) -> bool:
             "last",
             "current",
             "tracker",
+        ),
+    )
+
+
+def _looks_like_compound_fleet_sitl_state_question(normalized: str) -> bool:
+    fleet_signal = _has_domain_signal(normalized, ("drone", "drones", "fleet", "vehicle", "vehicles"))
+    sitl_signal = _has_domain_signal(normalized, ("sitl", "simulator", "simulation"))
+    if not (fleet_signal and sitl_signal):
+        return False
+    return _has_domain_signal(normalized, ("how many", "count", "counts", "number of", "total", "configured", "many"))
+
+
+def _looks_like_live_fleet_count_state_question(normalized: str) -> bool:
+    return _has_domain_signal(
+        normalized,
+        (
+            "connected",
+            "connection",
+            "online",
+            "live",
+            "reachable",
+            "heartbeat",
+            "heartbeats",
+            "telemetry",
+            "seen by gcs",
+        ),
+    )
+
+
+def _looks_like_action_history_summary_question(normalized: str) -> bool:
+    retrospective = bool(
+        re.search(r"\b(did|was|were|have|has)\b.{0,96}\b(you|it|that|this|sequence|action|command|step|steps)\b", normalized)
+        or re.search(r"\b(skipped?|included?|happened?|completed?|done)\b", normalized)
+    )
+    if not retrospective:
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "wait",
+            "waits",
+            "delay",
+            "between",
+            "sequence",
+            "step",
+            "steps",
+            "post-action",
+            "post action",
+            "takeoff",
+            "take off",
+            "precision",
+            "move",
+            "rtl",
+            "land",
+            "command",
+            "action",
         ),
     )
 

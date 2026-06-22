@@ -229,6 +229,8 @@ def looks_like_direct_flight_action_request(message: str) -> bool:
     normalized = normalize_action_text(message)
     if not normalized:
         return False
+    if _looks_like_action_history_question(normalized):
+        return False
     if _looks_conceptual(normalized):
         return False
     has_action = bool(
@@ -254,6 +256,8 @@ def looks_like_flight_followup_action_request(message: str, *, conversation_topi
     normalized = normalize_action_text(message)
     topic = str(conversation_topic or "").strip().lower()
     if topic != "flight":
+        return False
+    if _looks_like_action_history_question(normalized):
         return False
     if _looks_conceptual(normalized):
         return False
@@ -306,6 +310,8 @@ def build_flight_action_draft(
     previous_action: Mapping[str, Any] | None = None,
 ) -> FlightActionDraft | None:
     normalized = normalize_action_text(message)
+    if _looks_like_action_history_question(normalized):
+        return None
     mission_name = _extract_mission_name(normalized)
     if not mission_name:
         return None
@@ -657,6 +663,8 @@ def _extract_sitl_instance_names(normalized: str) -> list[str]:
 
 
 def _looks_conceptual(normalized: str) -> bool:
+    if _looks_like_action_history_question(normalized):
+        return True
     flight_action_terms = r"land|landing|rtl|return|take\s*off|takeoff"
     advisory_terms = r"status|ready|safe|safely|should|whether|if"
     if re.search(
@@ -703,6 +711,30 @@ def _looks_conceptual(normalized: str) -> bool:
     )
     direct = ("send", "execute", "run", "start", "command", "do it", "go ahead")
     return any(term in normalized for term in conceptual) and not any(term in normalized for term in direct)
+
+
+def _looks_like_action_history_question(normalized: str) -> bool:
+    """Return true for questions about whether a prior sequence included a step."""
+
+    if not normalized:
+        return False
+    retrospective = bool(
+        re.search(r"\b(did|was|were|have|has)\b.{0,96}\b(you|it|that|this|sequence|action|command|step|steps)\b", normalized)
+        or re.search(r"\b(skipped?|included?|happened?|completed?|done)\b", normalized)
+    )
+    if not retrospective:
+        return False
+    sequence_signal = bool(
+        re.search(
+            r"\b(wait|waits|delay|between|sequence|step|steps|post[-\s]*action|take\s*off|takeoff|precision|move|rtl|land|command|action)\b",
+            normalized,
+        )
+    )
+    question_signal = bool(
+        re.search(r"\?", normalized)
+        or re.search(r"\b(did|was|were|have|has|or skipped|skipped that|include|included)\b", normalized)
+    )
+    return sequence_signal and question_signal
 
 
 def _extract_mission_name(normalized: str) -> str | None:

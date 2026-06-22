@@ -208,6 +208,9 @@ function normalizeProgressState(value = '') {
   if (state === 'warning' || state === 'warn') {
     return 'warning';
   }
+  if (state === 'timeout' || state === 'timed_out' || state === 'timed-out') {
+    return 'timeout';
+  }
   if (state === 'error' || state === 'failed' || state === 'failure') {
     return 'error';
   }
@@ -240,7 +243,18 @@ function normalizeProgressStep(step) {
     ? step.tool_ids.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
   const intent = String(step.intent || '').trim();
-  const key = [toolId || toolIds.join(',') || intent || stage, label].filter(Boolean).join(':') || label;
+  const sequenceId = String(step.sequence_id || step.sequenceId || '').trim();
+  const stepIndexRaw = Number(step.step_index ?? step.stepIndex);
+  const stepCountRaw = Number(step.step_count ?? step.stepCount);
+  const stepIndex = Number.isFinite(stepIndexRaw) && stepIndexRaw > 0 ? stepIndexRaw : null;
+  const stepCount = Number.isFinite(stepCountRaw) && stepCountRaw > 0 ? stepCountRaw : null;
+  const stepLabel = String(step.step_label || step.stepLabel || '').trim();
+  const stepKind = String(step.step_kind || step.stepKind || '').trim();
+  const commandId = String(step.command_id || step.commandId || '').trim();
+  const operationId = String(step.operation_id || step.operationId || '').trim();
+  const key = sequenceId
+    ? ['sequence', sequenceId, stepIndex || stepLabel || commandId || operationId || stage || label].filter(Boolean).join(':')
+    : [toolId || toolIds.join(',') || intent || stage, label].filter(Boolean).join(':') || label;
   return {
     label,
     stage,
@@ -248,6 +262,13 @@ function normalizeProgressStep(step) {
     tool_id: toolId,
     tool_ids: toolIds,
     intent,
+    sequence_id: sequenceId,
+    step_index: stepIndex,
+    step_count: stepCount,
+    step_label: stepLabel,
+    step_kind: stepKind,
+    command_id: commandId,
+    operation_id: operationId,
     key,
   };
 }
@@ -260,7 +281,10 @@ function isSpecificProgressStep(step) {
     step.tool_id
     || (Array.isArray(step.tool_ids) && step.tool_ids.length)
     || step.intent
-    || ['tool', 'search', 'provider'].includes(step.stage)
+    || step.sequence_id
+    || step.step_label
+    || step.step_index
+    || ['tool', 'search', 'provider', 'monitor', 'action'].includes(step.stage)
   );
 }
 
@@ -288,6 +312,35 @@ function appendProgressStep(steps = [], payload = '') {
   }
   const compactExisting = hasSpecificEvidence ? existing.filter((step) => !isGenericProgressStep(step)) : existing;
   return [...compactExisting, normalized].slice(-10);
+}
+
+function activityStatusText(state = '') {
+  if (state === 'running' || state === 'requested') {
+    return 'Working';
+  }
+  if (state === 'timeout') {
+    return 'Timed out';
+  }
+  if (state === 'warning') {
+    return 'Review';
+  }
+  if (state === 'error' || state === 'blocked') {
+    return 'Stopped';
+  }
+  return 'Ready';
+}
+
+function activityStepIcon(state = '') {
+  if (state === 'running') {
+    return <FaCog aria-hidden="true" />;
+  }
+  if (state === 'warning' || state === 'timeout') {
+    return <FaExclamationTriangle aria-hidden="true" />;
+  }
+  if (state === 'error' || state === 'blocked') {
+    return <FaTimes aria-hidden="true" />;
+  }
+  return <FaCheckCircle aria-hidden="true" />;
 }
 
 function finalizeProgressSteps(progress = [], finalData = {}) {
@@ -1363,7 +1416,7 @@ function MessageActivity({ progress = [], streaming = false }) {
   return (
     <div className="simurgh-chat__activity" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
       <div className={`simurgh-chat__activity-current simurgh-chat__activity-current--${currentState}`}>
-        <span className="simurgh-chat__thinking">{streaming || currentState === 'running' ? 'Working' : 'Ready'}</span>
+        <span className="simurgh-chat__thinking">{activityStatusText(currentState)}</span>
         {latestStep ? <span className="simurgh-chat__activity-label">{latestStep.label}</span> : null}
         {detailSteps.length > 0 ? (
           <button
@@ -1386,7 +1439,7 @@ function MessageActivity({ progress = [], streaming = false }) {
                 key={`${step.key}-${index}`}
                 className={`simurgh-chat__activity-step simurgh-chat__activity-step--${state} simurgh-chat__activity-step--preview-${previousSteps.length - index}`}
               >
-                {state === 'running' ? <FaCog aria-hidden="true" /> : <FaCheckCircle aria-hidden="true" />}
+                {activityStepIcon(state)}
                 <span>{step.label}</span>
               </li>
             );

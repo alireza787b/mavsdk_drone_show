@@ -338,6 +338,9 @@ poll the SITL operation endpoint returned by the curated registry route. A
 dependent post-action such as "land, wait until disarmed, then remove the SITL
 instance" runs only after the command reaches terminal success; it is skipped on
 failure, cancellation, or timeout.
+The dashboard progress stream is sequence-aware, so repeated updates replace the
+same step row instead of duplicating it, and timeout states stay visible rather
+than collapsing into a generic success label.
 
 Compound flight requests may produce a primary command plus bounded dependent
 post-actions. For example, “takeoff to 10 m, wait 10 s, then move 10 m north and

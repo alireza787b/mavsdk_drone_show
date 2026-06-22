@@ -37,6 +37,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   geography-style general questions.
 - Simurgh action traces now expose sanitized monitor and post-action result
   fields for dashboard progress rendering instead of requiring text scraping.
+- Simurgh compound status prompts now route live-connection wording to live
+  heartbeats/telemetry evidence and configured-inventory wording to fleet config
+  evidence, instead of collapsing both into one generic registry answer.
+- Simurgh guarded action monitoring now keeps sequence-aware step progress,
+  including repeated-step replacement, dependent-step skipping, and explicit
+  timeout states instead of flattening multi-step runs into one completion line.
 
 ### Fixed
 - Simurgh compound status questions such as configured drone count plus active
@@ -46,6 +52,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   capability, and previous-evidence follow-up turns, while still using the
   provider rewrite fallback when weak local routing contradicts the detected
   MDS domain.
+- Simurgh status/readiness follow-ups now stay concise and evidence-based for
+  common operator questions such as live fleet counts, SITL instance counts,
+  and readiness summaries instead of forcing the operator through raw tool
+  inventory dumps.
 - Simurgh no longer lets bare approval wording such as "go ahead" confirm an
   old pending action when the same message is actually a new read/status task.
 - Simurgh no longer drafts flight actions from advisory motion-status questions

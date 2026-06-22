@@ -335,6 +335,105 @@ describe('SimurghOperatorPage', () => {
     });
   });
 
+  test('shows current guarded sequence step in compact live activity', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_sequence_activity',
+      content: 'Submitted the guarded flight command.',
+      session: { id: 'sess_sequence_activity' },
+    });
+    let releaseStream;
+    mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          stage: 'monitor',
+          state: 'running',
+          label: 'Step 1/4: takeoff - monitoring command',
+          sequence_id: 'act-seq',
+          step_index: 1,
+          step_count: 4,
+          step_label: 'takeoff',
+          step_kind: 'flight_command',
+          command_id: 'cmd-1',
+        },
+      });
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          stage: 'monitor',
+          state: 'running',
+          label: 'Step 2/4: wait 5 second(s) - waiting',
+          sequence_id: 'act-seq',
+          step_index: 2,
+          step_count: 4,
+          step_label: 'wait 5 second(s)',
+          step_kind: 'delay',
+        },
+      });
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          stage: 'monitor',
+          state: 'complete',
+          label: 'Step 2/4: wait 5 second(s) - completed',
+          sequence_id: 'act-seq',
+          step_index: 2,
+          step_count: 4,
+          step_label: 'wait 5 second(s)',
+          step_kind: 'delay',
+        },
+      });
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          stage: 'monitor',
+          state: 'running',
+          label: 'Step 3/4: precision move - monitoring command',
+          sequence_id: 'act-seq',
+          step_index: 3,
+          step_count: 4,
+          step_label: 'precision move',
+          step_kind: 'flight_command',
+          command_id: 'cmd-2',
+        },
+      });
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          stage: 'monitor',
+          state: 'timeout',
+          label: 'Step 4/4: return rtl - still running',
+          sequence_id: 'act-seq',
+          step_index: 4,
+          step_count: 4,
+          step_label: 'return rtl',
+          step_kind: 'flight_command',
+          command_id: 'cmd-3',
+        },
+      });
+      await new Promise((resolve) => { releaseStream = resolve; });
+      config.onEvent?.({ event: 'final', data: finalTurn });
+      config.onEvent?.({ event: 'done', data: { id: finalTurn.id, session_id: finalTurn.session.id } });
+      return { data: finalTurn };
+    });
+
+    renderPage();
+
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'confirm action act-seq' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    expect(await screen.findByText('Step 4/4: return rtl - still running')).toBeInTheDocument();
+    expect(screen.getByText('Timed out')).toBeInTheDocument();
+    expect(screen.queryByText('Step 2/4: wait 5 second(s) - waiting')).not.toBeInTheDocument();
+    expect(screen.getByText('Step 2/4: wait 5 second(s) - completed')).toBeInTheDocument();
+    expect(screen.getByText('Step 3/4: precision move - monitoring command')).toBeInTheDocument();
+    await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
+    releaseStream();
+
+    expect(await screen.findByText('Submitted the guarded flight command.')).toBeInTheDocument();
+  });
+
   test('hot-applies provider, model, and optional server-side key from the compact settings panel', async () => {
     const fakeOpenAiKey = ['sk', 'test', '12345678901234567890'].join('-');
     renderPage();

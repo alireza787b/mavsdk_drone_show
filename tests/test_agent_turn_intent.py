@@ -83,3 +83,14 @@ def test_turn_intent_uses_semantic_routing_message_for_typo_heavy_sitl_action():
     payload = frame.action.draft.public_payload()
     assert payload["tool_id"] == "mds.sitl.instances.create"
     assert payload["monitor_requested"] is True
+
+
+def test_turn_intent_retrospective_wait_question_does_not_draft_action():
+    frame = build_turn_intent_frame(
+        "just one question . did you also do teh waits between takeoff and precission move ? or skipped that?",
+        conversation_topic="flight",
+        previous_action={"target_drone_ids": ["1"]},
+    )
+
+    assert frame.route != "action_draft"
+    assert frame.action.draft is None

@@ -511,6 +511,11 @@
   color: var(--color-text-secondary);
 }
 
+.simurgh-chat__activity-current--warning .simurgh-chat__thinking,
+.simurgh-chat__activity-current--timeout .simurgh-chat__thinking {
+  color: var(--color-warning);
+}
+
 .simurgh-chat__thinking {
   display: inline-flex;
   align-items: center;
@@ -529,6 +534,8 @@
 .simurgh-chat__activity-current--complete .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--fallback .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--skipped .simurgh-chat__thinking::after,
+.simurgh-chat__activity-current--warning .simurgh-chat__thinking::after,
+.simurgh-chat__activity-current--timeout .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--error .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--blocked .simurgh-chat__thinking::after {
   content: '';
@@ -580,7 +587,8 @@
   animation: simurgh-spin 1.1s linear infinite;
 }
 
-.simurgh-chat__activity-step--warning svg {
+.simurgh-chat__activity-step--warning svg,
+.simurgh-chat__activity-step--timeout svg {
   color: var(--color-warning);
 }
 
@@ -663,6 +671,7 @@
 }
 
 .simurgh-chat__activity-detail--warning,
+.simurgh-chat__activity-detail--timeout,
 .simurgh-chat__activity-detail--fallback {
   color: var(--color-warning);
 }
