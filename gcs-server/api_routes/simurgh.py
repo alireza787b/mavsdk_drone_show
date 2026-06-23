@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping
@@ -2020,6 +2021,169 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             return {}
         return dict(payload) if isinstance(payload, Mapping) else {}
 
+    def _previous_action_with_live_single_target(
+        http_request: Request,
+        previous_action: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        base = dict(previous_action or {})
+        if _action_context_target_ids(base):
+            return base
+        live_target = _single_live_action_target_context(http_request)
+        if not live_target:
+            return base
+        return {**base, **live_target}
+
+    def _action_context_target_ids(action_context: Mapping[str, Any]) -> list[str]:
+        raw_targets = (
+            action_context.get("target_drone_ids")
+            or action_context.get("target_drones")
+            or action_context.get("inferred_target_drone_ids")
+        )
+        if not isinstance(raw_targets, (list, tuple)):
+            return []
+        values: list[str] = []
+        for item in raw_targets:
+            value = str(item).strip()
+            if value and value not in values:
+                values.append(value)
+        return values
+
+    def _single_live_action_target_context(http_request: Request) -> dict[str, Any]:
+        """Return one target from live runtime evidence, never configured inventory alone."""
+
+        request_deps = _request_scoped_deps(deps, http_request)
+        candidates: dict[str, set[str]] = {}
+
+        def add_candidate(value: Any, source: str) -> None:
+            target = _coerce_int_like_text(value)
+            if target:
+                candidates.setdefault(target, set()).add(source)
+
+        if resolve_runtime_mode().mode == "sitl":
+            for target in _active_sitl_instance_target_ids(request_deps):
+                add_candidate(target, "single_active_sitl_instance")
+
+        for target in _live_fleet_presence_target_ids(request_deps):
+            add_candidate(target, "single_live_fleet_presence")
+
+        if len(candidates) != 1:
+            return {}
+        target, sources = next(iter(candidates.items()))
+        source = "single_live_runtime_target"
+        if len(sources) == 1:
+            source = next(iter(sources))
+        return {
+            "target_drone_ids": [target],
+            "inferred_target_drone_ids": [target],
+            "target_inferred_from": source,
+        }
+
+    def _active_sitl_instance_target_ids(request_deps: Any) -> list[str]:
+        try:
+            service = getattr(request_deps, "sitl_control_service", None)
+            if service is None:
+                params = getattr(request_deps, "Params", None)
+                if params is None:
+                    return []
+                from src.sitl_control_service import SitlControlService
+
+                service = SitlControlService(params)
+            response = service.list_instances()
+        except Exception:
+            return []
+        raw_instances = _mapping_or_attr(response, "instances") or []
+        if not isinstance(raw_instances, (list, tuple)):
+            return []
+        values: list[str] = []
+        for instance in raw_instances:
+            state = str(_mapping_or_attr(instance, "state") or _mapping_or_attr(instance, "status") or "").strip().lower()
+            if state and state != "running":
+                continue
+            target = _coerce_int_like_text(_mapping_or_attr(instance, "hw_id"))
+            if not target:
+                name = str(_mapping_or_attr(instance, "name") or "").strip().lower()
+                match = re.search(r"\bdrone-(\d+)\b", name)
+                target = match.group(1) if match else ""
+            if target and target not in values:
+                values.append(target)
+        return values
+
+    def _live_fleet_presence_target_ids(request_deps: Any) -> list[str]:
+        telemetry = _mapping_snapshot(getattr(request_deps, "telemetry_data_all_drones", {}) or {})
+        telemetry_success_times = _mapping_snapshot(getattr(request_deps, "last_telemetry_time", {}) or {})
+        heartbeats: Mapping[Any, Any] = {}
+        getter = getattr(request_deps, "get_all_heartbeats", None)
+        if callable(getter):
+            try:
+                heartbeats = _mapping_snapshot(getter() or {})
+            except Exception:
+                heartbeats = {}
+        all_ids = {
+            *(_coerce_int_like_text(key) for key in telemetry.keys()),
+            *(_coerce_int_like_text(key) for key in heartbeats.keys()),
+        }
+        values: list[str] = []
+        for target in sorted((item for item in all_ids if item), key=lambda item: int(item)):
+            telemetry_row = _lookup_mapping_by_text_key(telemetry, target)
+            heartbeat_row = _lookup_mapping_by_text_key(heartbeats, target)
+            success_time = _lookup_mapping_by_text_key(telemetry_success_times, target)
+            if _looks_live_for_action_target(
+                target=target,
+                telemetry_row=telemetry_row if isinstance(telemetry_row, Mapping) else {},
+                heartbeat_row=heartbeat_row if isinstance(heartbeat_row, Mapping) else {},
+                telemetry_success_time=success_time,
+            ):
+                values.append(target)
+        return values
+
+    def _looks_live_for_action_target(
+        *,
+        target: str,
+        telemetry_row: Mapping[str, Any],
+        heartbeat_row: Mapping[str, Any],
+        telemetry_success_time: Any,
+    ) -> bool:
+        try:
+            from params import Params
+            from presence import build_presence_snapshot, resolve_presence_thresholds
+
+            presence = build_presence_snapshot(
+                hw_id=target,
+                heartbeat=dict(heartbeat_row),
+                telemetry=dict(telemetry_row),
+                telemetry_success_time=telemetry_success_time,
+                configured=True,
+                now=time.time(),
+                thresholds=resolve_presence_thresholds(Params),
+            )
+            return bool(presence.get("fresh"))
+        except Exception:
+            pass
+        if bool(telemetry_row.get("telemetry_available")):
+            return True
+        if heartbeat_row:
+            return True
+        return False
+
+    def _mapping_snapshot(value: Any) -> dict[Any, Any]:
+        if not isinstance(value, Mapping):
+            return {}
+        return dict(value)
+
+    def _lookup_mapping_by_text_key(mapping: Mapping[Any, Any], target: str) -> Any:
+        if target in mapping:
+            return mapping[target]
+        try:
+            number = int(target)
+        except (TypeError, ValueError):
+            return None
+        return mapping.get(number)
+
+    def _mapping_or_attr(value: Any, name: str) -> Any:
+        if isinstance(value, Mapping):
+            return value.get(name)
+        return getattr(value, name, None)
+
     def _stored_last_action_request_message(session_id: str | None) -> str:
         if not session_id:
             return ""
@@ -2751,6 +2915,42 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         if action_execution == "missing_arguments":
             missing = ", ".join(draft.missing_arguments)
+            if isinstance(draft, FlightActionDraft) and "target_drone_ids" in draft.missing_arguments:
+                lines = [
+                    "I understood the mission, but I need the target drone before I can prepare the guarded draft.",
+                    "",
+                    "Which drone should I use?",
+                ]
+                if payload.get("takeoff_altitude") is not None:
+                    lines.append(f"- Takeoff altitude: {payload.get('takeoff_altitude')} m")
+                if draft.post_actions:
+                    lines.append("- Planned sequence:")
+                    for item in draft.post_actions:
+                        label = str(item.get("action_label") or item.get("tool_id") or "post-action").strip()
+                        if str(item.get("type") or "").lower() == "delay":
+                            delay = item.get("delay_seconds")
+                            lines.append(f"  - {label}: wait {delay:g}s" if isinstance(delay, (int, float)) else f"  - {label}")
+                            continue
+                        arguments = item.get("arguments") if isinstance(item.get("arguments"), Mapping) else {}
+                        precision_move = arguments.get("precision_move") if isinstance(arguments, Mapping) else {}
+                        translation = precision_move.get("translation_m") if isinstance(precision_move, Mapping) else None
+                        if isinstance(translation, Mapping):
+                            parts = [
+                                f"{axis}={float(value):g}m"
+                                for axis, value in translation.items()
+                                if isinstance(value, (int, float)) and float(value) != 0.0
+                            ]
+                            suffix = f" ({', '.join(parts)})" if parts else ""
+                            lines.append(f"  - {label}{suffix}")
+                        else:
+                            lines.append(f"  - {label}")
+                lines.extend(
+                    [
+                        "",
+                        "Reply with the drone ID, for example `drone 1`. No action was executed.",
+                    ]
+                )
+                return "\n".join(lines)
             return (
                 "I can plan this guarded action, but I need one more detail before any execution path exists.\n\n"
                 f"Missing: {missing}.\n"
@@ -4023,11 +4223,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 except KeyError:
                     conversation_topic = None
             previous_action = _stored_last_submitted_action(turn_request.session_id)
+            previous_action_for_routing = _previous_action_with_live_single_target(http_request, previous_action)
             previous_action_request_message = _stored_last_action_request_message(turn_request.session_id)
             turn_intent = build_turn_intent_frame(
                 turn_request.message,
                 conversation_topic=conversation_topic,
-                previous_action=previous_action,
+                previous_action=previous_action_for_routing,
                 previous_action_request_message=previous_action_request_message,
             )
             semantic_rewrite = None
@@ -4044,7 +4245,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         message=turn_request.message,
                         conversation_topic=conversation_topic or "",
                         runtime_mode=resolve_runtime_mode().mode,
-                        previous_action_summary=_semantic_rewrite_previous_action_summary(previous_action),
+                        previous_action_summary=_semantic_rewrite_previous_action_summary(previous_action_for_routing),
                     )
                 except AgentRuntimeError as exc:
                     semantic_rewrite_error = str(exc)[:180]
@@ -4052,7 +4253,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     rewritten_intent = build_turn_intent_frame(
                         turn_request.message,
                         conversation_topic=conversation_topic,
-                        previous_action=previous_action,
+                        previous_action=previous_action_for_routing,
                         previous_action_request_message=previous_action_request_message,
                         semantic_routing_message=semantic_rewrite.normalized_message,
                     )

@@ -89,6 +89,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   otherwise miss can now recover through provider semantic normalization and
   still produce normal guarded action drafts with the same confirmation,
   circuit-breaker, and audit path.
+- Simurgh guarded flight drafts now infer the action target from live runtime
+  evidence when exactly one action-safe drone exists, such as one running SITL
+  instance or one fresh live telemetry target, and otherwise ask a concise
+  target clarification instead of repeating rigid `target_drone_ids` errors.
 
 ---
 

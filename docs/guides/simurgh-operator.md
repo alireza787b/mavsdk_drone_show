@@ -326,6 +326,14 @@ must say that target was inferred and keep the same policy/circuit-breaker gate.
 When a single SITL create/reconcile result clearly identifies `drone-N`, Simurgh
 stores that as the next single follow-up target for the same session. If multiple
 targets are possible, it must ask for the target instead of guessing.
+If there is no stored target but the live runtime has exactly one action-safe
+candidate, Simurgh may infer that target from live evidence rather than operator
+wording. In `sitl`, one running SITL instance such as `drone-1` is enough
+evidence. In either runtime, exactly one fresh live heartbeat/telemetry target is
+enough evidence. Configured fleet entries alone are not enough, because "4
+configured drones" does not mean "one intended action target". If the live
+evidence has zero or multiple candidates, Simurgh asks one concise
+conversational target question and keeps the parsed mission sequence visible.
 
 Action wording is normalized through the shared operator-query adaptation layer,
 so common typos and phrases such as `take of` route the same way as `takeoff`.

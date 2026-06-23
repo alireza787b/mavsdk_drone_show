@@ -1097,6 +1097,98 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10, 10, 112]
 
 
+def test_simurgh_conditional_mission_infers_single_active_sitl_target(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    class FakeSitlService:
+        def list_instances(self):
+            return SimpleNamespace(
+                instances=[
+                    SimpleNamespace(name="drone-1", state="running", status="running", hw_id="1"),
+                ]
+            )
+
+    app = FastAPI()
+    app.include_router(create_simurgh_router(SimpleNamespace(sitl_control_service=FakeSitlService())))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": (
+                "i see one sitl intace is it currect? I see its up. if its rady to fly "
+                "send it to a mission. lets takeoff 10m then wait 10s, then fly to 20m east, "
+                "then wait 30s, then RTL"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Action: takeoff" in payload["content"]
+    assert "Target: drone 1" in payload["content"]
+    assert "single_active_sitl_instance" in payload["content"]
+    assert "Missing: target_drone_ids" not in payload["content"]
+    assert "Blocked intent signals" not in payload["content"]
+    assert "Simurgh Operator mock assistant is active" not in payload["content"]
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    action_draft = payload["trace"]["safety"]["action_draft"]
+    assert action_draft["target_drone_ids"] == ["1"]
+    assert action_draft["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in action_draft["post_actions"]] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+    ]
+    assert action_draft["post_actions"][0]["delay_seconds"] == 10.0
+    assert action_draft["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["east"] == 20.0
+    assert action_draft["post_actions"][2]["delay_seconds"] == 30.0
+    assert action_draft["post_actions"][3]["arguments"]["mission_type"] == 104
+
+
+def test_simurgh_conditional_mission_asks_conversational_target_when_multiple_live(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    class FakeSitlService:
+        def list_instances(self):
+            return SimpleNamespace(
+                instances=[
+                    SimpleNamespace(name="drone-1", state="running", status="running", hw_id="1"),
+                    SimpleNamespace(name="drone-2", state="running", status="running", hw_id="2"),
+                ]
+            )
+
+    app = FastAPI()
+    app.include_router(create_simurgh_router(SimpleNamespace(sitl_control_service=FakeSitlService())))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "if it is ready send it to takeoff 10m then wait 10s then RTL",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Which drone should I use?" in payload["content"]
+    assert "Reply with the drone ID" in payload["content"]
+    assert "Missing: target_drone_ids" not in payload["content"]
+    assert "Blocked intent signals" not in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+
+
 def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")

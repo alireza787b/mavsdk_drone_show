@@ -322,12 +322,12 @@ def build_flight_action_draft(
         inferred = _previous_target_ids(previous_action)
         if inferred:
             target_drone_ids = tuple(inferred)
-            target_inferred_from = "previous_submitted_action"
+            target_inferred_from = _previous_target_source(previous_action, default="previous_submitted_action")
     if not target_drone_ids and _allows_single_previous_target_inference(normalized):
         inferred = _previous_target_ids(previous_action)
         if len(inferred) == 1:
             target_drone_ids = tuple(inferred)
-            target_inferred_from = "single_previous_action_target"
+            target_inferred_from = _previous_target_source(previous_action, default="single_previous_action_target")
     missing: list[str] = []
     if not target_drone_ids:
         missing.append("target_drone_ids")
@@ -425,6 +425,13 @@ def _previous_target_ids(previous_action: Mapping[str, Any] | None) -> list[str]
         if value and value not in values:
             values.append(value)
     return values
+
+
+def _previous_target_source(previous_action: Mapping[str, Any] | None, *, default: str) -> str:
+    if not isinstance(previous_action, Mapping):
+        return default
+    value = str(previous_action.get("target_inferred_from") or "").strip()
+    return value or default
 
 
 def _build_post_actions(
