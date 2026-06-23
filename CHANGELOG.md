@@ -78,6 +78,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh now keeps SITL runtime-state prompts such as instance count/policy
   checks separate from PX4/MAVLink readiness prompts, and authenticated provider
   composition no longer steals local registry/docs/web-search routing.
+- Simurgh now answers flight-session status follow-ups from local fleet/command
+  evidence and answers pending-draft questions such as whether a wait step was
+  included from private draft context, instead of falling back to generic
+  provider safety text.
 - Simurgh typo-heavy SITL lifecycle requests that deterministic routing would
   otherwise miss can now recover through provider semantic normalization and
   still produce normal guarded action drafts with the same confirmation,

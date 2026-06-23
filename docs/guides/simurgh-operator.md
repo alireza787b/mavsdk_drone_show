@@ -366,6 +366,13 @@ where available. Flight-session summaries use the command tracker and local
 read-only fleet/log tools. Public web search and provider composition are only
 used after local MDS state is not the right evidence source.
 
+Pending draft follow-ups are also local session-context reads. If the operator
+asks whether the current draft includes a wait, movement step, RTL, cleanup, or
+other planned segment, Simurgh answers from the private pending draft and states
+that no action has executed yet. If a submitted action record exists but a newer
+pending draft is active, the pending draft is the nearest context unless the
+operator explicitly asks about the previous executed/submitted command.
+
 Guarded action confirmations are local runtime decisions, not provider-composed
 answers. When a pending draft is shown in dashboard chat, the UI presents compact
 **Confirm** and **Reject** controls tied to that draft id. Typed confirmations

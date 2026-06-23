@@ -948,6 +948,37 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert pm_action_draft["post_actions"][2]["delay_seconds"] == 5.0
     assert pm_action_draft["post_actions"][3]["arguments"]["mission_type"] == 104
 
+    pending_status_question = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "Give me a report of status",
+        },
+    )
+    assert pending_status_question.status_code == 200
+    pending_status_payload = pending_status_question.json()
+    assert pending_status_payload["trace"]["intent"]["route"] == "read_only"
+    assert pending_status_payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+    assert "Drone 1" in pending_status_payload["content"]
+    assert "Simurgh assistant runtime" not in pending_status_payload["content"]
+    assert "Public web sources" not in pending_status_payload["content"]
+
+    pending_wait_question = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": "just one question. did you also do the waits between takeoff and precision move? or skipped that?",
+        },
+    )
+    assert pending_wait_question.status_code == 200
+    pending_wait_payload = pending_wait_question.json()
+    assert pending_wait_payload["trace"]["safety"]["action_execution"] == "pending_action_summary"
+    assert "pending draft includes the wait step" in pending_wait_payload["content"]
+    assert "wait 5s" in pending_wait_payload["content"]
+    assert "No new action was executed." in pending_wait_payload["content"]
+
     pm_sequence_id = re.search(r"act-[0-9a-f]+", pm_payload["content"]).group(0)
     pm_sequence_confirm = client.post(
         "/api/v1/simurgh/assistant/turns",

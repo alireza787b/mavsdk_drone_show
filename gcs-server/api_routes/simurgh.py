@@ -84,6 +84,7 @@ from agent_runtime.mds_read_tools import (
     build_provider_credentials_payload,
     build_runtime_settings_payload,
     delete_provider_credentials,
+    is_safe_blocked_term_read_only_intent,
     update_provider_credentials,
 )
 from agent_runtime.language import detect_language_profile
@@ -2130,6 +2131,72 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         lines.append("No new action was executed.")
         return "\n".join(lines)
 
+    def _pending_action_summary_content(question: str, draft: ActionDraft) -> str:
+        normalized_question = " ".join(str(question or "").casefold().split())
+        payload = _action_draft_payload(draft)
+        action_label = _action_draft_label(draft)
+        wait_steps: list[Mapping[str, Any]] = []
+        post_actions: list[Mapping[str, Any]] = []
+        targets = "-"
+
+        if isinstance(draft, FlightActionDraft):
+            targets = _format_drone_targets(draft.target_drone_ids)
+            post_actions = [dict(item) for item in draft.post_actions if isinstance(item, Mapping)]
+            wait_steps = [
+                item
+                for item in post_actions
+                if str(item.get("type") or "").lower() == "delay"
+                or "wait" in str(item.get("action_label") or "").casefold()
+            ]
+        elif isinstance(draft, RegistryActionDraft):
+            post_actions = []
+
+        if "wait" in normalized_question or "delay" in normalized_question or "skipped" in normalized_question:
+            if wait_steps:
+                lead = "The pending draft includes the wait step. It has not been executed yet."
+            else:
+                lead = "I do not see a wait/delay step in the pending draft. It has not been executed."
+        else:
+            lead = "Here is the pending Simurgh action draft. It has not been executed yet."
+
+        lines = [
+            lead,
+            "",
+            f"- Draft ID: `{draft.draft_id}`",
+            f"- Primary action: {action_label}",
+        ]
+        if isinstance(draft, FlightActionDraft):
+            lines.append(f"- Target(s): {targets}")
+            if payload.get("takeoff_altitude") is not None:
+                lines.append(f"- Takeoff altitude: {payload.get('takeoff_altitude')} m")
+        elif isinstance(draft, RegistryActionDraft):
+            lines.append(f"- Tool: `{draft.tool_id}`")
+
+        if post_actions:
+            lines.append("- Planned sequence:")
+            for item in post_actions:
+                label = str(item.get("action_label") or item.get("tool_id") or "post-action").strip()
+                if str(item.get("type") or "").lower() == "delay":
+                    delay = item.get("delay_seconds")
+                    lines.append(f"  - {label}: wait {delay:g}s" if isinstance(delay, (int, float)) else f"  - {label}")
+                    continue
+                arguments = item.get("arguments") if isinstance(item.get("arguments"), Mapping) else {}
+                precision_move = arguments.get("precision_move") if isinstance(arguments, Mapping) else {}
+                translation = precision_move.get("translation_m") if isinstance(precision_move, Mapping) else None
+                if isinstance(translation, Mapping):
+                    parts = [
+                        f"{axis}={float(value):g}m"
+                        for axis, value in translation.items()
+                        if isinstance(value, (int, float)) and float(value) != 0.0
+                    ]
+                    suffix = f" ({', '.join(parts)})" if parts else ""
+                    lines.append(f"  - {label}{suffix}")
+                else:
+                    lines.append(f"  - {label}")
+        lines.append("")
+        lines.append("No new action was executed.")
+        return "\n".join(lines)
+
     async def _create_previous_action_summary_record(
         _http_request: Request,
         turn_request: SimurghAssistantTurnRequest,
@@ -2219,6 +2286,105 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "action_execution": "previous_action_summary",
+                "policy_decision": "read_private_session_context",
+                "policy_reasons": [],
+                "circuit_breaker_layer": "not applicable; this was a local session-context read",
+            },
+        )
+        return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
+
+    async def _create_pending_action_summary_record(
+        _http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        actor: str,
+        draft: ActionDraft,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
+        progress_callback: AssistantProgressCallback | None = None,
+    ) -> AssistantTurnRecord:
+        policy = load_default_policy()
+        session = _require_or_create_assistant_session(policy=policy, actor=actor, turn_request=turn_request)
+        await _emit_assistant_progress(
+            progress_callback,
+            {
+                "stage": "tool",
+                "state": "complete",
+                "label": "Checked pending action draft",
+                "intent": "pending_action_summary",
+                "tool_id": _action_draft_tool_id(draft),
+                "tool_ids": [_action_draft_tool_id(draft)],
+                "draft_id": draft.draft_id,
+            },
+        )
+        content = _pending_action_summary_content(turn_request.message, draft)
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=ACTION_MODEL,
+            adapter_version=ACTION_ADAPTER_VERSION,
+            content=content,
+            context_documents=(),
+            blocked_intents=(),
+            safety_notes=(
+                "Answered from private Simurgh session pending-action context.",
+                "No GCS command, SITL operation, or provider tool call was executed.",
+            ),
+        )
+        action_domain = "flight" if isinstance(draft, FlightActionDraft) else "sitl"
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": action_domain,
+                "last_intent": "pending_action_summary",
+                "last_response_mode": "status",
+            },
+        )
+        sessions.update_private_context(
+            session.id,
+            {
+                "last_assistant_content": turn.content,
+                "last_assistant_provider": turn.provider,
+                "last_assistant_model": turn.model,
+                "last_domain": action_domain,
+                "last_intent": "pending_action_summary",
+                "last_response_mode": "status",
+                "last_user_message": turn_request.message,
+                "last_routing_message": normalize_operator_query_text(turn_request.message),
+                "last_tool_intent": "pending_action_summary",
+                "last_read_only_evidence": "",
+            },
+        )
+        event = audit.record(
+            "assistant_turn_created",
+            session_id=session.id,
+            actor=actor,
+            tool_id=_action_draft_tool_id(draft),
+            decision="read_pending_action_context",
+            payload={
+                "message": turn_request.message.strip(),
+                "action_draft": draft.public_payload(),
+            },
+            metadata={
+                "provider": turn.provider,
+                "model": turn.model,
+                "adapter_version": turn.adapter_version,
+                "mode": session.mode,
+                "context_count": 0,
+                "blocked_intent_count": 0,
+                "tool_intent": "pending_action_summary",
+                "tool_id": _action_draft_tool_id(draft),
+                "tool_ids": [_action_draft_tool_id(draft)],
+                "response_mode": "status",
+                "query_domain": action_domain,
+                "query_confidence": 1.0,
+                "query_unclear": False,
+                "query_reason": "pending_action_history_question",
+                "turn_intent": dict(turn_intent_metadata or {}),
+                "retrieved_context_count": 0,
+                "web_search_enabled": False,
+                "action_execution": "pending_action_summary",
+                "action_draft": draft.public_payload(),
                 "policy_decision": "read_private_session_context",
                 "policy_reasons": [],
                 "circuit_breaker_layer": "not applicable; this was a local session-context read",
@@ -4060,11 +4226,25 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 routing_message=routing_message,
                 local_intent=local_intent,
             )
+            safe_read_only_blocked_term = is_safe_blocked_term_read_only_intent(routing_message, local_intent)
+            if blocked_matches and safe_read_only_blocked_term:
+                blocked_matches = ()
             effective_action_request = (
                 _turn_request_with_message(turn_request, message=turn_intent.action.request_message)
                 if turn_intent.action.replayed_previous_request
                 else turn_request
             )
+            if _looks_like_previous_action_result_question(routing_message) and stored_draft:
+                record = await _create_pending_action_summary_record(
+                    http_request,
+                    turn_request,
+                    actor=actor,
+                    draft=stored_draft,
+                    turn_intent_metadata=turn_intent_metadata(),
+                    progress_callback=progress_callback,
+                )
+                history_record = history.append_turn(record=record, message=turn_request.message)
+                return record, history_record
             if _looks_like_previous_action_result_question(routing_message) and _stored_last_submitted_action(turn_request.session_id):
                 record = await _create_previous_action_summary_record(
                     http_request,
@@ -4113,9 +4293,16 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 )
             else:
                 record = None
+                prefer_local_context_answer = (
+                    local_intent in {"fleet_connectivity", "command_summary"}
+                    and conversation_topic in {"flight", "sitl", "fleet"}
+                    and not previous_evidence_followup
+                    and not blocked_matches
+                    and not sensitive_matches
+                )
                 if (
                     local_intent
-                    and not provider_auth_allowed
+                    and (prefer_local_context_answer or not provider_auth_allowed)
                     and not previous_evidence_followup
                     and not blocked_matches
                     and not sensitive_matches
