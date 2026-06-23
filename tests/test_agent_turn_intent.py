@@ -72,6 +72,35 @@ def test_turn_intent_compound_pm_prompt_builds_sequence_not_confirmation():
     assert payload["post_actions"][2]["arguments"]["mission_type"] == 104
 
 
+def test_turn_intent_conditional_ready_mission_prompt_prefers_action_draft():
+    frame = build_turn_intent_frame(
+        "I see its up. if its rady to fly send it to a mission. "
+        "lets takeoff 10m then wait 10s, then fly to 20m east, "
+        "then wait 30s, then RTL",
+        conversation_topic="sitl",
+        previous_action={"target_drone_ids": ["1"]},
+    )
+
+    assert frame.route == "action_draft"
+    assert frame.read_only_plan.intent == "fleet_connectivity"
+    assert frame.action.direct_flight_request is True
+    assert frame.action.draft is not None
+    payload = frame.action.draft.public_payload()
+    assert payload["mission_name"] == "TAKE_OFF"
+    assert payload["target_drone_ids"] == ["1"]
+    assert payload["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in payload["post_actions"]] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+    ]
+    assert payload["post_actions"][0]["delay_seconds"] == 10.0
+    assert payload["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["east"] == 20.0
+    assert payload["post_actions"][2]["delay_seconds"] == 30.0
+    assert payload["post_actions"][3]["arguments"]["mission_type"] == 104
+
+
 def test_turn_intent_uses_semantic_routing_message_for_typo_heavy_sitl_action():
     frame = build_turn_intent_frame(
         "crete one sitl intstance and report when ready to test and fly with",

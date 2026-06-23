@@ -71,6 +71,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   requests, so "then" / punctuation-separated moves become separate monitored
   precision-move steps while same-clause movement such as east plus climb stays
   one combined move unless the operator clearly asks for sequential execution.
+- Simurgh now treats clear conditional mission wording such as "if it is ready,
+  send it to this mission" as a guarded action draft while preserving advisory
+  readiness questions such as "should it land?" as read-only status/help.
 - Simurgh now routes SITL-created-drone readiness follow-ups to live
   Docker/SITL inventory plus PX4 heartbeat/telemetry evidence instead of SITL
   setup docs or capability menus, with a concise preflight-style verdict for

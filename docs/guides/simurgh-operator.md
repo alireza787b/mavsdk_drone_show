@@ -348,6 +348,12 @@ RTL” drafts one monitored TAKE_OFF command followed by a bounded delay, a type
 PRECISION_MOVE command, and a final RETURN_RTL command. The final executor,
 confirmation, command tracker, and circuit breaker rules are identical in SITL
 and real runtime.
+Conditional mission wording follows the same path when the operator clearly
+asks Simurgh to act, for example “if it is ready, send it to this mission”.
+Readiness-only wording such as “should it land?” or “can it RTL safely?” remains
+read-only advisory/status. If the intent is genuinely ambiguous, Simurgh should
+ask one short clarification question instead of falling back to generic provider
+or safety boilerplate.
 
 Sequence boundaries matter. Clauses separated by `then`, `after that`,
 punctuation, an explicit wait, or RTL/return wording become ordered monitored

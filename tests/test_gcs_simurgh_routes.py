@@ -804,6 +804,40 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert create_confirm.status_code == 200
     assert "Created drone-1" in create_confirm.json()["content"]
 
+    conditional_flight_draft = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": sitl_status["session"]["id"],
+            "message": (
+                "I see its up. if its rady to fly send it to a mission. "
+                "lets takeoff 10m then wait 10s, then fly to 20m east, "
+                "then wait 30s, then RTL"
+            ),
+        },
+    )
+    assert conditional_flight_draft.status_code == 200
+    conditional_payload = conditional_flight_draft.json()
+    assert "Simurgh Operator mock assistant is active" not in conditional_payload["content"]
+    assert "Blocked intent signals" not in conditional_payload["content"]
+    assert "Action: takeoff" in conditional_payload["content"]
+    assert "wait 10 second(s)" in conditional_payload["content"]
+    assert "wait 30 second(s)" in conditional_payload["content"]
+    assert conditional_payload["trace"]["intent"]["route"] == "action_draft"
+    conditional_action = conditional_payload["trace"]["safety"]["action_draft"]
+    assert conditional_action["target_drone_ids"] == ["1"]
+    assert conditional_action["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in conditional_action["post_actions"]] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+    ]
+    assert conditional_action["post_actions"][0]["delay_seconds"] == 10.0
+    assert conditional_action["post_actions"][1]["arguments"]["precision_move"]["translation_m"]["east"] == 20.0
+    assert conditional_action["post_actions"][2]["delay_seconds"] == 30.0
+    assert conditional_action["post_actions"][3]["arguments"]["mission_type"] == 104
+
     flight_draft = client.post(
         "/api/v1/simurgh/assistant/turns",
         json={

@@ -40,6 +40,43 @@ def test_send_it_compound_flight_prompt_is_fresh_action_not_confirmation():
     assert draft.post_actions[2]["action_label"] == "return rtl"
 
 
+def test_conditional_ready_prompt_still_drafts_guarded_sequence():
+    message = (
+        "I see its up. if its rady to fly send it to a mission. "
+        "lets takeoff 10m then wait 10s, then fly to 20m east, "
+        "then wait 30s, then RTL"
+    )
+
+    assert not is_action_confirmation_message(message)
+    assert looks_like_direct_flight_action_request(message)
+
+    draft = build_flight_action_draft(
+        message,
+        draft_id="act-conditional",
+        previous_action={"target_drone_ids": ["1"]},
+    )
+
+    assert draft is not None
+    assert draft.ready
+    assert draft.mission_name == "TAKE_OFF"
+    assert draft.target_drone_ids == ("1",)
+    assert draft.command_payload["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in draft.post_actions] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+    ]
+    assert draft.post_actions[0]["delay_seconds"] == 10.0
+    assert draft.post_actions[1]["arguments"]["precision_move"]["translation_m"] == {
+        "north": 0.0,
+        "east": 20.0,
+        "up": 0.0,
+    }
+    assert draft.post_actions[2]["delay_seconds"] == 30.0
+    assert draft.post_actions[3]["action_label"] == "return rtl"
+
+
 def test_then_separated_moves_are_ordered_not_combined():
     message = (
         "Ok now lets use drone of for below mission. Takeoff to 14m, then for 5m south. "

@@ -795,6 +795,8 @@ def _extract_sitl_instance_names(normalized: str) -> list[str]:
 def _looks_conceptual(normalized: str) -> bool:
     if _looks_like_action_history_question(normalized):
         return True
+    if _looks_like_conditional_execution_request(normalized):
+        return False
     flight_action_terms = r"land|landing|rtl|return|take\s*off|takeoff"
     advisory_terms = r"status|ready|safe|safely|should|whether|if"
     if re.search(
@@ -841,6 +843,35 @@ def _looks_conceptual(normalized: str) -> bool:
     )
     direct = ("send", "execute", "run", "start", "command", "do it", "go ahead")
     return any(term in normalized for term in conceptual) and not any(term in normalized for term in direct)
+
+
+def _looks_like_conditional_execution_request(normalized: str) -> bool:
+    """Allow guarded action planning for "if ready, run this mission" phrasing."""
+
+    mission_name = _extract_mission_name(normalized)
+    if not mission_name:
+        return False
+    has_action_payload = bool(
+        _extract_takeoff_altitude_m(normalized) is not None
+        or _extract_precision_move_payload(normalized) is not None
+        or re.search(r"\b(wait|then|after|rtl|return|land)\b", normalized)
+    )
+    if not has_action_payload:
+        return False
+    explicit_directive = bool(
+        re.search(
+            r"\b(send|execute|run|start|command|make|put|lets|let's|go\s+ahead|do\s+it)\b",
+            normalized,
+        )
+    )
+    conditional_imperative = bool(
+        re.search(
+            r"\b(if|when|once)\b.{0,100}\b(ready|safe|clear|healthy|available|up)\b"
+            r".{0,140}\b(take\s*off|takeoff|land|rtl|return|fly|move|go|climb|descend)\b",
+            normalized,
+        )
+    )
+    return explicit_directive or conditional_imperative
 
 
 def _looks_like_action_history_question(normalized: str) -> bool:
