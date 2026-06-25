@@ -408,6 +408,13 @@ steps, monitor condition, and circuit-breaker posture in prose or bullets. Keep
 the typed payload available for audit/reviewer inspection, but do not make raw
 JSON the only visible explanation of what would execute.
 
+When one operator turn combines a current-state question with an action request,
+for example configured fleet/SITL counts plus "build one", Simurgh should run
+the policy-approved read-only status tools first, show that evidence, then stop
+at the normal guarded action confirmation gate. The read-only precheck must not
+bypass human confirmation, approval policy, route validation, or the circuit
+breaker.
+
 If the operator cancels a draft or asks a follow-up such as "read again",
 "same sequence", "do the job", or "try again", Simurgh may replay the last
 action request text stored in the private session context. Replay still creates

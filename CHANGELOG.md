@@ -29,6 +29,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh guarded-action drafts now show an operator-readable command pack by
   default and keep raw command JSON behind a dashboard disclosure while
   preserving structured trace payloads for audit and confirmation.
+- Simurgh mixed status/action turns now answer the read-only status portion
+  first, then stop at the guarded action confirmation gate.
 - Simurgh fleet questions now distinguish configured fleet inventory from live
   connectivity/GPS/position evidence, including board/CM4 follow-up wording.
 - Simurgh language/query-adaptation guidance now explicitly limits deterministic
@@ -51,6 +53,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh ULog plus unified-log mission review wording now remains on the
   local read-only drone-log path instead of falling through to provider safety
   boilerplate.
+- Simurgh local safety-block responses now include a safe next step or
+  read-only alternative instead of ending at a deterministic block.
 - Simurgh compound status questions such as configured drone count plus active
   SITL instances now merge the relevant read-only tools and return a concise
   operator summary instead of a raw registry/MCP evidence dump.

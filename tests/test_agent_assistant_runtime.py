@@ -2860,6 +2860,7 @@ def test_openai_assistant_turn_blocks_operational_intent_before_provider_call(mo
     assert record.turn.provider == "openai"
     assert "launch" in record.turn.blocked_intents
     assert "no provider request was made" in record.turn.content
+    assert "Next step:" in record.turn.content
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
@@ -2936,6 +2937,8 @@ def test_openai_assistant_turn_blocks_sensitive_field_evidence_before_provider_c
     assert expected_signal in record.turn.blocked_intents
     assert "no provider request was made" in record.turn.content
     assert "sensitive field evidence" in record.turn.content
+    assert "Safe alternative:" in record.turn.content
+    assert "check the ULog and unified log" in record.turn.content
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
@@ -2944,7 +2947,7 @@ def test_safe_ulog_mission_check_clears_sensitive_signal_only_for_local_drone_lo
     from agent_runtime.mds_read_tools import build_mds_read_only_plan
 
     config = load_default_assistant_config()
-    message = "Check the ulog and unified log to see if mission executed as we planned?"
+    message = "Check the ulog and unified log to see if mission executed as we planned ?"
     plan = build_mds_read_only_plan(message)
     raw_matches = sensitive_input_matches(config, message)
 

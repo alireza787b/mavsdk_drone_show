@@ -1,5 +1,6 @@
 from agent_runtime.action_planner import (
     build_flight_action_draft,
+    build_sitl_reconcile_action_draft,
     is_action_confirmation_message,
     looks_like_direct_flight_action_request,
 )
@@ -75,6 +76,22 @@ def test_conditional_ready_prompt_still_drafts_guarded_sequence():
     }
     assert draft.post_actions[2]["delay_seconds"] == 30.0
     assert draft.post_actions[3]["action_label"] == "return rtl"
+
+
+def test_compound_status_then_build_one_sitl_keeps_singular_create_clause():
+    draft = build_sitl_reconcile_action_draft(
+        "How many drones are configured and how many SITL are active? Then build one.",
+        draft_id="act-buildone",
+        conversation_topic="sitl",
+    )
+
+    assert draft is not None
+    assert draft.tool_id == "mds.sitl.instances.create"
+    assert draft.arguments == {
+        "git_sync_enabled": True,
+        "requirements_sync_enabled": True,
+    }
+    assert draft.missing_arguments == ()
 
 
 def test_then_separated_moves_are_ordered_not_combined():

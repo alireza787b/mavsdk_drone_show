@@ -93,6 +93,8 @@ from agent_runtime.models import AgentSession, AuditEvent, ContextResource, Tool
 from agent_runtime.query_adaptation import adapt_operator_query, normalize_operator_query_text
 from agent_runtime.registry_chat import (
     REGISTRY_READ_EXECUTION_INTENT,
+    RegistryReadCall,
+    RegistryReadPlan,
     RegistryReadToolResult,
     build_registry_read_evidence_bundle,
     format_registry_read_results,
@@ -581,6 +583,14 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
         safety["post_action_results"] = [
             dict(item) for item in post_action_results if isinstance(item, dict)
         ]
+    pre_action_read_only_tool_ids = metadata.get("pre_action_read_only_tool_ids")
+    if isinstance(pre_action_read_only_tool_ids, list):
+        safety["pre_action_read_only_tool_ids"] = [
+            str(tool_id) for tool_id in pre_action_read_only_tool_ids
+        ]
+    pre_action_read_only_evidence = metadata.get("pre_action_read_only_evidence")
+    if isinstance(pre_action_read_only_evidence, dict):
+        safety["pre_action_read_only_evidence"] = pre_action_read_only_evidence
     return SimurghAssistantTurnTraceResponse(
         provider=record.turn.provider,
         model=record.turn.model,
@@ -1090,7 +1100,23 @@ def _action_draft_summary_lines(draft: ActionDraft) -> list[str]:
             lines.append(f"- Monitor after submission: `{draft.wait_condition or 'command_terminal'}`.")
         return lines
 
-    lines.append(f"1. {_action_draft_label(draft)} through `{draft.tool_id}`.")
+    lines.append(f"1. {_action_draft_label(draft)}.")
+    if draft.tool_id == SITL_CREATE_TOOL_ID:
+        instance_id = draft.arguments.get("instance_id")
+        if instance_id is not None:
+            lines.append(f"- Requested instance: drone-{instance_id}.")
+        ip_last_octet = draft.arguments.get("ip_last_octet")
+        if ip_last_octet is not None:
+            lines.append(f"- Requested IP last octet: {ip_last_octet}.")
+        sync_flags: list[str] = []
+        if draft.arguments.get("git_sync_enabled") is not None:
+            sync_flags.append(f"git sync {'on' if draft.arguments.get('git_sync_enabled') else 'off'}")
+        if draft.arguments.get("requirements_sync_enabled") is not None:
+            sync_flags.append(
+                f"requirements sync {'on' if draft.arguments.get('requirements_sync_enabled') else 'off'}"
+            )
+        if sync_flags:
+            lines.append("- Startup sync: " + "; ".join(sync_flags) + ".")
     target_count = draft.arguments.get("target_count")
     instance_names = draft.arguments.get("instance_names")
     action = str(draft.arguments.get("action") or "").strip()
@@ -1107,6 +1133,57 @@ def _action_draft_summary_lines(draft: ActionDraft) -> list[str]:
 
 def _action_draft_summary_block(draft: ActionDraft) -> str:
     return "\n".join(_action_draft_summary_lines(draft))
+
+
+def _pre_action_read_only_context_block(content: str) -> str:
+    text = str(content or "").strip()
+    if not text:
+        return ""
+    return f"Read-only status checked before drafting:\n{text}\n\n"
+
+
+def _should_prepend_action_read_only_context(message: str, read_only_plan: Any) -> bool:
+    """Detect mixed state-question plus action turns without slowing pure actions."""
+
+    intent = str(getattr(read_only_plan, "intent", "") or "").strip()
+    tool_ids = tuple(str(item) for item in getattr(read_only_plan, "tool_ids", ()) or ())
+    if not intent or not tool_ids:
+        return False
+    text = " ".join(str(message or "").casefold().split())
+    if not text:
+        return False
+    question_signal = any(
+        signal in text
+        for signal in (
+            "?",
+            "how many",
+            "do we have",
+            "what about",
+            "is there",
+            "are there",
+            "check",
+            "tell me",
+            "first",
+        )
+    )
+    state_signal = any(
+        signal in text
+        for signal in (
+            "configured",
+            "active",
+            "running",
+            "connected",
+            "online",
+            "ready",
+            "healthy",
+            "status",
+            "sitl instance",
+            "sitl instances",
+            "fleet",
+        )
+    )
+    conditional_readiness = "if" in text and any(signal in text for signal in ("ready", "healthy", "active", "running"))
+    return state_signal and (question_signal or conditional_readiness)
 
 
 def _format_drone_targets(targets: tuple[str, ...] | list[str]) -> str:
@@ -2991,6 +3068,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         *,
         draft: ActionDraft,
         action_execution: str,
+        pre_action_read_only_content: str = "",
         policy_reasons: tuple[str, ...] = (),
         command_response: Any | None = None,
         monitor_result: Mapping[str, Any] | None = None,
@@ -2999,6 +3077,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         circuit_breaker_enabled: bool = True,
         always_confirm_before_action: bool = True,
     ) -> str:
+        def with_pre_action_context(body: str) -> str:
+            return _pre_action_read_only_context_block(pre_action_read_only_content) + body
+
         payload = _action_draft_payload(draft)
         action_label = _action_draft_label(draft)
         tool_id = _action_draft_tool_id(draft)
@@ -3044,12 +3125,14 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         "Reply with the drone ID, for example `drone 1`. No action was executed.",
                     ]
                 )
-                return "\n".join(lines)
-            return (
-                "I can plan this guarded action, but I need one more detail before any execution path exists.\n\n"
-                f"Missing: {missing}.\n"
-                f"Action detected: {action_label}.\n"
-                "No action was executed."
+                return with_pre_action_context("\n".join(lines))
+            return with_pre_action_context(
+                (
+                    "I can plan this guarded action, but I need one more detail before any execution path exists.\n\n"
+                    f"Missing: {missing}.\n"
+                    f"Action detected: {action_label}.\n"
+                    "No action was executed."
+                )
             )
         if action_execution == "awaiting_confirmation":
             cb_state = "ON" if circuit_breaker_enabled else "OFF"
@@ -3072,39 +3155,47 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     )
                 )
             extra = ("\n".join(extra_lines) + "\n") if extra_lines else ""
-            return (
-                "I prepared a guarded action draft and stopped at the human confirmation gate.\n\n"
-                f"Action: {action_label}\n"
-                f"Tool: `{tool_id}`\n"
-                f"Target: {target_label}\n"
-                f"{extra}"
-                f"Draft ID: `{draft.draft_id}`\n\n"
-                f"{_action_draft_summary_block(draft)}\n\n"
-                f"{confirm_line}\n"
-                f"Circuit breaker is {cb_state}. If it is ON when confirmed, the final execution layer will stop the command and I will report exactly what would have been sent.\n"
-                "No action was executed."
+            return with_pre_action_context(
+                (
+                    "I prepared a guarded action draft and stopped at the human confirmation gate.\n\n"
+                    f"Action: {action_label}\n"
+                    f"Tool: `{tool_id}`\n"
+                    f"Target: {target_label}\n"
+                    f"{extra}"
+                    f"Draft ID: `{draft.draft_id}`\n\n"
+                    f"{_action_draft_summary_block(draft)}\n\n"
+                    f"{confirm_line}\n"
+                    f"Circuit breaker is {cb_state}. If it is ON when confirmed, the final execution layer will stop the command and I will report exactly what would have been sent.\n"
+                    "No action was executed."
+                )
             )
         if action_execution == "blocked_by_circuit_breaker":
-            return (
-                "Circuit breaker stopped this at the final execution layer.\n\n"
-                f"If the circuit breaker were OFF, I would submit this guarded GCS action for {target_label}:\n\n"
-                f"{_action_draft_summary_block(draft)}\n\n"
-                "No action was executed."
+            return with_pre_action_context(
+                (
+                    "Circuit breaker stopped this at the final execution layer.\n\n"
+                    f"If the circuit breaker were OFF, I would submit this guarded GCS action for {target_label}:\n\n"
+                    f"{_action_draft_summary_block(draft)}\n\n"
+                    "No action was executed."
+                )
             )
         if action_execution == "policy_denied":
             reasons = "; ".join(policy_reasons) or "policy denied this action"
-            return (
-                "I prepared the action draft, but policy denied execution before command submission.\n\n"
-                f"Reason: {reasons}.\n"
-                f"{_action_draft_summary_block(draft)}\n\n"
-                "No action was executed."
+            return with_pre_action_context(
+                (
+                    "I prepared the action draft, but policy denied execution before command submission.\n\n"
+                    f"Reason: {reasons}.\n"
+                    f"{_action_draft_summary_block(draft)}\n\n"
+                    "No action was executed."
+                )
             )
         if action_execution == "validation_rejected":
-            return (
-                "The guarded GCS action path rejected this action before dispatch.\n\n"
-                f"Reason: {rejection_detail or 'GCS action validation failed'}.\n"
-                f"{_action_draft_summary_block(draft)}\n\n"
-                "No action was accepted."
+            return with_pre_action_context(
+                (
+                    "The guarded GCS action path rejected this action before dispatch.\n\n"
+                    f"Reason: {rejection_detail or 'GCS action validation failed'}.\n"
+                    f"{_action_draft_summary_block(draft)}\n\n"
+                    "No action was accepted."
+                )
             )
 
         response_payload = (
@@ -3136,17 +3227,19 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     else "Follow it from the matching GCS operation/status view."
                 )
             )
-            return (
-                "Submitted the guarded GCS action.\n\n"
-                f"Action: {action_label}\n"
-                f"Tool: `{tool_id}`\n"
-                f"Operation ID: `{operation_id}`\n"
-                f"Status: {status}\n"
-                f"Summary: {summary}\n"
-                + (f"Detail: {detail}\n" if detail else "")
-                + "\n"
-                + monitor_block
-                + f"{track_line} GCS policy, approval, circuit breaker, and route validation stayed in force."
+            return with_pre_action_context(
+                (
+                    "Submitted the guarded GCS action.\n\n"
+                    f"Action: {action_label}\n"
+                    f"Tool: `{tool_id}`\n"
+                    f"Operation ID: `{operation_id}`\n"
+                    f"Status: {status}\n"
+                    f"Summary: {summary}\n"
+                    + (f"Detail: {detail}\n" if detail else "")
+                    + "\n"
+                    + monitor_block
+                    + f"{track_line} GCS policy, approval, circuit breaker, and route validation stayed in force."
+                )
             )
         command_id = response_payload.get("command_id") or "unknown"
         status = response_payload.get("status") or "submitted"
@@ -3169,20 +3262,22 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 line += f" ({summary_text})"
             monitor_lines.append(line)
         monitor_block = ("\n" + "\n".join(monitor_lines) + "\n") if monitor_lines else ""
-        return (
-            "Submitted the guarded flight command.\n\n"
-            f"Command ID: `{command_id}`\n"
-            f"Mission: {mission_name}\n"
-            f"Status: {status}\n"
-            f"Targets: {_format_drone_targets(tuple(str(item) for item in target_drones))}\n"
-            f"Immediate result summary: {json.dumps(summary, sort_keys=True, default=str)}\n\n"
-            f"{monitor_block}"
-            + (
-                "I monitored this command sequence in chat. "
-                if monitor_result or post_action_results
-                else f"Follow it in Active Commands with command ID `{command_id}`. "
+        return with_pre_action_context(
+            (
+                "Submitted the guarded flight command.\n\n"
+                f"Command ID: `{command_id}`\n"
+                f"Mission: {mission_name}\n"
+                f"Status: {status}\n"
+                f"Targets: {_format_drone_targets(tuple(str(item) for item in target_drones))}\n"
+                f"Immediate result summary: {json.dumps(summary, sort_keys=True, default=str)}\n\n"
+                f"{monitor_block}"
+                + (
+                    "I monitored this command sequence in chat. "
+                    if monitor_result or post_action_results
+                    else f"Follow it in Active Commands with command ID `{command_id}`. "
+                )
+                + "GCS validation, telemetry checks, and command tracking stayed in force."
             )
-            + "GCS validation, telemetry checks, and command tracking stayed in force."
         )
 
     async def _monitor_command_until_terminal(
@@ -3637,6 +3732,105 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     }
                 await asyncio.sleep(ACTION_MONITOR_POLL_SECONDS)
 
+    async def _pre_action_read_only_context(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        routing_message: str,
+        read_only_plan: Any,
+        conversation_topic: str,
+        progress_callback: AssistantProgressCallback | None = None,
+    ) -> tuple[str, dict[str, Any], tuple[str, ...]]:
+        if not _should_prepend_action_read_only_context(routing_message, read_only_plan):
+            return "", {}, ()
+
+        allowed_tools = list_policy_allowed_read_only_tools(channel="agent")
+        allowed_by_id = {tool.id: tool for tool in allowed_tools}
+        direct_calls: list[RegistryReadCall] = []
+        for tool_id in tuple(str(item) for item in getattr(read_only_plan, "tool_ids", ()) or ())[:4]:
+            tool = allowed_by_id.get(tool_id)
+            if tool is None:
+                continue
+            schema = tool.input_schema if isinstance(tool.input_schema, Mapping) else {}
+            required = schema.get("required") if isinstance(schema, Mapping) else ()
+            if required:
+                continue
+            direct_calls.append(RegistryReadCall(tool=tool, arguments={}))
+        direct_label = "read-only current state"
+        direct_ids = [call.tool.id for call in direct_calls]
+        if "mds.config.fleet.read" in direct_ids and "mds.sitl.instances.read" in direct_ids:
+            direct_label = "configured fleet and SITL runtime state"
+        elif "mds.sitl.instances.read" in direct_ids:
+            direct_label = "SITL runtime state"
+        elif "mds.config.fleet.read" in direct_ids:
+            direct_label = "configured fleet"
+        registry_plan = (
+            RegistryReadPlan(
+                label=direct_label,
+                domain=str(getattr(read_only_plan, "query_domain", "") or getattr(read_only_plan, "topic", "") or "runtime"),
+                tool_calls=tuple(direct_calls),
+                selection_source="turn_read_only_plan",
+            )
+            if direct_calls
+            else None
+        )
+        if registry_plan is None:
+            registry_plan = plan_registry_read_tool_calls(
+                routing_message,
+                allowed_tools=allowed_tools,
+                conversation_topic=conversation_topic,
+                local_intent=getattr(read_only_plan, "intent", None),
+            )
+        if registry_plan is not None:
+            policy = load_default_policy()
+            registry = load_default_tool_registry()
+            try:
+                registry_label = registry.path.relative_to(REPO_ROOT).as_posix()
+            except ValueError:
+                registry_label = registry.path.as_posix()
+
+            results: list[RegistryReadToolResult] = []
+            await _emit_assistant_progress(progress_callback, _registry_plan_progress_payload(registry_plan))
+            for call in registry_plan.tool_calls:
+                await _emit_assistant_progress(
+                    progress_callback,
+                    _registry_tool_call_progress_payload(call, state="running"),
+                )
+                result = await execute_policy_allowed_read_only_tool(
+                    http_request,
+                    name=call.tool.id,
+                    arguments=dict(call.arguments),
+                    channel="agent",
+                    registry=registry,
+                    policy=policy,
+                )
+                await _emit_assistant_progress(
+                    progress_callback,
+                    _registry_tool_call_progress_payload(call, state="complete", result=result),
+                )
+                results.append(RegistryReadToolResult(tool=call.tool, arguments=dict(call.arguments), result=result))
+
+            evidence_bundle = build_registry_read_evidence_bundle(registry_plan, results, registry_path=registry_label)
+            return (
+                format_registry_read_results(registry_plan, results, registry_path=registry_label),
+                evidence_bundle.public_metadata(),
+                tuple(item.tool.id for item in results),
+            )
+
+        request_deps = _request_scoped_deps(deps, http_request)
+        answer = answer_mds_read_only_question(
+            routing_message,
+            deps=request_deps,
+            conversation_topic=conversation_topic,
+        )
+        if answer is None:
+            return "", {}, ()
+        evidence = answer.evidence_metadata() or {
+            "summary": f"Read-only {answer.intent.replace('_', ' ')} check before action draft.",
+            "tool_ids": list(answer.tool_ids),
+        }
+        return answer.content, evidence, answer.tool_ids
+
     async def _create_action_record(
         http_request: Request,
         turn_request: SimurghAssistantTurnRequest,
@@ -3644,6 +3838,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         actor: str,
         draft: ActionDraft | None = None,
         confirmed: bool = False,
+        pre_action_read_only_content: str = "",
+        pre_action_read_only_evidence: Mapping[str, Any] | None = None,
+        pre_action_read_only_tool_ids: tuple[str, ...] = (),
         turn_intent_metadata: Mapping[str, Any] | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
@@ -3818,6 +4015,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         content = _action_turn_content(
             draft=draft,
             action_execution=action_execution,
+            pre_action_read_only_content=pre_action_read_only_content,
             policy_reasons=policy_reasons,
             command_response=action_response,
             monitor_result=monitor_result,
@@ -3923,7 +4121,14 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             "last_action_draft": draft_context,
             "last_action_draft_id": draft.draft_id if draft_context else "",
             "last_action_draft_hash": stable_payload_hash(draft.public_payload()) if draft_context else "",
-            "last_read_only_evidence": "",
+            "last_read_only_evidence": json.dumps(
+                dict(pre_action_read_only_evidence or {}),
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            )
+            if pre_action_read_only_evidence
+            else "",
         }
         if action_execution == "awaiting_confirmation":
             private_context_update["last_action_request_message"] = turn_request.message
@@ -3952,6 +4157,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "tool_intent": action_intent,
                 "tool_id": tool.id,
                 "tool_ids": [tool.id],
+                "pre_action_read_only_tool_ids": list(pre_action_read_only_tool_ids),
+                "pre_action_read_only_evidence": dict(pre_action_read_only_evidence or {}),
                 "response_mode": "status",
                 "query_domain": action_domain,
                 "query_confidence": 1.0,
@@ -4554,12 +4761,27 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 history_record = history.append_turn(record=record, message=turn_request.message)
                 return record, history_record
             if not sensitive_matches and turn_intent.is_action_route:
+                (
+                    pre_action_read_only_content,
+                    pre_action_read_only_evidence,
+                    pre_action_read_only_tool_ids,
+                ) = await _pre_action_read_only_context(
+                    http_request,
+                    turn_request,
+                    routing_message=routing_message,
+                    read_only_plan=read_only_plan,
+                    conversation_topic=conversation_topic,
+                    progress_callback=progress_callback,
+                )
                 record = await _create_action_record(
                     http_request,
                     effective_action_request,
                     actor=actor,
                     draft=turn_intent.action.draft,
                     confirmed=False,
+                    pre_action_read_only_content=pre_action_read_only_content,
+                    pre_action_read_only_evidence=pre_action_read_only_evidence,
+                    pre_action_read_only_tool_ids=pre_action_read_only_tool_ids,
                     turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )

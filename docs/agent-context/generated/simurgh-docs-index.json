@@ -1,5 +1,5 @@
 {
-  "chunk_count": 819,
+  "chunk_count": 820,
   "chunks": [
     {
       "audience": "operator",
@@ -612,9 +612,29 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "2fabd70ea3c8250d1135df4bfe450403cce650604808ceda66b49b56e6f52d82",
+      "content_hash": "136ce096dccf7895d586d6a0f8addee806e7d005a97ede36afd35ac249b04c42",
       "heading": "Guarded Actions",
       "id": "simurgh.operator_guide:011-05-guarded-actions",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "When one operator turn combines a current-state question with an action request,\nfor example configured fleet/SITL counts plus \"build one\", Simurgh should run\nthe policy-approved read-only status tools first, show that evidence, then stop\nat the normal guarded action confirmation gate. The read-only precheck must not\nbypass human confirmation, approval policy, route validation, or the circuit\nbreaker.\n\nIf the operator cancels a draft or asks a follow-up such as \"read again\",\n\"same sequence\", \"do the job\", or \"try again\", Simurgh may replay the last\naction request text stored in the private session context. Replay still creates\na fresh draft id and still requires the normal confirmation/policy path. It must\nnot re-run an old draft blindly, and it must preserve the last submitted action\ncontext, such as the single SITL `drone-N` target created earlier in the same\nsession.\n\nKeep `MDS_AGENT_PROVIDER=mock` on unauthenticated or field-reachable GCS\nservices. If `MDS_AGENT_PROVIDER=openai` is enabled for text composition, the\nassistant API refuses turns unless the request has an authenticated MDS\noperator/admin session or a bearer token with `agent`, `operator`, or `admin`\nscope. Drone-only bearer tokens are not accepted for external provider calls.\nThis prevents an exposed GCS or lower-privilege machine token from becoming an\nexternal-provider, cost, or data-egress surface.\n\nAdvanced paths:",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "a04f1b3149d8502d54b2057448bca20851841bc1fae44f01ba55518d96b4049e",
+      "heading": "Guarded Actions",
+      "id": "simurgh.operator_guide:011-06-guarded-actions",
       "links": [
         "docs/agent-context/context-index.yaml",
         "docs/agent-context/generated/simurgh-docs-index.json"
@@ -629,33 +649,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "If the operator cancels a draft or asks a follow-up such as \"read again\",\n\"same sequence\", \"do the job\", or \"try again\", Simurgh may replay the last\naction request text stored in the private session context. Replay still creates\na fresh draft id and still requires the normal confirmation/policy path. It must\nnot re-run an old draft blindly, and it must preserve the last submitted action\ncontext, such as the single SITL `drone-N` target created earlier in the same\nsession.\n\nKeep `MDS_AGENT_PROVIDER=mock` on unauthenticated or field-reachable GCS\nservices. If `MDS_AGENT_PROVIDER=openai` is enabled for text composition, the\nassistant API refuses turns unless the request has an authenticated MDS\noperator/admin session or a bearer token with `agent`, `operator`, or `admin`\nscope. Drone-only bearer tokens are not accepted for external provider calls.\nThis prevents an exposed GCS or lower-privilege machine token from becoming an\nexternal-provider, cost, or data-egress surface.\n\nAdvanced paths:\n\n```text\nMDS_AGENT_POLICY_FILE=config/agent_policy.yaml\nMDS_AGENT_TOOL_REGISTRY_FILE=config/agent_tools.yaml\nMDS_AGENT_CONTEXT_INDEX_FILE=docs/agent-context/context-index.yaml\nMDS_AGENT_ASSISTANT_FILE=config/agent_assistant.yaml\nMDS_AGENT_ASSISTANT_HISTORY_FILE=runtime_data/simurgh/assistant_turns.jsonl\nMDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=30\nMDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200\nMDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json\nMDS_AGENT_OPENAI_API_KEY_FILE=\nMDS_AGENT_OPENAI_MODEL=gpt-5.5\nMDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1\nMDS_AGENT_OPENAI_TIMEOUT_SEC=30\nMDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900\nMDS_AGENT_OPENAI_REASONING_EFFORT=medium\nMDS_AGENT_OPENAI_TEXT_VERBOSITY=low\nMDS_AGENT_WEB_SEARCH_ENABLED=false\nMDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium\nMDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true\nMDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS=\nMDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS=\n```\n\n`MDS_MCP_ALLOWED_ORIGINS` is optional. Empty means browser-origin requests are\naccepted only from localhost-style origins. For a deployed MCP browser client,\nset a comma-separated exact Origin allowlist, for example:",
+      "text": "```text\nMDS_AGENT_POLICY_FILE=config/agent_policy.yaml\nMDS_AGENT_TOOL_REGISTRY_FILE=config/agent_tools.yaml\nMDS_AGENT_CONTEXT_INDEX_FILE=docs/agent-context/context-index.yaml\nMDS_AGENT_ASSISTANT_FILE=config/agent_assistant.yaml\nMDS_AGENT_ASSISTANT_HISTORY_FILE=runtime_data/simurgh/assistant_turns.jsonl\nMDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=30\nMDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200\nMDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json\nMDS_AGENT_OPENAI_API_KEY_FILE=\nMDS_AGENT_OPENAI_MODEL=gpt-5.5\nMDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1\nMDS_AGENT_OPENAI_TIMEOUT_SEC=30\nMDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900\nMDS_AGENT_OPENAI_REASONING_EFFORT=medium\nMDS_AGENT_OPENAI_TEXT_VERBOSITY=low\nMDS_AGENT_WEB_SEARCH_ENABLED=false\nMDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium\nMDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true\nMDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS=\nMDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS=\n```\n\n`MDS_MCP_ALLOWED_ORIGINS` is optional. Empty means browser-origin requests are\naccepted only from localhost-style origins. For a deployed MCP browser client,\nset a comma-separated exact Origin allowlist, for example:\n\n```text\nMDS_MCP_ALLOWED_ORIGINS=https://gcs.example.com,https://ops.example.com\n```\n\nWildcard browser origins are intentionally not supported.\n\nWhen MCP is enabled, `MDS_MCP_REQUIRE_AUTH=true` requires\n`Authorization: Bearer` before the endpoint processes MCP requests. Keep this\ntrue for production. Set it false only for isolated local development where the\nendpoint is not reachable from other hosts.\n\nWhen MDS auth is enabled, accepted bearer tokens must have an `agent` or `admin`\nscope. `MDS_MCP_REQUIRED_SCOPES` can narrow the accepted set to those two scope\nnames, but weaker values such as `drone`, `operator`, or `viewer` are ignored\nand cannot grant MCP access. The HTTP challenge advertises the least-privilege\n`agent` scope by default. Dashboard cookie sessions are rejected for MCP even\nwhen they include a valid CSRF token.\n\nFor deployments behind an OAuth gateway or authorization server, set:\n\n```text\nMDS_MCP_AUTHORIZATION_SERVERS=https://auth.example.com/issuer\nMDS_MCP_RESOURCE_URL=https://gcs.example.com/api/v1/simurgh/mcp\n```",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "0023dfc112a69743bfc648f37395ddaad95a3c232596e5ff3b7a5238929cb3d2",
-      "heading": "Guarded Actions",
-      "id": "simurgh.operator_guide:011-06-guarded-actions",
-      "links": [],
-      "mime_type": "text/markdown",
-      "path": "docs/guides/simurgh-operator.md",
-      "resource_id": "simurgh.operator_guide",
-      "route_hint": "/simurgh",
-      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
-      "tags": [
-        "simurgh",
-        "operator",
-        "dashboard"
-      ],
-      "text": "```text\nMDS_MCP_ALLOWED_ORIGINS=https://gcs.example.com,https://ops.example.com\n```\n\nWildcard browser origins are intentionally not supported.\n\nWhen MCP is enabled, `MDS_MCP_REQUIRE_AUTH=true` requires\n`Authorization: Bearer` before the endpoint processes MCP requests. Keep this\ntrue for production. Set it false only for isolated local development where the\nendpoint is not reachable from other hosts.\n\nWhen MDS auth is enabled, accepted bearer tokens must have an `agent` or `admin`\nscope. `MDS_MCP_REQUIRED_SCOPES` can narrow the accepted set to those two scope\nnames, but weaker values such as `drone`, `operator`, or `viewer` are ignored\nand cannot grant MCP access. The HTTP challenge advertises the least-privilege\n`agent` scope by default. Dashboard cookie sessions are rejected for MCP even\nwhen they include a valid CSRF token.\n\nFor deployments behind an OAuth gateway or authorization server, set:\n\n```text\nMDS_MCP_AUTHORIZATION_SERVERS=https://auth.example.com/issuer\nMDS_MCP_RESOURCE_URL=https://gcs.example.com/api/v1/simurgh/mcp\n```\n\n`MDS_MCP_AUTHORIZATION_SERVERS` is advertised in the protected-resource\nmetadata. If it is empty while MCP auth is required, the resource server derives\nthe issuer from the canonical public origin. `MDS_MCP_RESOURCE_URL` pins the\ncanonical resource identifier and the `WWW-Authenticate resource_metadata`\norigin when a reverse proxy would otherwise make the internal request URL\nmisleading.\n\nProvider-specific credentials use server-side secret files only. The dashboard\ncan paste/update an OpenAI key, but the API never returns the raw key; it only\nshows ready/fingerprint/updated status. To enable the text-only OpenAI adapter\nmanually, set:\n\n```text\nMDS_AGENT_PROVIDER=openai\nMDS_AGENT_OPENAI_API_KEY_FILE=/etc/mds/secrets/openai_api_key\n```",
-      "title": "Simurgh operator guide"
-    },
-    {
-      "audience": "operator",
-      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "0b02e1599ae88308177d088230bb34956574bdda8a54ee3c95df42ecb20fb1ff",
+      "content_hash": "52111f575d66217aff29a0ba27ac833b28ac270b64a09805ae8ed169ffe84e42",
       "heading": "Guarded Actions",
       "id": "simurgh.operator_guide:011-07-guarded-actions",
       "links": [],
@@ -669,7 +669,27 @@
         "operator",
         "dashboard"
       ],
-      "text": "Do not put raw API keys in environment values, config files, docs, commits,\ntests, Telegram reports, or shell history. The OpenAI adapter uses the Responses\nAPI with `store=false`, no conversation state, no uploaded files, no\nprovider-native streaming, and no background jobs. `store=false` is a fixed\ninvariant in this slice, not an operator-configurable setting. The dashboard may\nuse the GCS-side assistant SSE endpoint for progress/delta UI, but that stream\ndoes not expose model tools or change the provider request invariants.\n`MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom\nOpenAI-compatible gateways are rejected in this slice to prevent API key egress\nto unreviewed destinations.\n\nWhen `MDS_AGENT_WEB_SEARCH_ENABLED=true`, Simurgh may add the official OpenAI\nResponses `web_search` tool only for public/general prompts such as current\nweather, public geography lookup beyond the reviewed local registry, laws/rules,\nor internet-style current facts. The request still uses `store=false`; it does\nnot include GCS tool results, fleet telemetry, private logs, credentials, or\nraw operational evidence. Inline web citations returned by OpenAI are preserved\nand rendered as clickable `Sources` links in the dashboard; the trace separates\nweb-search requested, web-search returned, and citation count so reviewers can\nsee when a provider response did not return source URLs. If public web search\nruns but no citation URLs are returned, Simurgh adds a short source note instead\nof inventing links or hiding the missing-source condition. Use\n`MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`\nonly with bare domains and only when an eval-backed deployment needs source\ncontrol. Do not set both lists at the same time.",
+      "text": "`MDS_MCP_AUTHORIZATION_SERVERS` is advertised in the protected-resource\nmetadata. If it is empty while MCP auth is required, the resource server derives\nthe issuer from the canonical public origin. `MDS_MCP_RESOURCE_URL` pins the\ncanonical resource identifier and the `WWW-Authenticate resource_metadata`\norigin when a reverse proxy would otherwise make the internal request URL\nmisleading.\n\nProvider-specific credentials use server-side secret files only. The dashboard\ncan paste/update an OpenAI key, but the API never returns the raw key; it only\nshows ready/fingerprint/updated status. To enable the text-only OpenAI adapter\nmanually, set:\n\n```text\nMDS_AGENT_PROVIDER=openai\nMDS_AGENT_OPENAI_API_KEY_FILE=/etc/mds/secrets/openai_api_key\n```\n\nDo not put raw API keys in environment values, config files, docs, commits,\ntests, Telegram reports, or shell history. The OpenAI adapter uses the Responses\nAPI with `store=false`, no conversation state, no uploaded files, no\nprovider-native streaming, and no background jobs. `store=false` is a fixed\ninvariant in this slice, not an operator-configurable setting. The dashboard may\nuse the GCS-side assistant SSE endpoint for progress/delta UI, but that stream\ndoes not expose model tools or change the provider request invariants.\n`MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom\nOpenAI-compatible gateways are rejected in this slice to prevent API key egress\nto unreviewed destinations.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "331855dba728a565aa7becc9b2dccdb38e5e05840ce3e653a9acbecb2f278343",
+      "heading": "Guarded Actions",
+      "id": "simurgh.operator_guide:011-08-guarded-actions",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "When `MDS_AGENT_WEB_SEARCH_ENABLED=true`, Simurgh may add the official OpenAI\nResponses `web_search` tool only for public/general prompts such as current\nweather, public geography lookup beyond the reviewed local registry, laws/rules,\nor internet-style current facts. The request still uses `store=false`; it does\nnot include GCS tool results, fleet telemetry, private logs, credentials, or\nraw operational evidence. Inline web citations returned by OpenAI are preserved\nand rendered as clickable `Sources` links in the dashboard; the trace separates\nweb-search requested, web-search returned, and citation count so reviewers can\nsee when a provider response did not return source URLs. If public web search\nruns but no citation URLs are returned, Simurgh adds a short source note instead\nof inventing links or hiding the missing-source condition. Use\n`MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`\nonly with bare domains and only when an eval-backed deployment needs source\ncontrol. Do not set both lists at the same time.",
       "title": "Simurgh operator guide"
     },
     {
@@ -677,7 +697,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "4cb754543f4817f50537e9216d72008b0155e5136a6f3971960c87715c39f48e",
       "heading": "Guarded Actions",
-      "id": "simurgh.operator_guide:011-08-guarded-actions",
+      "id": "simurgh.operator_guide:011-09-guarded-actions",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -697,7 +717,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "7e07a4ac76f680d0dd0558e580dae9b671345a4ab8c1ee04354ee23d13d86457",
       "heading": "Guarded Actions",
-      "id": "simurgh.operator_guide:011-09-guarded-actions",
+      "id": "simurgh.operator_guide:011-10-guarded-actions",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16407,8 +16427,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 40,
-      "content_hash": "24e5c19d09f8b125cb872ce72e0d7b038adb256f88d12b93073794b4af4a5781",
+      "chunk_count": 41,
+      "content_hash": "46811e53fd28d3f63d0d2f56af5e2d7c12c16c589e0bc7390c88805738e3a1a9",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

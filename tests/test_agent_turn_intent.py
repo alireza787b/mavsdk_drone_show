@@ -125,7 +125,7 @@ def test_turn_intent_sitl_check_again_uses_read_only_status():
 
 
 def test_turn_intent_ulog_unified_log_mission_check_stays_read_only():
-    frame = build_turn_intent_frame("Check the ulog and unified log to see if mission executed as we planned?")
+    frame = build_turn_intent_frame("Check the ulog and unified log to see if mission executed as we planned ?")
 
     assert frame.route == "read_only"
     assert frame.confirmation_message is False

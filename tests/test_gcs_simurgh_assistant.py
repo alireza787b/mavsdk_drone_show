@@ -676,7 +676,7 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
     messages = (
         "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
         "great. can you check the logs and see if anythign during misison went wrong or anythign unexpected? give me a sumamry of flight also from the ulog",
-        "Check the ulog and unified log to see if mission executed as we planned?",
+        "Check the ulog and unified log to see if mission executed as we planned ?",
     )
 
     for message in messages:
@@ -1188,7 +1188,8 @@ def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatc
     content = payload["content"]
     assert "guarded action draft" in content
     assert "mds.sitl.instances.create" in content
-    assert '"instance_id": 1' in content
+    assert "Requested instance: drone-1" in content
+    assert '"instance_id": 1' not in content
     assert "advisory-only" not in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
     assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
@@ -1198,6 +1199,41 @@ def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatc
         "instance_id": 1,
         "ip_last_octet": 2,
     }
+
+
+def test_simurgh_assistant_mixed_status_and_sitl_action_answers_status_before_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "How many drones are configured and how many SITL are active? Then build one.",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "Read-only status checked before drafting" in content
+    assert "Configured fleet: 4 drone(s)." in content
+    assert "SITL instances: 1 total, 1 active." in content
+    assert "guarded action draft" in content
+    assert "Interpreted command pack" in content
+    assert "Startup sync: git sync on; requirements sync on." in content
+    assert '"git_sync_enabled"' not in content
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["pre_action_read_only_tool_ids"] == [
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
 
 
 @pytest.mark.parametrize(

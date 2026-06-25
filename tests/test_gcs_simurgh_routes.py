@@ -1236,6 +1236,9 @@ def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(
     content = payload["content"]
     assert "guarded action draft" in content
     assert "mds.sitl.instances.create" in content
+    assert "Interpreted command pack" in content
+    assert "Startup sync: git sync on; requirements sync on." in content
+    assert '"git_sync_enabled"' not in content
     assert "advisory-only" not in content
     assert "No action was executed" in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"

@@ -757,7 +757,11 @@ def _looks_like_single_sitl_create(normalized: str, target_count: int | None) ->
         return False
     if target_count not in (None, 1):
         return False
-    if re.search(r"\b(?:drones|droens|instances|instaces|isntances|containers)\b", normalized) and target_count != 1:
+    if (
+        re.search(r"\b(?:drones|droens|instances|instaces|isntances|containers)\b", normalized)
+        and target_count != 1
+        and not _implies_single_sitl_instance(normalized)
+    ):
         return False
     if _implies_single_sitl_instance(normalized):
         return True
@@ -765,7 +769,15 @@ def _looks_like_single_sitl_create(normalized: str, target_count: int | None) ->
 
 
 def _implies_single_sitl_instance(normalized: str) -> bool:
-    return bool(re.search(r"\b(?:1|one|single|a|an)\s+sitl\b", normalized))
+    if re.search(r"\b(?:1|one|single|a|an)\s+sitl\b", normalized):
+        return True
+    return bool(
+        re.search(
+            r"\b(create|build|start|spawn|launch|prepare|make|set\s*up|setup)\s+(?:me\s+)?(?:just\s+)?(?:1|one|single|a|an)\b",
+            normalized,
+        )
+        and re.search(r"\bsitl\b", normalized)
+    )
 
 
 def _extract_explicit_sitl_instance_id(normalized: str) -> int | None:
@@ -1058,7 +1070,17 @@ def _extract_sitl_target_count(normalized: str) -> int | None:
             normalized,
         ):
             return value
+        if value == 1 and re.search(
+            rf"\b(create|build|start|spawn|launch|prepare|make|set\s*up|setup)\s+(?:me\s+)?(?:just\s+)?{word}\b",
+            normalized,
+        ) and re.search(r"\bsitl\b", normalized):
+            return value
     if re.search(r"\b(?:a|an|single)\s+sitl\b", normalized):
+        return 1
+    if re.search(
+        r"\b(create|build|start|spawn|launch|prepare|make|set\s*up|setup)\s+(?:me\s+)?(?:just\s+)?(?:a|an|single)\b",
+        normalized,
+    ) and re.search(r"\bsitl\b", normalized):
         return 1
     return None
 

@@ -1076,6 +1076,12 @@ class MockAssistantAdapter:
         if template.suggested_next_steps:
             lines.append("Suggested next steps:")
             lines.extend(f"- {step}" for step in template.suggested_next_steps)
+        if sensitive_input_terms:
+            lines.append(
+                "Safe alternative: ask for a local read-only summary such as "
+                "`check the ULog and unified log for the mission and summarize anomalies`, "
+                "without pasting, downloading, or exposing raw field artifacts."
+            )
 
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -1235,15 +1241,25 @@ class OpenAIResponsesAssistantAdapter:
         sensitive_input_terms: tuple[str, ...] = (),
     ) -> AssistantTurnResult:
         template = self.config.response_template
-        content = "\n".join(
-            [
-                template.preamble,
-                f"Provider: {OPENAI_ASSISTANT_PROVIDER} (local safety block; no provider request was made).",
-                f"Loaded context resources: {', '.join(doc.id for doc in context_documents)}.",
-                template.sensitive_input_notice if sensitive_input_terms else template.blocked_action_notice,
-                f"Blocked intent signals: {', '.join(blocked_intents)}.",
-            ]
-        )
+        lines = [
+            template.preamble,
+            f"Provider: {OPENAI_ASSISTANT_PROVIDER} (local safety block; no provider request was made).",
+            f"Loaded context resources: {', '.join(doc.id for doc in context_documents)}.",
+            template.sensitive_input_notice if sensitive_input_terms else template.blocked_action_notice,
+            f"Blocked intent signals: {', '.join(blocked_intents)}.",
+        ]
+        if sensitive_input_terms:
+            lines.append(
+                "Safe alternative: ask for a local read-only summary such as "
+                "`check the ULog and unified log for the mission and summarize anomalies`, "
+                "without pasting, downloading, or exposing raw field artifacts."
+            )
+        else:
+            lines.append(
+                "Next step: ask for read-only status, evidence, or capability guidance, "
+                "or create a guarded action draft that stops at human confirmation."
+            )
+        content = "\n".join(lines)
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
             created_at=utc_now().isoformat(),

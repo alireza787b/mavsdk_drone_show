@@ -135,7 +135,7 @@ conversations:
           must_not_include:
             - Simurgh Operator mock assistant is active
             - Blocked intent signals
-      - prompt: "Check the ulog and unified log to see if mission executed as we planned?"
+      - prompt: "Check the ulog and unified log to see if mission executed as we planned ?"
         expected:
           provider: mds-tools
           tool_intent: drone_log_summary
