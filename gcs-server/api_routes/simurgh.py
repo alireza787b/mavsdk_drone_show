@@ -1011,8 +1011,102 @@ def _action_draft_payload(draft: ActionDraft) -> dict[str, Any]:
     return dict(draft.arguments)
 
 
-def _json_block(payload: Mapping[str, Any]) -> str:
-    return "```json\n" + json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n```"
+def _format_metric_meters(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return ""
+    return f"{number:g} m"
+
+
+def _precision_translation_summary(translation: Any) -> str:
+    if not isinstance(translation, Mapping):
+        return "movement details unavailable"
+    parts: list[str] = []
+    axis_labels = (
+        ("north", "north", "south"),
+        ("east", "east", "west"),
+        ("up", "up", "down"),
+    )
+    for axis, positive_label, negative_label in axis_labels:
+        raw_value = translation.get(axis)
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if abs(value) <= 1e-9:
+            continue
+        label = positive_label if value > 0 else negative_label
+        parts.append(f"{abs(value):g} m {label}")
+    return ", ".join(parts) if parts else "hold position / no translation"
+
+
+def _flight_payload_step_label(payload: Mapping[str, Any], *, fallback: str = "flight command") -> str:
+    mission_type = payload.get("mission_type")
+    mission_name = str(payload.get("mission_name") or "").strip().upper()
+    label = {
+        10: "Take off",
+        101: "Land",
+        104: "Return to launch",
+        112: "Precision move",
+        "TAKE_OFF": "Take off",
+        "LAND": "Land",
+        "RETURN_RTL": "Return to launch",
+        "PRECISION_MOVE": "Precision move",
+    }.get(mission_type, {
+        "TAKE_OFF": "Take off",
+        "LAND": "Land",
+        "RETURN_RTL": "Return to launch",
+        "PRECISION_MOVE": "Precision move",
+    }.get(mission_name, fallback.replace("_", " ").strip().title() or "Flight command"))
+    if mission_type == 10 or mission_name == "TAKE_OFF":
+        altitude = _format_metric_meters(payload.get("takeoff_altitude"))
+        return f"{label} to {altitude}" if altitude else label
+    if mission_type == 112 or mission_name == "PRECISION_MOVE":
+        precision_move = payload.get("precision_move") if isinstance(payload.get("precision_move"), Mapping) else {}
+        translation = precision_move.get("translation_m") if isinstance(precision_move, Mapping) else None
+        return f"{label}: {_precision_translation_summary(translation)}"
+    return label
+
+
+def _action_draft_summary_lines(draft: ActionDraft) -> list[str]:
+    lines = ["Interpreted command pack:"]
+    if isinstance(draft, FlightActionDraft):
+        lines.append(
+            f"1. {_flight_payload_step_label(draft.command_payload, fallback=_action_draft_label(draft))} "
+            f"for {_format_drone_targets(draft.target_drone_ids)}."
+        )
+        for index, item in enumerate(draft.post_actions, start=2):
+            action_type = str(item.get("type") or "").strip().lower()
+            if action_type == "delay":
+                delay = item.get("delay_seconds")
+                delay_text = f"{float(delay):g} second(s)" if isinstance(delay, (int, float)) else "the requested interval"
+                lines.append(f"{index}. Wait {delay_text}.")
+                continue
+            arguments = item.get("arguments") if isinstance(item.get("arguments"), Mapping) else {}
+            label = _flight_payload_step_label(arguments, fallback=str(item.get("action_label") or "flight command"))
+            lines.append(f"{index}. {label} for {_format_drone_targets(draft.target_drone_ids)}.")
+        if draft.monitor_requested:
+            lines.append(f"- Monitor after submission: `{draft.wait_condition or 'command_terminal'}`.")
+        return lines
+
+    lines.append(f"1. {_action_draft_label(draft)} through `{draft.tool_id}`.")
+    target_count = draft.arguments.get("target_count")
+    instance_names = draft.arguments.get("instance_names")
+    action = str(draft.arguments.get("action") or "").strip()
+    if target_count is not None:
+        lines.append(f"- Requested fleet target: {target_count} SITL instance(s).")
+    if isinstance(instance_names, (list, tuple)) and instance_names:
+        names = ", ".join(str(name) for name in instance_names)
+        action_label = action or "apply lifecycle action to"
+        lines.append(f"- Instance action: {action_label} {names}.")
+    if draft.monitor_requested:
+        lines.append("- Monitor after submission: operation status until terminal state.")
+    return lines
+
+
+def _action_draft_summary_block(draft: ActionDraft) -> str:
+    return "\n".join(_action_draft_summary_lines(draft))
 
 
 def _format_drone_targets(targets: tuple[str, ...] | list[str]) -> str:
@@ -2972,7 +3066,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             if isinstance(draft, FlightActionDraft) and draft.post_actions:
                 extra_lines.append(
                     "Then, if the wait condition succeeds: "
-                    + ", ".join(str(item.get("action_label") or item.get("tool_id") or "post-action") for item in draft.post_actions)
+                    + ", ".join(
+                        str(item.get("action_label") or item.get("tool_id") or "post-action")
+                        for item in draft.post_actions
+                    )
                 )
             extra = ("\n".join(extra_lines) + "\n") if extra_lines else ""
             return (
@@ -2982,7 +3079,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 f"Target: {target_label}\n"
                 f"{extra}"
                 f"Draft ID: `{draft.draft_id}`\n\n"
-                f"{_json_block(payload)}\n\n"
+                f"{_action_draft_summary_block(draft)}\n\n"
                 f"{confirm_line}\n"
                 f"Circuit breaker is {cb_state}. If it is ON when confirmed, the final execution layer will stop the command and I will report exactly what would have been sent.\n"
                 "No action was executed."
@@ -2991,7 +3088,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             return (
                 "Circuit breaker stopped this at the final execution layer.\n\n"
                 f"If the circuit breaker were OFF, I would submit this guarded GCS action for {target_label}:\n\n"
-                f"{_json_block(payload)}\n\n"
+                f"{_action_draft_summary_block(draft)}\n\n"
                 "No action was executed."
             )
         if action_execution == "policy_denied":
@@ -2999,14 +3096,14 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             return (
                 "I prepared the action draft, but policy denied execution before command submission.\n\n"
                 f"Reason: {reasons}.\n"
-                f"Draft payload:\n\n{_json_block(payload)}\n\n"
+                f"{_action_draft_summary_block(draft)}\n\n"
                 "No action was executed."
             )
         if action_execution == "validation_rejected":
             return (
                 "The guarded GCS action path rejected this action before dispatch.\n\n"
                 f"Reason: {rejection_detail or 'GCS action validation failed'}.\n"
-                f"Draft payload:\n\n{_json_block(payload)}\n\n"
+                f"{_action_draft_summary_block(draft)}\n\n"
                 "No action was accepted."
             )
 

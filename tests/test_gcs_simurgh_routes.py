@@ -157,10 +157,9 @@ def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch
     content = payload["content"]
     assert "guarded action draft" in content
     assert "Action: takeoff" in content
-    assert '"mission_type": 10' in content
-    assert '"target_drone_ids": [' in content
-    assert '"1"' in content
-    assert '"takeoff_altitude": 10.0' in content
+    assert "Interpreted command pack" in content
+    assert "Take off to 10 m for drone 1" in content
+    assert '"mission_type": 10' not in content
     assert "Circuit breaker is ON" in content
     assert "No action was executed" in content
     assert "Simurgh Operator mock assistant is active" not in content
@@ -169,6 +168,8 @@ def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch
     assert payload["trace"]["tool"]["id"] == "mds.flight.command.execute"
     assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
     assert payload["trace"]["safety"]["action_draft"]["mission_name"] == "TAKE_OFF"
+    assert payload["trace"]["safety"]["action_draft"]["command_payload"]["mission_type"] == 10
+    assert payload["trace"]["safety"]["action_draft"]["command_payload"]["takeoff_altitude"] == 10.0
 
 
 def test_simurgh_confirmed_action_stops_at_final_circuit_breaker(monkeypatch):
@@ -1207,7 +1208,8 @@ def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monk
     content = payload["content"]
     assert "guarded action draft" in content
     assert "mds.sitl.fleet.reconcile" in content
-    assert '"target_count": 4' in content
+    assert "Requested fleet target: 4 SITL instance(s)" in content
+    assert '"target_count": 4' not in content
     assert "Circuit breaker is ON" in content
     assert "No action was executed" in content
     assert payload["blocked_intents"] == []
@@ -1459,8 +1461,8 @@ def test_simurgh_direct_sitl_restart_request_returns_guarded_action_draft(monkey
     assert response.status_code == 200
     payload = response.json()
     assert "mds.sitl.instances.action" in payload["content"]
-    assert '"action": "restart"' in payload["content"]
-    assert '"drone-2"' in payload["content"]
+    assert "Instance action: restart drone-2" in payload["content"]
+    assert '"action": "restart"' not in payload["content"]
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
     assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
         "action": "restart",
@@ -1519,7 +1521,8 @@ def test_simurgh_confirmed_sitl_reconcile_stops_at_final_circuit_breaker(monkeyp
     payload = confirm_response.json()
     assert "Circuit breaker stopped this at the final execution layer" in payload["content"]
     assert "mds.sitl.fleet.reconcile" in payload["content"]
-    assert '"target_count": 4' in payload["content"]
+    assert "Requested fleet target: 4 SITL instance(s)" in payload["content"]
+    assert '"target_count": 4' not in payload["content"]
     assert "No action was executed" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "blocked_by_circuit_breaker"
 

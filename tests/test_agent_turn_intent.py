@@ -124,6 +124,15 @@ def test_turn_intent_sitl_check_again_uses_read_only_status():
     assert frame.action.draft is None
 
 
+def test_turn_intent_ulog_unified_log_mission_check_stays_read_only():
+    frame = build_turn_intent_frame("Check the ulog and unified log to see if mission executed as we planned?")
+
+    assert frame.route == "read_only"
+    assert frame.confirmation_message is False
+    assert frame.action.draft is None
+    assert frame.read_only_plan.intent == "drone_log_summary"
+
+
 def test_turn_intent_retrospective_wait_question_does_not_draft_action():
     frame = build_turn_intent_frame(
         "just one question . did you also do teh waits between takeoff and precission move ? or skipped that?",

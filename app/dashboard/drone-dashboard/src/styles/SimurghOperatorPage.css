@@ -444,6 +444,45 @@
   box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
+.simurgh-chat__action-draft-raw {
+  width: min(100%, 42rem);
+  margin-top: var(--spacing-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.simurgh-chat__action-draft-raw-toggle {
+  width: fit-content;
+  min-height: 1.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0 var(--spacing-xs);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.simurgh-chat__action-draft-raw-toggle:hover,
+.simurgh-chat__action-draft-raw-toggle:focus-visible,
+.simurgh-chat__action-draft-raw.is-open .simurgh-chat__action-draft-raw-toggle {
+  border-color: var(--color-border-primary);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.simurgh-chat__action-draft-raw-toggle svg {
+  width: 0.68rem;
+  height: 0.68rem;
+}
+
+.simurgh-chat__action-draft-raw .simurgh-chat__code-block {
+  margin-top: var(--spacing-xs);
+}
+
 .simurgh-chat__action-draft-controls {
   display: flex;
   flex-wrap: wrap;

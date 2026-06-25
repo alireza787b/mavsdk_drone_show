@@ -87,6 +87,9 @@ The `/simurgh` dashboard surface should stay chat-first and low-noise:
 - progress and streamed answer deltas stay inside the active assistant message;
 - assistant answers render compact Markdown tables, lists, code, bold text, and
   only safe clickable dashboard/doc/HTTPS links.
+- guarded action drafts show an operator-readable command pack first; raw
+  command JSON stays available from a dashboard disclosure and the sanitized
+  response trace, but it is not the default conversation view.
 
 Changing this UX should include a focused Jest test for history actions,
 Markdown rendering, and copy controls. Browser-level visual regression is still
@@ -398,6 +401,12 @@ drafts, Simurgh must not guess; it gives a local no-execute answer using the liv
 runtime policy state and asks for the specific draft id or a fresh action
 request. Public context defaults must not be used to answer confirmation-state
 questions.
+
+The confirmation view must remain operator-interpretable: show the inferred
+target, ordered steps, waits, movement direction/distance, RTL/land/cleanup
+steps, monitor condition, and circuit-breaker posture in prose or bullets. Keep
+the typed payload available for audit/reviewer inspection, but do not make raw
+JSON the only visible explanation of what would execute.
 
 If the operator cancels a draft or asks a follow-up such as "read again",
 "same sequence", "do the job", or "try again", Simurgh may replay the last

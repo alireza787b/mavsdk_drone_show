@@ -676,6 +676,7 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
     messages = (
         "Check the logs and see if all happened was correct or not. Also do we have a ulog stored?",
         "great. can you check the logs and see if anythign during misison went wrong or anythign unexpected? give me a sumamry of flight also from the ulog",
+        "Check the ulog and unified log to see if mission executed as we planned?",
     )
 
     for message in messages:

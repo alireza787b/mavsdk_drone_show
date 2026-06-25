@@ -607,7 +607,12 @@ describe('SimurghOperatorPage', () => {
   test('renders pending action controls and confirms with the streamed backend session', async () => {
     const actionDraftTurn = assistantTurnData({
       id: 'turn_action_draft',
-      content: 'I prepared a guarded action draft and stopped at the human confirmation gate.',
+      content: [
+        'I prepared a guarded action draft and stopped at the human confirmation gate.',
+        '',
+        'Interpreted command pack:',
+        '1. Take off to 10 m for drone 1.',
+      ].join('\n'),
       session: { id: 'sess_action_draft' },
       trace: {
         provider: 'mds-tools',
@@ -625,6 +630,11 @@ describe('SimurghOperatorPage', () => {
             tool_id: 'mds.flight.command.execute',
             mission_name: 'TAKE_OFF',
             target_drone_ids: ['1'],
+            command_payload: {
+              mission_type: 10,
+              target_drone_ids: ['1'],
+              takeoff_altitude: 10,
+            },
           },
         },
       },
@@ -657,6 +667,11 @@ describe('SimurghOperatorPage', () => {
     const input = await screen.findByRole('textbox', { name: /message simurgh/i });
     fireEvent.change(input, { target: { value: 'Send drone 1 to takeoff to 10m' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    expect((await screen.findAllByText(/interpreted command pack/i)).length).toBeGreaterThan(0);
+    expect(screen.queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /raw command json/i }));
+    expect(screen.getAllByText((text) => text.includes('"mission_type": 10')).length).toBeGreaterThan(0);
 
     const controls = await screen.findByLabelText('Pending guarded action controls');
     fireEvent.click(within(controls).getByRole('button', { name: /confirm/i }));

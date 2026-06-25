@@ -1517,6 +1517,48 @@ function getPendingActionDraft(message) {
   return draft;
 }
 
+function actionDraftRawPayload(draft = {}) {
+  if (draft?.draft_type === 'flight_action' || draft?.tool_id === 'mds.flight.command.execute') {
+    const payload = {
+      ...(draft.command_payload && typeof draft.command_payload === 'object' ? draft.command_payload : {}),
+    };
+    if (draft.wait_condition) {
+      payload.wait_condition = draft.wait_condition;
+    }
+    if (Array.isArray(draft.post_actions) && draft.post_actions.length) {
+      payload.post_actions = draft.post_actions;
+    }
+    return Object.keys(payload).length ? payload : draft;
+  }
+  if (draft?.arguments && typeof draft.arguments === 'object') {
+    return draft.arguments;
+  }
+  return draft || {};
+}
+
+function PendingActionDraftRawPayload({ draft }) {
+  const [open, setOpen] = useState(false);
+  const rawPayload = actionDraftRawPayload(draft);
+  const rawJson = JSON.stringify(rawPayload, null, 2);
+  if (!rawJson || rawJson === '{}') {
+    return null;
+  }
+  return (
+    <div className={`simurgh-chat__action-draft-raw${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="simurgh-chat__action-draft-raw-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+        <span>Raw command JSON</span>
+      </button>
+      {open ? <CodeBlock content={rawJson} language="json" blockId={`draft-raw-${draft?.draft_id || 'payload'}`} /> : null}
+    </div>
+  );
+}
+
 function MessageBubble({ message, onSubmitPrompt, submitting = false, actionControlsEnabled = false }) {
   const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
   const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
@@ -1535,26 +1577,29 @@ function MessageBubble({ message, onSubmitPrompt, submitting = false, actionCont
         {message.role === 'assistant' ? <MessageTrace message={message} /> : null}
         {message.content ? <MessageContent content={message.content} /> : null}
         {pendingDraft ? (
-          <div className="simurgh-chat__action-draft-controls" aria-label="Pending guarded action controls">
-            <button
-              type="button"
-              className="simurgh-chat__action-draft-button simurgh-chat__action-draft-button--confirm"
-              disabled={submitting}
-              onClick={() => onSubmitPrompt?.(`confirm action ${pendingDraft.draft_id}`)}
-            >
-              <FaCheckCircle aria-hidden="true" />
-              <span>Confirm</span>
-            </button>
-            <button
-              type="button"
-              className="simurgh-chat__action-draft-button"
-              disabled={submitting}
-              onClick={() => onSubmitPrompt?.(`cancel action ${pendingDraft.draft_id}`)}
-            >
-              <FaTimes aria-hidden="true" />
-              <span>Reject</span>
-            </button>
-          </div>
+          <>
+            <PendingActionDraftRawPayload draft={pendingDraft} />
+            <div className="simurgh-chat__action-draft-controls" aria-label="Pending guarded action controls">
+              <button
+                type="button"
+                className="simurgh-chat__action-draft-button simurgh-chat__action-draft-button--confirm"
+                disabled={submitting}
+                onClick={() => onSubmitPrompt?.(`confirm action ${pendingDraft.draft_id}`)}
+              >
+                <FaCheckCircle aria-hidden="true" />
+                <span>Confirm</span>
+              </button>
+              <button
+                type="button"
+                className="simurgh-chat__action-draft-button"
+                disabled={submitting}
+                onClick={() => onSubmitPrompt?.(`cancel action ${pendingDraft.draft_id}`)}
+              >
+                <FaTimes aria-hidden="true" />
+                <span>Reject</span>
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
     </article>

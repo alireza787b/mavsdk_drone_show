@@ -2939,6 +2939,39 @@ def test_openai_assistant_turn_blocks_sensitive_field_evidence_before_provider_c
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
+def test_safe_ulog_mission_check_clears_sensitive_signal_only_for_local_drone_log_summary():
+    from agent_runtime.assistant import filter_safe_read_only_sensitive_input_matches, sensitive_input_matches
+    from agent_runtime.mds_read_tools import build_mds_read_only_plan
+
+    config = load_default_assistant_config()
+    message = "Check the ulog and unified log to see if mission executed as we planned?"
+    plan = build_mds_read_only_plan(message)
+    raw_matches = sensitive_input_matches(config, message)
+
+    assert plan.intent == "drone_log_summary"
+    assert "ULog artifact" in raw_matches
+    assert (
+        filter_safe_read_only_sensitive_input_matches(
+            raw_matches,
+            message=message,
+            routing_message=message,
+            local_intent=plan.intent,
+        )
+        == ()
+    )
+
+    unsafe_message = "Download the raw ULog and pasted unified log content for the mission."
+    unsafe_plan = build_mds_read_only_plan(unsafe_message)
+    unsafe_matches = sensitive_input_matches(config, unsafe_message)
+    assert "ULog artifact" in unsafe_matches
+    assert filter_safe_read_only_sensitive_input_matches(
+        unsafe_matches,
+        message=unsafe_message,
+        routing_message=unsafe_message,
+        local_intent=unsafe_plan.intent,
+    )
+
+
 def test_openai_assistant_turn_requires_api_key_file(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
