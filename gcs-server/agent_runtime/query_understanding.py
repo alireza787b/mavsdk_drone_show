@@ -198,7 +198,7 @@ def build_assistant_query_plan(message: str, *, conversation_topic: str | None =
 
     normalized = normalize_query_text(message)
     tokens = _query_terms(normalized)
-    topic = normalize_query_text(conversation_topic or "")
+    topic = _normalize_conversation_topic_domain(conversation_topic)
     domain, confidence, reason = _infer_domain(normalized, tokens, topic=topic)
     response_mode = _infer_response_mode(normalized, domain=domain, token_count=len(tokens))
     unclear = _looks_unclear(normalized, tokens, confidence=confidence)
@@ -223,6 +223,20 @@ def build_assistant_query_plan(message: str, *, conversation_topic: str | None =
 
 def normalize_query_text(value: str) -> str:
     return normalize_operator_query_text(value)
+
+
+def _normalize_conversation_topic_domain(value: str | None) -> str:
+    raw = str(value or "").strip().casefold().replace("-", "_").replace(" ", "_")
+    if raw in QUERY_DOMAINS:
+        return raw
+    if raw in {"simulation", "simulator", "concept.sitl", "concept_sitl"}:
+        return "sitl"
+    normalized = normalize_query_text(value or "")
+    if normalized in QUERY_DOMAINS:
+        return normalized
+    if normalized in {"sitl simulation", "simulation sitl"}:
+        return "sitl"
+    return normalized
 
 
 def _infer_domain(normalized: str, tokens: tuple[str, ...], *, topic: str) -> tuple[str, float, str]:

@@ -90,6 +90,15 @@ The `/simurgh` dashboard surface should stay chat-first and low-noise:
 - guarded action drafts show an operator-readable command pack first; raw
   command JSON stays available from a dashboard disclosure and the sanitized
   response trace, but it is not the default conversation view.
+- SITL lifecycle prompts that ask to inspect a stale/current instance before a
+  guarded remove/restart draft must check local SITL inventory first. Simurgh may
+  infer `instance_names` only when exactly one SITL instance is listed; zero or
+  multiple listed instances must keep the draft incomplete and ask the operator
+  to identify the target.
+- SITL instance list/count/status follow-ups stay on local registry tools, even
+  when a text provider is configured and authenticated. Provider semantic
+  rewrite and provider composition must not replace local SITL runtime evidence
+  for these checks.
 
 Changing this UX should include a focused Jest test for history actions,
 Markdown rendering, and copy controls. Browser-level visual regression is still

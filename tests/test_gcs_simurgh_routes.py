@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from agent_runtime.action_planner import FlightActionDraft
 from agent_runtime.tool_executor import GuardedToolCallResult
@@ -1493,6 +1494,124 @@ def test_simurgh_direct_sitl_remove_request_needs_named_instances(monkeypatch):
     assert "No action was executed" in payload["content"]
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
     assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+
+
+def test_simurgh_stale_sitl_remove_checks_state_and_infers_single_listed_instance(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    class FakeSitlService:
+        def list_instances(self):
+            return SimpleNamespace(
+                instances=[
+                    SimpleNamespace(name="drone-1", state="exited", status="exited", hw_id="1"),
+                ]
+            )
+
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/instances")
+    def sitl_instances():
+        return {
+            "total_instances": 1,
+            "instances": [{"id": "drone-1", "name": "drone-1", "state": "exited"}],
+            "docker": {"daemon_reachable": True, "available": True},
+        }
+
+    @app.get("/api/v1/system/sitl/policy")
+    def sitl_policy():
+        return {"enabled": True, "max_instances": 4}
+
+    app.include_router(create_simurgh_router(SimpleNamespace(sitl_control_service=FakeSitlService())))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "I see a stale sitl isntnace ? If that so delete it"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    content = payload["content"]
+    assert "Read-only status checked before drafting" in content
+    assert "I prepared a guarded action draft" in content
+    assert "Instance action: remove drone-1" in content
+    assert "Missing: instance_names" not in content
+    assert "No action was executed" in content
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["pre_action_read_only_tool_ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "action": "remove",
+        "instance_names": ["drone-1"],
+    }
+    assert payload["trace"]["intent"]["action"]["draft_missing_arguments"] == []
+
+
+@pytest.mark.parametrize(
+    "instances",
+    [
+        [],
+        [
+            {"id": "drone-1", "name": "drone-1", "state": "running", "status": "running", "hw_id": "1"},
+            {"id": "drone-2", "name": "drone-2", "state": "exited", "status": "exited", "hw_id": "2"},
+        ],
+    ],
+)
+def test_simurgh_stale_sitl_remove_keeps_missing_target_when_not_single(monkeypatch, instances):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    class FakeSitlService:
+        def list_instances(self):
+            return SimpleNamespace(instances=[SimpleNamespace(**item) for item in instances])
+
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/instances")
+    def sitl_instances():
+        return {
+            "total_instances": len(instances),
+            "instances": instances,
+            "docker": {"daemon_reachable": True, "available": True},
+        }
+
+    @app.get("/api/v1/system/sitl/policy")
+    def sitl_policy():
+        return {"enabled": True, "max_instances": 4}
+
+    app.include_router(create_simurgh_router(SimpleNamespace(sitl_control_service=FakeSitlService())))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "I see a stale sitl instance ? If that so delete it"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Read-only status checked before drafting" in payload["content"]
+    assert "Missing: instance_names" in payload["content"]
+    assert "No action was executed" in payload["content"]
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
+    assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+    assert payload["trace"]["safety"]["pre_action_read_only_tool_ids"] == [
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ]
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "action": "remove",
+        "instance_names": [],
+    }
 
 
 def test_simurgh_confirmed_sitl_reconcile_stops_at_final_circuit_breaker(monkeypatch):

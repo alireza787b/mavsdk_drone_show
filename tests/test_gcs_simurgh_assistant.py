@@ -1678,6 +1678,51 @@ def test_simurgh_assistant_turn_uses_session_topic_for_local_followup_without_pr
     assert "I can’t see uploads from here" not in payload["content"]
 
 
+def test_simurgh_assistant_sitl_only_one_list_followup_stays_local(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fail_provider_call(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("SITL instance list/count follow-ups must stay on local registry tools")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_provider_call)
+    client = _client_with_registry_probe_routes(
+        auth_context={"kind": "session", "role": "operator", "username": "operator"}
+    )
+
+    first = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "is there any sitl instance running?"},
+    )
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["provider"] == "mds-tools"
+    assert first_payload["session"]["metadata"]["last_domain"] == "sitl"
+
+    followup = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": first_payload["session"]["id"],
+            "message": "I said there should be onyp one ? Obviously you shoudl first chrekcnget lsit",
+        },
+    )
+
+    assert followup.status_code == 200
+    payload = followup.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
+    assert payload["trace"]["query"]["read_only_plan"]["selection_source"] == "sitl_topic_followup_rules"
+    assert "Read-only registry check for SITL runtime state" in payload["content"]
+    assert "total_instances: 1" in payload["content"]
+    assert "state=running" in payload["content"]
+    assert "Public web sources" not in payload["content"]
+
+
 def test_simurgh_assistant_turn_interprets_log_followup_without_provider_auth(monkeypatch):
     from agent_runtime.mds_read_tools import MdsReadOnlyTools
 

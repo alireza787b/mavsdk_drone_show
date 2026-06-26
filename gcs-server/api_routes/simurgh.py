@@ -7,6 +7,7 @@ import json
 import re
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping
 
@@ -1186,6 +1187,34 @@ def _should_prepend_action_read_only_context(message: str, read_only_plan: Any) 
     return state_signal and (question_signal or conditional_readiness)
 
 
+def _should_prepend_sitl_lifecycle_read_only_context(message: str, draft: ActionDraft | None) -> bool:
+    if not isinstance(draft, RegistryActionDraft) or draft.tool_id != SITL_BATCH_ACTION_TOOL_ID:
+        return False
+    text = " ".join(str(message or "").casefold().split())
+    if not text:
+        return False
+    question_or_condition = any(signal in text for signal in ("?", "if ", "first", "check", "see", "look", "stale"))
+    state_reference = any(
+        signal in text
+        for signal in (
+            "sitl",
+            "simulation",
+            "simulator",
+            "instance",
+            "instances",
+            "instace",
+            "isntance",
+            "isntnace",
+            "container",
+            "containers",
+            "only one",
+            "single",
+            "stale",
+        )
+    )
+    return question_or_condition and state_reference
+
+
 def _format_drone_targets(targets: tuple[str, ...] | list[str]) -> str:
     values = [str(item).strip() for item in targets if str(item).strip()]
     if not values:
@@ -1393,6 +1422,44 @@ def _semantic_rewrite_read_only_needs_provider(turn_intent: Any) -> bool:
     return confidence < 0.5
 
 
+def _registry_plan_tool_ids(plan: Any) -> tuple[str, ...]:
+    calls = getattr(plan, "tool_calls", ()) or ()
+    return tuple(str(getattr(call.tool, "id", "") or "") for call in calls if str(getattr(call.tool, "id", "") or ""))
+
+
+def _registry_plan_is_sitl_runtime_state(plan: Any) -> bool:
+    tool_ids = set(_registry_plan_tool_ids(plan))
+    if "mds.sitl.instances.read" not in tool_ids:
+        return False
+    selection_source = str(getattr(plan, "selection_source", "") or "")
+    if selection_source == "sitl_topic_followup_rules":
+        return True
+    pure_sitl_runtime_ids = {
+        "mds.sitl.host.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    }
+    return bool(tool_ids) and tool_ids.issubset(pure_sitl_runtime_ids)
+
+
+def _has_local_sitl_runtime_registry_plan(
+    message: str,
+    *,
+    conversation_topic: str | None,
+    local_intent: str | None,
+) -> bool:
+    try:
+        plan = plan_registry_read_tool_calls(
+            message,
+            allowed_tools=list_policy_allowed_read_only_tools(channel="agent"),
+            conversation_topic=conversation_topic,
+            local_intent=local_intent,
+        )
+    except Exception:
+        return False
+    return _registry_plan_is_sitl_runtime_state(plan)
+
+
 def _semantic_rewrite_is_safe_to_try(
     *,
     assistant_config: Any,
@@ -1414,6 +1481,13 @@ def _semantic_rewrite_is_safe_to_try(
         if query_domain == "general":
             return False
     else:
+        return False
+    read_plan = getattr(turn_intent, "read_only_plan", None)
+    if _has_local_sitl_runtime_registry_plan(
+        str(getattr(turn_intent, "routing_message", "") or ""),
+        conversation_topic=str(getattr(turn_intent, "conversation_topic", "") or ""),
+        local_intent=str(getattr(read_plan, "intent", "") or ""),
+    ):
         return False
     if not _has_external_assistant_provider_auth(request):
         return False
@@ -2278,6 +2352,89 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             if target and target not in values:
                 values.append(target)
         return values
+
+    def _listed_sitl_instance_names(request_deps: Any) -> list[str]:
+        try:
+            service = getattr(request_deps, "sitl_control_service", None)
+            if service is None:
+                params = getattr(request_deps, "Params", None)
+                if params is None:
+                    return []
+                from src.sitl_control_service import SitlControlService
+
+                service = SitlControlService(params)
+            response = service.list_instances()
+        except Exception:
+            return []
+        raw_instances = _mapping_or_attr(response, "instances") or []
+        if not isinstance(raw_instances, (list, tuple)):
+            return []
+        values: list[str] = []
+        for instance in raw_instances:
+            name = str(
+                _mapping_or_attr(instance, "name")
+                or _mapping_or_attr(instance, "id")
+                or _mapping_or_attr(instance, "container_name")
+                or ""
+            ).strip()
+            if not name:
+                instance_id = (
+                    _coerce_int_like_text(_mapping_or_attr(instance, "hw_id"))
+                    or _coerce_int_like_text(_mapping_or_attr(instance, "instance_id"))
+                    or _coerce_int_like_text(_mapping_or_attr(instance, "pos_id"))
+                )
+                if instance_id:
+                    name = f"drone-{instance_id}"
+            if name and name not in values:
+                values.append(name)
+        return values
+
+    def _looks_like_single_sitl_lifecycle_target_reference(message: str) -> bool:
+        text = " ".join(str(message or "").casefold().split())
+        if not text:
+            return False
+        if any(
+            signal in text
+            for signal in (
+                "only one",
+                "single",
+                "stale",
+                "that",
+                "this",
+                " it",
+                "delete it",
+                "remove it",
+                "restart it",
+            )
+        ):
+            return True
+        return bool(
+            re.search(r"\b(sitl\s+)?instance\b", text)
+            or re.search(r"\b(sitl\s+)?container\b", text)
+            or re.search(r"\b(instace|isntance|isntnace|intace)\b", text)
+        )
+
+    def _action_draft_with_inferred_single_sitl_instance(
+        http_request: Request,
+        draft: ActionDraft | None,
+        *,
+        routing_message: str,
+    ) -> ActionDraft | None:
+        if not isinstance(draft, RegistryActionDraft) or draft.tool_id != SITL_BATCH_ACTION_TOOL_ID:
+            return draft
+        if "instance_names" not in draft.missing_arguments:
+            return draft
+        if not _looks_like_single_sitl_lifecycle_target_reference(routing_message):
+            return draft
+        if resolve_runtime_mode().mode != "sitl":
+            return draft
+        names = _listed_sitl_instance_names(_request_scoped_deps(deps, http_request))
+        if len(names) != 1:
+            return draft
+        arguments = dict(draft.arguments)
+        arguments["instance_names"] = names
+        missing_arguments = tuple(item for item in draft.missing_arguments if item != "instance_names")
+        return replace(draft, arguments=arguments, missing_arguments=missing_arguments)
 
     def _live_fleet_presence_target_ids(request_deps: Any) -> list[str]:
         telemetry = _mapping_snapshot(getattr(request_deps, "telemetry_data_all_drones", {}) or {})
@@ -3739,15 +3896,22 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         routing_message: str,
         read_only_plan: Any,
         conversation_topic: str,
+        action_draft: ActionDraft | None = None,
         progress_callback: AssistantProgressCallback | None = None,
     ) -> tuple[str, dict[str, Any], tuple[str, ...]]:
-        if not _should_prepend_action_read_only_context(routing_message, read_only_plan):
+        sitl_lifecycle_context = _should_prepend_sitl_lifecycle_read_only_context(routing_message, action_draft)
+        if not sitl_lifecycle_context and not _should_prepend_action_read_only_context(routing_message, read_only_plan):
             return "", {}, ()
 
         allowed_tools = list_policy_allowed_read_only_tools(channel="agent")
         allowed_by_id = {tool.id: tool for tool in allowed_tools}
         direct_calls: list[RegistryReadCall] = []
-        for tool_id in tuple(str(item) for item in getattr(read_only_plan, "tool_ids", ()) or ())[:4]:
+        direct_tool_ids = (
+            ("mds.sitl.instances.read", "mds.sitl.policy.read")
+            if sitl_lifecycle_context
+            else tuple(str(item) for item in getattr(read_only_plan, "tool_ids", ()) or ())[:4]
+        )
+        for tool_id in direct_tool_ids:
             tool = allowed_by_id.get(tool_id)
             if tool is None:
                 continue
@@ -4568,8 +4732,16 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     ):
                         turn_intent = rewritten_intent
 
-            def turn_intent_metadata() -> dict[str, Any]:
+            def turn_intent_metadata(action_draft_override: ActionDraft | None = None) -> dict[str, Any]:
                 metadata = turn_intent.public_metadata()
+                if action_draft_override is not None:
+                    payload = action_draft_override.public_payload()
+                    action_metadata = metadata.get("action")
+                    if isinstance(action_metadata, dict):
+                        action_metadata["draft_ready"] = bool(action_draft_override.ready)
+                        action_metadata["draft_type"] = payload.get("draft_type")
+                        action_metadata["draft_tool_id"] = payload.get("tool_id")
+                        action_metadata["draft_missing_arguments"] = list(payload.get("missing_arguments") or [])
                 if semantic_rewrite is not None:
                     metadata["provider_semantic_rewrite"] = semantic_rewrite.public_metadata()
                 if semantic_rewrite_error:
@@ -4761,6 +4933,11 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 history_record = history.append_turn(record=record, message=turn_request.message)
                 return record, history_record
             if not sensitive_matches and turn_intent.is_action_route:
+                action_draft = _action_draft_with_inferred_single_sitl_instance(
+                    http_request,
+                    turn_intent.action.draft,
+                    routing_message=routing_message,
+                )
                 (
                     pre_action_read_only_content,
                     pre_action_read_only_evidence,
@@ -4771,18 +4948,19 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     routing_message=routing_message,
                     read_only_plan=read_only_plan,
                     conversation_topic=conversation_topic,
+                    action_draft=action_draft,
                     progress_callback=progress_callback,
                 )
                 record = await _create_action_record(
                     http_request,
                     effective_action_request,
                     actor=actor,
-                    draft=turn_intent.action.draft,
+                    draft=action_draft,
                     confirmed=False,
                     pre_action_read_only_content=pre_action_read_only_content,
                     pre_action_read_only_evidence=pre_action_read_only_evidence,
                     pre_action_read_only_tool_ids=pre_action_read_only_tool_ids,
-                    turn_intent_metadata=turn_intent_metadata(),
+                    turn_intent_metadata=turn_intent_metadata(action_draft),
                     progress_callback=progress_callback,
                 )
                 history_record = history.append_turn(record=record, message=turn_request.message)
@@ -4807,7 +4985,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     plan=registry_plan,
-                    allow_provider_composition=provider_auth_allowed,
+                    allow_provider_composition=(
+                        provider_auth_allowed and not _registry_plan_is_sitl_runtime_state(registry_plan)
+                    ),
                     turn_intent_metadata=turn_intent_metadata(),
                     progress_callback=progress_callback,
                 )

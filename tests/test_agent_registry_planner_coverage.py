@@ -166,6 +166,30 @@ def test_registry_planner_routes_out_of_sync_prompts_to_fleet_git_sync_posture()
     assert _plan_tool_ids(plan)[:2] == ("mds.fleet.git_sync.read", "mds.git.status.read")
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "I said there should be only one; first check/get list",
+        "I said there should be only one; first lsit",
+        "I said there should be only one; first chrekcnget lsit",
+    ],
+)
+def test_registry_planner_routes_sitl_topic_list_followups_to_sitl_state(prompt):
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        prompt,
+        allowed_tools=tools,
+        conversation_topic="sitl",
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert _plan_tool_ids(plan) == ("mds.sitl.instances.read", "mds.sitl.policy.read")
+    assert plan.selection_source == "sitl_topic_followup_rules"
+    assert "mds.logs.sessions.read" not in _plan_tool_ids(plan)
+
+
 def test_registry_planner_defers_all_drone_log_prompts_to_advisory_fanout():
     tools = list_policy_allowed_read_only_tools(channel="assistant")
 

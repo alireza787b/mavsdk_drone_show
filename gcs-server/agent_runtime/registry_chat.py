@@ -57,15 +57,19 @@ _DIRECT_ACTION_TERMS = (
 _STATE_TERMS = (
     "available",
     "check",
+    "chrek",
+    "chrekcnget",
     "configured",
     "current",
     "do we have",
     "count",
     "is there",
     "list",
+    "lsit",
     "loaded",
     "now",
     "how many",
+    "only one",
     "read",
     "report",
     "running",
@@ -249,6 +253,10 @@ _ADVISORY_FIRST_INTENTS = frozenset(
 
 
 _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (("drone ulog summary", "ulog summary"), ("mds.logs.drone_ulog_summary.read",), "one drone ULog summary"),
+    (("drone ulog files", "ulog files", "onboard ulog"), ("mds.logs.drone_ulog_files.read",), "drone ULog files"),
+    (("one drone log session", "drone log session"), ("mds.logs.drone_session.read",), "one drone log session"),
+    (("drone log sessions", "drone logs"), ("mds.logs.drone_sessions.read",), "drone log sessions"),
     (("log session", "logs session", "session_id", "session id", "logs/session"), ("mds.logs.session.read",), "one GCS log session"),
     (("command_id", "command id", "command status"), ("mds.commands.status.read",), "one command status"),
     (("position id", "pos_id", "pos id", "launch position"), ("mds.config.position.read",), "one launch position"),
@@ -411,13 +419,17 @@ def plan_registry_read_tool_calls(
         normalized,
         conversation_topic=conversation_topic,
     )
+    sitl_topic_state_followup = _looks_like_sitl_topic_runtime_state_followup(
+        normalized,
+        conversation_topic=conversation_topic,
+    )
     if _looks_like_capability_catalog_prompt(normalized) and not live_sitl_readiness:
         return None
     if _has_direct_action_term(normalized):
         return None
     if _looks_like_docs_or_workflow_prompt(normalized) and not live_sitl_readiness:
         return None
-    if not _has_any(normalized, _STATE_TERMS) and not live_sitl_readiness:
+    if not _has_any(normalized, _STATE_TERMS) and not live_sitl_readiness and not sitl_topic_state_followup:
         return None
 
     allowed_by_id = {tool.id: tool for tool in allowed_tools}
@@ -436,6 +448,10 @@ def plan_registry_read_tool_calls(
                 selected_ids.extend(tool_ids)
                 label = candidate_label
                 break
+    if not selected_ids and sitl_topic_state_followup:
+        selected_ids = ["mds.sitl.instances.read", "mds.sitl.policy.read"]
+        label = "SITL runtime state"
+        selection_source = "sitl_topic_followup_rules"
 
     argument_ids, argument_label = _argument_tool_ids_for_query(normalized, domain=plan.domain)
     had_argument_rule_ids = bool(argument_ids)
@@ -464,7 +480,12 @@ def plan_registry_read_tool_calls(
         else:
             argument_ids = supplied_typed_metadata_ids
             selection_source = "metadata_typed_ranker"
-    elif missing_typed_metadata_ids and not argument_ids and _looks_like_typed_detail_prompt(normalized):
+    elif (
+        missing_typed_metadata_ids
+        and not argument_ids
+        and not sitl_topic_state_followup
+        and _looks_like_typed_detail_prompt(normalized)
+    ):
         argument_ids = missing_typed_metadata_ids
         argument_label = missing_typed_metadata_label or "typed read-only GCS state"
         selection_source = "metadata_typed_discovery"
@@ -475,7 +496,7 @@ def plan_registry_read_tool_calls(
         missing_typed_metadata_label = ""
         selection_source = "sitl_px4_readiness_rules"
     advisory_defer_argument_ids = argument_ids if had_argument_rule_ids else ()
-    if not live_sitl_readiness and _should_defer_to_advisory(
+    if not live_sitl_readiness and not sitl_topic_state_followup and _should_defer_to_advisory(
         local_intent,
         normalized,
         argument_ids=advisory_defer_argument_ids,
@@ -655,6 +676,45 @@ def _looks_like_sitl_count_state_query(text: str) -> bool:
     return bool(
         re.search(r"\bmany\b.{0,48}\b(sitl|simulator|simulation)\b", text)
         or re.search(r"\b(sitl|simulator|simulation)\b.{0,48}\bmany\b", text)
+    )
+
+
+def _looks_like_sitl_topic_runtime_state_followup(text: str, *, conversation_topic: str | None = None) -> bool:
+    topic = str(conversation_topic or "").strip().casefold().replace("-", "_").replace(" ", "_")
+    if topic != "sitl":
+        return False
+    if not text:
+        return False
+    if _looks_like_docs_or_workflow_prompt(text):
+        return False
+    return _has_any(
+        text,
+        (
+            "active",
+            "check",
+            "check/get",
+            "chrek",
+            "chrekcnget",
+            "count",
+            "current",
+            "first",
+            "instance",
+            "instances",
+            "instace",
+            "isntance",
+            "isntnace",
+            "list",
+            "lsit",
+            "only one",
+            "running",
+            "should be one",
+            "should be only one",
+            "single",
+            "stale",
+            "status",
+            "there should be one",
+            "there should be only one",
+        ),
     )
 
 
@@ -1656,7 +1716,7 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
             selected.insert(0, "mds.fleet.sidecar.read")
             label = "one fleet sidecar table"
 
-    if _extract_log_session_id(text):
+    if _extract_log_session_id(text) and not _has_any(text, ("drone log", "drone logs", "ulog")):
         selected.insert(0, "mds.logs.session.read")
         label = "one GCS log session"
 
@@ -1855,7 +1915,7 @@ def _extract_named_string(name: str, text: str, *, aliases: Sequence[str] = ()) 
 def _extract_integer_arg(name: str, text: str) -> int | None:
     labels = (name, name.replace("_", " "), name.replace("_id", " id"))
     for label in labels:
-        match = re.search(rf"\b{re.escape(label)}\s*(?:=|:|is|#)?\s*([0-9]+)\b", text)
+        match = re.search(rf"\b{re.escape(label)}\s*(?:=|:|is|#|-)?\s*([0-9]+)\b", text)
         if match:
             return int(match.group(1))
     if name == "limit":

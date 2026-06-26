@@ -55,6 +55,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   boilerplate.
 - Simurgh local safety-block responses now include a safe next step or
   read-only alternative instead of ending at a deterministic block.
+- Simurgh SITL cleanup prompts such as stale-instance removal now check local
+  SITL inventory before drafting, infer the target only when exactly one listed
+  instance exists, and keep SITL list/count follow-ups on local registry tools
+  instead of provider or public-web fallback.
 - Simurgh compound status questions such as configured drone count plus active
   SITL instances now merge the relevant read-only tools and return a concise
   operator summary instead of a raw registry/MCP evidence dump.

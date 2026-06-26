@@ -172,6 +172,17 @@ def test_query_planner_public_metadata_is_bounded_and_safe():
     assert 0 < metadata["confidence"] <= 1
 
 
+@pytest.mark.parametrize("conversation_topic", ("sitl", "simulation", "concept.sitl"))
+def test_query_planner_preserves_sitl_conversation_topic(conversation_topic):
+    plan = build_assistant_query_plan(
+        "first chrekcnget lsit",
+        conversation_topic=conversation_topic,
+    )
+
+    assert plan.domain == "sitl"
+    assert plan.tags == ("sitl",)
+
+
 def test_query_normalization_covers_field_typo_shapes():
     assert normalize_query_text("waht is the scoute droen IP?") == "what is the scout drone ip"
     assert normalize_query_text("circuit brake") == "circuit breaker"
