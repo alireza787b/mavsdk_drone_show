@@ -20,6 +20,22 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _validate_latlon(lat: float, lon: float, *, role: str = "point") -> Tuple[float, float]:
+    """Coerce and range-check WGS84 degrees before projection.\n\n    Raises:\n        ValueError: if s/w fails numeric coercion or falls outside lat/lon ranges.\n    """
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid {role} coordinates (non-numeric): lat={lat!r}, lon={lon!r}") from exc
+
+    if not (-90.0 <= lat_f <= 90.0):
+        raise ValueError(f"Invalid {role} latitude {lat_f}: must be in [-90, 90] degrees")
+    if not (-180.0 <= lon_f <= 180.0):
+        raise ValueError(f"Invalid {role} longitude {lon_f}: must be in [-180, 180] degrees")
+
+    return lat_f, lon_f
+
+
 def _candidate_base_dirs(base_dir: Optional[str] = None) -> list[Path]:
     """Return ordered candidate roots for trajectory lookups."""
     candidates = []
@@ -75,6 +91,9 @@ def latlon_to_ne(
         >>> print(f"North: {north:.2f}m, East: {east:.2f}m")
     """
     try:
+        lat, lon = _validate_latlon(lat, lon, role="point")
+        origin_lat, origin_lon = _validate_latlon(origin_lat, origin_lon, role="origin")
+
         # Define a local Transverse Mercator projection centered at the origin
         proj_string = (
             f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} "
@@ -88,6 +107,9 @@ def latlon_to_ne(
         # With always_xy=True, input order is (x, y) = (lon, lat)
         east, north = transformer.transform(lon, lat)
         return north, east
+    except ValueError:
+        # Preserve explicit range/type validation messages for callers.
+        raise
     except Exception as e:
         logger.error(f"Error in coordinate transformation: {e}", exc_info=True)
         raise ValueError(f"Coordinate transformation failed: {e}") from e
