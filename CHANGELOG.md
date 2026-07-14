@@ -9,6 +9,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.110-simurgh-operator-beta] - 2026-07-14
+
 ### Added
 - Simurgh chat UI branding, stable pending-progress state, markdown rendering
   polish, and hover-only copy controls for a cleaner operator experience.
@@ -24,11 +26,23 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh guarded action monitoring for long-running flight commands and SITL
   lifecycle operations, including same-session implicit target inference and
   conditional post-action cleanup after terminal success.
+- Durable, actor-scoped Simurgh action runs with SQLite journaling, idempotent
+  confirmation, cursor-based event replay, restart fail-closed behavior, and
+  pause/resume/cancel-remaining controls at safe step boundaries.
+- Configurable age and per-operator retention for terminal action runs, while
+  preserving all active work and restart-interrupted evidence.
+- On-demand derived PX4 ULog analysis in the Logs dashboard, using the existing
+  bounded GCS summary API without rendering or retaining raw ULog content.
 
 ### Changed
-- Simurgh guarded-action drafts now show an operator-readable command pack by
-  default and keep raw command JSON behind a dashboard disclosure while
+- Simurgh guarded-action drafts now show a backend-generated ordered operator
+  plan by default and keep raw action JSON behind a dashboard disclosure while
   preserving structured trace payloads for audit and confirmation.
+- Simurgh authenticated action turns now use provider semantic normalization
+  before typed planning even when the fallback parser recognized only part of
+  the request; ambiguous actions return one concise clarification question.
+- The default configurable OpenAI model is now `gpt-5.6`, with an editable model
+  field so compatible future model IDs do not require a frontend release.
 - Simurgh mixed status/action turns now answer the read-only status portion
   first, then stop at the guarded action confirmation gate.
 - Simurgh fleet questions now distinguish configured fleet inventory from live
@@ -48,6 +62,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Simurgh guarded action monitoring now keeps sequence-aware step progress,
   including repeated-step replacement, dependent-step skipping, and explicit
   timeout states instead of flattening multi-step runs into one completion line.
+- The operator chat now renders approved work as a live human-readable action
+  sequence, restores it after reload/network interruption, keeps the composer
+  available for steering, and moves raw command JSON behind a disclosure.
+- Frontend lockfile dependencies now include current compatible security
+  patches, including the critical `shell-quote` fix, without forcing an unsafe
+  Create React App major-version workaround.
 
 ### Fixed
 - Simurgh ULog plus unified-log mission review wording now remains on the
@@ -107,6 +127,65 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   evidence when exactly one action-safe drone exists, such as one running SITL
   instance or one fresh live telemetry target, and otherwise ask a concise
   target clarification instead of repeating rigid `target_drone_ids` errors.
+- Simurgh monitored LAND/RTL sequences now distinguish command completion from
+  aircraft completion and verify a fresh disarmed telemetry state before
+  reporting the final landing state or running dependent cleanup.
+- Simurgh mission log review now scopes per-drone/ULog checks to explicit,
+  recent-command, or live targets instead of timing out across configured but
+  offline fleet entries.
+- Simurgh ULog inventory now uses the same 30-second MAVSDK proxy timeout as the
+  GCS Logs API, preventing valid onboard catalogs from being reported as absent
+  when PX4 log enumeration takes longer than the former four-second assistant
+  timeout.
+- Simurgh re-evaluates policy and the circuit breaker before every dependent
+  action, uses draft-stable per-step idempotency keys, and serializes one
+  actor's turns so confirmation retries cannot duplicate movement commands.
+- Provider semantic `confirm_pending_action` and `reject_pending_action` intents
+  now use existing conversation/run state instead of being rejected for not
+  carrying a new typed action plan; an unambiguous chat cancellation controls
+  the single active run rather than falling through to provider prose.
+- Sequence waits are validated before dispatch and are never silently clamped;
+  the deployment limit is explicit through `MDS_AGENT_SEQUENCE_MAX_WAIT_SEC`.
+- Flight monitoring follows command-tracker deadlines, SITL monitoring follows
+  operation-owned timeout metadata, and missing LAND/RTL telemetry remains in
+  verification until terminal timeout instead of producing false success.
+- Provider semantic rewrites must preserve locally parsed typed facts and now
+  retain bounded clarification context across the next operator answer.
+- Clarification is now a valid session domain/intent and falls back to private
+  session context when needed, so short replies remain attached to the
+  operator's original request.
+- The Simurgh UI no longer turns aborted progress into completed work, surfaces
+  primary LAND/RTL disarm verification, and prevents stale or concurrent ULog
+  analyses from being shown under the wrong drone/log.
+- Last-resort assistant fallbacks now ask one concise operator clarification;
+  provider names, context-resource lists, and matched safety terms remain in
+  trace/audit metadata instead of being dumped into chat.
+- Simurgh action-capability questions now report the current guarded tools,
+  routes, runtime mode, confirmation posture, and circuit-breaker state from
+  the live registry/policy instead of claiming that all actions are future-only.
+- The superseded read-only checkpoint is no longer indexed as live Simurgh
+  context, preventing historical phase language from contaminating current
+  guarded-action answers.
+- The release workflow now supports immutable `vX.Y.N-*-beta` prerelease tags
+  without mutating the stable two-part product version or publishing a beta as
+  a final GitHub release; publication is manual after automated main-branch
+  quality gates.
+- GitHub workflows now use current Node 24-based action majors, and PR status
+  comments accurately distinguish automatic validation from explicit release
+  publication.
+- Generated OpenAPI tool candidates are canonicalized and built in an isolated
+  interpreter, eliminating test-order and representation-only schema drift.
+- The provider-smoke CLI now implements the runtime-mode assertion used by PR
+  and release workflows, with structured failure output on a mode mismatch.
+- Dashboard prompt evals use injected drone log/ULog fixtures and cannot block
+  on or consume evidence from live validation-host vehicles.
+- The dashboard auth gate now derives its required state from both dashboard
+  session auth and machine API auth, preventing an API-authenticated deployment
+  from rendering the operator shell before authentication.
+- Completed or cancelled action runs now clear stale pause/cancel control state,
+  so durable progress cards cannot remain visually stuck after terminal status.
+- Detached action-run coordinator failures now fail closed in the durable run
+  journal and emit a stack-bearing unified GCS log entry for diagnosis.
 
 ---
 

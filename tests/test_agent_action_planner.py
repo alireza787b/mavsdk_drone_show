@@ -167,6 +167,72 @@ def test_comma_separated_moves_are_ordered_steps():
     assert draft.post_actions[3]["action_label"] == "return rtl"
 
 
+def test_two_canonical_waits_between_moves_remain_ordered_steps():
+    message = (
+        "take off drone 1 to 10m, then wait for 5s, then go 25m north, "
+        "then wait 5s, then climb 10m up, then return and land"
+    )
+
+    draft = build_flight_action_draft(message, draft_id="act-two-pauses")
+
+    assert draft is not None
+    assert draft.ready
+    assert [item["type"] for item in draft.post_actions] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+        "flight_command",
+    ]
+    assert draft.post_actions[0]["delay_seconds"] == 5.0
+    assert draft.post_actions[1]["arguments"]["precision_move"]["translation_m"] == {
+        "north": 25.0,
+        "east": 0.0,
+        "up": 0.0,
+    }
+    assert draft.post_actions[2]["delay_seconds"] == 5.0
+    assert draft.post_actions[3]["arguments"]["precision_move"]["translation_m"] == {
+        "north": 0.0,
+        "east": 0.0,
+        "up": 10.0,
+    }
+    assert draft.post_actions[4]["action_label"] == "return rtl"
+
+
+def test_unresolved_timed_step_is_not_silently_dropped():
+    draft = build_flight_action_draft(
+        "take off drone 1 to 10m, hold there for 5s, move 25m north, then RTL",
+        draft_id="act-unresolved-hold",
+    )
+
+    assert draft is not None
+    assert not draft.ready
+    assert "sequence_timing" in draft.missing_arguments
+    assert [item["type"] for item in draft.post_actions] == ["flight_command", "flight_command"]
+
+
+def test_yaw_is_an_ordered_sequence_step_and_can_share_a_motion_clause():
+    separate = build_flight_action_draft(
+        "takeoff drone 1 to 10m, yaw to 290 degrees, then RTL",
+        draft_id="act-yaw-step",
+    )
+    simultaneous = build_flight_action_draft(
+        "takeoff drone 1 to 10m, yaw to 290 degrees and climb 3m at the same time, then RTL",
+        draft_id="act-yaw-climb",
+    )
+
+    assert separate is not None and separate.ready
+    assert simultaneous is not None and simultaneous.ready
+    separate_move = separate.post_actions[0]["arguments"]["precision_move"]
+    simultaneous_move = simultaneous.post_actions[0]["arguments"]["precision_move"]
+    assert separate_move["translation_m"] == {"north": 0.0, "east": 0.0, "up": 0.0}
+    assert separate_move["yaw"] == {"mode": "absolute_heading", "degrees": 290.0}
+    assert simultaneous_move["translation_m"] == {"north": 0.0, "east": 0.0, "up": 3.0}
+    assert simultaneous_move["yaw"] == {"mode": "absolute_heading", "degrees": 290.0}
+    assert separate.post_actions[-1]["condition"] == "after_command_terminal"
+    assert simultaneous.post_actions[-1]["condition"] == "after_command_terminal"
+
+
 def test_return_to_launch_and_report_drafts_one_rtl():
     message = "takeoff drone 1 to 14m then return to launch and report"
 

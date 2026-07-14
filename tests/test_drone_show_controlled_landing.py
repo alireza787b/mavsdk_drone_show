@@ -2,8 +2,11 @@ import ast
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def test_controlled_landing_uses_dedicated_timeout_constant():
-    source = Path("drone_show.py").read_text()
+    source = (REPO_ROOT / "drone_show.py").read_text()
     module = ast.parse(source)
 
     controlled_landing = next(

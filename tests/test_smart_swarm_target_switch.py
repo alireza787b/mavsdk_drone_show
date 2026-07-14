@@ -1,8 +1,11 @@
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def test_smart_swarm_versions_leader_stream_target_changes():
-    content = Path("smart_swarm.py").read_text()
+    content = (REPO_ROOT / "smart_swarm.py").read_text()
 
     assert "LEADER_STREAM_TARGET_VERSION = 0" in content
     assert "def current_leader_stream_target()" in content

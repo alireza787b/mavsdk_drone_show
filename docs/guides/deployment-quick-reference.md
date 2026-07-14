@@ -122,19 +122,28 @@ Navigate to Mission Config → verify new columns visible
 If something goes wrong:
 
 ```bash
-# Restore backups
+# Record the failed and last-known-good revisions before changing the checkout
+git rev-parse HEAD
+git show --no-patch <last-known-good-tag-or-commit>
+
+# Restore configuration backups when the release changed them
 cp config.json.backup config.json
 cp config_sitl.csv.backup config_sitl.csv
 
-# Revert code changes
-git checkout HEAD~1 gcs-server/config.py
-git checkout HEAD~1 src/drone_config.py
-# ... (or just git reset --hard HEAD~1)
+# Deploy the recorded last-known-good revision in a clean release checkout.
+# Preserve the failed checkout and its logs for diagnosis.
+git clone <official-repository-url> mds-rollback
+cd mds-rollback
+git checkout --detach <last-known-good-tag-or-commit>
 
 # Restart services
 sudo systemctl restart gcs-server
 sudo systemctl restart coordinator
 ```
+
+Verify the runtime mode, fleet identity, telemetry, Simurgh safety settings, and
+unexpected SITL instance count after restart. Do not use an unscoped
+`git reset --hard HEAD~1` as a production rollback procedure.
 
 ---
 

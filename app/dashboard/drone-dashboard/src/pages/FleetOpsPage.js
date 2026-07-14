@@ -307,10 +307,10 @@ function SidecarTableCell({ runtime, row, label, icon }) {
         <StatusBadge tone={sidecarDriftTone(drift)}>{formatDriftState(drift)}</StatusBadge>
       </div>
       <div className="fleet-ops-sidecar-table__facts" aria-label={`${label} profile facts for drone ${row.posId}`}>
-        <span title={`Service: ${service}`}>Svc {service}</span>
-        <span title={`Mode: ${mode}`}>Mode {mode}</span>
-        <span title={`Desired hash: ${desiredHash}`}>Desired {desiredHash}</span>
-        <span title={`Local/applied hash: ${localHash}`}>Local {localHash}</span>
+        <span>Svc {service}</span>
+        <span>Mode {mode}</span>
+        <span>Desired {desiredHash}</span>
+        <span>Local {localHash}</span>
       </div>
       <div className="fleet-ops-sidecar-table__links">
         <SidecarDashboardLink runtime={runtime} row={row} label={label} />

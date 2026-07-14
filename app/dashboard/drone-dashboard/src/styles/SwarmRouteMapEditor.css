@@ -56,9 +56,9 @@
 }
 
 .swarm-route-map-editor__marker.is-active {
-  color: #92400e;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25), var(--shadow-md);
+  color: var(--color-warning-text);
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 3px var(--color-warning-light), var(--shadow-md);
 }
 
 .swarm-route-map-editor__hint {

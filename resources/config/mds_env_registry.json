@@ -2274,6 +2274,103 @@
       "owner": "logging"
     },
     {
+      "name": "MDS_ULOG_SUMMARY_TIMEOUT_SEC",
+      "title": "ULog summary timeout seconds",
+      "scope": "gcs",
+      "domain": "logging",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 90,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/logging-system.md",
+      "consumers": [
+        "src/ulog_proxy_policy.py"
+      ],
+      "notes": "Bounded timeout for deriving a sanitized ULog summary through the GCS proxy. Inventory and maintenance requests use the canonical 30-second proxy timeout.",
+      "owner": "logging"
+    },
+    {
+      "name": "MDS_SIMURGH_DRONE_LOG_MAX_DRONES",
+      "title": "Simurgh drone log scan limit",
+      "scope": "gcs",
+      "domain": "logging",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 8,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/logging-system.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mds_read_tools.py"
+      ],
+      "notes": "Maximum configured drones included when a log request has no explicit, recent-command, or fresh live target. Explicit and fresh target scopes are not widened by this setting.",
+      "owner": "logging"
+    },
+    {
+      "name": "MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES",
+      "title": "Simurgh parsed ULog drone limit",
+      "scope": "gcs",
+      "domain": "logging",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 2,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/logging-system.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mds_read_tools.py"
+      ],
+      "notes": "Maximum number of latest onboard ULogs parsed into derived summaries for one Simurgh answer. Raw ULog content remains outside provider prompts and assistant output.",
+      "owner": "logging"
+    },
+    {
+      "name": "MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC",
+      "title": "SITL operation monitor timeout seconds",
+      "scope": "gcs",
+      "domain": "sitl",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 900,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/sitl-comprehensive.md",
+      "consumers": [
+        "src/sitl_control_service.py",
+        "gcs-server/api_routes/simurgh.py"
+      ],
+      "notes": "Canonical bounded monitor window published with each asynchronous SITL operation. Simurgh follows the operation metadata instead of imposing a separate lifecycle timeout.",
+      "owner": "sitl"
+    },
+    {
       "name": "MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS",
       "title": "PX4 parameter catalog paths",
       "scope": "node",
@@ -2741,7 +2838,103 @@
       "consumers": [
         "gcs-server/agent_runtime/policy.py"
       ],
-      "notes": "Future action-capable adapters must ask for operator approval before the final executor layer when this is true. If the circuit breaker is also true, approved actions still stop as dry-run/no-execute. Current production slice still exposes advisory-only assistant behavior.",
+      "notes": "Guarded non-read-only actions must stop for operator approval before the final executor layer when this is true. If the circuit breaker is also true, approved actions still stop as dry-run/no-execute.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_SEQUENCE_MAX_WAIT_SEC",
+      "title": "Simurgh maximum sequence wait seconds",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 300,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/api_routes/simurgh.py"
+      ],
+      "notes": "Maximum duration of one explicit wait step in a guarded action sequence. Longer requests are rejected before any command dispatch; approved durations are never silently shortened.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ACTION_RUN_DB",
+      "title": "Simurgh durable action-run journal",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "runtime_data/simurgh/action_runs.sqlite3",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/action_runs.py"
+      ],
+      "notes": "SQLite journal for approved multi-step action runs, replay cursors, and operator controls. Relative paths resolve from the repository root. Keep this runtime file outside git-tracked source.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ACTION_RUN_MAX_AGE_DAYS",
+      "title": "Simurgh terminal action-run retention days",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 30,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/action_runs.py"
+      ],
+      "notes": "Maximum age of terminal action-run records. Active runs are never removed by retention. Values are bounded to 1-3650 days.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ACTION_RUN_MAX_RECORDS",
+      "title": "Simurgh terminal action-run records per operator",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 200,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/action_runs.py"
+      ],
+      "notes": "Maximum retained terminal action runs per operator after age pruning. Active runs are never removed. Values are bounded to 1-10000 records.",
       "owner": "simurgh"
     },
     {
@@ -2768,7 +2961,7 @@
       "consumers": [
         "gcs-server/agent_runtime/assistant.py"
       ],
-      "notes": "Provider selection for advisory assistant turns. Default mock is local and deterministic; openai is optional, advisory-only, and requires an operator/admin MDS session or agent/operator/admin scoped bearer for deployed HTTP assistant turns.",
+      "notes": "Provider selection for semantic understanding and answer composition. Default mock is local and deterministic; openai is optional and requires an operator/admin MDS session or agent/operator/admin scoped bearer. Provider prose never executes actions; typed local planning, policy, confirmation, circuit breaker, GCS validation, and monitoring remain authoritative.",
       "owner": "simurgh"
     },
     {
@@ -2792,7 +2985,7 @@
       "consumers": [
         "gcs-server/agent_runtime/assistant.py"
       ],
-      "notes": "Absolute path to a root/service-readable OpenAI API key file for the optional advisory-only provider. Store the key in the file, not in env/config/docs.",
+      "notes": "Absolute path to a root/service-readable OpenAI API key file for optional semantic understanding and answer composition. Store the key in the file, not in env/config/docs.",
       "owner": "simurgh"
     },
     {
@@ -2802,7 +2995,7 @@
       "domain": "agent",
       "source_of_truth": "/etc/mds/gcs.env",
       "value_type": "string",
-      "default": "gpt-5.5",
+      "default": "gpt-5.6",
       "secret": false,
       "editable": true,
       "ui_visibility": "operator",
@@ -2814,9 +3007,14 @@
       "replacement": null,
       "docs": "docs/guides/simurgh-operator.md",
       "consumers": [
-        "gcs-server/agent_runtime/assistant.py"
+        "config/agent_assistant.yaml",
+        "gcs-server/agent_runtime/assistant.py",
+        "gcs-server/agent_runtime/evals.py",
+        "gcs-server/agent_runtime/mds_read_tools.py",
+        "app/dashboard/drone-dashboard/src/pages/SimurghOperatorPage.js",
+        "tools/run_gcs_dashboard_service.sh"
       ],
-      "notes": "OpenAI Responses model for advisory assistant text. gpt-5.5 is the current high-quality dashboard default; lower-cost model variants may be selected explicitly when validated for the deployment.",
+      "notes": "OpenAI Responses model for Simurgh semantic routing and answer composition. gpt-5.6 is the current high-quality dashboard default; deployments may select another compatible model explicitly without changing the workflow.",
       "owner": "simurgh"
     },
     {

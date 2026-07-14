@@ -359,7 +359,8 @@ def test_get_instance_logs_rejects_unknown_container(tmp_path):
         service.get_instance_logs("drone-9")
 
 
-def test_restart_instance_operation_completes_immediately_with_test_runner(tmp_path):
+def test_restart_instance_operation_completes_immediately_with_test_runner(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "123")
     image = _FakeImage(
         "sha256:official",
         ["mavsdk-drone-show-sitl:latest"],
@@ -380,6 +381,7 @@ def test_restart_instance_operation_completes_immediately_with_test_runner(tmp_p
     result = service.get_operation(operation.operation_id)
     assert result is not None
     assert result.status == "succeeded"
+    assert result.metadata["monitor_timeout_seconds"] == 123.0
     assert drone.restart_calls == 1
 
 

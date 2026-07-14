@@ -243,7 +243,9 @@ def test_agent_bearer_scope_is_restricted_to_simurgh_paths(monkeypatch, tmp_path
         json={"command": "noop"},
     )
     assert outside_simurgh.status_code == 403
-    assert outside_simurgh.json()["message"] == "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
+    assert outside_simurgh.json()["message"] == (
+        "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints."
+    )
 
     mcp_allowed = client.post(
         MCP_PATH,
@@ -272,7 +274,9 @@ def test_agent_bearer_scope_is_restricted_to_simurgh_paths(monkeypatch, tmp_path
         params={"limit": 5},
     )
     assert direct_log_denied.status_code == 403
-    assert direct_log_denied.json()["message"] == "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
+    assert direct_log_denied.json()["message"] == (
+        "Agent bearer tokens are restricted to reviewed Simurgh read/chat and MCP endpoints."
+    )
 
     mcp_log_allowed = client.post(
         MCP_PATH,

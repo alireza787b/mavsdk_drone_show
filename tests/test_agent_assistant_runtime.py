@@ -55,11 +55,12 @@ def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, t
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.delenv("MDS_AGENT_OPENAI_MODEL", raising=False)
 
     config = load_default_assistant_config()
 
     assert config.provider == "openai"
-    assert config.openai.model == "gpt-5.5"
+    assert config.openai.model == "gpt-5.6"
     assert config.openai.web_search.enabled is False
     assert config.openai.read_api_key() == "test-openai-key"
 
@@ -122,7 +123,9 @@ def test_mock_assistant_turn_hashes_prompt_and_detects_blocked_intent(monkeypatc
     assert record.session.id.startswith("session-")
     assert record.turn.provider == "mock"
     assert "launch" in record.turn.blocked_intents
-    assert "does not execute tools" in record.turn.content
+    assert "clarify the target or intended sequence" in record.turn.content
+    assert "Provider:" not in record.turn.content
+    assert "Loaded context resources" not in record.turn.content
     assert record.audit_event.payload_hash
     assert "launch the mission" not in json.dumps(record.audit_event.to_json_dict())
     assert record.audit_event.metadata["blocked_intent_count"] == 1
@@ -133,6 +136,7 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.delenv("MDS_AGENT_OPENAI_MODEL", raising=False)
     sessions = AgentSessionStore()
     audit = InMemoryAuditSink()
     captured: dict[str, object] = {}
@@ -162,7 +166,7 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     )
 
     assert record.turn.provider == "openai"
-    assert record.turn.model == "gpt-5.5"
+    assert record.turn.model == "gpt-5.6"
     assert record.turn.adapter_version == "openai-responses-v1"
     assert record.turn.content == "Advisory response."
     assert captured["api_key"] == "test-openai-key"
@@ -382,7 +386,7 @@ def test_openai_assistant_turn_uses_web_search_for_public_px4_release_lookup(mon
         sessions=AgentSessionStore(),
         audit=InMemoryAuditSink(),
         actor="operator",
-        message="what is the latest PX4 stable release version?",
+        message="What is the latest stable PX4 Autopilot release? Verify it online and cite the source.",
     )
 
     assert record.turn.provider == "openai"
@@ -704,8 +708,8 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
         (
             "if I want to send drone 1 to takeoff 5 m then wait 10s then 6m north then return, can you do that? do you have the tools? what actions APIs you gonna use if I allow you and disable the circuit brake?",
             "action_capability",
-            ("cannot execute", "circuit breaker alone", "excluded from Simurgh/MCP tools", "future approved action wrapper"),
-            ("Simurgh Operator mock assistant is active",),
+            ("can draft", "mds.flight.command.execute", "Operator confirmation", "Circuit breaker"),
+            ("cannot execute", "future approved action wrapper", "Simurgh Operator mock assistant is active"),
         ),
         (
             "What's the difference of quick scoute and swarm trajectory mode",
@@ -1485,7 +1489,7 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
 
     assert answer is not None
     assert answer.intent == "fleet_connectivity"
-    assert "Latitude" in answer.content
+    assert "lat 47.3977420" in answer.content
     assert "47.3977420" in answer.content
     assert "8.4 m" in answer.content
     assert "Fleet status from GCS configuration" not in answer.content
@@ -2859,8 +2863,9 @@ def test_openai_assistant_turn_blocks_operational_intent_before_provider_call(mo
 
     assert record.turn.provider == "openai"
     assert "launch" in record.turn.blocked_intents
-    assert "no provider request was made" in record.turn.content
-    assert "Next step:" in record.turn.content
+    assert "could not complete that request" in record.turn.content
+    assert "Please clarify" in record.turn.content
+    assert "provider request" not in record.turn.content
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
@@ -2884,7 +2889,9 @@ def test_openai_assistant_turn_still_blocks_direct_drone_show_launch(monkeypatch
 
     assert record.turn.provider == "openai"
     assert "launch" in record.turn.blocked_intents
-    assert "no provider request was made" in record.turn.content
+    assert "could not complete that request" in record.turn.content
+    assert "Please clarify" in record.turn.content
+    assert "provider request" not in record.turn.content
     assert "Drone Show has two workflow families" not in record.turn.content
 
 
@@ -2892,7 +2899,7 @@ def test_openai_assistant_turn_still_blocks_direct_drone_show_launch(monkeypatch
     ("message", "expected_signal"),
     (
         ("Here is a customer ULog excerpt from the field test.", "ulog excerpt"),
-        ("The customer .ulg flight log is pasted below.", "ULog artifact"),
+        ("The customer .ulg flight log is pasted below.", "customer flight log artifact"),
         ("The customer flight log is pasted below.", "customer flight log artifact"),
         ("Attach the QGroundControl log from the customer flight.", "QGroundControl log artifact"),
         ("CM4-99 stopped streaming on 192.168.1.10.", "field vehicle label"),
@@ -2935,10 +2942,10 @@ def test_openai_assistant_turn_blocks_sensitive_field_evidence_before_provider_c
 
     assert record.turn.provider == "openai"
     assert expected_signal in record.turn.blocked_intents
-    assert "no provider request was made" in record.turn.content
-    assert "sensitive field evidence" in record.turn.content
-    assert "Safe alternative:" in record.turn.content
-    assert "check the ULog and unified log" in record.turn.content
+    assert "raw field artifacts stay inside the GCS" in record.turn.content
+    assert "local unified logs or derived ULog summary" in record.turn.content
+    assert "Provider:" not in record.turn.content
+    assert "Loaded context resources" not in record.turn.content
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
@@ -2952,7 +2959,7 @@ def test_safe_ulog_mission_check_clears_sensitive_signal_only_for_local_drone_lo
     raw_matches = sensitive_input_matches(config, message)
 
     assert plan.intent == "drone_log_summary"
-    assert "ULog artifact" in raw_matches
+    assert raw_matches == ()
     assert (
         filter_safe_read_only_sensitive_input_matches(
             raw_matches,
@@ -2966,13 +2973,26 @@ def test_safe_ulog_mission_check_clears_sensitive_signal_only_for_local_drone_lo
     unsafe_message = "Download the raw ULog and pasted unified log content for the mission."
     unsafe_plan = build_mds_read_only_plan(unsafe_message)
     unsafe_matches = sensitive_input_matches(config, unsafe_message)
-    assert "ULog artifact" in unsafe_matches
+    assert "raw or transferred ULog artifact" in unsafe_matches
     assert filter_safe_read_only_sensitive_input_matches(
         unsafe_matches,
         message=unsafe_message,
         routing_message=unsafe_message,
         local_intent=unsafe_plan.intent,
     )
+
+
+def test_ulog_followup_overrides_generic_logs_conversation_topic():
+    from agent_runtime.mds_read_tools import build_mds_read_only_plan
+
+    plan = build_mds_read_only_plan(
+        "Can you verify the mission from the ULog now?",
+        conversation_topic="logs",
+    )
+
+    assert plan.intent == "drone_log_summary"
+    assert "mds.logs.drone_ulog_files.read" in plan.tool_ids
+    assert "mds.logs.drone_ulog_summary.read" in plan.tool_ids
 
 
 def test_openai_assistant_turn_requires_api_key_file(monkeypatch):

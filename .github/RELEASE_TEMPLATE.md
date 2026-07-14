@@ -23,7 +23,7 @@ Before creating the release, ensure all items are completed:
 - [ ] API changes documented
 
 ### Version Management
-- [ ] VERSION file updated to X.Y
+- [ ] VERSION checked: updated for stable release, intentionally unchanged for beta
 - [ ] `python tools/version_sync.py` executed successfully
 - [ ] Frontend rebuilt with `npm run build`
 - [ ] Version displayed correctly in dashboard sidebar
@@ -42,6 +42,11 @@ Before creating the release, ensure all items are completed:
 ---
 
 ## Release Process
+
+For a beta build, keep `VERSION` at its current stable `X.Y` value and use the
+manual **Automated Release** workflow with an immutable tag such as
+`v5.5.110-simurgh-operator-beta`. The workflow marks it as a GitHub prerelease.
+Use the stable process below only for a final `vX.Y` release.
 
 ### 1. Create Git Tag
 
@@ -160,6 +165,7 @@ After creating the release:
 
 - Releases should only be created from the `main` branch
 - Use semantic version tags: `v3.6`, `v4.0`, etc.
+- Use `vX.Y.N-descriptive-beta` tags for prereleases; never move an existing tag
 - Include release notes copied from CHANGELOG.md
 - Link to documentation and installation guides
 - Tag releases for discoverability

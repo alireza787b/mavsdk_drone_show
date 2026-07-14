@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaCheckCircle,
+  FaChartLine,
   FaCloudDownloadAlt,
   FaExclamationTriangle,
   FaRedoAlt,
@@ -16,6 +17,7 @@ import {
   getDroneUlogDownloadJob,
   getDroneUlogFiles,
   getDroneUlogPolicy,
+  getDroneUlogSummary,
 } from '../../services/logService';
 import { formatBytes } from '../../utilities/logViewerUtils';
 
@@ -70,6 +72,47 @@ const getErrorMessage = (error, fallback) => (
   || fallback
 );
 
+const compactMetric = (value, digits = 1) => {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : null;
+};
+
+const optionalNumber = (value) => {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const buildSummaryMetrics = (summary) => {
+  if (!summary?.parsed || summary?.parser?.status !== 'ok') {
+    return [];
+  }
+  const metrics = [];
+  const duration = compactMetric(summary.duration_sec);
+  const horizontal = compactMetric(summary.local_position?.max_horizontal_distance_from_start_m);
+  const altitude = summary.local_position?.relative_altitude_range_m;
+  const voltage = summary.battery?.voltage_v;
+  const commandSamples = optionalNumber(summary.commands?.vehicle_command?.samples);
+  const ackSamples = optionalNumber(summary.commands?.vehicle_command_ack?.samples);
+  if (duration !== null) metrics.push(`${duration}s duration`);
+  if (horizontal !== null) metrics.push(`${horizontal}m max horizontal`);
+  if (altitude && compactMetric(altitude.min) !== null && compactMetric(altitude.max) !== null) {
+    metrics.push(`${compactMetric(altitude.min)}..${compactMetric(altitude.max)}m relative altitude`);
+  }
+  if (voltage && compactMetric(voltage.min, 2) !== null && compactMetric(voltage.max, 2) !== null) {
+    metrics.push(`${compactMetric(voltage.min, 2)}..${compactMetric(voltage.max, 2)}V battery`);
+  }
+  if (commandSamples !== null || ackSamples !== null) {
+    metrics.push(`${commandSamples ?? 0} commands / ${ackSamples ?? 0} acks`);
+  }
+  return metrics;
+};
+
 const OnboardUlogDialog = ({
   open,
   onClose,
@@ -82,20 +125,29 @@ const OnboardUlogDialog = ({
   const [ulogCapability, setUlogCapability] = useState(null);
   const [statusNotice, setStatusNotice] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
+  const [summaries, setSummaries] = useState({});
+  const [summaryLoadingId, setSummaryLoadingId] = useState(null);
   const [confirmErase, setConfirmErase] = useState(false);
   const downloadTriggeredRef = useRef(null);
+  const catalogRequestRef = useRef(0);
+  const summaryRequestRef = useRef(0);
 
   const loadCatalog = useCallback(async ({ preserveNotice = false } = {}) => {
     if (!droneId) {
       return;
     }
 
+    const requestId = catalogRequestRef.current + 1;
+    catalogRequestRef.current = requestId;
     setLoading(true);
     try {
       const [policyResponse, filesResponse] = await Promise.all([
         getDroneUlogPolicy(droneId),
         getDroneUlogFiles(droneId),
       ]);
+      if (catalogRequestRef.current !== requestId) {
+        return;
+      }
       setPolicy(policyResponse.policy || null);
       const capability = policyResponse.ulog_capability || filesResponse.ulog_capability || null;
       setUlogCapability(capability);
@@ -111,24 +163,33 @@ const OnboardUlogDialog = ({
         );
       }
     } catch (error) {
+      if (catalogRequestRef.current !== requestId) {
+        return;
+      }
       setStatusNotice({
         tone: 'error',
         text: getErrorMessage(error, 'Failed to load onboard ULog catalog.'),
       });
     } finally {
-      setLoading(false);
+      if (catalogRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [droneId]);
 
   useEffect(() => {
+    catalogRequestRef.current += 1;
+    summaryRequestRef.current += 1;
+    setFiles([]);
+    setPolicy(null);
+    setUlogCapability(null);
+    setActiveJob(null);
+    setStatusNotice(null);
+    setSummaries({});
+    setSummaryLoadingId(null);
+    setConfirmErase(false);
+    downloadTriggeredRef.current = null;
     if (!open) {
-      setFiles([]);
-      setPolicy(null);
-      setUlogCapability(null);
-      setActiveJob(null);
-      setStatusNotice(null);
-      setConfirmErase(false);
-      downloadTriggeredRef.current = null;
       return undefined;
     }
 
@@ -214,6 +275,34 @@ const OnboardUlogDialog = ({
       });
     }
   }, [droneId, scopeLabel]);
+
+  const handleLoadSummary = useCallback(async (entry) => {
+    if (!droneId || entry?.id == null) {
+      return;
+    }
+    const requestId = summaryRequestRef.current + 1;
+    const summaryKey = `${droneId}:${entry.id}`;
+    summaryRequestRef.current = requestId;
+    setSummaryLoadingId(entry.id);
+    try {
+      const summary = await getDroneUlogSummary(droneId, entry.id);
+      if (summaryRequestRef.current === requestId) {
+        setSummaries((current) => ({ ...current, [summaryKey]: summary }));
+      }
+    } catch (error) {
+      if (summaryRequestRef.current !== requestId) {
+        return;
+      }
+      setStatusNotice({
+        tone: 'error',
+        text: getErrorMessage(error, `Failed to analyze onboard ULog ${entry.id}.`),
+      });
+    } finally {
+      if (summaryRequestRef.current === requestId) {
+        setSummaryLoadingId(null);
+      }
+    }
+  }, [droneId]);
 
   const handleEraseAll = useCallback(async () => {
     if (!droneId) {
@@ -351,26 +440,50 @@ const OnboardUlogDialog = ({
                 {loading ? 'Loading onboard ULog catalog…' : 'No onboard PX4 ULogs available for this drone.'}
               </div>
             ) : (
-              files.map((entry) => (
-                <div key={entry.id} className="onboard-ulog-dialog__row">
+              files.map((entry) => {
+                const summaryKey = `${droneId}:${entry.id}`;
+                const summary = summaries[summaryKey];
+                const summaryMetrics = buildSummaryMetrics(summary);
+                return (
+                <div key={summaryKey} className="onboard-ulog-dialog__row">
                   <div className="onboard-ulog-dialog__row-main">
                     <strong>{formatUlogTimestamp(entry.date_utc)}</strong>
                     <div className="onboard-ulog-dialog__row-meta">
                       <span>Log #{entry.id}</span>
                       <span>{formatBytes(entry.size_bytes)}</span>
                     </div>
+                    {summary ? (
+                      <div className="onboard-ulog-dialog__analysis" aria-label={`ULog ${entry.id} analysis`}>
+                        {summaryMetrics.length ? (
+                          summaryMetrics.map((metric) => <span key={metric}>{metric}</span>)
+                        ) : (
+                          <span>{summary?.parser?.error || 'No derived flight metrics were available.'}</span>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="onboard-ulog-dialog__download-button"
-                    onClick={() => handleStartDownload(entry)}
-                    disabled={loading || transferBusy}
-                  >
-                    <FaCloudDownloadAlt size={12} />
-                    Download
-                  </button>
+                  <div className="onboard-ulog-dialog__row-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleLoadSummary(entry)}
+                      disabled={loading || transferBusy || summaryLoadingId !== null}
+                    >
+                      {summaryLoadingId === entry.id ? <FaSpinner className="spin" size={12} /> : <FaChartLine size={12} />}
+                      Analyze
+                    </button>
+                    <button
+                      type="button"
+                      className="onboard-ulog-dialog__download-button"
+                      onClick={() => handleStartDownload(entry)}
+                      disabled={loading || transferBusy}
+                    >
+                      <FaCloudDownloadAlt size={12} />
+                      Download
+                    </button>
+                  </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

@@ -165,10 +165,10 @@ cat VERSION  # Returns the updated version
 ```
 
 ### **File locations:**
-- **VERSION file:** `/root/mavsdk_drone_show/VERSION`
-- **Automation scripts:** `/root/mavsdk_drone_show/tools/`
-- **Workflows:** `/root/mavsdk_drone_show/.github/workflows/`
-- **Docs:** `/root/mavsdk_drone_show/docs/VERSIONING.md`
+- **VERSION file:** `<repo-root>/VERSION`
+- **Automation scripts:** `<repo-root>/tools/`
+- **Workflows:** `<repo-root>/.github/workflows/`
+- **Docs:** `<repo-root>/docs/VERSIONING.md`
 
 ---
 

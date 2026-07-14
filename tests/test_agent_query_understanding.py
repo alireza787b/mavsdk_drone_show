@@ -172,6 +172,16 @@ def test_query_planner_public_metadata_is_bounded_and_safe():
     assert 0 < metadata["confidence"] <= 1
 
 
+def test_public_upstream_lookup_takes_precedence_over_online_connectivity_wording():
+    plan = build_assistant_query_plan(
+        "What is the latest stable PX4 Autopilot release? Verify it online and cite the source."
+    )
+
+    assert plan.domain == "general"
+    assert plan.response_mode == "interpret"
+    assert plan.reason == "general information question"
+
+
 @pytest.mark.parametrize("conversation_topic", ("sitl", "simulation", "concept.sitl"))
 def test_query_planner_preserves_sitl_conversation_topic(conversation_topic):
     plan = build_assistant_query_plan(

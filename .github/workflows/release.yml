@@ -22,6 +22,10 @@ on:
           - auto
           - minor
           - major
+      prerelease_tag:
+        description: 'Optional beta tag from current main (for example v5.5.110-simurgh-operator-beta)'
+        required: false
+        default: ''
 
 jobs:
   quality-gates:
@@ -31,12 +35,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Validate manual release ref
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [ "$RELEASE_REF" != "refs/heads/main" ]; then
+            echo "Manual releases must run from the main branch; got $RELEASE_REF"
+            exit 1
+          fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.12'
           cache: pip
           cache-dependency-path: requirements.txt
 
@@ -58,12 +72,19 @@ jobs:
           pytest \
             tests/test_agent_assistant_evals.py \
             tests/test_agent_assistant_runtime.py \
+            tests/test_agent_action_planner.py \
             tests/test_agent_provider_smoke.py \
+            tests/test_agent_query_understanding.py \
+            tests/test_agent_registry_planner_coverage.py \
+            tests/test_agent_turn_intent.py \
             tests/test_api_route_inventory.py \
             tests/test_env_registry.py \
+            tests/test_gcs_simurgh_assistant.py \
             tests/test_gcs_simurgh_mcp.py \
             tests/test_gcs_simurgh_routes.py \
+            tests/test_gcs_sitl_control_routes.py \
             tests/test_mds_auth.py \
+            tests/test_mds_logging/test_log_proxy.py \
             tests/test_node_boot_status_routes.py \
             tests/test_run_sitl_validation_suite.py \
             tests/test_runtime_validation_support.py \
@@ -71,12 +92,13 @@ jobs:
             tests/test_simurgh_mcp_smoke_client.py \
             tests/test_simurgh_retrieval_quality.py \
             tests/test_simurgh_tool_candidate_generator.py \
+            tests/test_sitl_control_service.py \
             tests/test_sitl_control_client.py
           python3 tools/run_simurgh_dashboard_prompt_evals.py
           python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl --json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: npm
@@ -88,6 +110,7 @@ jobs:
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
             src/pages/SimurghOperatorPage.test.js \
+            src/components/logs/OnboardUlogDialog.test.js \
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
@@ -95,6 +118,7 @@ jobs:
           npm run build
 
   release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: quality-gates
     runs-on: ubuntu-latest
     permissions:
@@ -103,15 +127,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch all history for commit analysis
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -121,47 +145,82 @@ jobs:
         id: current_version
         run: |
           CURRENT_VERSION=$(cat VERSION)
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "📌 Current version: $CURRENT_VERSION"
 
       - name: Bump version
         id: bump_version
+        env:
+          PRERELEASE_TAG_INPUT: ${{ github.event.inputs.prerelease_tag }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+          BUMP_TYPE_INPUT: ${{ github.event.inputs.bump_type }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "🎯 Using manual version: ${{ github.event.inputs.version }}"
-            python3 tools/bump_version.py --manual "${{ github.event.inputs.version }}"
+          if [ -n "$PRERELEASE_TAG_INPUT" ]; then
+            echo "🧪 Publishing a prerelease without changing the X.Y product version"
+          elif [ -n "$VERSION_INPUT" ]; then
+            echo "🎯 Using manual version: $VERSION_INPUT"
+            python3 tools/bump_version.py --manual "$VERSION_INPUT"
           else
             echo "🤖 Auto-detecting version bump from commits"
-            python3 tools/bump_version.py --type "${{ github.event.inputs.bump_type || 'auto' }}"
+            python3 tools/bump_version.py --type "${BUMP_TYPE_INPUT:-auto}"
           fi
 
           NEW_VERSION=$(cat VERSION)
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "✅ New version: $NEW_VERSION"
 
       - name: Check if version changed
         id: version_check
+        env:
+          PRERELEASE_TAG_INPUT: ${{ github.event.inputs.prerelease_tag }}
         run: |
           OLD_VERSION="${{ steps.current_version.outputs.version }}"
           NEW_VERSION="${{ steps.bump_version.outputs.version }}"
+          PRERELEASE_TAG="$PRERELEASE_TAG_INPUT"
 
-          if [ "$OLD_VERSION" == "$NEW_VERSION" ]; then
-            echo "changed=false" >> $GITHUB_OUTPUT
+          if [ -n "$PRERELEASE_TAG" ]; then
+            IFS='.' read -r PRODUCT_MAJOR PRODUCT_MINOR PRODUCT_EXTRA <<< "$OLD_VERSION"
+            if ! [[ "$PRODUCT_MAJOR" =~ ^[0-9]+$ && "$PRODUCT_MINOR" =~ ^[0-9]+$ && -z "$PRODUCT_EXTRA" ]]; then
+              echo "❌ VERSION must contain exactly two numeric components (X.Y)"
+              exit 1
+            fi
+            if ! [[ "$PRERELEASE_TAG" =~ ^v${PRODUCT_MAJOR}\.${PRODUCT_MINOR}\.[0-9]+-[0-9A-Za-z][0-9A-Za-z.-]*$ ]]; then
+              echo "❌ Prerelease tag must extend the current X.Y version, for example v${OLD_VERSION}.110-simurgh-beta"
+              exit 1
+            fi
+            {
+              echo "changed=true"
+              echo "prerelease=true"
+              echo "tag=$PRERELEASE_TAG"
+            } >> "$GITHUB_OUTPUT"
+            echo "🧪 Prerelease tag: $PRERELEASE_TAG"
+          elif [ "$OLD_VERSION" == "$NEW_VERSION" ]; then
+            {
+              echo "changed=false"
+              echo "prerelease=false"
+              echo "tag=v$NEW_VERSION"
+            } >> "$GITHUB_OUTPUT"
             echo "⏭️  No version change needed"
           else
-            echo "changed=true" >> $GITHUB_OUTPUT
+            {
+              echo "changed=true"
+              echo "prerelease=false"
+              echo "tag=v$NEW_VERSION"
+            } >> "$GITHUB_OUTPUT"
             echo "🎉 Version changed: $OLD_VERSION → $NEW_VERSION"
           fi
 
       - name: Generate release notes
         if: steps.version_check.outputs.changed == 'true'
         id: release_notes
+        env:
+          RELEASE_TAG_OVERRIDE: ${{ steps.version_check.outputs.tag }}
         run: |
           python3 tools/generate_release_notes.py > release_notes.md
           echo "✅ Release notes generated"
 
       - name: Commit version bump
-        if: steps.version_check.outputs.changed == 'true'
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -172,28 +231,36 @@ jobs:
       - name: Create Git tag
         if: steps.version_check.outputs.changed == 'true'
         run: |
-          git tag -a "v${{ steps.bump_version.outputs.version }}" -m "Release v${{ steps.bump_version.outputs.version }}"
-          git push origin "v${{ steps.bump_version.outputs.version }}"
-          echo "🏷️  Created tag: v${{ steps.bump_version.outputs.version }}"
+          TAG="${{ steps.version_check.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "❌ Tag already exists: $TAG"
+            exit 1
+          fi
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "🏷️  Created tag: $TAG"
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.changed == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.bump_version.outputs.version }}
-          name: v${{ steps.bump_version.outputs.version }}
+          tag_name: ${{ steps.version_check.outputs.tag }}
+          name: ${{ steps.version_check.outputs.tag }}
           body_path: release_notes.md
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.version_check.outputs.prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         if: steps.version_check.outputs.changed == 'true'
         run: |
-          echo "## ✅ Release Complete!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** v${{ steps.bump_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`v${{ steps.bump_version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.bump_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## ✅ Release Complete!"
+            echo ""
+            echo "**Product version:** v${{ steps.bump_version.outputs.version }}"
+            echo "**Tag:** \`${{ steps.version_check.outputs.tag }}\`"
+            echo "**Prerelease:** ${{ steps.version_check.outputs.prerelease }}"
+            echo ""
+            echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version_check.outputs.tag }})"
+          } >> "$GITHUB_STEP_SUMMARY"

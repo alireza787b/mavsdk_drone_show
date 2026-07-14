@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -112,6 +113,26 @@ class GuardedToolCallResult:
         return cls(text=message, is_error=True, status_code=status_code)
 
 
+@dataclass(frozen=True)
+class InternalToolExecutionContext:
+    """Request-independent target for internal GCS route execution."""
+
+    app: Any
+    base_url: str
+
+    @classmethod
+    def from_request(cls, request: Request) -> "InternalToolExecutionContext":
+        return cls(app=request.app, base_url=str(request.base_url).rstrip("/"))
+
+
+def _internal_execution_context(
+    target: Request | InternalToolExecutionContext,
+) -> InternalToolExecutionContext:
+    if isinstance(target, InternalToolExecutionContext):
+        return target
+    return InternalToolExecutionContext.from_request(target)
+
+
 def is_read_only_route_tool(tool: ToolDefinition) -> bool:
     """Return whether a registry tool is callable by the current read-only adapter."""
 
@@ -174,6 +195,30 @@ def list_policy_allowed_read_only_tools(
     return tuple(visible)
 
 
+def list_policy_available_guarded_tools(
+    *,
+    channel: str,
+    registry: ToolRegistry | None = None,
+    policy: AgentPolicy | None = None,
+) -> tuple[ToolDefinition, ...]:
+    """Return guarded route tools that can be proposed in the current mode.
+
+    Proposal availability is evaluated before approval. The final executor still
+    re-evaluates approval and the circuit breaker immediately before dispatch.
+    """
+
+    active_registry = registry or load_default_tool_registry()
+    active_policy = policy or load_default_policy()
+    visible: list[ToolDefinition] = []
+    for tool in active_registry.list_tools():
+        if not is_guarded_route_tool(tool):
+            continue
+        decision = active_policy.evaluate_tool(tool, channel=channel)
+        if decision.status in {PolicyDecisionStatus.ALLOW, PolicyDecisionStatus.REQUIRE_APPROVAL}:
+            visible.append(tool)
+    return tuple(visible)
+
+
 def summarize_read_only_tool_catalog(
     *,
     channel: str,
@@ -206,7 +251,7 @@ def summarize_read_only_tool_catalog(
 
 
 async def execute_policy_allowed_read_only_tool(
-    request: Request,
+    request: Request | InternalToolExecutionContext,
     *,
     name: str,
     arguments: dict[str, Any],
@@ -227,7 +272,8 @@ async def execute_policy_allowed_read_only_tool(
     if decision.status is not PolicyDecisionStatus.ALLOW:
         return ReadOnlyToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
     if is_read_only_advisory_tool(tool):
-        return execute_policy_allowed_advisory_tool(
+        return await asyncio.to_thread(
+            execute_policy_allowed_advisory_tool,
             name=name,
             arguments=arguments,
             channel=channel,
@@ -245,10 +291,11 @@ async def execute_policy_allowed_read_only_tool(
 
     headers: dict[str, str] = {INTERNAL_TOOL_CALL_HEADER: INTERNAL_TOOL_CALL_VALUE}
 
-    transport = httpx.ASGITransport(app=request.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
+    execution_context = _internal_execution_context(request)
+    transport = httpx.ASGITransport(app=execution_context.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
     async with httpx.AsyncClient(
         transport=transport,
-        base_url=str(request.base_url).rstrip("/"),
+        base_url=execution_context.base_url,
         timeout=timeout_seconds,
     ) as client:
         response = await client.get(route_path, headers=headers)
@@ -290,7 +337,7 @@ async def execute_policy_allowed_read_only_tool(
 
 
 async def execute_policy_allowed_guarded_route_tool(
-    request: Request,
+    request: Request | InternalToolExecutionContext,
     *,
     name: str,
     arguments: dict[str, Any],
@@ -327,10 +374,11 @@ async def execute_policy_allowed_guarded_route_tool(
     body = {key: value for key, value in arguments.items() if key not in path_param_names}
 
     headers: dict[str, str] = {INTERNAL_TOOL_CALL_HEADER: INTERNAL_TOOL_CALL_VALUE}
-    transport = httpx.ASGITransport(app=request.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
+    execution_context = _internal_execution_context(request)
+    transport = httpx.ASGITransport(app=execution_context.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
     async with httpx.AsyncClient(
         transport=transport,
-        base_url=str(request.base_url).rstrip("/"),
+        base_url=execution_context.base_url,
         timeout=timeout_seconds,
     ) as client:
         response = await client.request(str(tool.route_method), route_path, headers=headers, json=body)

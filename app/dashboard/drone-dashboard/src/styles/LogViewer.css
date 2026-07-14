@@ -953,6 +953,28 @@
   color: var(--color-text-primary);
 }
 
+.onboard-ulog-dialog__row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 0 0 auto;
+}
+
+.onboard-ulog-dialog__analysis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--spacing-xs);
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.onboard-ulog-dialog__analysis span:not(:last-child)::after {
+  content: "\00b7";
+  margin-left: var(--spacing-xs);
+  color: var(--color-text-tertiary);
+}
+
 .onboard-ulog-dialog__download-button {
   white-space: nowrap;
 }
@@ -1040,6 +1062,21 @@
 
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
+  .log-export-dialog {
+    width: calc(100vw - 2rem);
+    min-width: 0;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .onboard-ulog-dialog__row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .onboard-ulog-dialog__row-actions {
+    justify-content: flex-end;
+  }
+
   .log-toolbar {
     flex-direction: column;
     align-items: stretch;

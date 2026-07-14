@@ -40,8 +40,8 @@ conversations:
           must_include:
             - Connectivity from GCS state
             - GPS
-            - Latitude
-            - Longitude
+            - Position
+            - Coordinates
           must_not_include:
             - Fleet status from GCS configuration
 

@@ -145,6 +145,30 @@ class TestFetchDroneJsonSync:
         assert exc_info.value.detail == "vehicle armed"
 
 
+class TestUlogProxyTimeouts:
+    @pytest.mark.asyncio
+    async def test_ulog_inventory_uses_canonical_mavsdk_timeout(self):
+        from log_proxy import (
+            DEFAULT_DRONE_ULOG_PROXY_TIMEOUT_SECONDS,
+            fetch_drone_ulog_files,
+        )
+
+        with patch("log_proxy._request_json", new=AsyncMock(return_value={"files": []})) as request_json:
+            await fetch_drone_ulog_files("192.168.1.105")
+
+        assert request_json.await_args.kwargs["timeout"] == DEFAULT_DRONE_ULOG_PROXY_TIMEOUT_SECONDS
+
+    def test_ulog_summary_timeout_falls_back_for_invalid_override(self, monkeypatch):
+        from log_proxy import (
+            DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS,
+            drone_ulog_summary_timeout_seconds,
+        )
+
+        monkeypatch.setenv("MDS_ULOG_SUMMARY_TIMEOUT_SEC", "invalid")
+
+        assert drone_ulog_summary_timeout_seconds() == DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS
+
+
 class TestStreamDroneLogs:
     def test_stream_error_emits_structured_warning_entry(self):
         from log_proxy import stream_drone_logs

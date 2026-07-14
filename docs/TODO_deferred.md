@@ -1,11 +1,16 @@
-# Deferred TODOs — Product Backlog
+# Product Backlog
 
-Deferred items across identity, config, SITL, frontend, and command/runtime workflows.
-Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this file is now the shared deferred backlog so phase handoffs do not lose important follow-up work.
+Planned follow-up work across identity, configuration, SITL, frontend, and
+command/runtime workflows. These entries are deliberate roadmap items, not
+unresolved blockers for the current release. Completed work belongs in
+`CHANGELOG.md`, not in this backlog.
+
+Headings use stable domain names rather than sequence numbers so additions and
+reordering cannot create duplicate or misleading TODO identifiers.
 
 ---
 
-## TODO 1: Decouple hw_id from MAV_SYS_ID (for >254 drones)
+## Identity: Decouple hw_id from MAV_SYS_ID (for >254 drones)
 
 **Priority:** Medium (needed when fleet > 254)
 **Status:** Deferred — current fleet uses 1-254 range
@@ -26,7 +31,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 2: Clarify deliberate slot reassignment versus Smart Swarm follow ownership
+## Smart Swarm: Clarify slot reassignment versus follow ownership
 
 **Priority:** Medium
 **Status:** Deferred — needs UX design for swarm mode interaction
@@ -46,18 +51,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 3: ~~Move from CSV to JSON/YAML configuration~~ DONE
-
-**Priority:** ~~Low~~ Completed
-**Status:** DONE (2026-03-06) -- migrated to JSON with Pydantic validation
-
-**Problem:** CSV was fragile (column order dependent, no nesting, no comments, no schema validation, no versioning). Complex config (nested parameters, arrays) could not be represented.
-
-**Solution:** Migrated to JSON with Pydantic `extra='allow'` schemas. Config files are now `config.json`/`swarm.json` (and `config_sitl.json`/`swarm_sitl.json` for SITL). Dashboard supports both JSON (primary) and CSV (legacy import/export). See `docs/guides/config-json-format.md` for format reference.
-
----
-
-## TODO 4: Central config service (pull-based)
+## Configuration: Central pull-based config service
 
 **Priority:** Low
 **Status:** Deferred — needs offline fallback design
@@ -73,7 +67,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 5: Validate config on drone boot
+## Configuration: Validate fleet identity on drone boot
 
 **Priority:** Medium
 **Status:** Deferred — needs inter-drone awareness at boot time
@@ -89,7 +83,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 6: QuickScout mission-batch launch identity and optional true continue/resume adapter
+## QuickScout: Mission-batch launch identity and optional continue/resume adapter
 
 **Status:** Deferred — wait until the new QuickScout mission workspace and operator workflow settle
 
@@ -111,15 +105,33 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `gcs-server/sar/schemas.py`
 - future QuickScout workspace/frontend components
 
-## TODO 7: QuickScout advanced retasking and findings-aware SITL expansion
+## QuickScout: Advanced retasking and findings-aware SITL expansion
 
 **Status:** Deferred — findings foundation, evidence refs, handoff/export, finding-seeded follow-up planning, and template-complete findings-aware runtime validation are complete, but mid-mission retasking and deeper advanced drills are not yet done
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 
+- add-drone/remove-drone or deeper follow-up package generation from the current airborne state
+- richer retask / fault-injection SITL drills beyond the validated findings-aware launch-control path
+
+**Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:
+
+- add planner/control seams for mid-mission reassignment only after the operator workflow is explicit
+- add later media attachment/upload on top of the now-stable evidence reference model
+- promote deeper retask and fault-injection SITL scenarios once the next control slice is stable
+
+**Likely touch points:**
+
+- `gcs-server/sar/{schemas,service,store,routes}.py`
+- `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.js`
+- `app/dashboard/drone-dashboard/src/components/sar/*`
+- `tools/sitl_plans/*`
+- `tools/validate_quickscout_runtime.py`
+- checked-in `quickscout_runtime` / `quickscout_multi_runtime` plans if mission-batch launch identity or a true resume adapter is introduced
+
 ---
 
-## TODO 8: Converge maintenance identity / firmware reporting into PX4 parameter workflows deliberately
+## PX4 Parameters: Converge maintenance identity and firmware reporting
 
 **Priority:** Medium
 **Status:** Deferred — do not duplicate or hardcode before there is one clean shared contract
@@ -149,27 +161,9 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js`
 - future hardware-grade metadata cache / vehicle identity services
 
-- add-drone/remove-drone or deeper follow-up package generation from the current airborne state
-- richer retask / fault-injection SITL drills beyond the validated findings-aware launch-control path
-
-**Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:
-
-- add planner/control seams for mid-mission reassignment only after the operator workflow is explicit
-- add later media attachment/upload on top of the now-stable evidence reference model
-- promote deeper retask and fault-injection SITL scenarios once the next control slice is stable
-
-**Likely touch points:**
-
-- `gcs-server/sar/{schemas,service,store,routes}.py`
-- `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.js`
-- `app/dashboard/drone-dashboard/src/components/sar/*`
-- `tools/sitl_plans/*`
-- `tools/validate_quickscout_runtime.py`
-- `tools/validate_quickscout_runtime.py` and the checked-in `quickscout_runtime` / `quickscout_multi_runtime` plans if mission-batch launch identity or a true resume adapter is introduced
-
 ---
 
-## TODO 7: Harder simultaneous mixed-mission and fault-injection SITL plans
+## SITL: Harder simultaneous mixed-mission and fault-injection plans
 
 **Priority:** Medium
 **Status:** Deferred — the checked-in `integrated_mixed_mode` and `advanced_operator_regression` plans are now validated; this TODO remains only for the harder next tier
@@ -192,7 +186,7 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ---
 
-## TODO 8: Audit the DroneSetup / actions.py / runner pipeline after precision-move rollout
+## Command Runtime: Audit DroneSetup, actions.py, and runner ownership
 
 **Priority:** Medium
 **Status:** Deferred — wait until Precision Move stabilizes under broader operator/SITL use
@@ -216,14 +210,25 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ---
 
-## TODO 9: Modernize dashboard dependencies after Precision Move
+## Frontend: Replace the Create React App toolchain
 
 **Priority:** Medium
-**Status:** Deferred — surfaced during Hetzner validation for the Precision Move UI slice
+**Status:** Deferred — compatible security updates applied through the Simurgh
+operator beta; the remaining findings require replacement of the CRA 5
+build/test toolchain
 
-**Problem:** `npm ci` in the dashboard still surfaces several deprecated CRA-era dependencies and the audit result still reports known vulnerabilities. This did not block the Precision Move feature, but it is real maintenance debt.
+**Problem:** `npm ci` in the dashboard still surfaces deprecated CRA-era
+dependencies and audit findings owned by the `react-scripts` build/test chain.
+The Simurgh operator beta lockfile refresh removed the critical finding and
+applied every compatible non-breaking patch available at that checkpoint.
+Forcing npm's remaining suggested remediation would install the invalid
+`react-scripts@0.0.0`; this is not an acceptable production fix.
 
-**Solution:** Plan a controlled frontend dependency modernization pass that reduces deprecated packages and vulnerability backlog without destabilizing the operator UI.
+**Solution:** Replace CRA with a maintained frontend build/test toolchain in a
+dedicated migration, preserve the existing runtime asset contract and browser
+behavior, then require a clean production-dependency audit as its acceptance
+gate. Continue applying compatible lockfile security patches in normal release
+work until that migration is complete.
 
 **Files to revisit:**
 - `app/dashboard/drone-dashboard/package.json`
@@ -232,7 +237,7 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ---
 
-## TODO 10: Evaluate true continuous manual-control mode separately from Precision Move
+## Flight Control: Evaluate continuous manual control separately from Precision Move
 
 **Priority:** Medium
 **Status:** Deferred — keep Precision Move on discrete audited step commands for now
@@ -249,10 +254,13 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 **Files to revisit:**
 - `src/action_runners/precision_move.py`
+- `src/command_contract.py`
+- `app/dashboard/drone-dashboard/src/components/PrecisionMoveDialog.js`
+- future manual-control/MCP docs and validators
 
 ---
 
-## TODO 11: Hardware-grade PX4 parameter metadata discovery and caching
+## PX4 Parameters: Hardware-grade metadata discovery and caching
 
 **Priority:** Medium
 **Status:** Deferred — current PX4 Parameters v1 is correct for SITL and managed local-runtime deployments
@@ -273,13 +281,10 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `src/px4_param_models.py`
 - `docs/px4-parameters.md`
 - future GCS-side metadata cache storage/docs once the hardware path is implemented
-- `src/command_contract.py`
-- `app/dashboard/drone-dashboard/src/components/PrecisionMoveDialog.js`
-- future manual-control/MCP docs and validators
 
 ---
 
-## TODO 12: Named bootstrap profiles and fleet automation assets
+## Provisioning: Named bootstrap profiles and fleet automation assets
 
 **Priority:** Medium
 **Status:** Deferred — node bootstrap, candidate announce, and Fleet Enrollment are now canonical, but named preset files and automation assets are not yet first-class repo resources
@@ -302,7 +307,7 @@ This is post-v1 hardening, not missing core functionality.
 
 ---
 
-## TODO 13: mavlink-anywhere integration review and automation polish
+## Connectivity: mavlink-anywhere integration and automation polish
 
 **Priority:** Medium
 **Status:** Deferred — current MDS bootstrap already integrates with `mavlink-anywhere`, but the external repo has not yet been reviewed and tightened as part of this enrollment redesign
@@ -318,7 +323,7 @@ This is post-v1 hardening, not missing core functionality.
 
 ---
 
-## TODO 14: Optional sidecar dashboard/API auth and subnet policy
+## Connectivity: Optional sidecar dashboard/API auth and subnet policy
 
 **Priority:** Medium
 **Status:** Deferred — MDS GCS auth is available; sidecar dashboards remain trusted-network tools for now

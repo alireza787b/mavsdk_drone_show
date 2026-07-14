@@ -64,13 +64,16 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => {
     const dashboardAuthEnabled = Boolean(status?.dashboard_auth_enabled);
-    const authenticated = dashboardAuthEnabled ? Boolean(status?.authenticated) : true;
+    const apiAuthEnabled = Boolean(status?.api_auth_enabled);
+    const authRequired = dashboardAuthEnabled || apiAuthEnabled;
+    const authenticated = authRequired ? Boolean(status?.authenticated) : true;
     return {
       status: status || {},
       loading,
       error,
       dashboardAuthEnabled,
-      apiAuthEnabled: Boolean(status?.api_auth_enabled),
+      apiAuthEnabled,
+      authRequired,
       setupRequired: Boolean(status?.setup_required),
       authenticated,
       user: status?.user || null,

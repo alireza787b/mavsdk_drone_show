@@ -70,6 +70,13 @@ def _schema() -> dict:
                     "responses": {"200": {"description": "ok"}},
                 }
             },
+            "/api/v1/simurgh/action-runs": {
+                "get": {
+                    "operationId": "list_simurgh_action_runs",
+                    "tags": ["Simurgh Operator"],
+                    "responses": {"200": {"content": {"application/json": {"schema": {"type": "object"}}}}},
+                }
+            },
             "/api/v1/shows/skybrush/metrics": {
                 "get": {
                     "operationId": "get_comprehensive_metrics",
@@ -111,7 +118,7 @@ def test_openapi_candidate_generation_is_deterministic_and_non_callable():
     assert first == second
     assert first["policy"]["runtime_loaded"] is False
     assert first["policy"]["default_callable"] is False
-    assert first["candidate_count"] == 10
+    assert first["candidate_count"] == 11
     assert all(candidate["callable"] is False for candidate in first["candidates"])
     assert all(candidate["review_status"] == "needs_review" for candidate in first["candidates"])
 
@@ -155,6 +162,10 @@ def test_openapi_candidate_generation_classifies_safe_and_unsafe_routes():
     auth = by_path["/api/v1/auth/tokens"]
     assert auth["classification"]["eligible_read_only_mcp_candidate"] is False
     assert "auth/admin route" in auth["classification"]["review_reasons"]
+
+    action_runs = by_path["/api/v1/simurgh/action-runs"]
+    assert action_runs["classification"]["eligible_read_only_mcp_candidate"] is False
+    assert "first-party operator action-run state route" in action_runs["classification"]["review_reasons"]
 
     metrics = by_path["/api/v1/shows/skybrush/metrics"]
     assert metrics["classification"]["eligible_read_only_mcp_candidate"] is False
@@ -207,6 +218,30 @@ def test_openapi_candidate_generation_reports_registry_coverage():
     ]
 
 
+def test_openapi_schema_canonicalization_removes_representation_only_drift():
+    generator = _load_generator()
+    schema = {
+        "additionalProperties": True,
+        "properties": {
+            "heading": {
+                "minimum": 0.0,
+                "exclusiveMaximum": 360.0,
+                "additionalProperties": False,
+            }
+        },
+    }
+
+    assert generator.canonicalize_openapi_schema(schema) == {
+        "properties": {
+            "heading": {
+                "minimum": 0,
+                "exclusiveMaximum": 360,
+                "additionalProperties": False,
+            }
+        }
+    }
+
+
 def test_generated_candidate_artifact_is_review_only_and_current():
     generator = _load_generator()
     artifact_path = REPO_ROOT / "docs" / "agent-context" / "generated" / "simurgh-openapi-tool-candidates.yaml"
@@ -232,6 +267,8 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     by_path = {candidate["source"]["path"]: candidate for candidate in artifact["candidates"]}
     assert by_path["/api/v1/commands"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert "command/control route" in by_path["/api/v1/commands"]["classification"]["review_reasons"]
+    assert by_path["/api/v1/simurgh/action-runs"]["classification"]["eligible_read_only_mcp_candidate"] is False
+    assert "first-party operator action-run state route" in by_path["/api/v1/simurgh/action-runs"]["classification"]["review_reasons"]
     assert by_path["/api/logs/sessions/{session_id}"]["classification"]["eligible_read_only_mcp_candidate"] is True
     assert by_path["/api/logs/stream"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/swarm-trajectories/download-kml/{drone_id}"]["classification"]["eligible_read_only_mcp_candidate"] is False

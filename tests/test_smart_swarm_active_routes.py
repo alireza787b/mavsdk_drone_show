@@ -1,8 +1,11 @@
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def test_smart_swarm_uses_canonical_gcs_swarm_routes():
-    content = Path("smart_swarm.py").read_text()
+    content = (REPO_ROOT / "smart_swarm.py").read_text()
 
     assert "/get-swarm-data" not in content
     assert "/request-new-leader" not in content

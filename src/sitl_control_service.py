@@ -60,6 +60,14 @@ _DEFAULT_LOG_LIMIT = 200
 _DEFAULT_HISTORY_LIMIT = 20
 
 
+def _operation_monitor_timeout_seconds() -> float:
+    try:
+        value = float(os.getenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "900"))
+    except (TypeError, ValueError):
+        return 900.0
+    return value if value > 0 else 900.0
+
+
 def _default_sitl_image() -> str:
     env_image = os.environ.get("MDS_DOCKER_IMAGE") or os.environ.get("MDS_DEFAULT_DOCKER_IMAGE")
     if env_image:
@@ -848,6 +856,8 @@ class SitlControlService:
         metadata: dict[str, Any] | None = None,
     ) -> SitlControlOperationResponse:
         timestamp = _now_ms()
+        operation_metadata = dict(metadata or {})
+        operation_metadata.setdefault("monitor_timeout_seconds", _operation_monitor_timeout_seconds())
         operation = SitlControlOperationResponse(
             operation_id=f"sitl-{uuid.uuid4().hex[:12]}",
             operation_type=operation_type,
@@ -855,7 +865,7 @@ class SitlControlService:
             summary=summary,
             detail=detail,
             affected_instances=list(affected_instances or []),
-            metadata=dict(metadata or {}),
+            metadata=operation_metadata,
             log_lines=[],
             created_at=timestamp,
             updated_at=timestamp,

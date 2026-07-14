@@ -169,20 +169,6 @@ resources:
   - clients
   - integrations
   searchable: true
-- id: simurgh.readonly_checkpoint
-  title: Simurgh read-only checkpoint
-  path: docs/guides/simurgh-readonly-checkpoint.md
-  mime_type: text/markdown
-  audience: operator
-  sensitivity: public
-  summary: Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.
-  tags:
-  - simurgh
-  - mcp
-  - checkpoint
-  - safety
-  - actions
-  searchable: true
 - id: mds.init_setup
   title: MDS init setup
   path: docs/guides/mds-init-setup.md

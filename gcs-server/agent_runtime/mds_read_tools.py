@@ -24,28 +24,30 @@ from urllib.parse import urlparse
 import yaml
 from fastapi import HTTPException
 
+from src.ulog_proxy_policy import (
+    drone_ulog_proxy_timeout_seconds,
+    drone_ulog_summary_timeout_seconds,
+)
 from request_logging import is_routine_auth_noise_path
 
 from .answer_composer import AnswerComposer
 from .evidence import ReadOnlyEvidenceBundle
 from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_matching_text, normalize_operator_query_text
-from .query_understanding import build_assistant_query_plan
+from .query_understanding import build_assistant_query_plan, looks_like_public_upstream_reference_query
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 READ_TOOL_PROVIDER = "mds-tools"
 READ_TOOL_MODEL = "local-read-only"
 READ_TOOL_ADAPTER_VERSION = "mds-read-tools-v1"
-DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
+DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5")
 DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 MCP_ENDPOINT_PATH = "/api/v1/simurgh/mcp"
 MCP_RESOURCE_URL_ENV = "MDS_MCP_RESOURCE_URL"
 DRONE_LOG_PROXY_TIMEOUT_SECONDS = 2.5
-DRONE_ULOG_PROXY_TIMEOUT_SECONDS = 4.0
-DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS = 90.0
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 LATEST_SESSION_GROUP_SECONDS = 15
 QUICKSCOUT_FIELD_READY_STALE_SECONDS = 6 * 3600
@@ -330,6 +332,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return None
     if _looks_like_previous_answer_transform(normalized):
         return None
+    if looks_like_public_upstream_reference_query(normalized):
+        return "general_knowledge"
     if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
         return "general_knowledge"
     if _looks_like_public_geography_question(normalized):
@@ -358,6 +362,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "board_setup_help"
 
     if topic == "logs" and _looks_like_contextual_log_followup(normalized):
+        if _looks_like_drone_log_summary_question(normalized):
+            return "drone_log_summary"
         return "backend_log_summary"
     if topic == "drone_show" and _looks_like_contextual_show_followup(normalized):
         return "show_summary"
@@ -547,7 +553,7 @@ def answer_mds_read_only_question(
     if intent == "drone_log_summary":
         return tools.drone_log_summary(message=message)
     if intent == "action_capability":
-        return tools.action_capability()
+        return tools.action_capability(message)
     if intent == "registry_domain_tool_summary":
         return tools.registry_domain_tool_summary(message)
     if intent == "system_status":
@@ -2662,13 +2668,14 @@ class MdsReadOnlyTools:
     def drone_log_summary(self, message: str = "") -> MdsReadToolAnswer:
         config = self._fleet_config()
         normalized_message = _normalize_text(message)
+        scoped_config = self._drone_log_scope(config, normalized_message)
         composer = AnswerComposer()
         composer.line("Drone log evidence from the GCS log proxy:")
 
         if _looks_like_operation_log_verification_question(normalized_message):
             self._append_recent_command_evidence(composer)
 
-        if not config:
+        if not scoped_config:
             composer.blank().line(
                 "No configured drones are visible in the GCS fleet config, so there are no per-drone log endpoints to inspect."
             )
@@ -2689,7 +2696,11 @@ class MdsReadOnlyTools:
         max_ulog_summaries = _env_int("MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES", 2)
         parsed_ulog_count = 0
 
-        for drone in config:
+        scoped_ids = [str(drone.get("hw_id")) for drone in scoped_config if drone.get("hw_id") not in (None, "")]
+        if scoped_ids and len(scoped_config) < len(config):
+            composer.line("Scope: " + ", ".join(f"Drone {hw_id}" for hw_id in scoped_ids) + ".")
+
+        for drone in scoped_config:
             hw_id = _as_int(drone.get("hw_id"))
             if hw_id is None:
                 continue
@@ -2723,7 +2734,7 @@ class MdsReadOnlyTools:
             ulog_payload, ulog_error = self._fetch_drone_json(
                 ip,
                 "/api/v1/ulog/files",
-                timeout=DRONE_ULOG_PROXY_TIMEOUT_SECONDS,
+                timeout=drone_ulog_proxy_timeout_seconds(),
             )
             ulog_files = _ulog_file_items(ulog_payload)
             total_ulogs += len(ulog_files)
@@ -2735,7 +2746,7 @@ class MdsReadOnlyTools:
                     summary_payload, summary_error = self._fetch_drone_json(
                         ip,
                         f"/api/v1/ulog/files/{log_id}/summary",
-                        timeout=DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS,
+                        timeout=drone_ulog_summary_timeout_seconds(),
                     )
                     parsed_ulog_count += 1
                     if summary_error:
@@ -2813,6 +2824,76 @@ class MdsReadOnlyTools:
             ),
         )
 
+    def _drone_log_scope(
+        self,
+        config: list[dict[str, Any]],
+        normalized_message: str,
+    ) -> list[dict[str, Any]]:
+        """Bound log review to explicit, recent-command, or live fleet targets."""
+
+        if not config:
+            return []
+        config_by_id = {
+            hw_id: drone
+            for drone in config
+            if (hw_id := _as_int(drone.get("hw_id"))) is not None
+        }
+
+        explicit_hw_id = _extract_hw_id(normalized_message)
+        if explicit_hw_id in config_by_id:
+            return [config_by_id[explicit_hw_id]]
+
+        if _looks_like_operation_log_verification_question(normalized_message):
+            snapshot = self._command_tracker_snapshot()
+            for command in snapshot.get("recent") or ():
+                target_ids = [
+                    target
+                    for raw_target in command.get("target_drones") or ()
+                    if (target := _as_int(raw_target)) in config_by_id
+                ]
+                if target_ids:
+                    return [config_by_id[target] for target in dict.fromkeys(target_ids)]
+
+        live_ids: list[int] = []
+        heartbeats = self._heartbeat_snapshot()
+        telemetry = self._telemetry_snapshot()
+        telemetry_success_times = self._telemetry_success_times()
+        try:
+            from params import Params
+            from presence import build_presence_snapshot, resolve_presence_thresholds
+
+            thresholds = resolve_presence_thresholds(Params)
+        except Exception:
+            build_presence_snapshot = None
+            thresholds = None
+        now = time.time()
+        for hw_id in config_by_id:
+            heartbeat = _copy_mapping(heartbeats.get(str(hw_id)) or heartbeats.get(hw_id))
+            telemetry_row = _copy_mapping(telemetry.get(str(hw_id)) or telemetry.get(hw_id))
+            if build_presence_snapshot is not None:
+                presence = build_presence_snapshot(
+                    hw_id=str(hw_id),
+                    heartbeat=heartbeat,
+                    telemetry=telemetry_row,
+                    telemetry_success_time=(
+                        telemetry_success_times.get(str(hw_id))
+                        or telemetry_success_times.get(hw_id)
+                    ),
+                    configured=True,
+                    now=now,
+                    thresholds=thresholds,
+                )
+                live = bool(presence.get("fresh"))
+            else:
+                live = bool(heartbeat or telemetry_row.get("telemetry_available"))
+            if live:
+                live_ids.append(hw_id)
+        if live_ids:
+            return [config_by_id[hw_id] for hw_id in live_ids]
+
+        max_drones = max(1, _env_int("MDS_SIMURGH_DRONE_LOG_MAX_DRONES", 8))
+        return config[:max_drones]
+
     def _append_recent_command_evidence(self, composer: AnswerComposer) -> None:
         snapshot = self._command_tracker_snapshot()
         composer.blank().line("Recent command tracker evidence:")
@@ -2852,6 +2933,20 @@ class MdsReadOnlyTools:
         ip = str(drone_ip or "").strip()
         if not ip:
             return {}, "missing ip"
+        injected_fetcher = getattr(self.deps, "fetch_drone_json_sync", None) if self.deps is not None else None
+        if callable(injected_fetcher):
+            try:
+                payload = injected_fetcher(
+                    ip,
+                    path,
+                    params=dict(params or {}),
+                    timeout=timeout,
+                )
+            except Exception as exc:  # fixture/adaptor boundary
+                return {}, _truncate_text(str(exc), 80) or "request failed"
+            if not isinstance(payload, Mapping):
+                return {}, "unexpected payload"
+            return _copy_mapping(payload), ""
         try:
             from log_proxy import (
                 DroneProxyResponseError,
@@ -3039,18 +3134,70 @@ class MdsReadOnlyTools:
             lines.append("- Severity: WARNING-only in this scan; worth noting, but not a flight readiness blocker unless it matches a failing operator workflow.")
         return lines
 
-    def action_capability(self) -> MdsReadToolAnswer:
-        content = "\n".join(
-            [
-                "I cannot execute that action in this Simurgh release, and disabling the circuit breaker alone would not make it callable.",
-                "The raw GCS command route, direct drone API, MAVSDK command path, and mission mutation APIs are deliberately excluded from Simurgh/MCP tools today.",
-                "For a future approved action wrapper, the safe plan would need typed steps such as takeoff(5 m), hold(10 s), relative move north(6 m), then RTL/return, plus live telemetry freshness, preflight/readiness checks, geofence/airspace checks, operator approval, audit logging, and SITL validation before any real flight use.",
-                "Current Simurgh can answer read-only readiness/config/log/docs questions and explain which future wrapper would be needed; it will not command the aircraft.",
-                "Relevant docs: " + _doc_link("Simurgh guide", "simurgh.operator_guide") + ", " + _doc_link("safety policy", "simurgh.safety_policy") + ", " + _doc_link("tool usage guidelines", "simurgh.tool_usage") + ", and " + _doc_link("GCS API surface", "mds.gcs_api") + ".",
-                "No drone command was sent.",
-            ]
+    def action_capability(self, message: str = "") -> MdsReadToolAnswer:
+        del message  # Capability comes from the live registry/policy, not prompt aliases.
+        try:
+            from .policy import load_default_policy
+            from .tool_executor import list_policy_available_guarded_tools
+
+            policy = load_default_policy()
+            tools = list_policy_available_guarded_tools(channel="agent", policy=policy)
+            composer = AnswerComposer()
+            if tools:
+                composer.line(
+                    "Yes. Simurgh can draft these guarded GCS actions and submit them after operator confirmation when current policy allows."
+                )
+            else:
+                composer.line(f"No guarded GCS actions are available in the current `{policy.mode}` runtime policy.")
+            composer.blank().table(
+                ("Execution setting", "Current value"),
+                (
+                    ("Runtime mode", policy.mode),
+                    (
+                        "Circuit breaker",
+                        "ON - confirmed actions stop before dispatch"
+                        if policy.action_circuit_breaker_enabled
+                        else "OFF - confirmed registry actions may dispatch",
+                    ),
+                    (
+                        "Operator confirmation",
+                        "required" if policy.always_confirm_before_action else "tool/policy dependent",
+                    ),
+                ),
+            )
+            if tools:
+                composer.blank().line("Available guarded actions:")
+                composer.table(
+                    ("Action", "Tool", "GCS route"),
+                    (
+                        (
+                            tool.title,
+                            f"`{tool.id}`",
+                            f"`{tool.route_method} {tool.route_path}`",
+                        )
+                        for tool in tools
+                    ),
+                )
+            composer.blank().line(
+                "Flow: interpret the request -> build one ordered plan -> confirm -> re-check policy and the circuit breaker before every step -> monitor the GCS result."
+            )
+            composer.line(
+                "Direct drone APIs and raw command submission remain unavailable; only registry-defined typed actions can use this path."
+            )
+            composer.line("This was a capability check; nothing was submitted.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"Simurgh guarded-action capability could not be loaded from the current registry and policy: {exc}"
+        return self._answer(
+            "action_capability",
+            content,
+            ("mds.simurgh.policy.read", "mds.simurgh.tools.read"),
+            response_mode="capability",
+            safety_notes=(
+                "Guarded-action availability was derived from the current registry and runtime policy.",
+                "No GCS route or drone command was executed.",
+            ),
         )
-        return self._answer("action_capability", content, ("mds.simurgh.safety_policy.read", "mds.simurgh.tool_policy.read"))
 
     def _recent_warning_events(self, *, window_seconds: int | None = None) -> tuple[list[dict[str, Any]], list[str]]:
         events: list[dict[str, Any]] = []
@@ -4125,21 +4272,8 @@ def _is_absolute_http_url(value: str) -> bool:
 
 
 def _configured_public_gcs_base_url() -> str:
-    for env_name in ("MDS_PUBLIC_GCS_API_BASE_URL", "MDS_GCS_PUBLIC_BASE_URL", "MDS_GCS_API_BASE_URL"):
-        value = os.getenv(env_name, "").strip().rstrip("/")
-        if value and _is_absolute_http_url(value):
-            return value
-    host = os.getenv("MDS_GCS_PUBLIC_HOST", os.getenv("MDS_PUBLIC_HOST", "")).strip()
-    if not host:
-        return ""
-    scheme = os.getenv("MDS_GCS_PUBLIC_SCHEME", "http").strip().lower() or "http"
-    if scheme not in {"http", "https"}:
-        scheme = "http"
-    port = os.getenv("MDS_GCS_API_PORT", os.getenv("MDS_DEFAULT_GCS_API_PORT", "5030")).strip()
-    netloc = host
-    if port and ":" not in host and not (scheme == "https" and port == "443") and not (scheme == "http" and port == "80"):
-        netloc = f"{host}:{port}"
-    return f"{scheme}://{netloc}" if netloc else ""
+    value = os.getenv("MDS_GCS_API_BASE_URL", "").strip().rstrip("/")
+    return value if value and _is_absolute_http_url(value) else ""
 
 
 def _format_duration_seconds(seconds: int | None) -> str:

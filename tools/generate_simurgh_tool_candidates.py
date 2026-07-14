@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 
 import yaml
@@ -28,6 +29,7 @@ UNSAFE_PATH_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"/api/logs/drone(?:/|$)", "drone-local log route"),
     (r"/api/logs/stream(?:/|$)", "log streaming route"),
     (r"/api/v1/auth(?:/|$)", "auth/admin route"),
+    (r"/api/v1/simurgh/action-runs(?:/|$)", "first-party operator action-run state route"),
     (r"/api/v1/system/env/.*/apply", "environment mutation route"),
     (r"/api/v1/fleet/git-sync/(?:apply|dry-run)", "deployment sync route"),
     (r"/api/v1/system/sitl/instances", "SITL lifecycle route"),
@@ -36,6 +38,22 @@ UNSAFE_PATH_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"/(?:stream|download|downloads|export|plots?|images?)(?:/|$)", "stream/download/binary artifact route"),
     (r"(?:download-kml|/kml(?:/|$)|/content(?:/|$))", "raw artifact content route"),
 )
+
+
+def canonicalize_openapi_schema(value: Any) -> Any:
+    """Remove representation-only schema drift before hashing and rendering."""
+
+    if isinstance(value, Mapping):
+        return {
+            str(key): canonicalize_openapi_schema(item)
+            for key, item in value.items()
+            if not (key == "additionalProperties" and item is True)
+        }
+    if isinstance(value, list):
+        return [canonicalize_openapi_schema(item) for item in value]
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
 MANUAL_UNSAFE_ROUTE_REASONS: dict[tuple[str, str], tuple[str, ...]] = {
     ("GET", "/api/v1/shows/skybrush/metrics"): (
         "read-through cache refresh can write state",
@@ -328,8 +346,11 @@ def build_candidates(
     registry_routes: Mapping[tuple[str, str], list[dict[str, Any]]] | None = None,
     registry_path: Path | None = DEFAULT_REGISTRY,
 ) -> dict[str, Any]:
+    canonical_schema = canonicalize_openapi_schema(openapi_schema)
+    if not isinstance(canonical_schema, Mapping):
+        raise TypeError("OpenAPI schema must be an object")
     candidates = []
-    paths = openapi_schema.get("paths") if isinstance(openapi_schema.get("paths"), Mapping) else {}
+    paths = canonical_schema.get("paths") if isinstance(canonical_schema.get("paths"), Mapping) else {}
     for path, methods in paths.items():
         if not isinstance(methods, Mapping):
             continue
@@ -338,7 +359,7 @@ def build_candidates(
                 continue
             candidates.append(build_candidate(str(method), str(path), operation))
     candidates.sort(key=lambda item: item["id"])
-    schema_info = openapi_schema.get("info") if isinstance(openapi_schema.get("info"), Mapping) else {}
+    schema_info = canonical_schema.get("info") if isinstance(canonical_schema.get("info"), Mapping) else {}
     return {
         "schema_version": 1,
         "artifact": "simurgh_openapi_tool_candidates",
@@ -348,8 +369,8 @@ def build_candidates(
         "source": {
             "title": str(schema_info.get("title") or ""),
             "version": str(schema_info.get("version") or ""),
-            "openapi": str(openapi_schema.get("openapi") or ""),
-            "openapi_sha256": schema_hash(openapi_schema),
+            "openapi": str(canonical_schema.get("openapi") or ""),
+            "openapi_sha256": schema_hash(canonical_schema),
         },
         "policy": {
             "runtime_loaded": False,
@@ -364,13 +385,33 @@ def build_candidates(
 
 def load_openapi_schema(path: Path | None) -> dict[str, Any]:
     if path is not None:
-        return json.loads(path.read_text(encoding="utf-8"))
-    sys.path.insert(0, str(REPO_ROOT / "gcs-server"))
-    sys.path.insert(0, str(REPO_ROOT / "src"))
-    sys.path.insert(0, str(REPO_ROOT))
-    from app_fastapi import app  # pylint: disable=import-outside-toplevel
+        return canonicalize_openapi_schema(json.loads(path.read_text(encoding="utf-8")))
+    script = """
+import json
+import sys
+from pathlib import Path
 
-    return app.openapi()
+root = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(root / "gcs-server"))
+sys.path.insert(0, str(root / "src"))
+sys.path.insert(0, str(root))
+from app_fastapi import app
+print(json.dumps(app.openapi(), sort_keys=True, separators=(",", ":")))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(REPO_ROOT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip().splitlines()
+        raise RuntimeError(f"failed to generate GCS OpenAPI schema: {detail[-1] if detail else 'unknown error'}")
+    lines = [line for line in completed.stdout.splitlines() if line.strip()]
+    if not lines:
+        raise RuntimeError("failed to generate GCS OpenAPI schema: child process returned no JSON")
+    return canonicalize_openapi_schema(json.loads(lines[-1]))
 
 
 def main(argv: list[str] | None = None) -> int:

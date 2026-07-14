@@ -1,24 +1,114 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 import time
 from types import SimpleNamespace
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 import pytest
 
 from agent_runtime.action_planner import FlightActionDraft
+from agent_runtime.action_intent import ProviderActionPlan, ProviderActionStep
+from agent_runtime.action_runs import ActionRunStore
+from agent_runtime.assistant import ProviderSemanticRewrite
 from agent_runtime.tool_executor import GuardedToolCallResult
-from api_routes.simurgh import _submitted_action_progress_outcome, create_simurgh_router
+from api_routes.simurgh import (
+    SimurghAssistantTurnRequest,
+    _submitted_action_progress_outcome,
+    create_simurgh_router,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_action_run_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ACTION_RUN_DB", str(tmp_path / "action-runs.sqlite3"))
 
 
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(create_simurgh_router())
     return TestClient(app)
+
+
+def _provider_step(
+    message: str,
+    excerpt: str,
+    *,
+    tool_id: str,
+    arguments: dict,
+    condition: str = "start",
+    label: str = "Action",
+    monitor_requested: bool = True,
+) -> ProviderActionStep:
+    start = message.index(excerpt)
+    return ProviderActionStep(
+        kind="tool",
+        tool_id=tool_id,
+        arguments=arguments,
+        delay_seconds=None,
+        condition=condition,
+        monitor_requested=monitor_requested,
+        label=label,
+        source_start=start,
+        source_end=start + len(excerpt),
+        source_excerpt=excerpt,
+    )
+
+
+def _provider_delay(message: str, excerpt: str, seconds: float) -> ProviderActionStep:
+    start = message.index(excerpt)
+    return ProviderActionStep(
+        kind="delay",
+        tool_id="",
+        arguments={},
+        delay_seconds=seconds,
+        condition="after_command_terminal_success",
+        monitor_requested=False,
+        label=f"Wait {seconds:g} seconds",
+        source_start=start,
+        source_end=start + len(excerpt),
+        source_excerpt=excerpt,
+    )
+
+
+def _provider_rewrite(
+    *,
+    normalized_message: str,
+    route_hint: str,
+    action_plan: ProviderActionPlan | None = None,
+    confidence: float = 0.96,
+    needs_clarification: bool = False,
+    clarification_question: str = "",
+) -> ProviderSemanticRewrite:
+    return ProviderSemanticRewrite(
+        normalized_message=normalized_message,
+        language="en",
+        route_hint=route_hint,
+        confidence=confidence,
+        needs_clarification=needs_clarification,
+        clarification_question=clarification_question,
+        action_plan=action_plan,
+        model="test",
+        adapter_version="test-semantic-rewrite",
+    )
+
+
+def _wait_for_action_run(client: TestClient, response_payload: dict, timeout: float = 3.0) -> dict:
+    run_id = response_payload["trace"]["safety"]["action_run"]["run_id"]
+    deadline = time.monotonic() + timeout
+    latest = {}
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/v1/simurgh/action-runs/{run_id}")
+        assert response.status_code == 200
+        latest = response.json()
+        if latest.get("terminal"):
+            return latest
+        time.sleep(0.01)
+    raise AssertionError(f"action run {run_id} did not reach terminal state: {latest}")
 
 
 def _sse_events(body: str) -> list[tuple[str, dict]]:
@@ -80,6 +170,18 @@ def test_sequence_progress_outcome_reflects_terminal_results():
             {"status": "skipped", "is_error": True},
         ),
     ) == ("failed", "Command sequence stopped before all steps completed")
+    assert _submitted_action_progress_outcome(
+        draft,
+        monitor_result={"success": True, "timed_out": False},
+        post_action_results=(
+            {"status": "completed", "is_error": False},
+            {
+                "status": "terminal_success",
+                "is_error": True,
+                "completion_verification": {"status": "unavailable", "verified": False},
+            },
+        ),
+    ) == ("failed", "Command sequence stopped before all steps completed")
 
 
 def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_relative_paths(monkeypatch):
@@ -112,6 +214,140 @@ def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_r
     assert payload["warnings"] == []
 
 
+def test_simurgh_action_run_routes_replay_and_control_actor_owned_runs():
+    store = ActionRunStore(os.environ["MDS_AGENT_ACTION_RUN_DB"])
+    run, created = store.create_or_get(
+        actor="dashboard",
+        session_id="sess-action-run",
+        draft_id="act-route-test",
+        plan_hash="plan-route-test",
+        plan={
+            "draft_id": "act-route-test",
+            "display_plan": {
+                "title": "Test flight",
+                "target": "Drone 1",
+                "steps": [{"index": 1, "kind": "flight_command", "label": "Take off"}],
+            },
+        },
+        total_steps=1,
+    )
+    assert created is True
+    started = store.append_event(
+        run.run_id,
+        event_type="run_started",
+        payload={"state": "running", "label": "Starting", "step_index": 1, "step_count": 1},
+        state="running",
+        current_step=1,
+    )
+    app = FastAPI()
+    app.include_router(create_simurgh_router(SimpleNamespace(simurgh_action_run_store=store)))
+    client = TestClient(app)
+
+    listed = client.get(
+        "/api/v1/simurgh/action-runs",
+        params={"actor": "dashboard", "active_only": "true"},
+    )
+    assert listed.status_code == 200
+    assert [item["run_id"] for item in listed.json()["runs"]] == [run.run_id]
+
+    replay = client.get(
+        f"/api/v1/simurgh/action-runs/{run.run_id}/events",
+        params={"after": started.id - 1},
+    )
+    assert replay.status_code == 200
+    assert replay.json()["events"][0]["event_type"] == "run_started"
+
+    paused = client.post(
+        f"/api/v1/simurgh/action-runs/{run.run_id}/controls",
+        json={
+            "actor": "dashboard",
+            "action": "pause_after_current_step",
+            "control_id": "ctl-route-pause",
+        },
+    )
+    assert paused.status_code == 200
+    assert paused.json()["state"] == "pause_requested"
+
+    forbidden = client.post(
+        f"/api/v1/simurgh/action-runs/{run.run_id}/controls",
+        json={"actor": "other", "action": "cancel_remaining"},
+    )
+    assert forbidden.status_code == 403
+
+
+def test_simurgh_action_run_list_uses_authenticated_actor_identity():
+    store = ActionRunStore(os.environ["MDS_AGENT_ACTION_RUN_DB"])
+    own_run, _ = store.create_or_get(
+        actor="alice",
+        session_id="sess-alice",
+        draft_id="act-alice",
+        plan_hash="plan-alice",
+        plan={"draft_id": "act-alice"},
+        total_steps=1,
+    )
+    store.create_or_get(
+        actor="dashboard",
+        session_id="sess-dashboard",
+        draft_id="act-dashboard",
+        plan_hash="plan-dashboard",
+        plan={"draft_id": "act-dashboard"},
+        total_steps=1,
+    )
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def authenticated_operator(request: Request, call_next):
+        request.state.mds_auth_context = {
+            "kind": "session",
+            "username": "alice",
+            "role": "admin",
+        }
+        return await call_next(request)
+
+    app.include_router(create_simurgh_router(SimpleNamespace(simurgh_action_run_store=store)))
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/v1/simurgh/action-runs",
+        params={"actor": "dashboard"},
+    )
+
+    assert response.status_code == 200
+    assert [item["run_id"] for item in response.json()["runs"]] == [own_run.run_id]
+
+
+def test_simurgh_action_run_stream_replays_terminal_snapshot():
+    store = ActionRunStore(os.environ["MDS_AGENT_ACTION_RUN_DB"])
+    run, _ = store.create_or_get(
+        actor="dashboard",
+        session_id="sess-stream-run",
+        draft_id="act-stream-test",
+        plan_hash="plan-stream-test",
+        plan={"draft_id": "act-stream-test"},
+        total_steps=1,
+    )
+    store.append_event(
+        run.run_id,
+        event_type="run_succeeded",
+        payload={"state": "succeeded", "label": "Complete", "step_index": 1, "step_count": 1},
+        state="succeeded",
+        current_step=1,
+        summary="Complete",
+    )
+    app = FastAPI()
+    app.include_router(create_simurgh_router(SimpleNamespace(simurgh_action_run_store=store)))
+    client = TestClient(app)
+
+    response = client.get(f"/api/v1/simurgh/action-runs/{run.run_id}/events/stream")
+
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    assert any(name == "run_succeeded" for name, _payload in events)
+    terminal = [payload for name, payload in events if name == "run_snapshot"][-1]
+    assert terminal["replay_complete"] is True
+    assert terminal["run"]["state"] == "succeeded"
+
+
 def test_simurgh_assistant_stream_emits_structured_activity_contract(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
@@ -140,6 +376,317 @@ def test_simurgh_assistant_stream_emits_structured_activity_contract(monkeypatch
     assert any(event == "final" and payload.get("trace") for event, payload in events)
 
 
+@pytest.mark.asyncio
+async def test_simurgh_completed_chat_request_does_not_cancel_accepted_sequence(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+    wait_started = asyncio.Event()
+    release_wait = asyncio.Event()
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+            }
+
+    class FakeDeps:
+        telemetry_data_all_drones = {
+            "1": {
+                "telemetry_available": True,
+                "is_armed": False,
+                "timestamp": int(time.time() * 1000),
+            }
+        }
+        last_telemetry_time = {"1": time.time()}
+        data_lock = None
+
+        def get_all_heartbeats(self):
+            return {"1": {"timestamp": int(time.time() * 1000)}}
+
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_submit(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": f"cmd-{len(submitted)}",
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": str(command.mission_type),
+            "target_drones": command.target_drone_ids,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    async def controlled_wait(_delay_seconds):
+        wait_started.set()
+        await release_wait.wait()
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
+    monkeypatch.setattr("api_routes.simurgh._sleep_action_sequence_delay", controlled_wait)
+
+    app = FastAPI()
+    action_run_store = ActionRunStore(os.environ["MDS_AGENT_ACTION_RUN_DB"])
+    app.include_router(create_simurgh_router(SimpleNamespace(simurgh_action_run_store=action_run_store)))
+    turn_endpoint = next(
+        route.endpoint
+        for route in app.routes
+        if getattr(route, "path", "") == "/api/v1/simurgh/assistant/turns"
+    )
+    draft_request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/simurgh/assistant/turns",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": app,
+        }
+    )
+    draft_response = await turn_endpoint(
+        draft_request,
+        SimurghAssistantTurnRequest(
+            actor="operator",
+            message="takeoff drone 1 to 10m, wait 5s, move 5m north, then RTL",
+        ),
+    )
+    draft_payload = draft_response.model_dump(mode="json")
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    confirm_request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/simurgh/assistant/turns",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": app,
+        }
+    )
+    response = await turn_endpoint(
+        confirm_request,
+        SimurghAssistantTurnRequest(
+            actor="operator",
+            session_id=draft_payload["session"]["id"],
+            message=f"confirm action {draft_id}",
+        ),
+    )
+    response_payload = response.model_dump(mode="json")
+    assert "Action run started" in response_payload["content"]
+    await asyncio.wait_for(wait_started.wait(), timeout=5.0)
+    assert wait_started.is_set()
+    assert [command.mission_type for command in submitted] == [10]
+
+    release_wait.set()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        runs = action_run_store.list_runs(actor="operator")
+        if len(submitted) == 3 and runs and runs[0].terminal:
+            break
+        await asyncio.sleep(0.01)
+
+    assert [command.mission_type for command in submitted] == [10, 112, 104]
+    runs = action_run_store.list_runs(actor="operator")
+    assert len(runs) == 1
+    assert runs[0].state == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_simurgh_conversational_cancel_targets_the_single_active_action_run(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+    wait_started = asyncio.Event()
+    release_wait = asyncio.Event()
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+            }
+
+    class FakeDeps:
+        telemetry_data_all_drones = {
+            "1": {
+                "telemetry_available": True,
+                "is_armed": False,
+                "timestamp": int(time.time() * 1000),
+            }
+        }
+        last_telemetry_time = {"1": time.time()}
+        data_lock = None
+
+        def get_all_heartbeats(self):
+            return {"1": {"timestamp": int(time.time() * 1000)}}
+
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_submit(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": f"cmd-{len(submitted)}",
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": str(command.mission_type),
+            "target_drones": command.target_drone_ids,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    async def controlled_wait(_delay_seconds):
+        wait_started.set()
+        await release_wait.wait()
+
+    operator_request = "take off drone 1 to 10m, wait 5s, move 5m north, then RTL"
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        if message == operator_request:
+            return _provider_rewrite(
+                normalized_message="take off, wait, move north, then RTL",
+                route_hint="draft_flight_action",
+                action_plan=ProviderActionPlan(
+                    summary="Run the requested test flight",
+                    steps=(
+                        _provider_step(
+                            message,
+                            "take off drone 1 to 10m",
+                            tool_id="mds.flight.command.execute",
+                            arguments={"mission_type": 10, "target_drone_ids": ["1"], "takeoff_altitude": 10},
+                            label="Take off to 10 m",
+                        ),
+                        _provider_delay(message, "wait 5s", 5),
+                        _provider_step(
+                            message,
+                            "move 5m north",
+                            tool_id="mds.flight.command.execute",
+                            arguments={
+                                "mission_type": 112,
+                                "precision_move": {
+                                    "frame": "ned",
+                                    "translation_m": {"north": 5, "east": 0, "up": 0},
+                                },
+                            },
+                            condition="after_command_terminal_success",
+                            label="Move 5 m north",
+                        ),
+                        _provider_step(
+                            message,
+                            "RTL",
+                            tool_id="mds.flight.command.execute",
+                            arguments={"mission_type": 104},
+                            condition="after_command_terminal",
+                            label="Return to launch",
+                        ),
+                    ),
+                ),
+            )
+        if message.startswith("confirm action"):
+            return _provider_rewrite(
+                normalized_message=message,
+                route_hint="confirm_pending_action",
+            )
+        return _provider_rewrite(
+            normalized_message="cancel the active operation",
+            route_hint="reject_pending_action",
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
+    monkeypatch.setattr("api_routes.simurgh._sleep_action_sequence_delay", controlled_wait)
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+
+    app = FastAPI()
+    action_run_store = ActionRunStore(os.environ["MDS_AGENT_ACTION_RUN_DB"])
+    app.include_router(create_simurgh_router(SimpleNamespace(simurgh_action_run_store=action_run_store)))
+    turn_endpoint = next(
+        route.endpoint
+        for route in app.routes
+        if getattr(route, "path", "") == "/api/v1/simurgh/assistant/turns"
+    )
+
+    def request_scope():
+        return Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/simurgh/assistant/turns",
+                "headers": [],
+                "scheme": "http",
+                "server": ("testserver", 80),
+                "client": ("testclient", 50000),
+                "root_path": "",
+                "app": app,
+            }
+        )
+
+    draft_response = await turn_endpoint(
+        request_scope(),
+        SimurghAssistantTurnRequest(actor="operator", message=operator_request),
+    )
+    draft_payload = draft_response.model_dump(mode="json")
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+    confirm_response = await turn_endpoint(
+        request_scope(),
+        SimurghAssistantTurnRequest(
+            actor="operator",
+            session_id=draft_payload["session"]["id"],
+            message=f"confirm action {draft_id}",
+        ),
+    )
+    await asyncio.wait_for(wait_started.wait(), timeout=5.0)
+    run_id = confirm_response.model_dump(mode="json")["trace"]["safety"]["action_run"]["run_id"]
+
+    cancel_response = await turn_endpoint(
+        request_scope(),
+        SimurghAssistantTurnRequest(
+            actor="operator",
+            session_id=draft_payload["session"]["id"],
+            message="stop the rest of it",
+        ),
+    )
+    cancel_payload = cancel_response.model_dump(mode="json")
+
+    assert "Cancelling the remaining steps" in cancel_payload["content"]
+    assert cancel_payload["trace"]["safety"]["action_execution"] == "action_run_control"
+    assert cancel_payload["trace"]["safety"]["action_run"]["run_id"] == run_id
+    assert cancel_payload["trace"]["safety"]["action_run"]["state"] == "cancel_requested"
+
+    release_wait.set()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if action_run_store.require(run_id).terminal:
+            break
+        await asyncio.sleep(0.01)
+    assert action_run_store.require(run_id).state == "cancelled"
+    assert [command.mission_type for command in submitted] == [10]
+
+
 def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -156,12 +703,9 @@ def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "Action: takeoff" in content
-    assert "Interpreted command pack" in content
-    assert "Take off to 10 m for drone 1" in content
+    assert "Review the guarded action plan" in content
     assert '"mission_type": 10' not in content
-    assert "Circuit breaker is ON" in content
+    assert "Circuit breaker: ON" in content
     assert "No action was executed" in content
     assert "Simurgh Operator mock assistant is active" not in content
     assert "Blocked intent signals" not in content
@@ -171,6 +715,7 @@ def test_simurgh_direct_takeoff_request_returns_guarded_action_draft(monkeypatch
     assert payload["trace"]["safety"]["action_draft"]["mission_name"] == "TAKE_OFF"
     assert payload["trace"]["safety"]["action_draft"]["command_payload"]["mission_type"] == 10
     assert payload["trace"]["safety"]["action_draft"]["command_payload"]["takeoff_altitude"] == 10.0
+    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Take off to 10 m"
 
 
 def test_simurgh_confirmed_action_stops_at_final_circuit_breaker(monkeypatch):
@@ -256,15 +801,162 @@ def test_simurgh_confirmed_action_submits_when_circuit_breaker_off(monkeypatch):
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded flight command" in payload["content"]
-    assert "`cmd-simurgh-1`" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "succeeded"
+    assert run["result"]["action_response"]["command_id"] == "cmd-simurgh-1"
     assert len(submitted) == 1
     command = submitted[0]
     assert command.mission_type == 10
     assert command.target_drone_ids == ["1"]
     assert command.takeoff_altitude == 10.0
     assert command.idempotency_key == f"simurgh:{draft_id}"
+
+
+def test_simurgh_sequence_post_actions_are_regated_before_dispatch(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+            }
+
+    class FakeDeps:
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_submit(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": f"cmd-{len(submitted)}",
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": "TAKE_OFF",
+            "target_drones": command.target_drone_ids,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
+    client = _client()
+    draft_payload = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "takeoff drone 1 to 10m then move 5m north"},
+    ).json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    run = _wait_for_action_run(client, payload)
+    assert len(submitted) == 1
+    assert run["result"]["post_action_results"][0]["status"] == "blocked"
+    assert run["result"]["post_action_results"][0]["is_error"] is True
+
+
+def test_simurgh_sequence_post_action_idempotency_is_draft_stable(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    submitted = []
+
+    class FakeTracker:
+        async def get_status(self, command_id):
+            return {
+                "command_id": command_id,
+                "status": "completed",
+                "phase": "terminal",
+                "outcome": "completed",
+            }
+
+    class FakeDeps:
+        def get_command_tracker(self):
+            return FakeTracker()
+
+    async def fake_submit(_deps, command):
+        submitted.append(command)
+        return {
+            "success": True,
+            "command_id": f"cmd-{len(submitted)}",
+            "status": "submitted",
+            "mission_type": command.mission_type,
+            "mission_name": "TAKE_OFF" if command.mission_type == 10 else "PRECISION_MOVE",
+            "target_drones": command.target_drone_ids,
+            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
+        }
+
+    monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
+    client = _client()
+    draft_payload = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "takeoff drone 1 to 10m then move 5m north"},
+    ).json()
+    draft_id = re.search(r"act-[0-9a-f]+", draft_payload["content"]).group(0)
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": draft_payload["session"]["id"],
+            "message": f"confirm action {draft_id}",
+        },
+    )
+
+    assert response.status_code == 200
+    _wait_for_action_run(client, response.json())
+    assert [command.idempotency_key for command in submitted] == [
+        f"simurgh:{draft_id}",
+        f"simurgh:{draft_id}:step:2",
+    ]
+
+
+def test_simurgh_rejects_oversized_wait_before_dispatch(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    monkeypatch.setenv("MDS_AGENT_SEQUENCE_MAX_WAIT_SEC", "30")
+    submitted = []
+
+    async def fake_submit(_deps, command):
+        submitted.append(command)
+        return {}
+
+    monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
+    client = _client()
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "takeoff drone 1 to 10m then wait 60s then RTL"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trace"]["safety"]["action_execution"] == "validation_rejected"
+    assert "allows at most 30s" in payload["content"]
+    assert submitted == []
 
 
 def test_simurgh_bare_confirm_recovers_single_pending_action_after_lost_session(monkeypatch):
@@ -308,9 +1000,10 @@ def test_simurgh_bare_confirm_recovers_single_pending_action_after_lost_session(
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded flight command" in payload["content"]
-    assert "`cmd-recovered-confirm`" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    run = _wait_for_action_run(client, payload)
+    assert run["result"]["action_response"]["command_id"] == "cmd-recovered-confirm"
     assert len(submitted) == 1
     assert submitted[0].target_drone_ids == ["1"]
 
@@ -356,7 +1049,7 @@ def test_simurgh_task_with_go_ahead_does_not_confirm_pending_action(monkeypatch)
 
     assert read_response.status_code == 200
     read_payload = read_response.json()
-    assert "Submitted the guarded flight command" not in read_payload["content"]
+    assert read_payload["trace"]["safety"]["action_execution"] == "none"
     assert read_payload["trace"]["safety"]["action_execution"] == "none"
     assert read_payload["trace"]["intent"]["route"] == "read_only"
     assert read_payload["trace"]["intent"]["confirmation_message"] is False
@@ -372,7 +1065,7 @@ def test_simurgh_task_with_go_ahead_does_not_confirm_pending_action(monkeypatch)
     )
 
     assert confirm_response.status_code == 200
-    assert "Submitted the guarded flight command" in confirm_response.json()["content"]
+    _wait_for_action_run(client, confirm_response.json())
     assert len(submitted) == 1
 
 
@@ -541,6 +1234,17 @@ def test_simurgh_followup_land_monitors_previous_drone_and_removes_sitl(monkeypa
             }
 
     class FakeDeps:
+        telemetry_data_all_drones = {
+            "1": {
+                "telemetry_available": True,
+                "is_armed": False,
+            }
+        }
+        last_telemetry_time = {"1": time.time()}
+
+        def get_all_heartbeats(self):
+            return {"1": {"timestamp": int(time.time() * 1000)}}
+
         def get_command_tracker(self):
             return FakeTracker()
 
@@ -604,7 +1308,11 @@ def test_simurgh_followup_land_monitors_previous_drone_and_removes_sitl(monkeypa
         },
     )
     assert takeoff_confirm_response.status_code == 200
-    assert "Monitor: terminal_success" in takeoff_confirm_response.json()["content"]
+    takeoff_confirm_payload = takeoff_confirm_response.json()
+    assert "Action run started" in takeoff_confirm_payload["content"]
+    takeoff_run = _wait_for_action_run(client, takeoff_confirm_payload)
+    assert takeoff_run["state"] == "succeeded"
+    assert takeoff_run["result"]["action_response"]["command_id"] == "cmd-take_off-1"
 
     land_draft_response = client.post(
         "/api/v1/simurgh/assistant/turns",
@@ -617,13 +1325,15 @@ def test_simurgh_followup_land_monitors_previous_drone_and_removes_sitl(monkeypa
     assert land_draft_response.status_code == 200
     land_draft_payload = land_draft_response.json()
     land_content = land_draft_payload["content"]
-    assert "Action: land" in land_content
-    assert "Target: drone 1" in land_content
-    assert "Target inferred from: previous_submitted_action" in land_content
-    assert "remove SITL instance(s)" in land_content
+    assert "Review the guarded action plan" in land_content
     assert land_draft_payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
     action_draft = land_draft_payload["trace"]["safety"]["action_draft"]
     assert action_draft["target_drone_ids"] == ["1"]
+    assert action_draft["target_inferred_from"] == "previous_submitted_action"
+    assert [step["label"] for step in action_draft["display_plan"]["steps"]] == [
+        "Land",
+        "Remove SITL instance(s)",
+    ]
     assert action_draft["post_actions"][0]["arguments"] == {
         "action": "remove",
         "instance_names": ["drone-1"],
@@ -641,11 +1351,13 @@ def test_simurgh_followup_land_monitors_previous_drone_and_removes_sitl(monkeypa
 
     assert land_confirm_response.status_code == 200
     payload = land_confirm_response.json()
-    assert "Submitted the guarded flight command" in payload["content"]
-    assert "Mission: LAND" in payload["content"]
-    assert "Monitor: terminal_success" in payload["content"]
-    assert "Post-action `remove SITL instance(s)`: succeeded" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    land_run = _wait_for_action_run(client, payload)
+    assert land_run["state"] == "succeeded"
+    assert land_run["summary"] == "Completed 2 of 2 planned steps."
+    assert land_run["result"]["monitor_result"]["completion_verification"]["verified"] is True
+    assert land_run["result"]["post_action_results"][0]["status"] == "succeeded"
     assert [command.mission_type for command in submitted] == [10, 101]
     assert submitted[-1].target_drone_ids == ["1"]
     assert post_actions == [
@@ -668,11 +1380,15 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
     monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
     monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
-    monkeypatch.setattr("api_routes.simurgh.ACTION_SEQUENCE_MAX_DELAY_SECONDS", 0.0)
     guarded_submissions = []
     submitted_commands = []
     terminal_failures = set()
     now = time.time() + 600.0
+
+    async def fake_sleep(_delay_seconds):
+        return None
+
+    monkeypatch.setattr("api_routes.simurgh._sleep_action_sequence_delay", fake_sleep)
 
     class FakeTracker:
         async def get_status(self, command_id):
@@ -804,7 +1520,11 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     )
     assert create_confirm.status_code == 200
-    assert "Created drone-1" in create_confirm.json()["content"]
+    create_confirm_payload = create_confirm.json()
+    assert "Action run started" in create_confirm_payload["content"]
+    create_run = _wait_for_action_run(client, create_confirm_payload)
+    assert create_run["state"] == "succeeded"
+    assert create_run["result"]["monitor_result"]["summary"] == "Created drone-1"
 
     conditional_flight_draft = client.post(
         "/api/v1/simurgh/assistant/turns",
@@ -822,9 +1542,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     conditional_payload = conditional_flight_draft.json()
     assert "Simurgh Operator mock assistant is active" not in conditional_payload["content"]
     assert "Blocked intent signals" not in conditional_payload["content"]
-    assert "Action: takeoff" in conditional_payload["content"]
-    assert "wait 10 second(s)" in conditional_payload["content"]
-    assert "wait 30 second(s)" in conditional_payload["content"]
+    assert "Review the guarded action plan" in conditional_payload["content"]
     assert conditional_payload["trace"]["intent"]["route"] == "action_draft"
     conditional_action = conditional_payload["trace"]["safety"]["action_draft"]
     assert conditional_action["target_drone_ids"] == ["1"]
@@ -851,8 +1569,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert flight_draft.status_code == 200
     flight_payload = flight_draft.json()
     assert "No pending action found" not in flight_payload["content"]
-    assert "Target: drone 1" in flight_payload["content"]
-    assert "Target inferred from:" in flight_payload["content"]
+    assert "Review the guarded action plan" in flight_payload["content"]
     assert flight_payload["trace"]["intent"]["route"] == "action_draft"
     assert flight_payload["trace"]["intent"]["confirmation_message"] is False
     action_draft = flight_payload["trace"]["safety"]["action_draft"]
@@ -885,8 +1602,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     )
     assert replay_draft.status_code == 200
     replay_payload = replay_draft.json()
-    assert "Action: takeoff" in replay_payload["content"]
-    assert "Target: drone 1" in replay_payload["content"]
+    assert "Review the guarded action plan" in replay_payload["content"]
     replay_action_draft = replay_payload["trace"]["safety"]["action_draft"]
     assert replay_action_draft["target_drone_ids"] == ["1"]
     assert [item["type"] for item in replay_action_draft["post_actions"]] == ["delay", "flight_command", "flight_command"]
@@ -904,11 +1620,12 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     )
     assert flight_confirm.status_code == 200
-    content = flight_confirm.json()["content"]
-    assert "Submitted the guarded flight command" in content
-    assert "Post-action `wait 10 second(s)`: completed" in content
-    assert "Post-action `precision move`: terminal_success" in content
-    assert "Post-action `return rtl`: terminal_success" in content
+    flight_confirm_payload = flight_confirm.json()
+    assert "Action run started" in flight_confirm_payload["content"]
+    flight_run = _wait_for_action_run(client, flight_confirm_payload)
+    assert flight_run["state"] == "succeeded"
+    assert flight_run["summary"] == "Completed 4 of 4 planned steps."
+    assert flight_run["result"]["post_action_results"][-1]["completion_verification"]["verified"] is True
 
     status_question = client.post(
         "/api/v1/simurgh/assistant/turns",
@@ -937,7 +1654,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     assert history_question.status_code == 200
     history_payload = history_question.json()
     assert history_payload["trace"]["safety"]["action_execution"] == "previous_action_summary"
-    assert "retained Simurgh action record shows the wait step was executed" in history_payload["content"]
+    assert "Wait steps: 1/1 completed" in history_payload["content"]
     assert "wait 10 second(s): completed" in history_payload["content"]
     assert "No new action was executed." in history_payload["content"]
     assert "Action draft" not in history_payload["content"]
@@ -1025,11 +1742,12 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     )
     assert pm_sequence_confirm.status_code == 200
-    pm_confirm_content = pm_sequence_confirm.json()["content"]
-    assert "Post-action `precision move`: terminal_success" in pm_confirm_content
-    assert pm_confirm_content.count("Post-action `precision move`: terminal_success") == 2
-    assert "Post-action `wait 5 second(s)`: completed" in pm_confirm_content
-    assert "Post-action `return rtl`: terminal_success" in pm_confirm_content
+    pm_confirm_payload = pm_sequence_confirm.json()
+    assert "Action run started" in pm_confirm_payload["content"]
+    pm_run = _wait_for_action_run(client, pm_confirm_payload)
+    assert pm_run["state"] == "succeeded"
+    assert pm_run["summary"] == "Completed 5 of 5 planned steps."
+    assert pm_run["result"]["post_action_results"][-1]["completion_verification"]["verified"] is True
     assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104]
     assert submitted_commands[4].precision_move.translation_m == {"north": -5.0, "east": 0.0, "up": 0.0}
     assert submitted_commands[5].precision_move.translation_m == {"north": 0.0, "east": 0.0, "up": 10.0}
@@ -1045,7 +1763,7 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     failed_sequence_id = re.search(r"act-[0-9a-f]+", failed_sequence_draft["content"]).group(0)
     terminal_failures.add("cmd-8")
     failed_confirm = client.post(
-        "/api/v1/simurgh/assistant/turns/stream",
+        "/api/v1/simurgh/assistant/turns",
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
@@ -1054,16 +1772,15 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     )
 
     assert failed_confirm.status_code == 200
-    failure_events = _sse_events(failed_confirm.text)
-    failure_progress = [payload for event, payload in failure_events if event == "progress"]
-    assert any(
-        payload.get("state") == "failed" and payload.get("label") == "Command sequence stopped after primary command"
-        for payload in failure_progress
-    )
-    failed_final = [payload for event, payload in failure_events if event == "final"][-1]
-    assert "Monitor: terminal_non_success" in failed_final["content"]
-    assert "Post-action" not in failed_final["content"]
-    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10]
+    failed_run = _wait_for_action_run(client, failed_confirm.json())
+    assert failed_run["state"] == "failed"
+    assert failed_run["result"]["monitor_result"]["success"] is False
+    assert [item["status"] for item in failed_run["result"]["post_action_results"]] == [
+        "skipped",
+        "skipped",
+        "terminal_success",
+    ]
+    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10, 104]
 
     post_failure_draft = client.post(
         "/api/v1/simurgh/assistant/turns",
@@ -1074,9 +1791,9 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
         },
     ).json()
     post_failure_id = re.search(r"act-[0-9a-f]+", post_failure_draft["content"]).group(0)
-    terminal_failures.add("cmd-10")
+    terminal_failures.add("cmd-11")
     post_failure_confirm = client.post(
-        "/api/v1/simurgh/assistant/turns/stream",
+        "/api/v1/simurgh/assistant/turns",
         json={
             "actor": "operator",
             "session_id": sitl_status["session"]["id"],
@@ -1085,18 +1802,28 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
     )
 
     assert post_failure_confirm.status_code == 200
-    post_failure_events = _sse_events(post_failure_confirm.text)
-    post_failure_progress = [payload for event, payload in post_failure_events if event == "progress"]
-    assert any(
-        payload.get("state") == "failed"
-        and payload.get("label") == "Command sequence stopped before all steps completed"
-        for payload in post_failure_progress
-    )
-    post_failure_final = [payload for event, payload in post_failure_events if event == "final"][-1]
-    assert "Post-action `wait 5 second(s)`: completed" in post_failure_final["content"]
-    assert "Post-action `precision move`: terminal_non_success" in post_failure_final["content"]
-    assert "Post-action `return rtl`: skipped" in post_failure_final["content"]
-    assert [command.mission_type for command in submitted_commands] == [10, 112, 104, 10, 112, 112, 104, 10, 10, 112]
+    post_failure_run = _wait_for_action_run(client, post_failure_confirm.json())
+    assert post_failure_run["state"] == "failed"
+    post_failure_trace = post_failure_run["result"]["post_action_results"]
+    assert [item["status"] for item in post_failure_trace] == [
+        "completed",
+        "terminal_non_success",
+        "terminal_success",
+    ]
+    assert [command.mission_type for command in submitted_commands] == [
+        10,
+        112,
+        104,
+        10,
+        112,
+        112,
+        104,
+        10,
+        104,
+        10,
+        112,
+        104,
+    ]
 
 
 def test_simurgh_conditional_mission_infers_single_active_sitl_target(monkeypatch):
@@ -1132,15 +1859,14 @@ def test_simurgh_conditional_mission_infers_single_active_sitl_target(monkeypatc
 
     assert response.status_code == 200
     payload = response.json()
-    assert "Action: takeoff" in payload["content"]
-    assert "Target: drone 1" in payload["content"]
-    assert "single_active_sitl_instance" in payload["content"]
+    assert "Review the guarded action plan" in payload["content"]
     assert "Missing: target_drone_ids" not in payload["content"]
     assert "Blocked intent signals" not in payload["content"]
     assert "Simurgh Operator mock assistant is active" not in payload["content"]
     assert payload["trace"]["intent"]["route"] == "action_draft"
     action_draft = payload["trace"]["safety"]["action_draft"]
     assert action_draft["target_drone_ids"] == ["1"]
+    assert action_draft["target_inferred_from"] == "single_active_sitl_instance"
     assert action_draft["command_payload"]["takeoff_altitude"] == 10.0
     assert [item["type"] for item in action_draft["post_actions"]] == [
         "delay",
@@ -1207,16 +1933,15 @@ def test_simurgh_direct_sitl_reconcile_request_returns_guarded_action_draft(monk
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "mds.sitl.fleet.reconcile" in content
-    assert "Requested fleet target: 4 SITL instance(s)" in content
+    assert "Review the guarded action plan" in content
     assert '"target_count": 4' not in content
-    assert "Circuit breaker is ON" in content
+    assert "Circuit breaker: ON" in content
     assert "No action was executed" in content
     assert payload["blocked_intents"] == []
     assert payload["trace"]["tool"]["id"] == "mds.sitl.fleet.reconcile"
     assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
     assert payload["trace"]["safety"]["action_draft"]["arguments"]["target_count"] == 4
+    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Reconcile SITL fleet"
 
 
 def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(monkeypatch):
@@ -1235,10 +1960,7 @@ def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "mds.sitl.instances.create" in content
-    assert "Interpreted command pack" in content
-    assert "Startup sync: git sync on; requirements sync on." in content
+    assert "Review the guarded action plan" in content
     assert '"git_sync_enabled"' not in content
     assert "advisory-only" not in content
     assert "No action was executed" in content
@@ -1257,20 +1979,23 @@ def test_simurgh_provider_semantic_rewrite_routes_typo_heavy_sitl_create(monkeyp
     monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
     monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
 
-    def fake_rewrite_operator_message_with_provider(**_kwargs):
-        return SimpleNamespace(
-            normalized_message="create one SITL instance and report when ready to test and fly with",
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message="create one SITL instance and report when ready",
             route_hint="draft_sitl_lifecycle_action",
-            usable_for_routing=True,
-            public_metadata=lambda: {
-                "provider": "openai",
-                "model": "test",
-                "adapter_version": "test-semantic-rewrite",
-                "route_hint": "draft_sitl_lifecycle_action",
-                "confidence": 0.93,
-                "needs_clarification": False,
-                "usable_for_routing": True,
-            },
+            action_plan=ProviderActionPlan(
+                summary="Create one SITL instance",
+                steps=(
+                    _provider_step(
+                        message,
+                        message,
+                        tool_id="mds.sitl.instances.create",
+                        arguments={},
+                        label="Create one SITL instance",
+                    ),
+                ),
+            ),
         )
 
     monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
@@ -1291,14 +2016,443 @@ def test_simurgh_provider_semantic_rewrite_routes_typo_heavy_sitl_create(monkeyp
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "mds.sitl.instances.create" in content
+    assert "Review the guarded action plan" in content
     assert "text-only provider" not in content
     assert "I can’t create" not in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
     assert payload["trace"]["intent"]["route"] == "action_draft"
     assert payload["trace"]["intent"]["provider_semantic_rewrite"]["route_hint"] == "draft_sitl_lifecycle_action"
     assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {}
+
+
+def test_simurgh_provider_semantic_rewrite_rebuilds_incomplete_flight_sequence(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message="take off, wait, move north, wait, climb, then RTL",
+            route_hint="draft_flight_action",
+            action_plan=ProviderActionPlan(
+                summary="Run the requested test sequence",
+                steps=(
+                    _provider_step(
+                        message,
+                        "drone 1. takeoff 10m",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 10,
+                            "trigger_time": 0,
+                            "target_drone_ids": ["1"],
+                            "takeoff_altitude": 10,
+                        },
+                        label="Take off to 10 m",
+                    ),
+                    _provider_delay(message, "hold 5 sec", 5),
+                    _provider_step(
+                        message,
+                        "fly 25 north",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 112,
+                            "trigger_time": 0,
+                            "precision_move": {
+                                "frame": "ned",
+                                "translation_m": {"north": 25, "east": 0, "up": 0},
+                            },
+                        },
+                        condition="after_command_terminal_success",
+                        label="Move 25 m north",
+                    ),
+                    _provider_delay(message, "hold again", 5),
+                    _provider_step(
+                        message,
+                        "climb ten",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 112,
+                            "trigger_time": 0,
+                            "precision_move": {
+                                "frame": "ned",
+                                "translation_m": {"north": 0, "east": 0, "up": 10},
+                            },
+                        },
+                        condition="after_command_terminal_success",
+                        label="Climb 10 m",
+                    ),
+                    _provider_step(
+                        message,
+                        "return",
+                        tool_id="mds.flight.command.execute",
+                        arguments={"mission_type": 104, "trigger_time": 0},
+                        condition="after_command_terminal",
+                        label="Return to launch",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": (
+                "lets use drone 1. takeoff 10m, hold 5 sec, fly 25 north, "
+                "hold again, climb ten and return"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    draft = payload["trace"]["safety"]["action_draft"]
+    assert draft["target_drone_ids"] == ["1"]
+    assert draft["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in draft["post_actions"]] == [
+        "delay",
+        "flight_command",
+        "delay",
+        "flight_command",
+        "flight_command",
+    ]
+
+
+def test_simurgh_provider_semantic_rewrite_cannot_change_typed_flight_facts(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message="take off drone 1 to 100m then move 5m south",
+            route_hint="draft_flight_action",
+            action_plan=ProviderActionPlan(
+                summary="Take off and move north",
+                steps=(
+                    _provider_step(
+                        message,
+                        "takeoff drone 1 to 10m",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 10,
+                            "trigger_time": 0,
+                            "target_drone_ids": ["1"],
+                            "takeoff_altitude": 10,
+                        },
+                        label="Take off to 10 m",
+                    ),
+                    _provider_step(
+                        message,
+                        "move 5m north",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 112,
+                            "trigger_time": 0,
+                            "precision_move": {
+                                "frame": "ned",
+                                "translation_m": {"north": 5, "east": 0, "up": 0},
+                            },
+                        },
+                        condition="after_command_terminal_success",
+                        label="Move 5 m north",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    client = _client()
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "takeoff drone 1 to 10m then move 5m north"},
+    )
+
+    assert response.status_code == 200
+    draft = response.json()["trace"]["safety"]["action_draft"]
+    assert draft["command_payload"]["takeoff_altitude"] == 10.0
+    assert draft["post_actions"][0]["arguments"]["precision_move"]["translation_m"]["north"] == 5.0
+
+
+def test_simurgh_provider_semantic_rewrite_cannot_add_flight_steps(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message=(
+                "take off drone 1 to 10m, move 5m north, move 100m east, then return to launch"
+            ),
+            route_hint="draft_flight_action",
+            action_plan=ProviderActionPlan(
+                summary="Take off, move north, and return",
+                steps=(
+                    _provider_step(
+                        message,
+                        "takeoff drone 1 to 10m",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 10,
+                            "trigger_time": 0,
+                            "target_drone_ids": ["1"],
+                            "takeoff_altitude": 10,
+                        },
+                        label="Take off to 10 m",
+                    ),
+                    _provider_step(
+                        message,
+                        "move 5m north",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 112,
+                            "trigger_time": 0,
+                            "precision_move": {
+                                "frame": "ned",
+                                "translation_m": {"north": 5, "east": 0, "up": 0},
+                            },
+                        },
+                        condition="after_command_terminal_success",
+                        label="Move 5 m north",
+                    ),
+                    _provider_step(
+                        message,
+                        "return to launch",
+                        tool_id="mds.flight.command.execute",
+                        arguments={"mission_type": 104, "trigger_time": 0},
+                        condition="after_command_terminal",
+                        label="Return to launch",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "takeoff drone 1 to 10m, move 5m north, then return to launch",
+        },
+    )
+
+    assert response.status_code == 200
+    draft = response.json()["trace"]["safety"]["action_draft"]
+    assert [item["action_label"] for item in draft["post_actions"]] == ["Move 5 m north", "Return to launch"]
+    assert draft["post_actions"][0]["arguments"]["precision_move"]["translation_m"]["east"] == 0.0
+
+
+def test_simurgh_provider_semantic_rewrite_cannot_change_yaw(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message="take off drone 1 to 10m, yaw to 10 degrees, then return to launch",
+            route_hint="draft_flight_action",
+            action_plan=ProviderActionPlan(
+                summary="Take off, yaw, and return",
+                steps=(
+                    _provider_step(
+                        message,
+                        "takeoff drone 1 to 10m",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 10,
+                            "trigger_time": 0,
+                            "target_drone_ids": ["1"],
+                            "takeoff_altitude": 10,
+                        },
+                        label="Take off to 10 m",
+                    ),
+                    _provider_step(
+                        message,
+                        "yaw to 290 degrees",
+                        tool_id="mds.flight.command.execute",
+                        arguments={
+                            "mission_type": 112,
+                            "trigger_time": 0,
+                            "precision_move": {
+                                "frame": "ned",
+                                "translation_m": {"north": 0, "east": 0, "up": 0},
+                                "yaw": {"mode": "absolute_heading", "degrees": 290},
+                            },
+                        },
+                        condition="after_command_terminal_success",
+                        label="Yaw to 290 degrees",
+                    ),
+                    _provider_step(
+                        message,
+                        "return to launch",
+                        tool_id="mds.flight.command.execute",
+                        arguments={"mission_type": 104, "trigger_time": 0},
+                        condition="after_command_terminal",
+                        label="Return to launch",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "takeoff drone 1 to 10m, yaw to 290 degrees, then return to launch",
+        },
+    )
+
+    assert response.status_code == 200
+    draft = response.json()["trace"]["safety"]["action_draft"]
+    yaw = draft["post_actions"][0]["arguments"]["precision_move"]["yaw"]
+    assert yaw == {"mode": "absolute_heading", "degrees": 290.0}
+
+
+def test_simurgh_provider_semantic_ambiguity_asks_one_clarification(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    def fake_rewrite_operator_message_with_provider(**_kwargs):
+        return _provider_rewrite(
+            normalized_message="land or return drone 1",
+            route_hint="clarify",
+            confidence=0.91,
+            needs_clarification=True,
+            clarification_question="Should I land Drone 1 here, or return it to launch?",
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "land or rtl drone 1 now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["content"] == "Should I land Drone 1 here, or return it to launch?"
+    assert payload["trace"]["tool"]["ids"] == []
+    assert payload["trace"]["intent"]["provider_semantic_rewrite"]["needs_clarification"] is True
+
+
+def test_simurgh_provider_semantic_clarification_preserves_original_request(monkeypatch):
+    from api_routes import simurgh as simurgh_routes
+
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    calls = []
+    safe_calls = []
+    original_safe_to_try = simurgh_routes._semantic_rewrite_is_safe_to_try
+
+    def capture_safe_to_try(**kwargs):
+        result = original_safe_to_try(**kwargs)
+        safe_calls.append(
+            (
+                kwargs["turn_intent"].route,
+                kwargs["turn_intent"].conversation_topic,
+                result,
+            )
+        )
+        return result
+
+    def fake_rewrite_operator_message_with_provider(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return _provider_rewrite(
+                normalized_message="land or return drone 1",
+                route_hint="clarify",
+                confidence=0.91,
+                needs_clarification=True,
+                clarification_question="Should I land Drone 1 here, or return it to launch?",
+            )
+        assert "Previous request: land or rtl drone 1 now" in kwargs["clarification_context"]
+        assert "Clarification asked: Should I land Drone 1 here, or return it to launch?" in kwargs["clarification_context"]
+        message = kwargs["message"]
+        return _provider_rewrite(
+            normalized_message="return to launch drone 1",
+            route_hint="draft_flight_action",
+            confidence=0.97,
+            action_plan=ProviderActionPlan(
+                summary="Return Drone 1 to launch",
+                steps=(
+                    _provider_step(
+                        message,
+                        message,
+                        tool_id="mds.flight.command.execute",
+                        arguments={"mission_type": 104, "trigger_time": 0, "target_drone_ids": ["1"]},
+                        label="Return Drone 1 to launch",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr("api_routes.simurgh._semantic_rewrite_is_safe_to_try", capture_safe_to_try)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fake_rewrite_operator_message_with_provider,
+    )
+    client = _client()
+    clarification = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "land or rtl drone 1 now"},
+    ).json()
+    assert clarification["session"]["metadata"]["last_domain"] == "clarification"
+
+    followup = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": clarification["session"]["id"],
+            "message": "return it",
+        },
+    )
+
+    assert followup.status_code == 200, (followup.text, len(calls), safe_calls)
+    payload = followup.json()
+    assert len(calls) == 2
+    assert safe_calls[-1] == ("provider_or_registry", "clarification", True)
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["safety"]["action_draft"]["command_payload"]["mission_type"] == 104
+    assert payload["trace"]["safety"]["action_draft"]["target_drone_ids"] == ["1"]
 
 
 def test_simurgh_bare_singular_sitl_create_language_returns_guarded_action_draft(monkeypatch):
@@ -1317,8 +2471,7 @@ def test_simurgh_bare_singular_sitl_create_language_returns_guarded_action_draft
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "mds.sitl.instances.create" in content
+    assert "Review the guarded action plan" in content
     assert "did not build" not in content.lower()
     assert "read-only" not in content.lower()
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
@@ -1432,9 +2585,11 @@ def test_simurgh_confirmed_single_sitl_create_submits_when_circuit_breaker_off(m
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded GCS action" in payload["content"]
-    assert "`sitl-op-1`" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "succeeded"
+    assert run["result"]["action_response"]["operation_id"] == "sitl-op-1"
     assert submitted == [
         {
             "name": "mds.sitl.instances.create",
@@ -1464,14 +2619,14 @@ def test_simurgh_direct_sitl_restart_request_returns_guarded_action_draft(monkey
 
     assert response.status_code == 200
     payload = response.json()
-    assert "mds.sitl.instances.action" in payload["content"]
-    assert "Instance action: restart drone-2" in payload["content"]
+    assert "Review the guarded action plan" in payload["content"]
     assert '"action": "restart"' not in payload["content"]
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
     assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
         "action": "restart",
         "instance_names": ["drone-2"],
     }
+    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Restart SITL instance(s)"
 
 
 def test_simurgh_direct_sitl_remove_request_needs_named_instances(monkeypatch):
@@ -1537,8 +2692,7 @@ def test_simurgh_stale_sitl_remove_checks_state_and_infers_single_listed_instanc
     payload = response.json()
     content = payload["content"]
     assert "Read-only status checked before drafting" in content
-    assert "I prepared a guarded action draft" in content
-    assert "Instance action: remove drone-1" in content
+    assert "Review the guarded action plan" in content
     assert "Missing: instance_names" not in content
     assert "No action was executed" in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.action"
@@ -1551,6 +2705,7 @@ def test_simurgh_stale_sitl_remove_checks_state_and_infers_single_listed_instanc
         "action": "remove",
         "instance_names": ["drone-1"],
     }
+    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Remove SITL instance(s)"
     assert payload["trace"]["intent"]["action"]["draft_missing_arguments"] == []
 
 
@@ -1703,9 +2858,11 @@ def test_simurgh_confirmed_sitl_reconcile_submits_when_circuit_breaker_off(monke
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded GCS action" in payload["content"]
-    assert "`sitl-op-4`" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "succeeded"
+    assert run["result"]["action_response"]["operation_id"] == "sitl-op-4"
     assert submitted == [
         {
             "name": "mds.sitl.fleet.reconcile",
@@ -1790,12 +2947,13 @@ def test_simurgh_confirmed_sitl_create_monitors_operation_when_requested(monkeyp
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded GCS action" in payload["content"]
-    assert "`sitl-op-create-monitored`" in payload["content"]
-    assert "Monitor: succeeded" in payload["content"]
-    assert "SITL instance drone-1 is running." in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
-    assert payload["trace"]["safety"]["action_monitor"]["status"] == "succeeded"
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "succeeded"
+    assert run["result"]["action_response"]["operation_id"] == "sitl-op-create-monitored"
+    assert run["result"]["monitor_result"]["status"] == "succeeded"
+    assert run["result"]["monitor_result"]["summary"] == "SITL instance drone-1 is running."
     assert submitted == [
         {
             "name": "mds.sitl.instances.create",
@@ -2034,9 +3192,11 @@ def test_simurgh_sitl_monitor_fails_fast_when_operation_status_is_unavailable(mo
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Monitor: failed" in payload["content"]
-    assert payload["trace"]["safety"]["action_monitor"]["status"] == "failed"
-    assert payload["trace"]["safety"]["action_monitor"]["http_status"] == 404
+    assert "Action run started" in payload["content"]
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "failed"
+    assert run["result"]["monitor_result"]["status"] == "failed"
+    assert run["result"]["monitor_result"]["http_status"] == 404
 
 
 def test_simurgh_confirmed_sitl_create_submits_when_circuit_breaker_off(monkeypatch):
@@ -2091,9 +3251,11 @@ def test_simurgh_confirmed_sitl_create_submits_when_circuit_breaker_off(monkeypa
 
     assert confirm_response.status_code == 200
     payload = confirm_response.json()
-    assert "Submitted the guarded GCS action" in payload["content"]
-    assert "`sitl-op-create-1`" in payload["content"]
+    assert "Action run started" in payload["content"]
     assert payload["trace"]["safety"]["action_execution"] == "submitted"
+    run = _wait_for_action_run(client, payload)
+    assert run["state"] == "succeeded"
+    assert run["result"]["action_response"]["operation_id"] == "sitl-op-create-1"
     assert submitted == [
         {
             "name": "mds.sitl.instances.create",
@@ -2338,7 +3500,7 @@ def test_simurgh_status_reports_external_assistant_provider(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["assistant_provider"] == "openai"
-    assert payload["assistant_model"] == "gpt-5.5"
+    assert payload["assistant_model"] == "gpt-5.6"
     assert payload["assistant_external_provider"] is True
     assert payload["assistant_external_provider_auth_required"] is True
 

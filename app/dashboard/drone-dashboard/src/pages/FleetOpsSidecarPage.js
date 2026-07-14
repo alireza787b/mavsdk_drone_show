@@ -21,6 +21,7 @@ import {
   getFleetSidecarResponse,
   promoteFleetSidecarDraftResponse,
 } from '../services/gcsApiService';
+import InfoHint from '../components/InfoHint';
 import { DocsLink } from '../components/ui';
 import '../styles/FleetOpsSidecarPage.css';
 
@@ -349,7 +350,7 @@ function ProfileList({
                   <span>{item.type || 'endpoint'} · {item.category || item.role || 'policy'}</span>
                 </div>
                 <span className={`fleet-sidecar__badge ${item.enabled === false ? 'warn' : ''}`}>{item.mode || 'normal'}</span>
-                <span title={mavlinkEndpointAddress(item)}>{mavlinkEndpointAddress(item)}</span>
+                <span aria-label={`MAVLink address ${mavlinkEndpointAddress(item)}`}>{mavlinkEndpointAddress(item)}</span>
               </div>
             ))}
           </section>
@@ -458,12 +459,15 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                 </td>
                 <td data-label="Drone">{droneLabel(row)}</td>
                 <td data-label="Presence">
-                  <span className={`fleet-sidecar__badge ${statusClass(row.presence?.state)}`} title={formatAge(row.presence)}>
-                    {row.presence?.state || 'unknown'}
+                  <span className="fleet-sidecar__status-cell">
+                    <span className={`fleet-sidecar__badge ${statusClass(row.presence?.state)}`}>
+                      {row.presence?.state || 'unknown'}
+                    </span>
+                    <small>{formatAge(row.presence)}</small>
                   </span>
                 </td>
                 <td data-label="Service"><span className={`fleet-sidecar__badge ${statusClass(row.service_state)}`}>{row.service_state || 'unknown'}</span></td>
-                <td data-label="Ref" title={installedRefLabel(row.installed_ref)}>{installedRefLabel(row.installed_ref)}</td>
+                <td data-label="Ref">{installedRefLabel(row.installed_ref)}</td>
                 <td data-label="Mode">{row.mode}</td>
                 <td data-label="Source">{row.profile_source || 'n/a'}</td>
                 <td data-label="Desired">{shortHash(row.desired_hash)}</td>
@@ -478,7 +482,7 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                     {row.drift_state}
                   </button>
                 </td>
-                <td data-label={itemKind === 'mavlink' ? 'Routes' : 'Profiles'} title={profileCountLabel({ itemKind }, row)}>{profileCountLabel({ itemKind }, row)}</td>
+                <td data-label={itemKind === 'mavlink' ? 'Routes' : 'Profiles'}>{profileCountLabel({ itemKind }, row)}</td>
                 <td data-label="Dashboard">
                   <SidecarDashboardLink row={row} itemKind={itemKind} />
                 </td>
@@ -593,7 +597,7 @@ function PolicyModeDialog({ mode, setMode, modes }) {
       <select id="fleet-sidecar-mode" value={mode} onChange={(event) => setMode(event.target.value)}>
         {modes.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
-      <span title={modeSummary(mode)}><FaInfoCircle aria-hidden="true" /></span>
+      <InfoHint content={modeSummary(mode)} label="Mode guidance" />
     </div>
   );
 }
@@ -642,7 +646,16 @@ function DryRunApplyDialog({
             <div className="fleet-sidecar__job-row" key={nodeId}>
               <span>{nodeId}</span>
               <span className={`fleet-sidecar__badge ${result.ok ? 'ok' : 'bad'}`}>{result.ok ? 'ready' : 'blocked'}</span>
-              <span title={result.error || plan.dry_run_id}>{plan.diff?.drift_state || result.error || plan.dry_run_id || 'n/a'}</span>
+              <span className="fleet-sidecar__result-detail">
+                <span>{plan.diff?.drift_state || result.error || plan.dry_run_id || 'n/a'}</span>
+                {(result.error || plan.dry_run_id) ? (
+                  <InfoHint
+                    content={result.error || plan.dry_run_id}
+                    label={`Result detail for node ${nodeId}`}
+                    placement="left"
+                  />
+                ) : null}
+              </span>
             </div>
           );
         })}

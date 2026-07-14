@@ -1186,9 +1186,7 @@ def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatc
     assert action_response.status_code == 200
     payload = action_response.json()
     content = payload["content"]
-    assert "guarded action draft" in content
-    assert "mds.sitl.instances.create" in content
-    assert "Requested instance: drone-1" in content
+    assert "Review the guarded action plan" in content
     assert '"instance_id": 1' not in content
     assert "advisory-only" not in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
@@ -1199,6 +1197,7 @@ def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatc
         "instance_id": 1,
         "ip_last_octet": 2,
     }
+    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Create SITL instance"
 
 
 def test_simurgh_assistant_mixed_status_and_sitl_action_answers_status_before_draft(monkeypatch):
@@ -1223,9 +1222,7 @@ def test_simurgh_assistant_mixed_status_and_sitl_action_answers_status_before_dr
     assert "Read-only status checked before drafting" in content
     assert "Configured fleet: 4 drone(s)." in content
     assert "SITL instances: 1 total, 1 active." in content
-    assert "guarded action draft" in content
-    assert "Interpreted command pack" in content
-    assert "Startup sync: git sync on; requirements sync on." in content
+    assert "Review the guarded action plan" in content
     assert '"git_sync_enabled"' not in content
     assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
     assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
@@ -1846,6 +1843,7 @@ def test_simurgh_assistant_turn_allows_external_provider_for_operator_or_agent_s
 def test_simurgh_assistant_turn_uses_openai_provider_with_safe_metadata(monkeypatch, tmp_path):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_MODEL", "gpt-5.6")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
     captured: dict[str, object] = {}
@@ -1866,7 +1864,7 @@ def test_simurgh_assistant_turn_uses_openai_provider_with_safe_metadata(monkeypa
     assert response.status_code == 200
     payload = response.json()
     assert payload["provider"] == "openai"
-    assert payload["model"] == "gpt-5.5"
+    assert payload["model"] == "gpt-5.6"
     assert payload["adapter_version"] == "openai-responses-v1"
     assert payload["content"] == "Provider answer."
     assert captured["api_key"] == "test-openai-key"
@@ -1880,7 +1878,7 @@ def test_simurgh_assistant_turn_uses_openai_provider_with_safe_metadata(monkeypa
     assert "Use a provider" not in str(audit_event)
 
     history = client.get("/api/v1/simurgh/assistant/turns", params={"actor": "operator"}).json()["turns"]
-    assert history[0]["model"] == "gpt-5.5"
+    assert history[0]["model"] == "gpt-5.6"
     assert history[0]["adapter_version"] == "openai-responses-v1"
 
 
@@ -1894,6 +1892,10 @@ def test_simurgh_assistant_turn_trace_profiles_non_english_provider_prompt(monke
         assert "Detected language: fr" in str(payload["input"])
         return {"output": [{"type": "message", "content": [{"type": "output_text", "text": "Réponse."}]}]}
 
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
     monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
     client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
 

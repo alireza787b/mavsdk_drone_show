@@ -190,7 +190,7 @@
 .fleet-sidecar__table th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-local-raised);
   background: var(--color-bg-tertiary);
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
@@ -199,7 +199,18 @@
 }
 
 .fleet-sidecar__table tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-bg-quaternary);
+}
+
+.fleet-sidecar__status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.fleet-sidecar__status-cell small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 .fleet-sidecar__row-muted td {
@@ -329,7 +340,7 @@
 .fleet-sidecar__modal-head {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-local-raised);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -476,6 +487,13 @@
   overflow-wrap: anywhere;
   text-overflow: initial;
   white-space: normal;
+}
+
+.fleet-sidecar__result-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
 }
 
 .fleet-sidecar__profile-row > div {

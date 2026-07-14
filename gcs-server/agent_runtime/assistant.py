@@ -19,6 +19,11 @@ import httpx
 import yaml
 
 from .audit import InMemoryAuditSink
+from .action_intent import (
+    ProviderActionPlan,
+    parse_provider_action_plan,
+    provider_semantic_rewrite_json_schema,
+)
 from .context import AgentContextIndex, load_default_context_index
 from .language import LanguageProfile, detect_language_profile, provider_language_guidance
 from .mds_read_tools import (
@@ -34,7 +39,11 @@ from .mds_read_tools import (
 from .models import AgentRuntimeError, AgentSession, AuditEvent, ContextResource, stable_payload_hash, utc_now
 from .policy import load_default_policy
 from .query_adaptation import adapt_operator_query
-from .query_understanding import AssistantQueryPlan, build_assistant_query_plan
+from .query_understanding import (
+    AssistantQueryPlan,
+    build_assistant_query_plan,
+    looks_like_public_upstream_reference_query,
+)
 from .tool_executor import ADVISORY_ANSWER_TOOL_ID, execute_policy_allowed_advisory_tool
 from .retrieval import load_default_retriever, search_retriever_queries
 from .sessions import AgentSessionStore, sanitize_session_metadata
@@ -70,7 +79,7 @@ MOCK_ASSISTANT_ADAPTER_VERSION = "mock-v1"
 MOCK_ASSISTANT_MODEL = "mock-local"
 OPENAI_ASSISTANT_ADAPTER_VERSION = "openai-responses-v1"
 OPENAI_SEMANTIC_REWRITE_ADAPTER_VERSION = "openai-semantic-rewrite-v1"
-DEFAULT_OPENAI_MODEL = "gpt-5.5"
+DEFAULT_OPENAI_MODEL = "gpt-5.6"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 ALLOWED_OPENAI_BASE_URLS = (DEFAULT_OPENAI_BASE_URL,)
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 30.0
@@ -143,7 +152,7 @@ WEB_SEARCH_NO_CITATION_NOTE = (
 DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
 DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
 DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
-SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
+SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 SUPPORTED_OPENAI_TEXT_VERBOSITY = {"low", "medium", "high"}
 SUPPORTED_OPENAI_WEB_SEARCH_CONTEXT_SIZE = {"low", "medium", "high"}
 
@@ -700,6 +709,7 @@ class ProviderSemanticRewrite:
     needs_clarification: bool = False
     clarification_question: str = ""
     notes: tuple[str, ...] = ()
+    action_plan: ProviderActionPlan | None = None
     provider: str = OPENAI_ASSISTANT_PROVIDER
     model: str = ""
     adapter_version: str = OPENAI_SEMANTIC_REWRITE_ADAPTER_VERSION
@@ -723,6 +733,7 @@ class ProviderSemanticRewrite:
             "needs_clarification": self.needs_clarification,
             "clarification_question_present": bool(self.clarification_question),
             "notes": list(self.notes[:8]),
+            "action_plan": self.action_plan.public_metadata() if self.action_plan is not None else None,
             "usable_for_routing": self.usable_for_routing,
         }
 
@@ -1059,29 +1070,18 @@ class MockAssistantAdapter:
         sensitive_input_terms = self._sensitive_input_terms(message)
         blocked_intents = tuple(sorted(set(self._blocked_intents(message) + sensitive_input_terms)))
         template = self.config.response_template
-        lines = [
-            template.preamble,
-            f"Provider: {self.config.provider}.",
-            f"Loaded context resources: {', '.join(doc.id for doc in context_documents)}.",
-            (
-                template.sensitive_input_notice
-                if sensitive_input_terms
-                else template.blocked_action_notice
-                if blocked_intents
-                else template.no_action_notice
-            ),
-        ]
-        if blocked_intents:
-            lines.append(f"Blocked intent signals: {', '.join(blocked_intents)}.")
-        if template.suggested_next_steps:
-            lines.append("Suggested next steps:")
-            lines.extend(f"- {step}" for step in template.suggested_next_steps)
+        lines = [template.preamble]
         if sensitive_input_terms:
-            lines.append(
-                "Safe alternative: ask for a local read-only summary such as "
-                "`check the ULog and unified log for the mission and summarize anomalies`, "
-                "without pasting, downloading, or exposing raw field artifacts."
+            lines.extend(
+                (
+                    template.sensitive_input_notice,
+                    "Ask me to inspect the local unified logs or derived ULog summary for a drone or session.",
+                )
             )
+        elif blocked_intents:
+            lines.append(template.blocked_action_notice)
+        else:
+            lines.append(template.no_action_notice)
 
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -1241,24 +1241,16 @@ class OpenAIResponsesAssistantAdapter:
         sensitive_input_terms: tuple[str, ...] = (),
     ) -> AssistantTurnResult:
         template = self.config.response_template
-        lines = [
-            template.preamble,
-            f"Provider: {OPENAI_ASSISTANT_PROVIDER} (local safety block; no provider request was made).",
-            f"Loaded context resources: {', '.join(doc.id for doc in context_documents)}.",
-            template.sensitive_input_notice if sensitive_input_terms else template.blocked_action_notice,
-            f"Blocked intent signals: {', '.join(blocked_intents)}.",
-        ]
+        lines = [template.preamble]
         if sensitive_input_terms:
-            lines.append(
-                "Safe alternative: ask for a local read-only summary such as "
-                "`check the ULog and unified log for the mission and summarize anomalies`, "
-                "without pasting, downloading, or exposing raw field artifacts."
+            lines.extend(
+                (
+                    template.sensitive_input_notice,
+                    "Ask me to inspect the local unified logs or derived ULog summary for a drone or session.",
+                )
             )
         else:
-            lines.append(
-                "Next step: ask for read-only status, evidence, or capability guidance, "
-                "or create a guarded action draft that stops at human confirmation."
-            )
+            lines.append(template.blocked_action_notice)
         content = "\n".join(lines)
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -1427,6 +1419,8 @@ def rewrite_operator_message_with_provider(
     conversation_topic: str = "",
     runtime_mode: str = "",
     previous_action_summary: str = "",
+    clarification_context: str = "",
+    action_tool_contracts: tuple[Mapping[str, Any], ...] = (),
 ) -> ProviderSemanticRewrite | None:
     """Use OpenAI as a semantic routing normalizer for authenticated chat.
 
@@ -1451,6 +1445,7 @@ def rewrite_operator_message_with_provider(
         "conversation_topic": str(conversation_topic or "")[:80],
         "runtime_mode": str(runtime_mode or "")[:40],
         "previous_action_summary": str(previous_action_summary or "")[:240],
+        "clarification_context": str(clarification_context or "")[:1200],
         "routing_contract": {
             "allowed_task_kinds": [
                 "read_status",
@@ -1476,16 +1471,25 @@ def rewrite_operator_message_with_provider(
                 "QuickScout",
                 "MCP",
             ],
-            "action_boundary": "Only normalize intent text. Do not approve, execute, or create tool payloads.",
+            "action_boundary": "Interpret into a reviewable typed plan only. Never approve or execute it.",
         },
+        "action_tool_contracts": [dict(item) for item in action_tool_contracts[:32]],
     }
     payload = {
         "model": config.openai.model,
         "instructions": _semantic_rewrite_instructions(),
         "input": json.dumps(request_payload, ensure_ascii=False, sort_keys=True),
-        "max_output_tokens": min(max(config.openai.max_output_tokens, 200), 700),
+        "max_output_tokens": min(max(config.openai.max_output_tokens, 600), 2500),
         "reasoning": {"effort": "low"},
-        "text": {"format": {"type": "text"}, "verbosity": "low"},
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "simurgh_semantic_intent",
+                "strict": True,
+                "schema": provider_semantic_rewrite_json_schema(),
+            },
+            "verbosity": "low",
+        },
         "store": False,
         "include": [],
         "tools": [],
@@ -1502,7 +1506,7 @@ def rewrite_operator_message_with_provider(
     decoded = _extract_semantic_rewrite_json(text)
     if not decoded:
         raise AgentRuntimeError("OpenAI semantic rewrite did not return valid JSON")
-    return _semantic_rewrite_from_payload(decoded, config=config)
+    return _semantic_rewrite_from_payload(decoded, config=config, original_message=original)
 
 
 def _semantic_rewrite_instructions() -> str:
@@ -1512,28 +1516,23 @@ Return exactly one JSON object and no Markdown.
 
 Your job:
 - infer what the operator means across typos, wrong technical words, mixed language, casual tone, and expert shorthand;
-- rewrite the operator request into concise English routing text that preserves all numbers, units, directions, drone IDs, draft IDs, wait times, and ordering;
-- classify only the task kind; never answer the user and never execute or approve anything.
+- classify the task kind and, for an action, return one ordered typed plan using only action_tool_contracts;
+- never answer the user, approve an action, or claim execution.
 
 Rules:
-- If the operator intends Simurgh to make a SITL/simulator/drone instance available for testing, normalize that as a draft_sitl_lifecycle_action.
+- If the operator intends Simurgh to make a SITL/simulator/drone instance available for testing, classify that as a draft_sitl_lifecycle_action.
 - If the operator is only asking how to do something, for docs, or for a procedure, do not convert it into an action.
-- If the operator gives a flight sequence, preserve the full sequence in normalized_message.
+- For non-action routing, normalized_message may be concise English. For an action, action_plan is authoritative and normalized_message is only a short summary.
+- If clarification_context is present, interpret the new operator message as the answer to that specific prior question and retain the prior request's targets, values, and sequence.
+- Preserve every action, pause, value, unit, target, simultaneous grouping, dependency, and ordering as a distinct ordered action_plan step.
+- A stationary timed hold, dwell, or pause is a delay step. An aircraft HOLD-mode command is a tool step only if an allowed tool contract supports it.
+- Every action_plan step must cite an exact non-empty substring from operator_message using zero-based source_start/source_end and source_excerpt. Never invent a source span.
+- Use arguments_json for the selected tool's arguments. Omit generated fields such as idempotency keys and operator labels. If the operator leaves a contextual target implicit, omit target_drone_ids so local runtime context can resolve it.
+- Use after_command_terminal_success for normal dependent steps. Use after_command_terminal only for an explicit terminal recovery step such as LAND or RTL that the operator wants attempted even after a prior non-success.
 - If the operator asks for status/readiness/telemetry/log/ULog/system state, normalize as read_status.
 - If the operator says confirm/cancel with a draft id, preserve that exact id.
 - If multiple safety-relevant meanings are genuinely possible, set needs_clarification=true and ask one short clarification.
-- Do not include private state, tool payloads, code blocks, or explanations.
-
-JSON schema:
-{
-  "normalized_message": "string",
-  "language": "BCP47 or short language label",
-  "route_hint": "read_status|general_question|draft_sitl_lifecycle_action|draft_flight_action|confirm_pending_action|reject_pending_action|clarify",
-  "confidence": 0.0,
-  "needs_clarification": false,
-  "clarification_question": "",
-  "notes": ["short-safe-note"]
-}"""
+- Do not include private state, code blocks, or explanations. The API schema defines the exact response shape."""
 
 
 def _extract_semantic_rewrite_json(text: str) -> Mapping[str, Any] | None:
@@ -1560,6 +1559,7 @@ def _semantic_rewrite_from_payload(
     payload: Mapping[str, Any],
     *,
     config: AssistantConfig,
+    original_message: str = "",
 ) -> ProviderSemanticRewrite:
     normalized = re.sub(r"\s+", " ", str(payload.get("normalized_message") or "")).strip()
     language = str(payload.get("language") or "").strip()[:40]
@@ -1583,6 +1583,13 @@ def _semantic_rewrite_from_payload(
         "clarify",
     }:
         route_hint = "clarify" if bool(payload.get("needs_clarification")) else "general_question"
+    try:
+        action_plan = parse_provider_action_plan(
+            payload.get("action_plan"),
+            original_message=original_message,
+        )
+    except ValueError as exc:
+        raise AgentRuntimeError(f"OpenAI semantic action intent failed validation: {exc}") from exc
     return ProviderSemanticRewrite(
         normalized_message=normalized,
         language=language or "unknown",
@@ -1591,6 +1598,7 @@ def _semantic_rewrite_from_payload(
         needs_clarification=bool(payload.get("needs_clarification")),
         clarification_question=str(payload.get("clarification_question") or "").strip()[:240],
         notes=tuple(notes),
+        action_plan=action_plan,
         model=config.openai.model,
     )
 
@@ -1814,72 +1822,13 @@ def _should_enable_web_search_for_turn(
     normalized = re.sub(r"\s+", " ", (routing_message or normalized_message).casefold()).strip()
     if not normalized:
         return False
-    if _has_public_upstream_lookup_signal(normalized):
+    if looks_like_public_upstream_reference_query(normalized):
         return True
     if _has_mds_private_or_state_signal(normalized):
         return False
     if _has_public_current_or_lookup_signal(normalized):
         return True
     return local_intent is None and query_plan.domain == "general" and query_plan.confidence < 0.4
-
-
-def _has_public_upstream_lookup_signal(normalized: str) -> bool:
-    """Allow current public upstream lookups without leaking MDS installation state."""
-
-    if not _has_any_text(
-        normalized,
-        (
-            "latest",
-            "newest",
-            "upstream",
-            "official release",
-            "release version",
-            "stable version",
-            "current release",
-            "current version",
-        ),
-    ):
-        return False
-    if _has_any_text(
-        normalized,
-        (
-            "our drone",
-            "our drones",
-            "this drone",
-            "this gcs",
-            "this mds",
-            "installed",
-            "running on",
-            "configured",
-            "fleet",
-            "telemetry",
-            "heartbeat",
-            "netbird",
-            "ip",
-            "drone 1",
-            "drone 2",
-            "drone 3",
-        ),
-    ):
-        return False
-    return _has_any_text(
-        normalized,
-        (
-            "px4",
-            "ardupilot",
-            "mavlink",
-            "mavsdk",
-            "qgroundcontrol",
-            "qgc",
-            "gazebo",
-            "ros 2",
-            "ros2",
-            "mapbox",
-            "openai",
-            "n8n",
-            "mcp",
-        ),
-    )
 
 
 def _has_mds_private_or_state_signal(normalized: str) -> bool:

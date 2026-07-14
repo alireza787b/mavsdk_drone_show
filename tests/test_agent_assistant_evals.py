@@ -119,8 +119,8 @@ def test_advisory_eval_suite_is_hermetic_against_openai_env_overrides(monkeypatc
 
     assert report.passed is True
     results = {result.scenario_id: result for result in report.results}
-    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.5"
-    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.5"
+    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.6"
+    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.6"
 
 
 def test_fixture_backed_evals_stay_offline_when_live_provider_allowed(monkeypatch):

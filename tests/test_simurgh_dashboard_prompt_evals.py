@@ -14,7 +14,11 @@ from agent_runtime.dashboard_prompt_evals import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_dashboard_prompt_eval_suite_passes_runtime_router_scenarios():
+def test_dashboard_prompt_eval_suite_passes_runtime_router_scenarios(monkeypatch):
+    def fail_live_drone_log_fetch(*_args, **_kwargs):
+        raise AssertionError("offline dashboard eval must not use the live drone-log proxy")
+
+    monkeypatch.setattr("log_proxy.fetch_drone_json_sync", fail_live_drone_log_fetch)
     suite = DashboardPromptEvalSuite.from_file()
 
     report = run_dashboard_prompt_eval_suite(suite)

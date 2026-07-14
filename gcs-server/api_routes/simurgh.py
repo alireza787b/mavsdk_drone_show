@@ -1,13 +1,15 @@
-"""Read-only Simurgh Operator GCS routes."""
+"""Simurgh Operator GCS routes."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import re
 import time
 import uuid
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping
 
@@ -17,6 +19,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from src.settings.runtime import resolve_runtime_mode
 from agent_runtime.tool_executor import (
+    InternalToolExecutionContext,
     execute_policy_allowed_guarded_route_tool,
     execute_policy_allowed_read_only_tool,
     list_policy_allowed_read_only_tools,
@@ -80,6 +83,11 @@ from agent_runtime.action_planner import (
     is_action_confirmation_message,
     is_action_rejection_message,
 )
+from agent_runtime.action_runs import (
+    ActionRunSnapshot,
+    ActionRunStore,
+)
+from agent_runtime.action_intent import build_action_draft_from_provider_plan
 from agent_runtime.mds_read_tools import (
     answer_mds_read_only_question,
     apply_runtime_settings,
@@ -109,6 +117,7 @@ from simurgh_internal_auth import INTERNAL_TOOL_CALL_HEADER, INTERNAL_TOOL_CALL_
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+logger = logging.getLogger("mds.simurgh")
 
 JSONRPC_VERSION = "2.0"
 JSONRPC_PARSE_ERROR = -32700
@@ -123,7 +132,6 @@ MAX_ASSISTANT_CONTEXT_RESOURCE_IDS = 12
 MAX_ASSISTANT_HISTORY_LIMIT = 100
 ACTION_MONITOR_POLL_SECONDS = 2.0
 ACTION_MONITOR_TIMEOUT_SECONDS = 90.0
-ACTION_SEQUENCE_MAX_DELAY_SECONDS = 30.0
 PENDING_ACTION_RECOVERY_SECONDS = 600
 COMMAND_TERMINAL_PHASE = "terminal"
 COMMAND_SUCCESS_OUTCOMES = {"completed"}
@@ -148,6 +156,14 @@ QUERY_DOMAIN_PROGRESS_LABELS = {
     "swarm": "swarm mission",
     "ui": "dashboard UI",
 }
+
+
+async def _sleep_action_sequence_delay(delay_seconds: float) -> None:
+    """Sleep one validated operator-requested sequence delay."""
+
+    await asyncio.sleep(delay_seconds)
+
+
 QUERY_RESPONSE_MODE_PROGRESS_LABELS = {
     "capability": "capability answer",
     "clarify": "clarification",
@@ -156,16 +172,31 @@ QUERY_RESPONSE_MODE_PROGRESS_LABELS = {
     "status": "status check",
     "workflow": "workflow guidance",
 }
+
+
+@dataclass(frozen=True)
+class ActionExecutionOutcome:
+    action_execution: str
+    action_response: Any | None = None
+    monitor_result: Mapping[str, Any] | None = None
+    post_action_results: tuple[Mapping[str, Any], ...] = ()
+    rejection_detail: str = ""
 SEMANTIC_REWRITE_TERMINAL_ROUTES = {
-    "action_draft",
     "action_confirmation",
     "action_rejection",
 }
-SEMANTIC_REWRITE_ACTION_HINTS = {
+SEMANTIC_REWRITE_DRAFT_ACTION_HINTS = {
     "draft_sitl_lifecycle_action",
     "draft_flight_action",
+}
+SEMANTIC_REWRITE_ACTION_HINTS = {
+    *SEMANTIC_REWRITE_DRAFT_ACTION_HINTS,
     "confirm_pending_action",
     "reject_pending_action",
+}
+SEMANTIC_REWRITE_ACTION_CONTROL_ROUTES = {
+    "confirm_pending_action": "action_confirmation",
+    "reject_pending_action": "action_rejection",
 }
 SEMANTIC_REWRITE_HELP_INTENTS = {
     "docs_help",
@@ -377,6 +408,13 @@ class SimurghAssistantTurnRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class SimurghActionRunControlRequest(BaseModel):
+    actor: str = Field(default="operator", min_length=1, max_length=128)
+    action: str = Field(min_length=1, max_length=64)
+    reason: str = Field(default="", max_length=500)
+    control_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 class SimurghRuntimeSettingsRequest(BaseModel):
     agent_enabled: bool | None = None
     mcp_enabled: bool | None = None
@@ -572,7 +610,15 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
     }
     action_draft = metadata.get("action_draft")
     if isinstance(action_draft, dict):
-        safety["action_draft"] = action_draft
+        public_draft = dict(action_draft)
+        try:
+            draft = action_draft_from_context_json(
+                json.dumps(public_draft, sort_keys=True, separators=(",", ":"), default=str)
+            )
+            public_draft["display_plan"] = _action_draft_display_plan(draft)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+        safety["action_draft"] = public_draft
     policy_reasons = metadata.get("policy_reasons")
     if isinstance(policy_reasons, list):
         safety["policy_reasons"] = policy_reasons
@@ -584,6 +630,9 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
         safety["post_action_results"] = [
             dict(item) for item in post_action_results if isinstance(item, dict)
         ]
+    action_run = metadata.get("action_run")
+    if isinstance(action_run, dict) and action_run:
+        safety["action_run"] = dict(action_run)
     pre_action_read_only_tool_ids = metadata.get("pre_action_read_only_tool_ids")
     if isinstance(pre_action_read_only_tool_ids, list):
         safety["pre_action_read_only_tool_ids"] = [
@@ -692,6 +741,11 @@ def _assistant_turn_response_payload(record, history_record: AssistantTurnHistor
 def _assistant_sse_event(event: str, data: dict[str, Any]) -> str:
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
     return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _action_run_sse_event(event_id: int, event: str, data: Mapping[str, Any]) -> str:
+    payload = json.dumps(dict(data), ensure_ascii=False, separators=(",", ":"), default=str)
+    return f"id: {int(event_id)}\nevent: {event}\ndata: {payload}\n\n"
 
 
 def _assistant_content_chunks(content: str, chunk_size: int = 96):
@@ -931,8 +985,7 @@ def _sequence_progress_label(
     label = str(step_label or "").strip()
     action = str(activity or "").strip()
     if label and step_index and step_count:
-        suffix = f" - {action}" if action else ""
-        return f"Step {step_index}/{step_count}: {label}{suffix}"
+        return f"Step {step_index}/{step_count}: {label}"
     if label and action:
         return f"{label} - {action}"
     if label:
@@ -974,14 +1027,33 @@ def _submitted_action_progress_outcome(
     monitor_result: Mapping[str, Any] | None = None,
     post_action_results: Sequence[Mapping[str, Any]] = (),
 ) -> tuple[str, str]:
-    if not isinstance(draft, FlightActionDraft) or not draft.post_actions:
+    if not isinstance(draft, FlightActionDraft):
         return "complete", "GCS accepted action submission"
     if not monitor_result:
-        return "requested", "GCS accepted command sequence"
+        return (
+            ("requested", "GCS accepted command sequence")
+            if draft.monitor_requested
+            else ("complete", "GCS accepted action submission")
+        )
     if monitor_result.get("timed_out"):
         return "timeout", "Command sequence monitoring timed out"
     if not monitor_result.get("success"):
         return "failed", "Command sequence stopped after primary command"
+
+    completion_verification = (
+        monitor_result.get("completion_verification")
+        if isinstance(monitor_result.get("completion_verification"), Mapping)
+        else None
+    )
+    if completion_verification and not completion_verification.get("verified"):
+        if str(completion_verification.get("status") or "").casefold() == "timeout":
+            return "timeout", "Final disarm verification timed out"
+        if draft.post_actions:
+            return "failed", "Final disarm was not verified; dependent steps were not run"
+        return "warning", "Command completed; final disarm was not verified"
+
+    if not draft.post_actions:
+        return "complete", "Command complete"
 
     results = tuple(post_action_results)
     if len(results) < len(draft.post_actions):
@@ -1130,6 +1202,68 @@ def _action_draft_summary_lines(draft: ActionDraft) -> list[str]:
     if draft.monitor_requested:
         lines.append("- Monitor after submission: operation status until terminal state.")
     return lines
+
+
+def _action_draft_display_plan(draft: ActionDraft) -> dict[str, Any]:
+    """Return a renderer-neutral operator plan from the canonical action draft."""
+
+    steps: list[dict[str, Any]] = []
+    if isinstance(draft, FlightActionDraft):
+        steps.append(
+            {
+                "index": 1,
+                "kind": "flight_command",
+                "label": _flight_payload_step_label(
+                    draft.command_payload,
+                    fallback=_action_draft_label(draft),
+                ),
+            }
+        )
+        for index, item in enumerate(draft.post_actions, start=2):
+            action_type = str(item.get("type") or "").strip().lower()
+            if action_type == "delay":
+                delay = item.get("delay_seconds")
+                label = (
+                    f"Wait {float(delay):g} seconds"
+                    if isinstance(delay, (int, float))
+                    else "Wait"
+                )
+                kind = "wait"
+            elif action_type == "registry_action":
+                raw_label = str(
+                    item.get("action_label")
+                    or item.get("tool_title")
+                    or "Run guarded system action"
+                ).strip()
+                label = raw_label[:1].upper() + raw_label[1:]
+                kind = action_type
+            else:
+                arguments = item.get("arguments") if isinstance(item.get("arguments"), Mapping) else {}
+                label = _flight_payload_step_label(
+                    arguments,
+                    fallback=str(item.get("action_label") or item.get("tool_title") or "flight command"),
+                )
+                kind = action_type or "action"
+            steps.append({"index": index, "kind": kind, "label": label})
+        return {
+            "title": "Review flight plan",
+            "target": _format_drone_targets(draft.target_drone_ids),
+            "steps": steps,
+        }
+
+    registry_label = str(draft.action_label or draft.tool_title or "Run guarded action").strip()
+    registry_label = registry_label[:1].upper() + registry_label[1:]
+    return {
+        "title": "Review system action",
+        "target": str(draft.tool_title or "Guarded GCS operation"),
+        "steps": [
+            {
+                "index": 1,
+                "kind": "system_action",
+                "label": registry_label,
+            }
+        ],
+    }
 
 
 def _action_draft_summary_block(draft: ActionDraft) -> str:
@@ -1390,6 +1524,54 @@ def _semantic_rewrite_previous_action_summary(previous_action: Mapping[str, Any]
     return "; ".join(parts)[:240]
 
 
+def _provider_action_tool_contracts(registry: Any) -> tuple[dict[str, Any], ...]:
+    contracts: list[dict[str, Any]] = []
+    for tool in registry.list_tools(exposure=ToolExposure.GUARDED):
+        if tool.boundary != "gcs" or tool.destructive:
+            continue
+        contracts.append(
+            {
+                "id": tool.id,
+                "title": tool.title,
+                "description": tool.description,
+                "input_schema": dict(tool.input_schema or {}),
+                "runtime_modes": list(tool.runtime_modes),
+                "intent": ACTION_INTENT if tool.id == ACTION_TOOL_ID else "sitl_lifecycle_action",
+            }
+        )
+    return tuple(contracts)
+
+
+def _provider_action_tool_contract_map(
+    contracts: tuple[Mapping[str, Any], ...],
+) -> dict[str, dict[str, Any]]:
+    """Return the local materialization contract for provider-selected tools."""
+
+    result: dict[str, dict[str, Any]] = {}
+    for contract in contracts:
+        tool_id = str(contract.get("id") or "").strip()
+        if not tool_id:
+            continue
+        input_schema = contract.get("input_schema")
+        required = input_schema.get("required") if isinstance(input_schema, Mapping) else ()
+        result[tool_id] = {
+            "title": str(contract.get("title") or tool_id),
+            "intent": str(contract.get("intent") or "registry_action"),
+            "required": tuple(str(item) for item in (required or ())),
+        }
+    return result
+
+
+def _semantic_rewrite_clarification_context(previous_context: Mapping[str, str]) -> str:
+    if str(previous_context.get("last_domain") or "") != "clarification":
+        return ""
+    original = " ".join(str(previous_context.get("last_user_message") or "").split()).strip()
+    question = " ".join(str(previous_context.get("last_assistant_content") or "").split()).strip()
+    if not original or not question:
+        return ""
+    return f"Previous request: {original[:800]}\nClarification asked: {question[:300]}"
+
+
 def _semantic_rewrite_read_intent_matches_domain(intent: str, query_domain: str) -> bool:
     intent_name = str(intent or "").strip()
     domain = str(query_domain or "").strip()
@@ -1475,11 +1657,13 @@ def _semantic_rewrite_is_safe_to_try(
     if route == "read_only":
         if not _semantic_rewrite_read_only_needs_provider(turn_intent):
             return False
+    elif route == "action_draft":
+        pass
     elif route == "provider_or_registry":
-        query_plan = getattr(turn_intent, "query_plan", None)
-        query_domain = str(getattr(query_plan, "domain", "") or "")
-        if query_domain == "general":
-            return False
+        # This is precisely where semantic interpretation adds value: unknown
+        # language, typos, and domain shorthand must not be forced through local
+        # word lists before the configured model gets a chance to understand them.
+        pass
     else:
         return False
     read_plan = getattr(turn_intent, "read_only_plan", None)
@@ -1509,6 +1693,28 @@ def _should_accept_semantic_rewrite(
     route_hint = str(getattr(semantic_rewrite, "route_hint", "") or "")
     initial_route = str(getattr(initial_intent, "route", "") or "")
     rewritten_route = str(getattr(rewritten_intent, "route", "") or "")
+    if route_hint in SEMANTIC_REWRITE_ACTION_HINTS and rewritten_route == "action_draft":
+        initial_action = getattr(initial_intent, "action", None)
+        rewritten_action = getattr(rewritten_intent, "action", None)
+        initial_draft = getattr(initial_action, "draft", None)
+        rewritten_draft = getattr(rewritten_action, "draft", None)
+        if rewritten_draft is None:
+            return False
+        if route_hint == "draft_flight_action" and not isinstance(rewritten_draft, FlightActionDraft):
+            return False
+        if route_hint == "draft_sitl_lifecycle_action" and not isinstance(rewritten_draft, RegistryActionDraft):
+            return False
+        if not _semantic_rewrite_preserves_numeric_literals(
+            str(getattr(initial_intent, "routing_message", "") or ""),
+            str(getattr(rewritten_intent, "routing_message", "") or ""),
+        ):
+            return False
+        if initial_draft is not None and not _semantic_rewrite_preserves_draft_facts(
+            initial_draft,
+            rewritten_draft,
+        ):
+            return False
+        return True
     if rewritten_route in SEMANTIC_REWRITE_TERMINAL_ROUTES:
         if route_hint in SEMANTIC_REWRITE_ACTION_HINTS:
             return True
@@ -1523,6 +1729,100 @@ def _should_accept_semantic_rewrite(
         if initial_intent_name in SEMANTIC_REWRITE_HELP_INTENTS and rewritten_intent_name not in SEMANTIC_REWRITE_HELP_INTENTS:
             return True
     return False
+
+
+def _semantic_rewrite_draft_facts(draft: ActionDraft) -> tuple[tuple[str, str], ...]:
+    """Return typed facts already proven by the local parser, in execution order."""
+
+    facts: list[tuple[str, str]] = []
+
+    def append_flight_payload(payload: Mapping[str, Any]) -> None:
+        try:
+            mission_type = int(payload.get("mission_type"))
+        except (TypeError, ValueError):
+            mission_type = 0
+        if mission_type > 0:
+            facts.append(("mission_type", str(mission_type)))
+        altitude = payload.get("takeoff_altitude")
+        if isinstance(altitude, (int, float)) and not isinstance(altitude, bool):
+            facts.append(("takeoff_altitude", f"{float(altitude):g}"))
+        precision_move = payload.get("precision_move")
+        translation = precision_move.get("translation_m") if isinstance(precision_move, Mapping) else None
+        if isinstance(translation, Mapping):
+            for axis in ("north", "east", "up"):
+                value = translation.get(axis)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    facts.append((f"translation_{axis}", f"{float(value):g}"))
+        yaw = precision_move.get("yaw") if isinstance(precision_move, Mapping) else None
+        if isinstance(yaw, Mapping):
+            mode = str(yaw.get("mode") or "").strip()
+            if mode:
+                facts.append(("yaw_mode", mode))
+            degrees = yaw.get("degrees")
+            if isinstance(degrees, (int, float)) and not isinstance(degrees, bool):
+                facts.append(("yaw_degrees", f"{float(degrees):g}"))
+
+    if isinstance(draft, FlightActionDraft):
+        append_flight_payload(draft.command_payload)
+        for target in draft.target_drone_ids:
+            facts.append(("target", str(target)))
+        for item in draft.post_actions:
+            if str(item.get("type") or "").strip().casefold() == "delay":
+                delay = item.get("delay_seconds")
+                if isinstance(delay, (int, float)) and not isinstance(delay, bool):
+                    facts.append(("delay", f"{float(delay):g}"))
+                continue
+            arguments = item.get("arguments") if isinstance(item.get("arguments"), Mapping) else {}
+            append_flight_payload(arguments)
+        return tuple(facts)
+
+    facts.append(("tool_id", draft.tool_id))
+    facts.append(
+        (
+            "arguments",
+            json.dumps(dict(draft.arguments), sort_keys=True, separators=(",", ":"), default=str),
+        )
+    )
+    return tuple(facts)
+
+
+def _semantic_rewrite_preserves_draft_facts(initial: ActionDraft, rewritten: ActionDraft) -> bool:
+    """Preserve a complete typed plan exactly; only fill incomplete drafts."""
+
+    expected = _semantic_rewrite_draft_facts(initial)
+    actual = _semantic_rewrite_draft_facts(rewritten)
+    if initial.ready:
+        return expected == actual
+    if not expected:
+        return True
+    cursor = 0
+    for fact in actual:
+        if fact == expected[cursor]:
+            cursor += 1
+            if cursor == len(expected):
+                return True
+    return False
+
+
+def _semantic_rewrite_preserves_numeric_literals(original: str, rewritten: str) -> bool:
+    """Reject numeric action facts introduced by provider normalization.
+
+    The provider may translate or repair surrounding language, but an Arabic
+    numeric literal in its routing text must already exist in the operator's
+    request. Spelled-number interpretation remains reviewable at confirmation.
+    """
+
+    def literals(value: str) -> set[str]:
+        normalized: set[str] = set()
+        for match in re.finditer(r"(?<![A-Za-z0-9_.])-?\d+(?:\.\d+)?", value):
+            try:
+                normalized.add(f"{float(match.group(0)):g}")
+            except ValueError:
+                continue
+        return normalized
+
+    source = literals(original)
+    return not source or literals(rewritten).issubset(source)
 
 
 def _extract_action_draft_id(message: str) -> str:
@@ -1875,13 +2175,148 @@ async def _handle_mcp_jsonrpc(
 
 
 def create_simurgh_router(deps: Any | None = None) -> APIRouter:
-    """Create the non-executing Simurgh GCS metadata router."""
+    """Create the governed Simurgh GCS assistant and MCP router."""
 
     router = APIRouter(tags=["Simurgh Operator"])
     sessions = AgentSessionStore()
     audit = InMemoryAuditSink()
     history = AssistantHistoryStore.from_env(load_on_init=False)
     mcp_resources = SimurghMcpResourceProvider(sessions=sessions, audit=audit)
+    assistant_actor_locks: dict[str, asyncio.Lock] = {}
+    assistant_turn_tasks: set[asyncio.Task[Any]] = set()
+    action_run_tasks: set[asyncio.Task[Any]] = set()
+    configured_action_run_store = getattr(deps, "simurgh_action_run_store", None)
+    action_runs = (
+        configured_action_run_store
+        if isinstance(configured_action_run_store, ActionRunStore)
+        else ActionRunStore.from_env()
+    )
+
+    def retain_assistant_turn_task(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+        """Keep a turn alive when an SSE subscriber disconnects mid-operation."""
+
+        assistant_turn_tasks.add(task)
+        task.add_done_callback(assistant_turn_tasks.discard)
+        return task
+
+    def retain_action_run_task(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+        """Keep approved execution alive independently of an HTTP/SSE subscriber."""
+
+        action_run_tasks.add(task)
+        task.add_done_callback(action_run_tasks.discard)
+        return task
+
+    def require_action_run_access(request: Request, run_id: str) -> ActionRunSnapshot:
+        try:
+            run = action_runs.require(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _require_actor_access(request, run.actor)
+        return run
+
+    @router.get("/api/v1/simurgh/action-runs")
+    async def list_simurgh_action_runs(
+        request: Request,
+        actor: str | None = Query(default=None),
+        session_id: str | None = Query(default=None),
+        active_only: bool = Query(default=False),
+        limit: int = Query(default=20, ge=1, le=100),
+    ):
+        context = _auth_context(request)
+        if _auth_enabled(context):
+            actor_filter = _auth_actor(context)
+        else:
+            actor_filter = actor.strip() if actor else _resolve_actor(request, "operator")
+        _require_actor_access(request, actor_filter)
+        runs = action_runs.list_runs(
+            actor=actor_filter,
+            session_id=session_id,
+            active_only=active_only,
+            limit=limit,
+        )
+        return {"runs": [run.public_payload() for run in runs]}
+
+    @router.get("/api/v1/simurgh/action-runs/{run_id}")
+    async def get_simurgh_action_run(request: Request, run_id: str):
+        return require_action_run_access(request, run_id).public_payload()
+
+    @router.get("/api/v1/simurgh/action-runs/{run_id}/events")
+    async def list_simurgh_action_run_events(
+        request: Request,
+        run_id: str,
+        after: int = Query(default=0, ge=0),
+        limit: int = Query(default=200, ge=1, le=1000),
+    ):
+        require_action_run_access(request, run_id)
+        return {
+            "run_id": run_id,
+            "events": [event.public_payload() for event in action_runs.list_events(run_id, after_id=after, limit=limit)],
+        }
+
+    @router.get("/api/v1/simurgh/action-runs/{run_id}/events/stream")
+    async def stream_simurgh_action_run_events(
+        request: Request,
+        run_id: str,
+        after: int = Query(default=0, ge=0),
+    ):
+        require_action_run_access(request, run_id)
+        last_event_header = request.headers.get("last-event-id", "").strip()
+        try:
+            cursor = max(after, int(last_event_header)) if last_event_header else after
+        except ValueError:
+            cursor = after
+
+        async def event_stream():
+            nonlocal cursor
+            keepalive_at = asyncio.get_running_loop().time() + 15.0
+            while True:
+                if await request.is_disconnected():
+                    return
+                events = action_runs.list_events(run_id, after_id=cursor, limit=200)
+                for event in events:
+                    cursor = event.id
+                    yield _action_run_sse_event(event.id, event.event_type, event.public_payload())
+                run = action_runs.require(run_id)
+                if run.terminal and not events:
+                    yield _action_run_sse_event(
+                        cursor,
+                        "run_snapshot",
+                        {"run": run.public_payload(), "replay_complete": True},
+                    )
+                    return
+                now = asyncio.get_running_loop().time()
+                if now >= keepalive_at:
+                    yield ": keepalive\n\n"
+                    keepalive_at = now + 15.0
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @router.post("/api/v1/simurgh/action-runs/{run_id}/controls")
+    async def control_simurgh_action_run(
+        request: Request,
+        run_id: str,
+        control: SimurghActionRunControlRequest,
+    ):
+        run = require_action_run_access(request, run_id)
+        actor = _resolve_actor(request, control.actor)
+        if actor != run.actor:
+            raise HTTPException(status_code=403, detail="action run belongs to a different operator")
+        try:
+            updated = action_runs.request_control(
+                run_id,
+                actor=actor,
+                action=control.action,
+                reason=control.reason,
+                control_id=control.control_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return updated.public_payload()
 
     @router.get("/.well-known/oauth-protected-resource", include_in_schema=False)
     async def get_mcp_protected_resource_metadata(request: Request):
@@ -2257,14 +2692,31 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             context = sessions.get_private_context(session_id)
         except KeyError:
             return {}
+        payload: dict[str, Any] = {}
         raw_action = context.get("last_submitted_action")
-        if not raw_action:
-            return {}
-        try:
-            payload = json.loads(raw_action)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return {}
-        return dict(payload) if isinstance(payload, Mapping) else {}
+        if raw_action:
+            try:
+                decoded = json.loads(raw_action)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                decoded = {}
+            if isinstance(decoded, Mapping):
+                payload = dict(decoded)
+        run_id = str(context.get("last_action_run_id") or payload.get("action_run_id") or "").strip()
+        if run_id:
+            try:
+                run = action_runs.require(run_id)
+            except KeyError:
+                pass
+            else:
+                payload.update(
+                    {
+                        "action_run_id": run.run_id,
+                        "action_run_state": run.state,
+                        "action_run_summary": run.summary,
+                        "action_run_result": dict(run.result),
+                    }
+                )
+        return payload
 
     def _previous_action_with_live_single_target(
         http_request: Request,
@@ -2389,42 +2841,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 values.append(name)
         return values
 
-    def _looks_like_single_sitl_lifecycle_target_reference(message: str) -> bool:
-        text = " ".join(str(message or "").casefold().split())
-        if not text:
-            return False
-        if any(
-            signal in text
-            for signal in (
-                "only one",
-                "single",
-                "stale",
-                "that",
-                "this",
-                " it",
-                "delete it",
-                "remove it",
-                "restart it",
-            )
-        ):
-            return True
-        return bool(
-            re.search(r"\b(sitl\s+)?instance\b", text)
-            or re.search(r"\b(sitl\s+)?container\b", text)
-            or re.search(r"\b(instace|isntance|isntnace|intace)\b", text)
-        )
-
     def _action_draft_with_inferred_single_sitl_instance(
         http_request: Request,
         draft: ActionDraft | None,
-        *,
-        routing_message: str,
     ) -> ActionDraft | None:
         if not isinstance(draft, RegistryActionDraft) or draft.tool_id != SITL_BATCH_ACTION_TOOL_ID:
             return draft
         if "instance_names" not in draft.missing_arguments:
-            return draft
-        if not _looks_like_single_sitl_lifecycle_target_reference(routing_message):
             return draft
         if resolve_runtime_mode().mode != "sitl":
             return draft
@@ -2557,19 +2980,37 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             return {}, context
         return (dict(payload) if isinstance(payload, Mapping) else {}), context
 
-    def _previous_action_summary_content(question: str, action: Mapping[str, Any], context: Mapping[str, str]) -> str:
+    def _previous_action_summary_content(_question: str, action: Mapping[str, Any], context: Mapping[str, str]) -> str:
         if not action:
             return (
-                "I do not have a retained submitted-action record for this Simurgh session, so I cannot prove whether the prior sequence included a wait step.\n\n"
+                "No submitted action is retained for this Simurgh session.\n\n"
                 "No new action was executed."
             )
+        run_result = action.get("action_run_result")
+        if not isinstance(run_result, Mapping):
+            run_result = action.get("result") if isinstance(action.get("result"), Mapping) else {}
+        action_response = (
+            run_result.get("action_response")
+            if isinstance(run_result.get("action_response"), Mapping)
+            else {}
+        )
         action_type = str(action.get("action_type") or "action").strip()
         mission = str(action.get("mission_name") or action.get("action_label") or action.get("tool_id") or action_type).strip()
-        command_id = str(action.get("command_id") or action.get("operation_id") or "").strip()
+        command_id = str(
+            action.get("command_id")
+            or action.get("operation_id")
+            or action_response.get("command_id")
+            or action_response.get("operation_id")
+            or action_response.get("id")
+            or ""
+        ).strip()
         targets = action.get("target_drone_ids")
         target_label = ", ".join(str(item) for item in targets or [] if str(item).strip()) or "-"
         monitor = action.get("monitor_result") if isinstance(action.get("monitor_result"), Mapping) else {}
-        post_results = [dict(item) for item in action.get("post_action_results") or [] if isinstance(item, Mapping)]
+        if not monitor and isinstance(run_result.get("monitor_result"), Mapping):
+            monitor = run_result.get("monitor_result")
+        raw_post_results = action.get("post_action_results") or run_result.get("post_action_results") or []
+        post_results = [dict(item) for item in raw_post_results if isinstance(item, Mapping)]
         assistant_content = str(context.get("last_assistant_content") or "")
         fallback_lines = [
             line.strip()
@@ -2577,19 +3018,18 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             if line.strip().startswith("Monitor:") or line.strip().startswith("Post-action")
         ]
 
-        normalized_question = " ".join(str(question or "").casefold().split())
         wait_results = [
             item
             for item in post_results
-            if str(item.get("type") or "").lower() == "delay" or "wait" in str(item.get("label") or "").casefold()
+            if str(item.get("type") or "").lower() == "delay"
         ]
-        if "wait" in normalized_question or "delay" in normalized_question or "skipped" in normalized_question:
-            if wait_results:
-                lead = "Yes — the retained Simurgh action record shows the wait step was executed."
-            else:
-                lead = "I do not see a retained wait/delay step in the last submitted action record."
-        else:
-            lead = "Here is the retained Simurgh action record for the last submitted sequence."
+        run_state = str(action.get("action_run_state") or action.get("state") or "").strip()
+        run_summary = str(action.get("action_run_summary") or "").strip()
+        lead = "Last action run"
+        if run_state:
+            lead += f": {run_state}"
+        if run_summary:
+            lead += f" — {run_summary}"
 
         lines = [
             lead,
@@ -2606,6 +3046,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             if monitor_success is not None:
                 success_text = f", success={bool(monitor_success)}"
             lines.append(f"- Primary monitor: {monitor_status}{success_text}")
+        if wait_results:
+            completed_waits = sum(str(item.get("status") or "").casefold() == "completed" for item in wait_results)
+            lines.append(f"- Wait steps: {completed_waits}/{len(wait_results)} completed")
         if post_results:
             lines.append("- Sequence steps:")
             for item in post_results:
@@ -2699,7 +3142,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
         session = _require_or_create_assistant_session(policy=policy, actor=actor, turn_request=turn_request)
-        action, context = _last_submitted_action_context(session.id)
+        _, context = _last_submitted_action_context(session.id)
+        action = _stored_last_submitted_action(session.id)
         await _emit_assistant_progress(
             progress_callback,
             {
@@ -2903,6 +3347,99 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 continue
             matches.append((session, draft))
         return matches
+
+    async def _create_semantic_clarification_record(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        actor: str,
+        question: str,
+        semantic_rewrite: Any,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
+        progress_callback: AssistantProgressCallback | None = None,
+    ) -> AssistantTurnRecord:
+        """Ask one model-derived clarification without falling through to docs."""
+
+        policy = load_default_policy()
+        if not policy.agent_enabled:
+            raise PermissionError("Simurgh agent runtime is disabled")
+        session = _require_or_create_assistant_session(policy=policy, actor=actor, turn_request=turn_request)
+        clean_question = " ".join(str(question or "").split()).strip()
+        if not clean_question:
+            clean_question = "What should I do, and which live target should I use?"
+        await _emit_assistant_progress(
+            progress_callback,
+            {
+                "stage": "understanding",
+                "state": "clarification",
+                "label": "Clarification needed",
+            },
+        )
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=str(getattr(semantic_rewrite, "provider", "openai") or "openai"),
+            model=str(getattr(semantic_rewrite, "model", "") or "semantic-router"),
+            adapter_version=str(
+                getattr(semantic_rewrite, "adapter_version", "provider-semantic-rewrite")
+                or "provider-semantic-rewrite"
+            ),
+            content=clean_question,
+            context_documents=(),
+            blocked_intents=(),
+            safety_notes=(
+                "The semantic layer found more than one plausible operational interpretation.",
+                "No action was drafted or executed.",
+            ),
+        )
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": "clarification",
+                "last_intent": "clarify",
+                "last_response_mode": "clarify",
+            },
+        )
+        sessions.update_private_context(
+            session.id,
+            {
+                "last_assistant_content": turn.content,
+                "last_assistant_provider": turn.provider,
+                "last_assistant_model": turn.model,
+                "last_domain": "clarification",
+                "last_intent": "clarify",
+                "last_response_mode": "clarify",
+                "last_user_message": turn_request.message,
+                "last_routing_message": normalize_operator_query_text(turn_request.message),
+                "last_tool_intent": "clarify",
+                "last_read_only_evidence": "",
+            },
+        )
+        event = audit.record(
+            "assistant_turn_created",
+            session_id=session.id,
+            actor=actor,
+            decision="clarification_required",
+            payload={"message": turn_request.message.strip()},
+            metadata={
+                "provider": turn.provider,
+                "model": turn.model,
+                "adapter_version": turn.adapter_version,
+                "mode": session.mode,
+                "context_count": 0,
+                "blocked_intent_count": 0,
+                "response_mode": "clarify",
+                "query_domain": "clarification",
+                "query_confidence": float(getattr(semantic_rewrite, "confidence", 0.0) or 0.0),
+                "query_unclear": True,
+                "query_reason": "provider_semantic_clarification",
+                "turn_intent": dict(turn_intent_metadata or {}),
+                "retrieved_context_count": 0,
+                "web_search_enabled": False,
+                "action_execution": "none",
+            },
+        )
+        return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
     async def _create_no_pending_confirmation_record(
         http_request: Request,
@@ -3146,6 +3683,130 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
+    async def _create_action_run_control_record(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        actor: str,
+        run: ActionRunSnapshot,
+        action: str,
+        turn_intent_metadata: Mapping[str, Any] | None = None,
+        progress_callback: AssistantProgressCallback | None = None,
+    ) -> AssistantTurnRecord:
+        """Apply an unambiguous conversational control to one active run."""
+
+        policy = load_default_policy()
+        if not policy.agent_enabled:
+            raise PermissionError("Simurgh agent runtime is disabled")
+        session = sessions.require(run.session_id)
+        if session.actor != actor or run.actor != actor:
+            raise PermissionError("action run belongs to a different operator")
+        updated = action_runs.request_control(
+            run.run_id,
+            actor=actor,
+            action=action,
+            reason="Operator requested this control in Simurgh chat.",
+            control_id=f"ctl-chat-{uuid.uuid4().hex[:16]}",
+        )
+        labels = {
+            "cancel_remaining": "Cancelling remaining steps",
+            "pause_after_current_step": "Pausing after current step",
+            "resume": "Resuming action run",
+        }
+        content_by_action = {
+            "cancel_remaining": (
+                "Cancelling the remaining steps. The currently dispatched step, if any, will finish; "
+                "no later step will start."
+            ),
+            "pause_after_current_step": (
+                "Pause requested. The currently dispatched step will finish, then the remaining plan will pause."
+            ),
+            "resume": "Resuming the remaining approved steps.",
+        }
+        label = labels.get(action, "Action run control accepted")
+        await _emit_assistant_progress(
+            progress_callback,
+            {
+                "stage": "action",
+                "state": "complete",
+                "label": label,
+                "sequence_id": run.run_id,
+            },
+        )
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=READ_TOOL_MODEL,
+            adapter_version="action-run-control-v1",
+            content=(
+                f"{content_by_action.get(action, label)}\n\n"
+                f"Run: `{run.run_id}`\n"
+                f"State: `{updated.state}`"
+            ),
+            context_documents=(),
+            blocked_intents=(),
+            safety_notes=(
+                "This control applies only to the identified durable action run.",
+                "A command already dispatched to the GCS is not recalled mid-step.",
+            ),
+        )
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": "action_run",
+                "last_intent": "action_run_control",
+                "last_response_mode": "status",
+            },
+        )
+        sessions.update_private_context(
+            session.id,
+            {
+                "last_assistant_content": turn.content,
+                "last_assistant_provider": turn.provider,
+                "last_assistant_model": turn.model,
+                "last_domain": "action_run",
+                "last_intent": "action_run_control",
+                "last_response_mode": "status",
+                "last_user_message": turn_request.message,
+                "last_routing_message": normalize_operator_query_text(turn_request.message),
+                "last_tool_intent": "action_run_control",
+                "last_action_run_id": run.run_id,
+                "last_read_only_evidence": "",
+            },
+        )
+        event = audit.record(
+            "assistant_turn_created",
+            session_id=session.id,
+            actor=actor,
+            decision="action_run_control_requested",
+            payload={
+                "message": turn_request.message.strip(),
+                "run_id": run.run_id,
+                "control": action,
+            },
+            metadata={
+                "provider": turn.provider,
+                "model": turn.model,
+                "adapter_version": turn.adapter_version,
+                "mode": session.mode,
+                "context_count": 0,
+                "blocked_intent_count": 0,
+                "response_mode": "status",
+                "query_domain": "action_run",
+                "query_confidence": 1.0,
+                "query_unclear": False,
+                "query_reason": "unambiguous_active_action_run_control",
+                "turn_intent": dict(turn_intent_metadata or {}),
+                "retrieved_context_count": 0,
+                "web_search_enabled": False,
+                "action_execution": "action_run_control",
+                "action_run": updated.public_payload(),
+                "circuit_breaker_layer": "not applicable; control affects only remaining approved steps",
+            },
+        )
+        return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
+
     def _session_conversation_topic(session: AgentSession) -> str:
         topic = str(session.metadata.get("last_domain") or "").strip()
         if topic == "simulation":
@@ -3247,6 +3908,11 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         if action_execution == "missing_arguments":
             missing = ", ".join(draft.missing_arguments)
+            if isinstance(draft, FlightActionDraft) and "sequence_timing" in draft.missing_arguments:
+                return with_pre_action_context(
+                    "I found a timed step in the mission that I could not map confidently. "
+                    "Should that timed step be a stationary wait? No action was executed."
+                )
             if isinstance(draft, FlightActionDraft) and "target_drone_ids" in draft.missing_arguments:
                 lines = [
                     "I understood the mission, but I need the target drone before I can prepare the guarded draft.",
@@ -3298,31 +3964,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 if always_confirm_before_action
                 else "Confirmation is not required by current policy, but this draft was not auto-executed in chat."
             )
-            extra_lines: list[str] = []
-            if isinstance(draft, FlightActionDraft) and draft.target_inferred_from:
-                extra_lines.append(f"Target inferred from: {draft.target_inferred_from}")
-            if isinstance(draft, FlightActionDraft) and draft.monitor_requested:
-                extra_lines.append(f"After submission: monitor `{draft.wait_condition or 'command_terminal'}`")
-            if isinstance(draft, FlightActionDraft) and draft.post_actions:
-                extra_lines.append(
-                    "Then, if the wait condition succeeds: "
-                    + ", ".join(
-                        str(item.get("action_label") or item.get("tool_id") or "post-action")
-                        for item in draft.post_actions
-                    )
-                )
-            extra = ("\n".join(extra_lines) + "\n") if extra_lines else ""
             return with_pre_action_context(
                 (
-                    "I prepared a guarded action draft and stopped at the human confirmation gate.\n\n"
-                    f"Action: {action_label}\n"
-                    f"Tool: `{tool_id}`\n"
-                    f"Target: {target_label}\n"
-                    f"{extra}"
+                    "Review the guarded action plan below.\n\n"
                     f"Draft ID: `{draft.draft_id}`\n\n"
-                    f"{_action_draft_summary_block(draft)}\n\n"
                     f"{confirm_line}\n"
-                    f"Circuit breaker is {cb_state}. If it is ON when confirmed, the final execution layer will stop the command and I will report exactly what would have been sent.\n"
+                    f"Circuit breaker: {cb_state}.\n"
                     "No action was executed."
                 )
             )
@@ -3360,80 +4007,98 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             if hasattr(command_response, "model_dump")
             else dict(command_response or {})
         )
+        action_run_id = str(response_payload.get("action_run_id") or "").strip()
+        if action_run_id:
+            return with_pre_action_context(
+                (
+                    "Action run started.\n\n"
+                    f"Plan: {_action_draft_label(draft)}\n"
+                    f"Target: {target_label}\n"
+                    f"Run ID: `{action_run_id}`\n\n"
+                    "Progress and the terminal result are tracked in the live action card."
+                )
+            )
         if not isinstance(draft, FlightActionDraft):
             operation_id = response_payload.get("operation_id") or response_payload.get("id") or "unknown"
             status = response_payload.get("status") or "submitted"
             summary = response_payload.get("summary") or response_payload.get("message") or action_label
-            detail = response_payload.get("detail") or ""
-            monitor_lines: list[str] = []
+            final_status = str(status)
+            final_summary = str(summary)
             if monitor_result:
-                monitor_status = monitor_result.get("status") or "unknown"
-                monitor_summary = monitor_result.get("summary") or monitor_result.get("message") or ""
-                monitor_lines.append(f"Monitor: {monitor_status}")
-                if monitor_summary:
-                    monitor_lines.append(f"Monitor summary: {monitor_summary}")
-                if monitor_result.get("timed_out"):
-                    monitor_lines.append("Monitor note: timed out before terminal confirmation.")
-            monitor_block = ("\n" + "\n".join(monitor_lines) + "\n") if monitor_lines else ""
-            track_line = (
-                "I monitored this operation in chat until terminal status."
-                if monitor_result
-                else (
-                    f"Follow it in SITL Control with operation ID `{operation_id}`."
-                    if operation_id != "unknown"
-                    else "Follow it from the matching GCS operation/status view."
-                )
-            )
+                final_status = str(monitor_result.get("status") or final_status)
+                final_summary = str(monitor_result.get("summary") or monitor_result.get("message") or final_summary)
+            terminal_success = final_status.casefold() in {"completed", "succeeded", "success"}
+            heading = "SITL operation complete" if terminal_success else "SITL operation submitted"
+            if monitor_result and not terminal_success:
+                heading = "SITL operation needs review"
             return with_pre_action_context(
                 (
-                    "Submitted the guarded GCS action.\n\n"
-                    f"Action: {action_label}\n"
-                    f"Tool: `{tool_id}`\n"
-                    f"Operation ID: `{operation_id}`\n"
-                    f"Status: {status}\n"
-                    f"Summary: {summary}\n"
-                    + (f"Detail: {detail}\n" if detail else "")
-                    + "\n"
-                    + monitor_block
-                    + f"{track_line} GCS policy, approval, circuit breaker, and route validation stayed in force."
+                    f"{heading}.\n\n"
+                    f"Result: {final_summary}\n"
+                    f"Status: {final_status}\n"
+                    + (f"Operation ID: `{operation_id}`" if operation_id != "unknown" else "")
                 )
             )
         command_id = response_payload.get("command_id") or "unknown"
         status = response_payload.get("status") or "submitted"
         mission_name = response_payload.get("mission_name") or draft.mission_name
         target_drones = response_payload.get("target_drones") or list(draft.target_drone_ids)
-        summary = response_payload.get("results_summary") or {}
-        monitor_lines: list[str] = []
-        if monitor_result:
-            monitor_status = monitor_result.get("status") or "unknown"
-            monitor_lines.append(f"Monitor: {monitor_status}")
-            monitor_lines.append(f"Monitor evidence: {_command_monitor_summary(monitor_result.get('command_status'))}")
-            if monitor_result.get("timed_out"):
-                monitor_lines.append("Monitor note: timed out before terminal confirmation; dependent post-actions were not run.")
-        for item in post_action_results:
-            label = item.get("label") or item.get("tool_id") or "post-action"
-            status_text = item.get("status") or "unknown"
-            summary_text = item.get("summary") or ""
-            line = f"Post-action `{label}`: {status_text}"
-            if summary_text:
-                line += f" ({summary_text})"
-            monitor_lines.append(line)
-        monitor_block = ("\n" + "\n".join(monitor_lines) + "\n") if monitor_lines else ""
+        total_steps = 1 + len(draft.post_actions)
+        primary_complete = bool(monitor_result and monitor_result.get("success"))
+        completed_steps = (1 if primary_complete else 0) + sum(
+            1 for item in post_action_results if not item.get("is_error")
+        )
+        sequence_state, sequence_label = _submitted_action_progress_outcome(
+            draft,
+            monitor_result=monitor_result,
+            post_action_results=post_action_results,
+        )
+        if sequence_state == "complete":
+            heading = "Command sequence complete"
+        elif sequence_state == "timeout":
+            heading = "Command sequence monitoring timed out"
+        elif sequence_state == "failed":
+            heading = "Command sequence stopped"
+        elif sequence_state == "warning":
+            heading = "Command complete; final state unverified"
+        else:
+            heading = "Flight command submitted"
+        result_line = (
+            f"{completed_steps}/{total_steps} planned steps completed."
+            if monitor_result or post_action_results
+            else sequence_label + "."
+        )
+        completion_verifications = []
+        primary_completion_verification = (
+            monitor_result.get("completion_verification")
+            if isinstance(monitor_result, Mapping)
+            and isinstance(monitor_result.get("completion_verification"), Mapping)
+            else None
+        )
+        if primary_completion_verification:
+            completion_verifications.append(primary_completion_verification)
+        completion_verifications.extend([
+            item.get("completion_verification")
+            for item in post_action_results
+            if isinstance(item.get("completion_verification"), Mapping)
+            and item.get("completion_verification")
+        ])
+        final_state_line = ""
+        if completion_verifications:
+            latest_verification = completion_verifications[-1]
+            if latest_verification.get("verified"):
+                final_state_line = "\nFinal state: live telemetry confirms the target is disarmed."
+            else:
+                final_state_line = (
+                    "\nFinal state: the command sequence ended, but live telemetry did not confirm disarm."
+                )
         return with_pre_action_context(
             (
-                "Submitted the guarded flight command.\n\n"
-                f"Command ID: `{command_id}`\n"
-                f"Mission: {mission_name}\n"
-                f"Status: {status}\n"
-                f"Targets: {_format_drone_targets(tuple(str(item) for item in target_drones))}\n"
-                f"Immediate result summary: {json.dumps(summary, sort_keys=True, default=str)}\n\n"
-                f"{monitor_block}"
-                + (
-                    "I monitored this command sequence in chat. "
-                    if monitor_result or post_action_results
-                    else f"Follow it in Active Commands with command ID `{command_id}`. "
-                )
-                + "GCS validation, telemetry checks, and command tracking stayed in force."
+                f"{heading}.\n\n"
+                f"Target: {_format_drone_targets(tuple(str(item) for item in target_drones))}\n"
+                f"Result: {result_line}\n"
+                f"Command ID: `{command_id}`"
+                f"{final_state_line}"
             )
         )
 
@@ -3452,6 +4117,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
     ) -> dict[str, Any]:
         tracker = request_deps.get_command_tracker()
         deadline = asyncio.get_running_loop().time() + timeout_seconds
+        canonical_deadline_loaded = False
         last_status: Mapping[str, Any] | None = None
         await _emit_assistant_progress(
             progress_callback,
@@ -3480,6 +4146,15 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             status = await tracker.get_status(command_id)
             if isinstance(status, Mapping):
                 last_status = status
+                if not canonical_deadline_loaded:
+                    timeout_at = status.get("timeout_at")
+                    try:
+                        remaining_seconds = (float(timeout_at) - (time.time() * 1000.0)) / 1000.0
+                    except (TypeError, ValueError):
+                        remaining_seconds = 0.0
+                    if remaining_seconds > 0:
+                        deadline = asyncio.get_running_loop().time() + remaining_seconds + ACTION_MONITOR_POLL_SECONDS
+                        canonical_deadline_loaded = True
                 if _command_monitor_terminal(status):
                     success = _command_monitor_success(status)
                     await _emit_assistant_progress(
@@ -3548,7 +4223,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             await asyncio.sleep(ACTION_MONITOR_POLL_SECONDS)
 
     async def _execute_post_actions(
-        http_request: Request,
+        execution_context: InternalToolExecutionContext,
         *,
         post_actions: tuple[Mapping[str, Any], ...],
         registry,
@@ -3556,11 +4231,14 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         request_deps: Any | None = None,
         progress_callback: AssistantProgressCallback | None = None,
         sequence_id: str = "",
+        idempotency_scope: str = "",
         initial_step_index: int = 1,
         step_count: int | None = None,
+        action_run_id: str = "",
+        initial_previous_step_succeeded: bool = True,
     ) -> tuple[Mapping[str, Any], ...]:
         results: list[Mapping[str, Any]] = []
-        previous_step_succeeded = True
+        previous_step_succeeded = initial_previous_step_succeeded
         for index, item in enumerate(post_actions, start=1):
             action_type = str(item.get("type") or "").strip()
             tool_id = str(item.get("tool_id") or "").strip()
@@ -3568,6 +4246,17 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             label = str(item.get("action_label") or tool_id or "post-action")
             step_index = initial_step_index + index
             condition = str(item.get("condition") or "").strip()
+            if action_run_id and not await _wait_for_action_run_dispatch(action_run_id):
+                results.append(
+                    {
+                        "label": label,
+                        "tool_id": tool_id,
+                        "status": "cancelled",
+                        "summary": "remaining sequence steps cancelled before dispatch",
+                        "is_error": True,
+                    }
+                )
+                break
             if condition == "after_command_terminal_success" and not previous_step_succeeded:
                 await _emit_assistant_progress(
                     progress_callback,
@@ -3602,7 +4291,20 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 )
                 continue
             if action_type == "delay":
-                delay_seconds = _bounded_post_action_delay_seconds(item.get("delay_seconds"))
+                try:
+                    delay_seconds = _validated_post_action_delay_seconds(item.get("delay_seconds"))
+                except ValueError as exc:
+                    results.append(
+                        {
+                            "label": label,
+                            "type": "delay",
+                            "status": "failed",
+                            "summary": str(exc),
+                            "is_error": True,
+                        }
+                    )
+                    previous_step_succeeded = False
+                    continue
                 await _emit_assistant_progress(
                     progress_callback,
                     {
@@ -3624,7 +4326,43 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         ),
                     },
                 )
-                await _sleep_post_action_delay(delay_seconds)
+                delay_completed = (
+                    await _sleep_action_run_delay(action_run_id, delay_seconds)
+                    if action_run_id
+                    else await _sleep_post_action_delay(delay_seconds)
+                )
+                if delay_completed is False:
+                    await _emit_assistant_progress(
+                        progress_callback,
+                        {
+                            "stage": "monitor",
+                            "state": "cancelled",
+                            "label": _sequence_progress_label(
+                                f"Cancelled wait: {label}",
+                                step_label=label,
+                                step_index=step_index,
+                                step_count=step_count,
+                                activity="cancelled",
+                            ),
+                            **_sequence_progress_fields(
+                                sequence_id=sequence_id,
+                                step_index=step_index,
+                                step_count=step_count,
+                                step_label=label,
+                                step_kind="delay",
+                            ),
+                        },
+                    )
+                    results.append(
+                        {
+                            "label": label,
+                            "type": "delay",
+                            "status": "cancelled",
+                            "summary": "remaining sequence steps cancelled during wait",
+                            "is_error": True,
+                        }
+                    )
+                    break
                 await _emit_assistant_progress(
                     progress_callback,
                     {
@@ -3689,6 +4427,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     ),
                 },
             )
+            current_policy = load_default_policy()
             if tool_id == ACTION_TOOL_ID:
                 if request_deps is None:
                     results.append(
@@ -3702,9 +4441,23 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     )
                     previous_step_succeeded = False
                     continue
+                post_tool = registry.get(tool_id)
+                post_decision = current_policy.evaluate_tool(post_tool, channel="agent", approved=True)
+                if post_decision.status is not PolicyDecisionStatus.ALLOW:
+                    results.append(
+                        {
+                            "label": label,
+                            "tool_id": tool_id,
+                            "status": "blocked",
+                            "summary": "; ".join(post_decision.reasons),
+                            "is_error": True,
+                        }
+                    )
+                    previous_step_succeeded = False
+                    continue
                 command_payload = {
                     **dict(arguments),
-                    "idempotency_key": f"simurgh:post:{uuid.uuid4().hex[:8]}:{index}",
+                    "idempotency_key": f"simurgh:{idempotency_scope or sequence_id}:step:{step_index}",
                 }
                 try:
                     command = SubmitCommandRequest.model_validate(command_payload)
@@ -3732,8 +4485,28 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         )
                         final_status = str(monitor_status.get("status") or final_status)
                         summary = _command_monitor_summary(monitor_status.get("command_status")) or summary
+                    completion_verification: Mapping[str, Any] | None = None
+                    mission_type = _coerce_int_like_text(arguments.get("mission_type"))
+                    if (
+                        monitor_status is not None
+                        and monitor_status.get("success")
+                        and mission_type in {"101", "104"}
+                    ):
+                        completion_verification = await _monitor_targets_disarmed(
+                            request_deps,
+                            target_drone_ids=tuple(str(item) for item in arguments.get("target_drone_ids") or ()),
+                            progress_callback=progress_callback,
+                            sequence_id=sequence_id,
+                            step_index=step_index,
+                            step_count=step_count,
+                            step_label=label,
+                            command_id=command_id,
+                            deadline_epoch_ms=_command_monitor_deadline_epoch_ms(monitor_status),
+                        )
                     is_error = bool(monitor_status is not None and not monitor_status.get("success"))
                     if bool(item.get("monitor_requested")) and not command_id:
+                        is_error = True
+                    if completion_verification and not completion_verification.get("verified"):
                         is_error = True
                     results.append(
                         {
@@ -3743,6 +4516,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                             "command_id": command_id,
                             "summary": str(summary)[:500],
                             "is_error": is_error,
+                            "completion_verification": dict(completion_verification or {}),
                         }
                     )
                     previous_step_succeeded = not is_error
@@ -3758,41 +4532,198 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     )
                     previous_step_succeeded = False
                 continue
-            result = await execute_policy_allowed_guarded_route_tool(
-                http_request,
-                name=tool_id,
-                arguments=dict(arguments),
-                channel="agent",
-                approved=True,
-                registry=registry,
-                policy=policy,
-            )
-            structured = result.structured_content if isinstance(result.structured_content, Mapping) else {}
-            operation_id = structured.get("operation_id") or structured.get("id") or ""
-            summary = structured.get("summary") or result.text
-            status_value = structured.get("status") or ("error" if result.is_error else "submitted")
-            final_status = status_value
-            if operation_id:
-                operation_status = await _monitor_sitl_operation(
-                    http_request,
-                    operation_id=str(operation_id),
-                    progress_callback=progress_callback,
+            try:
+                result = await execute_policy_allowed_guarded_route_tool(
+                    execution_context,
+                    name=tool_id,
+                    arguments=dict(arguments),
+                    channel="agent",
+                    approved=True,
+                    registry=registry,
+                    policy=current_policy,
                 )
-                final_status = operation_status.get("status") or final_status
-                summary = operation_status.get("summary") or summary
-            is_error = _post_action_status_is_error(final_status, explicit_error=bool(result.is_error))
-            results.append(
-                {
-                    "label": label,
-                    "tool_id": tool_id,
-                    "status": str(final_status),
-                    "operation_id": str(operation_id),
-                    "summary": str(summary)[:500],
-                    "is_error": is_error,
-                }
-            )
-            previous_step_succeeded = not is_error
+                structured = result.structured_content if isinstance(result.structured_content, Mapping) else {}
+                operation_id = structured.get("operation_id") or structured.get("id") or ""
+                summary = structured.get("summary") or result.text
+                status_value = structured.get("status") or ("error" if result.is_error else "submitted")
+                final_status = status_value
+                if operation_id:
+                    operation_status = await _monitor_sitl_operation(
+                        execution_context,
+                        operation_id=str(operation_id),
+                        progress_callback=progress_callback,
+                    )
+                    final_status = operation_status.get("status") or final_status
+                    summary = operation_status.get("summary") or summary
+                is_error = _post_action_status_is_error(final_status, explicit_error=bool(result.is_error))
+                results.append(
+                    {
+                        "label": label,
+                        "tool_id": tool_id,
+                        "status": str(final_status),
+                        "operation_id": str(operation_id),
+                        "summary": str(summary)[:500],
+                        "is_error": is_error,
+                    }
+                )
+                previous_step_succeeded = not is_error
+            except Exception as exc:
+                results.append(
+                    {
+                        "label": label,
+                        "tool_id": tool_id,
+                        "status": "failed",
+                        "summary": str(exc)[:500],
+                        "is_error": True,
+                    }
+                )
+                previous_step_succeeded = False
         return tuple(results)
+
+    async def _monitor_targets_disarmed(
+        request_deps: Any,
+        *,
+        target_drone_ids: tuple[str, ...],
+        progress_callback: AssistantProgressCallback | None = None,
+        timeout_seconds: float = ACTION_MONITOR_TIMEOUT_SECONDS,
+        deadline_epoch_ms: float | None = None,
+        sequence_id: str = "",
+        step_index: int | None = None,
+        step_count: int | None = None,
+        step_label: str = "",
+        command_id: str = "",
+    ) -> dict[str, Any]:
+        """Verify the final landed workflow state without redefining command success."""
+
+        targets = tuple(dict.fromkeys(str(item).strip() for item in target_drone_ids if str(item).strip()))
+        if not targets:
+            return {
+                "status": "unavailable",
+                "verified": False,
+                "summary": "Final disarm state is unavailable from live telemetry.",
+            }
+
+        def target_rows() -> list[Mapping[str, Any]]:
+            rows: list[Mapping[str, Any]] = []
+            telemetry_snapshot = _mapping_snapshot(
+                getattr(request_deps, "telemetry_data_all_drones", {}) or {}
+            )
+            success_times = _mapping_snapshot(getattr(request_deps, "last_telemetry_time", {}) or {})
+            heartbeat_snapshot: Mapping[Any, Any] = {}
+            heartbeat_getter = getattr(request_deps, "get_all_heartbeats", None)
+            if callable(heartbeat_getter):
+                try:
+                    heartbeat_snapshot = _mapping_snapshot(heartbeat_getter() or {})
+                except Exception:
+                    heartbeat_snapshot = {}
+            for target in targets:
+                row = _lookup_mapping_by_text_key(
+                    telemetry_snapshot,
+                    target,
+                )
+                if not isinstance(row, Mapping) or not row or not bool(row.get("telemetry_available", True)):
+                    return []
+                heartbeat = _lookup_mapping_by_text_key(heartbeat_snapshot, target)
+                success_time = _lookup_mapping_by_text_key(success_times, target)
+                if not _looks_live_for_action_target(
+                    target=target,
+                    telemetry_row=row,
+                    heartbeat_row=heartbeat if isinstance(heartbeat, Mapping) else {},
+                    telemetry_success_time=success_time,
+                ):
+                    return []
+                rows.append(row)
+            return rows
+
+        await _emit_assistant_progress(
+            progress_callback,
+            {
+                "stage": "verify",
+                "state": "running",
+                "label": _sequence_progress_label(
+                    "Verifying final disarm state",
+                    step_label=step_label,
+                    step_index=step_index,
+                    step_count=step_count,
+                    activity="verifying disarm",
+                ),
+                **_sequence_progress_fields(
+                    sequence_id=sequence_id,
+                    step_index=step_index,
+                    step_count=step_count,
+                    step_label=step_label,
+                    step_kind="flight_state",
+                    command_id=command_id,
+                ),
+            },
+        )
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        if deadline_epoch_ms is not None:
+            try:
+                remaining_seconds = (float(deadline_epoch_ms) - (time.time() * 1000.0)) / 1000.0
+            except (TypeError, ValueError):
+                remaining_seconds = 0.0
+            if remaining_seconds > 0:
+                deadline = asyncio.get_running_loop().time() + remaining_seconds + ACTION_MONITOR_POLL_SECONDS
+        while True:
+            rows = target_rows()
+            if rows and all(not bool(row.get("is_armed", row.get("armed", False))) for row in rows):
+                await _emit_assistant_progress(
+                    progress_callback,
+                    {
+                        "stage": "verify",
+                        "state": "complete",
+                        "label": _sequence_progress_label(
+                            "Final disarm state verified",
+                            step_label=step_label,
+                            step_index=step_index,
+                            step_count=step_count,
+                            activity="disarmed",
+                        ),
+                        **_sequence_progress_fields(
+                            sequence_id=sequence_id,
+                            step_index=step_index,
+                            step_count=step_count,
+                            step_label=step_label,
+                            step_kind="flight_state",
+                            command_id=command_id,
+                        ),
+                    },
+                )
+                return {
+                    "status": "verified",
+                    "verified": True,
+                    "summary": "Target telemetry confirms disarmed state after landing/RTL.",
+                }
+            if asyncio.get_running_loop().time() >= deadline:
+                await _emit_assistant_progress(
+                    progress_callback,
+                    {
+                        "stage": "verify",
+                        "state": "timeout",
+                        "label": _sequence_progress_label(
+                            "Final disarm state not confirmed",
+                            step_label=step_label,
+                            step_index=step_index,
+                            step_count=step_count,
+                            activity="still armed",
+                        ),
+                        **_sequence_progress_fields(
+                            sequence_id=sequence_id,
+                            step_index=step_index,
+                            step_count=step_count,
+                            step_label=step_label,
+                            step_kind="flight_state",
+                            command_id=command_id,
+                        ),
+                    },
+                )
+                return {
+                    "status": "timeout",
+                    "verified": False,
+                    "summary": "Target remained armed or final telemetry was not confirmed before timeout.",
+                }
+            await asyncio.sleep(ACTION_MONITOR_POLL_SECONDS)
 
     def _post_action_status_is_error(status: Any, *, explicit_error: bool = False) -> bool:
         if explicit_error:
@@ -3810,33 +4741,71 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             "terminal_non_success",
         }
 
-    def _bounded_post_action_delay_seconds(value: Any) -> float:
+    def _action_sequence_max_wait_seconds() -> float:
+        try:
+            value = float(os.getenv("MDS_AGENT_SEQUENCE_MAX_WAIT_SEC", "300"))
+        except (TypeError, ValueError):
+            return 300.0
+        return value if value > 0 else 300.0
+
+    def _validated_post_action_delay_seconds(value: Any) -> float:
         try:
             delay_seconds = float(value)
         except (TypeError, ValueError):
-            return 0.0
+            raise ValueError("Sequence wait must be a number of seconds.")
         if delay_seconds <= 0:
-            return 0.0
-        return min(delay_seconds, ACTION_SEQUENCE_MAX_DELAY_SECONDS)
+            raise ValueError("Sequence wait must be greater than zero seconds.")
+        maximum = _action_sequence_max_wait_seconds()
+        if delay_seconds > maximum:
+            raise ValueError(
+                f"Requested wait is {delay_seconds:g}s; this deployment allows at most {maximum:g}s per sequence step."
+            )
+        return delay_seconds
+
+    def _post_action_sequence_validation_error(post_actions: tuple[Mapping[str, Any], ...]) -> str:
+        for item in post_actions:
+            if str(item.get("type") or "").strip().casefold() != "delay":
+                continue
+            try:
+                _validated_post_action_delay_seconds(item.get("delay_seconds"))
+            except ValueError as exc:
+                return str(exc)
+        return ""
+
+    def _command_monitor_deadline_epoch_ms(monitor_result: Mapping[str, Any] | None) -> float | None:
+        command_status = monitor_result.get("command_status") if isinstance(monitor_result, Mapping) else None
+        if not isinstance(command_status, Mapping):
+            return None
+        try:
+            timeout_at = float(command_status.get("timeout_at"))
+        except (TypeError, ValueError):
+            return None
+        return timeout_at if timeout_at > 0 else None
 
     async def _sleep_post_action_delay(delay_seconds: float) -> None:
         if delay_seconds > 0:
-            await asyncio.sleep(delay_seconds)
+            await _sleep_action_sequence_delay(delay_seconds)
 
     async def _monitor_sitl_operation(
-        http_request: Request,
+        execution_target: Request | InternalToolExecutionContext,
         *,
         operation_id: str,
         progress_callback: AssistantProgressCallback | None = None,
         timeout_seconds: float = ACTION_MONITOR_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
+        execution_context = (
+            execution_target
+            if isinstance(execution_target, InternalToolExecutionContext)
+            else InternalToolExecutionContext.from_request(execution_target)
+        )
         deadline = asyncio.get_running_loop().time() + timeout_seconds
+        operation_deadline_loaded = False
         last_status: Mapping[str, Any] = {}
         headers: dict[str, str] = {INTERNAL_TOOL_CALL_HEADER: INTERNAL_TOOL_CALL_VALUE}
-        transport = httpx.ASGITransport(app=http_request.app, client=("simurgh-internal", 0))
+        transport = httpx.ASGITransport(app=execution_context.app, client=("simurgh-internal", 0))
         async with httpx.AsyncClient(
             transport=transport,
-            base_url=str(http_request.base_url).rstrip("/"),
+            base_url=execution_context.base_url,
             timeout=10.0,
         ) as client:
             while True:
@@ -3869,6 +4838,15 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     }
                 if isinstance(structured, Mapping):
                     last_status = structured
+                    if not operation_deadline_loaded:
+                        metadata = structured.get("metadata") if isinstance(structured.get("metadata"), Mapping) else {}
+                        try:
+                            operation_timeout = float(metadata.get("monitor_timeout_seconds"))
+                        except (TypeError, ValueError):
+                            operation_timeout = 0.0
+                        if operation_timeout > 0:
+                            deadline = asyncio.get_running_loop().time() + operation_timeout
+                            operation_deadline_loaded = True
                     if _operation_terminal(structured):
                         await _emit_assistant_progress(
                             progress_callback,
@@ -3888,6 +4866,398 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         "last_status": dict(last_status),
                     }
                 await asyncio.sleep(ACTION_MONITOR_POLL_SECONDS)
+
+    async def _wait_for_action_run_dispatch(run_id: str) -> bool:
+        """Wait at a safe step boundary; return false when remaining work is cancelled."""
+
+        while True:
+            run = action_runs.require(run_id)
+            if run.state in {"cancel_requested", "cancelled"} or run.control_state == "cancel_requested":
+                return False
+            if run.state in {"pause_requested", "paused"} or run.control_state == "pause_requested":
+                if run.state != "paused":
+                    action_runs.append_event(
+                        run_id,
+                        event_type="run_paused",
+                        payload={
+                            "stage": "action",
+                            "state": "paused",
+                            "label": "Action run paused before the next step",
+                        },
+                        state="paused",
+                        summary="Paused before dispatching the next step.",
+                    )
+                await asyncio.sleep(0.25)
+                continue
+            return True
+
+    async def _sleep_action_run_delay(run_id: str, delay_seconds: float) -> bool:
+        """Sleep a sequence delay while honoring cancel/pause at a safe boundary."""
+
+        remaining = delay_seconds
+        while remaining > 0:
+            if not await _wait_for_action_run_dispatch(run_id):
+                return False
+            sleep_for = min(0.25, remaining)
+            await _sleep_action_sequence_delay(sleep_for)
+            remaining = max(0.0, remaining - sleep_for)
+        return True
+
+    async def _execute_action_draft_now(
+        execution_context: InternalToolExecutionContext,
+        *,
+        draft: ActionDraft,
+        registry: Any,
+        policy: Any,
+        request_deps: Any,
+        progress_callback: AssistantProgressCallback | None = None,
+        run_id: str = "",
+    ) -> ActionExecutionOutcome:
+        """Execute one approved typed draft through canonical GCS paths."""
+
+        action_response: Any | None = None
+        monitor_result: Mapping[str, Any] | None = None
+        post_action_results: tuple[Mapping[str, Any], ...] = ()
+        rejection_detail = ""
+        action_execution = "validation_rejected"
+        try:
+            if isinstance(draft, FlightActionDraft):
+                command_payload = {
+                    **dict(draft.command_payload),
+                    "idempotency_key": f"simurgh:{draft.draft_id}",
+                }
+                command = SubmitCommandRequest.model_validate(command_payload)
+                action_response = await submit_tracked_command(request_deps, command)
+                action_execution = "submitted"
+                response_payload = (
+                    action_response.model_dump(mode="json")
+                    if hasattr(action_response, "model_dump")
+                    else dict(action_response or {})
+                )
+                command_id = str(response_payload.get("command_id") or "").strip()
+                if command_id and draft.monitor_requested:
+                    sequence_step_count = 1 + len(draft.post_actions) if draft.post_actions else None
+                    monitor_result = await _monitor_command_until_terminal(
+                        request_deps,
+                        command_id,
+                        progress_callback=progress_callback,
+                        sequence_id=run_id or (draft.draft_id if draft.post_actions else ""),
+                        step_index=1 if draft.post_actions else None,
+                        step_count=sequence_step_count,
+                        step_label=_action_draft_label(draft) if draft.post_actions else "",
+                        step_kind="flight_command",
+                        mission_name=draft.mission_name,
+                    )
+                    final_state_ready = True
+                    if monitor_result.get("success") and draft.mission_type in {101, 104}:
+                        completion_verification = await _monitor_targets_disarmed(
+                            request_deps,
+                            target_drone_ids=draft.target_drone_ids,
+                            progress_callback=progress_callback,
+                            sequence_id=run_id or (draft.draft_id if draft.post_actions else ""),
+                            step_index=1 if draft.post_actions else None,
+                            step_count=sequence_step_count,
+                            step_label=_action_draft_label(draft),
+                            command_id=command_id,
+                            deadline_epoch_ms=_command_monitor_deadline_epoch_ms(monitor_result),
+                        )
+                        monitor_result = {
+                            **dict(monitor_result),
+                            "completion_verification": dict(completion_verification),
+                        }
+                        final_state_ready = bool(completion_verification.get("verified"))
+                    if draft.post_actions and final_state_ready:
+                        post_action_results = await _execute_post_actions(
+                            execution_context,
+                            post_actions=draft.post_actions,
+                            registry=registry,
+                            policy=policy,
+                            request_deps=request_deps,
+                            progress_callback=progress_callback,
+                            sequence_id=run_id or draft.draft_id,
+                            idempotency_scope=draft.draft_id,
+                            initial_step_index=1,
+                            step_count=sequence_step_count,
+                            action_run_id=run_id,
+                            initial_previous_step_succeeded=bool(monitor_result.get("success")),
+                        )
+            elif isinstance(draft, RegistryActionDraft):
+                result = await execute_policy_allowed_guarded_route_tool(
+                    execution_context,
+                    name=draft.tool_id,
+                    arguments=dict(draft.arguments),
+                    channel="agent",
+                    approved=True,
+                    registry=registry,
+                    policy=policy,
+                )
+                action_response = result.structured_content or {
+                    "status_code": result.status_code,
+                    "response": result.text,
+                }
+                if result.is_error:
+                    rejection_detail = result.text
+                else:
+                    action_execution = "submitted"
+                    structured = result.structured_content if isinstance(result.structured_content, Mapping) else {}
+                    operation_id = str(structured.get("operation_id") or structured.get("id") or "").strip()
+                    if operation_id and draft.monitor_requested:
+                        monitor_result = await _monitor_sitl_operation(
+                            execution_context,
+                            operation_id=operation_id,
+                            progress_callback=progress_callback,
+                        )
+        except HTTPException as exc:
+            rejection_detail = str(exc.detail)
+            if action_execution == "submitted":
+                monitor_result = {
+                    **dict(monitor_result or {}),
+                    "status": "monitor_error",
+                    "success": False,
+                    "timed_out": False,
+                    "summary": rejection_detail,
+                }
+            else:
+                action_execution = "validation_rejected"
+        except Exception as exc:
+            rejection_detail = str(exc)
+            if action_execution == "submitted":
+                monitor_result = {
+                    **dict(monitor_result or {}),
+                    "status": "monitor_error",
+                    "success": False,
+                    "timed_out": False,
+                    "summary": rejection_detail,
+                }
+            else:
+                action_execution = "validation_rejected"
+        return ActionExecutionOutcome(
+            action_execution=action_execution,
+            action_response=action_response,
+            monitor_result=monitor_result,
+            post_action_results=post_action_results,
+            rejection_detail=rejection_detail,
+        )
+
+    def _action_run_total_steps(draft: ActionDraft) -> int:
+        return 1 + len(draft.post_actions) if isinstance(draft, FlightActionDraft) else 1
+
+    def _action_response_payload(value: Any | None) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if hasattr(value, "model_dump"):
+            payload = value.model_dump(mode="json")
+            return dict(payload) if isinstance(payload, Mapping) else {}
+        return dict(value) if isinstance(value, Mapping) else {"summary": str(value)[:500]}
+
+    async def _run_action_run(
+        execution_context: InternalToolExecutionContext,
+        *,
+        run_id: str,
+        actor: str,
+        session_id: str,
+        draft: ActionDraft,
+        request_deps: Any,
+    ) -> None:
+        """Execute a confirmed run independently from its chat transport."""
+
+        try:
+            action_runs.append_event(
+                run_id,
+                event_type="run_started",
+                payload={
+                    "stage": "action",
+                    "state": "running",
+                    "label": "Starting approved action run",
+                    "sequence_id": run_id,
+                    "step_count": _action_run_total_steps(draft),
+                },
+                state="running",
+                summary="Executing the approved action plan.",
+            )
+
+            if not await _wait_for_action_run_dispatch(run_id):
+                summary = "Action run cancelled before the first step was dispatched."
+                action_runs.append_event(
+                    run_id,
+                    event_type="run_cancelled",
+                    payload={"stage": "action", "state": "cancelled", "label": summary},
+                    state="cancelled",
+                    summary=summary,
+                    result={"action_execution": "cancelled", "dispatched_steps": 0},
+                )
+                return
+
+            registry = load_default_tool_registry()
+            policy = load_default_policy()
+            tool = registry.require(_action_draft_tool_id(draft))
+            decision = policy.evaluate_tool(tool, channel="agent", approved=True)
+            if decision.status is not PolicyDecisionStatus.ALLOW:
+                summary = "; ".join(decision.reasons) or "Current Simurgh policy blocked the approved action."
+                action_runs.append_event(
+                    run_id,
+                    event_type="run_blocked",
+                    payload={
+                        "stage": "safety",
+                        "state": "blocked",
+                        "label": "Current policy blocked action dispatch",
+                        "summary": summary,
+                    },
+                    state="blocked",
+                    summary=summary,
+                    result={"action_execution": "policy_denied", "policy_reasons": list(decision.reasons)},
+                )
+                return
+
+            async def progress_callback(payload: dict[str, Any]) -> None:
+                try:
+                    step_index = int(payload.get("step_index") or 0)
+                except (TypeError, ValueError):
+                    step_index = 0
+                action_runs.append_event(
+                    run_id,
+                    event_type="progress",
+                    payload={**dict(payload), "sequence_id": run_id},
+                    state="running",
+                    current_step=step_index if step_index > 0 else None,
+                    summary=str(payload.get("label") or "Action run in progress")[:1000],
+                )
+
+            outcome = await _execute_action_draft_now(
+                execution_context,
+                draft=draft,
+                registry=registry,
+                policy=policy,
+                request_deps=request_deps,
+                progress_callback=progress_callback,
+                run_id=run_id,
+            )
+            action_response = _action_response_payload(outcome.action_response)
+            result_payload = {
+                "action_execution": outcome.action_execution,
+                "action_response": action_response,
+                "monitor_result": dict(outcome.monitor_result or {}),
+                "post_action_results": [dict(item) for item in outcome.post_action_results],
+                "rejection_detail": outcome.rejection_detail,
+            }
+            run_snapshot = action_runs.require(run_id)
+            cancelled = (
+                run_snapshot.state == "cancel_requested"
+                or any(str(item.get("status") or "") == "cancelled" for item in outcome.post_action_results)
+            )
+            monitor_status = str((outcome.monitor_result or {}).get("status") or "").strip().casefold()
+            monitor_failed = bool(
+                isinstance(outcome.monitor_result, Mapping)
+                and (
+                    outcome.monitor_result.get("success") is False
+                    or monitor_status
+                    in {
+                        "blocked",
+                        "cancelled",
+                        "error",
+                        "failed",
+                        "failure",
+                        "monitor_error",
+                        "rejected",
+                        "terminal_non_success",
+                        "timeout",
+                    }
+                )
+            )
+            post_failed = any(bool(item.get("is_error")) for item in outcome.post_action_results)
+            if cancelled:
+                final_state = "cancelled"
+                summary = "The current step was allowed to finish; remaining steps were cancelled."
+            elif outcome.action_execution != "submitted" or monitor_failed or post_failed:
+                final_state = "failed"
+                summary = outcome.rejection_detail or "The action run stopped before every planned step succeeded."
+            else:
+                final_state = "succeeded"
+                summary = f"Completed {_action_run_total_steps(draft)} of {_action_run_total_steps(draft)} planned steps."
+            completed_step = (
+                _action_run_total_steps(draft)
+                if final_state == "succeeded"
+                else action_runs.require(run_id).current_step
+            )
+            action_runs.append_event(
+                run_id,
+                event_type=f"run_{final_state}",
+                payload={
+                    "stage": "action",
+                    "state": final_state,
+                    "label": summary,
+                    "sequence_id": run_id,
+                    "step_count": _action_run_total_steps(draft),
+                },
+                state=final_state,
+                current_step=completed_step,
+                summary=summary,
+                result=result_payload,
+            )
+            submitted_context = {
+                "action_run_id": run_id,
+                "action_type": "flight_command" if isinstance(draft, FlightActionDraft) else "registry_action",
+                "draft_id": draft.draft_id,
+                "tool_id": _action_draft_tool_id(draft),
+                "target_drone_ids": list(draft.target_drone_ids) if isinstance(draft, FlightActionDraft) else [],
+                "mission_name": draft.mission_name if isinstance(draft, FlightActionDraft) else "",
+                "mission_type": draft.mission_type if isinstance(draft, FlightActionDraft) else None,
+                "post_actions": [dict(item) for item in draft.post_actions]
+                if isinstance(draft, FlightActionDraft)
+                else [],
+                "action_label": draft.action_label if isinstance(draft, RegistryActionDraft) else "",
+                "inferred_target_drone_ids": _submitted_registry_target_ids(
+                    draft,
+                    response_payload=action_response,
+                    monitor_result=outcome.monitor_result,
+                )
+                if isinstance(draft, RegistryActionDraft)
+                else [],
+                "state": final_state,
+                "result": result_payload,
+            }
+            try:
+                sessions.update_private_context(
+                    session_id,
+                    {
+                        "last_action_run_id": run_id,
+                        "last_submitted_action": json.dumps(
+                            submitted_context,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            default=str,
+                        ),
+                    },
+                )
+            except (AgentRuntimeError, KeyError):
+                pass
+            audit.record(
+                "action_run_completed",
+                session_id=session_id,
+                actor=actor,
+                tool_id=_action_draft_tool_id(draft),
+                decision=final_state,
+                payload={"run_id": run_id, "draft_id": draft.draft_id, "plan_hash": run_snapshot.plan_hash},
+                metadata={"state": final_state, "summary": summary},
+            )
+        except Exception as exc:
+            logger.exception(
+                "Simurgh action-run coordinator failed run_id=%s draft_id=%s",
+                run_id,
+                draft.draft_id,
+            )
+            summary = f"Action-run coordinator failed closed: {str(exc)[:500]}"
+            try:
+                action_runs.append_event(
+                    run_id,
+                    event_type="run_failed",
+                    payload={"stage": "action", "state": "failed", "label": summary},
+                    state="failed",
+                    summary=summary,
+                    result={"action_execution": "coordinator_failed"},
+                )
+            except Exception:
+                pass
 
     async def _pre_action_read_only_context(
         http_request: Request,
@@ -3982,7 +5352,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             )
 
         request_deps = _request_scoped_deps(deps, http_request)
-        answer = answer_mds_read_only_question(
+        answer = await asyncio.to_thread(
+            answer_mds_read_only_question,
             routing_message,
             deps=request_deps,
             conversation_topic=conversation_topic,
@@ -4052,11 +5423,21 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         post_action_results: tuple[Mapping[str, Any], ...] = ()
         rejection_detail = ""
         action_execution = "awaiting_confirmation"
+        action_run_snapshot: ActionRunSnapshot | None = None
+        action_run_should_start = False
         approved = confirmed or (not policy.always_confirm_before_action)
         decision = policy.evaluate_tool(tool, channel="agent", approved=approved)
         policy_reasons = tuple(decision.reasons)
+        sequence_validation_error = (
+            _post_action_sequence_validation_error(draft.post_actions)
+            if isinstance(draft, FlightActionDraft)
+            else ""
+        )
         if not draft.ready:
             action_execution = "missing_arguments"
+        elif sequence_validation_error:
+            action_execution = "validation_rejected"
+            rejection_detail = sequence_validation_error
         elif decision.status is PolicyDecisionStatus.REQUIRE_APPROVAL:
             action_execution = "awaiting_confirmation"
         elif decision.status is PolicyDecisionStatus.DENY:
@@ -4070,88 +5451,30 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 _action_progress_payload(
                     stage="action",
                     state="running",
-                    label="Submitting guarded action through GCS",
+                    label="Starting approved action run",
                     draft=draft,
                     policy_status=decision.status.value,
                 ),
             )
-            try:
-                if isinstance(draft, FlightActionDraft):
-                    request_deps = _request_scoped_deps(deps, http_request)
-                    command_payload = {
-                        **dict(draft.command_payload),
-                        "idempotency_key": f"simurgh:{draft.draft_id}",
-                    }
-                    command = SubmitCommandRequest.model_validate(command_payload)
-                    action_response = await submit_tracked_command(
-                        request_deps,
-                        command,
-                    )
-                    action_execution = "submitted"
-                    response_payload = (
-                        action_response.model_dump(mode="json")
-                        if hasattr(action_response, "model_dump")
-                        else dict(action_response or {})
-                    )
-                    command_id = str(response_payload.get("command_id") or "").strip()
-                    if command_id and draft.monitor_requested:
-                        sequence_step_count = 1 + len(draft.post_actions) if draft.post_actions else None
-                        monitor_result = await _monitor_command_until_terminal(
-                            request_deps,
-                            command_id,
-                            progress_callback=progress_callback,
-                            sequence_id=draft.draft_id if draft.post_actions else "",
-                            step_index=1 if draft.post_actions else None,
-                            step_count=sequence_step_count,
-                            step_label=_action_draft_label(draft) if draft.post_actions else "",
-                            step_kind="flight_command",
-                            mission_name=draft.mission_name,
-                        )
-                        if draft.post_actions and monitor_result.get("success"):
-                            post_action_results = await _execute_post_actions(
-                                http_request,
-                                post_actions=draft.post_actions,
-                                registry=registry,
-                                policy=policy,
-                                request_deps=request_deps,
-                                progress_callback=progress_callback,
-                                sequence_id=draft.draft_id,
-                                initial_step_index=1,
-                                step_count=sequence_step_count,
-                            )
-                elif isinstance(draft, RegistryActionDraft):
-                    result = await execute_policy_allowed_guarded_route_tool(
-                        http_request,
-                        name=draft.tool_id,
-                        arguments=dict(draft.arguments),
-                        channel="agent",
-                        approved=True,
-                        registry=registry,
-                        policy=policy,
-                    )
-                    action_response = result.structured_content or {
-                        "status_code": result.status_code,
-                        "response": result.text,
-                    }
-                    if result.is_error:
-                        action_execution = "validation_rejected"
-                        rejection_detail = result.text
-                    else:
-                        action_execution = "submitted"
-                        structured = result.structured_content if isinstance(result.structured_content, Mapping) else {}
-                        operation_id = str(structured.get("operation_id") or structured.get("id") or "").strip()
-                        if operation_id and draft.monitor_requested:
-                            monitor_result = await _monitor_sitl_operation(
-                                http_request,
-                                operation_id=operation_id,
-                                progress_callback=progress_callback,
-                            )
-            except HTTPException as exc:
-                action_execution = "validation_rejected"
-                rejection_detail = str(exc.detail)
-            except Exception as exc:
-                action_execution = "validation_rejected"
-                rejection_detail = str(exc)
+            plan_payload = draft.public_payload()
+            plan_payload["display_plan"] = _action_draft_display_plan(draft)
+            plan_hash = stable_payload_hash(plan_payload)
+            action_run_snapshot, action_run_created = action_runs.create_or_get(
+                actor=actor,
+                session_id=session.id,
+                draft_id=draft.draft_id,
+                plan_hash=plan_hash,
+                plan=plan_payload,
+                total_steps=_action_run_total_steps(draft),
+            )
+            action_execution = "submitted"
+            action_response = {
+                "action_run_id": action_run_snapshot.run_id,
+                "status": action_run_snapshot.state,
+                "summary": action_run_snapshot.summary or "Approved action run queued.",
+            }
+            if action_run_created:
+                action_run_should_start = True
 
         submitted_progress_state, submitted_progress_label = _submitted_action_progress_outcome(
             draft,
@@ -4225,10 +5548,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         "status": monitor_result.get("status"),
                         "success": monitor_result.get("success"),
                         "timed_out": monitor_result.get("timed_out"),
+                        "completion_verification": dict(monitor_result.get("completion_verification") or {}),
                     }
                 submitted_context = json.dumps(
                     {
                         "action_type": "flight_command",
+                        "action_run_id": response_payload.get("action_run_id"),
                         "draft_id": draft.draft_id,
                         "tool_id": ACTION_TOOL_ID,
                         "mission_name": draft.mission_name,
@@ -4259,6 +5584,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 submitted_context = json.dumps(
                     {
                         "action_type": "registry_action",
+                        "action_run_id": response_payload.get("action_run_id"),
                         "draft_id": draft.draft_id,
                         "tool_id": draft.tool_id,
                         "action_label": draft.action_label,
@@ -4298,6 +5624,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             private_context_update["last_action_request_message"] = turn_request.message
         if submitted_context:
             private_context_update["last_submitted_action"] = submitted_context
+        if action_run_snapshot is not None:
+            private_context_update["last_action_run_id"] = action_run_snapshot.run_id
         sessions.update_private_context(session.id, private_context_update)
         event = audit.record(
             "assistant_turn_created",
@@ -4335,6 +5663,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "action_draft": draft.public_payload(),
                 "action_monitor": dict(monitor_result or {}),
                 "post_action_results": [dict(item) for item in post_action_results],
+                "action_run": action_run_snapshot.public_payload() if action_run_snapshot is not None else {},
                 "policy_decision": decision.status.value,
                 "policy_reasons": list(policy_reasons),
                 "circuit_breaker_layer": (
@@ -4346,6 +5675,22 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 ),
             },
         )
+        if action_run_should_start and action_run_snapshot is not None:
+            execution_context = InternalToolExecutionContext.from_request(http_request)
+            action_request_deps = _request_scoped_deps(deps, http_request)
+            retain_action_run_task(
+                asyncio.create_task(
+                    _run_action_run(
+                        execution_context,
+                        run_id=action_run_snapshot.run_id,
+                        actor=actor,
+                        session_id=session.id,
+                        draft=draft,
+                        request_deps=action_request_deps,
+                    ),
+                    name=f"simurgh-action-run:{action_run_snapshot.run_id}",
+                )
+            )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
     async def _create_registry_read_execution_record(
@@ -4558,7 +5903,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         session = _require_or_create_assistant_session(policy=policy, actor=actor, turn_request=turn_request)
         request_deps = _request_scoped_deps(deps, http_request)
         conversation_topic = _session_conversation_topic(session)
-        answer = answer_mds_read_only_question(
+        answer = await asyncio.to_thread(
+            answer_mds_read_only_question,
             routing_message,
             deps=request_deps,
             conversation_topic=conversation_topic,
@@ -4673,7 +6019,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
-    async def _create_assistant_turn_record_for_request(
+    async def _create_assistant_turn_record_for_request_unlocked(
         http_request: Request,
         turn_request: SimurghAssistantTurnRequest,
         *,
@@ -4688,6 +6034,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     existing_session = sessions.require(turn_request.session_id)
                     conversation_topic = str(existing_session.metadata.get("last_domain") or "")
                     previous_context = sessions.get_private_context(turn_request.session_id)
+                    if not conversation_topic:
+                        conversation_topic = str(previous_context.get("last_domain") or "")
                 except KeyError:
                     conversation_topic = None
             previous_action = _stored_last_submitted_action(turn_request.session_id)
@@ -4701,6 +6049,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             )
             semantic_rewrite = None
             semantic_rewrite_error = ""
+            semantic_action_plan_error = ""
+            semantic_action_interpretation_failed = False
             if _semantic_rewrite_is_safe_to_try(
                 assistant_config=assistant_config,
                 request=http_request,
@@ -4708,16 +6058,21 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 turn_intent=turn_intent,
             ):
                 try:
+                    semantic_registry = load_default_tool_registry()
+                    semantic_action_contracts = _provider_action_tool_contracts(semantic_registry)
                     semantic_rewrite = rewrite_operator_message_with_provider(
                         config=assistant_config,
                         message=turn_request.message,
                         conversation_topic=conversation_topic or "",
                         runtime_mode=resolve_runtime_mode().mode,
                         previous_action_summary=_semantic_rewrite_previous_action_summary(previous_action_for_routing),
+                        clarification_context=_semantic_rewrite_clarification_context(previous_context),
+                        action_tool_contracts=semantic_action_contracts,
                     )
                 except AgentRuntimeError as exc:
                     semantic_rewrite_error = str(exc)[:180]
-                if semantic_rewrite is not None and semantic_rewrite.usable_for_routing:
+                    semantic_action_interpretation_failed = turn_intent.is_action_route
+                if semantic_rewrite is not None:
                     rewritten_intent = build_turn_intent_frame(
                         turn_request.message,
                         conversation_topic=conversation_topic,
@@ -4725,7 +6080,82 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         previous_action_request_message=previous_action_request_message,
                         semantic_routing_message=semantic_rewrite.normalized_message,
                     )
-                    if _should_accept_semantic_rewrite(
+                    semantic_control_route = SEMANTIC_REWRITE_ACTION_CONTROL_ROUTES.get(
+                        semantic_rewrite.route_hint
+                    )
+                    if semantic_control_route and semantic_rewrite.usable_for_routing:
+                        is_confirmation = semantic_control_route == "action_confirmation"
+                        turn_intent = replace(
+                            rewritten_intent,
+                            confirmation_message=is_confirmation,
+                            rejection_message=not is_confirmation,
+                            explicit_action_draft_id=(
+                                rewritten_intent.explicit_action_draft_id
+                                or turn_intent.explicit_action_draft_id
+                            ),
+                            route=semantic_control_route,
+                            confidence=max(0.62, float(semantic_rewrite.confidence)),
+                            reasons=(f"provider-{semantic_rewrite.route_hint}",),
+                        )
+                    elif (
+                        getattr(semantic_rewrite, "action_plan", None) is not None
+                        and semantic_rewrite.usable_for_routing
+                    ):
+                        materialized = build_action_draft_from_provider_plan(
+                            semantic_rewrite.action_plan,
+                            draft_id=f"act-{uuid.uuid4().hex[:8]}",
+                            previous_action=previous_action_for_routing,
+                            tool_contracts=_provider_action_tool_contract_map(semantic_action_contracts),
+                        )
+                        if materialized.accepted:
+                            action_draft = materialized.draft
+                            rewritten_action = replace(
+                                rewritten_intent.action,
+                                request_message=turn_request.message,
+                                draft=action_draft,
+                                direct_flight_request=isinstance(action_draft, FlightActionDraft),
+                                flight_followup_request=False,
+                                sitl_lifecycle_request=isinstance(action_draft, RegistryActionDraft),
+                                replayed_previous_request=False,
+                            )
+                            turn_intent = replace(
+                                rewritten_intent,
+                                confirmation_message=False,
+                                rejection_message=False,
+                                explicit_action_draft_id="",
+                                action=rewritten_action,
+                                route="action_draft",
+                                confidence=max(0.62, float(semantic_rewrite.confidence)),
+                                reasons=("provider-structured-action-plan",),
+                            )
+                        else:
+                            semantic_action_plan_error = ":".join(
+                                item
+                                for item in (materialized.reason, materialized.field_path)
+                                if item
+                            )[:180]
+                            semantic_rewrite = replace(
+                                semantic_rewrite,
+                                needs_clarification=True,
+                                clarification_question=(
+                                    "I could not map the complete request to the available controls. "
+                                    "Please restate the target and ordered steps."
+                                ),
+                            )
+                    elif (
+                        semantic_rewrite.route_hint in SEMANTIC_REWRITE_DRAFT_ACTION_HINTS
+                        and not semantic_rewrite.needs_clarification
+                    ):
+                        semantic_action_plan_error = "provider_action_plan_missing"
+                        semantic_rewrite = replace(
+                            semantic_rewrite,
+                            needs_clarification=True,
+                            clarification_question=(
+                                "I understood this as an action, but not the complete ordered plan. "
+                                "Please restate the target and steps."
+                            ),
+                        )
+                    elif _should_accept_semantic_rewrite(
                         initial_intent=turn_intent,
                         rewritten_intent=rewritten_intent,
                         semantic_rewrite=semantic_rewrite,
@@ -4746,6 +6176,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     metadata["provider_semantic_rewrite"] = semantic_rewrite.public_metadata()
                 if semantic_rewrite_error:
                     metadata["provider_semantic_rewrite_error"] = semantic_rewrite_error
+                if semantic_action_plan_error:
+                    metadata["provider_action_plan_error"] = semantic_action_plan_error
                 return metadata
 
             routing_message = turn_intent.routing_message
@@ -4765,6 +6197,37 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 ),
             )
             actor = _resolve_actor(http_request, turn_request.actor)
+            if semantic_action_interpretation_failed:
+                record = await _create_semantic_clarification_record(
+                    http_request,
+                    turn_request,
+                    actor=actor,
+                    question=(
+                        "I could not safely interpret the complete action sequence. "
+                        "Please try the request once more."
+                    ),
+                    semantic_rewrite=semantic_rewrite,
+                    turn_intent_metadata=turn_intent_metadata(),
+                    progress_callback=progress_callback,
+                )
+                history_record = history.append_turn(record=record, message=turn_request.message)
+                return record, history_record
+            if (
+                semantic_rewrite is not None
+                and bool(getattr(semantic_rewrite, "needs_clarification", False))
+                and str(getattr(semantic_rewrite, "clarification_question", "") or "").strip()
+            ):
+                record = await _create_semantic_clarification_record(
+                    http_request,
+                    turn_request,
+                    actor=actor,
+                    question=str(semantic_rewrite.clarification_question),
+                    semantic_rewrite=semantic_rewrite,
+                    turn_intent_metadata=turn_intent_metadata(),
+                    progress_callback=progress_callback,
+                )
+                history_record = history.append_turn(record=record, message=turn_request.message)
+                return record, history_record
             local_intent = read_only_plan.intent
             stored_draft = _stored_action_draft(turn_request.session_id)
             rejection_message = turn_intent.rejection_message
@@ -4801,6 +6264,44 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         actor=actor,
                         draft=recovered_draft,
                         session_id=recovered_session.id,
+                        turn_intent_metadata=turn_intent_metadata(),
+                        progress_callback=progress_callback,
+                    )
+                    history_record = history.append_turn(record=record, message=turn_request.message)
+                    return record, history_record
+                active_runs = action_runs.list_runs(
+                    actor=actor,
+                    session_id=turn_request.session_id or None,
+                    active_only=True,
+                    limit=20,
+                )
+                if not active_runs and turn_request.session_id:
+                    active_runs = action_runs.list_runs(
+                        actor=actor,
+                        active_only=True,
+                        limit=20,
+                    )
+                if len(active_runs) == 1:
+                    record = await _create_action_run_control_record(
+                        http_request,
+                        turn_request,
+                        actor=actor,
+                        run=active_runs[0],
+                        action="cancel_remaining",
+                        turn_intent_metadata=turn_intent_metadata(),
+                        progress_callback=progress_callback,
+                    )
+                    history_record = history.append_turn(record=record, message=turn_request.message)
+                    return record, history_record
+                if len(active_runs) > 1:
+                    record = await _create_semantic_clarification_record(
+                        http_request,
+                        turn_request,
+                        actor=actor,
+                        question=(
+                            f"I found {len(active_runs)} active operations. Which one should I cancel?"
+                        ),
+                        semantic_rewrite=semantic_rewrite,
                         turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,
                     )
@@ -4936,7 +6437,6 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 action_draft = _action_draft_with_inferred_single_sitl_instance(
                     http_request,
                     turn_intent.action.draft,
-                    routing_message=routing_message,
                 )
                 (
                     pre_action_read_only_content,
@@ -5051,6 +6551,23 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             raise HTTPException(status_code=status_code, detail=message) from exc
         return record, history_record
 
+    async def _create_assistant_turn_record_for_request(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        progress_callback: AssistantProgressCallback | None = None,
+    ):
+        """Serialize one actor's turns so retries cannot overlap an action sequence."""
+
+        actor = _resolve_actor(http_request, turn_request.actor)
+        actor_lock = assistant_actor_locks.setdefault(actor, asyncio.Lock())
+        async with actor_lock:
+            return await _create_assistant_turn_record_for_request_unlocked(
+                http_request,
+                turn_request,
+                progress_callback=progress_callback,
+            )
+
     @router.post("/api/v1/simurgh/assistant/turns", response_model=SimurghAssistantTurnResponse)
     async def create_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
         record, history_record = await _create_assistant_turn_record_for_request(http_request, request)
@@ -5084,7 +6601,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     finally:
                         await progress_queue.put(("finished", {}))
 
-                turn_task = asyncio.create_task(run_turn())
+                turn_task = retain_assistant_turn_task(
+                    asyncio.create_task(run_turn(), name="simurgh-assistant-turn")
+                )
                 payload: dict[str, Any] | None = None
                 saw_tool_progress = False
                 while True:
@@ -5124,9 +6643,6 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 yield _assistant_sse_event("error", {"status_code": exc.status_code, "detail": exc.detail})
             except Exception:  # pragma: no cover - final guard for streaming clients
                 yield _assistant_sse_event("error", {"status_code": 500, "detail": "Simurgh stream failed."})
-            finally:
-                if turn_task is not None and not turn_task.done():
-                    turn_task.cancel()
 
         return StreamingResponse(
             event_stream(),

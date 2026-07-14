@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import LeafletMapBase from './map/LeafletMapBase';
 import DroneReadinessReport from './DroneReadinessReport';
+import InfoHint from './InfoHint';
 import '../styles/DroneDetail.css';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName } from '../constants/droneStates';
@@ -243,8 +244,11 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <h3><FaMapMarkerAlt /> Position & Movement</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <label>Altitude</label>
-            <span title={`Source: ${altitudeReading.source}`}>{altitudeText}</span>
+            <label>
+              Altitude
+              <InfoHint content={`Source: ${altitudeReading.source}`} label="Altitude source" />
+            </label>
+            <span>{altitudeText}</span>
           </div>
           <div className="detail-item">
             <label>Ground Speed</label>

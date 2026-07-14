@@ -4,9 +4,10 @@
 
 ---
 
-## 🚀 Quick Start (Automated Workflow)
+## 🚀 Quick Start (Validated Release Workflow)
 
-**For most developers:** The versioning is now **fully automated**! Just follow these simple steps:
+Pull requests and pushes to `main` run automated quality gates. Publishing a
+stable or beta release is an explicit maintainer action after those gates pass.
 
 ### 1. Write Good Commit Messages
 
@@ -26,26 +27,26 @@ feat!: breaking API change               # Bumps major version
 - Bot comments with predicted version change
 - Example: "Current: 3.7 → After merge: 3.8"
 
-### 3. Merge to Main
+### 3. Merge and Publish
 
-**That's it!** When you merge:
-- ✅ Version automatically bumps based on commits
-- ✅ CHANGELOG.md updated automatically
-- ✅ Git tag created (e.g., `v3.8`)
-- ✅ GitHub Release created with auto-generated notes
-- ✅ All files synchronized (Python, JS, package.json)
+When the validated change is merged, the push workflow reruns quality gates but
+does not publish a release. A maintainer then runs **Actions → Automated
+Release → Run workflow** to publish either a stable release or an explicit beta
+tag. This prevents a beta merge or conventional commit from accidentally
+publishing a final release.
 
-### Manual Override (if needed)
+### Publish Options
 
 Go to **Actions → Automated Release → Run workflow**:
 - Enter custom version: `3.9`
 - Or select bump type: `major` / `minor`
+- Or set only `prerelease_tag` for an immutable beta tag
 
 ---
 
 ## 📋 Table of Contents
 
-- [🚀 Quick Start (Automated Workflow)](#-quick-start-automated-workflow)
+- [🚀 Quick Start (Validated Release Workflow)](#-quick-start-validated-release-workflow)
 - [Automated Release System](#automated-release-system)
 - [Commit Message Standard](#commit-message-standard)
 - [Version Numbering Scheme](#version-numbering-scheme)
@@ -76,15 +77,15 @@ Go to **Actions → Automated Release → Run workflow**:
        │
        ↓
 ┌─────────────┐
-│ Merge to    │  Triggers automated release workflow
+│ Merge to    │  Runs quality gates; does not publish
 │    main     │
 └──────┬──────┘
        │
        ↓
 ┌─────────────┐
-│  Automated  │  • Analyzes commits
-│   Release   │  • Bumps version (major/minor)
-│   Workflow  │  • Updates CHANGELOG.md
+│  Explicit   │  • Maintainer dispatches after validation
+│   Release   │  • Bumps stable version or uses beta tag
+│   Workflow  │  • Updates stable release metadata when needed
 └──────┬──────┘  • Syncs all files
        │         • Creates git tag
        ↓         • Creates GitHub Release
@@ -96,7 +97,7 @@ Go to **Actions → Automated Release → Run workflow**:
 ### Components
 
 **GitHub Actions Workflows:**
-- `.github/workflows/release.yml` - Automated release on merge to main
+- `.github/workflows/release.yml` - Quality gates on main; explicit release publication
 - `.github/workflows/pr-validation.yml` - PR validation and version prediction
 
 **Automation Scripts:**
@@ -107,10 +108,10 @@ Go to **Actions → Automated Release → Run workflow**:
 
 ### When Does It Run?
 
-**Automatically:** When you push/merge to `main` branch
-**Manually:** Actions → Automated Release → Run workflow (for manual override)
+**Automatically:** Quality gates run when you push/merge to `main`.
+**Manually:** Actions → Automated Release → Run workflow publishes a release.
 
-**Note:** Only runs if commits are found (skips doc-only changes)
+**Note:** The release job runs only for a manual workflow dispatch.
 
 ---
 
@@ -216,7 +217,7 @@ We chose simple `X.Y` versioning because:
 The project uses a **VERSION file** as the single source of truth:
 
 ```
-/root/mavsdk_drone_show/VERSION
+<repo-root>/VERSION
 ```
 
 **Contents:** Just the version number (e.g., `3.6`)
@@ -265,7 +266,7 @@ python tools/version_sync.py
 
 #### 1. Update the VERSION File
 
-Edit `/root/mavsdk_drone_show/VERSION` and change the version number:
+Edit `VERSION` at the repository root and change the version number:
 
 ```bash
 echo "3.7" > VERSION
@@ -387,6 +388,22 @@ git push origin main
 4. Release title: `Version 3.7`
 5. Description: Copy from CHANGELOG.md
 6. Publish release
+
+### Beta / Prerelease Tags
+
+Beta releases keep the stable two-part product version in `VERSION` and add a
+unique prerelease tag to an immutable commit on `main`, for example:
+
+```text
+v5.5.110-simurgh-operator-beta
+```
+
+After the release commit is validated and pushed to `main`, run **Actions →
+Automated Release → Run workflow** and set only `prerelease_tag`. The workflow
+validates that the tag extends the current `X.Y` version, creates the annotated
+tag from the checked-out `main` commit, and publishes a GitHub prerelease. It
+does not modify `VERSION` or publish a stable release. Never reuse or move an
+existing prerelease tag.
 
 ### Version Lock
 
@@ -615,7 +632,7 @@ git status
 1. **Single Source:** VERSION file
 2. **Sync Tool:** `python tools/version_sync.py`
 3. **Version Format:** `X.Y` (simple two-part)
-4. **Release Branch:** main (stable releases only)
+4. **Release Branch:** main (stable and prerelease tags from validated commits only)
 5. **Development Branch:** short-lived feature/client branch from `main`
 6. **Manual Override:** Supported (edit VERSION file)
 

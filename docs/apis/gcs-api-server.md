@@ -2249,6 +2249,12 @@ Simurgh exposes two separate surfaces on purpose:
 - first-party dashboard assistant turns:
   `POST /api/v1/simurgh/assistant/turns` and
   `POST /api/v1/simurgh/assistant/turns/stream`
+- first-party durable action runs:
+  `GET /api/v1/simurgh/action-runs`,
+  `GET /api/v1/simurgh/action-runs/{run_id}`,
+  `GET /api/v1/simurgh/action-runs/{run_id}/events`,
+  `GET /api/v1/simurgh/action-runs/{run_id}/events/stream`, and
+  `POST /api/v1/simurgh/action-runs/{run_id}/controls`
 - generated review-only candidates: `GET /api/v1/simurgh/tool-candidates`
 
 `GET /api/v1/simurgh/tool-candidates` reads
@@ -2286,6 +2292,15 @@ sanitized `error` events. The `final` payload matches the normal assistant-turn
 response shape. This SSE route is not an MCP transport and is not callable from
 the generated OpenAPI candidate menu unless a future reviewed registry/policy
 promotion explicitly approves it.
+
+Confirmation returns an action-run snapshot immediately; execution does not
+belong to the assistant-turn request or its SSE subscriber. The action-run event
+stream supports `after=<event_id>` and `Last-Event-ID` replay. Supported control
+actions are `pause_after_current_step`, `resume`, and `cancel_remaining`.
+Controls take effect between steps and do not recall a GCS command already
+submitted. Active runs are actor-scoped, persisted in SQLite, and marked
+`interrupted` rather than automatically resumed after a GCS process restart.
+These routes are first-party operator APIs, not external MCP tools.
 
 For authenticated dashboard/operator sessions with `MDS_AGENT_PROVIDER=openai`,
 assistant turns may first execute a policy-approved read-only Simurgh advisory

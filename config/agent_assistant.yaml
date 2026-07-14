@@ -3,8 +3,8 @@ metadata:
   owner: simurgh-operator
   boundary: gcs-only
   purpose: >
-    Provider-neutral assistant defaults for deterministic mock responses and
-    tool-less external model adapter context assembly.
+    Provider-neutral assistant defaults for local orchestration, deterministic
+    fallback responses, and external model context assembly.
 provider: mock
 max_message_chars: 4000
 max_context_bytes: 64000
@@ -15,9 +15,10 @@ provider_instructions: >
   calls are text-only: do not claim that you commanded drones, changed
   configuration, launched missions, uploaded plans, rebooted systems, or
   executed any external tool unless the supplied context explicitly contains a
-  local guarded-action result from Simurgh/GCS. If the operator asks for an
-  operational action in provider-only context, explain that guarded actions are
-  handled by the local Simurgh registry/policy path, not by the external model.
+  local guarded-action result from Simurgh/GCS. If an operational request reaches
+  answer composition without a resolved local action plan, ask one concise
+  clarification question or report the unresolved detail; do not replace the
+  requested work with generic procedures or architecture explanations.
   For QGC, PX4, MAVLink, RTK,
   NetBird, or field-connectivity troubleshooting, prefer observation-first
   checks: vehicle identity and PX4 SYS_ID, MAVLink stream configuration, GCS
@@ -39,7 +40,8 @@ provider_instructions: >
   the context is weak. For field logs or incident reports, use sanitized
   patterns only; do not ask operators to paste private logs, ULog archives, QGC
   logs, screenshots, chat exports, credentials, exact coordinates, or private
-  network details into prompts, docs, commits, or eval fixtures. External
+  network details into prompts, docs, commits, or eval fixtures. Do not update
+  production services or deploy software from model prose. External
   provider calls never perform side effects by themselves; side effects are
   possible only when the supplied context includes an approved local
   Simurgh/GCS guarded-action result.
@@ -115,8 +117,6 @@ sensitive_input_patterns:
     regex: '\+\d{1,3}(?:[\s().-]?\d){7,}\b'
   - label: secret assignment
     regex: '\b(?:authorization\s*:\s*bearer\s+[A-Za-z0-9._~+/=-]{8,}|(?:api[_ -]?key|token|password|secret)\s*(?::|=|\bis\b)\s*[A-Za-z0-9._~+/=-]{6,})(?=\s|$|[,;.)])'
-  - label: ULog artifact
-    regex: '(?:\bulog\b|\.ulg\b)'
   - label: QGroundControl log artifact
     regex: '\b(?:qgroundcontrol|qgc)\s+logs?\b'
   - label: companion log artifact
@@ -131,6 +131,8 @@ sensitive_input_patterns:
     regex: '\b(?:ticket|issue|case)\s*[:#-]?\s*[A-Z]{2,}-?\d{2,}\b|\b[A-Z]{2,}-\d{2,}\b'
   - label: device serial identifier
     regex: '\b(?:serial|s/n|sn)\s*[:#-]?\s*[A-Z0-9][A-Z0-9_-]{5,}\b'
+  - label: raw or transferred ULog artifact
+    regex: '\b(?:raw|download|upload|attach|stream|erase|delete)\b.{0,40}\bulogs?\b|\bulogs?\b.{0,40}\b(?:raw|download|upload|attach|stream|erase|delete|content)\b'
   - label: NetBird peer identifier
     regex: '\b(?:netbird\s+)?peer\s+id(?:\s*[:=]\s*|\s+)[A-Za-z0-9_-]{6,}\b'
   - label: exact timestamp
@@ -143,29 +145,19 @@ sensitive_input_patterns:
     regex: '(?m)^\s*(?:INFO|WARN|WARNING|ERROR|DEBUG)\b.{20,}$|^\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b'
 response_template:
   preamble: >
-    Simurgh Operator mock assistant is active. This deterministic foundation
-    can inspect configured context and explain safe next steps, but it does not
-    execute tools or contact a model provider.
+    I could not complete that request from the available live MDS context.
   blocked_action_notice: >
-    The message appears to reference a blocked or operational action. This
-    slice cannot command drones, submit raw GCS commands, mutate deployments,
-    or perform real-world operations.
+    I could not resolve the operation into a guarded action plan. Please clarify
+    the target or intended sequence.
   sensitive_input_notice: >
-    The message appears to reference sensitive field evidence. Keep raw field
-    artifacts outside the official repo and provider prompts, record a private
-    source hash, convert the lesson into sanitized patterns only, and update
-    docs, prompt context, tests, or eval fixtures without customer names,
-    coordinates, peer IDs, tokens, or raw log excerpts.
+    I can inspect local unified logs and derived ULog summaries, but raw field
+    artifacts stay inside the GCS.
   no_action_notice: >
-    No executable action was attempted. This response is generated from local
-    versioned context only.
-  suggested_next_steps:
-    - Review the loaded context resource list.
-    - Use GCS metadata endpoints for observation.
-    - Add eval examples before enabling any provider adapter.
+    Please clarify which MDS system, status, or result you want me to inspect.
+  suggested_next_steps: []
 providers:
   openai:
-    model: gpt-5.5
+    model: gpt-5.6
     api_key_file: ""
     base_url: https://api.openai.com/v1
     timeout_seconds: 30

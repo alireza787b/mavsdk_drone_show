@@ -8,6 +8,8 @@ import {
   FaExclamationTriangle,
   FaEllipsisH,
   FaPaperPlane,
+  FaPause,
+  FaPlay,
   FaPlus,
   FaRobot,
   FaSave,
@@ -26,7 +28,11 @@ import {
 } from '../components/ui';
 import {
   createSimurghAssistantTurnResponse,
+  controlSimurghActionRunResponse,
+  getSimurghActionRunResponse,
+  getSimurghActionRunsResponse,
   streamSimurghAssistantTurnResponse,
+  streamSimurghActionRunEventsResponse,
   getSimurghRuntimeSettingsResponse,
   getSimurghStatusResponse,
   getSimurghToolCandidatesResponse,
@@ -40,7 +46,10 @@ import '../styles/SimurghOperatorPage.css';
 const STORAGE_KEY = 'mds.simurgh.chat.v2';
 const DASHBOARD_ACTOR = 'dashboard';
 const MAX_CONVERSATIONS = 30;
-const DEFAULT_MODEL = 'gpt-5.5';
+const DEFAULT_MODEL = 'gpt-5.6';
+const ACTIVE_ACTION_RUN_STATES = new Set(['queued', 'running', 'pause_requested', 'paused', 'cancel_requested']);
+const TERMINAL_ACTION_RUN_STATES = new Set(['succeeded', 'failed', 'blocked', 'cancelled', 'interrupted']);
+const ACTION_RUN_STATES = new Set([...ACTIVE_ACTION_RUN_STATES, ...TERMINAL_ACTION_RUN_STATES]);
 const STARTERS = [
   'How many drones do we have configured?',
   'Is there any drone connected?',
@@ -131,7 +140,7 @@ function readStoredConversations() {
               safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
               blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
               progress: Array.isArray(message.progress)
-                ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-6)
+                ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-32)
                 : [],
             }))
           : [],
@@ -159,7 +168,7 @@ function writeStoredConversations(conversations) {
           safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
           blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
           progress: Array.isArray(message.progress)
-            ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-6)
+            ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-32)
             : [],
         })),
     }));
@@ -213,6 +222,12 @@ function normalizeProgressState(value = '') {
   }
   if (state === 'error' || state === 'failed' || state === 'failure') {
     return 'error';
+  }
+  if (state === 'stopped' || state === 'stop') {
+    return 'stopped';
+  }
+  if (state === 'cancelled' || state === 'canceled') {
+    return 'cancelled';
   }
   if (state === 'blocked') {
     return 'blocked';
@@ -308,10 +323,10 @@ function appendProgressStep(steps = [], payload = '') {
     .filter((step) => step.key !== normalized.key);
   const hasSpecificEvidence = existing.some(isSpecificProgressStep) || isSpecificProgressStep(normalized);
   if (isGenericProgressStep(normalized) && existing.some(isSpecificProgressStep)) {
-    return existing.slice(-10);
+    return existing.slice(-32);
   }
   const compactExisting = hasSpecificEvidence ? existing.filter((step) => !isGenericProgressStep(step)) : existing;
-  return [...compactExisting, normalized].slice(-10);
+  return [...compactExisting, normalized].slice(-32);
 }
 
 function activityStatusText(state = '') {
@@ -324,7 +339,7 @@ function activityStatusText(state = '') {
   if (state === 'warning') {
     return 'Review';
   }
-  if (state === 'error' || state === 'blocked') {
+  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled') {
     return 'Stopped';
   }
   return 'Ready';
@@ -337,10 +352,44 @@ function activityStepIcon(state = '') {
   if (state === 'warning' || state === 'timeout') {
     return <FaExclamationTriangle aria-hidden="true" />;
   }
-  if (state === 'error' || state === 'blocked') {
+  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled') {
     return <FaTimes aria-hidden="true" />;
   }
   return <FaCheckCircle aria-hidden="true" />;
+}
+
+function activityStateLabel(state = '') {
+  if (state === 'running' || state === 'requested') {
+    return 'in progress';
+  }
+  if (state === 'complete') {
+    return 'completed';
+  }
+  if (state === 'timeout') {
+    return 'timed out';
+  }
+  if (state === 'warning' || state === 'fallback') {
+    return 'needs review';
+  }
+  if (state === 'skipped') {
+    return 'skipped';
+  }
+  if (state === 'cancelled') {
+    return 'cancelled';
+  }
+  if (state === 'paused') {
+    return 'paused';
+  }
+  if (state === 'pending') {
+    return 'pending';
+  }
+  if (state === 'failed') {
+    return 'failed';
+  }
+  if (state === 'error' || state === 'blocked' || state === 'stopped') {
+    return 'stopped';
+  }
+  return 'status unavailable';
 }
 
 function finalizeProgressSteps(progress = [], finalData = {}) {
@@ -353,7 +402,21 @@ function finalizeProgressSteps(progress = [], finalData = {}) {
   const finalStep = summary
     ? { stage: 'result', state: 'complete', intent: 'assistant_answer', label: summary }
     : { stage: 'result', state: 'complete', intent: 'assistant_answer', label: 'Answer ready' };
-  return appendProgressStep(existing, finalStep).slice(-6);
+  return appendProgressStep(existing, finalStep).slice(-32);
+}
+
+function stopProgressSteps(progress = []) {
+  const existing = (Array.isArray(progress) ? progress : [])
+    .map(normalizeProgressStep)
+    .filter(Boolean)
+    .filter((step) => !isGenericProgressStep(step))
+    .map((step) => (step.state === 'running' ? { ...step, state: 'stopped' } : step));
+  return appendProgressStep(existing, {
+    stage: 'result',
+    state: 'stopped',
+    intent: 'assistant_response',
+    label: 'Simurgh response stopped',
+  }).slice(-32);
 }
 
 function titleCaseTraceLabel(value = '') {
@@ -720,7 +783,7 @@ function SettingsPanel({
     return null;
   }
   const availableModels = Array.from(new Set(
-    status?.available_models?.length ? status.available_models : [DEFAULT_MODEL, 'gpt-5.4-mini', 'gpt-5.4-nano']
+    status?.available_models?.length ? status.available_models : [DEFAULT_MODEL, 'gpt-5.6-terra', 'gpt-5.6-luna']
   ));
   const openAiCredential = status?.credentials?.openai || {};
   const keyReady = Boolean(openAiCredential.ready || status?.openai_key_file_ready);
@@ -797,19 +860,20 @@ function SettingsPanel({
       <label className="simurgh-chat__field">
         <span>Model</span>
         {settings.provider === 'openai' ? (
-          <select
-            aria-label="OpenAI model"
-            value={settings.openai_model}
-            disabled={busy}
-            onChange={(event) => onChange({ openai_model: event.target.value })}
-          >
-            {!availableModels.includes(settings.openai_model) ? (
-              <option value={settings.openai_model}>{settings.openai_model}</option>
-            ) : null}
-            {availableModels.map((model) => (
-              <option key={model} value={model}>{model}</option>
-            ))}
-          </select>
+          <>
+            <input
+              aria-label="OpenAI model"
+              list="simurgh-openai-models"
+              value={settings.openai_model}
+              disabled={busy}
+              onChange={(event) => onChange({ openai_model: event.target.value })}
+            />
+            <datalist id="simurgh-openai-models">
+              {availableModels.map((model) => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </datalist>
+          </>
         ) : (
           <input aria-label="OpenAI model" value="mock-local" disabled readOnly />
         )}
@@ -1430,7 +1494,7 @@ function MessageActivity({ progress = [], streaming = false }) {
           </button>
         ) : null}
       </div>
-      {previousSteps.length ? (
+      {previousSteps.length && !expanded ? (
         <ol className="simurgh-chat__activity-list" aria-label="Recent Simurgh activity preview">
           {previousSteps.map((step, index) => {
             const state = step.state || 'complete';
@@ -1438,6 +1502,7 @@ function MessageActivity({ progress = [], streaming = false }) {
               <li
                 key={`${step.key}-${index}`}
                 className={`simurgh-chat__activity-step simurgh-chat__activity-step--${state} simurgh-chat__activity-step--preview-${previousSteps.length - index}`}
+                aria-label={`${step.label}: ${activityStateLabel(state)}`}
               >
                 {activityStepIcon(state)}
                 <span>{step.label}</span>
@@ -1451,7 +1516,11 @@ function MessageActivity({ progress = [], streaming = false }) {
           {detailSteps.map((step, index) => {
             const state = step.state || 'complete';
             return (
-              <li key={`detail-${step.key}-${index}`} className={`simurgh-chat__activity-detail simurgh-chat__activity-detail--${state}`}>
+              <li
+                key={`detail-${step.key}-${index}`}
+                className={`simurgh-chat__activity-detail simurgh-chat__activity-detail--${state}`}
+                aria-label={`${step.label}: ${activityStateLabel(state)}`}
+              >
                 <span className="simurgh-chat__activity-detail-dot" aria-hidden="true" />
                 <span>{step.label}</span>
               </li>
@@ -1536,6 +1605,221 @@ function actionDraftRawPayload(draft = {}) {
   return draft || {};
 }
 
+function compactNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '';
+  }
+  return Number.isInteger(numeric) ? String(numeric) : String(Number(numeric.toFixed(2)));
+}
+
+function actionTargetLabel(draft = {}) {
+  const targets = Array.isArray(draft.target_drone_ids)
+    ? draft.target_drone_ids.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  if (!targets.length) {
+    return '';
+  }
+  return targets.length === 1 ? `Drone ${targets[0]}` : `Drones ${targets.join(', ')}`;
+}
+
+function actionDraftPlanSteps(draft = {}) {
+  const displaySteps = Array.isArray(draft?.display_plan?.steps) ? draft.display_plan.steps : [];
+  if (displaySteps.length) {
+    return displaySteps.map((step) => ({
+      title: String(step?.label || 'Action step'),
+      kind: String(step?.kind || 'action'),
+    }));
+  }
+
+  const primary = String(draft?.action_label || draft?.mission_name || draft?.tool_title || 'Run guarded action')
+    .replace(/_/g, ' ');
+  const steps = [{ title: primary, kind: 'action' }];
+  (Array.isArray(draft?.post_actions) ? draft.post_actions : []).forEach((item) => {
+    const seconds = compactNumber(item?.delay_seconds);
+    const title = String(item?.action_label || item?.tool_title || (seconds ? `Wait ${seconds} seconds` : 'Action step'));
+    steps.push({ title, kind: String(item?.type || 'action') });
+  });
+  return steps;
+}
+
+function getMessageActionRun(message) {
+  const run = message?.trace?.safety?.action_run;
+  return run && typeof run === 'object' && String(run.run_id || '').trim() ? run : null;
+}
+
+function getMessageActionRunId(message) {
+  return String(getMessageActionRun(message)?.run_id || '').trim();
+}
+
+function actionRunStateLabel(state) {
+  return {
+    queued: 'Queued',
+    running: 'Running',
+    pause_requested: 'Pausing',
+    paused: 'Paused',
+    cancel_requested: 'Cancelling',
+    succeeded: 'Complete',
+    failed: 'Failed',
+    blocked: 'Blocked',
+    cancelled: 'Cancelled',
+    interrupted: 'Interrupted',
+  }[String(state || '').trim()] || 'Pending';
+}
+
+function actionRunStepState(value) {
+  const state = String(value || '').trim().toLowerCase();
+  if (['complete', 'completed', 'succeeded', 'success', 'terminal_success'].includes(state)) {
+    return 'complete';
+  }
+  if (['failed', 'failure', 'error', 'terminal_non_success'].includes(state)) {
+    return 'failed';
+  }
+  if (['timeout', 'timed_out'].includes(state)) {
+    return 'timeout';
+  }
+  if (['blocked', 'rejected'].includes(state)) {
+    return 'blocked';
+  }
+  if (['cancelled', 'canceled'].includes(state)) {
+    return 'cancelled';
+  }
+  if (state === 'skipped') {
+    return 'skipped';
+  }
+  if (state === 'paused') {
+    return 'paused';
+  }
+  if (['running', 'monitoring', 'submitted', 'accepted'].includes(state)) {
+    return 'running';
+  }
+  return 'pending';
+}
+
+function actionRunStepView(run = {}, events = []) {
+  const steps = actionDraftPlanSteps(run.plan || {});
+  const states = steps.map(() => 'pending');
+  const runState = String(run.terminal ? run.state : (run.control_state || run.state || ''));
+  (Array.isArray(events) ? events : []).forEach((event) => {
+    const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
+    const index = Number(payload.step_index);
+    if (!Number.isInteger(index) || index < 1 || index > states.length) {
+      return;
+    }
+    states[index - 1] = actionRunStepState(payload.state);
+  });
+
+  const currentStep = Math.max(0, Number(run.current_step) || 0);
+  if (runState === 'succeeded') {
+    states.fill('complete');
+  } else {
+    states.forEach((state, index) => {
+      if (state === 'pending' && index + 1 < currentStep) {
+        states[index] = 'complete';
+      }
+    });
+    if (currentStep > 0 && currentStep <= states.length && states[currentStep - 1] === 'pending') {
+      states[currentStep - 1] = runState === 'paused' ? 'paused' : ACTIVE_ACTION_RUN_STATES.has(runState) ? 'running' : states[currentStep - 1];
+    }
+  }
+  if (['cancelled', 'blocked', 'interrupted'].includes(runState)) {
+    states.forEach((state, index) => {
+      if (state === 'pending' && index + 1 > currentStep) {
+        states[index] = runState === 'cancelled' ? 'cancelled' : 'skipped';
+      }
+    });
+  }
+  return steps.map((step, index) => ({ ...step, state: states[index] }));
+}
+
+function latestActionRunActivity(events = []) {
+  const candidates = (Array.isArray(events) ? events : []).filter((event) => (
+    event?.payload && typeof event.payload === 'object' && String(event.payload.label || '').trim()
+  ));
+  return candidates.length ? candidates[candidates.length - 1].payload : null;
+}
+
+function PendingActionPlan({ draft }) {
+  const steps = actionDraftPlanSteps(draft);
+  const target = String(draft?.display_plan?.target || actionTargetLabel(draft) || 'Guarded GCS operation');
+  const title = String(draft?.display_plan?.title || 'Review action');
+  return (
+    <section className="simurgh-chat__action-plan" aria-label="Action plan awaiting confirmation">
+      <header className="simurgh-chat__action-plan-header">
+        <FaShieldAlt aria-hidden="true" />
+        <div>
+          <strong>{title}</strong>
+          <span>{target}</span>
+        </div>
+      </header>
+      <ol className="simurgh-chat__action-plan-steps">
+        {steps.map((step, index) => (
+          <li key={`${draft?.draft_id || 'draft'}-${index}-${step.title}`}>
+            <span className="simurgh-chat__action-plan-index">{index + 1}</span>
+            <span>{step.title}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ActionResultSummary({ message }) {
+  const safety = message?.trace?.safety;
+  if (
+    message?.role !== 'assistant'
+    || message?.streaming
+    || safety?.action_execution !== 'submitted'
+    || String(safety?.action_run?.run_id || '').trim()
+  ) {
+    return null;
+  }
+  const monitor = safety?.action_monitor && typeof safety.action_monitor === 'object'
+    ? safety.action_monitor
+    : {};
+  const postActions = Array.isArray(safety?.post_action_results) ? safety.post_action_results : [];
+  const hasVerificationResult = (value) => value
+    && typeof value === 'object'
+    && Object.prototype.hasOwnProperty.call(value, 'verified');
+  const completionVerification = [...postActions]
+    .reverse()
+    .map((item) => item?.completion_verification)
+    .find(hasVerificationResult)
+    || (hasVerificationResult(monitor?.completion_verification)
+      ? monitor.completion_verification
+      : null);
+  const failed = monitor.success === false || postActions.some((item) => item?.is_error);
+  const timedOut = Boolean(monitor.timed_out) || postActions.some((item) => /timeout/i.test(String(item?.status || '')));
+  const unverifiedFinalState = Boolean(completionVerification && !completionVerification.verified);
+  const monitored = Object.keys(monitor).length > 0 || postActions.length > 0;
+  const title = timedOut
+    ? 'Monitoring timed out'
+    : failed
+      ? 'Sequence stopped'
+      : unverifiedFinalState
+        ? 'Final state not confirmed'
+      : monitored
+        ? 'Command sequence complete'
+        : 'Action submitted';
+  let detail = postActions.length
+    ? `${postActions.filter((item) => !item?.is_error).length + (monitor.success === true ? 1 : 0)} of ${postActions.length + 1} steps completed`
+    : monitor.success === true ? 'Command reached a successful terminal state' : 'Accepted by the GCS';
+  if (completionVerification?.verified) {
+    detail += ' · final disarm confirmed';
+  } else if (unverifiedFinalState) {
+    detail += ' · final disarm not confirmed';
+  }
+  return (
+    <div className={`simurgh-chat__action-result simurgh-chat__action-result--${failed || timedOut || unverifiedFinalState ? 'warning' : 'success'}`}>
+      {failed || timedOut || unverifiedFinalState ? <FaExclamationTriangle aria-hidden="true" /> : <FaCheckCircle aria-hidden="true" />}
+      <div>
+        <strong>{title}</strong>
+        <span>{detail}</span>
+      </div>
+    </div>
+  );
+}
+
 function PendingActionDraftRawPayload({ draft }) {
   const [open, setOpen] = useState(false);
   const rawPayload = actionDraftRawPayload(draft);
@@ -1552,14 +1836,135 @@ function PendingActionDraftRawPayload({ draft }) {
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
-        <span>Raw command JSON</span>
+        <span>Raw action JSON</span>
       </button>
       {open ? <CodeBlock content={rawJson} language="json" blockId={`draft-raw-${draft?.draft_id || 'payload'}`} /> : null}
     </div>
   );
 }
 
-function MessageBubble({ message, onSubmitPrompt, submitting = false, actionControlsEnabled = false }) {
+function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
+  const runId = String(run?.run_id || '').trim();
+  if (!runId) {
+    return null;
+  }
+  const steps = actionRunStepView(run, events);
+  const activity = latestActionRunActivity(events);
+  const state = String(run.terminal ? run.state : (run.control_state || run.state || 'queued'));
+  const active = ACTIVE_ACTION_RUN_STATES.has(state);
+  const totalSteps = Math.max(1, Number(run.total_steps) || steps.length || 1);
+  const currentStep = Math.min(totalSteps, Math.max(0, Number(run.current_step) || 0));
+  const completedSteps = state === 'succeeded'
+    ? totalSteps
+    : steps.filter((step) => step.state === 'complete').length;
+  const progressValue = state === 'succeeded'
+    ? totalSteps
+    : Math.max(completedSteps, currentStep > 0 ? currentStep - (active ? 1 : 0) : 0);
+  const title = String(run?.plan?.display_plan?.title || (steps.length > 1 ? 'Action sequence' : 'Guarded action'));
+  const target = String(run?.plan?.display_plan?.target || actionTargetLabel(run.plan || {}) || 'GCS operation');
+  const currentLabel = String(activity?.label || run.summary || actionRunStateLabel(state));
+  const busy = controlBusy === runId;
+  const canResume = state === 'paused' || state === 'pause_requested';
+  const canPause = state === 'queued' || state === 'running';
+  const tone = ['failed', 'blocked', 'interrupted'].includes(state)
+    ? 'danger'
+    : state === 'cancelled' ? 'warning' : state === 'succeeded' ? 'success' : 'active';
+
+  return (
+    <section className={`simurgh-chat__action-run simurgh-chat__action-run--${tone}`} aria-label={`Action run ${runId}`}>
+      <header className="simurgh-chat__action-run-header">
+        <div className="simurgh-chat__action-run-title">
+          {tone === 'danger' || tone === 'warning'
+            ? <FaExclamationTriangle aria-hidden="true" />
+            : <FaCheckCircle aria-hidden="true" />}
+          <div>
+            <strong>{title}</strong>
+            <span>{target}</span>
+          </div>
+        </div>
+        <span className={`simurgh-chat__action-run-state simurgh-chat__action-run-state--${state}`}>
+          {actionRunStateLabel(state)}
+        </span>
+      </header>
+      <div className="simurgh-chat__action-run-progress-row">
+        <div
+          className="simurgh-chat__action-run-progress"
+          role="progressbar"
+          aria-label={`${title} progress`}
+          aria-valuemin="0"
+          aria-valuemax={totalSteps}
+          aria-valuenow={Math.min(totalSteps, Math.max(0, progressValue))}
+        >
+          <span style={{ width: `${Math.min(100, Math.max(0, (progressValue / totalSteps) * 100))}%` }} />
+        </div>
+        <span>{Math.min(totalSteps, Math.max(0, completedSteps))}/{totalSteps}</span>
+      </div>
+      <div className="simurgh-chat__action-run-current" role={active ? 'status' : undefined} aria-live={active ? 'polite' : undefined}>
+        <span className={`simurgh-chat__action-run-pulse${active ? ' is-active' : ''}`} aria-hidden="true" />
+        <span>{currentLabel}</span>
+      </div>
+      <ol className="simurgh-chat__action-run-steps" aria-label="Action sequence progress">
+        {steps.map((step, index) => (
+          <li key={`${runId}-step-${index}`} className={`simurgh-chat__action-run-step simurgh-chat__action-run-step--${step.state}`}>
+            <span className="simurgh-chat__action-run-step-icon" aria-hidden="true">
+              {step.state === 'complete' ? <FaCheckCircle /> : index + 1}
+            </span>
+            <span>{step.title}</span>
+            <small>{activityStateLabel(step.state)}</small>
+          </li>
+        ))}
+      </ol>
+      {active ? (
+        <div className="simurgh-chat__action-run-controls" aria-label="Active action run controls">
+          {canPause ? (
+            <button
+              type="button"
+              disabled={busy}
+              title="Pause after the current dispatched step finishes"
+              onClick={() => onControl?.(runId, 'pause_after_current_step')}
+            >
+              <FaPause aria-hidden="true" />
+              <span>Pause after step</span>
+            </button>
+          ) : null}
+          {canResume ? (
+            <button
+              type="button"
+              disabled={busy}
+              title="Resume the remaining approved steps"
+              onClick={() => onControl?.(runId, 'resume')}
+            >
+              <FaPlay aria-hidden="true" />
+              <span>Resume</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="simurgh-chat__action-run-cancel"
+            disabled={busy || state === 'cancel_requested'}
+            title="Let the current dispatched step finish, then cancel the remaining steps"
+            onClick={() => onControl?.(runId, 'cancel_remaining')}
+          >
+            <FaStop aria-hidden="true" />
+            <span>Cancel remaining</span>
+          </button>
+        </div>
+      ) : null}
+      <PendingActionDraftRawPayload draft={run.plan || {}} />
+    </section>
+  );
+}
+
+function MessageBubble({
+  message,
+  onSubmitPrompt,
+  submitting = false,
+  actionControlsEnabled = false,
+  actionRun = null,
+  actionRunEvents = [],
+  onActionRunControl,
+  actionRunControlBusy = '',
+}) {
   const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
   const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
   const pendingDraft = actionControlsEnabled ? getPendingActionDraft(message) : null;
@@ -1575,6 +1980,16 @@ function MessageBubble({ message, onSubmitPrompt, submitting = false, actionCont
         </div>
         {message.role === 'assistant' ? <MessageActivity progress={message.progress || []} streaming={Boolean(message.streaming)} /> : null}
         {message.role === 'assistant' ? <MessageTrace message={message} /> : null}
+        {pendingDraft ? <PendingActionPlan draft={pendingDraft} /> : null}
+        {actionRun ? (
+          <ActionRunCard
+            run={actionRun}
+            events={actionRunEvents}
+            onControl={onActionRunControl}
+            controlBusy={actionRunControlBusy}
+          />
+        ) : null}
+        {message.role === 'assistant' ? <ActionResultSummary message={message} /> : null}
         {message.content ? <MessageContent content={message.content} /> : null}
         {pendingDraft ? (
           <>
@@ -1641,7 +2056,13 @@ export default function SimurghOperatorPage() {
   const [draft, setDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [actionRuns, setActionRuns] = useState({});
+  const [actionRunEvents, setActionRunEvents] = useState({});
+  const [actionRunControlBusy, setActionRunControlBusy] = useState('');
   const abortRef = useRef(null);
+  const actionRunStreamsRef = useRef(new Map());
+  const actionRunCursorsRef = useRef(new Map());
+  const hydratedActionRunsRef = useRef(new Set());
   const transcriptRef = useRef(null);
 
   const activeConversation = useMemo(
@@ -1730,6 +2151,178 @@ export default function SimurghOperatorPage() {
     }));
   }, [updateConversation]);
 
+  const upsertActionRun = useCallback((candidate) => {
+    const runId = String(candidate?.run_id || '').trim();
+    if (!runId) {
+      return null;
+    }
+    setActionRuns((current) => ({
+      ...current,
+      [runId]: {
+        ...(current[runId] || {}),
+        ...candidate,
+        plan: candidate?.plan || current[runId]?.plan || {},
+      },
+    }));
+    return runId;
+  }, []);
+
+  const appendActionRunEvent = useCallback((runId, event) => {
+    const eventId = Number(event?.id);
+    if (!runId || !Number.isFinite(eventId)) {
+      return;
+    }
+    actionRunCursorsRef.current.set(runId, Math.max(Number(actionRunCursorsRef.current.get(runId) || 0), eventId));
+    setActionRunEvents((current) => {
+      const existing = Array.isArray(current[runId]) ? current[runId] : [];
+      if (existing.some((item) => Number(item?.id) === eventId)) {
+        return current;
+      }
+      return {
+        ...current,
+        [runId]: [...existing, event]
+          .sort((left, right) => Number(left?.id || 0) - Number(right?.id || 0))
+          .slice(-500),
+      };
+    });
+  }, []);
+
+  const applyActionRunStreamEvent = useCallback((runId, streamEvent, data) => {
+    if (streamEvent === 'run_snapshot') {
+      upsertActionRun(data?.run);
+      return;
+    }
+    if (!data || typeof data !== 'object') {
+      return;
+    }
+    appendActionRunEvent(runId, data);
+    const payload = data.payload && typeof data.payload === 'object' ? data.payload : {};
+    const state = ACTION_RUN_STATES.has(String(payload.state || '')) ? String(payload.state) : '';
+    const stepIndex = Number(payload.step_index);
+    setActionRuns((current) => {
+      const existing = current[runId];
+      if (!existing) {
+        return current;
+      }
+      const effectiveState = (
+        state
+        && !TERMINAL_ACTION_RUN_STATES.has(state)
+        && ['pause_requested', 'cancel_requested'].includes(String(existing.control_state || ''))
+      ) ? String(existing.control_state) : state;
+      return {
+        ...current,
+        [runId]: {
+          ...existing,
+          ...(effectiveState ? { state: effectiveState, terminal: TERMINAL_ACTION_RUN_STATES.has(effectiveState) } : {}),
+          ...(Number.isInteger(stepIndex) && stepIndex > 0 ? { current_step: stepIndex } : {}),
+          ...(Number(payload.step_count) > 0 ? { total_steps: Number(payload.step_count) } : {}),
+          ...(payload.summary || payload.label ? { summary: String(payload.summary || payload.label) } : {}),
+        },
+      };
+    });
+  }, [appendActionRunEvent, upsertActionRun]);
+
+  const trackActionRun = useCallback((candidate) => {
+    const runId = typeof candidate === 'string'
+      ? String(candidate).trim()
+      : String(candidate?.run_id || '').trim();
+    const state = typeof candidate === 'object' ? String(candidate?.state || '') : '';
+    if (!runId || TERMINAL_ACTION_RUN_STATES.has(state) || actionRunStreamsRef.current.has(runId)) {
+      return;
+    }
+    const controller = new AbortController();
+    actionRunStreamsRef.current.set(runId, controller);
+    const after = Number(actionRunCursorsRef.current.get(runId) || 0);
+    streamSimurghActionRunEventsResponse(runId, { after }, {
+      signal: controller.signal,
+      onEvent: ({ event, data }) => applyActionRunStreamEvent(runId, event, data),
+    })
+      .then(async () => {
+        const response = await getSimurghActionRunResponse(runId);
+        upsertActionRun(response?.data);
+      })
+      .catch(async (error) => {
+        if (error?.name === 'AbortError' || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+          return;
+        }
+        try {
+          const response = await getSimurghActionRunResponse(runId);
+          upsertActionRun(response?.data);
+        } catch (refreshError) {
+          // Periodic active-run discovery retries transient stream and snapshot failures.
+        }
+      })
+      .finally(() => {
+        if (actionRunStreamsRef.current.get(runId) === controller) {
+          actionRunStreamsRef.current.delete(runId);
+        }
+      });
+  }, [applyActionRunStreamEvent, upsertActionRun]);
+
+  const registerActionRunFromTurn = useCallback((turn) => {
+    const run = turn?.trace?.safety?.action_run;
+    const runId = upsertActionRun(run);
+    if (runId && !run?.terminal) {
+      trackActionRun(run);
+    }
+  }, [trackActionRun, upsertActionRun]);
+
+  useEffect(() => {
+    let mounted = true;
+    const actionRunStreams = actionRunStreamsRef.current;
+    const refreshActiveRuns = async () => {
+      try {
+        const response = await getSimurghActionRunsResponse({ actor: DASHBOARD_ACTOR, activeOnly: true, limit: 20 });
+        if (!mounted) {
+          return;
+        }
+        const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
+        runs.forEach((run) => {
+          upsertActionRun(run);
+          trackActionRun(run);
+        });
+      } catch (error) {
+        // Chat remains available; the next refresh retries action-run discovery.
+      }
+    };
+    refreshActiveRuns();
+    const intervalId = window.setInterval(refreshActiveRuns, 5000);
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+      actionRunStreams.forEach((controller) => controller.abort());
+      actionRunStreams.clear();
+    };
+  }, [trackActionRun, upsertActionRun]);
+
+  const linkedActionRunIds = useMemo(() => Array.from(new Set(
+    conversations.flatMap((conversation) => (
+      (Array.isArray(conversation.messages) ? conversation.messages : [])
+        .map(getMessageActionRunId)
+        .filter(Boolean)
+    ))
+  )), [conversations]);
+
+  useEffect(() => {
+    linkedActionRunIds.forEach((runId) => {
+      if (hydratedActionRunsRef.current.has(runId)) {
+        return;
+      }
+      hydratedActionRunsRef.current.add(runId);
+      getSimurghActionRunResponse(runId)
+        .then((response) => {
+          const run = response?.data;
+          upsertActionRun(run);
+          if (run && !run.terminal) {
+            trackActionRun(run);
+          }
+        })
+        .catch(() => {
+          hydratedActionRunsRef.current.delete(runId);
+        });
+    });
+  }, [linkedActionRunIds, trackActionRun, upsertActionRun]);
+
   const handleNewChat = useCallback(() => {
     const conversation = newConversation();
     setConversations((current) => [conversation, ...current].slice(0, MAX_CONVERSATIONS));
@@ -1803,6 +2396,32 @@ export default function SimurghOperatorPage() {
     }
   }, [credentialDraft, settings]);
 
+  const handleActionRunControl = useCallback(async (runId, action) => {
+    const stableRunId = String(runId || '').trim();
+    if (!stableRunId || actionRunControlBusy) {
+      return;
+    }
+    setActionRunControlBusy(stableRunId);
+    setChatError('');
+    try {
+      const response = await controlSimurghActionRunResponse(stableRunId, {
+        actor: DASHBOARD_ACTOR,
+        action,
+        reason: 'Operator control from Simurgh dashboard',
+        control_id: `ctl-dashboard-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      });
+      const run = response?.data;
+      upsertActionRun(run);
+      if (run && !run.terminal) {
+        trackActionRun(run);
+      }
+    } catch (error) {
+      setChatError(normalizeError(error, 'Could not update the active action run.'));
+    } finally {
+      setActionRunControlBusy('');
+    }
+  }, [actionRunControlBusy, trackActionRun, upsertActionRun]);
+
   const submitMessage = useCallback(async (rawMessage) => {
     const message = String(rawMessage || '').trim();
     if (!message || submitting || !activeConversation) {
@@ -1867,6 +2486,7 @@ export default function SimurghOperatorPage() {
               }
             } else if (streamEvent === 'final') {
               finalData = data || {};
+              registerActionRunFromTurn(finalData);
               const sessionId = finalData.session?.id;
               if (sessionId) {
                 updateConversation(conversationId, (conversation) => ({
@@ -1937,13 +2557,14 @@ export default function SimurghOperatorPage() {
             : currentMessage
         )),
       }));
+      registerActionRunFromTurn(finalData);
       await loadStatus();
     } catch (error) {
       if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
         updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
           ...currentMessage,
           streaming: false,
-          progress: finalizeProgressSteps(currentMessage.progress || [], { content: currentMessage.content }),
+          progress: stopProgressSteps(currentMessage.progress || []),
           content: currentMessage.content || 'Response stopped.',
         }));
       } else {
@@ -1960,7 +2581,7 @@ export default function SimurghOperatorPage() {
       setSubmitting(false);
       abortRef.current = null;
     }
-  }, [activeConversation, loadStatus, submitting, updateConversation, updateConversationMessage]);
+  }, [activeConversation, loadStatus, registerActionRunFromTurn, submitting, updateConversation, updateConversationMessage]);
 
   const handleSubmit = useCallback((event) => {
     event.preventDefault();
@@ -1973,6 +2594,11 @@ export default function SimurghOperatorPage() {
 
   const activeMessages = activeConversation?.messages || [];
   const latestMessageId = activeMessages[activeMessages.length - 1]?.id || '';
+  const activeMessageActionRunIds = new Set(activeMessages.map(getMessageActionRunId).filter(Boolean));
+  const unlinkedActiveRuns = Object.values(actionRuns)
+    .filter((run) => ACTIVE_ACTION_RUN_STATES.has(String(run?.state || '')))
+    .filter((run) => !activeMessageActionRunIds.has(String(run?.run_id || '')))
+    .sort((left, right) => String(left?.created_at || '').localeCompare(String(right?.created_at || '')));
   const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
   const subtitle = status
     ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
@@ -2010,15 +2636,37 @@ export default function SimurghOperatorPage() {
         <section className="simurgh-chat__main" aria-label="Simurgh assistant">
           <div className="simurgh-chat__transcript" ref={transcriptRef}>
             {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
-            {activeMessages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                onSubmitPrompt={submitMessage}
-                submitting={submitting}
-                actionControlsEnabled={message.id === latestMessageId}
-              />
-            ))}
+            {activeMessages.map((message) => {
+              const embeddedRun = getMessageActionRun(message);
+              const runId = String(embeddedRun?.run_id || '');
+              return (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onSubmitPrompt={submitMessage}
+                  submitting={submitting}
+                  actionControlsEnabled={message.id === latestMessageId}
+                  actionRun={runId ? (actionRuns[runId] || embeddedRun) : null}
+                  actionRunEvents={runId ? (actionRunEvents[runId] || []) : []}
+                  onActionRunControl={handleActionRunControl}
+                  actionRunControlBusy={actionRunControlBusy}
+                />
+              );
+            })}
+            {unlinkedActiveRuns.length ? (
+              <section className="simurgh-chat__active-runs" aria-label="Active Simurgh operations">
+                <span className="simurgh-chat__active-runs-label">Active operations</span>
+                {unlinkedActiveRuns.map((run) => (
+                  <ActionRunCard
+                    key={run.run_id}
+                    run={run}
+                    events={actionRunEvents[run.run_id] || []}
+                    onControl={handleActionRunControl}
+                    controlBusy={actionRunControlBusy}
+                  />
+                ))}
+              </section>
+            ) : null}
           </div>
           {chatError ? <div className="simurgh-chat__error" role="alert">{chatError}</div> : null}
           <form className="simurgh-chat__composer" onSubmit={handleSubmit}>

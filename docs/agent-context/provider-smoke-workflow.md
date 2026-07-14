@@ -68,6 +68,16 @@ Dry run:
 python3 tools/run_simurgh_provider_smoke.py
 ```
 
+CI and release validation can also assert the canonical runtime posture before
+the smoke run:
+
+```bash
+python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl --json
+```
+
+The guard reads canonical `MDS_MODE`; it does not change the runtime mode or the
+provider workflow.
+
 Live smoke:
 
 ```bash

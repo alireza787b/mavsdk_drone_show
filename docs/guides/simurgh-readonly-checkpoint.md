@@ -1,7 +1,11 @@
-# Simurgh Read-Only Checkpoint
+# Historical Simurgh Read-Only Checkpoint
 
 Status: historical read-only checkpoint, superseded by guarded action-enabled
 Simurgh slices, updated 2026-06-18.
+
+This document is intentionally excluded from Simurgh runtime retrieval. Do not
+use it as current operator or implementation guidance; use
+`docs/guides/simurgh-operator.md` instead.
 
 This guide is the public-safe baseline for the Simurgh Operator read-only phase.
 It remains useful for MCP/API promotion rules and regression prompts, but it is

@@ -28,6 +28,7 @@ PRIVATE_CONTEXT_KEYS = {
     "last_action_draft_id",
     "last_action_draft_hash",
     "last_action_request_message",
+    "last_action_run_id",
     "last_submitted_action",
 }
 MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
@@ -36,6 +37,7 @@ SAFE_SESSION_METADATA_VALUES = {
     "source": {"simurgh-dashboard", "simurgh-ui"},
     "last_domain": {
         "capabilities",
+        "clarification",
         "docs",
         "drone_show",
         "fleet",
@@ -59,6 +61,7 @@ SAFE_SESSION_METADATA_VALUES = {
         "board_setup_help",
         "capability_catalog",
         "companion_setup_help",
+        "clarify",
         "docs_help",
         "fleet_connectivity",
         "fleet_summary",

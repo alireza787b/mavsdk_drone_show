@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,82 @@ FORBIDDEN_COMPLETION_CLAIMS = (
     "config was changed",
     "secret value",
 )
+
+
+class _DashboardPromptEvalDeps:
+    """Hermetic drone-log transport for offline dashboard prompt evals."""
+
+    def __init__(self) -> None:
+        now = time.time()
+        self.data_lock = None
+        self.telemetry_data_all_drones = {
+            "1": {
+                "telemetry_available": True,
+                "position_lat": 47.397742,
+                "position_long": 8.545594,
+                "relative_altitude_m": 0.0,
+                "global_position_valid": True,
+                "gps_fix_type": 3,
+                "satellites_visible": 10,
+                "battery_voltage": 16.2,
+                "battery_remaining_percent": 0.9,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "flight_mode_name": "HOLD",
+                "system_status_name": "STANDBY",
+                "timestamp": int(now * 1000),
+            }
+        }
+        self.last_telemetry_time = {"1": now}
+        self._heartbeats = {"1": {"timestamp": int(now * 1000), "ip": "192.0.2.10"}}
+
+    @staticmethod
+    def load_config() -> list[dict[str, object]]:
+        return [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "EVAL-1",
+                "ip": "192.0.2.10",
+                "mavlink_port": 14550,
+            }
+        ]
+
+    @staticmethod
+    def get_all_drone_positions() -> list[dict[str, object]]:
+        return [{"hw_id": 1, "pos_id": 1, "x": 0.0, "y": 0.0}]
+
+    @staticmethod
+    def load_swarm() -> list[dict[str, object]]:
+        return [{"hw_id": 1, "follow": 0, "offset_n": 0.0, "offset_e": 0.0, "offset_alt": 0.0}]
+
+    def get_all_heartbeats(self) -> dict[str, dict[str, object]]:
+        return self._heartbeats
+
+    @staticmethod
+    def fetch_drone_json_sync(
+        _drone_ip: str,
+        path: str,
+        *,
+        params: Mapping[str, object] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, object]:
+        del params, timeout
+        if path == "/api/logs/sessions":
+            return {"sessions": [{"session_id": "eval-session", "size_bytes": 1024}]}
+        if path == "/api/logs/sessions/eval-session":
+            return {"lines": [{"level": "INFO", "message": "Eval flight command completed."}]}
+        if path == "/api/v1/ulog/files":
+            return {"files": [{"log_id": 1, "size_bytes": 2048, "date_utc": "fixture"}]}
+        if path == "/api/v1/ulog/files/1/summary":
+            return {
+                "log_id": 1,
+                "duration_seconds": 12.0,
+                "local_movement_m": {"north": 5.0, "east": 0.0, "up": 0.0},
+                "battery": {"start_voltage_v": 16.2, "end_voltage_v": 15.9},
+                "command_ack_count": 3,
+            }
+        raise RuntimeError(f"unsupported dashboard eval drone-log path: {path}")
 
 
 def _string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
@@ -289,6 +366,7 @@ def run_dashboard_prompt_conversation(
     audit = InMemoryAuditSink()
     session_id: str | None = None
     results: list[DashboardPromptTurnResult] = []
+    eval_deps = _DashboardPromptEvalDeps()
     env_updates = {
         "MDS_MODE": "sitl",
         "MDS_AGENT_ENABLED": "true",
@@ -303,6 +381,7 @@ def run_dashboard_prompt_conversation(
                     actor=conversation.actor,
                     message=turn.prompt,
                     session_id=session_id,
+                    deps=eval_deps,
                 )
                 session_id = record.session.id
                 result = _evaluate_turn_record(

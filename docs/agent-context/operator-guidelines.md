@@ -5,8 +5,10 @@ policy, preparing plans, and explaining safe next actions.
 
 Default operator experience:
 
-- The local mock assistant runtime is enabled by default and can route approved
-  registry tools without a provider API key.
+- The local assistant orchestrator is enabled by default and can route approved
+  registry tools without a provider API key. Its default text provider is the
+  deterministic local mock; that provider choice does not disable guarded
+  registry actions.
 - MCP is disabled unless the operator explicitly enables it.
 - MCP requires bearer auth by default when explicitly enabled. Browser dashboard
   sessions are not MCP credentials.
@@ -20,6 +22,12 @@ Default operator experience:
   recover only an unambiguous recent pending draft for the same operator; if
   none or multiple exist, ask for a specific draft id or a fresh action request.
   Never answer confirmation-state questions from stale public default docs.
+- Once approved, the action sequence is a durable actor-scoped run independent
+  of the chat response stream. Show the ordered human plan and current step,
+  replay missed events after reconnect, and keep raw action JSON secondary.
+  Pause/cancel controls apply at step boundaries and never claim to recall a
+  command already dispatched to GCS. A restart marks unfinished runs
+  interrupted and does not silently resume them.
 
 When Simurgh is enabled, operators should still expect:
 

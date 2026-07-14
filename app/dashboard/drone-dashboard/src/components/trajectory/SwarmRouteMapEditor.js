@@ -29,6 +29,9 @@ try {
 }
 
 const DEFAULT_CENTER = { latitude: 35.6892, longitude: 51.3890, zoom: 12 };
+const ROUTE_COLOR = '#2563eb';
+const SELECTED_ROUTE_COLOR = '#f59e0b';
+const WAYPOINT_FILL_COLOR = '#ffffff';
 
 const getWaypointLat = (waypoint) => Number(waypoint.latitude ?? waypoint.lat);
 const getWaypointLng = (waypoint) => Number(waypoint.longitude ?? waypoint.lng);
@@ -106,7 +109,7 @@ const SwarmRouteMapEditor = ({
               onClick={handleLeafletClick}
             >
               {lineCoordinates.length > 1 ? (
-                <Polyline positions={lineCoordinates} pathOptions={{ color: '#2563eb', weight: 4 }} />
+                <Polyline positions={lineCoordinates} pathOptions={{ color: ROUTE_COLOR, weight: 4 }} />
               ) : null}
               {waypoints.map((waypoint, index) => {
                 const lat = getWaypointLat(waypoint);
@@ -120,8 +123,8 @@ const SwarmRouteMapEditor = ({
                     center={[lat, lng]}
                     radius={waypoint.id === selectedWaypointId ? 8 : 6}
                     pathOptions={{
-                      color: waypoint.id === selectedWaypointId ? '#f59e0b' : '#2563eb',
-                      fillColor: '#ffffff',
+                      color: waypoint.id === selectedWaypointId ? SELECTED_ROUTE_COLOR : ROUTE_COLOR,
+                      fillColor: WAYPOINT_FILL_COLOR,
                       fillOpacity: 1,
                       weight: 3,
                     }}
@@ -150,7 +153,7 @@ const SwarmRouteMapEditor = ({
                   id="swarm-leader-route-line"
                   type="line"
                   paint={{
-                    'line-color': '#2563eb',
+                    'line-color': ROUTE_COLOR,
                     'line-width': 4,
                     'line-opacity': 0.9,
                   }}

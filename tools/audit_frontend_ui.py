@@ -41,6 +41,7 @@ ALLOWED_DOMAIN_COLOR_FILES = {
     },
     "app/dashboard/drone-dashboard/src/components/trajectory/SwarmRouteMapEditor.js": {
         "#2563eb",
+        "#f59e0b",
         "#ffffff",
     },
 }

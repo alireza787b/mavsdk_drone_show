@@ -49,7 +49,7 @@ ADVISORY_FORBIDDEN_CLAIMS = (
     "tools/call succeeded",
 )
 OFFLINE_OPENAI_ENV_DEFAULTS = {
-    OPENAI_MODEL_ENV: "gpt-5.5",
+    OPENAI_MODEL_ENV: "gpt-5.6",
     OPENAI_BASE_URL_ENV: "https://api.openai.com/v1",
     OPENAI_TIMEOUT_SECONDS_ENV: "30",
     OPENAI_MAX_OUTPUT_TOKENS_ENV: "900",

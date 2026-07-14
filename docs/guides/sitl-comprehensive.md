@@ -277,6 +277,10 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - Once the dashboard is up, use `System -> SITL Control` for local Docker-backed SITL inventory, reconcile, restart, and remove operations without dropping to shell.
+- Asynchronous SITL lifecycle records publish a bounded monitor window. The GCS
+  default is `MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC=900`; Simurgh and other
+  clients follow that operation metadata instead of imposing their own shorter
+  create/reconcile timeout.
 - For headless/local automation on a live GCS host, prefer `python3 tools/sitl_control_client.py reconcile ...` over ad hoc Docker shell calls. Keep `bash multiple_sitl/create_dockers.sh ...` for cold bootstrap or when GCS is not up yet.
 - Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
 - Production serves the React build with SPA route fallback, so direct browser refresh on routes like `/logs` or `/mission-config` keeps working.

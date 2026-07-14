@@ -342,6 +342,8 @@ def _has_any(value: str, terms: tuple[str, ...]) -> bool:
 
 
 def _looks_like_general_information_query(normalized: str) -> bool:
+    if looks_like_public_upstream_reference_query(normalized):
+        return True
     if _has_any(
         normalized,
         (
@@ -377,7 +379,7 @@ def _looks_like_general_information_query(normalized: str) -> bool:
 
 
 def _looks_like_external_reference_query(normalized: str) -> bool:
-    if _looks_like_public_upstream_reference_query(normalized):
+    if looks_like_public_upstream_reference_query(normalized):
         return True
     if _has_any(
         normalized,
@@ -458,7 +460,14 @@ def _looks_like_external_reference_query(normalized: str) -> bool:
     )
 
 
-def _looks_like_public_upstream_reference_query(normalized: str) -> bool:
+def looks_like_public_upstream_reference_query(normalized: str) -> bool:
+    """Return whether a prompt asks for current public upstream information.
+
+    This check runs before generic local-state words such as "online". In
+    prompts like "verify the latest PX4 release online", online describes the
+    requested research method rather than vehicle connectivity.
+    """
+
     if not _has_any(
         normalized,
         (

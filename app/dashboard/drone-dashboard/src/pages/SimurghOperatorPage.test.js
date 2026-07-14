@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 
 const mockCreateSimurghAssistantTurnResponse = jest.fn();
 const mockStreamSimurghAssistantTurnResponse = jest.fn();
+const mockControlSimurghActionRunResponse = jest.fn();
+const mockGetSimurghActionRunResponse = jest.fn();
+const mockGetSimurghActionRunsResponse = jest.fn();
+const mockStreamSimurghActionRunEventsResponse = jest.fn();
 const mockGetSimurghRuntimeSettingsResponse = jest.fn();
 const mockGetSimurghStatusResponse = jest.fn();
 const mockGetSimurghToolsResponse = jest.fn();
@@ -14,6 +18,10 @@ const mockUpdateSimurghProviderCredentialsResponse = jest.fn();
 jest.mock('../services/gcsApiService', () => ({
   createSimurghAssistantTurnResponse: (...args) => mockCreateSimurghAssistantTurnResponse(...args),
   streamSimurghAssistantTurnResponse: (...args) => mockStreamSimurghAssistantTurnResponse(...args),
+  controlSimurghActionRunResponse: (...args) => mockControlSimurghActionRunResponse(...args),
+  getSimurghActionRunResponse: (...args) => mockGetSimurghActionRunResponse(...args),
+  getSimurghActionRunsResponse: (...args) => mockGetSimurghActionRunsResponse(...args),
+  streamSimurghActionRunEventsResponse: (...args) => mockStreamSimurghActionRunEventsResponse(...args),
   getSimurghRuntimeSettingsResponse: (...args) => mockGetSimurghRuntimeSettingsResponse(...args),
   getSimurghStatusResponse: (...args) => mockGetSimurghStatusResponse(...args),
   getSimurghToolsResponse: (...args) => mockGetSimurghToolsResponse(...args),
@@ -36,10 +44,10 @@ const runtimePayload = {
   action_policy_source: 'circuit_breaker_and_mds_mode',
   provider: 'mock',
   model: 'mock-local',
-  openai_model: 'gpt-5.5',
+  openai_model: 'gpt-5.6',
   web_search_enabled: false,
   available_providers: ['mock', 'openai'],
-  available_models: ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'],
+  available_models: ['gpt-5.6', 'gpt-5.6-terra', 'gpt-5.6-luna'],
   provider_ready: true,
   credentials: {
     openai: {
@@ -118,6 +126,46 @@ function assistantTurnData(overrides = {}) {
   };
 }
 
+function actionRunData(overrides = {}) {
+  return {
+    run_id: 'run-test-sequence',
+    actor: 'dashboard',
+    session_id: 'sess_action_run',
+    draft_id: 'act-action-run',
+    state: 'running',
+    terminal: false,
+    current_step: 1,
+    total_steps: 4,
+    summary: 'Executing the approved action plan.',
+    control_state: '',
+    plan: {
+      draft_id: 'act-action-run',
+      draft_type: 'flight_action',
+      mission_name: 'TAKE_OFF',
+      target_drone_ids: ['1'],
+      command_payload: {
+        mission_type: 10,
+        target_drone_ids: ['1'],
+        takeoff_altitude: 10,
+      },
+      display_plan: {
+        title: 'Test flight',
+        target: 'Drone 1',
+        steps: [
+          { index: 1, kind: 'flight_command', label: 'Take off to 10 m' },
+          { index: 2, kind: 'wait', label: 'Wait 5 seconds' },
+          { index: 3, kind: 'flight_command', label: 'Move 25 m north' },
+          { index: 4, kind: 'flight_command', label: 'Return to launch and land' },
+        ],
+      },
+    },
+    created_at: '2026-05-24T00:00:00Z',
+    updated_at: '2026-05-24T00:00:01Z',
+    completed_at: null,
+    ...overrides,
+  };
+}
+
 function mockStreamResponseOnce(data) {
   mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
     config.onEvent?.({ event: 'progress', data: { label: 'Understanding request' } });
@@ -146,6 +194,10 @@ describe('SimurghOperatorPage', () => {
     });
     window.localStorage.clear();
     mockGetSimurghRuntimeSettingsResponse.mockResolvedValue({ data: runtimePayload });
+    mockGetSimurghActionRunsResponse.mockResolvedValue({ data: { runs: [] } });
+    mockGetSimurghActionRunResponse.mockRejectedValue(new Error('unknown action run'));
+    mockControlSimurghActionRunResponse.mockResolvedValue({ data: {} });
+    mockStreamSimurghActionRunEventsResponse.mockResolvedValue({ data: null });
     mockGetSimurghStatusResponse.mockResolvedValue({ data: runtimePayload });
     mockGetSimurghToolsResponse.mockResolvedValue({ data: activeToolsPayload });
     mockGetSimurghToolCandidatesResponse.mockResolvedValue({ data: candidateReviewPayload });
@@ -348,7 +400,7 @@ describe('SimurghOperatorPage', () => {
         data: {
           stage: 'monitor',
           state: 'running',
-          label: 'Step 1/4: takeoff - monitoring command',
+          label: 'Step 1/4: takeoff',
           sequence_id: 'act-seq',
           step_index: 1,
           step_count: 4,
@@ -362,7 +414,7 @@ describe('SimurghOperatorPage', () => {
         data: {
           stage: 'monitor',
           state: 'running',
-          label: 'Step 2/4: wait 5 second(s) - waiting',
+          label: 'Step 2/4: wait 5 second(s)',
           sequence_id: 'act-seq',
           step_index: 2,
           step_count: 4,
@@ -375,7 +427,7 @@ describe('SimurghOperatorPage', () => {
         data: {
           stage: 'monitor',
           state: 'complete',
-          label: 'Step 2/4: wait 5 second(s) - completed',
+          label: 'Step 2/4: wait 5 second(s)',
           sequence_id: 'act-seq',
           step_index: 2,
           step_count: 4,
@@ -388,7 +440,7 @@ describe('SimurghOperatorPage', () => {
         data: {
           stage: 'monitor',
           state: 'running',
-          label: 'Step 3/4: precision move - monitoring command',
+          label: 'Step 3/4: precision move',
           sequence_id: 'act-seq',
           step_index: 3,
           step_count: 4,
@@ -402,7 +454,7 @@ describe('SimurghOperatorPage', () => {
         data: {
           stage: 'monitor',
           state: 'timeout',
-          label: 'Step 4/4: return rtl - still running',
+          label: 'Step 4/4: return rtl',
           sequence_id: 'act-seq',
           step_index: 4,
           step_count: 4,
@@ -423,11 +475,12 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'confirm action act-seq' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    expect(await screen.findByText('Step 4/4: return rtl - still running')).toBeInTheDocument();
+    expect(await screen.findByText('Step 4/4: return rtl')).toBeInTheDocument();
     expect(screen.getByText('Timed out')).toBeInTheDocument();
-    expect(screen.queryByText('Step 2/4: wait 5 second(s) - waiting')).not.toBeInTheDocument();
-    expect(screen.getByText('Step 2/4: wait 5 second(s) - completed')).toBeInTheDocument();
-    expect(screen.getByText('Step 3/4: precision move - monitoring command')).toBeInTheDocument();
+    expect(screen.getByText('Step 2/4: wait 5 second(s)')).toBeInTheDocument();
+    expect(screen.getByText('Step 3/4: precision move')).toBeInTheDocument();
+    expect(screen.getByLabelText('Step 2/4: wait 5 second(s): completed')).toBeInTheDocument();
+    expect(screen.getByLabelText('Step 3/4: precision move: in progress')).toBeInTheDocument();
     await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
     releaseStream();
 
@@ -607,12 +660,7 @@ describe('SimurghOperatorPage', () => {
   test('renders pending action controls and confirms with the streamed backend session', async () => {
     const actionDraftTurn = assistantTurnData({
       id: 'turn_action_draft',
-      content: [
-        'I prepared a guarded action draft and stopped at the human confirmation gate.',
-        '',
-        'Interpreted command pack:',
-        '1. Take off to 10 m for drone 1.',
-      ].join('\n'),
+      content: 'Review the guarded action plan below. No action was executed.',
       session: { id: 'sess_action_draft' },
       trace: {
         provider: 'mds-tools',
@@ -635,6 +683,28 @@ describe('SimurghOperatorPage', () => {
               target_drone_ids: ['1'],
               takeoff_altitude: 10,
             },
+            post_actions: [
+              { type: 'delay', action_label: 'wait 5 second(s)', delay_seconds: 5 },
+              {
+                type: 'flight_command',
+                action_label: 'precision move',
+                arguments: {
+                  mission_type: 112,
+                  precision_move: { translation_m: { north: 25, east: 0, up: 0 } },
+                },
+              },
+              { type: 'flight_command', action_label: 'return rtl', arguments: { mission_type: 104 } },
+            ],
+            display_plan: {
+              title: 'Review flight plan',
+              target: 'drone 1',
+              steps: [
+                { index: 1, kind: 'flight_command', label: 'Take off to 10 m' },
+                { index: 2, kind: 'wait', label: 'Wait 5 seconds' },
+                { index: 3, kind: 'flight_command', label: 'Move 25 m north' },
+                { index: 4, kind: 'flight_command', label: 'Return to launch and land' },
+              ],
+            },
           },
         },
       },
@@ -644,7 +714,16 @@ describe('SimurghOperatorPage', () => {
       content: 'Submitted the guarded flight command through the canonical GCS command path.',
       session: { id: 'sess_action_draft' },
       trace: {
-        safety: { blocked_intent_count: 0, action_execution: 'submitted' },
+        safety: {
+          blocked_intent_count: 0,
+          action_execution: 'submitted',
+          action_monitor: { success: true, status: 'terminal_success' },
+          post_action_results: [
+            { label: 'wait 5 second(s)', status: 'completed', is_error: false },
+            { label: 'precision move', status: 'terminal_success', is_error: false },
+            { label: 'return rtl', status: 'terminal_success', is_error: false },
+          ],
+        },
         tool: { intent: 'flight_action', ids: ['mds.flight.command.execute'] },
       },
     });
@@ -668,9 +747,13 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'Send drone 1 to takeoff to 10m' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    expect((await screen.findAllByText(/interpreted command pack/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/review flight plan/i)).length).toBeGreaterThan(0);
+    expect(screen.getByText('Take off to 10 m')).toBeInTheDocument();
+    expect(screen.getByText('Wait 5 seconds')).toBeInTheDocument();
+    expect(screen.getByText('Move 25 m north')).toBeInTheDocument();
+    expect(screen.getByText('Return to launch and land')).toBeInTheDocument();
     expect(screen.queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /raw command json/i }));
+    fireEvent.click(screen.getByRole('button', { name: /raw action json/i }));
     expect(screen.getAllByText((text) => text.includes('"mission_type": 10')).length).toBeGreaterThan(0);
 
     const controls = await screen.findByLabelText('Pending guarded action controls');
@@ -686,6 +769,254 @@ describe('SimurghOperatorPage', () => {
       session_id: 'sess_action_draft',
     });
     expect((await screen.findAllByText(/submitted the guarded flight command/i)).length).toBeGreaterThan(0);
+    expect(screen.getByText('Command sequence complete')).toBeInTheDocument();
+    expect(screen.getByText('4 of 4 steps completed')).toBeInTheDocument();
+  });
+
+  test('tracks an approved action run as a live human-readable sequence', async () => {
+    const queuedRun = actionRunData({ state: 'queued', current_step: 0, summary: 'Approved action run queued.' });
+    const completedRun = actionRunData({
+      state: 'succeeded',
+      terminal: true,
+      current_step: 4,
+      summary: 'Completed 4 of 4 planned steps.',
+      completed_at: '2026-05-24T00:01:00Z',
+    });
+    const confirmedTurn = assistantTurnData({
+      id: 'turn_action_run',
+      content: 'Action run started. I will keep this sequence updated here.',
+      session: { id: 'sess_action_run' },
+      trace: {
+        safety: {
+          action_execution: 'submitted',
+          action_run: queuedRun,
+        },
+      },
+    });
+    mockStreamResponseOnce(confirmedTurn);
+    mockGetSimurghActionRunResponse.mockResolvedValue({ data: completedRun });
+    mockStreamSimurghActionRunEventsResponse.mockImplementation(async (runId, options, config = {}) => {
+      const payloads = [
+        { id: 1, event_type: 'run_started', payload: { state: 'running', label: 'Starting approved action run' } },
+        { id: 2, event_type: 'progress', payload: { state: 'running', step_index: 1, step_count: 4, label: 'Step 1/4: Take off to 10 m' } },
+        { id: 3, event_type: 'progress', payload: { state: 'complete', step_index: 1, step_count: 4, label: 'Step 1/4: Take off to 10 m' } },
+        { id: 4, event_type: 'progress', payload: { state: 'running', step_index: 2, step_count: 4, label: 'Step 2/4: Wait 5 seconds' } },
+        { id: 5, event_type: 'progress', payload: { state: 'complete', step_index: 2, step_count: 4, label: 'Step 2/4: Wait 5 seconds' } },
+        { id: 6, event_type: 'progress', payload: { state: 'complete', step_index: 3, step_count: 4, label: 'Step 3/4: Move 25 m north' } },
+        { id: 7, event_type: 'progress', payload: { state: 'complete', step_index: 4, step_count: 4, label: 'Step 4/4: Return to launch and land' } },
+        { id: 8, event_type: 'run_succeeded', payload: { state: 'succeeded', step_count: 4, label: 'Completed 4 of 4 planned steps.' } },
+      ];
+      payloads.forEach((event) => config.onEvent?.({
+        event: event.event_type,
+        data: { ...event, run_id: runId, created_at: '2026-05-24T00:00:02Z' },
+      }));
+      config.onEvent?.({ event: 'run_snapshot', data: { run: completedRun, replay_complete: true } });
+      return { data: { run: completedRun, replay_complete: true } };
+    });
+
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'confirm action act-action-run' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    expect(within(runCard).getByText('Test flight')).toBeInTheDocument();
+    expect(within(runCard).getByText('Drone 1')).toBeInTheDocument();
+    expect(within(runCard).getByText('Take off to 10 m')).toBeInTheDocument();
+    expect(within(runCard).getByText('Wait 5 seconds')).toBeInTheDocument();
+    expect(within(runCard).getByText('Move 25 m north')).toBeInTheDocument();
+    expect(within(runCard).getByText('Return to launch and land')).toBeInTheDocument();
+    expect(await within(runCard).findByText('Complete')).toBeInTheDocument();
+    expect(within(runCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4');
+    expect(within(runCard).queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /message simurgh/i })).toBeEnabled();
+  });
+
+  test('restores a terminal action run from durable state after chat reload', async () => {
+    const embeddedRun = actionRunData({ state: 'queued', current_step: 0 });
+    const completedRun = actionRunData({
+      state: 'succeeded',
+      terminal: true,
+      current_step: 4,
+      summary: 'Completed 4 of 4 planned steps.',
+      completed_at: '2026-05-24T00:01:00Z',
+    });
+    window.localStorage.setItem('mds.simurgh.chat.v2', JSON.stringify({
+      schema: 2,
+      conversations: [{
+        id: 'chat-action-run',
+        backendSessionId: 'sess_action_run',
+        title: 'Test flight',
+        createdAt: '2026-05-24T00:00:00Z',
+        updatedAt: '2026-05-24T00:00:00Z',
+        messages: [{
+          id: 'turn-action-run',
+          role: 'assistant',
+          content: 'Action run started.',
+          trace: { safety: { action_execution: 'submitted', action_run: embeddedRun } },
+        }],
+      }],
+    }));
+    mockGetSimurghActionRunResponse.mockResolvedValue({ data: completedRun });
+
+    renderPage();
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    await waitFor(() => expect(within(runCard).getByText('Complete')).toBeInTheDocument());
+    expect(mockGetSimurghActionRunResponse).toHaveBeenCalledWith('run-test-sequence');
+    expect(within(runCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4');
+  });
+
+  test('exposes pause and cancel-remaining controls for active action runs', async () => {
+    const runningRun = actionRunData({ state: 'running', current_step: 2, summary: 'Step 2/4: Wait 5 seconds' });
+    mockGetSimurghActionRunsResponse.mockResolvedValue({ data: { runs: [runningRun] } });
+    mockStreamSimurghActionRunEventsResponse.mockImplementation(() => new Promise(() => {}));
+    mockControlSimurghActionRunResponse
+      .mockResolvedValueOnce({ data: actionRunData({ state: 'pause_requested', current_step: 2 }) })
+      .mockResolvedValueOnce({ data: actionRunData({ state: 'cancel_requested', current_step: 2 }) });
+
+    renderPage();
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    fireEvent.click(within(runCard).getByRole('button', { name: /pause after step/i }));
+    await waitFor(() => {
+      expect(mockControlSimurghActionRunResponse).toHaveBeenNthCalledWith(
+        1,
+        'run-test-sequence',
+        expect.objectContaining({ actor: 'dashboard', action: 'pause_after_current_step' }),
+      );
+    });
+    expect(await within(runCard).findByText('Pausing')).toBeInTheDocument();
+
+    fireEvent.click(within(runCard).getByRole('button', { name: /cancel remaining/i }));
+    await waitFor(() => {
+      expect(mockControlSimurghActionRunResponse).toHaveBeenNthCalledWith(
+        2,
+        'run-test-sequence',
+        expect.objectContaining({ actor: 'dashboard', action: 'cancel_remaining' }),
+      );
+    });
+    expect(await within(runCard).findByText('Cancelling')).toBeInTheDocument();
+  });
+
+  test('renders terminal action state instead of a stale control request', async () => {
+    const embeddedRun = actionRunData({ state: 'cancel_requested', control_state: 'cancel_requested', current_step: 2 });
+    const cancelledRun = actionRunData({
+      state: 'cancelled',
+      terminal: true,
+      control_state: 'cancel_requested',
+      current_step: 2,
+      summary: 'Remaining steps were cancelled.',
+    });
+    window.localStorage.setItem('mds.simurgh.chat.v2', JSON.stringify({
+      schema: 2,
+      conversations: [{
+        id: 'chat-cancelled-action-run',
+        backendSessionId: 'sess_action_run',
+        title: 'Cancelled test flight',
+        createdAt: '2026-05-24T00:00:00Z',
+        updatedAt: '2026-05-24T00:00:00Z',
+        messages: [{
+          id: 'turn-cancelled-action-run',
+          role: 'assistant',
+          content: 'Action run cancellation requested.',
+          trace: { safety: { action_execution: 'submitted', action_run: embeddedRun } },
+        }],
+      }],
+    }));
+    mockGetSimurghActionRunResponse.mockResolvedValue({ data: cancelledRun });
+
+    renderPage();
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    await waitFor(() => expect(within(runCard).getByText('Cancelled')).toBeInTheDocument());
+    expect(within(runCard).queryByText('Cancelling')).not.toBeInTheDocument();
+    expect(within(runCard).queryByRole('button', { name: /cancel remaining/i })).not.toBeInTheDocument();
+  });
+
+  test('shows an unverified primary landing result as a warning', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_unverified_land',
+      content: 'The land command completed, but final disarm was not confirmed.',
+      trace: {
+        safety: {
+          action_execution: 'submitted',
+          action_monitor: {
+            success: true,
+            status: 'terminal_success',
+            completion_verification: {
+              status: 'timeout',
+              verified: false,
+            },
+          },
+          post_action_results: [],
+        },
+      },
+    });
+    mockStreamResponseOnce(finalTurn);
+
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'land drone 1 and report when disarmed' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    expect(await screen.findByText('Final state not confirmed')).toBeInTheDocument();
+    expect(screen.getByText(/final disarm not confirmed/i)).toBeInTheDocument();
+  });
+
+  test('ignores empty completion verification metadata for ordinary commands', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_move_without_final_state_check',
+      content: 'The precision move completed.',
+      trace: {
+        safety: {
+          action_execution: 'submitted',
+          action_monitor: {
+            success: true,
+            status: 'terminal_success',
+            completion_verification: {},
+          },
+          post_action_results: [],
+        },
+      },
+    });
+    mockStreamResponseOnce(finalTurn);
+
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'move drone 1 north 5m' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    expect(await screen.findByText('Command sequence complete')).toBeInTheDocument();
+    expect(screen.queryByText('Final state not confirmed')).not.toBeInTheDocument();
+  });
+
+  test('marks aborted response activity as stopped instead of complete', async () => {
+    mockStreamSimurghAssistantTurnResponse.mockImplementationOnce((payload, config = {}) => (
+      new Promise((resolve, reject) => {
+        config.onEvent?.({
+          event: 'progress',
+          data: { stage: 'monitor', state: 'running', label: 'Monitoring command step 1 of 3' },
+        });
+        config.signal?.addEventListener('abort', () => {
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        }, { once: true });
+      })
+    ));
+
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'monitor this command sequence' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: /stop simurgh response/i }));
+    expect(await screen.findByText('Simurgh response stopped')).toBeInTheDocument();
+    const stoppedActivity = screen.getByText('Simurgh response stopped').closest('.simurgh-chat__activity');
+    expect(stoppedActivity).not.toBeNull();
+    expect(within(stoppedActivity).getByText('Stopped')).toBeInTheDocument();
+    expect(screen.queryByText('Answer ready')).not.toBeInTheDocument();
   });
 
   test('summarizes public web search turns without exposing debug noise', async () => {

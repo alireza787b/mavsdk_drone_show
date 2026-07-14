@@ -5,6 +5,7 @@ import {
   eraseAllDroneUlogs,
   getDroneUlogFiles,
   getDroneUlogPolicy,
+  getDroneUlogSummary,
 } from '../../services/logService';
 
 jest.mock('../../services/logService', () => ({
@@ -14,6 +15,7 @@ jest.mock('../../services/logService', () => ({
   getDroneUlogDownloadJob: jest.fn(),
   getDroneUlogFiles: jest.fn(),
   getDroneUlogPolicy: jest.fn(),
+  getDroneUlogSummary: jest.fn(),
 }));
 
 const OnboardUlogDialog = require('./OnboardUlogDialog').default;
@@ -88,6 +90,98 @@ describe('OnboardUlogDialog', () => {
       expect(createDroneUlogDownloadJob).toHaveBeenCalledWith(5, 7);
     });
     expect(await screen.findByText('mds-ulog_P12_H5_20260411T102233Z_L7.ulg')).toBeInTheDocument();
+  });
+
+  test('loads and renders a derived ULog flight summary', async () => {
+    getDroneUlogSummary.mockResolvedValue({
+      parsed: true,
+      duration_sec: 42.5,
+      parser: { status: 'ok' },
+      local_position: {
+        max_horizontal_distance_from_start_m: 25.2,
+        relative_altitude_range_m: { min: 0, max: 10.1 },
+      },
+      battery: { voltage_v: { min: 15.9, max: 16.2 } },
+      commands: {
+        vehicle_command: { samples: 3 },
+        vehicle_command_ack: { samples: 3 },
+      },
+    });
+
+    render(
+      <OnboardUlogDialog
+        open
+        droneId={5}
+        scopeLabel="P12|H5"
+        onClose={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /analyze/i }));
+
+    await waitFor(() => expect(getDroneUlogSummary).toHaveBeenCalledWith(5, 7));
+    expect(await screen.findByText('42.5s duration')).toBeInTheDocument();
+    expect(screen.getByText('25.2m max horizontal')).toBeInTheDocument();
+    expect(screen.getByText('3 commands / 3 acks')).toBeInTheDocument();
+  });
+
+  test('does not render unavailable ULog metrics as zero', async () => {
+    getDroneUlogSummary.mockResolvedValue({
+      parsed: true,
+      duration_sec: null,
+      parser: { status: 'ok' },
+      local_position: {
+        max_horizontal_distance_from_start_m: null,
+        relative_altitude_range_m: { min: null, max: null },
+      },
+      battery: { voltage_v: { min: null, max: null } },
+      commands: {},
+    });
+
+    render(
+      <OnboardUlogDialog open droneId={5} scopeLabel="P12|H5" onClose={jest.fn()} />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /analyze/i }));
+
+    expect(await screen.findByText('No derived flight metrics were available.')).toBeInTheDocument();
+    expect(screen.queryByText(/0\.0s duration/i)).not.toBeInTheDocument();
+  });
+
+  test('discards a slow summary when the dialog scope changes', async () => {
+    let resolveSummary;
+    getDroneUlogSummary.mockImplementation(() => new Promise((resolve) => {
+      resolveSummary = resolve;
+    }));
+    const view = render(
+      <OnboardUlogDialog open droneId={5} scopeLabel="P12|H5" onClose={jest.fn()} />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /analyze/i }));
+
+    view.rerender(
+      <OnboardUlogDialog open droneId={6} scopeLabel="P13|H6" onClose={jest.fn()} />,
+    );
+    resolveSummary({ parsed: true, duration_sec: 42.5, parser: { status: 'ok' } });
+
+    await waitFor(() => expect(getDroneUlogFiles).toHaveBeenCalledWith(6));
+    expect(screen.queryByText('42.5s duration')).not.toBeInTheDocument();
+  });
+
+  test('allows only one ULog analysis at a time', async () => {
+    getDroneUlogFiles.mockResolvedValue({
+      files: [
+        { id: 7, date_utc: '2026-04-11T10:22:33Z', size_bytes: 1536 },
+        { id: 8, date_utc: '2026-04-11T10:23:33Z', size_bytes: 2048 },
+      ],
+    });
+    getDroneUlogSummary.mockImplementation(() => new Promise(() => {}));
+    render(
+      <OnboardUlogDialog open droneId={5} scopeLabel="P12|H5" onClose={jest.fn()} />,
+    );
+
+    const analyzeButtons = await screen.findAllByRole('button', { name: /analyze/i });
+    fireEvent.click(analyzeButtons[0]);
+    await waitFor(() => expect(getDroneUlogSummary).toHaveBeenCalledTimes(1));
+    analyzeButtons.forEach((button) => expect(button).toBeDisabled());
   });
 
   test('shows erase-all control when onboard logs exist', async () => {

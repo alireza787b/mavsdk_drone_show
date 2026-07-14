@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 202
+candidate_count: 207
 candidates:
 - callable: false
   classification:
@@ -1908,7 +1908,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response List Sidecars Api V1 Fleet Sidecars Get
     type: object
   review_status: needs_review
@@ -1950,7 +1949,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Table Api V1 Fleet Sidecars  Sidecar  Get
     type: object
   review_status: needs_review
@@ -1992,7 +1990,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Baseline Api V1 Fleet Sidecars  Sidecar  Baseline Get
     type: object
   review_status: needs_review
@@ -2041,7 +2038,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Sidecar Node Api V1 Fleet Sidecars  Sidecar  Nodes  Hw Id  Get
     type: object
   review_status: needs_review
@@ -2117,7 +2113,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Get Job Api V1 Fleet Sidecars Jobs  Job Id  Get
     type: object
   review_status: needs_review
@@ -3010,6 +3005,217 @@ candidates:
     summary: Validate Trajectory
     tags:
     - Show Management
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - first-party operator action-run state route
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.simurgh.action.runs
+  parameters:
+  - description: ''
+    in: query
+    name: actor
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: Actor
+  - description: ''
+    in: query
+    name: session_id
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: Session Id
+  - description: ''
+    in: query
+    name: active_only
+    required: false
+    schema:
+      default: false
+      title: Active Only
+      type: boolean
+  - description: ''
+    in: query
+    name: limit
+    required: false
+    schema:
+      default: 20
+      maximum: 100
+      minimum: 1
+      title: Limit
+      type: integer
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: list_simurgh_action_runs_api_v1_simurgh_action_runs_get
+    path: /api/v1/simurgh/action-runs
+    summary: List Simurgh Action Runs
+    tags:
+    - Simurgh Operator
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - first-party operator action-run state route
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.simurgh.action.runs.by.run.id
+  parameters:
+  - description: ''
+    in: path
+    name: run_id
+    required: true
+    schema:
+      title: Run Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_simurgh_action_run_api_v1_simurgh_action_runs__run_id__get
+    path: /api/v1/simurgh/action-runs/{run_id}
+    summary: Get Simurgh Action Run
+    tags:
+    - Simurgh Operator
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - first-party operator action-run state route
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.simurgh.action.runs.by.run.id.events
+  parameters:
+  - description: ''
+    in: path
+    name: run_id
+    required: true
+    schema:
+      title: Run Id
+      type: string
+  - description: ''
+    in: query
+    name: after
+    required: false
+    schema:
+      default: 0
+      minimum: 0
+      title: After
+      type: integer
+  - description: ''
+    in: query
+    name: limit
+    required: false
+    schema:
+      default: 200
+      maximum: 1000
+      minimum: 1
+      title: Limit
+      type: integer
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: list_simurgh_action_run_events_api_v1_simurgh_action_runs__run_id__events_get
+    path: /api/v1/simurgh/action-runs/{run_id}/events
+    summary: List Simurgh Action Run Events
+    tags:
+    - Simurgh Operator
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - first-party operator action-run state route
+    - keyword:stream
+    - stream/download/binary artifact route
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.simurgh.action.runs.by.run.id.events.stream
+  parameters:
+  - description: ''
+    in: path
+    name: run_id
+    required: true
+    schema:
+      title: Run Id
+      type: string
+  - description: ''
+    in: query
+    name: after
+    required: false
+    schema:
+      default: 0
+      minimum: 0
+      title: After
+      type: integer
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: stream_simurgh_action_run_events_api_v1_simurgh_action_runs__run_id__events_stream_get
+    path: /api/v1/simurgh/action-runs/{run_id}/events/stream
+    summary: Stream Simurgh Action Run Events
+    tags:
+    - Simurgh Operator
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -6171,7 +6377,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Apply Policy Api V1 Fleet Sidecars  Sidecar  Policy Apply Post
     type: object
   review_status: needs_review
@@ -6214,7 +6419,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Dry Run Policy Api V1 Fleet Sidecars  Sidecar  Policy Dry Run Post
     type: object
   review_status: needs_review
@@ -6257,7 +6461,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Promote Reference Draft Api V1 Fleet Sidecars  Sidecar  Promote Draft Post
     type: object
   review_status: needs_review
@@ -6301,7 +6504,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Apply Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Apply Post
     type: object
   review_status: needs_review
@@ -6344,7 +6546,6 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    additionalProperties: true
     title: Response Dry Run Reconcile Api V1 Fleet Sidecars  Sidecar  Reconcile Dry Run Post
     type: object
   review_status: needs_review
@@ -6691,6 +6892,46 @@ candidates:
     summary: Import Show
     tags:
     - Show Management
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - first-party operator action-run state route
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.simurgh.action.runs.by.run.id.controls
+  parameters:
+  - description: ''
+    in: path
+    name: run_id
+    required: true
+    schema:
+      title: Run Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: control_simurgh_action_run_api_v1_simurgh_action_runs__run_id__controls_post
+    path: /api/v1/simurgh/action-runs/{run_id}/controls
+    summary: Control Simurgh Action Run
+    tags:
+    - Simurgh Operator
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -7842,7 +8083,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 9d4b0cac9e195c6755b258f7581996469c0a5a3d1578e63efef367d0d7bdf039
+  openapi_sha256: c432c7590ec2808a06dbe3853920daaa87706066974ed30afd390e45754970a4
   title: GCS Server API
   version: '5.5'
 summary:

@@ -362,6 +362,10 @@ def build_flight_action_draft(
             draft_id=draft_id,
         )
     )
+    if mission_name == "TAKE_OFF" and _has_unresolved_timed_quantity(
+        _flight_sequence_tail_after_takeoff(normalized)
+    ):
+        missing.append("sequence_timing")
     wait_condition = ""
     if post_actions:
         wait_condition = "command_terminal_success"
@@ -494,7 +498,12 @@ def _build_ordered_flight_sequence_post_actions(
 
     actions: list[Mapping[str, Any]] = []
     move_components: list[tuple[int, int, str, float]] = list(_iter_ned_translation_components(tail))
+    yaw_components: list[tuple[int, int, Mapping[str, Any]]] = [
+        (match.start(), match.end(), _yaw_payload_from_match(match))
+        for match in _iter_yaw_matches(tail)
+    ]
     consumed_move_indexes: set[int] = set()
+    consumed_yaw_indexes: set[int] = set()
 
     events: list[tuple[int, int, str, Any]] = []
     for match in _iter_wait_matches(tail):
@@ -508,9 +517,11 @@ def _build_ordered_flight_sequence_post_actions(
         last_rtl_end = match.end()
     for index, (start, end, _axis, _value) in enumerate(move_components):
         events.append((start, end, "move", index))
+    for index, (start, end, _yaw) in enumerate(yaw_components):
+        events.append((start, end, "yaw", index))
 
     events.sort(key=lambda item: (item[0], item[1]))
-    for start, end, event_type, value in events:
+    for event_position, (start, end, event_type, value) in enumerate(events):
         if event_type == "delay":
             seconds = float(value)
             actions.append(_delay_post_action(seconds))
@@ -518,29 +529,67 @@ def _build_ordered_flight_sequence_post_actions(
         if event_type == "rtl":
             actions.append(_flight_command_post_action(draft_id, target_drone_ids, "RETURN_RTL"))
             continue
-        if event_type != "move":
+        if event_type not in {"move", "yaw"}:
             continue
         index = int(value)
-        if index in consumed_move_indexes:
+        if event_type == "move" and index in consumed_move_indexes:
             continue
-        group = [move_components[index]]
-        consumed_move_indexes.add(index)
+        if event_type == "yaw" and index in consumed_yaw_indexes:
+            continue
+
+        move_group: list[tuple[int, int, str, float]] = []
+        yaw_group: list[Mapping[str, Any]] = []
+        previous_motion_type = event_type
+        previous_move_component: tuple[int, int, str, float] | None = None
+        if event_type == "move":
+            previous_move_component = move_components[index]
+            move_group.append(previous_move_component)
+            consumed_move_indexes.add(index)
+        else:
+            yaw_group.append(yaw_components[index][2])
+            consumed_yaw_indexes.add(index)
         group_end = end
-        for next_index in range(index + 1, len(move_components)):
-            next_start, next_end, _next_axis, _next_value = move_components[next_index]
-            if next_index in consumed_move_indexes:
+        for next_start, next_end, next_type, next_value in events[event_position + 1 :]:
+            if next_type not in {"move", "yaw"}:
+                break
+            next_index = int(next_value)
+            if next_type == "move" and next_index in consumed_move_indexes:
+                continue
+            if next_type == "yaw" and next_index in consumed_yaw_indexes:
                 continue
             between = tail[group_end:next_start]
             if _has_sequence_boundary_between_moves(between):
                 break
-            if _has_implicit_move_boundary(tail, group[-1], move_components[next_index], between):
-                break
-            if _has_non_move_event_between(events, group_end, next_start):
-                break
-            group.append(move_components[next_index])
-            consumed_move_indexes.add(next_index)
+            if next_type == "move":
+                next_move_component = move_components[next_index]
+                if (
+                    previous_motion_type == "move"
+                    and previous_move_component is not None
+                    and _has_implicit_move_boundary(
+                        tail,
+                        previous_move_component,
+                        next_move_component,
+                        between,
+                    )
+                ):
+                    break
+                move_group.append(next_move_component)
+                consumed_move_indexes.add(next_index)
+                previous_move_component = next_move_component
+            else:
+                yaw_group.append(yaw_components[next_index][2])
+                consumed_yaw_indexes.add(next_index)
+                previous_move_component = None
+            previous_motion_type = next_type
             group_end = next_end
-        precision_move = _precision_move_payload_from_components(group)
+        precision_move = _precision_move_payload_from_components(move_group)
+        if precision_move is None and yaw_group:
+            precision_move = {
+                "frame": "ned",
+                "translation_m": {"north": 0.0, "east": 0.0, "up": 0.0},
+            }
+        if precision_move is not None and yaw_group:
+            precision_move["yaw"] = dict(yaw_group[-1])
         if precision_move is not None:
             actions.append(_precision_move_post_action(draft_id, target_drone_ids, precision_move))
     return actions
@@ -613,10 +662,6 @@ def _has_implicit_move_boundary(
     return next_axis == "up" and bool(re.search(r"\b(?:climb|ascend|descend|down|up)\b", next_text))
 
 
-def _has_non_move_event_between(events: list[tuple[int, int, str, Any]], start: int, end: int) -> bool:
-    return any(event_type != "move" and event_start >= start and event_start < end for event_start, _event_end, event_type, _value in events)
-
-
 def _precision_move_payload_from_components(components: list[tuple[int, int, str, float]]) -> dict[str, Any] | None:
     if not components:
         return None
@@ -646,12 +691,13 @@ def _flight_command_post_action(
         "TAKE_OFF": "takeoff",
         "PRECISION_MOVE": "precision move",
     }.get(mission_name, mission_name.lower())
+    terminal_recovery = mission_name in {"LAND", "RETURN_RTL"}
     return {
         "type": "flight_command",
         "tool_id": ACTION_TOOL_ID,
         "tool_title": "Execute curated flight command",
         "action_label": label,
-        "condition": "after_command_terminal_success",
+        "condition": "after_command_terminal" if terminal_recovery else "after_command_terminal_success",
         "arguments": {
             "mission_type": _MISSION_TYPES[mission_name],
             "trigger_time": 0,
@@ -659,7 +705,7 @@ def _flight_command_post_action(
             "operator_label": f"simurgh:{draft_id}:{mission_name.lower()}",
         },
         "monitor_requested": True,
-        "wait_condition": "command_terminal_success",
+        "wait_condition": "command_terminal" if terminal_recovery else "command_terminal_success",
     }
 
 
@@ -961,6 +1007,24 @@ def _iter_wait_matches(normalized: str):
     )
 
 
+def _has_unresolved_timed_quantity(normalized: str) -> bool:
+    """Detect timed sequence values that the typed planner did not consume.
+
+    This is intentionally independent of the surrounding verb. Language and
+    typo interpretation belongs to the semantic provider; the local planner
+    only proves that every explicit seconds/minutes quantity became a delay.
+    """
+
+    wait_spans = tuple((match.start(), match.end()) for match in _iter_wait_matches(normalized))
+    for match in re.finditer(
+        r"\b\d+(?:\.\d+)?\s*(?:s|sec|secs|second|seconds|min|minute|minutes)\b",
+        normalized,
+    ):
+        if not any(start <= match.start() and match.end() <= end for start, end in wait_spans):
+            return True
+    return False
+
+
 def _wait_seconds_from_match(match: re.Match[str]) -> float:
     value = float(match.group("value"))
     unit = match.group("unit")
@@ -1032,9 +1096,20 @@ def _iter_ned_translation_components(normalized: str):
 
 
 def _extract_yaw_payload(normalized: str) -> dict[str, Any] | None:
-    match = re.search(r"\byaw\s+(?:to|at)?\s*(?P<value>-?\d+(?:\.\d+)?)\s*(?:deg|degree|degrees)?\b", normalized)
+    match = next(_iter_yaw_matches(normalized), None)
     if not match:
         return None
+    return _yaw_payload_from_match(match)
+
+
+def _iter_yaw_matches(normalized: str):
+    return re.finditer(
+        r"\byaw\s+(?:to|at)?\s*(?P<value>-?\d+(?:\.\d+)?)\s*(?:deg|degree|degrees)?\b",
+        normalized,
+    )
+
+
+def _yaw_payload_from_match(match: re.Match[str]) -> dict[str, Any]:
     degrees = float(match.group("value")) % 360.0
     return {"mode": "absolute_heading", "degrees": degrees}
 

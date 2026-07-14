@@ -528,10 +528,42 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--suite", type=Path, default=DEFAULT_PROVIDER_SMOKE_SUITE_PATH, help="provider smoke YAML path")
     parser.add_argument("--scenario", help="scenario id to run; defaults to all scenarios")
     parser.add_argument("--api-key-file", type=Path, help="absolute 0600 OpenAI key file for --live")
+    parser.add_argument(
+        "--expected-runtime-mode",
+        choices=("sitl", "real"),
+        help="fail before the smoke run unless canonical MDS_MODE matches",
+    )
     parser.add_argument("--live", action="store_true", help="call the configured live provider")
     parser.add_argument("--json", action="store_true", help="print JSON report")
     parser.add_argument("--show-content", action="store_true", help="include raw assistant content in output")
     args = parser.parse_args(argv)
+
+    if args.expected_runtime_mode:
+        from src.settings.runtime import resolve_runtime_mode
+
+        runtime = resolve_runtime_mode()
+        if runtime.mode != args.expected_runtime_mode:
+            message = (
+                f"provider smoke expected runtime mode {args.expected_runtime_mode!r}, "
+                f"resolved {runtime.mode!r} from {runtime.source}"
+            )
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "passed": False,
+                            "error": message,
+                            "expected_runtime_mode": args.expected_runtime_mode,
+                            "actual_runtime_mode": runtime.mode,
+                            "runtime_mode_source": runtime.source,
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print(message)
+            return 2
 
     report = run_provider_smoke_suite(
         ProviderSmokeSuite.from_file(args.suite),

@@ -79,6 +79,14 @@ export const getDroneUlogFiles = async (droneId) => {
   return resp.data;
 };
 
+/** GET /api/logs/drone/:id/ulog/files/:logId/summary — derived local ULog metrics */
+export const getDroneUlogSummary = async (droneId, logId) => {
+  const resp = await fetchGcsResource(
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/summary`),
+  );
+  return resp.data;
+};
+
 /** POST /api/logs/drone/:id/ulog/files/:logId/download — create staged download job */
 export const createDroneUlogDownloadJob = async (droneId, logId) => {
   const resp = await postGcsResource(

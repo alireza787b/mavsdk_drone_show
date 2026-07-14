@@ -66,6 +66,36 @@ def test_provider_smoke_cli_bootstraps_repo_import_path_without_pythonpath():
     assert json.loads(result.stdout)["passed"] is True
 
 
+def test_provider_smoke_cli_fails_on_runtime_mode_mismatch():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["MDS_MODE"] = "real"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/run_simurgh_provider_smoke.py",
+            "--expected-runtime-mode",
+            "sitl",
+            "--json",
+        ],
+        cwd=repo_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 2, result.stderr + result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["passed"] is False
+    assert payload["expected_runtime_mode"] == "sitl"
+    assert payload["actual_runtime_mode"] == "real"
+    assert payload["runtime_mode_source"] == "env:MDS_MODE"
+
+
 def test_provider_smoke_live_requires_absolute_restricted_key_file(monkeypatch, tmp_path):
     monkeypatch.delenv("MDS_AGENT_OPENAI_API_KEY_FILE", raising=False)
     scenario = load_default_provider_smoke_suite().scenarios[0]

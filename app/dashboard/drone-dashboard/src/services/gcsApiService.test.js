@@ -18,8 +18,13 @@ import {
   applyFleetGitSyncResponse,
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
+  controlSimurghActionRunResponse,
   createSimurghAssistantTurnResponse,
+  getSimurghActionRunEventsResponse,
+  getSimurghActionRunResponse,
+  getSimurghActionRunsResponse,
   streamSimurghAssistantTurnResponse,
+  streamSimurghActionRunEventsResponse,
   getEnvRegistryResponse,
   getFleetNodeEnvResponse,
   getGcsConfigResponse,
@@ -764,6 +769,78 @@ describe('gcsApiService', () => {
       content: 'Done',
       session: { id: 'sess_stream' },
     }));
+  });
+
+  it('uses canonical durable action-run snapshot, replay, and control routes', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+    axios.post.mockResolvedValue({ data: {} });
+
+    await getSimurghActionRunsResponse(
+      { actor: 'dashboard', sessionId: 'sess/1', activeOnly: true, limit: 7 },
+      { timeout: 800 },
+    );
+    await getSimurghActionRunResponse('run/1', { timeout: 810 });
+    await getSimurghActionRunEventsResponse('run/1', { after: 4, limit: 25 }, { timeout: 820 });
+    await controlSimurghActionRunResponse(
+      'run/1',
+      { actor: 'dashboard', action: 'cancel_remaining' },
+      { timeout: 830 },
+    );
+
+    expect(axios.get).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/v1/simurgh/action-runs',
+      authConfig({
+        timeout: 800,
+        params: { actor: 'dashboard', session_id: 'sess/1', active_only: 'true', limit: 7 },
+      }),
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/v1/simurgh/action-runs/run%2F1',
+      authConfig({ timeout: 810 }),
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      3,
+      'http://gcs.test:5030/api/v1/simurgh/action-runs/run%2F1/events',
+      authConfig({ timeout: 820, params: { after: 4, limit: 25 } }),
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/simurgh/action-runs/run%2F1/controls',
+      { actor: 'dashboard', action: 'cancel_remaining' },
+      authConfig({ timeout: 830 }),
+    );
+  });
+
+  it('streams durable action-run events with replay cursor', async () => {
+    const chunks = [
+      'id: 5\nevent: progress\ndata: {"id":5,"run_id":"run-1","event_type":"progress","payload":{"state":"running","step_index":2,"label":"Step 2/3: wait"}}\n\n',
+      'id: 6\nevent: run_snapshot\ndata: {"run":{"run_id":"run-1","state":"succeeded","terminal":true},"replay_complete":true}\n\n',
+    ];
+    const reader = {
+      read: jest.fn()
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[0]), done: false })
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[1]), done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+    const events = [];
+
+    const response = await streamSimurghActionRunEventsResponse(
+      'run-1',
+      { after: 4 },
+      { fetchImpl, signal: 'run-signal', onEvent: (event) => events.push(event) },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/simurgh/action-runs/run-1/events/stream?after=4',
+      expect.objectContaining({ method: 'GET', signal: 'run-signal', credentials: 'include' }),
+    );
+    expect(events.map((event) => event.event)).toEqual(['progress', 'run_snapshot']);
+    expect(response.data).toEqual(expect.objectContaining({ replay_complete: true }));
   });
 
   it('preserves HTTP status for Simurgh stream recovery decisions', async () => {

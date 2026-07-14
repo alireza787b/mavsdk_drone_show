@@ -64,13 +64,24 @@ This frame is an interpretation layer, not an authority layer:
   approval, circuit breaker, auth, command submission, monitoring, and audit.
 
 Authenticated provider-backed semantic normalization now plugs into this same
-frame contract for weak first-pass routes. It may improve typo, language, tone,
-paraphrase, wrong technical term, and target-memory understanding, but it only
-returns concise routing text plus metadata. It receives no telemetry, logs,
+frame contract for eligible authenticated turns, including action requests that
+the offline fallback parser recognizes only partially. It may improve typo,
+language, tone, paraphrase, wrong technical term, ordered-sequence, and
+target-memory understanding, but it only returns concise routing text plus
+metadata. Genuine ambiguity produces one short provider-derived clarification
+question instead of falling through to docs or generic assistant prose. The
+semantic layer receives no telemetry, logs,
 ULog content, IPs, coordinates, tokens, or tool results, and it never approves
 or executes an action. The local typed planner, registry schema validation,
 runtime mode, approval gate, circuit breaker, command submission, monitoring,
 and audit layers remain the authority.
+Facts already parsed by the local typed planner must remain an ordered subset of
+the provider-normalized draft. A semantic rewrite that changes a recognized
+target, mission type, altitude, wait, direction, or translation is discarded;
+the provider cannot silently turn a typed 10 m request into 100 m. When Simurgh
+asks a clarification, the next semantic turn also receives the bounded prior
+request and clarification question so the answer does not lose the mission
+being clarified.
 
 ## Dashboard Chat UX Contract
 
@@ -87,14 +98,18 @@ The `/simurgh` dashboard surface should stay chat-first and low-noise:
 - progress and streamed answer deltas stay inside the active assistant message;
 - assistant answers render compact Markdown tables, lists, code, bold text, and
   only safe clickable dashboard/doc/HTTPS links.
-- guarded action drafts show an operator-readable command pack first; raw
-  command JSON stays available from a dashboard disclosure and the sanitized
+- guarded action drafts show a backend-generated, ordered operator plan first;
+  raw action JSON stays available from a dashboard disclosure and the sanitized
   response trace, but it is not the default conversation view.
+- command and SITL progress stays in one live action item: the current sequence
+  step remains prominent, the most recent steps remain visible, and the complete
+  trace is available on demand.
 - SITL lifecycle prompts that ask to inspect a stale/current instance before a
   guarded remove/restart draft must check local SITL inventory first. Simurgh may
-  infer `instance_names` only when exactly one SITL instance is listed; zero or
-  multiple listed instances must keep the draft incomplete and ask the operator
-  to identify the target.
+  infer `instance_names` from runtime inventory only after a typed lifecycle
+  draft exists and exactly one SITL instance is listed; zero or multiple listed
+  instances must keep the draft incomplete and ask the operator to identify the
+  target. This inference does not depend on a list of user phrases or typos.
 - SITL instance list/count/status follow-ups stay on local registry tools, even
   when a text provider is configured and authenticated. Provider semantic
   rewrite and provider composition must not replace local SITL runtime evidence
@@ -146,15 +161,14 @@ Core artifacts:
 - `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`
 - `docs/agent-context/generated/simurgh-docs-index.json`
 - `docs/guides/simurgh-mcp-clients.md`
-- `docs/guides/simurgh-readonly-checkpoint.md`
 
 Do not hardcode prompt text, policy text, or tool rules in provider adapters. Add
 or change the artifact first, then update tests and docs in the same slice.
 
-Before starting action-enabled slices, review
-`docs/guides/simurgh-readonly-checkpoint.md`. It is the current public-safe
-handoff for read-only capabilities, MCP/API promotion rules, validation gates,
-and the staged action roadmap.
+`docs/guides/simurgh-readonly-checkpoint.md` is retained only as project
+history. It is deliberately excluded from the runtime context index; current
+behavior, validation, and safety rules live in this guide and the versioned
+policy/tool artifacts above.
 
 ## Advisory Evals
 
@@ -189,6 +203,10 @@ or conversational follow-up behavior changes. Add examples to
 `docs/agent-context/evals/simurgh-dashboard-prompts.yaml`; keep prompts
 sanitized and free of private coordinates, IPs, credentials, partner/site names, or
 field logs.
+
+The dashboard suite injects fixture-backed drone log/ULog transport. It must
+not contact live companion APIs merely because a SITL or field drone happens to
+be online on the validation host.
 
 ## Provider Smoke
 
@@ -246,8 +264,9 @@ approval.
 
 ## Environment Variables
 
-Default installs enable the non-executing mock assistant runtime while keeping
-MCP and real command paths off:
+Default installs enable the local assistant orchestrator with deterministic mock
+text composition. Guarded actions remain subject to the registry, confirmation,
+and circuit breaker; MCP remains off:
 
 ```text
 MDS_AGENT_ENABLED=true
@@ -347,17 +366,30 @@ configured drones" does not mean "one intended action target". If the live
 evidence has zero or multiple candidates, Simurgh asks one concise
 conversational target question and keeps the parsed mission sequence visible.
 
-Action wording is normalized through the shared operator-query adaptation layer,
-so common typos and phrases such as `take of` route the same way as `takeoff`.
-This normalization is for routing only; the submitted payload remains typed and
-validated by the GCS schema.
+With an authenticated provider configured, action wording is first normalized by
+the semantic layer across language, tone, typos, paraphrases, and technical
+wording. The offline/mock parser accepts the canonical action grammar as a
+deterministic fallback. Both paths converge on the same typed draft, registry
+schema, confirmation, circuit breaker, and GCS validation; provider text is
+never submitted as a command.
 
 Long-running action monitoring is status-based, not sleep-based. Flight commands
 poll the canonical command tracker. SITL create/reconcile/restart/remove actions
-poll the SITL operation endpoint returned by the curated registry route. A
+poll the SITL operation endpoint returned by the curated registry route. Command
+monitoring follows the tracker's mission-specific `timeout_at`; each SITL
+operation publishes its bounded monitor window in operation metadata. A
 dependent post-action such as "land, wait until disarmed, then remove the SITL
 instance" runs only after the command reaches terminal success; it is skipped on
 failure, cancellation, or timeout.
+After monitored LAND or RTL, command-tracker success is not treated as proof of
+landing. Simurgh waits for fresh target telemetry to confirm disarm, reports an
+explicit unverified final state when telemetry is unavailable, and stops the
+remaining dependent sequence if final-state verification times out.
+Every dispatched post-action is re-evaluated against the current policy and
+circuit breaker. Sequence command idempotency keys are derived from the draft id
+and ordered step number, so a transport retry cannot create a new movement
+command. Assistant turns are serialized per authenticated actor so overlapping
+confirm/retry messages cannot execute the same pending plan concurrently.
 The dashboard progress stream is sequence-aware, so repeated updates replace the
 same step row instead of duplicating it, and timeout states stay visible rather
 than collapsing into a generic success label.
@@ -368,6 +400,9 @@ RTL” drafts one monitored TAKE_OFF command followed by a bounded delay, a type
 PRECISION_MOVE command, and a final RETURN_RTL command. The final executor,
 confirmation, command tracker, and circuit breaker rules are identical in SITL
 and real runtime.
+Wait steps are validated before the primary command is dispatched. The
+deployment limit is `MDS_AGENT_SEQUENCE_MAX_WAIT_SEC` (300 seconds by default);
+requests above it are rejected visibly and are never silently shortened.
 Conditional mission wording follows the same path when the operator clearly
 asks Simurgh to act, for example “if it is ready, send it to this mission”.
 Readiness-only wording such as “should it land?” or “can it RTL safely?” remains
@@ -417,6 +452,34 @@ steps, monitor condition, and circuit-breaker posture in prose or bullets. Keep
 the typed payload available for audit/reviewer inspection, but do not make raw
 JSON the only visible explanation of what would execute.
 
+The **Stop Simurgh response** control aborts only the current answer transport.
+It does not own, hide, or cancel an approved action run. Approved work is stored
+in the durable action-run journal and continues independently of the chat HTTP
+or SSE connection. The operator page reconnects with an event cursor, replays
+missed steps, and shows the same human-readable plan from confirmation through
+terminal reporting.
+
+An active run exposes **Pause after step**, **Resume**, and **Cancel remaining**
+controls. Pause and cancellation take effect at a safe step boundary: a command
+already dispatched to GCS is not recalled mid-step, but no later undispatched
+step starts. A GCS restart never auto-resumes an orphaned run; the journal marks
+it `interrupted` for operator review. The first-party action-run endpoints are:
+
+- `GET /api/v1/simurgh/action-runs`
+- `GET /api/v1/simurgh/action-runs/{run_id}`
+- `GET /api/v1/simurgh/action-runs/{run_id}/events`
+- `GET /api/v1/simurgh/action-runs/{run_id}/events/stream`
+- `POST /api/v1/simurgh/action-runs/{run_id}/controls`
+
+These dashboard endpoints are actor-scoped and are not automatically promoted
+to the external MCP tool menu.
+
+Terminal action-run history is pruned by age and per-operator count using
+`MDS_AGENT_ACTION_RUN_MAX_AGE_DAYS` and
+`MDS_AGENT_ACTION_RUN_MAX_RECORDS`. Retention never removes active runs; on GCS
+restart, unfinished runs first transition to the terminal `interrupted` state
+and remain available for operator review under the same bounded policy.
+
 When one operator turn combines a current-state question with an action request,
 for example configured fleet/SITL counts plus "build one", Simurgh should run
 the policy-approved read-only status tools first, show that evidence, then stop
@@ -450,14 +513,18 @@ MDS_AGENT_ASSISTANT_FILE=config/agent_assistant.yaml
 MDS_AGENT_ASSISTANT_HISTORY_FILE=runtime_data/simurgh/assistant_turns.jsonl
 MDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=30
 MDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200
+MDS_AGENT_ACTION_RUN_DB=runtime_data/simurgh/action_runs.sqlite3
+MDS_AGENT_ACTION_RUN_MAX_AGE_DAYS=30
+MDS_AGENT_ACTION_RUN_MAX_RECORDS=200
 MDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json
 MDS_AGENT_OPENAI_API_KEY_FILE=
-MDS_AGENT_OPENAI_MODEL=gpt-5.5
+MDS_AGENT_OPENAI_MODEL=gpt-5.6
 MDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 MDS_AGENT_OPENAI_TIMEOUT_SEC=30
 MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900
 MDS_AGENT_OPENAI_REASONING_EFFORT=medium
 MDS_AGENT_OPENAI_TEXT_VERBOSITY=low
+MDS_AGENT_SEQUENCE_MAX_WAIT_SEC=300
 MDS_AGENT_WEB_SEARCH_ENABLED=false
 MDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium
 MDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true
@@ -718,8 +785,11 @@ model or MCP client
 ```
 
 The drone API is not exposed to MCP clients. Raw `POST /api/v1/commands` is not
-exposed to models. Future command-capable wrappers require a separate safety
-case, live readiness evidence, explicit operator approval, audit, and tests.
+exposed to models. The dashboard agent currently exposes a small set of guarded
+GCS action wrappers through the local registry, policy, approval, circuit
+breaker, and audit path. Exposing command-capable wrappers to external MCP
+clients remains future work and requires a separate safety case, least-privilege
+authorization, live readiness evidence, explicit approval, and dedicated tests.
 
 ## MCP Endpoint
 
@@ -1057,6 +1127,25 @@ It does not expose direct drone APIs, raw command submission, or executable
 flight controls.
 
 The navigation label is **Simurgh Operator** under the System section.
+
+## Beta Deployment And Rollback
+
+Deploy Simurgh beta from an immutable official commit/tag, then merge that
+public commit into a separate client overlay branch. Before restarting GCS:
+
+1. record the official tag/commit and client overlay commit;
+2. back up `/etc/mds/gcs.env` and the server-side OpenAI key file metadata
+   without copying the key into git or logs;
+3. run generated-contract checks, backend tests, dashboard tests/build, and the
+   PM SITL acceptance prompts on the deployment host;
+4. remove test SITL instances before field/real-mode handoff.
+
+Rollback by checking out the previously recorded official/client commit in a
+clean deployment checkout, restoring the prior environment backup if settings
+changed, restarting GCS/dashboard through the documented service workflow, and
+verifying runtime mode, circuit breaker, provider, fleet telemetry, and zero
+unexpected SITL instances. Do not use an unscoped `git reset --hard HEAD~1` as
+the release rollback procedure.
 
 ## Development Notes
 

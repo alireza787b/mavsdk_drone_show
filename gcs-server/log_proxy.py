@@ -25,6 +25,12 @@ from src.drone_api_routes import (
     DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE,
     DRONE_ULOG_POLICY_ROUTE,
 )
+from src.ulog_proxy_policy import (
+    DEFAULT_DRONE_ULOG_PROXY_TIMEOUT_SECONDS,
+    DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS,
+    drone_ulog_proxy_timeout_seconds,
+    drone_ulog_summary_timeout_seconds,
+)
 
 logger = get_logger("log_proxy")
 
@@ -38,7 +44,6 @@ def _drone_api_port() -> int:
 
 
 _TIMEOUT = 5.0  # seconds
-_ULOG_TIMEOUT = 30.0  # seconds
 
 
 class DroneProxyRequestError(Exception):
@@ -191,11 +196,11 @@ async def fetch_drone_session_content(
 
 
 async def fetch_drone_ulog_policy(drone_ip: str) -> dict:
-    return await _request_json("GET", drone_ip, DRONE_ULOG_POLICY_ROUTE, timeout=_ULOG_TIMEOUT)
+    return await _request_json("GET", drone_ip, DRONE_ULOG_POLICY_ROUTE, timeout=drone_ulog_proxy_timeout_seconds())
 
 
 async def fetch_drone_ulog_files(drone_ip: str) -> dict:
-    return await _request_json("GET", drone_ip, DRONE_ULOG_FILES_ROUTE, timeout=_ULOG_TIMEOUT)
+    return await _request_json("GET", drone_ip, DRONE_ULOG_FILES_ROUTE, timeout=drone_ulog_proxy_timeout_seconds())
 
 
 async def fetch_drone_ulog_summary(drone_ip: str, log_id: int) -> dict:
@@ -203,7 +208,7 @@ async def fetch_drone_ulog_summary(drone_ip: str, log_id: int) -> dict:
         "GET",
         drone_ip,
         DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE.format(log_id=int(log_id)),
-        timeout=float(os.getenv("MDS_ULOG_SUMMARY_TIMEOUT_SEC", "90")),
+        timeout=drone_ulog_summary_timeout_seconds(),
     )
 
 
@@ -221,7 +226,7 @@ async def create_drone_ulog_download_job(
         drone_ip,
         DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE.format(log_id=int(log_id)),
         json_body=payload,
-        timeout=_ULOG_TIMEOUT,
+        timeout=drone_ulog_proxy_timeout_seconds(),
     )
 
 
@@ -230,7 +235,7 @@ async def fetch_drone_ulog_download_job(drone_ip: str, job_id: str) -> dict:
         "GET",
         drone_ip,
         DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE.format(job_id=job_id),
-        timeout=_ULOG_TIMEOUT,
+        timeout=drone_ulog_proxy_timeout_seconds(),
     )
 
 
@@ -239,12 +244,17 @@ async def delete_drone_ulog_download_job(drone_ip: str, job_id: str) -> dict:
         "DELETE",
         drone_ip,
         DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE.format(job_id=job_id),
-        timeout=_ULOG_TIMEOUT,
+        timeout=drone_ulog_proxy_timeout_seconds(),
     )
 
 
 async def erase_all_drone_ulogs(drone_ip: str) -> dict:
-    return await _request_json("POST", drone_ip, DRONE_ULOG_ERASE_ALL_ROUTE, timeout=_ULOG_TIMEOUT)
+    return await _request_json(
+        "POST",
+        drone_ip,
+        DRONE_ULOG_ERASE_ALL_ROUTE,
+        timeout=drone_ulog_proxy_timeout_seconds(),
+    )
 
 
 async def open_drone_ulog_download_stream(drone_ip: str, job_id: str) -> tuple[httpx.AsyncClient, httpx.Response]:

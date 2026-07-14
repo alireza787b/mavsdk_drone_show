@@ -5,6 +5,7 @@ Release notes generator for MAVSDK Drone Show
 Generates formatted release notes from conventional commits.
 """
 
+import os
 import subprocess
 import re
 from pathlib import Path
@@ -137,11 +138,12 @@ def generate_release_notes():
     # Read current version
     version_file = PROJECT_ROOT / "VERSION"
     version = version_file.read_text().strip() if version_file.exists() else "Unknown"
+    release_tag = os.environ.get("RELEASE_TAG_OVERRIDE", f"v{version}").strip() or f"v{version}"
 
     commits = get_git_commits_since_last_tag()
 
     if not commits:
-        print(f"""# Release v{version}
+        print(f"""# Release {release_tag}
 
 ## Changes
 
@@ -156,7 +158,7 @@ No conventional commits found. See [commit history](https://github.com/alireza78
     categories = categorize_commits(commits)
 
     # Build release notes
-    notes = [f"# MAVSDK Drone Show v{version}", ""]
+    notes = [f"# MAVSDK Drone Show {release_tag}", ""]
 
     # Breaking changes (if any)
     if categories['breaking']:
@@ -229,7 +231,7 @@ No conventional commits found. See [commit history](https://github.com/alireza78
     notes.append("```bash")
     notes.append("git clone https://github.com/alireza787b/mavsdk_drone_show.git")
     notes.append("cd mavsdk_drone_show")
-    notes.append("# Follow docs/sitl_demo_docker.md for Docker setup")
+    notes.append("# Follow docs/guides/sitl-comprehensive.md for Docker/SITL setup")
     notes.append("```")
     notes.append("")
     notes.append("## 📚 Documentation")
@@ -240,7 +242,7 @@ No conventional commits found. See [commit history](https://github.com/alireza78
     notes.append("")
     notes.append("---")
     notes.append("")
-    notes.append(f"**Full Changelog**: [View all changes](https://github.com/alireza787b/mavsdk_drone_show/compare/v{version}...v{version})")
+    notes.append(f"**Release tag**: `{release_tag}`")
     notes.append("")
     notes.append("🤖 *Auto-generated release notes*")
 

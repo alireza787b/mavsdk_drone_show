@@ -222,7 +222,7 @@ ULog bytes, raw topic arrays, raw logged-message text, browser download content,
 erase logs, expose unrestricted drone-local APIs to MCP clients, or treat
 backend API warnings as flight-log evidence.
 
-Operators and future dashboard dialogs may also use `POST /api/logs/ulog/summary`
+Operators and integrations may also use `POST /api/logs/ulog/summary`
 with one uploaded `.ulg` file. The GCS stores the upload only as a temporary
 file during parsing, applies `MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES`, returns the
 same derived summary contract, and deletes the temporary file before responding.
@@ -344,10 +344,13 @@ When a single drone scope is selected, the toolbar exposes a compact `ULog`
 action that opens the `Onboard ULog` dialog for file-backed PX4 flight logs
 stored on that vehicle.
 
-Current v1 behavior:
+Current behavior:
 - maintenance workflow anchored to `hw_id`, while the UI still shows compact
   `Pn|Hm` identity for operator clarity
-- supports `list`, staged `download`, and `erase all`
+- supports `list`, on-demand derived analysis, staged `download`, and `erase all`
+- the **Analyze** control calls the GCS summary endpoint and shows bounded flight
+  duration, local movement/altitude envelope, battery range, and command/ack
+  evidence inline; raw ULog content is never rendered
 - stages downloads briefly on the drone/GCS path and then hands them off to
   the browser; v1 does not keep a long-lived GCS archive
 - designed for file-backed PX4 ULogs only; MAVLink log streaming is a separate
@@ -363,6 +366,15 @@ Operational notes:
   the background worker before downloading; this keeps asynchronous browser
   jobs aligned with MAVSDK's `get_entries` then `download_log_file` flow and
   avoids stale reconstructed entries being rejected by PX4/MAVSDK
+- Simurgh and the Logs API share the same 30-second ULog inventory/maintenance
+  proxy timeout; ULog parsing uses the separately bounded
+  `MDS_ULOG_SUMMARY_TIMEOUT_SEC` setting
+- Simurgh scopes drone-log/ULog review to an explicit target, the most recent
+  command targets, or fresh heartbeat/telemetry presence before using the
+  configured fallback scan. `MDS_SIMURGH_DRONE_LOG_MAX_DRONES` bounds that
+  fallback and `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES` bounds expensive parsing
+- blocking drone log and ULog proxy work runs outside the async assistant event
+  loop, so one slow onboard log cannot freeze unrelated chat/status requests
 - download filenames are normalized to include slot when known, hardware id,
   PX4 log timestamp when available, and the PX4/MDS log identifier, for example
   `mds-ulog_P12_H5_20260411T102233Z_L7.ulg`

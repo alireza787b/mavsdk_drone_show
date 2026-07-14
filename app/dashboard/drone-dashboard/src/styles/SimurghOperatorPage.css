@@ -158,7 +158,7 @@
   position: absolute;
   top: 0.35rem;
   right: 0.35rem;
-  z-index: 2;
+  z-index: var(--z-local-raised);
   width: 1.9rem;
   height: 1.9rem;
   display: inline-flex;
@@ -191,13 +191,13 @@
   position: absolute;
   top: 2.45rem;
   right: 0.25rem;
-  z-index: 20;
+  z-index: var(--z-popover);
   min-width: 9rem;
   padding: 0.25rem;
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   background: var(--color-bg-secondary);
-  box-shadow: 0 18px 40px rgba(3, 9, 18, 0.22), 0 0 0 1px var(--color-border-secondary);
+  box-shadow: var(--shadow-base), 0 0 0 1px var(--color-border-secondary);
   isolation: isolate;
   opacity: 1;
   overflow: hidden;
@@ -266,7 +266,7 @@
   width: 1.25rem;
   height: 1.25rem;
   object-fit: contain;
-  filter: drop-shadow(0 1px 2px rgba(3, 9, 18, 0.24));
+  filter: drop-shadow(0 1px 2px var(--color-overlay));
 }
 
 .simurgh-chat__mark--shell {
@@ -444,6 +444,411 @@
   box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
+.simurgh-chat__action-plan {
+  width: min(100%, 42rem);
+  margin-top: var(--spacing-xs);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-secondary);
+  overflow: hidden;
+}
+
+.simurgh-chat__action-plan-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.simurgh-chat__action-plan-header > svg {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+}
+
+.simurgh-chat__action-plan-header > div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.simurgh-chat__action-plan-header strong,
+.simurgh-chat__action-result strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.simurgh-chat__action-plan-header span,
+.simurgh-chat__action-result span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.simurgh-chat__action-plan-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: var(--spacing-xs) 0;
+  list-style: none;
+}
+
+.simurgh-chat__action-plan-steps li {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-height: 2rem;
+  padding: 0 var(--spacing-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.simurgh-chat__action-plan-index {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.simurgh-chat__action-result {
+  width: min(100%, 42rem);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-left: 3px solid var(--color-success);
+  background: var(--color-surface-secondary);
+}
+
+.simurgh-chat__action-result > svg {
+  flex: 0 0 auto;
+  color: var(--color-success);
+}
+
+.simurgh-chat__action-result > div {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.simurgh-chat__action-result--warning {
+  border-left-color: var(--color-warning);
+}
+
+.simurgh-chat__action-result--warning > svg {
+  color: var(--color-warning);
+}
+
+.simurgh-chat__action-run {
+  width: min(100%, 42rem);
+  display: grid;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-sm) 0;
+  border-top: 1px solid var(--color-border-secondary);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.simurgh-chat__action-run--active {
+  border-top-color: var(--color-primary-border);
+}
+
+.simurgh-chat__action-run--success {
+  border-top-color: var(--color-success-border);
+}
+
+.simurgh-chat__action-run--warning {
+  border-top-color: var(--color-warning-border);
+}
+
+.simurgh-chat__action-run--danger {
+  border-top-color: var(--color-danger-border);
+}
+
+.simurgh-chat__action-run-header,
+.simurgh-chat__action-run-title,
+.simurgh-chat__action-run-progress-row,
+.simurgh-chat__action-run-current,
+.simurgh-chat__action-run-controls {
+  display: flex;
+  align-items: center;
+}
+
+.simurgh-chat__action-run-header {
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.simurgh-chat__action-run-title {
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.simurgh-chat__action-run-title > svg {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+}
+
+.simurgh-chat__action-run--success .simurgh-chat__action-run-title > svg {
+  color: var(--color-success);
+}
+
+.simurgh-chat__action-run--warning .simurgh-chat__action-run-title > svg {
+  color: var(--color-warning);
+}
+
+.simurgh-chat__action-run--danger .simurgh-chat__action-run-title > svg {
+  color: var(--color-danger);
+}
+
+.simurgh-chat__action-run-title > div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.simurgh-chat__action-run-title strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.simurgh-chat__action-run-title span,
+.simurgh-chat__action-run-current,
+.simurgh-chat__action-run-progress-row > span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.simurgh-chat__action-run-state {
+  flex: 0 0 auto;
+  min-height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--spacing-xs);
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.simurgh-chat__action-run-state--succeeded {
+  border-color: var(--color-success-border);
+  background: var(--color-success-light);
+  color: var(--color-success-text);
+}
+
+.simurgh-chat__action-run-state--failed,
+.simurgh-chat__action-run-state--blocked,
+.simurgh-chat__action-run-state--interrupted {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
+}
+
+.simurgh-chat__action-run-state--cancelled,
+.simurgh-chat__action-run-state--cancel_requested,
+.simurgh-chat__action-run-state--pause_requested,
+.simurgh-chat__action-run-state--paused {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+}
+
+.simurgh-chat__action-run-progress-row {
+  gap: var(--spacing-xs);
+}
+
+.simurgh-chat__action-run-progress {
+  position: relative;
+  min-width: 0;
+  height: 0.28rem;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-bg-tertiary);
+}
+
+.simurgh-chat__action-run-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width var(--transition-normal);
+}
+
+.simurgh-chat__action-run--success .simurgh-chat__action-run-progress > span {
+  background: var(--color-success);
+}
+
+.simurgh-chat__action-run--warning .simurgh-chat__action-run-progress > span {
+  background: var(--color-warning);
+}
+
+.simurgh-chat__action-run--danger .simurgh-chat__action-run-progress > span {
+  background: var(--color-danger);
+}
+
+.simurgh-chat__action-run-current {
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.simurgh-chat__action-run-current > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.simurgh-chat__action-run-pulse {
+  width: 0.48rem;
+  height: 0.48rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+
+.simurgh-chat__action-run-pulse.is-active {
+  background: var(--color-primary);
+  box-shadow: 0 0 0 0 var(--color-primary-border);
+  animation: simurgh-action-pulse 1.6s ease-out infinite;
+}
+
+@keyframes simurgh-action-pulse {
+  0% { box-shadow: 0 0 0 0 var(--color-primary-border); }
+  65% { box-shadow: 0 0 0 0.34rem transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.simurgh-chat__action-run-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simurgh-chat__action-run-step {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-height: 2rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.simurgh-chat__action-run-step > span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.simurgh-chat__action-run-step small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.simurgh-chat__action-run-step-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 50%;
+  color: var(--color-text-tertiary);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.simurgh-chat__action-run-step-icon svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.simurgh-chat__action-run-step--running .simurgh-chat__action-run-step-icon,
+.simurgh-chat__action-run-step--paused .simurgh-chat__action-run-step-icon {
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+}
+
+.simurgh-chat__action-run-step--complete .simurgh-chat__action-run-step-icon {
+  border-color: var(--color-success-border);
+  color: var(--color-success);
+}
+
+.simurgh-chat__action-run-step--failed .simurgh-chat__action-run-step-icon,
+.simurgh-chat__action-run-step--blocked .simurgh-chat__action-run-step-icon,
+.simurgh-chat__action-run-step--timeout .simurgh-chat__action-run-step-icon {
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
+}
+
+.simurgh-chat__action-run-step--cancelled,
+.simurgh-chat__action-run-step--skipped {
+  opacity: 0.62;
+}
+
+.simurgh-chat__action-run-controls {
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.simurgh-chat__action-run-controls button {
+  min-height: var(--button-height-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.simurgh-chat__action-run-controls button:hover,
+.simurgh-chat__action-run-controls button:focus-visible {
+  border-color: var(--color-primary-border);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.simurgh-chat__action-run-controls .simurgh-chat__action-run-cancel {
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.simurgh-chat__action-run-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.simurgh-chat__active-runs {
+  width: min(100%, 42rem);
+  align-self: center;
+  display: grid;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-sm) 0;
+}
+
+.simurgh-chat__active-runs-label {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+}
+
 .simurgh-chat__action-draft-raw {
   width: min(100%, 42rem);
   margin-top: var(--spacing-xs);
@@ -521,7 +926,7 @@
 
 .simurgh-chat__action-draft-button--confirm {
   border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border-primary));
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .simurgh-chat__action-draft-button:disabled {
@@ -555,6 +960,13 @@
   color: var(--color-warning);
 }
 
+.simurgh-chat__activity-current--error .simurgh-chat__thinking,
+.simurgh-chat__activity-current--blocked .simurgh-chat__thinking,
+.simurgh-chat__activity-current--stopped .simurgh-chat__thinking,
+.simurgh-chat__activity-current--cancelled .simurgh-chat__thinking {
+  color: var(--color-danger);
+}
+
 .simurgh-chat__thinking {
   display: inline-flex;
   align-items: center;
@@ -576,7 +988,9 @@
 .simurgh-chat__activity-current--warning .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--timeout .simurgh-chat__thinking::after,
 .simurgh-chat__activity-current--error .simurgh-chat__thinking::after,
-.simurgh-chat__activity-current--blocked .simurgh-chat__thinking::after {
+.simurgh-chat__activity-current--blocked .simurgh-chat__thinking::after,
+.simurgh-chat__activity-current--stopped .simurgh-chat__thinking::after,
+.simurgh-chat__activity-current--cancelled .simurgh-chat__thinking::after {
   content: '';
   animation: none;
 }
@@ -602,15 +1016,15 @@
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .simurgh-chat__activity-step--preview-2 {
-  opacity: 0.55;
+  font-size: 0.96em;
 }
 
 .simurgh-chat__activity-step--preview-1 {
-  opacity: 0.38;
+  font-size: 0.92em;
 }
 
 .simurgh-chat__activity-step svg {
@@ -632,7 +1046,9 @@
 }
 
 .simurgh-chat__activity-step--error svg,
-.simurgh-chat__activity-step--blocked svg {
+.simurgh-chat__activity-step--blocked svg,
+.simurgh-chat__activity-step--stopped svg,
+.simurgh-chat__activity-step--cancelled svg {
   color: var(--color-danger);
 }
 
@@ -1085,7 +1501,7 @@
   border: var(--operator-card-border);
   border-radius: var(--border-radius-base);
   background: var(--color-surface-primary);
-  box-shadow: 0 24px 60px rgba(3, 9, 18, 0.24), 0 0 0 1px var(--color-border-secondary);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-border-secondary);
 }
 
 .simurgh-chat__settings header,
@@ -1308,6 +1724,18 @@
     min-width: 30rem;
   }
 
+  .simurgh-chat__action-run-header {
+    align-items: flex-start;
+  }
+
+  .simurgh-chat__action-run-step {
+    grid-template-columns: 1.45rem minmax(0, 1fr);
+  }
+
+  .simurgh-chat__action-run-step small {
+    grid-column: 2;
+  }
+
   .simurgh-chat__composer {
     grid-template-columns: 1fr;
     margin-inline: 0;
@@ -1327,5 +1755,11 @@
 
   .simurgh-chat__candidate-review dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simurgh-chat__action-run-pulse.is-active {
+    animation: none;
   }
 }
