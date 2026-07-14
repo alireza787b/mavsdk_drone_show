@@ -38,6 +38,7 @@ jobs:
       - name: Run Simurgh and validation safety tests
         run: |
           pytest \
+            tests/test_agent_action_intent.py \
             tests/test_agent_assistant_evals.py \
             tests/test_agent_assistant_runtime.py \
             tests/test_agent_action_planner.py \
@@ -57,6 +58,7 @@ jobs:
             tests/test_run_sitl_validation_suite.py \
             tests/test_runtime_validation_support.py \
             tests/test_simurgh_dashboard_prompt_evals.py \
+            tests/test_simurgh_action_runs.py \
             tests/test_simurgh_mcp_smoke_client.py \
             tests/test_simurgh_retrieval_quality.py \
             tests/test_simurgh_tool_candidate_generator.py \
