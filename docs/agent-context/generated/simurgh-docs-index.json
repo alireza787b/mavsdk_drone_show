@@ -350,7 +350,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "fddbf9d84f7665a16fdba8c9fc90c9888439345c94802d7b3a8cf7f2fed314a6",
+      "content_hash": "8b6ef75f6bb0493d530020efc9cfdfda326b2bed33d962f9c39cafb8f9fa1714",
       "heading": "Semantic Understanding Boundary",
       "id": "simurgh.operator_guide:002-02-semantic-understanding-boundary",
       "links": [],
@@ -364,7 +364,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Authenticated provider-backed semantic normalization now plugs into this same\nframe contract for eligible authenticated turns, including action requests that\nthe offline fallback parser recognizes only partially. It may improve typo,\nlanguage, tone, paraphrase, wrong technical term, ordered-sequence, and\ntarget-memory understanding, but it only returns concise routing text plus\nmetadata. Genuine ambiguity produces one short provider-derived clarification\nquestion instead of falling through to docs or generic assistant prose. The\nsemantic layer receives no telemetry, logs,\nULog content, IPs, coordinates, tokens, or tool results, and it never approves\nor executes an action. The local typed planner, registry schema validation,\nruntime mode, approval gate, circuit breaker, command submission, monitoring,\nand audit layers remain the authority.\nFacts already parsed by the local typed planner must remain an ordered subset of\nthe provider-normalized draft. A semantic rewrite that changes a recognized\ntarget, mission type, altitude, wait, direction, or translation is discarded;\nthe provider cannot silently turn a typed 10 m request into 100 m. When Simurgh\nasks a clarification, the next semantic turn also receives the bounded prior\nrequest and clarification question so the answer does not lose the mission\nbeing clarified.",
+      "text": "Authenticated provider-backed semantic normalization now plugs into this same\nframe contract for eligible authenticated turns, including action requests that\nthe offline fallback parser recognizes only partially. It may improve typo,\nlanguage, tone, paraphrase, wrong technical term, ordered-sequence, and\ntarget-memory understanding, but it only returns concise routing text plus\nmetadata. Genuine ambiguity produces one short provider-derived clarification\nquestion instead of falling through to docs or generic assistant prose. The\nsemantic layer receives no telemetry, logs,\nULog content, IPs, coordinates, tokens, or tool results, and it never approves\nor executes an action. The local typed planner, registry schema validation,\nruntime mode, approval gate, circuit breaker, command submission, monitoring,\nand audit layers remain the authority.\nFacts already parsed by the local typed planner must remain an ordered subset of\nthe provider-normalized draft. A semantic rewrite that changes a recognized\ntarget, mission type, altitude, wait, direction, or translation is discarded;\nthe provider cannot silently turn a typed 10 m request into 100 m. When Simurgh\nasks a clarification, the next semantic turn also receives the bounded prior\nrequest and clarification question so the answer does not lose the mission\nbeing clarified.\n\nProvider normalization is a best-effort interpretation aid, not an availability\ndependency. Invalid provider output, timeouts, and provider HTTP failures must\nnot discard a typed draft already built by the local planner. A complete local\ndraft continues to the normal confirmation gate; an incomplete local draft\ncontinues to the normal conversational missing-detail gate. Simurgh asks a\ngeneric interpretation clarification only when neither layer produced a typed\ndraft, and provider failure details remain in trace/audit metadata rather than\noperator-facing prose.",
       "title": "Simurgh operator guide"
     },
     {
@@ -16483,7 +16483,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 45,
-      "content_hash": "3b73ec2e283682d9256f5049145092a15160fce653b4cb39f5742cb2791de186",
+      "content_hash": "26032a45482d2eddda791e5ace2d16b0205516dd7b7b0cbcc91c4ac79d174b7d",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

@@ -6071,7 +6071,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     )
                 except AgentRuntimeError as exc:
                     semantic_rewrite_error = str(exc)[:180]
-                    semantic_action_interpretation_failed = turn_intent.is_action_route
+                    # Provider normalization is advisory. Keep any typed local
+                    # draft, including an incomplete one that can ask for its
+                    # missing fields through the normal guarded-action path.
+                    semantic_action_interpretation_failed = (
+                        turn_intent.is_action_route
+                        and turn_intent.action.draft is None
+                    )
                 if semantic_rewrite is not None:
                     rewritten_intent = build_turn_intent_frame(
                         turn_request.message,

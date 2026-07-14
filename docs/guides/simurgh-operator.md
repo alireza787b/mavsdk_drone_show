@@ -83,6 +83,15 @@ asks a clarification, the next semantic turn also receives the bounded prior
 request and clarification question so the answer does not lose the mission
 being clarified.
 
+Provider normalization is a best-effort interpretation aid, not an availability
+dependency. Invalid provider output, timeouts, and provider HTTP failures must
+not discard a typed draft already built by the local planner. A complete local
+draft continues to the normal confirmation gate; an incomplete local draft
+continues to the normal conversational missing-detail gate. Simurgh asks a
+generic interpretation clarification only when neither layer produced a typed
+draft, and provider failure details remain in trace/audit metadata rather than
+operator-facing prose.
+
 ## Dashboard Chat UX Contract
 
 The `/simurgh` dashboard surface should stay chat-first and low-noise:

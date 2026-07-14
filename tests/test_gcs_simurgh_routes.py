@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 import pytest
 
+from agent_runtime import AgentRuntimeError
 from agent_runtime.action_planner import FlightActionDraft
 from agent_runtime.action_intent import ProviderActionPlan, ProviderActionStep
 from agent_runtime.action_runs import ActionRunStore
@@ -1970,6 +1971,126 @@ def test_simurgh_direct_single_sitl_create_request_returns_guarded_action_draft(
         "git_sync_enabled": True,
         "requirements_sync_enabled": True,
     }
+
+
+@pytest.mark.parametrize(
+    "provider_error",
+    (
+        "OpenAI semantic rewrite did not return valid JSON",
+        "OpenAI assistant request failed with HTTP 500",
+    ),
+)
+def test_simurgh_provider_failure_preserves_ready_local_flight_draft(monkeypatch, provider_error):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    def fail_semantic_rewrite(**_kwargs):
+        raise AgentRuntimeError(provider_error)
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_semantic_rewrite,
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": (
+                "takeoff drone 1 to 10m, wait 5s, move 10m east at the same altitude, "
+                "then RTL and report"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Review the guarded action plan" in payload["content"]
+    assert "could not safely interpret" not in payload["content"]
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == provider_error
+    draft = payload["trace"]["safety"]["action_draft"]
+    assert draft["command_payload"]["takeoff_altitude"] == 10.0
+    assert [item["type"] for item in draft["post_actions"]] == [
+        "delay",
+        "flight_command",
+        "flight_command",
+    ]
+    assert draft["post_actions"][0]["delay_seconds"] == 5.0
+    assert draft["post_actions"][1]["arguments"]["precision_move"]["translation_m"] == {
+        "north": 0.0,
+        "east": 10.0,
+        "up": 0.0,
+    }
+    assert draft["post_actions"][2]["arguments"]["mission_type"] == 104
+
+
+def test_simurgh_provider_failure_preserves_ready_local_sitl_draft(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+
+    def fail_semantic_rewrite(**_kwargs):
+        raise AgentRuntimeError("semantic provider unavailable")
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_semantic_rewrite,
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "create one SITL instance and report when ready"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Review the guarded action plan" in payload["content"]
+    assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == (
+        "semantic provider unavailable"
+    )
+    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
+        "git_sync_enabled": True,
+        "requirements_sync_enabled": True,
+    }
+
+
+def test_simurgh_provider_failure_keeps_incomplete_local_action_at_detail_gate(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
+
+    def fail_semantic_rewrite(**_kwargs):
+        raise AgentRuntimeError("semantic provider unavailable")
+
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_semantic_rewrite,
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "takeoff to 10m"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Which drone should I use?" in payload["content"]
+    assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == (
+        "semantic provider unavailable"
+    )
+    assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+    assert payload["trace"]["safety"]["action_draft"]["missing_arguments"] == [
+        "target_drone_ids"
+    ]
 
 
 def test_simurgh_provider_semantic_rewrite_routes_typo_heavy_sitl_create(monkeypatch):

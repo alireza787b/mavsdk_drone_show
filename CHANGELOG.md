@@ -9,7 +9,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.111-simurgh-operator-beta] - 2026-07-14
+
+### Fixed
+- Simurgh now treats provider semantic normalization as best-effort: invalid
+  JSON, timeouts, or provider HTTP failures cannot discard an already-built
+  typed flight or SITL draft, while incomplete drafts still stop at the normal
+  conversational missing-detail gate.
+
 ## [5.5.110-simurgh-operator-beta] - 2026-07-14
+
+> Superseded by `v5.5.111-simurgh-operator-beta` after live acceptance exposed
+> a provider-failure fallback that could discard an otherwise complete local
+> action draft. This tag remains immutable for release provenance.
 
 ### Added
 - Simurgh chat UI branding, stable pending-progress state, markdown rendering
