@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 
 
@@ -27,4 +28,7 @@ def drone_ulog_summary_timeout_seconds() -> float:
         )
     except (TypeError, ValueError):
         return DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS
-    return value if value > 0 else DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS
+    # Non-finite or non-positive overrides must not yield unbounded client waits.
+    if not math.isfinite(value) or value <= 0:
+        return DEFAULT_DRONE_ULOG_SUMMARY_TIMEOUT_SECONDS
+    return value
