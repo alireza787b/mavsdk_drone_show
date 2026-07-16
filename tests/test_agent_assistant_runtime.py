@@ -1768,14 +1768,33 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
                 "parsed": True,
                 "duration_sec": 42.5,
                 "parser": {"status": "ok"},
+                "dropouts": {"count": 2, "total_duration_sec": 0.25, "max_duration_ms": 150.0},
+                "logged_messages": {
+                    "count": 3,
+                    "levels": {"3": 1, "4": 2},
+                    "raw_text_included": False,
+                    "messages": ["private raw message must never render"],
+                },
+                "system": {"sys_name": "PX4", "ver_hw": "FMUv6X"},
                 "local_position": {
                     "max_horizontal_distance_from_start_m": 10.2,
                     "relative_altitude_range_m": {"min": 0.0, "max": 10.0, "final": 0.1},
+                    "final_relative_position_m": {"north": 0.4, "east": -0.2, "up": 0.1},
                 },
                 "battery": {"voltage_v": {"min": 15.9, "max": 16.2, "final": 16.0}},
+                "vehicle_status": {"failsafe": {"0": 120, "1": 2}},
+                "land_detected": {
+                    "landed": {"0": 80, "1": 40},
+                    "ground_contact": {"0": 75, "1": 45},
+                    "freefall": {"0": 120},
+                },
                 "commands": {
-                    "vehicle_command": {"samples": 3},
-                    "vehicle_command_ack": {"samples": 3, "result_counts": {"0": 3}},
+                    "vehicle_command": {"samples": 3, "command_counts": {"22": 1, "176": 2}},
+                    "vehicle_command_ack": {
+                        "samples": 3,
+                        "command_counts": {"22": 1, "176": 2},
+                        "result_counts": {"0": 3},
+                    },
                 },
             }, ""
         raise AssertionError(f"unexpected drone log path: {path}")
@@ -1800,6 +1819,16 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
     assert "Parsed latest ULog summary" in answer.content
     assert "42.5s" in answer.content
     assert "max horizontal 10.2m" in answer.content
+    assert "dropouts 2 (total 0.250s, max 150.0ms)" in answer.content
+    assert "logged messages 3 (levels 3:1, 4:2; raw text excluded)" in answer.content
+    assert "system PX4; hardware FMUv6X" in answer.content
+    assert "failsafe counts 0:120, 1:2" in answer.content
+    assert "land detection landed[0:80, 1:40]" in answer.content
+    assert "final displacement N +0.4m, E -0.2m, U +0.1m" in answer.content
+    assert "command ids 176:2, 22:1" in answer.content
+    assert "ack results 0:3" in answer.content
+    assert "unproven; newest available ULog may belong to another flight" in answer.content
+    assert "private raw message must never render" not in answer.content
     assert "Backend warning/error" not in answer.content
     assert "mds.logs.drone_ulog_summary.read" in answer.tool_ids
     assert "mds.logs.drone_ulog_files.read" in answer.tool_ids

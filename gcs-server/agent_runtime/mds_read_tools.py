@@ -2688,6 +2688,7 @@ class MdsReadOnlyTools:
 
         rows: list[tuple[str, str, str, str, str, str]] = []
         ulog_summary_rows: list[tuple[str, str, str, str, str, str]] = []
+        ulog_safety_lines: list[str] = []
         total_sessions = 0
         total_ulogs = 0
         latest_warning_error_total = 0
@@ -2763,6 +2764,9 @@ class MdsReadOnlyTools:
                         )
                     else:
                         ulog_summary_rows.append(_format_ulog_summary_row(hw_id, log_id, summary_payload))
+                        safety_line = _format_ulog_safety_evidence_line(hw_id, log_id, summary_payload)
+                        if safety_line:
+                            ulog_safety_lines.append(safety_line)
 
             rows.append(
                 (
@@ -2786,12 +2790,19 @@ class MdsReadOnlyTools:
         composer.line(
             "ULog inventory is metadata unless a parsed summary is shown below; raw `.ulg` content is not included in this answer."
         )
+        composer.line(
+            "Evidence correlation: latest sessions and newest ULogs are selected by recency. "
+            "They are not attributed to a requested action unless a parsed ULog explicitly reports verified correlation."
+        )
         if ulog_summary_rows:
             composer.blank().line("Parsed latest ULog summary:")
             composer.table(
                 ("Drone", "Log id", "Duration", "Local movement", "Battery", "Command/ack evidence"),
                 ulog_summary_rows,
             )
+            if ulog_safety_lines:
+                composer.blank().line("ULog safety evidence (derived metadata only):")
+                composer.bullets(ulog_safety_lines)
         elif parse_latest_ulog and total_ulogs > 0 and max_ulog_summaries <= 0:
             composer.line("ULog parsing was skipped because `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES=0`.")
         elif parse_latest_ulog and total_ulogs == 0:
@@ -4179,6 +4190,124 @@ def _format_ulog_summary_row(hw_id: int, log_id: int, summary: Mapping[str, Any]
     return (f"Drone {hw_id}", str(log_id), duration_label, movement_label, battery_label, command_label)
 
 
+def _format_ulog_safety_evidence_line(hw_id: int, log_id: int, summary: Mapping[str, Any]) -> str:
+    """Render bounded safety metrics without raw ULog samples or message text."""
+
+    parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
+    if not bool(summary.get("parsed")) or str(parser.get("status") or "").lower() != "ok":
+        return ""
+
+    dropouts = summary.get("dropouts") if isinstance(summary.get("dropouts"), Mapping) else {}
+    logged_messages = (
+        summary.get("logged_messages") if isinstance(summary.get("logged_messages"), Mapping) else {}
+    )
+    system = summary.get("system") if isinstance(summary.get("system"), Mapping) else {}
+    vehicle_status = (
+        summary.get("vehicle_status") if isinstance(summary.get("vehicle_status"), Mapping) else {}
+    )
+    land_detected = (
+        summary.get("land_detected") if isinstance(summary.get("land_detected"), Mapping) else {}
+    )
+    local_position = (
+        summary.get("local_position") if isinstance(summary.get("local_position"), Mapping) else {}
+    )
+    commands = summary.get("commands") if isinstance(summary.get("commands"), Mapping) else {}
+
+    evidence = (
+        _format_ulog_dropouts(dropouts),
+        _format_ulog_logged_message_levels(logged_messages),
+        _format_ulog_system(system),
+        _format_ulog_failsafe(vehicle_status),
+        _format_ulog_land_detection(land_detected),
+        _format_ulog_final_displacement(local_position),
+        _format_ulog_command_summary(commands),
+        "correlation " + _format_ulog_correlation(summary),
+    )
+    return f"Drone {hw_id}, log {log_id}: " + "; ".join(evidence) + "."
+
+
+def _format_ulog_correlation(summary: Mapping[str, Any]) -> str:
+    """Report action correlation only when local evidence explicitly verifies it."""
+
+    correlation = summary.get("correlation") if isinstance(summary.get("correlation"), Mapping) else {}
+    evidence = correlation.get("evidence") if isinstance(correlation.get("evidence"), Mapping) else {}
+    if correlation.get("verified") is True and evidence:
+        return "verified by source correlation metadata"
+    return "unproven; newest available ULog may belong to another flight"
+
+
+def _format_ulog_dropouts(dropouts: Mapping[str, Any]) -> str:
+    if not dropouts:
+        return "dropouts unavailable"
+    count = _as_int(dropouts.get("count"))
+    total_seconds = _as_float(dropouts.get("total_duration_sec"), 0.0)
+    maximum_ms = _as_float(dropouts.get("max_duration_ms"), 0.0)
+    return (
+        f"dropouts {count if count is not None else 'unknown'} "
+        f"(total {total_seconds:.3f}s, max {maximum_ms:.1f}ms)"
+    )
+
+
+def _format_ulog_logged_message_levels(logged_messages: Mapping[str, Any]) -> str:
+    if not logged_messages:
+        return "logged-message levels unavailable (raw text excluded)"
+    count = _as_int(logged_messages.get("count"))
+    levels = logged_messages.get("levels") if isinstance(logged_messages.get("levels"), Mapping) else {}
+    level_label = _format_ulog_count_mapping(levels)
+    return (
+        f"logged messages {count if count is not None else 'unknown'} "
+        f"(levels {level_label}; raw text excluded)"
+    )
+
+
+def _format_ulog_system(system: Mapping[str, Any]) -> str:
+    parts: list[str] = []
+    if system.get("sys_name") not in (None, ""):
+        parts.append(f"system {_truncate_text(str(system['sys_name']), 40)}")
+    if system.get("ver_hw") not in (None, ""):
+        parts.append(f"hardware {_truncate_text(str(system['ver_hw']), 40)}")
+    return "; ".join(parts) or "system/hardware unavailable"
+
+
+def _format_ulog_failsafe(vehicle_status: Mapping[str, Any]) -> str:
+    counts = vehicle_status.get("failsafe") if isinstance(vehicle_status.get("failsafe"), Mapping) else {}
+    return f"failsafe counts {_format_ulog_count_mapping(counts)}"
+
+
+def _format_ulog_land_detection(land_detected: Mapping[str, Any]) -> str:
+    parts: list[str] = []
+    for key in ("landed", "maybe_landed", "ground_contact", "freefall"):
+        counts = land_detected.get(key) if isinstance(land_detected.get(key), Mapping) else {}
+        if counts:
+            parts.append(f"{key}[{_format_ulog_count_mapping(counts)}]")
+    return "land detection " + (", ".join(parts) if parts else "unavailable")
+
+
+def _format_ulog_final_displacement(local_position: Mapping[str, Any]) -> str:
+    final_position = (
+        local_position.get("final_relative_position_m")
+        if isinstance(local_position.get("final_relative_position_m"), Mapping)
+        else {}
+    )
+    if not final_position:
+        return "final displacement unavailable"
+    north = _as_float(final_position.get("north"), 0.0)
+    east = _as_float(final_position.get("east"), 0.0)
+    up = _as_float(final_position.get("up"), 0.0)
+    return f"final displacement N {north:+.1f}m, E {east:+.1f}m, U {up:+.1f}m"
+
+
+def _format_ulog_count_mapping(counts: Mapping[str, Any], *, limit: int = 6) -> str:
+    if not counts:
+        return "unavailable"
+    items = sorted(counts.items(), key=lambda item: str(item[0]))[:limit]
+    rendered: list[str] = []
+    for key, value in items:
+        count = _as_int(value)
+        rendered.append(f"{_truncate_text(str(key), 24)}:{count if count is not None else 'unknown'}")
+    return ", ".join(rendered)
+
+
 def _format_ulog_local_movement(local_position: Mapping[str, Any]) -> str:
     if not local_position:
         return "local position unavailable"
@@ -4211,11 +4340,17 @@ def _format_ulog_command_summary(commands: Mapping[str, Any]) -> str:
     parts: list[str] = []
     if command_samples is not None:
         parts.append(f"commands {command_samples}")
+    command_counts = command.get("command_counts") if isinstance(command.get("command_counts"), Mapping) else {}
+    if command_counts:
+        parts.append("command ids " + _format_ulog_count_mapping(command_counts, limit=4))
     if ack_samples is not None:
         parts.append(f"acks {ack_samples}")
+    ack_command_counts = ack.get("command_counts") if isinstance(ack.get("command_counts"), Mapping) else {}
+    if ack_command_counts:
+        parts.append("ack ids " + _format_ulog_count_mapping(ack_command_counts, limit=4))
     ack_results = ack.get("result_counts") if isinstance(ack.get("result_counts"), Mapping) else {}
     if ack_results:
-        parts.append("ack results " + ", ".join(f"{key}:{value}" for key, value in list(ack_results.items())[:4]))
+        parts.append("ack results " + _format_ulog_count_mapping(ack_results, limit=4))
     return "; ".join(parts) or "command topics unavailable"
 
 
