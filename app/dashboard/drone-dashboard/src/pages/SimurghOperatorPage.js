@@ -1696,9 +1696,69 @@ function actionRunStepState(value) {
   return 'pending';
 }
 
+function hasCompletionVerification(value) {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.prototype.hasOwnProperty.call(value, 'verified')
+  );
+}
+
+function actionRunCompletionIssue(run = {}) {
+  const result = run?.result && typeof run.result === 'object' ? run.result : {};
+  const monitorResult = result?.monitor_result && typeof result.monitor_result === 'object'
+    ? result.monitor_result
+    : {};
+  const postActionResults = Array.isArray(result?.post_action_results) ? result.post_action_results : [];
+  const candidates = [
+    { stepIndex: 0, verification: monitorResult.completion_verification },
+    ...postActionResults.map((item, index) => ({
+      stepIndex: index + 1,
+      verification: item?.completion_verification,
+    })),
+    {
+      stepIndex: Math.max(0, Number(run.current_step || 1) - 1),
+      verification: run.completion_verification,
+    },
+  ];
+  const issue = candidates.find(({ verification }) => (
+    hasCompletionVerification(verification) && verification.verified === false
+  ));
+  if (!issue) {
+    return null;
+  }
+  return {
+    stepIndex: issue.stepIndex,
+    summary: String(
+      issue.verification.summary
+      || issue.verification.detail
+      || 'Final landing and disarm state was not verified.'
+    ).trim(),
+    verification: issue.verification,
+  };
+}
+
+function actionRunResultStepState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return '';
+  }
+  if (hasCompletionVerification(value.completion_verification) && value.completion_verification.verified === false) {
+    return 'failed';
+  }
+  const status = actionRunStepState(value.status || value.state || value.outcome);
+  if (value.is_error === true) {
+    return status === 'skipped' || status === 'timeout' || status === 'blocked' || status === 'cancelled'
+      ? status
+      : 'failed';
+  }
+  return status;
+}
+
 function actionRunStepView(run = {}, events = []) {
   const steps = actionDraftPlanSteps(run.plan || {});
   const states = steps.map(() => 'pending');
+  const hasStepEvidence = steps.map(() => false);
   const runState = String(run.terminal ? run.state : (run.control_state || run.state || ''));
   (Array.isArray(events) ? events : []).forEach((event) => {
     const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
@@ -1707,10 +1767,36 @@ function actionRunStepView(run = {}, events = []) {
       return;
     }
     states[index - 1] = actionRunStepState(payload.state);
+    hasStepEvidence[index - 1] = true;
+  });
+
+  const result = run?.result && typeof run.result === 'object' ? run.result : {};
+  const monitorResult = result?.monitor_result && typeof result.monitor_result === 'object'
+    ? result.monitor_result
+    : {};
+  if (steps.length && Object.keys(monitorResult).length) {
+    hasStepEvidence[0] = true;
+    if (hasCompletionVerification(monitorResult.completion_verification)
+        && monitorResult.completion_verification.verified === false) {
+      states[0] = 'failed';
+    } else if (monitorResult.success === false) {
+      states[0] = monitorResult.timed_out ? 'timeout' : 'failed';
+    } else if (monitorResult.success === true) {
+      states[0] = 'complete';
+    }
+  }
+  (Array.isArray(result?.post_action_results) ? result.post_action_results : []).forEach((item, index) => {
+    const stepIndex = index + 1;
+    if (stepIndex >= states.length) {
+      return;
+    }
+    hasStepEvidence[stepIndex] = true;
+    states[stepIndex] = actionRunResultStepState(item) || states[stepIndex];
   });
 
   const currentStep = Math.max(0, Number(run.current_step) || 0);
-  if (runState === 'succeeded') {
+  const completionIssue = actionRunCompletionIssue(run);
+  if (runState === 'succeeded' && !completionIssue) {
     states.fill('complete');
   } else {
     states.forEach((state, index) => {
@@ -1721,6 +1807,15 @@ function actionRunStepView(run = {}, events = []) {
     if (currentStep > 0 && currentStep <= states.length && states[currentStep - 1] === 'pending') {
       states[currentStep - 1] = runState === 'paused' ? 'paused' : ACTIVE_ACTION_RUN_STATES.has(runState) ? 'running' : states[currentStep - 1];
     }
+  }
+  if (completionIssue && states.length) {
+    const failedStepIndex = Math.min(states.length - 1, Math.max(0, completionIssue.stepIndex));
+    states[failedStepIndex] = 'failed';
+    states.forEach((state, index) => {
+      if (index > failedStepIndex && !hasStepEvidence[index]) {
+        states[index] = 'skipped';
+      }
+    });
   }
   if (['cancelled', 'blocked', 'interrupted'].includes(runState)) {
     states.forEach((state, index) => {
@@ -1851,24 +1946,30 @@ function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
   const steps = actionRunStepView(run, events);
   const activity = latestActionRunActivity(events);
   const state = String(run.terminal ? run.state : (run.control_state || run.state || 'queued'));
-  const active = ACTIVE_ACTION_RUN_STATES.has(state);
+  const completionIssue = actionRunCompletionIssue(run);
+  const displayState = completionIssue ? 'failed' : state;
+  const active = !completionIssue && ACTIVE_ACTION_RUN_STATES.has(state);
   const totalSteps = Math.max(1, Number(run.total_steps) || steps.length || 1);
   const currentStep = Math.min(totalSteps, Math.max(0, Number(run.current_step) || 0));
-  const completedSteps = state === 'succeeded'
-    ? totalSteps
-    : steps.filter((step) => step.state === 'complete').length;
-  const progressValue = state === 'succeeded'
-    ? totalSteps
-    : Math.max(completedSteps, currentStep > 0 ? currentStep - (active ? 1 : 0) : 0);
+  const completedSteps = steps.filter((step) => step.state === 'complete').length;
+  const progressValue = completionIssue
+    ? completedSteps
+    : state === 'succeeded'
+      ? totalSteps
+      : Math.max(completedSteps, currentStep > 0 ? currentStep - (active ? 1 : 0) : 0);
   const title = String(run?.plan?.display_plan?.title || (steps.length > 1 ? 'Action sequence' : 'Guarded action'));
   const target = String(run?.plan?.display_plan?.target || actionTargetLabel(run.plan || {}) || 'GCS operation');
-  const currentLabel = String(activity?.label || run.summary || actionRunStateLabel(state));
+  const currentLabel = String(completionIssue?.summary || activity?.label || run.summary || actionRunStateLabel(state));
+  const activityState = actionRunStepState(activity?.state);
   const busy = controlBusy === runId;
   const canResume = state === 'paused' || state === 'pause_requested';
   const canPause = state === 'queued' || state === 'running';
-  const tone = ['failed', 'blocked', 'interrupted'].includes(state)
+  const tone = completionIssue
+    ? 'warning'
+    : ['failed', 'blocked', 'interrupted'].includes(state)
     ? 'danger'
     : state === 'cancelled' ? 'warning' : state === 'succeeded' ? 'success' : 'active';
+  const skippedSteps = steps.filter((step) => step.state === 'skipped').length;
 
   return (
     <section className={`simurgh-chat__action-run simurgh-chat__action-run--${tone}`} aria-label={`Action run ${runId}`}>
@@ -1882,8 +1983,8 @@ function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
             <span>{target}</span>
           </div>
         </div>
-        <span className={`simurgh-chat__action-run-state simurgh-chat__action-run-state--${state}`}>
-          {actionRunStateLabel(state)}
+        <span className={`simurgh-chat__action-run-state simurgh-chat__action-run-state--${displayState}`}>
+          {completionIssue ? 'Needs review' : actionRunStateLabel(displayState)}
         </span>
       </header>
       <div className="simurgh-chat__action-run-progress-row">
@@ -1901,13 +2002,34 @@ function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
       </div>
       <div className="simurgh-chat__action-run-current" role={active ? 'status' : undefined} aria-live={active ? 'polite' : undefined}>
         <span className={`simurgh-chat__action-run-pulse${active ? ' is-active' : ''}`} aria-hidden="true" />
-        <span>{currentLabel}</span>
+        <span>
+          {activity && activityState
+            ? `${currentLabel} · ${activityStateLabel(activityState)}`
+            : currentLabel}
+        </span>
       </div>
+      {completionIssue ? (
+        <div className="simurgh-chat__action-result simurgh-chat__action-result--warning" role="alert">
+          <FaExclamationTriangle aria-hidden="true" />
+          <div>
+            <strong>Final state not confirmed</strong>
+            <span>
+              {skippedSteps
+                ? `${skippedSteps} dependent step${skippedSteps === 1 ? '' : 's'} remained skipped.`
+                : 'Review final vehicle telemetry before continuing.'}
+            </span>
+          </div>
+        </div>
+      ) : null}
       <ol className="simurgh-chat__action-run-steps" aria-label="Action sequence progress">
         {steps.map((step, index) => (
           <li key={`${runId}-step-${index}`} className={`simurgh-chat__action-run-step simurgh-chat__action-run-step--${step.state}`}>
             <span className="simurgh-chat__action-run-step-icon" aria-hidden="true">
-              {step.state === 'complete' ? <FaCheckCircle /> : index + 1}
+              {step.state === 'complete'
+                ? <FaCheckCircle />
+                : ['failed', 'timeout', 'blocked'].includes(step.state)
+                  ? <FaExclamationTriangle />
+                  : index + 1}
             </span>
             <span>{step.title}</span>
             <small>{activityStateLabel(step.state)}</small>

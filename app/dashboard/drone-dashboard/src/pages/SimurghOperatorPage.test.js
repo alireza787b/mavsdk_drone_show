@@ -155,7 +155,7 @@ function actionRunData(overrides = {}) {
           { index: 1, kind: 'flight_command', label: 'Take off to 10 m' },
           { index: 2, kind: 'wait', label: 'Wait 5 seconds' },
           { index: 3, kind: 'flight_command', label: 'Move 25 m north' },
-          { index: 4, kind: 'flight_command', label: 'Return to launch and land' },
+          { index: 4, kind: 'flight_command', label: 'Return to launch' },
         ],
       },
     },
@@ -702,7 +702,7 @@ describe('SimurghOperatorPage', () => {
                 { index: 1, kind: 'flight_command', label: 'Take off to 10 m' },
                 { index: 2, kind: 'wait', label: 'Wait 5 seconds' },
                 { index: 3, kind: 'flight_command', label: 'Move 25 m north' },
-                { index: 4, kind: 'flight_command', label: 'Return to launch and land' },
+                { index: 4, kind: 'flight_command', label: 'Return to launch' },
               ],
             },
           },
@@ -751,7 +751,7 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getByText('Take off to 10 m')).toBeInTheDocument();
     expect(screen.getByText('Wait 5 seconds')).toBeInTheDocument();
     expect(screen.getByText('Move 25 m north')).toBeInTheDocument();
-    expect(screen.getByText('Return to launch and land')).toBeInTheDocument();
+    expect(screen.getByText('Return to launch')).toBeInTheDocument();
     expect(screen.queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /raw action json/i }));
     expect(screen.getAllByText((text) => text.includes('"mission_type": 10')).length).toBeGreaterThan(0);
@@ -803,7 +803,7 @@ describe('SimurghOperatorPage', () => {
         { id: 4, event_type: 'progress', payload: { state: 'running', step_index: 2, step_count: 4, label: 'Step 2/4: Wait 5 seconds' } },
         { id: 5, event_type: 'progress', payload: { state: 'complete', step_index: 2, step_count: 4, label: 'Step 2/4: Wait 5 seconds' } },
         { id: 6, event_type: 'progress', payload: { state: 'complete', step_index: 3, step_count: 4, label: 'Step 3/4: Move 25 m north' } },
-        { id: 7, event_type: 'progress', payload: { state: 'complete', step_index: 4, step_count: 4, label: 'Step 4/4: Return to launch and land' } },
+        { id: 7, event_type: 'progress', payload: { state: 'complete', step_index: 4, step_count: 4, label: 'Step 4/4: Return to launch' } },
         { id: 8, event_type: 'run_succeeded', payload: { state: 'succeeded', step_count: 4, label: 'Completed 4 of 4 planned steps.' } },
       ];
       payloads.forEach((event) => config.onEvent?.({
@@ -825,11 +825,137 @@ describe('SimurghOperatorPage', () => {
     expect(within(runCard).getByText('Take off to 10 m')).toBeInTheDocument();
     expect(within(runCard).getByText('Wait 5 seconds')).toBeInTheDocument();
     expect(within(runCard).getByText('Move 25 m north')).toBeInTheDocument();
-    expect(within(runCard).getByText('Return to launch and land')).toBeInTheDocument();
+    expect(within(runCard).getByText('Return to launch')).toBeInTheDocument();
     expect(await within(runCard).findByText('Complete')).toBeInTheDocument();
     expect(within(runCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4');
     expect(within(runCard).queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message simurgh/i })).toBeEnabled();
+  });
+
+  test('shows backend step-specific progress while keeping raw action JSON collapsed', async () => {
+    const runningRun = actionRunData({
+      state: 'running',
+      current_step: 2,
+      summary: 'Step 2/4: Wait 5 seconds',
+    });
+    mockGetSimurghActionRunsResponse.mockResolvedValue({ data: { runs: [runningRun] } });
+    mockStreamSimurghActionRunEventsResponse.mockImplementation((runId, options, config = {}) => {
+      config.onEvent?.({
+        event: 'progress',
+        data: {
+          id: 12,
+          run_id: runId,
+          event_type: 'progress',
+          created_at: '2026-05-24T00:00:12Z',
+          payload: {
+            stage: 'monitor',
+            state: 'running',
+            sequence_id: runId,
+            step_index: 2,
+            step_count: 4,
+            step_label: 'Wait 5 seconds',
+            step_kind: 'delay',
+            label: 'Step 2/4: Wait 5 seconds',
+          },
+        },
+      });
+      return new Promise(() => {});
+    });
+
+    renderPage();
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    const liveStatus = await within(runCard).findByRole('status');
+    expect(liveStatus).toHaveTextContent('Step 2/4: Wait 5 seconds · in progress');
+    const waitStep = within(runCard).getByText('Wait 5 seconds').closest('li');
+    expect(waitStep).toHaveClass('simurgh-chat__action-run-step--running');
+    const rawToggle = within(runCard).getByRole('button', { name: /raw action json/i });
+    expect(rawToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(runCard).queryByText((text) => text.includes('"mission_type": 10'))).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ['LAND', 'Land at the current position'],
+    ['RETURN_RTL', 'Return to launch'],
+  ])('does not render a false-success %s run as complete when final verification failed', async (missionName, actionLabel) => {
+    const embeddedRun = actionRunData({ state: 'queued', current_step: 0, total_steps: 2 });
+    const basePlan = actionRunData().plan;
+    const falseSuccessRun = actionRunData({
+      state: 'succeeded',
+      terminal: true,
+      current_step: 2,
+      total_steps: 2,
+      summary: 'Completed 2 of 2 planned steps.',
+      completed_at: '2026-05-24T00:01:00Z',
+      plan: {
+        ...basePlan,
+        mission_name: missionName,
+        command_payload: {
+          mission_type: missionName === 'LAND' ? 101 : 104,
+          target_drone_ids: ['1'],
+        },
+        display_plan: {
+          title: 'Review flight plan',
+          target: 'drone 1',
+          steps: [
+            { index: 1, kind: 'flight_command', label: actionLabel },
+            { index: 2, kind: 'registry_action', label: 'Remove SITL instance drone-1' },
+          ],
+        },
+      },
+      result: {
+        action_execution: 'submitted',
+        action_response: { status: 'submitted', command_id: `cmd-${missionName.toLowerCase()}` },
+        monitor_result: {
+          status: 'terminal_success',
+          success: true,
+          timed_out: false,
+          completion_verification: {
+            status: 'timeout',
+            verified: false,
+            summary: 'Final disarm state was not confirmed from fresh telemetry.',
+          },
+        },
+        post_action_results: [],
+        rejection_detail: '',
+      },
+    });
+    window.localStorage.setItem('mds.simurgh.chat.v2', JSON.stringify({
+      schema: 2,
+      conversations: [{
+        id: `chat-${missionName.toLowerCase()}-verification`,
+        backendSessionId: 'sess_action_run',
+        title: `${missionName} verification`,
+        createdAt: '2026-05-24T00:00:00Z',
+        updatedAt: '2026-05-24T00:00:00Z',
+        messages: [{
+          id: `turn-${missionName.toLowerCase()}-verification`,
+          role: 'assistant',
+          content: 'Action run started.',
+          trace: { safety: { action_execution: 'submitted', action_run: embeddedRun } },
+        }],
+      }],
+    }));
+    mockGetSimurghActionRunResponse.mockResolvedValue({ data: falseSuccessRun });
+
+    renderPage();
+
+    const runCard = await screen.findByLabelText('Action run run-test-sequence');
+    await waitFor(() => expect(within(runCard).getByText('Needs review')).toBeInTheDocument());
+    expect(runCard).toHaveClass('simurgh-chat__action-run--warning');
+    expect(within(runCard).queryByText('Complete')).not.toBeInTheDocument();
+    expect(within(runCard).getByText('Final state not confirmed')).toBeInTheDocument();
+    expect(within(runCard).getByText('1 dependent step remained skipped.')).toBeInTheDocument();
+    expect(within(runCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    const flightStep = within(runCard).getByText(actionLabel).closest('li');
+    const cleanupStep = within(runCard).getByText('Remove SITL instance drone-1').closest('li');
+    expect(flightStep).toHaveClass('simurgh-chat__action-run-step--failed');
+    expect(within(flightStep).getByText('failed')).toBeInTheDocument();
+    expect(cleanupStep).toHaveClass('simurgh-chat__action-run-step--skipped');
+    expect(within(cleanupStep).getByText('skipped')).toBeInTheDocument();
+    const rawToggle = within(runCard).getByRole('button', { name: /raw action json/i });
+    expect(rawToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(runCard).queryByText((text) => text.includes('"mission_type"'))).not.toBeInTheDocument();
   });
 
   test('restores a terminal action run from durable state after chat reload', async () => {
