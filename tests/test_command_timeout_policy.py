@@ -170,3 +170,30 @@ def test_estimate_command_tracking_timeout_for_custom_show_uses_active_csv_durat
     )
 
     assert timeout_ms == 32_500 + (120 * 1000)
+
+def test_estimate_command_tracking_timeout_for_precision_move_rejects_non_finite_request():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.PRECISION_MOVE,
+        command_data={"precision_move": {"timeout_sec": "inf"}},
+        params=_MockParams,
+    )
+    # Falls back to COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC=45 + buffer 30
+    assert timeout_ms == (45 + 30) * 1000
+
+
+def test_estimate_command_tracking_timeout_for_precision_move_rejects_non_positive_request():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.PRECISION_MOVE,
+        command_data={"precision_move": {"timeout_sec": -5}},
+        params=_MockParams,
+    )
+    assert timeout_ms == (45 + 30) * 1000
+
+def test_safe_finite_float_and_swarm_multiplier_guard():
+    from command_timeout_policy import _safe_finite_float
+
+    assert _safe_finite_float("inf", 1.2) == 1.2
+    assert _safe_finite_float("nan", 1.2) == 1.2
+    assert _safe_finite_float("1.5", 1.2) == 1.5
+    # Mirrors SWARM_TRAJECTORY branch: max(1.0, safe(...))
+    assert max(1.0, _safe_finite_float(float("inf"), 1.2)) == 1.2

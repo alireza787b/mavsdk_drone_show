@@ -5,6 +5,7 @@ Mission-aware tracker timeout policy for command lifecycle monitoring.
 from __future__ import annotations
 
 import csv
+import math
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -43,6 +44,17 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _safe_finite_float(value: Any, default: float) -> float:
+    """Parse a float that must be finite; otherwise return default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed):
+        return default
+    return parsed
 
 
 def _target_drone_file_names(target_drone_ids: Optional[Iterable[Any]]) -> set[str] | None:
@@ -213,16 +225,20 @@ def estimate_command_tracking_timeout_ms(
 
     if mission_enum == Mission.PRECISION_MOVE:
         precision_move = (command_data or {}).get("precision_move") or {}
-        try:
-            requested_timeout_sec = float(precision_move.get("timeout_sec"))
-        except (TypeError, ValueError):
-            requested_timeout_sec = float(
-                getattr(
-                    params,
-                    "COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC",
-                    getattr(params, "PRECISION_MOVE_DEFAULT_TIMEOUT_SEC", 30.0),
-                )
-            )
+        fallback_timeout_sec = _safe_finite_float(
+            getattr(
+                params,
+                "COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC",
+                getattr(params, "PRECISION_MOVE_DEFAULT_TIMEOUT_SEC", 30.0),
+            ),
+            30.0,
+        )
+        requested_timeout_sec = _safe_finite_float(
+            precision_move.get("timeout_sec"),
+            fallback_timeout_sec,
+        )
+        if requested_timeout_sec <= 0:
+            requested_timeout_sec = fallback_timeout_sec if fallback_timeout_sec > 0 else 30.0
         return max(default_ms, trigger_delay_ms + int((requested_timeout_sec + action_buffer_sec) * 1000))
 
     if mission_enum == Mission.SMART_SWARM:
@@ -253,7 +269,7 @@ def estimate_command_tracking_timeout_ms(
             else None
         )
         if processed_duration_s is not None:
-            multiplier = max(1.0, float(getattr(params, "SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER", 1.2)))
+            multiplier = max(1.0, _safe_finite_float(getattr(params, "SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER", 1.2), 1.2))
             total_duration_s = (processed_duration_s * multiplier) + mission_buffer_sec
             end_behavior = str(
                 (command_data or {}).get("return_behavior")
