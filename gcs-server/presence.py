@@ -7,6 +7,7 @@ preflight, and command routing do not drift into different definitions of
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -26,7 +27,9 @@ def _safe_float(value: Any, default: float) -> float:
         parsed = float(value)
     except (TypeError, ValueError):
         return default
-    return parsed if parsed >= 0 else default
+    if not math.isfinite(parsed) or parsed < 0:
+        return default
+    return parsed
 
 
 def resolve_presence_thresholds(params: Any | None = None) -> PresenceThresholds:
