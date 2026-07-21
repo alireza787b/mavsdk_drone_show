@@ -543,3 +543,17 @@ def test_build_image_release_command_includes_selected_flags(tmp_path):
     assert "--output-dir" in command
     assert "--archive-basename" in command
     assert "--no-compress" in command
+
+
+def test_operation_monitor_timeout_rejects_nonfinite(monkeypatch):
+    """Non-finite or non-positive env values fall back to 900s."""
+    from src import sitl_control_service as scs
+
+    monkeypatch.setenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "nan")
+    assert scs._operation_monitor_timeout_seconds() == 900.0
+    monkeypatch.setenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "inf")
+    assert scs._operation_monitor_timeout_seconds() == 900.0
+    monkeypatch.setenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "-1")
+    assert scs._operation_monitor_timeout_seconds() == 900.0
+    monkeypatch.setenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "120.5")
+    assert scs._operation_monitor_timeout_seconds() == 120.5
