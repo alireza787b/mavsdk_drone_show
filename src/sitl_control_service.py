@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import platform
 import re
@@ -65,7 +66,9 @@ def _operation_monitor_timeout_seconds() -> float:
         value = float(os.getenv("MDS_SITL_OPERATION_MONITOR_TIMEOUT_SEC", "900"))
     except (TypeError, ValueError):
         return 900.0
-    return value if value > 0 else 900.0
+    if not math.isfinite(value) or value <= 0:
+        return 900.0
+    return value
 
 
 def _default_sitl_image() -> str:
