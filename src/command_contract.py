@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -51,6 +52,7 @@ class PrecisionMoveYaw(BaseModel):
     )
     degrees: Optional[float] = Field(
         None,
+        allow_inf_nan=False,
         description="Yaw target in degrees. Meaning depends on mode.",
     )
 
@@ -64,6 +66,8 @@ class PrecisionMoveYaw(BaseModel):
 
         if self.degrees is None:
             raise ValueError("yaw.degrees is required unless yaw.mode is hold_current")
+        if not math.isfinite(float(self.degrees)):
+            raise ValueError("yaw.degrees must be a finite number")
 
         return self
 
@@ -86,26 +90,31 @@ class PrecisionMoveRequest(BaseModel):
     speed_m_s: Optional[float] = Field(
         None,
         gt=0,
+        allow_inf_nan=False,
         description="Requested approach speed in metres per second",
     )
     position_tolerance_m: Optional[float] = Field(
         None,
         gt=0,
+        allow_inf_nan=False,
         description="Position tolerance for convergence",
     )
     yaw_tolerance_deg: Optional[float] = Field(
         None,
         gt=0,
+        allow_inf_nan=False,
         description="Yaw tolerance for convergence",
     )
     settle_time_sec: Optional[float] = Field(
         None,
         gt=0,
+        allow_inf_nan=False,
         description="Time the drone must remain within tolerance before success",
     )
     timeout_sec: Optional[float] = Field(
         None,
         gt=0,
+        allow_inf_nan=False,
         description="Execution timeout budget",
     )
     hold_mode: PrecisionMoveHoldMode = Field(
@@ -132,9 +141,12 @@ class PrecisionMoveRequest(BaseModel):
             if not normalized_key:
                 raise ValueError("translation_m contains a blank key")
             try:
-                normalized[normalized_key] = float(raw_value)
+                parsed = float(raw_value)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"translation_m.{normalized_key} must be numeric") from exc
+            if not math.isfinite(parsed):
+                raise ValueError(f"translation_m.{normalized_key} must be a finite number")
+            normalized[normalized_key] = parsed
 
         return normalized
 
