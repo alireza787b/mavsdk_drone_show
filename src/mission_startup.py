@@ -1,11 +1,34 @@
 import asyncio
 import logging
+import math
 import time
 
 from mavsdk.action import ActionError
 
 from src.live_armability_utils import calculate_live_armability_request_timeout
 from src.params import Params
+
+
+def _positive_finite_float(value, default: float) -> float:
+    """Return value when it is a finite float > 0; otherwise return default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if math.isfinite(parsed) and parsed > 0.0:
+        return parsed
+    return float(default)
+
+
+def _non_negative_finite_float(value, default: float) -> float:
+    """Return value when it is a finite float >= 0; otherwise return default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if math.isfinite(parsed) and parsed >= 0.0:
+        return parsed
+    return float(default)
 
 
 def summarize_offboard_health(health, require_global_position: bool) -> dict:
@@ -52,9 +75,18 @@ async def probe_offboard_armability(
     share the same armability definition.
     """
     logger = logger or logging.getLogger(__name__)
-    wait_timeout = float(timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0))
-    sample_timeout = float(getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5))
-    stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
+    wait_timeout = _positive_finite_float(
+        timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0),
+        15.0,
+    )
+    sample_timeout = _positive_finite_float(
+        getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5),
+        0.5,
+    )
+    try:
+        stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
+    except (TypeError, ValueError):
+        stable_samples = 1
 
     deadline = time.monotonic() + wait_timeout
     consecutive_ready = 0
@@ -174,9 +206,21 @@ async def arm_with_preflight_gate(
     Wait for armability, then arm with bounded retries on transient denials.
     """
     logger = logger or logging.getLogger(__name__)
-    max_attempts = max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)))
-    retry_delay = float(getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0))
-    arm_action_timeout = max(1.0, float(getattr(Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0)))
+    try:
+        max_attempts = max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)))
+    except (TypeError, ValueError):
+        max_attempts = 3
+    retry_delay = _non_negative_finite_float(
+        getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0),
+        2.0,
+    )
+    arm_action_timeout = max(
+        1.0,
+        _positive_finite_float(
+            getattr(Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0),
+            15.0,
+        ),
+    )
 
     last_error = None
     for attempt in range(1, max_attempts + 1):
