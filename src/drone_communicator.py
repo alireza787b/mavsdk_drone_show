@@ -232,7 +232,8 @@ class DroneCommunicator:
         except (TypeError, ValueError):
             return 0
 
-        if numeric_value <= 0:
+        # Non-finite values would raise ValueError/OverflowError at int(); treat as unknown.
+        if not math.isfinite(numeric_value) or numeric_value <= 0:
             return 0
 
         if numeric_value < 1_000_000_000_000:
@@ -253,7 +254,11 @@ class DroneCommunicator:
         except (TypeError, ValueError):
             configured_timeout_value = None
 
-        if configured_timeout_value is None or configured_timeout_value <= 0:
+        if (
+            configured_timeout_value is None
+            or not math.isfinite(configured_timeout_value)
+            or configured_timeout_value <= 0
+        ):
             configured_timeout = (
                 _coerce_positive_int(getattr(self.params, 'LOCAL_MAVLINK_TIMEOUT_SEC', 5), 5)
                 * _coerce_positive_int(getattr(self.params, 'LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS', 3), 3)
