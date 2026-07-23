@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 import re
 import stat
@@ -223,9 +224,13 @@ def _env_float(name: str, default: float) -> float:
     if raw in (None, ""):
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError as exc:
         raise AgentRuntimeError(f"{name} must be a number") from exc
+    # pydantic-style gt/bounds still accept +inf; hangable timeouts must be finite.
+    if not math.isfinite(value):
+        raise AgentRuntimeError(f"{name} must be a finite number")
+    return value
 
 
 def _env_bool(name: str, default: bool) -> bool:
