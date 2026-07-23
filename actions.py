@@ -47,6 +47,7 @@ This script executes various drone actions using MAVSDK:
 ---------------------------------------------------------------
 """
 
+import math
 import argparse
 import asyncio
 import csv
@@ -445,7 +446,14 @@ def _get_local_relative_altitude_snapshot(timeout: float = 1.0):
     except (TypeError, ValueError):
         return None
 
-    return current_altitude - home_altitude
+    # Fail closed: NaN/inf altitudes must not poison takeoff/altitude confirms.
+    if not math.isfinite(current_altitude) or not math.isfinite(home_altitude):
+        return None
+
+    relative_altitude = current_altitude - home_altitude
+    if not math.isfinite(relative_altitude):
+        return None
+    return relative_altitude
 
 
 async def _get_current_relative_altitude(drone, timeout: float = 3.0):
