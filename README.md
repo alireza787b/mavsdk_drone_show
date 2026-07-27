@@ -27,6 +27,22 @@ MDS is a field-operations and research platform, not certified avionics. Flight
 testing requires qualified operators, local aviation compliance, geofencing,
 failsafe review, and independent safety validation.
 
+### Simurgh maturity boundary
+
+Simurgh Operator is currently a **demo / proof-of-feasibility beta**, not a
+production-ready or safety-certified autonomy product. The completed SITL
+checkpoint demonstrates that typed intent, guarded confirmation, monitored
+actions, telemetry evidence, and ULog review can work together in a repeatable
+operator workflow. It does not establish production readiness, real-aircraft
+approval, or commercial/field safety.
+
+Use Simurgh only with the documented human-confirmation and circuit-breaker
+controls in a trusted SITL or review environment. Treat telemetry gaps,
+ambiguous state, provider behavior, and all remaining deferred items as
+operator-visible limitations. Real-aircraft and commercial hardening are
+explicitly deferred to a later phase; see the
+[Simurgh feasibility checkpoint](docs/plans/2026-07-27-simurgh-feasibility-checkpoint.md).
+
 ## Start Here
 
 | If you want to... | Start here |
@@ -113,7 +129,7 @@ They remain standalone projects and are not required for a first SITL demo.
 ## Product Highlights
 
 - **Single operator surface**: React dashboard for monitoring, control, QuickScout, Swarm Trajectory, and log review
-- **Governed AI operator**: Simurgh combines live MDS evidence, multilingual semantic planning, human confirmation, durable progress, and circuit-breaker enforcement
+- **Governed AI operator demo**: Simurgh combines live MDS evidence, multilingual semantic planning, human confirmation, durable progress, and circuit-breaker enforcement as an early proof-of-feasibility beta
 - **Modern SITL workflow**: prebuilt PX4 Gazebo SITL image, fast container startup, and reproducible custom-image tooling
 - **Operational visibility**: unified logging across GCS, drones, and frontend error reporting with exportable sessions
 - **Drone Show pipeline**: staged SkyBrush ZIP import, processed trajectory plots, readiness gating, and synchronized launch control

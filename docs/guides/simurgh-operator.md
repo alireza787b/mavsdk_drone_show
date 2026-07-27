@@ -39,6 +39,22 @@ selected, explicitly orchestratable guarded-action surface:
 - guarded curated flight-command drafts through canonical GCS command routes
 - no direct drone API exposure
 
+## Maturity boundary: demo and proof of feasibility
+
+Simurgh is an **early demo / proof-of-feasibility beta**, not a
+production-ready, safety-certified, or autonomous flight product. The current
+checkpoint demonstrates a useful end-to-end SITL workflow: typed intent,
+human-gated actions, monitored progress, telemetry reporting, return/land
+handling, and bounded ULog evidence. That evidence is encouraging, but it is
+not approval for real-aircraft, commercial, regulatory, or unattended use.
+
+Keep the circuit breaker and human confirmation enabled, use trusted SITL or
+review environments, and treat missing or ambiguous telemetry as unknown. Real
+aircraft hardening, broader flight-stack validation, richer flight-log
+correlation, and production operational controls are deferred to a later
+phase. The dated evidence, accepted scope, and deferred backlog are recorded
+in [the feasibility checkpoint](../plans/2026-07-27-simurgh-feasibility-checkpoint.md).
+
 ## Semantic Understanding Boundary
 
 Simurgh should not rely on scattered keyword checks as the user-facing

@@ -3,6 +3,12 @@
 Simurgh is intended to reduce operator workload by summarizing state, checking
 policy, preparing plans, and explaining safe next actions.
 
+Maturity boundary: Simurgh is an early SITL/demo proof-of-feasibility beta, not
+a production-ready or safety-certified autonomy product. Keep human
+confirmation and the circuit breaker visible, and describe missing or
+ambiguous telemetry as unknown. Real-aircraft and commercial hardening are
+deferred.
+
 Default operator experience:
 
 - The local assistant orchestrator is enabled by default and can route approved

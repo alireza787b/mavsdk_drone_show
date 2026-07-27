@@ -1360,7 +1360,7 @@ class MdsReadOnlyTools:
                         "presence": str(state),
                         "battery": health["battery"],
                         "armed": health["armed"],
-                        "final_state": health["final_state"],
+                        "flight_state": health["flight_state"],
                         "ready": health["ready"],
                         "gps": gps_label,
                         "evidence": str(detail),
@@ -1372,12 +1372,18 @@ class MdsReadOnlyTools:
                         "live": live,
                         "ready": health["ready"],
                         "armed": health["armed"],
-                        "final_state": health["final_state"],
+                        "flight_state": health["flight_state"],
                         "gps": gps_label,
                     }
                 )
                 country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
-                position = f"lat {_fmt_coordinate(lat)}, lon {_fmt_coordinate(lon)}, alt {_fmt_altitude_m(alt)}, {country}"
+                altitude = _fleet_altitude_summary(telemetry_row)
+                altitude_text = (
+                    f"{altitude['value']:.1f} m {altitude['label']}"
+                    if altitude["value"] is not None
+                    else "unknown"
+                )
+                position = f"lat {_fmt_coordinate(lat)}, lon {_fmt_coordinate(lon)}, alt {altitude_text}, {country}"
                 rows.append(
                     (
                         f"Drone {hw_id}",
@@ -1386,7 +1392,7 @@ class MdsReadOnlyTools:
                         position,
                         health["battery"],
                         health["armed"],
-                        health["final_state"],
+                        health["flight_state"],
                         health["ready"],
                         health["mode"],
                         health["system"],
@@ -1395,6 +1401,7 @@ class MdsReadOnlyTools:
                 )
             elif wants_position:
                 lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
+                altitude = _fleet_altitude_summary(telemetry_row)
                 country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
                 rows.append(
                     (
@@ -1403,7 +1410,11 @@ class MdsReadOnlyTools:
                         gps_label,
                         _fmt_coordinate(lat),
                         _fmt_coordinate(lon),
-                        _fmt_altitude_m(alt),
+                        (
+                            f"{altitude['value']:.1f} m {altitude['label']}"
+                            if altitude["value"] is not None
+                            else "unknown"
+                        ),
                         country,
                         str(detail),
                     )
@@ -1416,7 +1427,7 @@ class MdsReadOnlyTools:
                         "presence": str(state),
                         "battery": health["battery"],
                         "armed": health["armed"],
-                        "final_state": health["final_state"],
+                        "flight_state": health["flight_state"],
                         "ready": health["ready"],
                         "gps": health["gps"],
                         "evidence": str(detail),
@@ -1428,7 +1439,7 @@ class MdsReadOnlyTools:
                         "live": live,
                         "ready": health["ready"],
                         "armed": health["armed"],
-                        "final_state": health["final_state"],
+                        "flight_state": health["flight_state"],
                         "gps": health["gps"],
                     }
                 )
@@ -1438,7 +1449,7 @@ class MdsReadOnlyTools:
                         str(state),
                         health["battery"],
                         health["armed"],
-                        health["final_state"],
+                        health["flight_state"],
                         health["ready"],
                         health["mode"],
                         health["system"],
@@ -1468,14 +1479,14 @@ class MdsReadOnlyTools:
                 composer.bullets(
                     (
                         f"{item['drone']}: {item['presence']}; ready {item['ready']}; armed {item['armed']}; "
-                        f"{item['final_state']}; GPS {item['gps']}; battery {item['battery']}; {item['evidence']}"
+                        f"{item['flight_state']}; GPS {item['gps']}; battery {item['battery']}; {item['evidence']}"
                     )
                     for item in compact_health_rows
                 )
             elif wants_position and wants_health:
                 composer.blank().table(
                     (
-                        "Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Final state",
+                        "Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Flight state",
                         "Ready", "Mode", "System", "Evidence",
                     ),
                     rows,
@@ -1494,7 +1505,7 @@ class MdsReadOnlyTools:
             elif wants_health:
                 composer.blank().table(
                     (
-                        "Drone", "Presence", "Battery", "Armed", "Final state", "Ready", "Mode",
+                        "Drone", "Presence", "Battery", "Armed", "Flight state", "Ready", "Mode",
                         "System", "GPS", "Evidence",
                     ),
                     rows,
@@ -7732,15 +7743,71 @@ def _wants_fleet_health_details(normalized: str) -> bool:
     return _has_domain_signal(normalized, FLEET_HEALTH_TERMS)
 
 
+def _fleet_altitude_summary(telemetry_row: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the best altitude with an explicit frame label.
+
+    ``position_alt`` and ``gps_raw_altitude_m`` are MSL values.  The previous
+    reader silently used them as a relative altitude fallback, which made a
+    20 m takeoff appear at the local terrain's 1,298 m MSL elevation.
+    """
+
+    report = telemetry_row.get("altitude_report")
+    if isinstance(report, Mapping):
+        display = _finite_or_none(report.get("display_m"))
+        if display is not None:
+            source = str(report.get("source") or "").strip().casefold()
+            label = str(report.get("label") or "").strip().upper()
+            if label not in {"REL", "LCL", "BARO", "MSL"}:
+                label = {
+                    "relative_home": "REL",
+                    "local_ned": "LCL",
+                    "baro": "BARO",
+                    "absolute_msl": "MSL",
+                }.get(source, "ALT")
+            return {"value": display, "label": label, "source": source or "unknown"}
+
+        sources = report.get("sources")
+        if isinstance(sources, Mapping):
+            for source, label in (
+                ("relative_home", "REL"),
+                ("local_ned", "LCL"),
+                ("baro", "BARO"),
+                ("absolute_msl", "MSL"),
+            ):
+                candidate = sources.get(source)
+                if isinstance(candidate, Mapping):
+                    value = _finite_or_none(candidate.get("value_m"))
+                    if value is not None and candidate.get("valid", True):
+                        return {"value": value, "label": label, "source": source}
+
+    for key in ("relative_altitude_m", "relative_home_m"):
+        value = _finite_or_none(telemetry_row.get(key))
+        if value is not None:
+            return {"value": value, "label": "REL", "source": "relative_home"}
+
+    local_up = _finite_or_none(_first_present(telemetry_row, ("local_position_up_m", "local_up_m")))
+    if local_up is not None:
+        return {"value": local_up, "label": "LCL", "source": "local_ned"}
+    local_down = _finite_or_none(_first_present(telemetry_row, ("local_position_down", "local_down_m")))
+    if local_down is not None:
+        return {"value": -local_down, "label": "LCL", "source": "local_ned"}
+
+    baro = _finite_or_none(_first_present(telemetry_row, ("baro_altitude_m", "baro_m")))
+    if baro is not None:
+        return {"value": baro, "label": "BARO", "source": "baro"}
+
+    msl = _finite_or_none(
+        _first_present(telemetry_row, ("position_alt", "gps_raw_altitude_m", "altitude_m", "altitude"))
+    )
+    if msl is not None:
+        return {"value": msl, "label": "MSL", "source": "absolute_msl"}
+    return {"value": None, "label": "unknown", "source": "unknown"}
+
+
 def _fleet_position_summary(telemetry_row: Mapping[str, Any]) -> tuple[float | None, float | None, float | None, str]:
     lat = _finite_or_none(_first_present(telemetry_row, ("position_lat", "latitude", "lat", "latitude_deg")))
     lon = _finite_or_none(_first_present(telemetry_row, ("position_long", "position_lon", "longitude", "lon", "longitude_deg")))
-    alt = _finite_or_none(
-        _first_present(
-            telemetry_row,
-            ("relative_altitude_m", "position_alt", "altitude_m", "gps_raw_altitude_m", "altitude"),
-        )
-    )
+    alt = _fleet_altitude_summary(telemetry_row)["value"]
     valid = bool(telemetry_row.get("global_position_valid") or telemetry_row.get("gps_raw_valid"))
     fix_type = _as_int(telemetry_row.get("gps_fix_type"))
     satellites = _as_int(telemetry_row.get("satellites_visible") or telemetry_row.get("gps_satellites_visible"))
@@ -7774,9 +7841,7 @@ def _fleet_health_summary(telemetry_row: Mapping[str, Any]) -> dict[str, str]:
     mode = _first_present(telemetry_row, ("flight_mode_name", "mode_name", "mode", "flight_mode"))
     system = _first_present(telemetry_row, ("system_status_name", "system_state", "system_status"))
     _lat, _lon, _absolute_or_display_altitude, gps = _fleet_position_summary(telemetry_row)
-    relative_altitude = _finite_or_none(
-        _first_present(telemetry_row, ("relative_altitude_m", "relative_home_m"))
-    )
+    altitude = _fleet_altitude_summary(telemetry_row)
     landed_label = _fleet_landed_state_label(telemetry_row)
     vertical_speed = _finite_or_none(
         _first_present(telemetry_row, ("velocity_down", "local_velocity_down", "vertical_velocity_mps"))
@@ -7784,20 +7849,25 @@ def _fleet_health_summary(telemetry_row: Mapping[str, Any]) -> dict[str, str]:
     home_distance = _finite_or_none(
         _first_present(telemetry_row, ("distance_to_home_m", "home_distance_m"))
     )
-    final_state_parts = [f"Landed state: {landed_label}"]
-    if relative_altitude is not None:
-        final_state_parts.append(f"relative alt {relative_altitude:.1f} m")
+    final_state_parts = [f"Landed: {landed_label}"]
+    if altitude["value"] is not None:
+        final_state_parts.append(f"Altitude: {altitude['value']:.1f} m {altitude['label']}")
     else:
-        final_state_parts.append("relative alt unavailable")
+        final_state_parts.append("Altitude: unknown")
     if vertical_speed is not None:
-        final_state_parts.append(f"V-down {vertical_speed:.1f} m/s")
+        final_state_parts.append(f"V-down: {vertical_speed:.1f} m/s")
     if home_distance is not None:
-        final_state_parts.append(f"home {home_distance:.1f} m")
+        final_state_parts.append(f"Home distance: {home_distance:.1f} m")
+    flight_state = "; ".join(final_state_parts)
     return {
         "battery": _fmt_battery(voltage, remaining),
         "armed": _fmt_bool_state(armed),
         "landed": landed_label,
-        "final_state": "; ".join(final_state_parts),
+        # Keep the compatibility key for internal consumers.  The operator
+        # surface calls this "Flight state", not "Final state": this is a
+        # current snapshot and is not terminal action evidence.
+        "final_state": flight_state,
+        "flight_state": flight_state,
         "ready": _fmt_bool_state(ready),
         "mode": _fmt_optional_value(mode),
         "system": _fmt_optional_value(system),
@@ -7823,7 +7893,7 @@ def _fleet_health_verdict_line(rows: Sequence[Mapping[str, Any]]) -> str:
         return (
             f"{prefix}. "
             f"Ready={readiness}, Armed={row.get('armed', 'unknown')}, "
-            f"{row.get('final_state', 'final state unavailable')}, GPS={row.get('gps', 'unknown')}."
+            f"{row.get('flight_state', row.get('final_state', 'flight state unknown'))}, GPS={row.get('gps', 'unknown')}."
         )
     if not live_rows:
         return "Telemetry verdict: no live drone telemetry is visible, so MDS cannot call any vehicle ready."
@@ -7884,7 +7954,7 @@ def _fleet_landed_state_label(telemetry_row: Mapping[str, Any]) -> str:
         and (vertical_speed is None or abs(vertical_speed) <= 0.75)
     ):
         return "On ground (inferred)"
-    return "Unavailable"
+    return "Unknown"
 
 
 def _telemetry_enum_matches(

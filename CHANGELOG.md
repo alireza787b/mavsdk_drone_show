@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Fleet status now follows the shared altitude policy and labels relative,
+  local, barometric, and MSL frames explicitly instead of showing an MSL
+  fallback as an unlabeled relative altitude. Current telemetry now uses
+  `Flight state` with explicit landed, altitude, vertical-speed, and
+  home-distance evidence rather than the confusing `Final state` label.
 - SITL tracked-command submission now verifies that each selected running
   container sends execution callbacks to the active GCS endpoint before
   dispatch. A mismatched callback port/IP is rejected with an actionable
@@ -26,6 +31,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [5.5.111-simurgh-operator-beta] - 2026-07-26
 
 ### Added
+- Simurgh feasibility checkpoint documenting the successful bounded SITL
+  workflow, its evidence, known limitations, and explicit demo-only maturity
+  boundary. The refreshed public SITL image remains intentionally deferred.
 - Explicit registry-owned assistant orchestration metadata now determines which
   guarded tools semantic planning may use and how their terminal result is
   monitored; unrelated guarded endpoints are no longer misclassified as SITL

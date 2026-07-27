@@ -3,6 +3,10 @@
 The enforced safety policy is stored in `config/agent_policy.yaml`. This file is
 the human-readable companion for operators, developers, and model context.
 
+Simurgh's current scope is an early SITL/demo proof-of-feasibility beta. The
+policy controls below do not constitute production, real-aircraft, unattended,
+commercial, or regulatory approval.
+
 Default state:
 
 - `MDS_AGENT_ENABLED=true`

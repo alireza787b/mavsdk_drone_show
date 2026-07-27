@@ -67,6 +67,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
 - **[Mission Planning Workspace](features/mission-planning-workspace.md)** - shared QuickScout and Swarm Trajectory planning rules, altitude/terrain doctrine, and job/error policy
 - **[Simurgh Operator](guides/simurgh-operator.md)** - dashboard assistant, provider, MCP, policy, and validation guide
+- **[Simurgh Feasibility Checkpoint](plans/2026-07-27-simurgh-feasibility-checkpoint.md)** - accepted SITL evidence, demo-only boundary, telemetry fix, deferred backlog, and restart recipe
 - **[Simurgh Beta Recovery And PM Retest Checkpoint](plans/2026-07-27-simurgh-beta-recovery-and-pm-retest.md)** - durable continuation, release, official/client sync, cleanup, and PM handoff state
 - **[Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md)** - historical checkpoint retained for project history; not indexed as live agent context
 - **[Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md)** - n8n, Claude, VS Code, and custom-agent connection guidance

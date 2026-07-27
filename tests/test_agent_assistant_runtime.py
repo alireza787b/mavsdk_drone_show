@@ -1779,6 +1779,9 @@ def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
     assert combined.intent == "fleet_connectivity"
     assert "Position" in combined.content
     assert "lat 47.3977420" in combined.content
+    assert "alt 8.4 m REL" in combined.content
+    assert "Flight state" in combined.content
+    assert "Final state" not in combined.content
     assert "12.40 V" in combined.content
     assert "Fleet status from GCS configuration" not in combined.content
 
@@ -2926,8 +2929,8 @@ def test_backend_log_summary_reports_unknown_when_no_source_is_scanned(monkeypat
     assert "No WARNING/ERROR/CRITICAL entries were found" not in answer.content
 
 
-def test_fleet_final_state_uses_only_relative_altitude_and_normalizes_landed_enum():
-    from agent_runtime.mds_read_tools import _fleet_health_summary
+def test_fleet_flight_state_labels_landed_and_altitude_frames():
+    from agent_runtime.mds_read_tools import _fleet_altitude_summary, _fleet_health_summary
 
     airborne = _fleet_health_summary(
         {
@@ -2942,12 +2945,26 @@ def test_fleet_final_state_uses_only_relative_altitude_and_normalizes_landed_enu
             "relative_altitude_m": 0.2,
         }
     )
+    local_report = _fleet_altitude_summary(
+        {
+            "position_alt": 1_298.2,
+            "altitude_report": {
+                "display_m": 20.2,
+                "source": "local_ned",
+                "label": "LCL",
+                "relative_home_m": None,
+                "local_up_m": 20.2,
+            },
+        }
+    )
 
     assert airborne["landed"] == "In air"
-    assert "relative alt unavailable" in airborne["final_state"]
-    assert "1234" not in airborne["final_state"]
+    assert "Landed: In air" in airborne["flight_state"]
+    assert "Altitude: 1234.5 m MSL" in airborne["flight_state"]
+    assert "Final state" not in airborne["flight_state"]
     assert landed["landed"] == "On ground"
-    assert "relative alt 0.2 m" in landed["final_state"]
+    assert "Altitude: 0.2 m REL" in landed["flight_state"]
+    assert local_report == {"value": 20.2, "label": "LCL", "source": "local_ned"}
 
 
 def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):
