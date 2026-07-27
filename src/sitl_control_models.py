@@ -137,6 +137,16 @@ class SitlControlInstanceSummary(BaseModel):
     git_sync_enabled: Optional[bool] = None
     requirements_sync_enabled: Optional[bool] = None
     startup_script_source: Optional[Literal["host_override", "image_baked"]] = None
+    callback_gcs_ip: Optional[str] = Field(
+        None,
+        description="GCS IP configured inside the SITL container for heartbeats and execution callbacks.",
+    )
+    callback_gcs_api_port: Optional[int] = Field(
+        None,
+        ge=1,
+        le=65535,
+        description="GCS API port configured inside the SITL container for heartbeats and execution callbacks.",
+    )
     ip_addresses: Dict[str, str] = Field(default_factory=dict)
 
 

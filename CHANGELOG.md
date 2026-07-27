@@ -9,6 +9,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Fixed
+- SITL tracked-command submission now verifies that each selected running
+  container sends execution callbacks to the active GCS endpoint before
+  dispatch. A mismatched callback port/IP is rejected with an actionable
+  `409` instead of allowing the drone to act while the operator monitor waits
+  for callbacks from another GCS process. SITL inventory exposes the observed
+  callback endpoint for diagnosis.
+
 ## [5.5.111-simurgh-operator-beta] - 2026-07-26
 
 ### Added

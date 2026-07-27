@@ -21,6 +21,65 @@ from schemas import (
 from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE
 
 
+def _sitl_callback_endpoint_guard_enabled(deps: Any) -> bool:
+    """Return whether tracked SITL commands must match the active GCS endpoint."""
+    return getattr(getattr(deps, "Params", None), "sim_mode", False) is True
+
+
+def _ensure_sitl_callback_endpoint_matches(deps: Any, target_hw_ids: List[str]) -> None:
+    """Fail closed before dispatch when a SITL fleet reports to another GCS.
+
+    The check is deliberately best-effort for legacy images and non-Docker
+    deployments.  When current container metadata is available, a mismatch is
+    a deterministic configuration error and must not create a tracked command
+    that can only time out after the drone has acted.
+    """
+    if not _sitl_callback_endpoint_guard_enabled(deps):
+        return
+
+    service = getattr(deps, "sitl_control_service", None)
+    if service is None:
+        try:
+            from src.sitl_control_service import SitlControlService
+
+            service = SitlControlService(
+                deps.Params,
+                repo_root=str(getattr(deps, "BASE_DIR", "") or "") or None,
+            )
+        except Exception:
+            return
+
+    checker = getattr(service, "callback_endpoint_mismatches", None)
+    if not callable(checker):
+        return
+    try:
+        mismatches = checker(set(target_hw_ids))
+    except Exception as exc:
+        logger = getattr(deps, "log_system_warning", None)
+        if callable(logger):
+            logger(f"SITL callback endpoint preflight unavailable: {exc}", "command")
+        return
+    if not mismatches:
+        return
+
+    details = []
+    for mismatch in mismatches[:4]:
+        name = mismatch.get("name") or f"drone-{mismatch.get('hw_id') or '?'}"
+        observed = f"{mismatch.get('observed_ip')}:{mismatch.get('observed_port')}"
+        expected = f"{mismatch.get('expected_ip')}:{mismatch.get('expected_port')}"
+        details.append(f"{name} reports to {observed}; active GCS is {expected}")
+    message = (
+        "SITL command blocked because execution callbacks are routed to a "
+        "different GCS process. Reconcile or recreate the SITL fleet from "
+        "this GCS before retrying. "
+        + "; ".join(details)
+    )
+    warning = getattr(deps, "log_system_warning", None)
+    if callable(warning):
+        warning(message, "command")
+    raise HTTPException(status_code=409, detail=message)
+
+
 def _get_telemetry_record_for_hw_id(
     telemetry_snapshot: Dict[Any, Dict[str, Any]],
     hw_id: Any,
@@ -317,6 +376,7 @@ async def submit_tracked_command(deps: Any, command: SubmitCommandRequest) -> Su
         actual_targets = drones
 
     target_hw_ids = [str(drone["hw_id"]) for drone in actual_targets]
+    _ensure_sitl_callback_endpoint_matches(deps, target_hw_ids)
     resolved_mission = deps.resolve_mission_type(mission_type)
 
     if resolved_mission == deps.Mission.SWARM_TRAJECTORY and normalized_target_ids:

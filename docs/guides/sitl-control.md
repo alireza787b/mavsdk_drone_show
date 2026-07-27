@@ -132,6 +132,33 @@ Advanced fields are folded behind `Advanced` so routine use stays simple.
 - extra `drone-N` containers outside the requested range are removed afterward
 - the result should be treated as the new clean local SITL baseline
 
+### Command callback endpoint safety
+
+Tracked flight commands must be dispatched and observed by the same GCS
+process. Each current SITL container therefore reports the callback endpoint
+from its own environment in the instance inventory:
+
+- `callback_gcs_ip`
+- `callback_gcs_api_port`
+
+Before a tracked command is created in `SITL` mode, the GCS compares those
+values with its active `GCS_IP` and API port for the selected targets. If a
+running container points at another GCS process (for example, a validation
+port instead of the production port), submission fails with HTTP `409` and a
+reconciliation instruction. This prevents a drone from acting while the
+operator card waits for execution callbacks that can never reach its tracker
+and eventually times out.
+
+Use `System -> SITL Control -> Reconcile fleet` (or the typed CLI) to recreate
+the fleet from the GCS instance that will dispatch the next test. Do not
+restart or remove an armed/in-flight container. First put the vehicle into a
+safe landed/disarmed state, then reconcile the fleet and verify that every
+target's callback endpoint matches the active GCS before retrying.
+
+Legacy images that do not expose callback environment values remain inventory
+compatible; they are not rejected by this preflight and should be upgraded or
+recreated before promotion-grade testing.
+
 ## API Surface
 
 The page uses these GCS endpoints:

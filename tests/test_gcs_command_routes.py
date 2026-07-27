@@ -1,10 +1,12 @@
 from contextlib import nullcontext
 from types import SimpleNamespace
 
-from fastapi import FastAPI
+import pytest
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from api_routes.commands import _estimate_max_target_relative_altitude_m, create_command_router
+from command_submission import _ensure_sitl_callback_endpoint_matches
 from command_tracker import CommandIdempotencyConflictError, CommandCreationResult
 
 
@@ -163,6 +165,44 @@ def _make_deps():
     deps.log_system_warning = lambda *args, **kwargs: None
     deps.log_system_error = lambda *args, **kwargs: None
     return deps
+
+
+def test_sitl_command_guard_rejects_callback_endpoint_split():
+    deps = _make_deps()
+    deps.Params.sim_mode = True
+    deps.Params.GCS_IP = "172.18.0.1"
+    deps.Params.gcs_api_port = 5030
+    deps.sitl_control_service = SimpleNamespace(
+        callback_endpoint_mismatches=lambda targets: [{
+            "name": "drone-1",
+            "hw_id": "1",
+            "observed_ip": "172.18.0.1",
+            "observed_port": 5111,
+            "expected_ip": "172.18.0.1",
+            "expected_port": 5030,
+        }]
+    )
+    warnings = []
+    deps.log_system_warning = lambda *args: warnings.append(args)
+
+    with pytest.raises(HTTPException) as raised:
+        _ensure_sitl_callback_endpoint_matches(deps, ["1"])
+
+    assert raised.value.status_code == 409
+    assert "callbacks are routed to a different GCS process" in str(raised.value.detail)
+    assert warnings
+
+
+def test_sitl_command_guard_is_disabled_for_real_mode():
+    deps = _make_deps()
+    deps.Params.sim_mode = False
+    deps.sitl_control_service = SimpleNamespace(
+        callback_endpoint_mismatches=lambda _targets: (_ for _ in ()).throw(
+            AssertionError("guard should not inspect Docker in real mode")
+        )
+    )
+
+    _ensure_sitl_callback_endpoint_matches(deps, ["1"])
 
 
 def test_command_router_registers_expected_routes():

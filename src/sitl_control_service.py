@@ -284,6 +284,66 @@ class SitlControlService:
         finally:
             self._close_client(client)
 
+    def callback_endpoint_mismatches(
+        self,
+        target_hw_ids: set[str] | list[str] | tuple[str, ...] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return running SITL containers reporting to a different GCS endpoint.
+
+        A command can be accepted by one GCS process while its execution
+        callbacks are sent to another process when validation and production
+        services share a Docker fleet.  That split is unsafe for tracked
+        commands: the command tracker can only see the initial HTTP ACK and
+        will eventually time out.  The caller uses this read-only inventory
+        check before creating a tracked command.
+
+        Containers from older images may not expose either callback setting.
+        They are intentionally omitted here for backwards compatibility; the
+        normal heartbeat/command lifecycle remains the source of truth for
+        real nodes and legacy SITL images.
+        """
+        expected_ip = str(
+            getattr(self.params, "GCS_IP", None)
+            or os.environ.get("MDS_GCS_IP")
+            or ""
+        ).strip()
+        raw_expected_port = (
+            getattr(self.params, "gcs_api_port", None)
+            or os.environ.get("MDS_GCS_API_PORT")
+        )
+        try:
+            expected_port = int(raw_expected_port) if raw_expected_port is not None else None
+        except (TypeError, ValueError):
+            expected_port = None
+
+        if not expected_ip or expected_port is None:
+            return []
+
+        target_ids = {str(item).strip() for item in (target_hw_ids or ()) if str(item).strip()}
+        mismatches: list[dict[str, Any]] = []
+        for instance in self.list_instances().instances:
+            if str(instance.state or "").strip().casefold() != "running":
+                continue
+            if target_ids and str(instance.hw_id or "").strip() not in target_ids:
+                continue
+            observed_ip = str(instance.callback_gcs_ip or "").strip()
+            observed_port = instance.callback_gcs_api_port
+            if not observed_ip or observed_port is None:
+                continue
+            if observed_ip == expected_ip and observed_port == expected_port:
+                continue
+            mismatches.append(
+                {
+                    "name": instance.name,
+                    "hw_id": instance.hw_id,
+                    "observed_ip": observed_ip,
+                    "observed_port": observed_port,
+                    "expected_ip": expected_ip,
+                    "expected_port": expected_port,
+                }
+            )
+        return mismatches
+
     def get_instance_logs(self, instance_name: str, *, tail_lines: int = _DEFAULT_LOG_LIMIT) -> SitlControlInstanceLogResponse:
         client, docker_state = self._get_client()
         if client is None:
@@ -627,6 +687,14 @@ class SitlControlService:
                 else "image_baked"
             )
 
+        callback_gcs_api_port = None
+        raw_callback_port = env.get("MDS_GCS_API_PORT")
+        if raw_callback_port:
+            try:
+                callback_gcs_api_port = int(raw_callback_port)
+            except (TypeError, ValueError):
+                callback_gcs_api_port = None
+
         return SitlControlInstanceSummary(
             container_id=str(getattr(container, "short_id", None) or getattr(container, "id", "")),
             name=str(container.name),
@@ -650,6 +718,8 @@ class SitlControlService:
                 else None
             ),
             startup_script_source=startup_script_source,
+            callback_gcs_ip=env.get("MDS_GCS_IP"),
+            callback_gcs_api_port=callback_gcs_api_port,
             ip_addresses=ip_addresses,
         )
 

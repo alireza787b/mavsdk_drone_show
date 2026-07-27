@@ -329,6 +329,63 @@ def test_build_create_env_propagates_active_gcs_endpoint_to_sitl_children(tmp_pa
     assert env["MDS_CONNECTIVITY_PORT"] == "5111"
 
 
+def test_instance_inventory_exposes_callback_endpoint_and_detects_mismatch(tmp_path):
+    image = _FakeImage("sha256:sitl", ["mavsdk-drone-show-sitl:latest"])
+    container = _FakeContainer(
+        name="drone-1",
+        image=image,
+        env={
+            "MDS_HW_ID": "1",
+            "MDS_GCS_IP": "172.18.0.1",
+            "MDS_GCS_API_PORT": "5111",
+        },
+    )
+    socket_path = tmp_path / "docker.sock"
+    socket_path.write_text("", encoding="utf-8")
+    service = SitlControlService(
+        SimpleNamespace(sim_mode=True, GCS_IP="172.18.0.1", gcs_api_port=5030),
+        docker_socket_path=str(socket_path),
+        client_factory=lambda: _FakeClient([container], [image]),
+        repo_root=str(tmp_path),
+    )
+
+    inventory = service.list_instances()
+
+    assert inventory.instances[0].callback_gcs_ip == "172.18.0.1"
+    assert inventory.instances[0].callback_gcs_api_port == 5111
+    assert service.callback_endpoint_mismatches({"1"}) == [{
+        "name": "drone-1",
+        "hw_id": "1",
+        "observed_ip": "172.18.0.1",
+        "observed_port": 5111,
+        "expected_ip": "172.18.0.1",
+        "expected_port": 5030,
+    }]
+
+
+def test_callback_endpoint_mismatch_ignores_matching_target(tmp_path):
+    image = _FakeImage("sha256:sitl", ["mavsdk-drone-show-sitl:latest"])
+    container = _FakeContainer(
+        name="drone-1",
+        image=image,
+        env={
+            "MDS_HW_ID": "1",
+            "MDS_GCS_IP": "172.18.0.1",
+            "MDS_GCS_API_PORT": "5030",
+        },
+    )
+    socket_path = tmp_path / "docker.sock"
+    socket_path.write_text("", encoding="utf-8")
+    service = SitlControlService(
+        SimpleNamespace(sim_mode=True, GCS_IP="172.18.0.1", gcs_api_port=5030),
+        docker_socket_path=str(socket_path),
+        client_factory=lambda: _FakeClient([container], [image]),
+        repo_root=str(tmp_path),
+    )
+
+    assert service.callback_endpoint_mismatches(["1"]) == []
+
+
 def test_build_host_summary_detects_running_portainer_panel(tmp_path):
     image = _FakeImage("sha256:portainer", ["portainer/portainer-ce:latest"])
     portainer = _FakeContainer(name="portainer", image=image)
