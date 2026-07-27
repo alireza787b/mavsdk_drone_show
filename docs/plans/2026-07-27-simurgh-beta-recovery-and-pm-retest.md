@@ -1,7 +1,7 @@
 # Simurgh Operator Beta Recovery And PM Retest Checkpoint
 
 Date opened: 2026-07-27
-Status: Active release engineering
+Status: Live private client ready for PM retest; official tag/image deferred
 Scope: official MDS source, the approved private client mirror, and the
 validated SITL/client deployment
 
@@ -48,6 +48,22 @@ available.
 The untracked files are focused Simurgh/ULog implementation and test modules.
 Review their contents and add them deliberately; never use a blanket cleanup
 command that could erase them.
+
+## Current release state
+
+| Item | Value |
+| --- | --- |
+| Official beta branch | `release/simurgh-beta` |
+| Official beta tip | `a1c69fb89e5eb3e15996b470b12e24176e301a61` |
+| Official worktree | clean and pushed |
+| Private downstream | synchronized through controlled replay, validated, committed, and pushed on private `main` |
+| Private deployment | production and isolated validation services healthy in SITL mode |
+| Official beta tag | intentionally not created before PM acceptance |
+| Refreshed MEGA image | intentionally deferred until PM acceptance/storage approval |
+
+The exact private commit, rollback ref, evidence paths, and client deployment
+sequence are recorded only in the private downstream checkpoint so public
+documentation does not expose customer-specific repository or host details.
 
 ## Previously completed implementation slices
 
@@ -165,3 +181,6 @@ data without a separate evidence-preservation step.
 | 2026-07-27 | Disk cleanup | Removed the verified-unused clean shallow clone at `/opt/px4vision/research/mavsdk_drone_show` (HEAD `6d604cdb`, about 52 MiB) and remote transient MDS test caches (`mds-mplconfig-*`, pytest, Jest; about 219 MiB). Active source, client evidence, validation data, running services, and Codex context were preserved. | Continue official source review and release gating |
 | 2026-07-27 | R1/R2 local checkpoint | Public-boundary scan, generated-contract checks, env-registry audit, Python compilation, and `git diff --check` passed. The governed runtime/ULog implementation and tests are committed as `d347a9e8`; focused local coverage passed 60/60 in 7.32s. | Commit documentation/CI slice, then run the heavy remote gates |
 | 2026-07-27 | R2 Hetzner release gates | Remote CI-equivalent backend gate passed 1,055 tests in 16:08 with 63.12% coverage; Simurgh prompt evals passed 32/32; provider smoke passed. Dashboard gate passed `npm ci`, 130 frontend tests, and `npm run build:release`; all exit codes were zero. | Push the official beta branch, then stage public-safe private-client synchronization |
+| 2026-07-27 | R3 official publication | Reviewed beta source and three integration-test hardening fixes were committed and pushed on official `release/simurgh-beta` through `a1c69fb8`. Public-boundary and generated-contract checks remained clean. | Synchronize the private downstream without exposing client-only data |
+| 2026-07-27 | R4 private synchronization | A no-commit full-merge preview exposed 121 conflicts and was safely aborted. The bounded official beta commits were replayed onto a recoverable private integration branch, client-only configuration/assets were preserved, generated references were rebuilt, and private `main` was fast-forwarded only after validation. The downstream gate passed 1,054 backend tests (63.21% coverage), 32/32 prompt evals, provider smoke, 117 dashboard suites/638 tests, and the optimized release build. | Restart isolated validation, then production |
+| 2026-07-27 | R5 live client deployment | The committed private `main` was pushed and both isolated validation and production services were restarted from that source. Authenticated live smoke verified SITL mode, Simurgh/MCP, confirmation and circuit-breaker posture, 105 registered tools, provider/key readiness, fleet heartbeat visibility, one running SITL instance, and preserved action evidence. Every current dashboard manifest asset returned HTTP 200. One already-open browser requested a pre-deploy lazy chunk; a hard refresh is required once before PM testing. | PM retest using the private handoff checklist |
