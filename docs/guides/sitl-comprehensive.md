@@ -548,7 +548,13 @@ Congratulations, you've successfully set up a drone swarm SITL on a remote serve
 
 ### Caveats and Future Work
 
-Please note that this project is still in its early development phases. Many aspects have not been designed with security or performance in mind. Your contributions to improve these aspects are welcome. Feel free to collaborate, post recommendations, or [report issues](https://github.com/alireza787b/mavsdk_drone_show/issues).
+The stock SITL profile deliberately prioritizes a zero-setup lab experience and
+assumes a trusted deployment network. It emits warnings where that open posture
+matters; it is not the deployment profile for an internet-exposed, shared,
+field, customer, or commercial GCS. Use the staged controls in the
+[GCS Auth Guide](gcs-auth.md) before those deployments. Performance and fleet
+size should also be validated against the intended host and scenario. Please
+[report reproducible issues](https://github.com/alireza787b/mavsdk_drone_show/issues).
 
 ### Warning
 

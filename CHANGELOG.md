@@ -9,13 +9,139 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
-## [5.5.111-simurgh-operator-beta] - 2026-07-14
+## [5.5.111-simurgh-operator-beta] - 2026-07-26
+
+### Added
+- Explicit registry-owned assistant orchestration metadata now determines which
+  guarded tools semantic planning may use and how their terminal result is
+  monitored; unrelated guarded endpoints are no longer misclassified as SITL
+  lifecycle actions.
+- Durable action cards now reconcile from the action-run journal after stream or
+  snapshot loss and show human-readable current/previous sequence steps while
+  keeping raw payloads secondary.
+- Conditional actions now use registry-owned typed facts, show their
+  human-readable condition in the confirmation card, and re-evaluate the live
+  condition immediately before dispatch.
+- Readiness and post-action evidence now stay scoped to the durable run target,
+  so one active SITL vehicle is not reported as an unhealthy four-vehicle fleet
+  and follow-up log/ULog reviews remain correlated to the action being discussed.
+- Pending action cards now support a structured Amend flow. Natural-language
+  changes produce a complete replacement plan with a fresh draft id while the
+  original draft remains unexecuted and unchanged steps stay visible.
+- Simurgh log review now accepts structured evidence-depth options and performs
+  bounded concurrent per-drone collection under one configurable wall-clock
+  deadline, so an offline node cannot serialize and stall the whole report.
+- ULog inventory and derived summaries now expose a versioned API/MCP contract,
+  while uploaded `.ulg` files use the same local parser contract without
+  retaining or returning raw content.
 
 ### Fixed
+- SITL action drafts no longer force git or requirements sync on; omitted
+  values inherit the deployment source of truth, and lifecycle mutations now
+  serialize condition rechecks and atomic ID/IP allocation so concurrent
+  requests cannot replace or collide with an existing instance.
+- A newly created SITL target now flows to dependent flight steps from the
+  actual operation result rather than stale previous-session target memory.
+- Semantic confirmation/rejection must be grounded in an exact span of the
+  current authenticated operator message. Ungrounded model control labels can
+  only expose a pending plan for review and cannot execute or cancel it.
 - Simurgh now treats provider semantic normalization as best-effort: invalid
   JSON, timeouts, or provider HTTP failures cannot discard an already-built
   typed flight or SITL draft, while incomplete drafts still stop at the normal
   conversational missing-detail gate.
+- Provider output can no longer authorize an action. Confirmation remains bound
+  to the local draft/session control, while multilingual or typo-heavy stop and
+  reject requests are interpreted semantically and resolved only against local
+  pending drafts or durable active runs.
+- Provider-backed requests to translate, shorten, or restyle the previous
+  answer now use bounded private session context instead of being re-routed to
+  an unrelated deterministic status or capability response.
+- Multi-step semantic plans preserve per-clause numeric grounding, targets,
+  coordinate frame, dependency conditions, waits, and command order. Runtime
+  monitoring is mandatory for dependent flight steps regardless of a model's
+  requested monitor flag, and missing terminal evidence fails the run instead
+  of reporting success.
+- Clarification context now retains a bounded multi-turn operator chain; explicit
+  read targets scope status follow-ups without forcing whole-fleet evidence or
+  losing the action being discussed.
+- LAND and RTL completion now requires fresh disarm, landed/settled, altitude,
+  vertical-speed, and applicable home-distance evidence before dependent steps
+  continue; stale, malformed, or negative values fail closed.
+- Unified-log and ULog summaries distinguish unavailable/partial evidence from
+  zero results, expose parser limits, require explicit mission correlation, use
+  synchronized command-tracker APIs, normalize altitude/landed-state labels,
+  report staged-analysis cleanup failures, and lead both brief and detailed
+  reports with the same evidence verdict. PX4 `MAV_RESULT_IN_PROGRESS` command
+  acknowledgements are no longer mislabeled as command anomalies.
+- Action progress no longer turns transport acceptance, stale stream activity,
+  or failed final-state verification into a successful visual state.
+- Action-run snapshots now publish a journal revision and last event cursor so
+  reconnect ordering uses backend facts rather than client timestamps. An
+  applied pause now replaces the earlier `Pausing` request state in the activity
+  card.
+- LAND and RTL progress remains in a verification state after command-tracker
+  acceptance and only reports completion after fresh telemetry confirms the
+  final landed/disarmed state.
+- SITL cleanup may follow either LAND or RTL terminal verification; both paths
+  now preserve the requested cleanup step and wait for landed/disarmed evidence
+  before removing an instance.
+- A false conditional action now ends as `Not needed` without creating a pending
+  confirmation or dispatching a route; unavailable condition evidence blocks
+  the action and both outcomes remain visible in the audit trace.
+- Operator-facing status, capability, and provider-fallback responses no longer
+  expose stale read-only/mock implementation language or substitute tool menus
+  for the requested result; ambiguous requests ask one concise clarification.
+- Authenticated actor roles now flow through local capability answers as well as
+  guarded planning and dispatch, so viewers cannot be shown operator/admin
+  actions and operator capability checks no longer collapse to viewer posture.
+- Eligible semantic-routing requests preserve configured sensitive values as
+  opaque turn-local placeholders; raw values remain outside provider input and
+  are restored only into locally validated structured output.
+- ULog parsing now runs in killable, memory-bounded child processes with typed
+  limits and deadlines. Raw staging jobs are operator/admin-only, actor-bound,
+  capability-protected, disk-budgeted, and cancelled cleanly at shutdown.
+- Hardened node ULog routes now use a short-lived, operation- and hardware-bound
+  GCS machine credential derived from an active drone token, while the stock
+  trusted-network lab profile remains zero-configuration and warns on use. Raw
+  streams hold a verified-file lease, proxy/fallback summaries use the same
+  strict schema, and hardened SITL mounts its dedicated token from a root-only
+  host file instead of exposing token content through Docker metadata or images.
+- The service launcher now follows the canonical zero-configuration lab/SITL
+  authentication default and emits an explicit trust-boundary warning; shared,
+  field, and commercial deployments continue to harden through the existing
+  auth, network, and secret-path controls.
+
+### Changed
+- Legacy typo and multilingual query phrasebooks were removed. Local query
+  adaptation now performs lexical normalization only; structured provider
+  semantics interpret language and phrasing, while typed grounding, registry
+  schemas, policy, confirmation, circuit breaker enforcement, and evidence
+  remain locally authoritative.
+- The semantic routing contract now has one maintained source in
+  `config/agent_assistant.yaml`; Python loads that contract instead of carrying
+  a hidden duplicate prompt.
+- The default configurable OpenAI model now targets explicit `gpt-5.6-sol`;
+  compatible future model IDs and the `gpt-5.6` alias remain operator-editable
+  without a frontend release.
+- The default OpenAI response budget is 4,000 tokens so structured semantic
+  plans with many ordered steps are not silently truncated; `max` reasoning is
+  accepted as a configurable current model option.
+- Blocking provider and local-assistant adapters now run outside the request
+  event loop so live progress, steering, and cancellation remain responsive.
+- Durable runner lease defaults and bounds now have one source of truth.
+  Confirmed runs renew ownership on an independent keepalive derived from the
+  lease rather than chat/progress traffic. Keepalive ownership loss is coupled
+  to the coordinator and stops further orchestration instead of being silently
+  discarded. A restart never resumes work; the previous owner lease expires
+  before the journal marks the run interrupted and releases its resources.
+- The compact activity tape now distinguishes requested controls (`Pausing`,
+  `Cancelling`) from controls that have reached a safe boundary (`Paused`,
+  `Cancelled`).
+- Deployment-specific validation journals were removed from the public release
+  tree; reusable operator and release guidance remains in the public guides.
+- ULog parser, proxy, staging, transfer, retention, and disarm controls now have
+  explicit entries in the canonical environment registry instead of being
+  hidden behind a broad internal-variable wildcard.
 
 ## [5.5.110-simurgh-operator-beta] - 2026-07-14
 
@@ -77,9 +203,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - The operator chat now renders approved work as a live human-readable action
   sequence, restores it after reload/network interruption, keeps the composer
   available for steering, and moves raw command JSON behind a disclosure.
-- Frontend lockfile dependencies now include current compatible security
-  patches, including the critical `shell-quote` fix, without forcing an unsafe
-  Create React App major-version workaround.
+- Frontend direct dependencies now include current compatible security patches
+  for Axios, Markdown-It/Linkify-It, and PostCSS, alongside the earlier
+  `shell-quote` fix, without forcing npm's invalid Create React App remediation
+  or an unverified React Router major-version change.
 
 ### Fixed
 - Simurgh ULog plus unified-log mission review wording now remains on the
@@ -436,13 +563,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   `create_dockers.sh` usage as the cold-start path rather than the primary
   steady-state lifecycle interface
 - refreshed the public official SITL archive publication and download
-  instruction link, and published the matching private customer SITL archive
-  to a dedicated MEGA target after validating the customer 3-drone Hetzner
-  SITL gate on the private image
+  instruction link, and validated the reusable downstream custom-image release
+  workflow without publishing deployment-specific provenance in the public tree
 - documented private Git token expiry recovery in the custom-repo and custom
-  SITL release guides after validating the private customer image-build
-  path on Hetzner
-- private GitHub bootstrap/runtime auth is now first-class for customer-style
+  SITL release guides after validating the generic private image-build path
+- private GitHub bootstrap/runtime auth is now first-class for downstream
   GCS and node workflows when deploy keys are unavailable:
   `install_gcs.sh`, `install_mds_node.sh`, `mds_gcs_init.sh`,
   `mds_node_init.sh`, the repo helpers, the runtime launcher, and the runtime
@@ -510,42 +635,39 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   `/etc/mds/gcs.env`, keeps the real-mode marker at the repo root `real.mode`
   where the rest of MDS expects it, and prints canonical
   `/api/v1/system/health` examples instead of stale `/health` guidance
-- a 2026-04-12 private customer bootstrap/runtime validation note documenting
-  the deploy-key-disabled private-customer validation path, the live Hetzner
-  private-repo bootstrap and runtime verification, the discovered GitHub
-  temporary-clone-token expiration behavior, and the remaining external
-  blocker that the field hardware node is currently idle/unreachable on the
-  overlay network
+- a 2026-04-12 sanitized private-repository bootstrap/runtime validation note
+  documenting the deploy-key-disabled fallback, runtime verification, and the
+  discovered temporary-clone-token expiration behavior without retaining a
+  downstream deployment's live host or hardware state
 - a 2026-04-11 official bootstrap hardware closeout note documenting the final
   official wrapper and existing-node bootstrap behavior on real ARM companion
-  hardware, the validated overlay -> Hetzner GCS candidate announce flow, the
+  hardware, the validated overlay-to-remote-GCS candidate announce flow, the
   cleaned node identity/local-env generation, the shell-hardening fixes across
   verification/NTP/MAVSDK bootstrap paths, and the remaining non-blocking
-  follow-up work before moving entirely into the private client fork rollout
+  follow-up work before moving into a private downstream rollout
 - a 2026-04-11 hardware-demo confirmation brief locking the final decisions
   that bootstrap should not auto-edit `src/params.py`, that node runtime still
   standardizes on the `droneshow` user while GCS remains user-flexible, that
-  the Hetzner GCS and reachable hardware companion are both now verified on
-  the overlay network, and that the remaining implementation work should focus
+  the remote GCS/companion overlay path was validated without retaining live
+  deployment details, and that remaining work should focus
   on wrapper auth ordering, overlay-peer reuse, post-enrollment sync, and
-  stale config/docs cleanup before any private customer demo fork
+  stale config/docs cleanup before any downstream deployment fork
 - a 2026-04-11 hardware-demo final review note consolidating the final
-  operator-facing bootstrap philosophy, the answer that customer operators
+  operator-facing bootstrap philosophy, the answer that downstream operators
   should not edit `src/params.py` for repo selection, the provider-neutral
   network doctrine, the post-enrollment node-sync requirement, and the
-  remaining official must-fix items before starting a private customer demo
-  deployment
+  remaining official must-fix items before starting a downstream deployment
 - a 2026-04-11 hardware-demo workflow clarification note answering the wrapper
   versus repo-local init philosophy directly, documenting the recommended
   official-wrapper-plus-target-repo model, clarifying real-hardware
   permissions, NetBird reuse/rebind expectations, the post-enrollment node
   sync requirement, and the remaining must-fix items before a private
-  customer hardware demo rollout
+  downstream hardware rollout
 - a 2026-04-11 hardware demo preflight audit brief documenting the current
   canonical node/GCS bootstrap and Fleet Enrollment workflow, the still-open
   first-time private-repo bootstrap blocker in both wrapper installers, the
-  recommended private customer repo/auth model, the `mavlink-anywhere` audit,
-  and the exact must-close checklist before starting a customer-specific demo
+  recommended private downstream repo/auth model, the `mavlink-anywhere` audit,
+  and the exact must-close checklist before starting a deployment-specific
   fork or first real-hardware deployment
 - a 2026-04-11 onboard ULog runtime closeout note documenting the new
   Log Viewer `Onboard ULog` workflow, the drone/GCS API surfaces, the
@@ -1251,7 +1373,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Custom SITL/private repository authentication handoff:
   documented public, public-fork, and private-repo auth paths; added
   non-interactive Git access preflight for SITL runtime sync and image
-  preparation; and verified private SSH read/write operation on Hetzner.
+  preparation; and verified private SSH read/write operation on an isolated
+  validation host.
 - Operator-friendly Mission Config optional-field templates for `callsign`,
   `marker_color`, `notes`, and `role_hint`.
 
@@ -1259,7 +1382,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Dashboard startup, SITL launcher, and image-release scripts now propagate
   read-only SSH/token auth settings consistently into child preflight checks.
 - Private SITL image workflow now closes on a flattened `latest` image at the
-  validated client branch, while public official usage remains unauthenticated.
+  validated downstream branch, while public official usage remains unauthenticated.
 
 ---
 

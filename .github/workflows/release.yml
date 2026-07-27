@@ -23,7 +23,7 @@ on:
           - minor
           - major
       prerelease_tag:
-        description: 'Optional beta tag from current main (for example v5.5.110-simurgh-operator-beta)'
+        description: 'Optional immutable beta tag from current main (for example vX.Y.N-simurgh-operator-beta)'
         required: false
         default: ''
 
@@ -71,31 +71,50 @@ jobs:
         run: |
           pytest \
             tests/test_agent_action_intent.py \
+            tests/test_agent_action_preconditions.py \
             tests/test_agent_assistant_evals.py \
             tests/test_agent_assistant_runtime.py \
             tests/test_agent_action_planner.py \
+            tests/test_agent_policy_roles.py \
             tests/test_agent_provider_smoke.py \
+            tests/test_agent_query_adaptation.py \
             tests/test_agent_query_understanding.py \
             tests/test_agent_registry_planner_coverage.py \
+            tests/test_agent_runtime_foundation.py \
+            tests/test_agent_session_store_structured_state.py \
+            tests/test_agent_sitl_lifecycle.py \
             tests/test_agent_turn_intent.py \
             tests/test_api_route_inventory.py \
+            tests/test_bootstrap_installers.py \
+            tests/test_drone_api_http.py \
             tests/test_env_registry.py \
+            tests/test_gcs_core_routes.py \
+            tests/test_gcs_dashboard_service_script.py \
+            tests/test_generate_release_notes.py \
             tests/test_gcs_simurgh_assistant.py \
             tests/test_gcs_simurgh_mcp.py \
             tests/test_gcs_simurgh_routes.py \
             tests/test_gcs_sitl_control_routes.py \
             tests/test_mds_auth.py \
+            tests/test_mds_logging/test_log_routes_drone.py \
+            tests/test_mds_logging/test_log_routes_gcs.py \
             tests/test_mds_logging/test_log_proxy.py \
+            tests/test_mds_logging/test_schema.py \
+            tests/test_mds_logging/test_ulog_analysis.py \
             tests/test_node_boot_status_routes.py \
+            tests/test_presence.py \
             tests/test_run_sitl_validation_suite.py \
             tests/test_runtime_validation_support.py \
             tests/test_simurgh_dashboard_prompt_evals.py \
             tests/test_simurgh_action_runs.py \
+            tests/test_simurgh_docs_index_generator.py \
             tests/test_simurgh_mcp_smoke_client.py \
             tests/test_simurgh_retrieval_quality.py \
             tests/test_simurgh_tool_candidate_generator.py \
             tests/test_sitl_control_service.py \
-            tests/test_sitl_control_client.py
+            tests/test_sitl_control_client.py \
+            tests/test_ulog_job_handles.py \
+            tests/test_ulog_service.py
           python3 tools/run_simurgh_dashboard_prompt_evals.py
           python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl --json
 
@@ -108,6 +127,10 @@ jobs:
 
       - name: Validate dashboard
         working-directory: app/dashboard/drone-dashboard
+        env:
+          REACT_APP_GIT_COMMIT: ${{ github.sha }}
+          REACT_APP_GIT_BRANCH: ${{ github.event.inputs.prerelease_tag || github.ref_name }}
+          REACT_APP_GIT_REPO: ${{ github.repository }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -117,10 +140,13 @@ jobs:
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
             src/App.test.js
-          npm run build
+          npm run build:release
 
   release:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'alireza787b/mavsdk_drone_show'
     needs: quality-gates
     runs-on: ubuntu-latest
     permissions:
@@ -138,6 +164,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/dashboard/drone-dashboard/package-lock.json
 
       - name: Install dependencies
         run: |
@@ -187,7 +220,7 @@ jobs:
               exit 1
             fi
             if ! [[ "$PRERELEASE_TAG" =~ ^v${PRODUCT_MAJOR}\.${PRODUCT_MINOR}\.[0-9]+-[0-9A-Za-z][0-9A-Za-z.-]*$ ]]; then
-              echo "❌ Prerelease tag must extend the current X.Y version, for example v${OLD_VERSION}.110-simurgh-beta"
+              echo "❌ Prerelease tag must extend the current X.Y version, for example v${OLD_VERSION}.N-simurgh-operator-beta"
               exit 1
             fi
             {
@@ -212,6 +245,127 @@ jobs:
             echo "🎉 Version changed: $OLD_VERSION → $NEW_VERSION"
           fi
 
+      - name: Require curated stable changelog entry
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.bump_version.outputs.version }}
+        run: |
+          if ! git show HEAD:CHANGELOG.md | grep -Fq "## [$RELEASE_VERSION]"; then
+            echo "❌ Commit the curated CHANGELOG.md section for $RELEASE_VERSION before releasing"
+            exit 1
+          fi
+
+      - name: Synchronize stable frontend lockfile
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        working-directory: app/dashboard/drone-dashboard
+        env:
+          RELEASE_VERSION: ${{ steps.bump_version.outputs.version }}
+        run: |
+          npm version "$RELEASE_VERSION" \
+            --no-git-tag-version \
+            --allow-same-version \
+            --ignore-scripts
+
+      - name: Commit stable version mutation locally
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            VERSION \
+            CHANGELOG.md \
+            src/__init__.py \
+            app/dashboard/drone-dashboard/package.json \
+            app/dashboard/drone-dashboard/package-lock.json \
+            app/dashboard/drone-dashboard/src/version.js
+          if git diff --cached --quiet; then
+            echo "❌ Stable release requested but no version mutation was staged"
+            exit 1
+          fi
+          git commit -m "chore: bump version to ${{ steps.bump_version.outputs.version }}" -m "Automated version bump" -m "Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+      - name: Resolve immutable release commit
+        if: steps.version_check.outputs.changed == 'true'
+        id: release_commit
+        run: |
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "short_sha=$(git rev-parse --short HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate release metadata
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.version_check.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          version = Path("VERSION").read_text(encoding="utf-8").strip()
+          package = json.loads(
+              Path("app/dashboard/drone-dashboard/package.json").read_text(encoding="utf-8")
+          )
+          package_lock = json.loads(
+              Path("app/dashboard/drone-dashboard/package-lock.json").read_text(encoding="utf-8")
+          )
+          python_source = Path("src/__init__.py").read_text(encoding="utf-8")
+          version_source = Path(
+              "app/dashboard/drone-dashboard/src/version.js"
+          ).read_text(encoding="utf-8")
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+          python_match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', python_source)
+          frontend_match = re.search(
+              r"DEFAULT_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
+              version_source,
+          )
+          observed = {
+              "VERSION": version,
+              "package.json": package.get("version"),
+              "package-lock.json": package_lock.get("packages", {}).get("", {}).get("version"),
+              "src/__init__.py": python_match.group(1) if python_match else None,
+              "src/version.js": frontend_match.group(1) if frontend_match else None,
+          }
+          mismatched = {name: value for name, value in observed.items() if value != version}
+          if mismatched:
+              raise SystemExit(f"Version metadata mismatch: {mismatched}; expected {version}")
+
+          release_name = os.environ["RELEASE_TAG"].removeprefix("v")
+          if f"## [{release_name}]" not in changelog:
+              raise SystemExit(
+                  f"CHANGELOG.md has no curated section for {os.environ['RELEASE_TAG']}"
+              )
+          print(f"Validated release metadata for {os.environ['RELEASE_TAG']}")
+          PY
+          git diff --check
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "❌ Tracked release files changed after the immutable commit was resolved"
+            git status --short
+            exit 1
+          fi
+
+      - name: Retest dashboard after stable version mutation
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        working-directory: app/dashboard/drone-dashboard
+        env:
+          REACT_APP_GIT_COMMIT: ${{ steps.release_commit.outputs.sha }}
+          REACT_APP_GIT_BRANCH: ${{ steps.version_check.outputs.tag }}
+          REACT_APP_GIT_REPO: ${{ github.repository }}
+        run: |
+          npm ci
+          CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
+            src/pages/SimurghOperatorPage.test.js \
+            src/components/logs/OnboardUlogDialog.test.js \
+            src/services/gcsApiService.test.js \
+            src/config/routeDocs.test.js \
+            src/components/SidebarMenu.test.js \
+            src/App.test.js
+          npm run build:release
+          git diff --exit-code
+
       - name: Generate release notes
         if: steps.version_check.outputs.changed == 'true'
         id: release_notes
@@ -221,16 +375,7 @@ jobs:
           python3 tools/generate_release_notes.py > release_notes.md
           echo "✅ Release notes generated"
 
-      - name: Commit version bump
-        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION CHANGELOG.md src/__init__.py app/dashboard/drone-dashboard/package.json app/dashboard/drone-dashboard/src/version.js
-          git commit -m "chore: bump version to ${{ steps.bump_version.outputs.version }}" -m "Automated version bump" -m "Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
-          git push
-
-      - name: Create Git tag
+      - name: Create local Git tag
         if: steps.version_check.outputs.changed == 'true'
         run: |
           TAG="${{ steps.version_check.outputs.tag }}"
@@ -241,8 +386,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-          echo "🏷️  Created tag: $TAG"
+          echo "🏷️  Created local tag: $TAG"
+
+      - name: Push immutable release refs
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+          PRERELEASE: ${{ steps.version_check.outputs.prerelease }}
+          RELEASE_TAG: ${{ steps.version_check.outputs.tag }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            git push origin "refs/tags/$RELEASE_TAG"
+          else
+            git push --atomic origin HEAD:main "refs/tags/$RELEASE_TAG"
+          fi
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.changed == 'true'

@@ -1,6 +1,6 @@
 # Versioning Guide
 
-**How MAVSDK Drone Show manages versions and releases**
+**How MDS - Mission-Directed Swarm manages versions and releases**
 
 ---
 
@@ -283,7 +283,7 @@ python tools/version_sync.py
 Expected output:
 ```
 ============================================================
-MAVSDK Drone Show - Version Synchronization
+MDS - Mission-Directed Swarm - Version Synchronization
 ============================================================
 
 📌 Current version: 3.7
@@ -395,7 +395,7 @@ Beta releases keep the stable two-part product version in `VERSION` and add a
 unique prerelease tag to an immutable commit on `main`, for example:
 
 ```text
-v5.5.110-simurgh-operator-beta
+vX.Y.N-simurgh-operator-beta
 ```
 
 After the release commit is validated and pushed to `main`, run **Actions →

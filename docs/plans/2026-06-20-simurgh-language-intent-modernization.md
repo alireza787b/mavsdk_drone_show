@@ -4,12 +4,12 @@ Date: 2026-06-20
 
 ## Decision
 
-Do not turn Simurgh into a large alias/typo dictionary. Keep deterministic query
-adaptation for safety, exact MDS domain terms, and eval-backed high-frequency
-operator spelling issues. Move broad language, tone, paraphrase, target-memory,
-and multi-step command understanding into a structured semantic-understanding
-layer whose output is validated and still governed by the existing registry,
-policy, confirmation, circuit breaker, and audit layers.
+Do not turn Simurgh into an alias or typo dictionary. Local query adaptation is
+lexical only and does not correct, translate, or infer operator language.
+Language, tone, paraphrase, target references, and multi-step command
+understanding belong to the schema-validated semantic provider. The registry,
+typed grounding, policy, confirmation, circuit breaker, execution, monitoring,
+and audit layers remain local and authoritative.
 
 This keeps the demo from looking hardcoded while preserving the parts that must
 remain deterministic for safety-critical operations.
@@ -38,42 +38,43 @@ remain deterministic for safety-critical operations.
 Implemented:
 
 - deterministic language/tone profile;
-- config-driven query adaptation in `config/agent_query_adaptation.yaml`;
+- lexical-only query normalization with no typo or multilingual phrasebook;
+- authenticated structured provider interpretation for typo-heavy,
+  multilingual, conversational, and multi-step turns;
 - provider-neutral turn-level semantic intent frame in
   `gcs-server/agent_runtime/turn_intent.py`, consumed by the dashboard
   assistant route before confirmation/action/read-only/provider branching;
-- local read-only tool routing and selected guarded actions;
+- registry-grounded local status/evidence tools and guarded actions;
 - provider composition for safe text turns;
 - optional public web-search lane for public/current facts;
 - action confirmation, circuit breaker, and audit enforcement outside provider
   prose;
+- durable target/action memory, typed action sequences, monitor conditions, and
+  reconnectable action runs;
 - dashboard prompt evals for PM-style conversations.
 
-Remaining gap:
+Ongoing work:
 
-- provider-backed structured-output semantic classification is not yet enabled
-  in the action path; the current frame is provider-neutral and testable;
-- target memory is partially structured through last action/result context, but
-  broader live-fleet target inference still needs careful safety review;
-- some failures still answer from docs instead of running the most relevant
-  local evidence tool;
-- answer localization and tone adaptation are not yet uniformly available for
-  local GCS-state answers because raw runtime state must not be sent to a
-  provider only for translation.
+- expand sanitized semantic eval coverage as new languages, tools, and operator
+  workflows appear;
+- add provider adapters behind the same typed contract when they meet policy,
+  tracing, latency, and eval requirements;
+- improve local evidence rendering and localization without sending raw private
+  runtime state to a provider solely for translation.
 
-## Rule Boundary
+## Deterministic Boundary
 
-`config/agent_query_adaptation.yaml` is allowed to contain:
+Deterministic routing may contain:
 
-- safety and sensitive-data wording;
-- blocked-action wording;
-- exact domain/tool nouns and stable multilingual aliases;
-- eval-backed high-frequency typos that protect routing;
-- temporary compatibility aliases with a tracked replacement plan.
+- canonical product, protocol, tool, and command vocabulary;
+- typed registry schemas and policy-sensitive constraints;
+- exact structured UI controls such as confirm/reject with a draft identity;
+- narrow fast paths for unambiguous local evidence queries.
 
 It must not contain:
 
-- every observed user typo;
+- observed user typos;
+- multilingual phrasebooks;
 - broad paraphrases of normal human requests;
 - long lists of demo prompts;
 - action-plan logic;
@@ -84,8 +85,8 @@ It must not contain:
 
 ### 1. Semantic Understanding Layer
 
-Add a structured, schema-validated understanding pass for low-confidence,
-typo-heavy, multilingual, follow-up, or action-sequence prompts.
+Use a structured, schema-validated understanding pass for typo-heavy,
+multilingual, follow-up, ambiguous, or action-sequence prompts.
 
 Input:
 
@@ -150,30 +151,23 @@ Each PM failure becomes a sanitized eval case with:
 - expected action plan or refusal reason;
 - expected concise answer style.
 
-The eval decides whether the fix belongs in query adaptation, semantic
-understanding, target memory, planner, executor, answer composition, or UI.
+The eval decides whether the fix belongs in semantic understanding, tool
+metadata, target memory, planner, executor, answer composition, or UI.
 
 ## Rollout Slices
 
-1. Freeze alias sprawl.
-   Document the boundary, require eval ids for new aliases, and reject
-   one-off demo prompt patches.
-2. Add semantic-understanding dry-run.
-   Produce structured JSON and traces without changing routing decisions.
-3. Enable semantic arbitration for low-confidence routing.
-   Deterministic high-confidence/safety routes still win. Semantic output can
-   select evidence domains when exact rules fail.
-4. Add durable action/target memory.
-   Use it for unambiguous follow-ups while keeping confirmation mandatory.
-5. Add typed multi-step action plans.
-   Support SITL lifecycle, takeoff/land/RTL, precision move, waits, and monitor
-   steps through the same executor path.
-6. Improve localized answer composition.
-   Use local templates for sensitive runtime state and provider/local model
-   translation only under approved egress policy.
-7. Expand multilingual and typo-heavy evals.
-   Cover English, Persian, French, simple non-native English, angry operator
-   tone, expert shorthand, and beginner questions.
+1. Completed: remove alias/typo phrasebooks and document the lexical boundary.
+2. Completed: add structured semantic interpretation with sanitized traces.
+3. Completed: ground semantic read/action plans against reviewed registry
+   contracts and fail to concise clarification when meaning cannot be grounded.
+4. Completed: add durable action/target memory and unambiguous follow-up
+   resolution while keeping confirmation mandatory.
+5. Completed: add typed multi-step SITL/flight plans, waits, conditions,
+   monitoring, steering, and reconnectable action runs.
+6. Completed for beta: render concise local evidence and action progress without
+   sending raw private state to the semantic provider.
+7. Continuous: expand multilingual, typo-heavy, expert, beginner, and
+   adversarial evals as sanitized operator cases are discovered.
 
 ## Acceptance Criteria
 
@@ -188,29 +182,28 @@ understanding, target memory, planner, executor, answer composition, or UI.
   runtime.
 - The PM can ask terse, typo-heavy, angry, beginner, or expert prompts and get
   concise useful behavior instead of docs dumps.
-- New failures add evals first; aliases are added only when they meet the rule
-  boundary above.
+- New language/phrasing failures add semantic evals and fix the responsible
+  context, schema, grounding, or UX layer; they do not add typo aliases.
 
 ## Current Implementation Checkpoint
 
-The first implementation slice adds a structured, provider-neutral
-`TurnIntentFrame`, routes dashboard assistant turns through it, and exposes the
-sanitized interpretation under `trace.intent`. The frame prevents two PM-visible
-failures:
+The beta routes authenticated operator turns through a structured semantic
+provider and then rebuilds the result through local typed contracts. A provider
+can interpret language, typos, pronouns, ordered clauses, and requested detail,
+but cannot invent unsupported tools, authorize an action, select an ungrounded
+target, alter numeric facts, bypass confirmation, disable the circuit breaker,
+or claim execution.
 
-- approval-like wording with a new read/status task, such as "go ahead and
-  check SITL instances now", no longer confirms an old pending action;
-- advisory motion questions, such as "tell me if drone 1 should land", no
-  longer draft guarded flight commands.
+Durable session and action-run state preserves the relevant target, draft,
+sequence, waits, monitor evidence, and terminal outcome across follow-ups and
+reconnects. Exact UI confirm/reject controls bypass language interpretation and
+remain bound to the operator, session, and immutable draft. Ambiguity produces
+one short clarification rather than a docs dump or partial action.
 
-Regression coverage now includes frame-level tests and dashboard-route tests for
-PM-style compound action plans, exact draft confirmations, read/status task
-arbitration, and advisory-vs-command flight wording.
-
-The next Simurgh slice should use the same frame contract for optional
-provider-backed structured semantic classification, broader target memory, and
-multilingual/tone-sensitive evals. Do not add broad alias lists as a substitute
-for this frame.
+Regression coverage includes provider-structured typo-heavy and multilingual
+requests, compound read/status turns, multi-step flight and SITL plans,
+target-memory follow-ups, approval/rejection binding, ULog/log review, progress
+replay, pause/resume/cancel controls, and provider failure behavior.
 
 ## References Reviewed
 

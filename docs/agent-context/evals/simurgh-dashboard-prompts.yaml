@@ -45,6 +45,36 @@ conversations:
           must_not_include:
             - Fleet status from GCS configuration
 
+  - id: configured_fleet_and_sitl_inventory
+    provider: mock
+    actor: operator
+    tags: [fleet, sitl, status, compound]
+    turns:
+      - prompt: "How many drones do we have configured? How many SITL instances are active?"
+        expected:
+          provider: mds-tools
+          tool_intent: fleet_sitl_summary
+          response_mode: status
+          query_domain: fleet
+          session_topic: fleet
+          tool_ids:
+            - mds.config.fleet.read
+            - mds.sitl.instances.read
+            - mds.sitl.policy.read
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Configured drones
+          must_include:
+            - "Configured drones: 1"
+            - "SITL instances: 0 total, 0 active"
+            - "Docker reachable: Yes"
+          must_not_include:
+            - Simurgh runtime posture
+            - No action was executed
+            - No drone command was sent
+            - Read-only check only
+
   - id: drone_show_readiness_and_meaning
     provider: mock
     actor: operator
@@ -327,6 +357,7 @@ conversations:
           must_include:
             - Current GCS/Simurgh health summary
             - GCS API
+          must_not_include:
             - No drone command was sent
 
   - id: sidecar_wifi_mavlink_status
@@ -375,7 +406,6 @@ conversations:
           must_include:
             - GCS command tracker summary
             - Active commands
-            - read-only tracker inspection
       - prompt: "are the GCS and drone repos synced or do we need git sync?"
         expected:
           provider: mds-tools
@@ -385,7 +415,6 @@ conversations:
           must_include:
             - GCS repository and fleet sync status
             - Need sync
-            - read-only repository inspection
       - prompt: "are any boards still initializing or stuck in git sync?"
         expected:
           provider: mds-tools
@@ -417,7 +446,6 @@ conversations:
           must_include:
             - Origin and launch-position status
             - Configured launch/trajectory start positions
-            - read-only configuration inspection
       - prompt: "what PX4 parameter profiles and policy does MDS have?"
         expected:
           provider: mds-tools
@@ -442,7 +470,6 @@ conversations:
           session_topic: sar
           must_include:
             - QuickScout/SAR mission status
-            - read-only QuickScout inspection
       - prompt: "is smart swarm mission ready for a field follow test?"
         expected:
           provider: mds-tools
@@ -450,9 +477,9 @@ conversations:
           response_mode: workflow
           session_topic: swarm
           must_include:
-            - Smart Swarm readiness snapshot
+            - Smart Swarm readiness from current GCS evidence
             - human field checks
-            - read-only readiness advisory
+            - No configuration, mission, or drone action was executed
           must_not_include:
             - Mission reay not found
       - prompt: "how do I create a SITL demo before trying this for real?"

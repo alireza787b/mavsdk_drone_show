@@ -219,10 +219,18 @@ build/test toolchain
 
 **Problem:** `npm ci` in the dashboard still surfaces deprecated CRA-era
 dependencies and audit findings owned by the `react-scripts` build/test chain.
-The Simurgh operator beta lockfile refresh removed the critical finding and
-applied every compatible non-breaking patch available at that checkpoint.
-Forcing npm's remaining suggested remediation would install the invalid
-`react-scripts@0.0.0`; this is not an acceptable production fix.
+The Simurgh operator beta lockfile refresh applied compatible direct patches
+for Axios, Markdown-It/Linkify-It, and PostCSS. The remaining report includes
+build/dev-server packages that are not shipped in the static dashboard bundle;
+npm's proposed forced remediation would install the invalid
+`react-scripts@0.0.0`, which is not an acceptable production fix.
+
+React Router v6 also has two moderate advisories in the current audit. The
+latest v7 release available at the beta checkpoint resolves those ranges but
+introduces a separate high-severity RSC-mode advisory. MDS is a declarative
+client-side SPA and does not use SSR/RSC hydration, but the dependency should
+move only when one maintained release closes the relevant advisory ranges and
+passes the complete dashboard regression/browser gate.
 
 **Solution:** Replace CRA with a maintained frontend build/test toolchain in a
 dedicated migration, preserve the existing runtime asset contract and browser
@@ -234,6 +242,43 @@ work until that migration is complete.
 - `app/dashboard/drone-dashboard/package.json`
 - `app/dashboard/drone-dashboard/package-lock.json`
 - related build/test tooling docs
+
+---
+
+## Simurgh: Decompose the remaining aggregation modules
+
+**Priority:** Medium
+**Status:** Deferred until after the operator beta contract is frozen and PM
+acceptance is complete
+
+**Problem:** The beta now has focused modules for action preconditions, SITL
+lifecycle verification, target grounding, durable action runs, ULog parsing,
+ULog transfer policy, and ULog capability handles. Three integration surfaces
+remain larger than a practical review unit:
+
+- `gcs-server/api_routes/simurgh.py`
+- `gcs-server/agent_runtime/mds_read_tools.py`
+- `app/dashboard/drone-dashboard/src/pages/SimurghOperatorPage.js`
+
+These files currently aggregate stable cross-domain contracts. Splitting them
+inside the release candidate would create broad import, route, session, and UI
+state risk without changing operator behavior.
+
+**Solution:** Perform behavior-preserving extraction in independently reviewed
+slices after beta acceptance:
+
+1. move MCP transport and response-schema ownership out of the Simurgh router;
+2. split read-tool implementations by registry domain while retaining one
+   canonical registry/composer contract;
+3. extract settings, conversation navigation, message rendering, approval
+   review, and durable action-run cards into focused React modules;
+4. run the full backend suite, prompt evals, dashboard tests/build, and the PM
+   SITL acceptance scenario after every extraction.
+
+Do not combine this work with new capabilities, typo aliases, tool-specific
+prompt rules, or scenario branches. Completion means smaller ownership units
+with unchanged HTTP/MCP/action/session/UI contracts and no duplicate source of
+truth.
 
 ---
 

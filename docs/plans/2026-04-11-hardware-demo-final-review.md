@@ -1,8 +1,8 @@
 # Hardware Demo Final Review
 
 Date: 2026-04-11
-Status: Final pre-implementation review note
-Scope: Final operator and architecture answers before closing the official bootstrap/enrollment phase and starting the private customer demo path
+Status: Historical, sanitized pre-implementation review note
+Scope: Reusable operator and architecture decisions before downstream deployment
 
 ## Final Decisions
 
@@ -25,7 +25,7 @@ Internally, it is still layered:
 
 But that complexity should stay behind the scenes.
 
-### 2. Should customer deployments start from the official bootstrap?
+### 2. Should downstream deployments start from the official bootstrap?
 
 Yes.
 
@@ -40,14 +40,14 @@ This is the clean model:
 That gives:
 
 - one stable public entrypoint
-- support for official repo and private customer repos
+- support for official and private downstream repositories
 - good CLI / MCP / Ansible ergonomics
 
-### 3. Does the customer need to edit `src/params.py` before first bootstrap?
+### 3. Does a downstream operator need to edit `src/params.py` before first bootstrap?
 
 No. That should not be the required workflow.
 
-The correct pre-bootstrap customer preparation is:
+The correct downstream pre-bootstrap preparation is:
 
 1. create or seed the private repo
 2. create the intended branch
@@ -62,7 +62,9 @@ The runtime repo/branch selection should come from:
 
 `src/params.py` should remain fallback only.
 
-Current repo still contains verification code that compares selected repo/branch against `params.py`. That is acceptable as a warning for now, but it should not imply that customer operators must edit `params.py` first.
+Current repo still contains verification code that compares selected repo/branch
+against `params.py`. That is acceptable as a warning for now, but it should not
+imply that downstream operators must edit `params.py` first.
 
 ### 4. Network model should not be NetBird-only
 
@@ -193,7 +195,7 @@ The remaining cleanup task is to reduce human-facing ambiguity, not to invent an
    - real hardware
 8. Reduce identity duplication messaging in docs so operators always know where to look first.
 
-## Customer Demo Prep: What The Customer Must Do
+## Downstream Prep
 
 Before bootstrap:
 
@@ -216,19 +218,11 @@ What they should **not** need to do:
 - edit old network settings manually in code
 - maintain separate conflicting bootstrap methods
 
-## Hetzner GCS Next Step
+## Remote GCS Note
 
-Hetzner is reachable over SSH and NetBird is now installed there.
-
-The next step is user authentication for the NetBird device registration, then verification from this host.
-
-If the auth session expires before use, the correct next action is simply to rerun:
-
-```bash
-ssh root@203.0.113.10 'netbird up'
-```
-
-and capture the new login URL.
+The checkpoint validated the remote GCS overlay-registration workflow. Live
+host state, addresses, and authentication URLs belong in private deployment
+records, not this public architecture note.
 
 ## Final Recommendation
 
@@ -243,8 +237,8 @@ What needs to change is not the overall model, but the operational polish:
 
 After those are fixed, the official repo will be in the right shape to:
 
-- create the private customer repo
-- bootstrap customer GCS on Hetzner
-- bootstrap the reachable hardware companion computer
+- create the private downstream repository
+- bootstrap a remote downstream GCS
+- bootstrap a hardware companion computer
 - validate candidate enrollment and replacement on real hardware
-- then proceed into customer-specific customization and demo validation
+- then proceed into deployment-specific customization and validation

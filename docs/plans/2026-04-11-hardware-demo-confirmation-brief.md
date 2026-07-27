@@ -1,35 +1,26 @@
 # Hardware Demo Confirmation Brief
 
 Date: 2026-04-11
-Status: Final confirmation brief before official bootstrap/workflow implementation
-Scope: Final decisions on repo defaults, usernames, NetBird verification, and remaining pre-client gaps
+Status: Historical, sanitized confirmation brief
+Scope: Reusable decisions on repo defaults, usernames, overlay networking, and downstream deployment gaps
 
-## Verified Now
+## Validation Evidence At The Checkpoint
 
-### Hetzner GCS
+### Remote validation GCS
 
-Hetzner is now on NetBird and healthy from this host.
-
-Verified:
-
-- overlay-connected GCS host: connected
-- overlay peer visibility to the hardware node: working
+The remote validation GCS and one companion node completed the overlay
+connectivity path. Hostnames, addresses, peer identifiers, and current
+availability are intentionally not retained in this public decision record.
 
 ### Companion Node
 
-The reachable hardware companion is also confirmed live over NetBird from this host.
-
-Verified:
-
-- overlay-connected hardware node: reachable
-- SSH via the current admin user works from this host
-- OS: Debian-class ARM Linux
-
-So the network path required for the next real-hardware phase is ready.
+The companion validation established the expected admin-to-runtime-user and
+Debian-class ARM workflow. This is historical evidence, not a claim about a
+currently reachable deployment.
 
 ## Final Answers
 
-### 1. Should bootstrap auto-edit `src/params.py` in the customer repo and commit it?
+### 1. Should bootstrap auto-edit `src/params.py` in a downstream repo and commit it?
 
 No. I do not recommend that as part of normal bootstrap.
 
@@ -46,9 +37,11 @@ So the correct policy is:
 - **do warn if repo defaults drift from the selected runtime repo/branch**
 - **do clean the stale comments/defaults in official MDS so the warning itself becomes less noisy**
 
-If customers later want their private repo defaults cosmetically aligned, that should be a separate deliberate maintenance step, not an implicit side effect of provisioning.
+If downstream maintainers later want private-repo defaults cosmetically aligned,
+that should be a separate deliberate maintenance step, not an implicit side
+effect of provisioning.
 
-### 2. Does the customer need to pre-edit repo info anywhere before first bootstrap?
+### 2. Does a downstream operator need to pre-edit repo info before first bootstrap?
 
 No, not in code.
 
@@ -59,7 +52,7 @@ They only need to prepare:
 3. desired code is present in that branch
 4. deploy key authorization is possible
 
-They should not need to:
+Operators should not need to:
 
 - edit `src/params.py` to point at the repo
 - edit old network fields in code
@@ -87,7 +80,7 @@ That means the hardware node being reachable under an arbitrary existing admin u
 
 ### 4. Should we make hardware runtime user fully configurable now?
 
-Not before the client demo path unless we deliberately take that as a broader refactor.
+Not before downstream rollout unless we deliberately take that as a broader refactor.
 
 My recommendation:
 
@@ -162,7 +155,7 @@ For this phase:
 - local/static stays first-class
 - future Tailscale/WireGuard-style support should be possible without rethinking the whole architecture
 
-## Remaining Must-Fix Items Before Private Client Deployment
+## Remaining Must-Fix Items Before A Private Downstream Deployment
 
 ### Required
 
@@ -177,7 +170,7 @@ For this phase:
 
 7. unify operator guidance into one hardware onboarding playbook
 8. run official real-hardware validation on:
-   - fresh Hetzner GCS path
+   - a fresh remote GCS path
    - reachable hardware companion
    - candidate announce
    - accept / replace / recover
@@ -193,11 +186,12 @@ If you confirm this brief, the next implementation phase should be:
 4. stale docs / `params.py` cleanup
 5. revalidation on Hetzner + real hardware
 
-Only after that should we create and exercise the customer-specific private repo/demo workflow.
+Only after that should a deployment-specific private repo workflow be exercised.
 
 ## Final Recommendation
 
-The project is ready to move forward, but not yet ready to skip straight into the customer demo fork.
+The project was ready to move forward, but not yet ready to skip straight into a
+downstream deployment fork.
 
 The remaining work is focused and clear. The main architectural decisions are already correct.
 

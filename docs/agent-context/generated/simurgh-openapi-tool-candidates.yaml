@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 207
+candidate_count: 208
 candidates:
 - callable: false
   classification:
@@ -1624,6 +1624,51 @@ candidates:
     summary: Get Swarm Config
     tags:
     - Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - fleet_identity
+    - location
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.fleet.action.readiness
+  parameters:
+  - description: ''
+    in: query
+    name: target_drone_ids
+    required: true
+    schema:
+      items:
+        type: string
+      maxItems: 64
+      minItems: 1
+      title: Target Drone Ids
+      type: array
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/FleetActionReadinessResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_fleet_action_readiness_api_v1_fleet_action_readiness_get
+    path: /api/v1/fleet/action-readiness
+    summary: Get Fleet Action Readiness
+    tags:
+    - Telemetry
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -8083,15 +8128,15 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: c432c7590ec2808a06dbe3853920daaa87706066974ed30afd390e45754970a4
+  openapi_sha256: c976608926a1a08ffa0368d59059939de0e418d4392a785c902b6cde9a1da011
   title: GCS Server API
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 79
-    promoted_eligible_candidate_count: 79
+    eligible_read_only_candidate_count: 80
+    promoted_eligible_candidate_count: 80
     promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
-    registry_route_count: 97
+    registry_route_count: 98
     unpromoted_eligible_by_area: []
     unpromoted_eligible_candidate_count: 0

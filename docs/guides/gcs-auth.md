@@ -1,15 +1,17 @@
 # GCS Auth Guide
 
-MDS dashboard/API authentication is optional. The default public-demo posture is
-open on the trusted deployment network. Enable auth when the GCS dashboard is
+MDS dashboard/API authentication is optional. The stock plug-and-play posture is
+open on a trusted lab or isolated SITL network and emits a warning when the
+service starts without dashboard auth. Enable auth when the GCS dashboard is
 reachable by multiple operators, VPN peers, customer laptops, or any network
-that is not fully trusted.
+that is not fully trusted. Never expose the open posture directly to the public
+internet.
 
 ## Security Modes
 
 | Mode | Env | Intended use |
 |------|-----|--------------|
-| Open demo | `MDS_AUTH_ENABLED=false`, `MDS_API_AUTH_ENABLED=false` | local development, public demo, isolated SITL |
+| Trusted lab/demo | `MDS_AUTH_ENABLED=false`, `MDS_API_AUTH_ENABLED=false` | local development and isolated SITL on a trusted network |
 | Dashboard login | `MDS_AUTH_ENABLED=true`, `MDS_API_AUTH_ENABLED=false` | recommended first production step; humans log in, existing drone/API flows keep working |
 | Full API auth | `MDS_AUTH_ENABLED=true`, `MDS_API_AUTH_ENABLED=true` | advanced locked-down deployments where drones, agents, and scripts use bearer tokens |
 
@@ -184,7 +186,10 @@ workflow is explicit token provisioning by an admin.
 ### Current Drones
 
 If only dashboard login is enabled (`MDS_API_AUTH_ENABLED=false`), current
-hardware boards and SITL containers continue to work when they reconnect.
+hardware boards and SITL containers continue to use the trusted-network machine
+routes when they reconnect. Nodes with no `MDS_GCS_API_TOKEN_FILE` also expose
+ULog through the warned trusted-network demo posture. Once that token path is
+configured, ULog authentication fails closed independently of broad API auth.
 
 Before enabling full API auth for an already-installed drone:
 
@@ -244,10 +249,32 @@ sudo ./tools/mds_node_announce.sh \
 
 ### SITL Containers
 
-Keep API auth disabled for ordinary public-demo SITL. For private locked-down
-SITL, pass a read-only machine token into the container runtime as
-`MDS_GCS_API_TOKEN_FILE`, and do not bake raw tokens into the image.
-Rotate/revoke SITL tokens after customer demos.
+Zero-config SITL keeps ULog available on the trusted lab network and logs a
+security warning when it is used. For an untrusted, shared, customer, or
+commercial validation host, provision one dedicated `drone`-scoped token:
+
+```bash
+make auth-create-token ARGS="--name sitl-ulog --scope drone --ttl-hours 8760"
+sudo install -d -m 700 /etc/mds/secrets
+sudo sh -c 'umask 077; printf "%s\n" "mds_REPLACE_WITH_TOKEN" > /etc/mds/secrets/sitl_gcs_api_token'
+```
+
+Store only its host path in `/etc/mds/gcs.env`:
+
+```bash
+MDS_SITL_GCS_API_TOKEN_FILE=/etc/mds/secrets/sitl_gcs_api_token
+```
+
+The canonical SITL launcher mounts that file read-only at
+`/run/secrets/mds_gcs_api_token` and sets the existing node-side source of truth,
+`MDS_GCS_API_TOKEN_FILE`, to that mounted path. Token content is never placed in
+Docker environment values, the image, git, or browser state.
+
+With `MDS_API_AUTH_ENABLED=true` or
+`MDS_SITL_GCS_API_TOKEN_FILE` configured, the GCS cannot silently fall back to
+unauthenticated ULog proxying. A missing token record/file is an actionable
+configuration error. Rotate or revoke dedicated SITL tokens after customer
+demos or when a validation host changes ownership.
 
 ### Enabling Or Disabling API Auth
 

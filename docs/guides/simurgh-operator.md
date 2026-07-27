@@ -1,10 +1,10 @@
 # Simurgh Operator
 
-Simurgh Operator is the MDS agent-safe control-plane foundation for MCP servers
-and dashboard assistant workflows.
+Simurgh Operator is the governed AI operator layer for MDS dashboard and MCP
+workflows.
 
-The current implementation is deny-by-default, but it now includes a usable
-read-only operator slice plus selected guarded actions:
+The current beta is deny-by-default and combines live read evidence with a
+selected, explicitly orchestratable guarded-action surface:
 
 - provider-neutral runtime primitives
 - deny-by-default policy evaluation
@@ -15,7 +15,7 @@ read-only operator slice plus selected guarded actions:
 - dashboard assistant progress and answer streaming over a GCS-side SSE route
 - compact activity trace that shows the current step, fades the last one or two
   evidence steps, and hides detailed trace rows behind an in-message disclosure
-- optional text-only OpenAI Responses adapter
+- optional OpenAI Responses semantic interpretation/composition adapter
 - optional public web search for safe current/public facts, separated from local
   MDS state so installed firmware, fleet state, logs, IPs, and credentials stay
   on approved local tools
@@ -68,13 +68,25 @@ frame contract for eligible authenticated turns, including action requests that
 the offline fallback parser recognizes only partially. It may improve typo,
 language, tone, paraphrase, wrong technical term, ordered-sequence, and
 target-memory understanding, but it only returns concise routing text plus
-metadata. Genuine ambiguity produces one short provider-derived clarification
+metadata. Its maintained prompt contract is the
+`semantic_routing_instructions` block in `config/agent_assistant.yaml`; there is
+no second hidden prompt copy in Python. Genuine ambiguity produces one short provider-derived clarification
 question instead of falling through to docs or generic assistant prose. The
-semantic layer receives no telemetry, logs,
-ULog content, IPs, coordinates, tokens, or tool results, and it never approves
-or executes an action. The local typed planner, registry schema validation,
-runtime mode, approval gate, circuit breaker, command submission, monitoring,
-and audit layers remain the authority.
+semantic layer receives no telemetry, logs, ULog content, IPs, coordinates,
+tokens, or tool results. It may interpret a stop/reject request, but it never
+confirms, submits, or directly cancels an action. The local session/run resolver,
+typed planner, registry schema validation, runtime mode, approval gate, circuit
+breaker, command submission, monitoring, and audit layers remain the authority.
+Configured sensitive spans in an otherwise eligible semantic-routing request
+are replaced with opaque, turn-local placeholders before the provider call and
+restored only inside the locally validated structured result. Placeholder
+descriptors carry type and position, not the original value. If the request
+cannot be routed safely after tokenization, the normal local sensitive-input
+block remains authoritative.
+Approval/rejection classification must cite an exact span from the current
+authenticated operator message. An ungrounded provider control label cannot
+execute or cancel anything; when a pending draft exists, Simurgh shows that
+draft for review instead.
 Facts already parsed by the local typed planner must remain an ordered subset of
 the provider-normalized draft. A semantic rewrite that changes a recognized
 target, mission type, altitude, wait, direction, or translation is discarded;
@@ -360,6 +372,24 @@ In `real`, those tools are denied by policy because their risk class is
 Flight commands use `mds.flight.command.execute`, which wraps a small typed set
 of GCS command payloads and never exposes raw command submission. SITL lifecycle
 actions use the same confirmation, audit, progress, and circuit breaker path.
+Guarded status alone does not make a tool conversationally executable. A tool
+must also declare an `assistant_action` contract in `config/agent_tools.yaml`,
+including its intent family and monitor kind. Adding a future guarded endpoint
+therefore cannot silently expose it to semantic planning before its typed
+adapter, policy, monitoring, tests, and docs are ready.
+
+Conditional action clauses are represented as typed registry facts rather than
+provider-generated code or phrase-specific executor rules. A read-only tool may
+publish bounded `assistant_facts` in `config/agent_tools.yaml`; the semantic
+layer can reference only those fact IDs, registered value types, comparison
+operators, and schema-valid read arguments. Simurgh evaluates every condition
+before showing an approval and again immediately before dispatch. A condition
+that is already false produces a visible `Not needed` result without creating a
+pending approval or action run. An unavailable condition blocks the action
+instead of guessing. The dashboard keeps the human-readable `Only if` condition
+and action sequence visible while leaving the raw typed payload behind an
+optional details control.
+
 For follow-up action turns, Simurgh may infer an implicit target such as "the
 drone" only from the previous submitted action in the same assistant session. It
 must say that target was inferred and keep the same policy/circuit-breaker gate.
@@ -380,7 +410,20 @@ the semantic layer across language, tone, typos, paraphrases, and technical
 wording. The offline/mock parser accepts the canonical action grammar as a
 deterministic fallback. Both paths converge on the same typed draft, registry
 schema, confirmation, circuit breaker, and GCS validation; provider text is
-never submitted as a command.
+never submitted as a command. The fallback is also a one-way completeness
+backstop: if it independently recognizes more ordered steps than a provider
+plan, Simurgh asks one clarification rather than silently dropping those steps.
+It does not veto a complete semantic plan merely because the operator used
+another language or wording that the fallback does not recognize.
+
+SITL lifecycle requests omit installation defaults unless the operator
+explicitly overrides them. The service resolves omitted git-sync,
+requirements-sync, image, network, and startup-script settings from the active
+deployment once, then records the effective values in operation metadata.
+Create/reconcile/restart/remove mutations are serialized across assistant
+actors and service callers so condition rechecks, ID/IP allocation, launch, and
+cleanup cannot race. An explicit duplicate instance ID or IP fails visibly
+instead of replacing an existing container.
 
 Long-running action monitoring is status-based, not sleep-based. Flight commands
 poll the canonical command tracker. SITL create/reconcile/restart/remove actions
@@ -391,9 +434,14 @@ dependent post-action such as "land, wait until disarmed, then remove the SITL
 instance" runs only after the command reaches terminal success; it is skipped on
 failure, cancellation, or timeout.
 After monitored LAND or RTL, command-tracker success is not treated as proof of
-landing. Simurgh waits for fresh target telemetry to confirm disarm, reports an
-explicit unverified final state when telemetry is unavailable, and stops the
-remaining dependent sequence if final-state verification times out.
+landing. Simurgh waits for fresh target telemetry to confirm disarm, landed or
+settled state, bounded relative altitude and vertical speed, and for RTL a
+non-negative bounded distance to home. The deployment thresholds are
+`MDS_AGENT_FINAL_STATE_MAX_RELATIVE_ALTITUDE_M` (1.0 m),
+`MDS_AGENT_FINAL_STATE_MAX_VERTICAL_SPEED_MPS` (0.75 m/s), and
+`MDS_AGENT_RTL_MAX_HOME_DISTANCE_M` (5.0 m). Missing, stale, malformed, or
+negative evidence is not treated as success. Simurgh reports an explicit
+unverified final state and stops dependent steps if verification times out.
 Every dispatched post-action is re-evaluated against the current policy and
 circuit breaker. Sequence command idempotency keys are derived from the draft id
 and ordered step number, so a transport retry cannot create a new movement
@@ -445,15 +493,18 @@ operator explicitly asks about the previous executed/submitted command.
 
 Guarded action confirmations are local runtime decisions, not provider-composed
 answers. When a pending draft is shown in dashboard chat, the UI presents compact
-**Confirm** and **Reject** controls tied to that draft id. Typed confirmations
-such as `confirm action act-...` use the same path. If a browser stream or
-network request drops before the next turn, Simurgh may recover exactly one
-recent pending draft for the same operator and execute it after policy
-evaluation. If there is no pending draft, or there are multiple recent pending
-drafts, Simurgh must not guess; it gives a local no-execute answer using the live
-runtime policy state and asks for the specific draft id or a fresh action
-request. Public context defaults must not be used to answer confirmation-state
-questions.
+**Confirm**, **Reject**, and **Amend** controls tied to that draft id. Typed
+confirmations such as `confirm action act-...` use the same path. Amend opens
+the normal composer against one immutable pending draft; the semantic layer
+must preserve every unchanged step and return a complete replacement plan. The
+original draft remains unexecuted, and the replacement receives a fresh draft
+id and the normal confirmation gate. If a browser stream or network request
+drops before the next turn, Simurgh may recover exactly one recent pending draft
+for the same operator and execute it after policy evaluation. If there is no
+pending draft, or there are multiple recent pending drafts, Simurgh must not
+guess; it gives a local no-execute answer using the live runtime policy state
+and asks for the specific draft id or a fresh action request. Public context
+defaults must not be used to answer confirmation-state questions.
 
 The confirmation view must remain operator-interpretable: show the inferred
 target, ordered steps, waits, movement direction/distance, RTL/land/cleanup
@@ -466,13 +517,19 @@ It does not own, hide, or cancel an approved action run. Approved work is stored
 in the durable action-run journal and continues independently of the chat HTTP
 or SSE connection. The operator page reconnects with an event cursor, replays
 missed steps, and shows the same human-readable plan from confirmation through
-terminal reporting.
+terminal reporting. Every run snapshot includes the journal revision and last
+event id so delayed snapshots or progress events cannot move a nonterminal card
+backward.
 
 An active run exposes **Pause after step**, **Resume**, and **Cancel remaining**
 controls. Pause and cancellation take effect at a safe step boundary: a command
 already dispatched to GCS is not recalled mid-step, but no later undispatched
-step starts. A GCS restart never auto-resumes an orphaned run; the journal marks
-it `interrupted` for operator review. The first-party action-run endpoints are:
+step starts. `pause_requested` and `cancel_requested` remain visibly pending
+until the runner reaches that boundary; once the boundary is applied, the UI
+shows `Paused` rather than retaining the earlier `Pausing` request. A GCS
+restart never resumes an orphaned run. The prior owner lease remains
+authoritative until it expires; the journal then marks the run `interrupted`
+before releasing its resources. The first-party action-run endpoints are:
 
 - `GET /api/v1/simurgh/action-runs`
 - `GET /api/v1/simurgh/action-runs/{run_id}`
@@ -485,9 +542,12 @@ to the external MCP tool menu.
 
 Terminal action-run history is pruned by age and per-operator count using
 `MDS_AGENT_ACTION_RUN_MAX_AGE_DAYS` and
-`MDS_AGENT_ACTION_RUN_MAX_RECORDS`. Retention never removes active runs; on GCS
-restart, unfinished runs first transition to the terminal `interrupted` state
-and remain available for operator review under the same bounded policy.
+`MDS_AGENT_ACTION_RUN_MAX_RECORDS`. Retention never removes active runs. The
+ownership lease is controlled by `MDS_AGENT_ACTION_RUNNER_LEASE_SECONDS`; active
+runners renew it on an independent keepalive derived from the configured lease,
+not from chat/progress traffic. Ownership loss propagates to the action
+coordinator and cancels further orchestration; it is never discarded as a
+background-task detail. An expired owner is interrupted rather than resumed.
 
 When one operator turn combines a current-state question with an action request,
 for example configured fleet/SITL counts plus "build one", Simurgh should run
@@ -512,6 +572,14 @@ scope. Drone-only bearer tokens are not accepted for external provider calls.
 This prevents an exposed GCS or lower-privilege machine token from becoming an
 external-provider, cost, or data-egress surface.
 
+Tool discovery, capability answers, draft creation, confirmation, and dispatch
+all use the authenticated actor role. `viewer` and legacy `agent` callers can
+use approved status/evidence tools, `operator` callers can use reviewed
+operator actions such as curated flight commands, and `admin` is required for
+host-level lifecycle mutations such as SITL create/reconcile/remove. The role
+is re-evaluated with policy immediately before dispatch; a capability answer
+never advertises a guarded tool that the current actor cannot use.
+
 Advanced paths:
 
 ```text
@@ -525,15 +593,20 @@ MDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200
 MDS_AGENT_ACTION_RUN_DB=runtime_data/simurgh/action_runs.sqlite3
 MDS_AGENT_ACTION_RUN_MAX_AGE_DAYS=30
 MDS_AGENT_ACTION_RUN_MAX_RECORDS=200
+MDS_AGENT_ACTION_RUNNER_LEASE_SECONDS=60
 MDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json
+MDS_AGENT_PROVIDER_MAX_CONCURRENCY=4
 MDS_AGENT_OPENAI_API_KEY_FILE=
-MDS_AGENT_OPENAI_MODEL=gpt-5.6
+MDS_AGENT_OPENAI_MODEL=gpt-5.6-sol
 MDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 MDS_AGENT_OPENAI_TIMEOUT_SEC=30
-MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900
+MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=4000
 MDS_AGENT_OPENAI_REASONING_EFFORT=medium
 MDS_AGENT_OPENAI_TEXT_VERBOSITY=low
 MDS_AGENT_SEQUENCE_MAX_WAIT_SEC=300
+MDS_AGENT_FINAL_STATE_MAX_RELATIVE_ALTITUDE_M=1.0
+MDS_AGENT_FINAL_STATE_MAX_VERTICAL_SPEED_MPS=0.75
+MDS_AGENT_RTL_MAX_HOME_DISTANCE_M=5.0
 MDS_AGENT_WEB_SEARCH_ENABLED=false
 MDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium
 MDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true
@@ -1003,12 +1076,15 @@ promoted with typed arguments, docs, tests, safety notes, and reviewer approval.
 
 ## GCS API Surface
 
-The foundation API exposes metadata/session/audit/assistant routes plus a
-read-only MCP tool executor for policy-allowed GCS `GET` routes. It still does
-not execute mutation/domain action tools. The dashboard assistant can also
-explain the registry-backed capability menu in chat so operators understand
-what MCP clients can discover when MCP is enabled. Route-backed tools accept
-arguments only when their registry entry has an explicit `input_schema`;
+The foundation API exposes metadata/session/audit/assistant routes, a
+read-only MCP tool executor for policy-allowed GCS `GET` routes, and the
+first-party guarded action-run path used by dashboard chat. External MCP
+`tools/call` remains read-only in this beta; dashboard actions use separately
+classified registry entries and still pass local policy, confirmation, circuit
+breaker, typed route validation, monitoring, and audit. The dashboard assistant
+can also explain the registry-backed capability menu in chat so operators
+understand what MCP clients can discover when MCP is enabled. Route-backed tools
+accept arguments only when their registry entry has an explicit `input_schema`;
 otherwise unexpected arguments are rejected.
 
 The dashboard assistant has a registry-domain bridge for capability questions.
@@ -1091,16 +1167,17 @@ the agent runtime, operators and maintainers can still inspect policy, tool
 metadata, and context resources.
 
 Assistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is
-deterministic `mock`. The optional `openai` adapter is text-only and calls the
-OpenAI Responses API after the same policy, actor/session, message-size,
-metadata-size, and public-context checks pass. Provider adapters assemble public
-context from `config/agent_assistant.yaml` and
-`docs/agent-context/context-index.yaml`, record an audit hash, and do not expose
-model-driven tools in this slice. Common MDS state questions may be answered
-before the provider call by local read-only GCS context tools, and selected
-guarded actions may be drafted/executed by local Simurgh registry tools before
-any provider path. If `MDS_AGENT_PROVIDER` is set to an unsupported provider, the
-route returns a not-implemented error.
+deterministic `mock`. The optional `openai` adapter calls the OpenAI Responses
+API for semantic interpretation or response composition after the same policy,
+actor/session, message-size, metadata-size, and public-context checks pass. The
+provider cannot approve, dispatch, or directly call MDS tools. Its structured
+interpretation is grounded against the operator's source request, current
+runtime identities, registry schemas, and local policy before any guarded draft
+exists. Concrete MDS state questions may use local GCS evidence without a
+provider call. Approved action drafts execute only through the local Simurgh
+action-run path after human confirmation and final circuit-breaker evaluation.
+If `MDS_AGENT_PROVIDER` is unsupported, the route returns a not-implemented
+error.
 
 `GET /api/v1/simurgh/status` reports `assistant_provider`,
 `assistant_model`, and `assistant_external_provider` so dashboards and agent
@@ -1132,24 +1209,28 @@ and the assistant history for the dashboard actor. The current Simurgh Operator
 page is a minimal chat surface with compact runtime settings. New assistant
 turns stream progress and answer chunks in the active message bubble, while the
 final saved local history still stores only completed user/assistant messages.
-It does not expose direct drone APIs, raw command submission, or executable
-flight controls.
+Guarded action drafts show a human-readable plan with the raw typed payload
+available behind a details toggle. After confirmation, the durable action card
+streams ordered steps, waits, monitoring, retries, pause/cancel state, and final
+verification. The page never exposes direct drone-local APIs or raw command
+submission; all actions go through the governed GCS path.
 
 The navigation label is **Simurgh Operator** under the System section.
 
 ## Beta Deployment And Rollback
 
-Deploy Simurgh beta from an immutable official commit/tag, then merge that
-public commit into a separate client overlay branch. Before restarting GCS:
+Deploy Simurgh beta from an immutable official commit/tag in a clean deployment
+checkout. Keep installation-specific configuration, credentials, and downstream
+deployment metadata outside the public repository. Before restarting GCS:
 
-1. record the official tag/commit and client overlay commit;
+1. record the release tag/commit and the deployment checkout's current commit;
 2. back up `/etc/mds/gcs.env` and the server-side OpenAI key file metadata
    without copying the key into git or logs;
 3. run generated-contract checks, backend tests, dashboard tests/build, and the
    PM SITL acceptance prompts on the deployment host;
 4. remove test SITL instances before field/real-mode handoff.
 
-Rollback by checking out the previously recorded official/client commit in a
+Rollback by checking out the previously recorded immutable release tag in a
 clean deployment checkout, restoring the prior environment backup if settings
 changed, restarting GCS/dashboard through the documented service workflow, and
 verifying runtime mode, circuit breaker, provider, fleet telemetry, and zero
@@ -1174,30 +1255,77 @@ the code before exposing the context to a model or MCP client.
 
 ### Orchestration Trace And Language Profile
 
-Assistant turn responses include a sanitized `trace` object for reviewer/test review. It exposes provider/model, session topic, query domain/confidence, selected local tool intent, retrieved-context count, safety posture, and a language/tone profile. It never includes the raw operator message, secrets, or returned provider content.
+Assistant turn responses include a sanitized `trace` object for reviewer/test
+review. It exposes provider/model, session topic, query domain/confidence,
+selected local tool intent, retrieved-context count, safety posture, and a
+language/tone profile. It never includes the raw operator message, secrets, or
+returned provider content.
 
-The language profile is deterministic metadata from `gcs-server/agent_runtime/language.py`. Current behavior is:
+Language/script/tone metadata comes from
+`gcs-server/agent_runtime/language.py`, but that metadata is not the
+intelligence layer. Current behavior is:
 
-- English/operator prompts continue through deterministic routing and local read-only tools.
-- Non-English prompts are detected by language/script/tone and provider prompts receive same-language response guidance when the turn safely reaches the provider.
-- Query adaptation before tool routing is handled by `gcs-server/agent_runtime/query_adaptation.py` using reviewed rules from `config/agent_query_adaptation.yaml`.
-- The adapter produces a canonical routing text for intent detection and retrieval while trace metadata exposes only language, strategy, and rule ids. Raw operator text is not exposed in trace/history.
-- Local read-only tools can now route common typo-heavy and multilingual fleet/show/log/setup prompts through the same MCP-backed advisory tool path.
-- Local read-only answers are still rendered in English. Full localized rendering for GCS-state answers remains a future slice because sending fleet IPs, logs, or live config to an external model just to translate would be a data-egress risk.
+- the configured semantic provider interprets typo-heavy, multilingual,
+  mixed-tone, and multi-step requests into a typed intent/plan contract;
+- local grounding preserves exact targets, numeric values, coordinate frames,
+  sequence order, dependencies, and approval state, and rejects unsupported or
+  contradictory provider output;
+- deterministic routing remains a narrow fast path and fail-safe for concrete
+  local status questions, explicit controls, and policy-sensitive boundaries;
+- lexical normalization only case-folds and cleans Unicode/punctuation; it does
+  not correct typos, translate language, or enumerate operator phrases;
+- canonical MDS/PX4/MAVLink/SITL vocabulary may remain in deterministic
+  fast paths, while new operator wording is covered by semantic evals rather
+  than production typo aliases;
+- provider composition may answer or transform verified evidence in the
+  operator's language when the configured egress policy permits it; raw logs,
+  secrets, and unapproved field artifacts remain local;
+- genuine ambiguity produces one concise conversational clarification instead
+  of a tool menu, implementation error, or guessed action.
 
-This keeps the current demo safe while giving the architecture a clean migration path toward broader multilingual query rewrite, hybrid retrieval, local/approved translation adapters, and localized answer rendering.
+This split keeps language and phrasing flexible while policy, target identity,
+typed arguments, confirmation, circuit breaker enforcement, and execution
+evidence remain locally authoritative and provider-independent.
 
 ### Answer Composer And Follow-Up Behavior
 
-Simurgh local read-only answers use `gcs-server/agent_runtime/answer_composer.py` for compact Markdown composition. The composer is formatting-only: it cannot route prompts, retrieve docs, call tools, bypass policy, or execute actions. High-risk answers should be evidence-first, include only clickable dashboard/doc routes, and end with an explicit no-action statement when relevant.
+Simurgh local evidence answers use
+`gcs-server/agent_runtime/answer_composer.py` for compact Markdown composition.
+The composer is formatting-only: it cannot route prompts, retrieve docs, call
+tools, bypass policy, or execute actions. High-risk answers should be
+evidence-first, include only useful dashboard/doc routes, and state whether an
+action occurred when that distinction matters.
 
-Session metadata keeps a short safe topic memory (`last_domain`, `last_intent`, `last_response_mode`). Follow-up prompts such as “what does it mean?”, “and the scout IP?”, “what scripts should I use?”, or “can n8n use that same menu?” should use that topic to choose the right read-only evidence source instead of repeating a stale block or falling back to generic provider text.
+Session metadata keeps a short safe topic memory (`last_domain`, `last_intent`,
+`last_response_mode`). Follow-up prompts such as “what does it mean?”, “and the
+selected drone?”, “what scripts should I use?”, or “can n8n use that same
+menu?” use that topic plus durable action/run context to select the relevant
+evidence or target instead of repeating a stale block or falling back to
+generic provider text.
 
 The session store also keeps a bounded private previous-answer context for referential follow-ups such as “say it in Persian” or “make that shorter”. This context is in-memory only: it is not exposed through session APIs, assistant history, audit payloads, or MCP resources. When the configured provider is available and the request passes provider-auth and safety gates, Simurgh can transform the previous answer without re-routing the prompt to an unrelated capability catalog or inventing new facts.
 
-Follow-up routing is now available for the current local MDS domains: drone-show, logs, fleet, swarm, setup, runtime, capabilities/MCP, and SITL. The topic only affects read-only routing and response mode. It does not authorize actions, relax sensitive-input filters, change provider-auth requirements, or bypass the circuit breaker.
+The beta deployment must run exactly one GCS application worker. Live fleet state and
+short-lived Simurgh session context are process-local; multiple workers could split
+an operator conversation from its pending action. Both supported production launchers
+enforce one worker. `tools/run_gcs_dashboard_service.sh` fails fast if
+`MDS_GCS_WORKERS` is not `1`, while `app/linux_dashboard_start.sh --prod` normalizes
+`MDS_PROD_WSGI_WORKERS` to `1`. Horizontal GCS scaling requires a future distributed
+authoritative state store rather than raising either worker count.
 
-When exact intent rules do not match, Simurgh may use the shared query planner as a bounded fallback to select a local read-only tool. That fallback only applies to real operator questions/requests and uses word-boundary domain matching so short terms such as `ip` do not accidentally match unrelated words such as `scripts`. Polite phrasing such as “can you ...” must not imply a capabilities/MCP question by itself; the capability catalog should appear only for explicit capability, tool, API, or MCP-menu requests.
+Follow-up routing covers drone-show, logs/ULogs, fleet, swarm, setup, runtime,
+capabilities/MCP, SITL, pending drafts, and durable action runs. Conversation
+context may resolve a referent only when it is uniquely grounded in current
+runtime or durable evidence. It never authorizes an action, relaxes sensitive
+input filters, changes provider-auth requirements, or bypasses confirmation,
+policy, or the circuit breaker.
+
+Concrete local status requests may use the shared deterministic query planner
+as a bounded fast path. Broader phrasing, multilingual requests, typo-heavy
+instructions, and multi-step actions use semantic interpretation and then local
+typed validation. Polite phrasing such as “can you ...” must not imply a
+capabilities/MCP question by itself; the capability catalog should appear only
+for explicit capability, tool, API, or MCP-menu requests.
 
 Backend log answers distinguish between status and interpretation. A first log check may show the latest warning/error table; a follow-up such as “does this mean something is wrong?” should return a direct operational verdict instead of repeating the same table. Without an explicit time window, “latest logs” means the current/newest GCS session so a stale error from an older service run does not look current after a restart. Requests with explicit windows such as “last 30 minutes” are filtered to that parsed window when timestamps are available and may include previous sessions inside that window. Text log lines with time-only prefixes such as `03:17:15.633`, JSONL `time`/`timestamp` aliases, and embedded clocks are displayed with the best available time rather than `time n/a`. The scanner prefers the newest session JSONL logs, ignores stale fallback text logs when fresh session logs exist, and suppresses routine unauthenticated dashboard polling noise from the operator warning summary while preserving real POST/non-routine auth failures and server errors.
 

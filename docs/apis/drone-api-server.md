@@ -382,6 +382,50 @@ Policy:
 
 ---
 
+### Onboard PX4 ULogs
+
+The drone API exposes file-backed PX4 ULogs through a bounded local service.
+Dashboard users and external integrations should call the corresponding GCS
+`/api/logs/drone/{drone_id}/ulog/...` routes. Direct drone routes are the trusted
+GCS-to-node contract and are not a public client surface.
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/ulog/policy` | `GET` | Report capability, disarm policy, and staging posture |
+| `/api/v1/ulog/files` | `GET` | List metadata for available onboard ULogs |
+| `/api/v1/ulog/files/{log_id}/summary` | `GET` | Return schema-versioned derived metrics without raw content |
+| `/api/v1/ulog/files/{log_id}/download` | `POST` | Create one bounded raw staging job |
+| `/api/v1/ulog/downloads/{job_id}` | `GET` | Read raw-job progress |
+| `/api/v1/ulog/downloads/{job_id}` | `DELETE` | Delete the job and staged file |
+| `/api/v1/ulog/downloads/{job_id}/content` | `GET` | Stream the staged file |
+| `/api/v1/ulog/erase-all` | `POST` | Erase file-backed onboard ULogs under disarm policy |
+
+The stock zero-config lab posture leaves direct node ULog routes open on the
+trusted deployment network and emits a warning when they are used. Configuring
+`MDS_GCS_API_TOKEN_FILE` hardens the complete node ULog namespace: every request
+then requires a short-lived `X-MDS-Machine-Credential` issued by the GCS. The
+credential expires after 15 seconds, is bound to the target hardware identity
+and one ULog operation, and is single-use at the node. The GCS derives it from
+an active `drone`-scoped API token; the node verifies it using that root-readable
+token file. A configured but unreadable token fails closed.
+
+Raw-job calls additionally require the transient `X-MDS-ULog-Job-Token`
+capability supplied by the trusted GCS. The node stores only its hash and
+returns `404` for a mismatched capability so job existence is not disclosed.
+The dashboard receives neither this capability nor the drone-local job id; it
+receives a signed opaque GCS handle bound to the authenticated actor and drone.
+
+Summary parsing runs in an isolated, killable child process with configured
+input, memory, concurrency, and wall-clock limits. Raw transfers enforce
+per-file and aggregate limits, disk reserve, total and idle deadlines, job
+retention, and active-task shutdown cleanup. An open content stream holds a
+lease on its verified file descriptor, so expiry or deletion cannot replace or
+remove the staged file mid-transfer. See
+[logging-system.md](../guides/logging-system.md) for the canonical policy,
+environment settings, GCS routes, MCP tools, and error mapping.
+
+---
+
 ### 7. Health
 
 **Primary Endpoint:** `GET /api/v1/system/health`
@@ -658,12 +702,17 @@ asyncio.run(monitor_swarm(drones))
 
 ## API Authentication
 
-**Current Status:** No authentication required
+The drone API remains a private-network service. Broad bearer-token enforcement
+for legacy node routes depends on the deployment's GCS API-auth posture. The
+stock lab/demo profile is intentionally zero-configuration and trusted-network
+only. Once `MDS_GCS_API_TOKEN_FILE` is configured, the entire
+`/api/v1/ulog/...` namespace requires the short-lived, operation-bound GCS
+machine credential described above. Raw ULog jobs also require their per-job
+capability in both postures.
 
-**Security Note:** Drone API server is designed for private networks only. If exposing to internet, implement:
-- VPN (Tailscale, WireGuard)
-- Network firewall rules
-- Future: JWT token authentication (planned)
+Use a private overlay or VPN and host firewall rules. Do not expose the drone
+API directly to the public internet, and do not call node ULog routes from a
+browser or external integration; use the authenticated GCS proxy.
 
 ---
 
@@ -675,7 +724,12 @@ asyncio.run(monitor_swarm(drones))
 |-------------|-------------|
 | 200 | Success |
 | 400 | Bad Request (invalid input) |
+| 401 | Required machine credential or job capability is missing, expired, replayed, or invalid |
 | 404 | Not Found (data not available) |
+| 409 | Runtime conflict, unsafe state, or active ULog transfer |
+| 413 | ULog input exceeds a configured parser/transfer limit |
+| 503 | Required dependency or node machine authentication is unavailable |
+| 507 | ULog staging capacity or disk reserve is unavailable |
 | 500 | Internal Server Error |
 
 ### Error Response Format
@@ -859,7 +913,7 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 ## Future Enhancements
 
 ### Planned Features
-- [ ] JWT authentication for secure access
+- [ ] Broader per-route bearer-token coverage for remaining trusted-network node APIs
 - [ ] GraphQL endpoint for flexible queries
 - [ ] Binary protocol option (MessagePack/Protobuf)
 - [ ] Command acknowledgment via WebSocket

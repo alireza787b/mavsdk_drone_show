@@ -32,6 +32,7 @@ failsafe review, and independent safety validation.
 | If you want to... | Start here |
 |-------------------|------------|
 | run the first demo quickly | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
+| use the governed Simurgh AI operator or connect an MCP client | [Simurgh Operator Guide](docs/guides/simurgh-operator.md) |
 | import and launch a drone show | [Drone Show Guide](docs/features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](docs/features/smart-swarm.md) |
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](docs/features/swarm-trajectory.md) |
@@ -46,6 +47,13 @@ failsafe review, and independent safety validation.
 Start with the **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)**.
 It covers the official SITL archive, validation, bootstrap, dashboard launch,
 and the current dashboard-first SITL Control workflow.
+
+The stock lab/SITL profile is intentionally plug-and-play: dashboard and
+machine API authentication are off on the trusted deployment network, and MDS
+warns when a feature uses that open posture. Do not expose that profile to an
+untrusted network. Before shared, field, customer, or commercial deployment,
+follow the staged hardening path in the
+**[GCS Auth Guide](docs/guides/gcs-auth.md)**.
 
 For normal demos, use the dashboard **SITL Control** page to reconcile/start
 SITL drones instead of copying low-level shell commands from the README. Shell
@@ -105,6 +113,7 @@ They remain standalone projects and are not required for a first SITL demo.
 ## Product Highlights
 
 - **Single operator surface**: React dashboard for monitoring, control, QuickScout, Swarm Trajectory, and log review
+- **Governed AI operator**: Simurgh combines live MDS evidence, multilingual semantic planning, human confirmation, durable progress, and circuit-breaker enforcement
 - **Modern SITL workflow**: prebuilt PX4 Gazebo SITL image, fast container startup, and reproducible custom-image tooling
 - **Operational visibility**: unified logging across GCS, drones, and frontend error reporting with exportable sessions
 - **Drone Show pipeline**: staged SkyBrush ZIP import, processed trajectory plots, readiness gating, and synchronized launch control

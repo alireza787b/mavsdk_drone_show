@@ -26,8 +26,10 @@ Default operator experience:
   of the chat response stream. Show the ordered human plan and current step,
   replay missed events after reconnect, and keep raw action JSON secondary.
   Pause/cancel controls apply at step boundaries and never claim to recall a
-  command already dispatched to GCS. A restart marks unfinished runs
-  interrupted and does not silently resume them.
+  command already dispatched to GCS. A restart never resumes unfinished work.
+  The previous owner lease remains authoritative until it expires; the journal
+  then marks the orphaned run interrupted before any new work can use its
+  resources.
 
 When Simurgh is enabled, operators should still expect:
 

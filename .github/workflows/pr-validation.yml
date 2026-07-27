@@ -39,31 +39,50 @@ jobs:
         run: |
           pytest \
             tests/test_agent_action_intent.py \
+            tests/test_agent_action_preconditions.py \
             tests/test_agent_assistant_evals.py \
             tests/test_agent_assistant_runtime.py \
             tests/test_agent_action_planner.py \
+            tests/test_agent_policy_roles.py \
             tests/test_agent_provider_smoke.py \
+            tests/test_agent_query_adaptation.py \
             tests/test_agent_query_understanding.py \
             tests/test_agent_registry_planner_coverage.py \
+            tests/test_agent_runtime_foundation.py \
+            tests/test_agent_session_store_structured_state.py \
+            tests/test_agent_sitl_lifecycle.py \
             tests/test_agent_turn_intent.py \
             tests/test_api_route_inventory.py \
+            tests/test_bootstrap_installers.py \
+            tests/test_drone_api_http.py \
             tests/test_env_registry.py \
+            tests/test_gcs_core_routes.py \
+            tests/test_gcs_dashboard_service_script.py \
+            tests/test_generate_release_notes.py \
             tests/test_gcs_simurgh_assistant.py \
             tests/test_gcs_simurgh_mcp.py \
             tests/test_gcs_simurgh_routes.py \
             tests/test_gcs_sitl_control_routes.py \
             tests/test_mds_auth.py \
+            tests/test_mds_logging/test_log_routes_drone.py \
+            tests/test_mds_logging/test_log_routes_gcs.py \
             tests/test_mds_logging/test_log_proxy.py \
+            tests/test_mds_logging/test_schema.py \
+            tests/test_mds_logging/test_ulog_analysis.py \
             tests/test_node_boot_status_routes.py \
+            tests/test_presence.py \
             tests/test_run_sitl_validation_suite.py \
             tests/test_runtime_validation_support.py \
             tests/test_simurgh_dashboard_prompt_evals.py \
             tests/test_simurgh_action_runs.py \
+            tests/test_simurgh_docs_index_generator.py \
             tests/test_simurgh_mcp_smoke_client.py \
             tests/test_simurgh_retrieval_quality.py \
             tests/test_simurgh_tool_candidate_generator.py \
             tests/test_sitl_control_service.py \
-            tests/test_sitl_control_client.py
+            tests/test_sitl_control_client.py \
+            tests/test_ulog_job_handles.py \
+            tests/test_ulog_service.py
           python3 tools/run_simurgh_dashboard_prompt_evals.py
           python3 tools/run_simurgh_provider_smoke.py --expected-runtime-mode sitl --json
 
@@ -76,6 +95,10 @@ jobs:
 
       - name: Validate dashboard
         working-directory: app/dashboard/drone-dashboard
+        env:
+          REACT_APP_GIT_COMMIT: ${{ github.sha }}
+          REACT_APP_GIT_BRANCH: ${{ github.ref_name }}
+          REACT_APP_GIT_REPO: ${{ github.repository }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -85,7 +108,7 @@ jobs:
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
             src/App.test.js
-          npm run build
+          npm run build:release
 
   validate:
     runs-on: ubuntu-latest

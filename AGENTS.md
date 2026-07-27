@@ -25,8 +25,17 @@ Do not assume the environment. Detect it first.
 - Prefer the existing repo workflows and docs over inventing new ones mid-task.
 - Treat git as the source of truth. Do not normalize `docker commit` as a release workflow.
 - Keep a single source of truth for configuration and operator behavior.
+- Preserve the stock lab/SITL path as a zero-setup, plug-and-play experience.
+  Warn clearly about its trusted-network security posture, but do not make
+  beginner demos depend on production credential provisioning.
+- Keep hardened real-world and commercial deployment controls documented and
+  opt-in. Do not introduce a second security-mode switch when existing auth,
+  network, and secret-path settings already express the posture.
 - Use unified logs as the first debugging surface before speculative fixes.
 - Keep code changes minimal, explainable, and test-backed.
+- Keep modules cohesive and reviewable. Avoid growing central files with
+  scenario-specific branches; extract a shared component only when it creates a
+  clear ownership boundary or removes proven duplication.
 - If behavior changes, update the relevant docs and any validation tooling in the same phase.
 - If repeated findings show the agent docs are incomplete, propose or apply a focused update when the user approves.
 - If the current branch/worktree is dirty, do not overwrite unrelated user changes.
@@ -84,6 +93,11 @@ Never hardcode `/opt`, `/root`, hostnames, repo URLs, or branch names without ve
 4. Fix cleanly
    - preserve architecture and naming consistency
    - prefer shared helpers and parameterization over one-off patches
+   - keep natural-language understanding in the semantic layer and typed
+     contracts; do not accumulate spelling, language, or scenario aliases in
+     production code
+   - when a touched module is already large, place new cohesive behavior in a
+     focused module unless doing so would create a circular or artificial split
 5. Validate locally
    - run the narrowest checks that prove the fix
    - expand only as needed

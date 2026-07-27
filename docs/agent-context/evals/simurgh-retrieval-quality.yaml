@@ -106,8 +106,8 @@ cases:
       within_rank: 8
       min_top_score: 40
 
-  - id: typo_show_launch_modes_docs
-    prompt: "whay are differnt launch modes for drone shows"
+  - id: show_launch_modes_docs
+    prompt: "Compare the available drone show launch modes."
     expected:
       domain: drone_show
       response_mode: compare

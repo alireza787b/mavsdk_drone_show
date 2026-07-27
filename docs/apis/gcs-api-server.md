@@ -2199,6 +2199,15 @@ remain open on the trusted network:
 - `POST /api/v1/command-reports/execution-result`
 - `POST /api/v1/fleet/candidates/announce`
 
+In the stock lab/demo posture, a node with no `MDS_GCS_API_TOKEN_FILE` accepts
+ULog proxy calls on the trusted network and logs a warning. Hardened ULog uses a
+single-use, 15-second machine credential bound to the target hardware identity
+and operation. The GCS derives it from an active `drone`-scoped token, while the
+node verifies it through `MDS_GCS_API_TOKEN_FILE`. Full API auth or a configured
+SITL token path prevents unauthenticated fallback. Raw download jobs also use a
+separate per-job capability; dashboard clients see only actor- and drone-bound
+opaque handles.
+
 See [GCS Auth Guide](../guides/gcs-auth.md) for bootstrap flags, roles, token
 rotation, SSH recovery, and API-auth rollout guidance.
 
@@ -2298,9 +2307,11 @@ belong to the assistant-turn request or its SSE subscriber. The action-run event
 stream supports `after=<event_id>` and `Last-Event-ID` replay. Supported control
 actions are `pause_after_current_step`, `resume`, and `cancel_remaining`.
 Controls take effect between steps and do not recall a GCS command already
-submitted. Active runs are actor-scoped, persisted in SQLite, and marked
-`interrupted` rather than automatically resumed after a GCS process restart.
-These routes are first-party operator APIs, not external MCP tools.
+submitted. Active runs are actor-scoped and persisted in SQLite. A GCS restart
+never resumes an unfinished run: the prior owner lease remains authoritative
+until it expires, after which the journal marks the orphaned run `interrupted`
+before releasing its resources. These routes are first-party operator APIs, not
+external MCP tools.
 
 For authenticated dashboard/operator sessions with `MDS_AGENT_PROVIDER=openai`,
 assistant turns may first execute a policy-approved read-only Simurgh advisory

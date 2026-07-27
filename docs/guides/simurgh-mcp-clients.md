@@ -1,6 +1,6 @@
 # Simurgh MCP Client Recipes
 
-Status: read-only connector guidance, updated 2026-06-06.
+Status: production connector guidance, updated 2026-07-26.
 
 This guide explains how external MCP clients should connect to the MDS Simurgh
 MCP endpoint without bypassing the GCS safety boundary.
@@ -22,7 +22,7 @@ canonical endpoint; when it is empty, Simurgh derives the endpoint from the
 incoming dashboard/API request and finally falls back to the relative
 `/api/v1/simurgh/mcp` path.
 
-Required runtime posture for this read-only slice:
+Required runtime posture for the MCP connector boundary:
 
 ```text
 MDS_AGENT_ENABLED=true
@@ -34,9 +34,11 @@ MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true
 ```
 
 `MDS_MODE` remains the canonical real-vs-SITL GCS runtime switch. MCP does not
-have a separate real/SITL mode. When the circuit breaker is on, action-capable
-future tools must dry-run to the last execution layer and report what would have
-been executed instead of mutating GCS state.
+have a separate real/SITL mode. The current external MCP surface is deliberately
+read-only. Dashboard actions use the same registry and runtime policy, but are
+available only through the authenticated dashboard action workflow; when the
+circuit breaker is on, that workflow stops at the final execution layer and
+reports what would have been executed.
 
 ## Current Tool Surface
 
@@ -263,8 +265,9 @@ After connecting any client:
 6. Call `mds.simurgh.tool_candidates.read` with `eligible_read_only=true` and
    confirm `summary.registry_coverage.unpromoted_eligible_candidate_count` is
    `0`.
-7. Ask a direct action request such as `launch the show now`; it must be blocked
-   or dry-run only in this read-only slice.
+7. Ask a direct action request such as `launch the show now`; the MCP client must
+   receive a non-executing explanation because action tools are not exposed by
+   `tools/list`.
 8. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match
    the intended GCS runtime, and circuit breaker must remain on for field demos.
 

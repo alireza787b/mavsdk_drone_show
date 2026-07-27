@@ -8,7 +8,7 @@ whether machine API bearer auth is appropriate.
 
 | Mode | Env | Intended use |
 | --- | --- | --- |
-| Open demo | `MDS_AUTH_ENABLED=false`, `MDS_API_AUTH_ENABLED=false` | local development, isolated SITL, public demo boxes |
+| Trusted lab/demo | `MDS_AUTH_ENABLED=false`, `MDS_API_AUTH_ENABLED=false` | local development and isolated SITL on a trusted network |
 | Dashboard login | `MDS_AUTH_ENABLED=true`, `MDS_API_AUTH_ENABLED=false` | recommended first production step |
 | Full API auth | `MDS_AUTH_ENABLED=true`, `MDS_API_AUTH_ENABLED=true` | advanced deployments after drones, SITL, agents, and scripts have tokens |
 
@@ -37,4 +37,3 @@ Smart Wi-Fi Manager and MAVLink Anywhere currently rely on trusted local/VPN
 network exposure by default. Optional sidecar dashboard login, API/mutation
 tokens, CIDR allowlists, and Caddy/reverse-proxy deployment are tracked in
 `docs/TODO_deferred.md`.
-
