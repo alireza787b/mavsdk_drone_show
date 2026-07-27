@@ -1388,10 +1388,17 @@ class TestCommands:
         ) == 1
         assert all("GCS responded with status code" not in message for message in messages)
 
-    def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
+    def test_send_command_different_mission_types(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
         """Test different mission types with new response format"""
         # Use valid mission type codes that exist in the Mission enum
         mission_types = [10, 101, 102, 104, 105]  # TAKE_OFF, LAND, HOLD, RETURN_RTL, KILL_TERMINATE
+        # HOLD is a flight-mode command and correctly requires an airborne vehicle.
+        mock_drone_config.is_armed = True
 
         for mission_type in mission_types:
             mock_drone_communicator.process_command.reset_mock()
