@@ -1,8 +1,8 @@
 # Simurgh Operator Beta Recovery And PM Retest Checkpoint
 
 Date opened: 2026-07-27
-Status: superseded by the Simurgh feasibility checkpoint; phase closed and
-private PM handoff ready
+Status: superseded by the Simurgh readiness-routing checkpoint; phase closed
+and private PM handoff ready
 Scope: official MDS source, the approved private client mirror, and the
 validated SITL/client deployment
 
@@ -56,11 +56,11 @@ command that could erase them.
 | Item | Value |
 | --- | --- |
 | Official branch | `main` |
-| Official tip | `974259ba` |
+| Official tip | `69f40fae` |
 | Official worktree | clean and pushed |
 | Private downstream | synchronized through controlled replay, validated, committed, and pushed on private `main` |
 | Private deployment | production and isolated validation services healthy in SITL mode |
-| Official tags | `v5.5.111-simurgh-operator-beta`, `v5.5.112-simurgh-feasibility-checkpoint` |
+| Official tags | `v5.5.111-simurgh-operator-beta`, `v5.5.112-simurgh-feasibility-checkpoint`, `v5.5.113-simurgh-readiness-routing` |
 | Refreshed MEGA image | intentionally deferred until PM acceptance/storage approval |
 
 The exact private commit, rollback ref, evidence paths, and client deployment
@@ -192,3 +192,4 @@ data without a separate evidence-preservation step.
 | 2026-07-27 | Callback guard deployment | Official `ffb922b4` was pushed to `release/simurgh-beta`; private `main` was fast-forwarded through `b8647e3e`. Production GCS was restarted from the committed private checkout. Authenticated read-only inventory returned HTTP 200 and showed `drone-1` callback target `172.18.0.1:5111`, confirming the deployed guard can now diagnose the split. The validation GCS was intentionally left running so the armed SITL vehicle would keep its current callback path. | Do not issue another flight command. After the operator makes the vehicle safe, reconcile/recreate the fleet from production so callback targets use `:5030`, then rerun endpoint and health checks |
 | 2026-07-27 | Simurgh feasibility closure | The PM SITL retest completed conditional takeoff, position/NED reads, a 5 m north move, RTL/land, and bounded ULog review. The altitude report exposed an MSL/relative-frame presentation bug and the typed drone-state response was dropping the richer altitude fields. Both layers were fixed with focused tests; current status uses explicit altitude-frame labels and `Flight state`. | Keep Simurgh in demo/proof-of-feasibility scope and defer the remaining backlog |
 | 2026-07-27 | Official/private final handoff | Official `main` is clean at `974259ba` with immutable tags `v5.5.111-simurgh-operator-beta` and `v5.5.112-simurgh-feasibility-checkpoint`. The private mirror was replayed and pushed through a private-only commit, production and validation APIs are healthy, and `drone-1` restarted from the private checkout with the altitude fields visible. No SITL image was rebuilt. | PM may run the final private-client test; do not start the next Simurgh feature until a new scoped checkpoint is created |
+| 2026-07-27 | Readiness-routing correction and final handoff | Official `main` is clean at `69f40fae` with tag `v5.5.113-simurgh-readiness-routing`; the private client replay is clean at `638c03a8f`. Official serial gates passed 363 broader tests and 152 Simurgh route tests, dashboard evals passed 33/33, and provider smoke passed. Private focused routes passed 7/7 and dashboard evals passed 33/33. Production APIs/dashboard are healthy after restart, the existing SITL container was preserved, and authentication remains enabled. | PM may run the final authenticated private-client test; readiness questions should remain read-only, while explicit actions use guarded confirmation |

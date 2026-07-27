@@ -1,8 +1,8 @@
 # Simurgh Readiness Routing Checkpoint
 
 Date: 2026-07-27
-Status: local validation complete; publication and private deployment
-verification in progress
+Status: complete; official and private client checkpoints published and ready
+for PM retest
 Scope: official MDS source and the approved private client mirror
 
 ## Incident
@@ -70,6 +70,26 @@ path are rechecked.
 
 This is a GCS source/runtime correction. It does not change the feasibility-only
 product claim, does not authorize real-aircraft use, and does not require a
-SITL image or MEGA artifact rebuild. Final official/private commit identities,
-tag, test totals, and deployment results are recorded by the closing
-documentation commit after publication.
+SITL image or MEGA artifact rebuild.
+
+## Release handoff
+
+- Official `main`: `69f40fae5ca62085d1a988bfbc1993f927afad24`
+- Official tag: `v5.5.113-simurgh-readiness-routing`
+- Private client replay: `638c03a8f128e2bebff4f6a89670a8297b4ea777`
+- Both published worktrees were clean at their respective handoffs.
+- Official serial gates passed: 363 broader runtime/API tests and 152 Simurgh
+  route tests; dashboard prompt evals passed 33/33; provider dry smoke passed.
+- Private focused route tests passed 7/7 and dashboard prompt evals passed
+  33/33, including the readiness regression.
+- Private production was restarted from the committed checkout. API health,
+  dashboard, and isolated validation health returned HTTP 200, and the
+  existing `drone-1` SITL container was preserved.
+- Authentication remains enabled; no credentials or tokens were created. The
+  unauthenticated Simurgh status endpoint correctly returned HTTP 401.
+- No SITL image, MEGA artifact, or custom runtime image was rebuilt.
+
+PM may now retest the private client from its authenticated dashboard. The
+readiness question should produce read-only fleet evidence; an explicit action
+request should produce the normal guarded confirmation flow. Simurgh remains a
+demo/proof-of-feasibility checkpoint, not a production-flight authorization.
