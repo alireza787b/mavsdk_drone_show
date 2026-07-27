@@ -2360,7 +2360,7 @@ describe('SimurghOperatorPage', () => {
     expect(within(runCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4');
   });
 
-  test('keeps a discovered unlinked operation visible when it becomes terminal', async () => {
+  test('removes a discovered cross-chat operation when it becomes terminal', async () => {
     const runningRun = actionRunData({
       run_id: 'run-discovered',
       state: 'running',
@@ -2394,11 +2394,13 @@ describe('SimurghOperatorPage', () => {
     act(() => {
       streamConfig.onEvent?.({ event: 'run_snapshot', data: { run: terminalRun, replay_complete: true } });
     });
-    await waitFor(() => expect(within(runCard).getByText('Complete')).toBeInTheDocument());
-    expect(screen.getByLabelText('Active operations across chats')).toContainElement(runCard);
+    await waitFor(() => {
+      expect(document.querySelector('[data-action-run-id="run-discovered"]')).toBeNull();
+    });
+    expect(screen.queryByLabelText('Active operations across chats')).not.toBeInTheDocument();
   });
 
-  test('recovers only the three most recent unlinked terminal operations after reload', async () => {
+  test('does not restore terminal operations into a new chat after reload', async () => {
     const terminalRuns = [1, 2, 3, 4].map((index) => actionRunData({
       run_id: `run-terminal-${index}`,
       state: index === 3 ? 'failed' : 'succeeded',
@@ -2414,13 +2416,16 @@ describe('SimurghOperatorPage', () => {
 
     renderPage();
 
-    expect(await findActionRunCard('run-terminal-4')).toBeInTheDocument();
-    expect(await findActionRunCard('run-terminal-3')).toBeInTheDocument();
-    expect(await findActionRunCard('run-terminal-2')).toBeInTheDocument();
     await waitFor(() => {
-      expect(document.querySelector('[data-action-run-id="run-terminal-1"]')).toBeNull();
+      expect(mockGetSimurghActionRunsResponse).toHaveBeenCalled();
     });
-    expect(document.querySelectorAll('.simurgh-chat__active-runs [data-action-run-id]')).toHaveLength(3);
+    expect(mockGetSimurghActionRunsResponse.mock.calls.every(
+      ([options]) => options?.activeOnly === true
+    )).toBe(true);
+    expect(screen.queryByLabelText('Active operations across chats')).not.toBeInTheDocument();
+    terminalRuns.forEach((run) => {
+      expect(document.querySelector(`[data-action-run-id="${run.run_id}"]`)).toBeNull();
+    });
   });
 
   test('renders contradictory succeeded run evidence as failed', async () => {

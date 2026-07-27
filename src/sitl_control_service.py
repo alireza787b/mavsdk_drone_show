@@ -55,6 +55,11 @@ except Exception:  # pragma: no cover - graceful runtime fallback when dependenc
 
 
 _CONTAINER_NAME_PATTERN = re.compile(r"^drone-(\d+)$")
+_ANSI_ESCAPE_SEQUENCE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_PROCESS_FAILURE_LOG_PATTERN = re.compile(
+    r"\b(error|failed|fatal|denied|not found|unable|invalid)\b",
+    re.IGNORECASE,
+)
 _ACTIVE_OPERATION_STATUSES = {"accepted", "running"}
 _DEFAULT_LOG_LIMIT = 200
 _DEFAULT_HISTORY_LIMIT = 20
@@ -1063,6 +1068,33 @@ class SitlControlService:
         )
         self._append_operation_log(operation_id, f"ERROR: {detail}")
 
+    def _process_failure_detail(
+        self,
+        operation_id: str,
+        *,
+        command_name: str,
+        return_code: int,
+    ) -> str:
+        """Return a bounded, operator-actionable process failure summary."""
+
+        with self._operations_lock:
+            operation = self._operations.get(str(operation_id))
+            log_lines = list(operation.log_lines) if operation is not None else []
+
+        relevant_lines: list[str] = []
+        for raw_line in log_lines:
+            line = _ANSI_ESCAPE_SEQUENCE_PATTERN.sub("", str(raw_line)).strip()
+            if not line or not _PROCESS_FAILURE_LOG_PATTERN.search(line):
+                continue
+            line = " ".join(line.split())
+            if line not in relevant_lines:
+                relevant_lines.append(line[:300])
+
+        detail = f"{command_name} exited with code {return_code}"
+        if relevant_lines:
+            detail += ": " + " | ".join(relevant_lines[-3:])
+        return detail[:900]
+
     def _running_instance_guard_matches(
         self,
         operation_id: str,
@@ -1173,7 +1205,11 @@ class SitlControlService:
             self._mark_operation_failed(
                 operation_id,
                 summary="SITL reconcile failed",
-                detail=f"create_dockers.sh exited with code {return_code}",
+                detail=self._process_failure_detail(
+                    operation_id,
+                    command_name="create_dockers.sh",
+                    return_code=return_code,
+                ),
             )
             return
 
@@ -1295,7 +1331,11 @@ class SitlControlService:
             self._mark_operation_failed(
                 operation_id,
                 summary="SITL create failed",
-                detail=f"create_dockers.sh exited with code {return_code}",
+                detail=self._process_failure_detail(
+                    operation_id,
+                    command_name="create_dockers.sh",
+                    return_code=return_code,
+                ),
             )
             return
 

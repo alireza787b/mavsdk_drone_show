@@ -3062,6 +3062,20 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     assert "cp '$RUNTIME_FILES_CONTAINER'/*.hwID" not in create_text
 
 
+def test_sitl_launcher_resolves_image_before_replacing_containers():
+    create_text = (REPO_ROOT / "multiple_sitl" / "create_dockers.sh").read_text(encoding="utf-8")
+    main_body = create_text.split("main() {", 1)[1].split("# Ensure the startup script exists", 1)[0]
+
+    assert "ensure_docker_image_available()" in create_text
+    assert "docker image inspect \"$TEMPLATE_IMAGE\"" in create_text
+    assert "docker pull \"$TEMPLATE_IMAGE\"" in create_text
+    assert (
+        main_body.index("ensure_docker_image_available")
+        < main_body.index("setup_docker_network")
+        < main_body.index('create_instance "$i"')
+    )
+
+
 def test_verify_netbird_parses_detail_output_and_extracts_primary_ip():
     result = run_bash(
         f"""

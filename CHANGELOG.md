@@ -16,6 +16,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   `409` instead of allowing the drone to act while the operator monitor waits
   for callbacks from another GCS process. SITL inventory exposes the observed
   callback endpoint for diagnosis.
+- New Simurgh chats no longer inherit recent terminal action cards in the
+  cross-chat operation strip; durable results stay in their originating chat
+  and backend journal while the global strip remains active-only.
+- SITL creation now checks or pulls the configured image before replacing a
+  container, preserves high-signal launcher errors in the tracked operation,
+  and surfaces the failed step detail in the durable action-run summary.
 
 ## [5.5.111-simurgh-operator-beta] - 2026-07-26
 

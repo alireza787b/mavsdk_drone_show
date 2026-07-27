@@ -380,6 +380,27 @@ EOF
     fi
 }
 
+ensure_docker_image_available() {
+    if docker image inspect "$TEMPLATE_IMAGE" >/dev/null 2>&1; then
+        echo "Docker Image   : available locally (${TEMPLATE_IMAGE})"
+        return 0
+    fi
+
+    printf "Docker Image   : '%s' is not available locally; attempting pull before changing containers.\n" "$TEMPLATE_IMAGE"
+    if docker pull "$TEMPLATE_IMAGE"; then
+        echo "Docker Image   : pull completed (${TEMPLATE_IMAGE})"
+        return 0
+    fi
+
+    cat >&2 <<EOF
+
+Error: Docker image '${TEMPLATE_IMAGE}' is unavailable locally and could not be pulled.
+Load, build, or tag the configured image, or correct MDS_DOCKER_IMAGE/MDS_DEFAULT_DOCKER_IMAGE.
+This launcher did not create, replace, or remove a SITL container.
+EOF
+    return 1
+}
+
 # Validate the number of instances and inputs
 validate_input() {
     local num_instances="$1"
@@ -697,6 +718,7 @@ main() {
     print_launcher_configuration
     print_scale_guidance "$num_instances"
     run_git_access_preflight
+    ensure_docker_image_available
 
     # Setup Docker network
     setup_docker_network

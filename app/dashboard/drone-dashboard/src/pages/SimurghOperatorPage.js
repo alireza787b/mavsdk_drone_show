@@ -55,7 +55,6 @@ const ACTION_RUN_RECONCILE_INTERVAL_MS = 5000;
 const ACTION_RUN_RECONNECT_BASE_MS = 500;
 const ACTION_RUN_RECONNECT_MAX_MS = 5000;
 const ACTION_RUN_RECENT_STEP_COUNT = 2;
-const MAX_RECENT_UNLINKED_TERMINAL_RUNS = 3;
 const MOBILE_SETTINGS_QUERY = '(max-width: 640px)';
 const COMPACT_HISTORY_QUERY = '(max-width: 980px)';
 const STARTERS = [
@@ -3539,39 +3538,11 @@ export default function SimurghOperatorPage() {
         }
         const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
         runs.forEach((run) => {
-          upsertActionRun({ ...run, monitor_status: 'live', discovered_unlinked: true });
+          upsertActionRun({ ...run, monitor_status: 'live' });
           trackActionRun(run);
         });
       } catch (error) {
         // Chat remains available; the next refresh retries action-run discovery.
-      }
-    };
-    const discoverRecentRuns = async () => {
-      try {
-        const response = await getSimurghActionRunsResponse({
-          actor: DASHBOARD_ACTOR,
-          activeOnly: false,
-          limit: 20,
-        });
-        if (!mounted) {
-          return;
-        }
-        const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
-        const activeRuns = runs.filter((run) => (
-          ACTIVE_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state))
-        ));
-        const terminalRuns = runs
-          .filter((run) => TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state)))
-          .sort((left, right) => actionRunUpdatedAtMs(right) - actionRunUpdatedAtMs(left))
-          .slice(0, MAX_RECENT_UNLINKED_TERMINAL_RUNS);
-        [...activeRuns, ...terminalRuns].forEach((run) => {
-          upsertActionRun({ ...run, monitor_status: 'live', discovered_unlinked: true });
-          if (!run.terminal) {
-            trackActionRun(run);
-          }
-        });
-      } catch (error) {
-        // Recent durable results are supplementary; active-run discovery still retries.
       }
     };
     const reconcileKnownRuns = async () => {
@@ -3606,7 +3577,6 @@ export default function SimurghOperatorPage() {
       }));
     };
     discoverActiveRuns();
-    discoverRecentRuns();
     reconcileKnownRuns();
     const discoveryIntervalId = window.setInterval(discoverActiveRuns, ACTION_RUN_DISCOVERY_INTERVAL_MS);
     const reconcileIntervalId = window.setInterval(reconcileKnownRuns, ACTION_RUN_RECONCILE_INTERVAL_MS);
@@ -4080,15 +4050,7 @@ export default function SimurghOperatorPage() {
     .filter((run) => ACTIVE_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state)))
     .filter((run) => !activeMessageActionRunIds.has(String(run?.run_id || '')))
     .sort((left, right) => String(left?.created_at || '').localeCompare(String(right?.created_at || '')));
-  const unlinkedTerminalRuns = Object.values(actionRuns)
-    .filter((run) => (
-      run?.discovered_unlinked
-      && TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state))
-    ))
-    .filter((run) => !activeMessageActionRunIds.has(String(run?.run_id || '')))
-    .sort((left, right) => actionRunUpdatedAtMs(right) - actionRunUpdatedAtMs(left))
-    .slice(0, MAX_RECENT_UNLINKED_TERMINAL_RUNS);
-  const unlinkedRuns = [...unlinkedActiveRuns, ...unlinkedTerminalRuns];
+  const unlinkedRuns = unlinkedActiveRuns;
   const statusAvailable = Boolean(status) && ['fresh', 'degraded'].includes(statusEvidenceState);
   const canSend = draft.trim().length > 0 && !submitting && statusAvailable && Boolean(status?.agent_enabled);
   const subtitle = statusAvailable
@@ -4180,7 +4142,7 @@ export default function SimurghOperatorPage() {
           </div>
           {unlinkedRuns.length ? (
             <section className="simurgh-chat__active-runs" aria-label="Active operations across chats">
-              <span className="simurgh-chat__active-runs-label">Operations across chats</span>
+              <span className="simurgh-chat__active-runs-label">Active operations across chats</span>
               {unlinkedRuns.map((run) => (
                 <ActionRunCard
                   key={run.run_id}

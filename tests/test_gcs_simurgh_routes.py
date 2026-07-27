@@ -822,6 +822,33 @@ def test_action_run_requires_terminal_evidence_when_monitoring_is_required():
     assert "no terminal completion evidence" in summary
 
 
+def test_action_run_surfaces_actionable_sitl_step_failure_detail():
+    state, summary = _action_run_terminal_outcome(
+        action_execution="submitted",
+        monitor_result={"status": "succeeded", "success": True},
+        post_action_results=(
+            {
+                "label": "Create a fresh SITL instance",
+                "status": "failed",
+                "summary": (
+                    "create_dockers.sh exited with code 1: "
+                    "docker: pull access denied for private-sitl"
+                ),
+                "is_error": True,
+            },
+        ),
+        cancelled=False,
+        total_steps=2,
+        terminal_evidence_required=True,
+    )
+
+    assert state == "failed"
+    assert summary == (
+        "Create a fresh SITL instance: create_dockers.sh exited with code 1: "
+        "docker: pull access denied for private-sitl"
+    )
+
+
 @pytest.mark.parametrize(
     ("mission_type", "telemetry", "verified", "reason_fragment"),
     [

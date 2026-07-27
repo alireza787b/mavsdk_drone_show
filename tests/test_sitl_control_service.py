@@ -633,6 +633,45 @@ def test_create_instance_guard_blocks_mutation_when_inventory_changed(tmp_path):
     assert result.affected_instances == []
 
 
+def test_create_instance_failure_preserves_actionable_process_error(tmp_path, monkeypatch):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=True),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    class _FailedProcess:
+        stdout = iter(
+            (
+                "Unable to find image 'private-sitl:latest' locally\n",
+                "docker: pull access denied for private-sitl, repository does not exist.\n",
+            )
+        )
+
+        @staticmethod
+        def wait():
+            return 1
+
+    monkeypatch.setattr("src.sitl_control_service.subprocess.Popen", lambda *args, **kwargs: _FailedProcess())
+
+    operation = service.create_instance(
+        SitlControlCreateInstanceRequest(image_ref="private-sitl:latest")
+    )
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "failed"
+    assert "create_dockers.sh exited with code 1" in str(result.detail)
+    assert "pull access denied for private-sitl" in str(result.detail)
+
+
 def test_reconcile_guard_blocks_mutation_when_inventory_changed(tmp_path):
     image = _FakeImage(
         "sha256:official",

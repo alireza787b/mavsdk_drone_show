@@ -125,6 +125,10 @@ The `/simurgh` dashboard surface should stay chat-first and low-noise:
 - command and SITL progress stays in one live action item: the current sequence
   step remains prominent, the most recent steps remain visible, and the complete
   trace is available on demand.
+- the cross-chat operation strip shows only currently active durable runs.
+  Terminal success/failure evidence remains in its originating conversation and
+  backend action journal, but opening a new chat does not restore old terminal
+  cards into the composer workspace.
 - SITL lifecycle prompts that ask to inspect a stale/current instance before a
   guarded remove/restart draft must check local SITL inventory first. Simurgh may
   infer `instance_names` from runtime inventory only after a typed lifecycle

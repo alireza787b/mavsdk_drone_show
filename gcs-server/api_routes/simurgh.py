@@ -1505,6 +1505,24 @@ def _action_run_terminal_outcome(
     post_failed = any(bool(item.get("is_error")) for item in post_action_results)
     if action_execution == "submitted" and terminal_evidence_required and not monitor:
         return "failed", "The action was accepted, but no terminal completion evidence was recorded."
+    if monitor_failed:
+        monitor_summary = str(
+            monitor.get("detail")
+            or monitor.get("summary")
+            or monitor.get("message")
+            or ""
+        ).strip()
+        if monitor_summary:
+            return "failed", monitor_summary[:1000]
+    if post_failed:
+        failed_step = next(
+            (item for item in post_action_results if bool(item.get("is_error"))),
+            {},
+        )
+        failed_label = str(failed_step.get("label") or "Action step").strip()
+        failed_summary = str(failed_step.get("summary") or "").strip()
+        if failed_summary:
+            return "failed", f"{failed_label}: {failed_summary}"[:1000]
     if action_execution != "submitted" or monitor_failed or post_failed:
         return "failed", "The action run stopped before every planned step succeeded."
     return "succeeded", f"Completed {total_steps} of {total_steps} planned steps."
@@ -6277,7 +6295,6 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         step_label=label,
                     )
                     final_status = operation_status.get("status") or final_status
-                    summary = operation_status.get("summary") or summary
                 elif bool(item.get("monitor_requested")) and not result.is_error:
                     final_status = "monitor_error"
                     summary = "GCS accepted the step without a trackable operation ID."
@@ -6285,6 +6302,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     final_status,
                     explicit_error=bool(result.is_error or operation_status.get("success") is False),
                 )
+                if operation_status:
+                    summary = (
+                        operation_status.get("detail")
+                        if is_error
+                        else operation_status.get("summary")
+                    ) or operation_status.get("summary") or summary
                 results.append(
                     {
                         "label": label,

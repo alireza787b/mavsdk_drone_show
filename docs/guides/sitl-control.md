@@ -131,6 +131,14 @@ Advanced fields are folded behind `Advanced` so routine use stays simple.
   canonical launcher
 - extra `drone-N` containers outside the requested range are removed afterward
 - the result should be treated as the new clean local SITL baseline
+- before replacing any container, the launcher verifies that the selected image
+  is local or can be pulled. If neither succeeds, the operation fails without
+  changing containers and reports the relevant pull/image error.
+
+For a multi-step remove-then-create plan, do not blindly retry a failed run:
+the remove step may already be complete. Recheck current inventory, correct the
+image reference (or load/tag the intended image), and draft a new guarded
+recovery action from the observed state.
 
 ### Command callback endpoint safety
 
