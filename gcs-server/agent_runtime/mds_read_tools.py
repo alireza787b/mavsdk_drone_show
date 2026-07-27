@@ -948,6 +948,7 @@ def build_mds_read_only_plan(message: str, *, conversation_topic: str | None = N
 
 SAFE_BLOCKED_TERM_READ_ONLY_INTENTS = frozenset(
     {
+        "fleet_connectivity",
         "mission_mode_comparison",
         "show_modes_help",
         "show_upload_help",
@@ -983,6 +984,8 @@ def is_safe_blocked_term_read_only_intent(message: str, intent: str | None) -> b
             "were",
             "has",
             "have",
+            "ready",
+            "readiness",
             "explain",
             "difference",
             "different",

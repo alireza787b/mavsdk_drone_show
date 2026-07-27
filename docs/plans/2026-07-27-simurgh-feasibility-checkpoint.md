@@ -57,6 +57,25 @@ The underlying compatibility key is retained for internal callers, while the
 operator-facing wording makes clear that this is a current snapshot rather
 than terminal action evidence.
 
+## Post-checkpoint readiness-routing correction
+
+A later private smoke exposed one routing regression in the closed demo:
+asking whether a specific drone was ready to take off produced the generic
+blocked-action fallback instead of live readiness evidence. Sanitized runtime
+metadata proved that the turn matched the configured `takeoff` block before
+the local fleet-status tool ran; it recorded no provider request and no tool
+execution.
+
+The correction keeps a complete typed `fleet_connectivity` question
+authoritative even when it contains an action word. The block remains in force
+for direct commands, and provider output cannot promote that typed readiness
+question into an action draft. If the message is genuinely ambiguous, Simurgh
+now asks whether the operator wants a read-only readiness check or a guarded
+action plan, including the target and intended parameters for an action.
+
+This is a source/runtime correction only. It does not change the demo-only
+product claim and does not require a SITL image rebuild.
+
 ## Deferred backlog
 
 - real-aircraft and commercial safety hardening, certification, and field

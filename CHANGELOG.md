@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Readiness questions that mention a possible action (for example, asking
+  whether a drone is ready to take off) now stay on the typed local
+  fleet-status path instead of being stopped by the action-word block or
+  promoted into a provider-generated action draft. Bare ambiguous action terms
+  now ask whether the operator wants a status check or a guarded action plan.
 - The drone-side typed `/api/v1/drone/state` response now preserves the
   communicator's altitude-policy and local-NED fields so GCS can receive
   relative/local evidence instead of only the MSL position fallback.

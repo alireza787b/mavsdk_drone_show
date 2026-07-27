@@ -75,6 +75,34 @@ conversations:
             - No drone command was sent
             - Read-only check only
 
+  - id: readiness_question_with_action_word
+    provider: mock
+    actor: operator
+    tags: [fleet, readiness, safety, regression]
+    turns:
+      - prompt: "Drone 1 i mena is it ready to takeoff?"
+        expected:
+          provider: mds-tools
+          tool_intent: fleet_connectivity
+          response_mode: status
+          query_domain: fleet
+          session_topic: fleet
+          tool_ids:
+            - mds.fleet.heartbeats.read
+            - mds.fleet.telemetry.read
+            - mds.fleet.network_status.read
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Connectivity from GCS state
+          must_include:
+            - Connectivity from GCS state
+            - Ready
+          must_not_include:
+            - Review the guarded action plan
+            - Waiting for operator confirmation
+            - I could not complete that request
+
   - id: drone_show_readiness_and_meaning
     provider: mock
     actor: operator

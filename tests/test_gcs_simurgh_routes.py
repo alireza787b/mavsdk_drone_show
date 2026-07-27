@@ -4000,6 +4000,116 @@ def test_simurgh_provider_failure_does_not_use_local_missing_detail_gate(monkeyp
     assert payload["trace"]["safety"]["action_execution"] == "none"
 
 
+def test_simurgh_readiness_question_with_action_word_stays_local_read_only(monkeypatch):
+    """A readiness check must not be blocked as a direct takeoff command."""
+
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+
+    def fail_semantic_rewrite(**_kwargs):
+        raise AgentRuntimeError("semantic provider unavailable")
+
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_semantic_rewrite,
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "Drone 1 i mena is it ready to takeoff?",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trace"]["intent"]["route"] == "read_only"
+    assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+    assert payload["blocked_intents"] == []
+    assert "I could not complete that request" not in payload["content"]
+    assert "Drone 1" in payload["content"]
+    assert "Ready" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "none"
+
+
+def test_simurgh_provider_cannot_promote_typed_readiness_to_action(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    message = "Drone 1 i mena is it ready to takeoff?"
+    provider_plan = ProviderActionPlan(
+        summary="Take off drone 1",
+        steps=(
+            _provider_step(
+                message,
+                "takeoff",
+                tool_id="mds.flight.command.execute",
+                arguments={
+                    "target_drone_ids": ["1"],
+                    "mission_type": 10,
+                    "takeoff_altitude": 10.0,
+                },
+                label="Take off drone 1",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: _provider_rewrite(
+            normalized_message="Take off drone 1",
+            route_hint="draft_flight_action",
+            action_plan=provider_plan,
+        ),
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": message},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trace"]["intent"]["route"] == "read_only"
+    assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
+    assert payload["trace"]["intent"]["provider_action_plan_error"] == (
+        "provider_action_plan_conflicts_with_local_read_only"
+    )
+    assert payload["trace"]["safety"].get("action_draft") is None
+    assert payload["trace"]["safety"]["action_execution"] == "none"
+
+
+def test_simurgh_ambiguous_action_word_asks_status_or_action_clarification(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AgentRuntimeError("semantic provider unavailable")
+        ),
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Takeoff?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
+    assert payload["blocked_intents"] == []
+    assert "read-only readiness check or a guarded action" in payload["content"]
+    assert "current readiness" in payload["content"]
+    assert "action plan for confirmation" in payload["content"]
+    assert payload["trace"]["safety"]["action_execution"] == "none"
+
+
 def test_simurgh_semantic_only_request_provider_failure_asks_concise_clarification(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")

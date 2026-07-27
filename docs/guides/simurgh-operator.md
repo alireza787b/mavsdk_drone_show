@@ -483,9 +483,12 @@ requests above it are rejected visibly and are never silently shortened.
 Conditional mission wording follows the same path when the operator clearly
 asks Simurgh to act, for example “if it is ready, send it to this mission”.
 Readiness-only wording such as “should it land?” or “can it RTL safely?” remains
-read-only advisory/status. If the intent is genuinely ambiguous, Simurgh should
-ask one short clarification question instead of falling back to generic provider
-or safety boilerplate.
+read-only advisory/status. A complete typed readiness question remains read-only
+even when it names the possible next action, for example “is drone 1 ready to
+take off?”. A provider cannot promote that question into an action draft. If the
+intent is genuinely ambiguous, Simurgh asks whether the operator wants a
+readiness check or a guarded action plan instead of falling back to generic
+provider or safety boilerplate.
 
 Sequence boundaries matter. Clauses separated by `then`, `after that`,
 punctuation, an explicit wait, or RTL/return wording become ordered monitored

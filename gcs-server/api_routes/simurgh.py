@@ -519,6 +519,15 @@ SEMANTIC_REWRITE_HELP_INTENTS = {
     "board_setup_help",
     "companion_setup_help",
 }
+AUTHORITATIVE_TYPED_ACTION_TERM_READ_INTENTS = frozenset(
+    {
+        # The local fleet-connectivity contract owns ready/armed/live status
+        # questions even when the question names a possible next action.
+        "fleet_connectivity",
+    }
+)
+
+
 class SimurghRouteRef(BaseModel):
     method: str | None = None
     path: str | None = None
@@ -2428,6 +2437,39 @@ def _semantic_rewrite_is_safe_to_try(
     if not _has_external_assistant_provider_auth(request):
         return False
     return True
+
+
+def _is_authoritative_typed_read_only_intent(turn_intent: Any) -> bool:
+    """Return whether the local parser owns this action-term read route.
+
+    A status/readiness question may contain a configured action word (for
+    example, "is drone 1 ready to takeoff?").  The action-word safety block is
+    still correct for direct execution requests, but it must not suppress a
+    typed local read route.  Keeping this predicate on the typed frame avoids
+    adding language-specific aliases to the blocked-term policy.
+    """
+
+    if str(getattr(turn_intent, "route", "") or "") != "read_only":
+        return False
+    action = getattr(turn_intent, "action", None)
+    read_only_plan = getattr(turn_intent, "read_only_plan", None)
+    if action is None or read_only_plan is None:
+        return False
+    if bool(getattr(action, "has_action_request", False)):
+        return False
+    read_intent = str(getattr(read_only_plan, "intent", "") or "").strip()
+    query_domain = str(
+        getattr(read_only_plan, "query_domain", "") or ""
+    ).strip()
+    return bool(
+        read_intent in AUTHORITATIVE_TYPED_ACTION_TERM_READ_INTENTS
+        and query_domain == "fleet"
+        and not bool(getattr(read_only_plan, "unclear", True))
+        and is_safe_blocked_term_read_only_intent(
+            str(getattr(turn_intent, "routing_message", "") or ""),
+            read_intent,
+        )
+    )
 
 
 def _should_accept_semantic_rewrite(
@@ -9433,6 +9475,28 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     elif (
                         getattr(semantic_rewrite, "action_plan", None) is not None
                         and semantic_rewrite.usable_for_routing
+                        and _is_authoritative_typed_read_only_intent(initial_typed_intent)
+                    ):
+                        # A complete local read route is authoritative for
+                        # status/readiness questions.  Providers can
+                        # over-read an action word such as "takeoff" and
+                        # return an action plan for "is drone 1 ready to
+                        # takeoff?".  Do not let that reinterpretation turn a
+                        # harmless evidence request into a draft or a
+                        # clarification; keep the local fleet read path.
+                        semantic_action_plan_error = (
+                            "provider_action_plan_conflicts_with_local_read_only"
+                        )
+                        semantic_rewrite = replace(
+                            semantic_rewrite,
+                            action_plan=None,
+                            needs_clarification=False,
+                            clarification_reason="none",
+                            clarification_question="",
+                        )
+                    elif (
+                        getattr(semantic_rewrite, "action_plan", None) is not None
+                        and semantic_rewrite.usable_for_routing
                     ):
                         try:
                             validate_provider_action_plan_source_coverage(
@@ -10131,7 +10195,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 routing_message=routing_message,
                 local_intent=local_intent,
             )
-            safe_read_only_blocked_term = is_safe_blocked_term_read_only_intent(routing_message, local_intent)
+            safe_read_only_blocked_term = (
+                _is_authoritative_typed_read_only_intent(initial_typed_intent)
+                or is_safe_blocked_term_read_only_intent(routing_message, local_intent)
+            )
             semantic_read_only_route = bool(
                 semantic_rewrite is not None
                 and semantic_rewrite.usable_for_routing
@@ -10155,6 +10222,33 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 sensitive_matches = ()
             if blocked_matches and (safe_read_only_blocked_term or semantic_read_only_route):
                 blocked_matches = ()
+            if (
+                blocked_matches
+                and initial_typed_intent.route == "provider_or_registry"
+                and not initial_typed_intent.action.has_action_request
+                and not semantic_action_route
+            ):
+                record = await _create_semantic_clarification_record(
+                    http_request,
+                    turn_request,
+                    actor=actor,
+                    question=(
+                        "I am not sure whether you want a read-only readiness check "
+                        "or a guarded action. Should I check the current readiness, "
+                        "or prepare an action plan for confirmation? If it is an action, "
+                        "include the drone and intended parameters."
+                    ),
+                    semantic_rewrite=semantic_rewrite,
+                    turn_intent_metadata=turn_intent_metadata(
+                        route_override="semantic_clarification",
+                    ),
+                    progress_callback=progress_callback,
+                )
+                history_record = history.append_turn(
+                    record=record,
+                    message=turn_request.message,
+                )
+                return record, history_record
             effective_action_request = (
                 _turn_request_with_message(turn_request, message=turn_intent.action.request_message)
                 if turn_intent.action.replayed_previous_request
@@ -10268,8 +10362,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             else:
                 record = None
                 prefer_local_context_answer = bool(semantic_read_intents) or (
-                    local_intent in {"fleet_connectivity", "command_summary"}
-                    and conversation_topic in {"flight", "sitl", "fleet"}
+                    (
+                        _is_authoritative_typed_read_only_intent(initial_typed_intent)
+                        or (
+                            local_intent in {"fleet_connectivity", "command_summary"}
+                            and conversation_topic in {"flight", "sitl", "fleet"}
+                        )
+                    )
                     and not previous_evidence_followup
                     and not blocked_matches
                     and not sensitive_matches
