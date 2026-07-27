@@ -1,7 +1,7 @@
 # Simurgh Operator Beta Recovery And PM Retest Checkpoint
 
-Date opened: 2026-07-27  
-Status: Active release engineering  
+Date opened: 2026-07-27
+Status: Active release engineering
 Scope: official MDS source, the approved private client mirror, and the
 validated SITL/client deployment
 
@@ -162,4 +162,3 @@ data without a separate evidence-preservation step.
 | UTC date/time | Slice | Result | Next action |
 | --- | --- | --- | --- |
 | 2026-07-27 | Recovery audit | Reconstructed history, goal, source, validation, and release boundary | Create this durable checkpoint |
-
