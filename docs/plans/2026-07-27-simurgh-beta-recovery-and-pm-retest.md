@@ -162,3 +162,4 @@ data without a separate evidence-preservation step.
 | UTC date/time | Slice | Result | Next action |
 | --- | --- | --- | --- |
 | 2026-07-27 | Recovery audit | Reconstructed history, goal, source, validation, and release boundary | Create this durable checkpoint |
+| 2026-07-27 | Disk cleanup | Removed the verified-unused clean shallow clone at `/opt/px4vision/research/mavsdk_drone_show` (HEAD `6d604cdb`, about 52 MiB) and remote transient MDS test caches (`mds-mplconfig-*`, pytest, Jest; about 219 MiB). Active source, client evidence, validation data, running services, and Codex context were preserved. | Continue official source review and release gating |
