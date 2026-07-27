@@ -1,7 +1,7 @@
 # Simurgh Feasibility Checkpoint
 
-Date: 2026-07-27  
-Status: phase closed after the SITL proof-of-feasibility retest  
+Date: 2026-07-27
+Status: phase closed after the SITL proof-of-feasibility retest
 Scope: official MDS source plus the approved private client mirror
 
 ## Product claim and boundary
