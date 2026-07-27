@@ -1,7 +1,8 @@
 # Simurgh Operator Beta Recovery And PM Retest Checkpoint
 
 Date opened: 2026-07-27
-Status: PM retest paused pending SITL callback-endpoint reconciliation; official tag/image deferred
+Status: superseded by the Simurgh feasibility checkpoint; phase closed and
+private PM handoff ready
 Scope: official MDS source, the approved private client mirror, and the
 validated SITL/client deployment
 
@@ -13,12 +14,12 @@ are the source of truth; chat history is not.
 
 ## Objective
 
-Resume the validated-but-unpublished `5.5.111-simurgh-operator-beta` source,
-publish it in the official repository, synchronize only the public-safe delta
-into the private client repository, deploy and smoke-test the client version,
-and leave a complete PM retest handoff. Defer the refreshed SITL image and MEGA
-publication until PM acceptance or until storage is deliberately made
-available.
+The recovery objective is complete. The validated source is published on
+official `main`, the private client mirror contains the approved replay, the
+private production and validation services are healthy, and PM can run the
+final SITL test. The refreshed SITL image and MEGA publication remain
+intentionally deferred. For the accepted scope and future restart recipe, use
+the [Simurgh feasibility checkpoint](2026-07-27-simurgh-feasibility-checkpoint.md).
 
 ## Recovery boundary
 
@@ -35,11 +36,12 @@ available.
 
 | Item | Value |
 | --- | --- |
-| Official worktree | `release/simurgh-beta` |
-| Official `HEAD` | `1964f2c574f1fc272d40cd47d2d42e1add86b9fa` |
-| Official upstream branch | `314a280f` |
+| Official worktree | `main` |
+| Official `HEAD` | `974259ba` |
+| Official upstream branch | `origin/main` |
 | Existing immutable tag | `v5.5.110-simurgh-operator-beta` |
-| Intended beta tag | `v5.5.111-simurgh-operator-beta` |
+| Published beta tag | `v5.5.111-simurgh-operator-beta` |
+| Published feasibility tag | `v5.5.112-simurgh-feasibility-checkpoint` |
 | Tracked dirty-diff SHA-256 | `4b530d8c3bfd9bb2853196120ea791ac212c23109dae4cc6fbf15df81884301f` |
 | Tracked status-list SHA-256 | `0d46dd4b55dbeaf01d990c070d6cf86bc34761adb5aff530866c0a31f021f947` |
 | Untracked-file-content SHA-256 | `2cd6e90530878839fef088cf99d0e6e92973f2b0ce4a6ed7e256c60efa81eb3d` |
@@ -53,12 +55,12 @@ command that could erase them.
 
 | Item | Value |
 | --- | --- |
-| Official beta branch | `release/simurgh-beta` |
-| Official beta tip | `a1c69fb89e5eb3e15996b470b12e24176e301a61` |
+| Official branch | `main` |
+| Official tip | `974259ba` |
 | Official worktree | clean and pushed |
 | Private downstream | synchronized through controlled replay, validated, committed, and pushed on private `main` |
 | Private deployment | production and isolated validation services healthy in SITL mode |
-| Official beta tag | intentionally not created before PM acceptance |
+| Official tags | `v5.5.111-simurgh-operator-beta`, `v5.5.112-simurgh-feasibility-checkpoint` |
 | Refreshed MEGA image | intentionally deferred until PM acceptance/storage approval |
 
 The exact private commit, rollback ref, evidence paths, and client deployment
@@ -188,3 +190,5 @@ data without a separate evidence-preservation step.
 | 2026-07-27 | TAKE_OFF tracking incident | A live 10 m `TAKE_OFF` was accepted by production GCS (`5030`) and executed successfully by `drone-1`, but the container was configured to send heartbeats/execution callbacks to the isolated validation GCS (`5111`). Production therefore had no execution-start/result evidence and the command monitor timed out after 120.6 s. The drone remains armed in SITL; it was not restarted, removed, or issued a corrective flight command. | Keep the vehicle untouched until the operator makes it safe; then reconcile/recreate the fleet from the production GCS and run the read-only endpoint/health checks before PM retest |
 | 2026-07-27 | Callback-endpoint guard | Official/private source now exposes each SITL callback target in inventory and blocks new tracked SITL commands with HTTP `409` when a selected running container points at another GCS process. Focused tests passed 40/40; docs and changelog updated. | Commit, sync, deploy the guard, verify inventory on both services, then reconcile the safe fleet |
 | 2026-07-27 | Callback guard deployment | Official `ffb922b4` was pushed to `release/simurgh-beta`; private `main` was fast-forwarded through `b8647e3e`. Production GCS was restarted from the committed private checkout. Authenticated read-only inventory returned HTTP 200 and showed `drone-1` callback target `172.18.0.1:5111`, confirming the deployed guard can now diagnose the split. The validation GCS was intentionally left running so the armed SITL vehicle would keep its current callback path. | Do not issue another flight command. After the operator makes the vehicle safe, reconcile/recreate the fleet from production so callback targets use `:5030`, then rerun endpoint and health checks |
+| 2026-07-27 | Simurgh feasibility closure | The PM SITL retest completed conditional takeoff, position/NED reads, a 5 m north move, RTL/land, and bounded ULog review. The altitude report exposed an MSL/relative-frame presentation bug and the typed drone-state response was dropping the richer altitude fields. Both layers were fixed with focused tests; current status uses explicit altitude-frame labels and `Flight state`. | Keep Simurgh in demo/proof-of-feasibility scope and defer the remaining backlog |
+| 2026-07-27 | Official/private final handoff | Official `main` is clean at `974259ba` with immutable tags `v5.5.111-simurgh-operator-beta` and `v5.5.112-simurgh-feasibility-checkpoint`. The private mirror was replayed and pushed through a private-only commit, production and validation APIs are healthy, and `drone-1` restarted from the private checkout with the altitude fields visible. No SITL image was rebuilt. | PM may run the final private-client test; do not start the next Simurgh feature until a new scoped checkpoint is created |
