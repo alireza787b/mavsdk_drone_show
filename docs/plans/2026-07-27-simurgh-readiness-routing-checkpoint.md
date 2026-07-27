@@ -74,13 +74,13 @@ SITL image or MEGA artifact rebuild.
 
 ## Release handoff
 
-- Official `main` (closing docs commit):
-  `5afafe7b1657b38bec10c3fdb7c17f713e455132`
 - Official runtime commit/tag:
   `69f40fae5ca62085d1a988bfbc1993f927afad24`
   (`v5.5.113-simurgh-readiness-routing`)
-- Private `main` (closing docs commit): `af82878bb1835a57f5c3cbafb08b96b9624fd3bd`
 - Private runtime replay: `638c03a8f128e2bebff4f6a89670a8297b4ea777`
+- A docs-only closing record is present on each current `main` after these
+  runtime commits; the two docs commit IDs differ because the private mirror
+  retains its client-specific history.
 - Both published worktrees were clean at their respective handoffs.
 - Official serial gates passed: 363 broader runtime/API tests and 152 Simurgh
   route tests; dashboard prompt evals passed 33/33; provider dry smoke passed.
