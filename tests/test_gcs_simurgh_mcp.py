@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from agent_runtime import MCP_PROTOCOL_VERSION, MCP_RESOURCE_PREFIX
@@ -557,6 +557,63 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
             ],
         }
 
+    @app.get("/api/logs/drone/{drone_id}/ulog/files")
+    def drone_ulog_files(drone_id: int):
+        if drone_id == 99:
+            raise HTTPException(status_code=502, detail="Drone 99 unreachable")
+        return {
+            "schema_version": "1.0",
+            "hw_id": str(drone_id),
+            "pos_id": drone_id,
+            "count": 1,
+            "files": [
+                {
+                    "id": 12,
+                    "date_utc": "2026-06-21T14:00:00Z",
+                    "size_bytes": 4096,
+                }
+            ],
+            "policy": {"download_supported": True},
+            "ulog_capability": {"available": True},
+            "timestamp": 123,
+        }
+
+    @app.get("/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary")
+    def drone_ulog_summary(drone_id: int, log_id: int):
+        if log_id == 998:
+            raise HTTPException(
+                status_code=504,
+                detail={"error": "ulog_summary_timeout", "message": "parser timed out"},
+            )
+        if log_id == 999:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "ulog_summary_parse_failed", "message": "invalid ULog"},
+            )
+        return {
+            "schema_version": "1.0",
+            "hw_id": str(drone_id),
+            "pos_id": drone_id,
+            "log_id": log_id,
+            "source": {"source_kind": "onboard_ulog", "log_id": log_id},
+            "parser": {"name": "pyulog", "status": "ok", "available": True},
+            "parsed": True,
+            "duration_sec": 18.5,
+            "dropouts": {"count": 0},
+            "logged_messages": {"count": 1, "raw_text_included": False},
+            "system": {"sys_name": "PX4"},
+            "local_position": {"max_horizontal_distance_from_start_m": 25.0},
+            "trajectory_setpoint": None,
+            "battery": None,
+            "vehicle_status": {},
+            "land_detected": {"landed": {"0": 2, "1": 1}},
+            "commands": {},
+            "correlation": {"status": "verified", "verified": True},
+            "staged_job_deleted": True,
+            "raw_content_included": False,
+            "timestamp": 124,
+        }
+
     @app.get("/api/v1/origin/launch-positions")
     def origin_launch_positions(heading: float = 0, format: str = "json"):
         return {
@@ -583,6 +640,8 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert "simurgh.public_places.read" in tool_names
     assert "simurgh.geodesy.calculate" in tool_names
     assert "mds.logs.session.read" in tool_names
+    assert "mds.logs.drone_ulog_files.read" in tool_names
+    assert "mds.logs.drone_ulog_summary.read" in tool_names
     assert "mds.fleet.git_sync.read" in tool_names
     assert "mds.origin.launch_positions.read" in tool_names
     assert "mds.shows.skybrush.metrics_snapshot.read" in tool_names
@@ -668,6 +727,23 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert log_session_tool["inputSchema"]["required"] == ["session_id", "limit"]
     assert log_session_tool["inputSchema"]["properties"]["session_id"]["pattern"] == "^[A-Za-z0-9_.-]+$"
     assert log_session_tool["inputSchema"]["properties"]["limit"]["maximum"] == 200
+    ulog_files_tool = next(
+        tool for tool in tools if tool["name"] == "mds.logs.drone_ulog_files.read"
+    )
+    assert ulog_files_tool["outputSchema"]["properties"]["schema_version"]["const"] == "1.0"
+    ulog_summary_tool = next(
+        tool for tool in tools if tool["name"] == "mds.logs.drone_ulog_summary.read"
+    )
+    assert ulog_summary_tool["outputSchema"]["properties"]["raw_content_included"]["const"] is False
+    ulog_summary_schema = ulog_summary_tool["outputSchema"]
+    assert ulog_summary_schema["additionalProperties"] is False
+    assert ulog_summary_schema["properties"]["source"]["$ref"] == "#/$defs/source"
+    assert ulog_summary_schema["properties"]["correlation"]["$ref"] == "#/$defs/correlation"
+    assert all(
+        definition.get("additionalProperties") is False
+        or isinstance(definition.get("additionalProperties"), dict)
+        for definition in ulog_summary_schema["$defs"].values()
+    )
 
     log_session_response = client.post(
         MCP_PATH,
@@ -688,6 +764,79 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert log_evidence["source"] == "registry_read_only_mds"
     assert log_evidence["tool_ids"] == ["mds.logs.session.read"]
     assert "Read one GCS log session" in log_evidence["items"][0]["summary"]
+
+    ulog_files_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "mds.logs.drone_ulog_files.read",
+                "arguments": {"drone_id": 1},
+            },
+        ),
+    )
+    ulog_files_result = ulog_files_response.json()["result"]
+    assert ulog_files_result["isError"] is False
+    assert ulog_files_result["structuredContent"]["schema_version"] == "1.0"
+    assert ulog_files_result["structuredContent"]["files"][0]["id"] == 12
+
+    ulog_summary_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "mds.logs.drone_ulog_summary.read",
+                "arguments": {"drone_id": 1, "log_id": 12},
+            },
+        ),
+    )
+    ulog_summary_result = ulog_summary_response.json()["result"]
+    assert ulog_summary_result["isError"] is False
+    assert ulog_summary_result["structuredContent"]["parsed"] is True
+    assert ulog_summary_result["structuredContent"]["duration_sec"] == 18.5
+    assert ulog_summary_result["structuredContent"]["raw_content_included"] is False
+
+    unavailable_ulog_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "mds.logs.drone_ulog_files.read",
+                "arguments": {"drone_id": 99},
+            },
+        ),
+    )
+    unavailable_ulog_result = unavailable_ulog_response.json()["result"]
+    assert unavailable_ulog_result["isError"] is True
+    assert unavailable_ulog_result["_meta"]["ai.mds/http_status"] == 502
+
+    parser_failure_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "mds.logs.drone_ulog_summary.read",
+                "arguments": {"drone_id": 1, "log_id": 999},
+            },
+        ),
+    )
+    parser_failure_result = parser_failure_response.json()["result"]
+    assert parser_failure_result["isError"] is True
+    assert parser_failure_result["_meta"]["ai.mds/http_status"] == 422
+
+    parser_timeout_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "mds.logs.drone_ulog_summary.read",
+                "arguments": {"drone_id": 1, "log_id": 998},
+            },
+        ),
+    )
+    parser_timeout_result = parser_timeout_response.json()["result"]
+    assert parser_timeout_result["isError"] is True
+    assert parser_timeout_result["_meta"]["ai.mds/http_status"] == 504
 
     missing_arg_response = client.post(
         MCP_PATH,
@@ -962,6 +1111,39 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     )
     assert unknown_response.status_code == 200
     assert unknown_response.json()["result"]["isError"] is True
+
+
+def test_simurgh_mcp_omits_structured_content_when_route_response_is_truncated(monkeypatch):
+    _enable_mcp(monkeypatch)
+    app = FastAPI()
+
+    @app.get("/api/v1/system/health")
+    def health_check():
+        return {"status": "ok", "details": "x" * 30000}
+
+    app.include_router(create_simurgh_router())
+    client = TestClient(app)
+
+    response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={"name": "mds.system.health.read", "arguments": {}},
+        ),
+    )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is False
+    assert "structuredContent" not in result
+    assert result["_meta"]["ai.mds/truncated"] is True
+    assert (
+        result["_meta"]["ai.mds/evidence"]["items"][0]["metadata"]["truncated"]
+        is True
+    )
+    assert result["content"][0]["text"].endswith(
+        "...[truncated by Simurgh response limit]"
+    )
 
 
 def test_simurgh_mcp_rejects_batching_and_invalid_params(monkeypatch):

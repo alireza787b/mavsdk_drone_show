@@ -220,7 +220,7 @@ print_banner() {
         echo -e "${CYAN}|  |   |  ||  '--'  /.-'    | ${NC}"
         echo -e "${CYAN}\`--'   \`--'\`-------' \`-----'  ${NC}"
         echo ""
-        echo -e "${GREEN}MAVSDK Drone Show - GCS Bootstrap${NC}"
+        echo -e "${GREEN}MDS - Mission-Directed Swarm - GCS Bootstrap${NC}"
         echo "================================================"
         echo "Branch:   $BRANCH"
         echo "================================================"

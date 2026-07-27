@@ -4,7 +4,11 @@ from typing import Any, Mapping
 
 import pytest
 
-from agent_runtime.registry_chat import plan_registry_read_tool_calls
+from agent_runtime.registry_chat import (
+    build_registry_read_plan_from_tool_ids,
+    plan_registry_read_tool_calls,
+    reconcile_registry_read_tool_ids,
+)
 from agent_runtime.tool_executor import list_policy_allowed_read_only_tools
 
 
@@ -25,6 +29,7 @@ SAMPLE_ARGUMENTS: Mapping[str, Any] = {
     "session_id": "s_20260527_174402",
     "sidecar": "smart-wifi-manager",
     "snapshot_id": "snapshot-1",
+    "target_drone_ids": "1",
     "tool_id": "mds.system.health.read",
 }
 
@@ -48,6 +53,82 @@ def _sample_argument(name: str) -> Any:
 
 def _plan_tool_ids(plan) -> tuple[str, ...]:  # noqa: ANN001
     return tuple(call.tool.id for call in plan.tool_calls) if plan else ()
+
+
+def test_registry_read_coverage_preserves_required_tools_and_bounds_provider_additions():
+    coverage = reconcile_registry_read_tool_ids(
+        (
+            "mds.config.fleet.read",
+            "mds.sitl.instances.read",
+            "mds.sitl.policy.read",
+        ),
+        (
+            "mds.config.fleet.read",
+            "mds.config.positions.read",
+            "mds.config.swarm.read",
+            "mds.system.runtime_status.read",
+        ),
+        limit=5,
+    )
+
+    assert coverage.required_tool_ids == (
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    )
+    assert coverage.provider_added_tool_ids == (
+        "mds.config.positions.read",
+        "mds.config.swarm.read",
+    )
+    assert coverage.provider_dropped_tool_ids == ("mds.system.runtime_status.read",)
+    assert coverage.effective_tool_ids == (
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+        "mds.config.positions.read",
+        "mds.config.swarm.read",
+    )
+
+
+def test_direct_registry_read_plan_requires_complete_allowed_no_argument_coverage():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+    valid_ids = (
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    )
+
+    plan = build_registry_read_plan_from_tool_ids(
+        valid_ids,
+        allowed_tools=tools,
+        label="requested current state",
+        domain="sitl",
+        selection_source="test",
+    )
+
+    assert _plan_tool_ids(plan) == valid_ids
+    assert build_registry_read_plan_from_tool_ids(
+        (*valid_ids, "mds.unknown.read"),
+        allowed_tools=tools,
+        label="invalid",
+        domain="sitl",
+        selection_source="test",
+    ) is None
+    assert build_registry_read_plan_from_tool_ids(
+        ("mds.commands.status.read",),
+        allowed_tools=tools,
+        label="missing arguments",
+        domain="runtime",
+        selection_source="test",
+    ) is None
+    assert build_registry_read_plan_from_tool_ids(
+        (*valid_ids, "mds.system.runtime_status.read"),
+        allowed_tools=tools,
+        label="over limit",
+        domain="sitl",
+        selection_source="test",
+        limit=3,
+    ) is None
 
 
 def test_registry_planner_generates_coverage_for_every_no_argument_read_only_route_tool():
@@ -166,6 +247,37 @@ def test_registry_planner_routes_out_of_sync_prompts_to_fleet_git_sync_posture()
     assert _plan_tool_ids(plan)[:2] == ("mds.fleet.git_sync.read", "mds.git.status.read")
 
 
+def test_registry_planner_does_not_confuse_conjunction_with_enrollment_candidates():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "How many drones are connected now and how many SITL instances are active?",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert _plan_tool_ids(plan) == (
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    )
+
+
+def test_registry_planner_still_routes_explicit_fleet_enrollment_queries():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "Show current fleet enrollment candidates.",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert _plan_tool_ids(plan) == ("mds.fleet.candidates.read",)
+
+
 @pytest.mark.parametrize(
     "prompt",
     [
@@ -190,7 +302,7 @@ def test_registry_planner_routes_sitl_topic_list_followups_to_sitl_state(prompt)
     assert "mds.logs.sessions.read" not in _plan_tool_ids(plan)
 
 
-def test_registry_planner_defers_all_drone_log_prompts_to_advisory_fanout():
+def test_registry_planner_defers_drone_log_prompts_to_local_evidence_orchestrator():
     tools = list_policy_allowed_read_only_tools(channel="assistant")
 
     plan = plan_registry_read_tool_calls(

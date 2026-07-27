@@ -56,6 +56,7 @@ echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
 echo "    export MDS_BRANCH=\"your-branch\""
 echo "    export MDS_GIT_AUTH_TOKEN_FILE=\"/secure/path/github_read_token\"  # private HTTPS read-only"
 echo "    export MDS_GIT_SSH_KEY_FILE=\"/secure/path/github_read_key\"       # private SSH read-only fallback"
+echo "    export MDS_SITL_GCS_API_TOKEN_FILE=\"/secure/path/gcs_api_token\" # dedicated drone-scoped token"
 echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
 echo "  Then run: bash create_dockers.sh <number>"
 echo "  All MDS_* environment variables are forwarded into the container runtime."
@@ -83,6 +84,7 @@ echo
 #     export MDS_BRANCH="production"
 #     export MDS_GIT_AUTH_TOKEN_FILE="/secure/path/github_read_token"   # private GitHub HTTPS only
 #     export MDS_GIT_SSH_KEY_FILE="/secure/path/github_read_key"        # private GitHub SSH fallback
+#     export MDS_SITL_GCS_API_TOKEN_FILE="/secure/path/gcs_api_token"   # dedicated drone-scoped token
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
@@ -156,7 +158,7 @@ collect_mds_env_args() {
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
+            MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE|MDS_GCS_API_TOKEN_FILE|MDS_SITL_GCS_API_TOKEN_FILE)
                 continue
                 ;;
         esac
@@ -165,6 +167,7 @@ collect_mds_env_args() {
 
     prepare_git_auth_secret_args
     prepare_git_ssh_secret_args
+    prepare_gcs_api_token_secret_args
     DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")
 }
 
@@ -219,6 +222,23 @@ prepare_git_ssh_secret_args() {
 
     DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
     DOCKER_ENV_ARGS+=(-e "MDS_GIT_SSH_KEY_FILE=${container_secret_file}")
+}
+
+prepare_gcs_api_token_secret_args() {
+    local host_secret_file="${MDS_SITL_GCS_API_TOKEN_FILE:-${MDS_GCS_API_TOKEN_FILE:-}}"
+    local container_secret_file="/run/secrets/mds_gcs_api_token"
+
+    if [[ -z "$host_secret_file" ]]; then
+        return 0
+    fi
+
+    if [[ ! -r "$host_secret_file" ]]; then
+        printf "Error: SITL GCS API token file is not readable: %s\n" "$host_secret_file" >&2
+        exit 1
+    fi
+
+    DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
+    DOCKER_ENV_ARGS+=(-e "MDS_GCS_API_TOKEN_FILE=${container_secret_file}")
 }
 
 print_launcher_configuration() {
@@ -494,7 +514,6 @@ create_instance() {
     # Check for reserved IP addresses
     if [[ "$last_octet" -eq 0 || "$last_octet" -eq 255 ]]; then
         printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
-        rm -rf "$runtime_dir"
         return 1
     fi
 

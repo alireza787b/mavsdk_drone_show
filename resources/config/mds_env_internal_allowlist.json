@@ -33,12 +33,6 @@
       "reason": "Dashboard production server process tuning; launcher-only."
     },
     {
-      "pattern": "MDS_ULOG_*",
-      "domain": "logging",
-      "scope": "process",
-      "reason": "ULog staging/downloader internals; not operator env profile data."
-    },
-    {
       "pattern": "MDS_VERSION_*",
       "domain": "system",
       "scope": "process",
@@ -46,6 +40,12 @@
     }
   ],
   "keys": [
+    {
+      "name": "MDS_ULOG_SUMMARY_RESULT",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Fixed child-process output sentinel for the isolated ULog parser protocol; this is not an environment setting."
+    },
     {
       "name": "MDS_ALLOW_NPM_INSTALL_FALLBACK",
       "domain": "frontend",
@@ -236,13 +236,19 @@
       "name": "MDS_GCS_WORKERS",
       "domain": "runtime",
       "scope": "launcher",
-      "reason": "Production dashboard service gunicorn worker count override; capacity tuning stays outside operator env profiles."
+      "reason": "Reserved production launcher invariant. Simurgh beta requires exactly one GCS worker until live and session state have a distributed authoritative store."
     },
     {
       "name": "MDS_GUNICORN_BIN",
       "domain": "runtime",
       "scope": "launcher",
       "reason": "Production dashboard service binary override for deployments with a custom virtualenv path."
+    },
+    {
+      "name": "MDS_PYTHON_BIN",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "Process-only Python executable override for unusual service layouts. MDS_VENV_PATH remains the persisted source of truth."
     },
     {
       "name": "MDS_GIT_ACCESS_CHECK_MODE",
@@ -494,7 +500,7 @@
       "name": "MDS_SAFE_PRODUCTION_DEMO",
       "domain": "runtime",
       "scope": "launcher",
-      "reason": "Deployment launcher guard that forces real mode with Simurgh circuit breaker and auth-safe defaults for demos."
+      "reason": "Retired compatibility sentinel. The production launcher now fails fast when it is enabled; explicit canonical environment settings own mode, auth, MCP, and Simurgh posture."
     },
     {
       "name": "MDS_ROLE_HINT",

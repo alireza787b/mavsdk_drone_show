@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,6 +25,13 @@ from agent_runtime import (
     load_default_assistant_config,
 )
 from agent_runtime.evidence import ReadOnlyEvidenceBundle
+from agent_runtime.assistant import (
+    _previous_evidence_followup_fallback_turn,
+    _semantic_rewrite_from_payload,
+    redact_sensitive_input_for_provider,
+    rewrite_operator_message_with_provider,
+)
+from agent_runtime.mds_read_tools import provider_read_intent_contracts
 from agent_runtime.models import utc_now
 
 
@@ -37,11 +45,50 @@ def _write_restricted_key(path: Path, value: str = "test-openai-key\n") -> Path:
     return path
 
 
+class _PublicCommandTrackerStub:
+    def __init__(self, *, recent=(), active=(), stats=None):  # noqa: ANN001
+        self.recent = list(recent)
+        self.active = list(active)
+        self.stats = dict(stats or {})
+        self.calls: list[str] = []
+
+    async def get_recent(self, *, limit=20, **_kwargs):  # noqa: ANN001
+        self.calls.append("recent")
+        return self.recent[:limit]
+
+    async def get_active_commands(self):
+        self.calls.append("active")
+        return list(self.active)
+
+    async def get_statistics(self):
+        self.calls.append("statistics")
+        return dict(self.stats)
+
+
+def _fleet_summary_test_deps() -> SimpleNamespace:
+    """Keep fleet-answer tests independent from the developer's active config."""
+
+    return SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "192.0.2.33",
+                "mavlink_port": 14550,
+            }
+        ],
+        get_all_drone_positions=lambda: [],
+        load_swarm=lambda: [],
+    )
+
+
 def test_assistant_config_loads_default_public_context():
     config = load_default_assistant_config()
 
     assert config.version == 1
     assert config.provider == "mock"
+    assert "semantic-understanding layer" in config.semantic_routing_instructions
     assert "simurgh.safety_policy" in config.default_context_resource_ids
     assert "simurgh.field_log_review" in config.default_context_resource_ids
 
@@ -49,6 +96,18 @@ def test_assistant_config_loads_default_public_context():
     assert [doc.id for doc in docs] == list(config.default_context_resource_ids)
     assert all(doc.uri.startswith("mds://simurgh/context/") for doc in docs)
     assert all(doc.content_hash for doc in docs)
+
+
+def test_previous_evidence_provider_fallback_uses_operator_language():
+    turn = _previous_evidence_followup_fallback_turn(
+        config=load_default_assistant_config(),
+        followup_kind="assess_previous_evidence",
+        previous_answer="Drone 1 telemetry was healthy.",
+        context_documents=(),
+    )
+
+    assert "evidence already checked" in turn.content.casefold()
+    assert "read-only simurgh answer" not in turn.content.casefold()
 
 
 def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, tmp_path):
@@ -60,7 +119,7 @@ def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, t
     config = load_default_assistant_config()
 
     assert config.provider == "openai"
-    assert config.openai.model == "gpt-5.6"
+    assert config.openai.model == "gpt-5.6-sol"
     assert config.openai.web_search.enabled is False
     assert config.openai.read_api_key() == "test-openai-key"
 
@@ -166,7 +225,7 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     )
 
     assert record.turn.provider == "openai"
-    assert record.turn.model == "gpt-5.6"
+    assert record.turn.model == "gpt-5.6-sol"
     assert record.turn.adapter_version == "openai-responses-v1"
     assert record.turn.content == "Advisory response."
     assert captured["api_key"] == "test-openai-key"
@@ -582,8 +641,8 @@ def test_assistant_turn_returns_bounded_provider_failure_for_public_lookup(monke
 
     assert record.turn.provider == "mds-tools"
     assert "network error" not in record.turn.content.lower()
-    assert "provider note" in record.turn.content.lower()
-    assert "deterministic read-only evidence" in record.turn.content.lower()
+    assert "external provider was unavailable" in record.turn.content.lower()
+    assert "verified local mds result" in record.turn.content.lower()
     assert record.audit_event.metadata["web_search_enabled"] is True
 
 
@@ -633,7 +692,7 @@ def test_assistant_turn_reports_configured_mcp_endpoint_without_placeholder(monk
     (
         (
             "what read-only APIs/tools can Simurgh use for SITL status?",
-            ("Registry-backed read-only capability summary", "mds.sitl.policy.read", "mds.sitl.instances.read", "GET /api/v1/system/sitl/instances"),
+            ("Approved MDS capabilities for SITL", "mds.sitl.policy.read", "mds.sitl.instances.read", "GET /api/v1/system/sitl/instances"),
             ("Current safe menu preview", "mds.fleet.telemetry.read"),
         ),
         (
@@ -668,8 +727,8 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
     assert record.turn.model == "local-read-only"
     assert record.audit_event.metadata["tool_intent"] == "registry_domain_tool_summary"
     assert record.audit_event.metadata["response_mode"] == "capability"
-    assert "config/agent_tools.yaml" in record.turn.content
-    assert "This answer only describes the approved capability surface" in record.turn.content
+    assert "Dashboard chat and external MCP clients use the same approved capability menu" in record.turn.content
+    assert "No route, configuration, upload, mission, or drone action was executed" in record.turn.content
     for phrase in expected_phrases:
         assert phrase in record.turn.content
     for phrase in forbidden_phrases:
@@ -749,19 +808,19 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
             ("SkyBrush show upload workflow", "Upload the SkyBrush ZIP"),
         ),
         (
-            "is ther a doren show uplaoded ready ?",
+            "is there a drone show uploaded and ready?",
             "show_summary",
             ("Loaded show state", "Readiness signals", "Uploaded/loaded does not by itself mean fly-ready"),
             ("I can’t confirm readiness", "SkyBrush show upload workflow"),
         ),
         (
-            "waht is the scoute droen IP?",
+            "what is the scout drone IP?",
             "fleet_summary",
             (),
             ("I can’t see or provide", "private network details"),
         ),
         (
-            "if I want to add a thrird drone now , waht shold I do and what workflow must be done?",
+            "if I want to add a third drone now, what workflow must be done?",
             "add_drone_workflow",
             ("Add-drone workflow", "Fleet Enrollment", "Environment registry", "No drone command, config write"),
             ("Fleet status from GCS configuration", "This is a read-only dashboard answer"),
@@ -785,9 +844,9 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
             ("Install only approved software",),
         ),
         (
-            "Is searm mission reay for test? I want to go field test and make sure all is ready before turning on and fly",
+            "Is the swarm mission ready for a field test before turning on and flying?",
             "swarm_readiness",
-            ("Smart Swarm readiness snapshot", "Saved topology", "Before turning aircraft on or flying", "/swarm-design"),
+            ("Smart Swarm readiness from current GCS evidence", "Saved topology", "Before turning aircraft on or flying", "/swarm-design"),
             ("Read-only registry check for one SAR mission status", "mission_id=ready", "mission_id=reay"),
         ),
         (
@@ -801,12 +860,6 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
             "fleet_summary",
             (),
             ("private network details", "I can’t see"),
-        ),
-        (
-            "نمایش پهپاد آپلود شده و آماده است؟",
-            "show_summary",
-            ("Loaded show state", "Readiness signals", "operator-selected package"),
-            ("I can’t confirm readiness", "SkyBrush show upload workflow"),
         ),
     ),
 )
@@ -825,6 +878,7 @@ def test_assistant_turn_answers_pm_followup_prompts_with_local_mds_tools(
         audit=InMemoryAuditSink(),
         actor="operator",
         message=message,
+        deps=_fleet_summary_test_deps() if expected_intent == "fleet_summary" else None,
     )
 
     assert record.turn.provider == "mds-tools"
@@ -834,13 +888,46 @@ def test_assistant_turn_answers_pm_followup_prompts_with_local_mds_tools(
         assert phrase in record.turn.content
     for phrase in forbidden_phrases:
         assert phrase not in record.turn.content
-    if "ip" in message.lower() and ("scout" in message.lower() or "scoute" in message.lower()):
+    if "ip" in message.lower() and "scout" in message.lower():
         content_lower = record.turn.content.lower()
         assert "scout" in content_lower
-        assert (
-            "i do not see a configured drone matching" in content_lower
-            or "scout drone from gcs configuration" in content_lower
-        )
+        assert "192.0.2.33" in content_lower
+
+
+@pytest.mark.parametrize(
+    ("actor_role", "required_phrase", "forbidden_phrase"),
+    [
+        ("viewer", "No guarded GCS actions are available", "can draft"),
+        ("operator", "can draft", "Create SITL instance"),
+        ("admin", "can draft", "No guarded GCS actions are available"),
+    ],
+)
+def test_assistant_action_capability_is_filtered_by_actor_role(
+    monkeypatch,
+    actor_role,
+    required_phrase,
+    forbidden_phrase,
+):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_MODE", "sitl")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor=f"{actor_role}-user",
+        actor_role=actor_role,
+        message=(
+            "if I want to send drone 1 to takeoff 5 m then wait 10s then 6m "
+            "north then return, can you do that? do you have the tools? what "
+            "actions APIs you gonna use if I allow you and disable the circuit brake?"
+        ),
+    )
+
+    assert record.audit_event.metadata["tool_intent"] == "action_capability"
+    assert required_phrase in record.turn.content
+    assert forbidden_phrase not in record.turn.content
+
 
 def test_assistant_turn_uses_session_topic_for_ambiguous_show_followup(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -881,7 +968,7 @@ def test_assistant_turn_interprets_show_followup_from_session_context(monkeypatc
         sessions=sessions,
         audit=audit,
         actor="operator",
-        message="is ther a doren show uplaoded ready ?",
+        message="is there a drone show uploaded and ready?",
     )
 
     assert first.turn.provider == "mds-tools"
@@ -939,13 +1026,13 @@ def test_assistant_turn_interprets_log_followup_from_session_context(monkeypatch
         sessions=sessions,
         audit=audit,
         actor="operator",
-        message="cehck any latest logs and report anythign worthmetniotnig for operatin",
+        message="check the latest logs and report anything operationally important",
     )
 
     assert first.turn.provider == "mds-tools"
     assert first.session.metadata["last_domain"] == "logs"
     assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
-    assert first.audit_event.metadata["response_mode"] == "interpret"
+    assert first.audit_event.metadata["response_mode"] == "status"
     assert "HTTP authorization warnings" in first.turn.content
 
     followup = create_assistant_turn(
@@ -965,7 +1052,7 @@ def test_assistant_turn_interprets_log_followup_from_session_context(monkeypatch
     assert "Most recent entries:" not in followup.turn.content
 
 
-def test_assistant_turn_interprets_typo_log_followup_without_repeating_table(monkeypatch):
+def test_assistant_turn_interprets_log_followup_without_repeating_table(monkeypatch):
     from agent_runtime.mds_read_tools import MdsReadOnlyTools
 
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -1012,7 +1099,7 @@ def test_assistant_turn_interprets_typo_log_followup_without_repeating_table(mon
         audit=audit,
         actor="operator",
         session_id=first.session.id,
-        message="does thsi mean sth is wrong?",
+        message="does this mean something is wrong?",
     )
 
     assert followup.turn.provider == "mds-tools"
@@ -1084,7 +1171,7 @@ def test_assistant_turn_composes_previous_evidence_followup_with_openai(monkeypa
         audit=audit,
         actor="operator",
         session_id=first.session.id,
-        message="does thsi mean sth is wrong?",
+        message="does this mean something is wrong?",
         allow_provider_for_local_tools=True,
     )
 
@@ -1400,12 +1487,14 @@ def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     sessions = AgentSessionStore()
     audit = InMemoryAuditSink()
+    deps = _fleet_summary_test_deps()
 
     first = create_assistant_turn(
         sessions=sessions,
         audit=audit,
         actor="operator",
         message="How many drones do we have configured?",
+        deps=deps,
     )
 
     assert first.turn.provider == "mds-tools"
@@ -1417,6 +1506,7 @@ def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
         actor="operator",
         session_id=first.session.id,
         message="and the scout IP?",
+        deps=deps,
     )
 
     assert followup.turn.provider == "mds-tools"
@@ -1464,18 +1554,18 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
     )
 
     assert classify_mds_read_intent("what boards are connected now?") == "fleet_connectivity"
-    assert classify_mds_read_intent("what drones are conencted?") == "fleet_connectivity"
+    assert classify_mds_read_intent("what drones are connected?") == "fleet_connectivity"
     assert classify_mds_read_intent("How many drones do we have configured? Are they all ready to fly") == "fleet_connectivity"
     assert (
         classify_mds_read_intent(
-            "check if its created and we ahvetelmreya nd ready to fly? report a summary preflight status",
+            "check if it was created and is ready to fly; report a preflight summary",
             conversation_topic="sitl",
         )
         == "fleet_connectivity"
     )
     assert (
         classify_mds_read_intent(
-            "I dont have QGC now. All I have is what you already have in MDS telemtery. You can check yourself.",
+            "I do not have QGC now. Use the MDS telemetry you already have and check it yourself.",
             conversation_topic="logs",
         )
         == "fleet_connectivity"
@@ -1493,6 +1583,129 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
     assert "47.3977420" in answer.content
     assert "8.4 m" in answer.content
     assert "Fleet status from GCS configuration" not in answer.content
+
+
+def test_fleet_identity_matching_does_not_treat_domain_words_as_callsigns():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 1, "pos_id": 1, "callsign": "SITL-01"},
+            {"hw_id": 2, "pos_id": 2, "callsign": "FIELD-02"},
+        ],
+        get_all_drone_positions=lambda: [],
+        load_swarm=lambda: [],
+    )
+
+    compound = answer_mds_read_only_question(
+        "How many drones are configured, and how many SITL instances are active?",
+        deps=deps,
+        intent_override="fleet_summary",
+    )
+    selected = answer_mds_read_only_question(
+        "Show the configured drone SITL-01.",
+        deps=deps,
+        intent_override="fleet_summary",
+    )
+
+    assert compound is not None
+    assert "2 configured drone(s)" in compound.content
+    assert "configured drone matching" not in compound.content
+    assert selected is not None
+    assert "Sitl 01 drone from GCS configuration" in selected.content
+    assert "Drone 2" not in selected.content
+
+
+def test_compound_fleet_and_sitl_status_uses_both_runtime_sources():
+    from agent_runtime.mds_read_tools import (
+        answer_mds_read_only_question,
+        build_mds_read_only_plan,
+        classify_mds_read_intent,
+    )
+
+    service = SimpleNamespace(
+        list_instances=lambda: {
+            "instances": [
+                {
+                    "name": "drone-1",
+                    "state": "running",
+                    "image_ref": "mavsdk-drone-show-sitl:latest",
+                }
+            ],
+            "total_instances": 1,
+            "running_instance_count": 1,
+            "docker": {"daemon_reachable": True},
+        },
+        build_policy=lambda: {"sim_mode": True, "read_only": False},
+    )
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": index, "callsign": f"DRONE-{index}"}
+            for index in range(1, 5)
+        ],
+        sitl_control_service=service,
+    )
+    prompt = "How many drones do we have configured? How many SITL instances are active?"
+
+    answer = answer_mds_read_only_question(prompt, deps=deps)
+    plan = build_mds_read_only_plan(prompt)
+
+    assert classify_mds_read_intent(prompt) == "fleet_sitl_summary"
+    assert plan.intent == "fleet_sitl_summary"
+    assert {
+        "mds.config.fleet.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    }.issubset(plan.tool_ids)
+    assert answer is not None
+    assert answer.intent == "fleet_sitl_summary"
+    assert "Configured drones: 4." in answer.content
+    assert "SITL instances: 1 total, 1 active; Docker reachable: Yes." in answer.content
+    assert "Active: drone-1 running" in answer.content
+    assert "Simurgh runtime posture" not in answer.content
+    assert "No action was executed" not in answer.content
+    assert "No drone command was sent" not in answer.content
+
+
+def test_read_tools_answer_sitl_status_from_local_control_service():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    service = SimpleNamespace(
+        list_instances=lambda: {
+            "instances": [
+                {
+                    "name": "drone-1",
+                    "state": "running",
+                    "status": "running",
+                    "image_ref": "mavsdk-drone-show-sitl:latest",
+                    "git_sync_enabled": False,
+                    "requirements_sync_enabled": False,
+                }
+            ],
+            "total_instances": 1,
+            "running_instance_count": 1,
+            "docker": {"daemon_reachable": True},
+        },
+        build_policy=lambda: {
+            "sim_mode": True,
+            "read_only": False,
+            "docker": {"daemon_reachable": True},
+        },
+    )
+
+    answer = answer_mds_read_only_question(
+        "Is the SITL container healthy?",
+        deps=SimpleNamespace(sitl_control_service=service),
+        intent_override="sitl_status",
+    )
+
+    assert answer is not None
+    assert answer.intent == "sitl_status"
+    assert "SITL instances: 1 total, 1 active; Docker reachable: Yes." in answer.content
+    assert "drone-1" in answer.content
+    assert "git off, requirements off" in answer.content
+    assert "sim_mode=True, read_only=False" in answer.content
+    assert "No SITL or drone action was executed" not in answer.content
 
 
 def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
@@ -1524,8 +1737,11 @@ def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
                 "battery_voltage": 12.4,
                 "is_armed": False,
                 "is_ready_to_arm": True,
+                "state": 0,
+                "mission": 0,
                 "flight_mode": 65536,
                 "system_status": 4,
+                "velocity_down": 0.0,
                 "timestamp": int(now * 1000),
             }
         },
@@ -1546,6 +1762,9 @@ def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
     assert "Battery" in answer.content
     assert "12.40 V" in answer.content
     assert "Ready" in answer.content
+    assert "MDS preflight verdict: Drone 1 is live and reports ready." in answer.content
+    assert "On ground (inferred)" in answer.content
+    assert "not a readiness-to-fly decision" not in answer.content
     assert "65536" in answer.content
     assert "fix 3, 12 sats" in answer.content
     assert "Fleet status from GCS configuration" not in answer.content
@@ -1621,15 +1840,14 @@ def test_read_tools_answer_quickscout_status_from_mission_catalog():
 
     assert answer is not None
     assert answer.intent == "sar_summary"
-    assert "QuickScout/SAR mission status from read-only GCS evidence" in answer.content
+    assert "QuickScout/SAR mission status from current GCS evidence" in answer.content
     assert "Damavand ridge search" in answer.content
     assert "live launch revalidation required" in answer.content
     assert "Mission package is staged for launch review" in answer.content
     assert "Revalidate live GPS positions before launch" in answer.content
     assert "Per-drone mission progress" in answer.content
     assert "thermal anomaly" not in answer.content
-    assert "No plan, launch" not in answer.content
-    assert "no plan, launch, pause/resume, abort" in answer.content
+    assert "No mission, configuration, or drone action was executed" in answer.content
 
 
 def test_read_tools_answer_quickscout_flags_stale_implausible_package():
@@ -1671,8 +1889,7 @@ def test_read_tools_answer_quickscout_flags_stale_implausible_package():
     assert "stale for field launch readiness" in answer.content
     assert "check bounds/origin" in answer.content
     assert "check planner inputs" in answer.content
-    assert "No plan, launch" not in answer.content
-    assert "no plan, launch, pause/resume, abort" in answer.content
+    assert "No mission, configuration, or drone action was executed" in answer.content
 
 
 def test_read_tools_answer_no_quickscout_mission_without_raw_registry_dump():
@@ -1722,6 +1939,11 @@ def test_read_only_plan_covers_logs_and_docs_workflows():
     assert "mds.logs.drone_sessions.read" in drone_logs.public_metadata()["tool_ids"]
     assert "mds.logs.drone_ulog_files.read" in drone_logs.public_metadata()["tool_ids"]
 
+    mission_evidence = build_mds_read_only_plan(
+        "Review this completed mission using the command tracker, unified MDS logs, and the newest onboard ULog."
+    )
+    assert mission_evidence.intent == "drone_log_summary"
+
     docs = build_mds_read_only_plan("can you give me link to read about creating SITL demo?")
     assert docs.intent == "sitl_help"
     assert docs.response_mode == "workflow"
@@ -1751,10 +1973,21 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
         if path == "/api/logs/sessions/s_drone_1":
             return {
                 "session_id": "s_drone_1",
-                "count": 2,
+                "count": 3,
                 "lines": [
                     {"level": "INFO", "message": "boot ok"},
-                    {"level": "ERROR", "message": "example warning-worthy line"},
+                    {
+                        "ts": "2026-06-05T10:00:10Z",
+                        "level": "ERROR",
+                        "component": "flight",
+                        "message": "example warning-worthy line token=private-value",
+                    },
+                    {
+                        "ts": "2026-06-05T10:00:11Z",
+                        "level": "DEBUG",
+                        "component": "mavsdk",
+                        "message": "MAVSDK: [10:00:11|Warn ] duplicate acknowledgement ignored",
+                    },
                 ],
             }, ""
         if path == "/api/v1/ulog/files":
@@ -1766,6 +1999,7 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
         if path == "/api/v1/ulog/files/9/summary":
             return {
                 "parsed": True,
+                "staged_job_deleted": True,
                 "duration_sec": 42.5,
                 "parser": {"status": "ok"},
                 "dropouts": {"count": 2, "total_duration_sec": 0.25, "max_duration_ms": 150.0},
@@ -1791,9 +2025,9 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
                 "commands": {
                     "vehicle_command": {"samples": 3, "command_counts": {"22": 1, "176": 2}},
                     "vehicle_command_ack": {
-                        "samples": 3,
+                        "samples": 4,
                         "command_counts": {"22": 1, "176": 2},
-                        "result_counts": {"0": 3},
+                        "result_counts": {"0": 3, "5": 1},
                     },
                 },
             }, ""
@@ -1813,9 +2047,18 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
     assert answer is not None
     assert answer.intent == "drone_log_summary"
     assert "Drone log evidence" in answer.content
+    assert (
+        "Verdict: review required - 2 ULog dropout(s); "
+        "2 ULog failsafe-active sample(s)."
+    ) in answer.content
     assert "Drone 1" in answer.content
     assert "2.0 KB" in answer.content
-    assert "1 in latest session" in answer.content
+    assert "2 in latest session" in answer.content
+    assert "Latest drone-log warning/error samples" in answer.content
+    assert "2026-06-05T10:00:10Z | ERROR | flight" in answer.content
+    assert "token=[redacted]" in answer.content
+    assert "duplicate acknowledgement ignored" in answer.content
+    assert "private-value" not in answer.content
     assert "Parsed latest ULog summary" in answer.content
     assert "42.5s" in answer.content
     assert "max horizontal 10.2m" in answer.content
@@ -1826,12 +2069,223 @@ def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkey
     assert "land detection landed[0:80, 1:40]" in answer.content
     assert "final displacement N +0.4m, E -0.2m, U +0.1m" in answer.content
     assert "command ids 176:2, 22:1" in answer.content
-    assert "ack results 0:3" in answer.content
-    assert "unproven; newest available ULog may belong to another flight" in answer.content
+    assert "ack results 0:3, 5:1" in answer.content
+    assert "non-accepted command acknowledgement" not in answer.content
+    assert "unverified; newest available ULog may belong to another flight" in answer.content
     assert "private raw message must never render" not in answer.content
     assert "Backend warning/error" not in answer.content
     assert "mds.logs.drone_ulog_summary.read" in answer.tool_ids
     assert "mds.logs.drone_ulog_files.read" in answer.tool_ids
+
+    brief_answer = answer_mds_read_only_question(
+        "Briefly check the newest drone ULog and tell me whether anything went wrong.",
+        deps=deps,
+        response_detail="brief",
+    )
+    assert brief_answer is not None
+    assert brief_answer.content.startswith("Flight evidence summary:")
+    assert (
+        "Verdict: review required - 2 ULog dropout(s); "
+        "2 ULog failsafe-active sample(s)."
+    ) in brief_answer.content
+    assert "Drone 1: 1 log session(s); 1 ULog(s)" in brief_answer.content
+    assert "Latest drone-log warning/error samples" in brief_answer.content
+    assert "token=[redacted]" in brief_answer.content
+    assert "Drone 1 ULog 9: 42.5s" in brief_answer.content
+    assert "Safety: dropouts 2" in brief_answer.content
+    assert "private raw message must never render" not in brief_answer.content
+    assert "Parsed latest ULog summary" not in brief_answer.content
+    assert "Evidence coverage:" not in brief_answer.content
+    assert "API refs:" not in brief_answer.content
+
+
+def test_drone_log_depth_uses_structured_options_before_lexical_fallback(
+    monkeypatch,
+):
+    from agent_runtime.mds_read_tools import (
+        MdsReadOnlyTools,
+        answer_mds_read_only_question,
+    )
+
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+        get_command_tracker=lambda: _PublicCommandTrackerStub(
+            recent=(
+                {
+                    "command_id": "cmd-1",
+                    "mission_name": "TAKE_OFF",
+                    "phase": "terminal",
+                    "status": "completed",
+                    "outcome": "success",
+                    "target_drones": [1],
+                },
+            ),
+            stats={
+                "total_commands": 1,
+                "successful_commands": 1,
+                "failed_commands": 0,
+                "partial_commands": 0,
+            },
+        ),
+    )
+    requested_paths: list[str] = []
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        del self, drone_ip, params, timeout
+        requested_paths.append(path)
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [
+                    {
+                        "id": 7,
+                        "date_utc": "2026-06-20T22:01:00Z",
+                        "size_bytes": 1024,
+                    }
+                ]
+            }, ""
+        if path == "/api/v1/ulog/files/7/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 12.0,
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+    monkeypatch.setattr(
+        MdsReadOnlyTools,
+        "_recent_warning_events",
+        lambda self, **_kwargs: ([], ["unified-test"]),
+    )
+
+    lexical_words_but_shallow = answer_mds_read_only_question(
+        "Analyze the mission and newest ULog and verify what happened.",
+        deps=deps,
+        intent_override="drone_log_summary",
+        read_options={
+            "drone_log_summary": {
+                "verify_operation": False,
+                "include_unified_logs": False,
+                "analyze_latest_ulog": False,
+            }
+        },
+    )
+    assert lexical_words_but_shallow is not None
+    assert "/api/v1/ulog/files/7/summary" not in requested_paths
+    assert "Recent command tracker evidence" not in lexical_words_but_shallow.content
+    assert "Unified GCS log evidence" not in lexical_words_but_shallow.content
+
+    requested_paths.clear()
+    semantic_only_deep = answer_mds_read_only_question(
+        "پرواز انجام‌شده را با شواهد موجود بررسی کن",
+        deps=deps,
+        intent_override="drone_log_summary",
+        read_options={
+            "drone_log_summary": {
+                "verify_operation": True,
+                "include_unified_logs": True,
+                "analyze_latest_ulog": True,
+            }
+        },
+    )
+    assert semantic_only_deep is not None
+    assert "/api/v1/ulog/files/7/summary" in requested_paths
+    assert "Recent command tracker evidence" in semantic_only_deep.content
+    assert "Unified GCS log evidence" in semantic_only_deep.content
+    assert "Parsed latest ULog summary" in semantic_only_deep.content
+
+
+def test_drone_log_fanout_is_concurrent_and_keeps_fleet_order(monkeypatch):
+    from agent_runtime.mds_read_tools import (
+        MdsReadOnlyTools,
+        answer_mds_read_only_question,
+    )
+
+    monkeypatch.setenv("MDS_SIMURGH_DRONE_LOG_MAX_WORKERS", "3")
+    barrier = threading.Barrier(3, timeout=1.0)
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 3, "ip": "192.0.2.33"},
+            {"hw_id": 1, "ip": "192.0.2.31"},
+            {"hw_id": 2, "ip": "192.0.2.32"},
+        ],
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        del self, drone_ip, params, timeout
+        if path == "/api/logs/sessions":
+            barrier.wait()
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {"files": []}, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+    answer = answer_mds_read_only_question(
+        "flight evidence",
+        deps=deps,
+        intent_override="drone_log_summary",
+        read_options={
+            "drone_log_summary": {
+                "verify_operation": False,
+                "include_unified_logs": False,
+                "analyze_latest_ulog": False,
+            }
+        },
+    )
+
+    assert answer is not None
+    assert answer.content.index("Drone 3") < answer.content.index("Drone 1")
+    assert answer.content.index("Drone 1") < answer.content.index("Drone 2")
+    assert "session inventory 3/3" in answer.content
+
+
+def test_drone_log_fanout_honors_global_evidence_deadline(monkeypatch):
+    from agent_runtime.mds_read_tools import (
+        MdsReadOnlyTools,
+        answer_mds_read_only_question,
+    )
+
+    monkeypatch.setenv("MDS_SIMURGH_DRONE_LOG_EVIDENCE_DEADLINE_SEC", "0.05")
+    monkeypatch.setenv("MDS_SIMURGH_DRONE_LOG_MAX_WORKERS", "2")
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 1, "ip": "192.0.2.31"},
+            {"hw_id": 2, "ip": "192.0.2.32"},
+        ],
+    )
+
+    def slow_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        del self, drone_ip, params, timeout
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        time.sleep(0.25)
+        return {}, ""
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", slow_fetch)
+    started = time.monotonic()
+    answer = answer_mds_read_only_question(
+        "flight evidence",
+        deps=deps,
+        intent_override="drone_log_summary",
+        read_options={
+            "drone_log_summary": {
+                "verify_operation": False,
+                "include_unified_logs": False,
+                "analyze_latest_ulog": False,
+            }
+        },
+    )
+    elapsed = time.monotonic() - started
+
+    assert answer is not None
+    assert elapsed < 0.2
+    assert "global evidence deadline exceeded" in answer.content
+    assert "session inventory 2/2" in answer.content
+    assert "ULog inventory 0/2" in answer.content
 
 
 def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(monkeypatch):
@@ -1847,35 +2301,35 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
                 "mavlink_port": 14550,
             }
         ],
-        get_command_tracker=lambda: SimpleNamespace(
-            _stats={
+        get_command_tracker=lambda: _PublicCommandTrackerStub(
+            stats={
                 "total_commands": 3,
                 "successful_commands": 3,
                 "failed_commands": 0,
                 "partial_commands": 0,
             },
-            _commands={
-                "takeoff": SimpleNamespace(
-                    command_id="cmd-takeoff",
-                    mission_name="TAKE_OFF",
-                    phase="terminal",
-                    status="completed",
-                    outcome="success",
-                    target_drones=[1],
-                    created_at=None,
-                    updated_at=None,
-                ),
-                "move": SimpleNamespace(
-                    command_id="cmd-move",
-                    mission_name="PRECISION_MOVE",
-                    phase="terminal",
-                    status="completed",
-                    outcome="success",
-                    target_drones=[1],
-                    created_at=None,
-                    updated_at=None,
-                ),
-            },
+            recent=(
+                {
+                    "command_id": "cmd-takeoff",
+                    "mission_name": "TAKE_OFF",
+                    "phase": "terminal",
+                    "status": "completed",
+                    "outcome": "success",
+                    "target_drones": [1],
+                    "created_at": None,
+                    "updated_at": None,
+                },
+                {
+                    "command_id": "cmd-move",
+                    "mission_name": "PRECISION_MOVE",
+                    "phase": "terminal",
+                    "status": "completed",
+                    "outcome": "success",
+                    "target_drones": [1],
+                    "created_at": None,
+                    "updated_at": None,
+                },
+            ),
         ),
     )
 
@@ -1890,6 +2344,7 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
         if path == "/api/v1/ulog/files/7/summary":
             return {
                 "parsed": True,
+                "staged_job_deleted": True,
                 "duration_sec": 25.0,
                 "parser": {"status": "ok"},
                 "local_position": {
@@ -1914,6 +2369,7 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
     assert answer is not None
     assert answer.intent == "drone_log_summary"
     assert "Recent command tracker evidence" in answer.content
+    assert "Unified GCS log evidence" in answer.content
     assert "TAKE_OFF" in answer.content
     assert "PRECISION_MOVE" in answer.content
     assert "Drone log evidence" in answer.content
@@ -1922,6 +2378,576 @@ def test_read_tools_answer_operation_log_check_with_command_and_ulog_evidence(mo
     assert "Parsed latest ULog summary" in answer.content
     assert "25.0s" in answer.content
     assert "acks 3" in answer.content
+    assert "Evidence correlation: latest sessions and newest ULogs are selected by recency" in answer.content
+    assert "unverified; newest available ULog may belong to another flight" in answer.content
+    assert "mds.commands.recent.read" in answer.tool_ids
+    assert "mds.logs.sessions.read" in answer.tool_ids
+
+
+def test_drone_log_summary_reports_unavailable_sources_as_unknown(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 1, "ip": "192.0.2.31"},
+            {"hw_id": 2, "ip": "192.0.2.32"},
+        ],
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if drone_ip == "192.0.2.31":
+            return {}, "timed out"
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {"files": []}, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question(
+        "Analyze the drone logs and ULogs and report the evidence coverage.",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert "session inventory 1/2" in answer.content
+    assert "ULog inventory 1/2" in answer.content
+    assert "drone log sessions 0 in available sources (1/2 sources available; total unknown)" in answer.content
+    assert "onboard ULogs 0 in available sources (1/2 sources available; total unknown)" in answer.content
+    assert "No ULog is listed by the available inventories; unavailable inventories remain unknown." in answer.content
+    assert "No onboard ULog file is listed in the complete checked scope" not in answer.content
+
+    monkeypatch.setattr(
+        MdsReadOnlyTools,
+        "_recent_warning_events",
+        lambda self, *, window_seconds=None, started_at_ms=None, ended_at_ms=None, completed_at_ms=None: (
+            [],
+            ["test-log"],
+        ),
+    )
+    brief_answer = answer_mds_read_only_question(
+        "Briefly verify whether the latest flight logs and ULog show a problem.",
+        deps=deps,
+        response_detail="brief",
+    )
+    assert brief_answer is not None
+    assert "Verdict: no failure is shown in the available evidence" in brief_answer.content
+    assert (
+        "no onboard ULog listed by available inventories; remaining sources unknown"
+        in brief_answer.content
+    )
+    assert "Evidence gaps:" in brief_answer.content
+
+
+def test_drone_log_summary_exposes_ulog_parse_cap_and_partial_coverage(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    monkeypatch.setenv("MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES", "2")
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 1, "ip": "192.0.2.31"},
+            {"hw_id": 2, "ip": "192.0.2.32"},
+            {"hw_id": 3, "ip": "192.0.2.33"},
+        ],
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        drone_id = int(drone_ip.rsplit(".", 1)[-1]) - 30
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [
+                    {
+                        "id": drone_id,
+                        "date_utc": "2026-06-20T22:01:00Z",
+                        "size_bytes": 1024,
+                    }
+                ]
+            }, ""
+        if path == f"/api/v1/ulog/files/{drone_id}/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 10.0,
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question("Analyze all drone ULogs and report a summary.", deps=deps)
+
+    assert answer is not None
+    assert "ULog summary coverage: 2/3 known eligible drone(s) parsed successfully; 2 attempted; cap 2." in answer.content
+    assert "1 eligible newest ULog(s) were left metadata-only by the parse cap." in answer.content
+
+
+def test_drone_log_summary_does_not_count_unparsed_http_success(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [
+                    {
+                        "id": 1,
+                        "date_utc": "2026-06-20T22:01:00Z",
+                        "size_bytes": 1024,
+                    }
+                ]
+            }, ""
+        if path == "/api/v1/ulog/files/1/summary":
+            return {
+                "parsed": False,
+                "parser": {
+                    "available": False,
+                    "status": "unavailable",
+                    "error": "pyulog unavailable",
+                },
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question("Analyze the newest drone ULog.", deps=deps)
+
+    assert answer is not None
+    assert "not parsed" in answer.content
+    assert "pyulog unavailable" in answer.content
+    assert "ULog summary coverage: 0/1 known eligible drone(s) parsed successfully; 1 attempted; cap 2." in answer.content
+
+
+def test_drone_log_summary_requires_explicit_correlation_evidence_and_reports_cleanup_failure(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    tracker = _PublicCommandTrackerStub(
+        recent=(),
+        stats={"total_commands": 0},
+    )
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+        get_command_tracker=lambda: tracker,
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [{"id": 5, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 1024}]
+            }, ""
+        if path == "/api/v1/ulog/files/5/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 20.0,
+                "staged_job_deleted": False,
+                "correlation": {
+                    "status": "verified",
+                    "verified": True,
+                    "method": "gcs_target_time_action_command_overlap",
+                    "evidence": {"command_ids": ["spoofed"]},
+                },
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question(
+        "Verify this mission using the command tracker, unified logs, and the newest ULog.",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert "correlation unverified; newest available ULog may belong to another flight" in answer.content
+    assert "STAGED DOWNLOAD CLEANUP FAILED" in answer.content
+    assert "Staged ULog cleanup failures" in answer.content
+    assert "staged download cleanup failed" in answer.content
+    assert tracker.calls == ["recent", "active", "statistics"]
+
+
+def test_drone_log_summary_verifies_correlation_only_with_target_time_action_and_command(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    started = datetime(2026, 6, 20, 22, 1, tzinfo=timezone.utc)
+    started_ms = int(started.timestamp() * 1000)
+    tracker = _PublicCommandTrackerStub(
+        recent=(
+            {
+                "command_id": "cmd-takeoff-1",
+                "mission_name": "TAKE_OFF",
+                "target_drones": ["1"],
+                "phase": "terminal",
+                "status": "completed",
+                "outcome": "success",
+                "created_at": started_ms + 2_000,
+                "execution_started_at": started_ms + 5_000,
+                "completed_at": started_ms + 15_000,
+                "updated_at": started_ms + 15_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:take_off"},
+            },
+            {
+                "command_id": "cmd-move-1",
+                "mission_name": "PRECISION_MOVE",
+                "target_drones": ["1"],
+                "phase": "terminal",
+                "status": "completed",
+                "outcome": "success",
+                "created_at": started_ms + 20_000,
+                "execution_started_at": started_ms + 22_000,
+                "completed_at": started_ms + 30_000,
+                "updated_at": started_ms + 30_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:step:2"},
+            },
+            {
+                "command_id": "cmd-rtl-1",
+                "mission_name": "RETURN_RTL",
+                "target_drones": ["1"],
+                "phase": "terminal",
+                "status": "completed",
+                "outcome": "success",
+                "created_at": started_ms + 35_000,
+                "execution_started_at": started_ms + 37_000,
+                "completed_at": started_ms + 45_000,
+                "updated_at": started_ms + 45_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:step:3"},
+            },
+        ),
+        stats={"total_commands": 3, "successful_commands": 3},
+    )
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+        get_command_tracker=lambda: tracker,
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [{"id": 7, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 2048}]
+            }, ""
+        if path == "/api/v1/ulog/files/7/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 60.0,
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question(
+        "Verify this completed mission from the command tracker, unified logs, and newest ULog.",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert "correlation verified for act-a1b2c3d4" in answer.content
+    assert "3 GCS command id(s)" in answer.content
+    assert "association only, not mission-success proof" in answer.content
+    assert tracker.calls == ["recent", "active", "statistics"]
+
+    tracker.calls.clear()
+    semantic_answer = answer_mds_read_only_question(
+        "Verify this completed mission from the command tracker, unified logs, and newest ULog.",
+        deps=deps,
+        intent_override="drone_log_summary",
+        target_drone_ids=("1",),
+    )
+
+    assert semantic_answer is not None
+    assert "correlation verified for act-a1b2c3d4" in semantic_answer.content
+    assert tracker.calls == ["recent", "active", "statistics"]
+
+
+def test_drone_log_summary_scopes_commands_and_ulog_to_durable_action_run(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    started = datetime(2026, 6, 20, 22, 1, tzinfo=timezone.utc)
+    started_ms = int(started.timestamp() * 1000)
+    action_commands = (
+        ("cmd-takeoff-1", "TAKE_OFF", "simurgh:act-run1234:take_off", 2_000, 15_000),
+        ("cmd-move-1", "PRECISION_MOVE", "simurgh:act-run1234:step:2", 20_000, 30_000),
+        ("cmd-rtl-1", "RETURN_RTL", "simurgh:act-run1234:step:3", 35_000, 45_000),
+    )
+    recent = [
+        {
+            "command_id": command_id,
+            "mission_name": mission_name,
+            "target_drones": ["1"],
+            "phase": "terminal",
+            "status": "completed",
+            "outcome": "success",
+            "created_at": started_ms + start_offset,
+            "execution_started_at": started_ms + start_offset,
+            "completed_at": started_ms + end_offset,
+            "updated_at": started_ms + end_offset,
+            "params": {"operator_label": operator_label},
+        }
+        for command_id, mission_name, operator_label, start_offset, end_offset in action_commands
+    ]
+    recent.append(
+        {
+            "command_id": "cmd-unrelated",
+            "mission_name": "LAND",
+            "target_drones": ["1"],
+            "phase": "terminal",
+            "status": "failed",
+            "outcome": "failed",
+            "created_at": started_ms + 10_000,
+            "execution_started_at": started_ms + 10_000,
+            "completed_at": started_ms + 12_000,
+            "updated_at": started_ms + 12_000,
+            "params": {"operator_label": "simurgh:act-unrelated:step:1"},
+        }
+    )
+    tracker = _PublicCommandTrackerStub(
+        recent=tuple(recent),
+        stats={
+            "total_commands": 4,
+            "successful_commands": 3,
+            "failed_commands": 1,
+        },
+    )
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+        get_command_tracker=lambda: tracker,
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [{"id": 11, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 2048}]
+            }, ""
+        if path == "/api/v1/ulog/files/11/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 60.0,
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+    monkeypatch.setattr(
+        MdsReadOnlyTools,
+        "_recent_warning_events",
+        lambda self, **_kwargs: ([], ["gcs.jsonl"]),
+    )
+    action_context = {
+        "draft_id": "act-run1234",
+        "command_id": "cmd-takeoff-1",
+        "action_run_created_at": "2026-06-20T22:01:00Z",
+        "action_run_completed_at": "2026-06-20T22:02:00Z",
+        "action_run_result": {
+            "post_action_results": [
+                {"command_id": "cmd-move-1"},
+                {"command_id": "cmd-rtl-1"},
+            ]
+        },
+    }
+
+    answer = answer_mds_read_only_question(
+        "Verify this completed mission from the command tracker, unified logs, and newest ULog.",
+        deps=deps,
+        intent_override="drone_log_summary",
+        target_drone_ids=("1",),
+        action_context=action_context,
+    )
+
+    assert answer is not None
+    assert "Durable action-run command tracker evidence" in answer.content
+    assert "cmd-unrelated" not in answer.content
+    assert "LAND" not in answer.content
+    assert "correlation verified for act-run1234" in answer.content
+    assert "3 GCS command id(s)" in answer.content
+    assert "Scope: durable action-run time window" in answer.content
+
+
+def test_action_scoped_command_snapshot_rehydrates_durable_monitor_records():
+    from agent_runtime.mds_read_tools import _scope_command_snapshot_to_action
+
+    action_context = {
+        "draft_id": "act-durable",
+        "command_id": "cmd-primary",
+        "target_drone_ids": ["1"],
+        "action_run_result": {
+            "monitor_result": {
+                "command_status": {
+                    "command_id": "cmd-primary",
+                    "mission_name": "TAKE_OFF",
+                    "target_drones": ["1"],
+                    "status": "completed",
+                    "outcome": "completed",
+                    "created_at": 1000,
+                    "completed_at": 2000,
+                    "params": {"operator_label": "simurgh:act-durable:take_off"},
+                }
+            },
+            "post_action_results": [
+                {
+                    "command_id": "cmd-rtl",
+                    "resolved_target_drone_ids": ["1"],
+                    "monitor_result": {
+                        "command_status": {
+                            "command_id": "cmd-rtl",
+                            "mission_name": "RETURN_RTL",
+                            "status": "completed",
+                            "outcome": "completed",
+                            "created_at": 3000,
+                            "completed_at": 4000,
+                            "params": {"operator_label": "simurgh:act-durable:step:2"},
+                        }
+                    },
+                }
+            ],
+        },
+    }
+
+    scoped = _scope_command_snapshot_to_action(
+        {
+            "available": True,
+            "recent": [],
+            "active": [],
+            "stats": {},
+        },
+        action_context,
+    )
+
+    assert [item["command_id"] for item in scoped["recent"]] == [
+        "cmd-primary",
+        "cmd-rtl",
+    ]
+    assert scoped["missing_command_ids"] == []
+    assert scoped["durable_command_ids"] == ["cmd-primary", "cmd-rtl"]
+    assert scoped["stats"] == {
+        "total_commands": 2,
+        "successful_commands": 2,
+        "failed_commands": 0,
+        "partial_commands": 0,
+    }
+
+
+def test_drone_log_summary_does_not_verify_when_one_sequence_step_label_is_unmatched(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question
+
+    started = datetime(2026, 6, 20, 22, 1, tzinfo=timezone.utc)
+    started_ms = int(started.timestamp() * 1000)
+    tracker = _PublicCommandTrackerStub(
+        recent=(
+            {
+                "command_id": "cmd-takeoff-1",
+                "mission_name": "TAKE_OFF",
+                "target_drones": ["1"],
+                "created_at": started_ms + 2_000,
+                "execution_started_at": started_ms + 5_000,
+                "completed_at": started_ms + 15_000,
+                "updated_at": started_ms + 15_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:take_off"},
+            },
+            {
+                "command_id": "cmd-move-1",
+                "mission_name": "PRECISION_MOVE",
+                "target_drones": ["1"],
+                "created_at": started_ms + 20_000,
+                "execution_started_at": started_ms + 22_000,
+                "completed_at": started_ms + 30_000,
+                "updated_at": started_ms + 30_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:step:not-an-index"},
+            },
+            {
+                "command_id": "cmd-rtl-1",
+                "mission_name": "RETURN_RTL",
+                "target_drones": ["1"],
+                "created_at": started_ms + 35_000,
+                "execution_started_at": started_ms + 37_000,
+                "completed_at": started_ms + 45_000,
+                "updated_at": started_ms + 45_000,
+                "params": {"operator_label": "simurgh:act-a1b2c3d4:step:3"},
+            },
+        ),
+        stats={"total_commands": 3, "successful_commands": 3},
+    )
+    deps = SimpleNamespace(
+        load_config=lambda: [{"hw_id": 1, "ip": "192.0.2.31"}],
+        get_command_tracker=lambda: tracker,
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        if path == "/api/logs/sessions":
+            return {"sessions": []}, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "files": [{"id": 8, "date_utc": "2026-06-20T22:01:00Z", "size_bytes": 2048}]
+            }, ""
+        if path == "/api/v1/ulog/files/8/summary":
+            return {
+                "parsed": True,
+                "parser": {"status": "ok"},
+                "duration_sec": 60.0,
+                "staged_job_deleted": True,
+            }, ""
+        raise AssertionError(path)
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    answer = answer_mds_read_only_question(
+        "Verify this completed mission from the command tracker, unified logs, and newest ULog.",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert "correlation candidate only" in answer.content
+    assert "correlation verified" not in answer.content
+    assert tracker.calls == ["recent", "active", "statistics"]
+
+
+def test_backend_log_summary_reports_unknown_when_no_source_is_scanned(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_recent_warning_events", lambda self, **kwargs: ([], []))
+
+    answer = MdsReadOnlyTools().backend_log_summary()
+
+    assert "Warning/error count is unknown because no local GCS log source was scanned." in answer.content
+    assert "No WARNING/ERROR/CRITICAL entries were found" not in answer.content
+
+
+def test_fleet_final_state_uses_only_relative_altitude_and_normalizes_landed_enum():
+    from agent_runtime.mds_read_tools import _fleet_health_summary
+
+    airborne = _fleet_health_summary(
+        {
+            "landed_state": 2,
+            "position_alt": 1_234.5,
+            "gps_raw_altitude_m": 1_235.0,
+        }
+    )
+    landed = _fleet_health_summary(
+        {
+            "landed_state": 1,
+            "relative_altitude_m": 0.2,
+        }
+    )
+
+    assert airborne["landed"] == "In air"
+    assert "relative alt unavailable" in airborne["final_state"]
+    assert "1234" not in airborne["final_state"]
+    assert landed["landed"] == "On ground"
+    assert "relative alt 0.2 m" in landed["final_state"]
 
 
 def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):
@@ -2023,7 +3049,7 @@ def test_assistant_turn_answers_origin_launch_positions_as_read_only_status(monk
     assert record.turn.blocked_intents == ()
     assert "Origin and launch-position status" in record.turn.content
     assert "35.0000000" in record.turn.content
-    assert "No origin" not in record.turn.content
+    assert "No mission/global origin is currently set" not in record.turn.content
 
 
 def test_assistant_turn_answers_sidecar_px4_system_and_environment_read_only(monkeypatch):
@@ -2134,7 +3160,7 @@ def test_assistant_turn_summarizes_fleet_ops_sidecar_node_evidence(monkeypatch, 
 
     assert record.turn.provider == "mds-tools"
     assert record.audit_event.metadata["tool_intent"] == "sidecar_status"
-    assert "Fleet Ops sidecar status from read-only GCS state" in record.turn.content
+    assert "Fleet Ops sidecar status from current GCS state" in record.turn.content
     assert "smart-wifi-manager" in record.turn.content
     assert "mavlink-anywhere" in record.turn.content
     assert "http://198.51.100.11:9080/" in record.turn.content
@@ -2170,7 +3196,7 @@ def test_assistant_turn_summarizes_fleet_enrollment_candidates(monkeypatch):
                     "runtime_mode": "real",
                     "node_uuid": "node-bravo",
                     "hw_id": "2",
-                    "hostname": "cm4-02-replacement",
+                    "hostname": "node-bravo-replacement",
                     "ip_addresses": ["198.51.100.22"],
                     "registration_state": "conflict",
                     "conflict_reasons": ["hw_id_already_in_fleet"],
@@ -2201,14 +3227,14 @@ def test_assistant_turn_summarizes_fleet_enrollment_candidates(monkeypatch):
 
     assert record.turn.provider == "mds-tools"
     assert record.audit_event.metadata["tool_intent"] == "fleet_enrollment_summary"
-    assert "Fleet Enrollment status from read-only GCS candidate registry" in record.turn.content
+    assert "Fleet Enrollment status from current GCS state" in record.turn.content
     assert "real:node-alpha" in record.turn.content
     assert "cm4-03" in record.turn.content
     assert "pending operator review" in record.turn.content
     assert "hw id already in fleet" in record.turn.content
     assert "Presence caution" in record.turn.content
     assert "Fleet Enrollment" in record.turn.content
-    assert "no candidate was accepted, replaced, recovered, rejected, ignored" in record.turn.content
+    assert "No enrollment, repository, or flight action was executed" in record.turn.content
     assert "Fleet status from GCS configuration" not in record.turn.content
 
 
@@ -2314,7 +3340,7 @@ def test_read_tools_answer_selected_fleet_enrollment_candidate():
     assert "cm4-04" in answer.content
     assert "198.51.100.44" in answer.content
     assert "cm4-03" not in answer.content
-    assert "no candidate was accepted, replaced, recovered" in answer.content
+    assert "No enrollment, repository, or flight action was executed" in answer.content
     assert answer.tool_ids == ("mds.fleet.candidates.read",)
 
 
@@ -2376,9 +3402,10 @@ def test_assistant_turn_answers_command_tracker_summary_from_deps(monkeypatch):
         created_at=1,
         updated_at=2,
     )
-    tracker = SimpleNamespace(
-        _commands={"cmd-1234567890": command},
-        _stats={
+    tracker = _PublicCommandTrackerStub(
+        recent=(command,),
+        active=(command,),
+        stats={
             "total_commands": 1,
             "successful_commands": 0,
             "failed_commands": 0,
@@ -2471,7 +3498,7 @@ def test_assistant_turn_answers_git_status_summary_from_deps(monkeypatch):
     assert "pos 1 / hw 1" in record.turn.content
     assert "pos 2 / hw 2" in record.turn.content
     assert "needs review" in record.turn.content
-    assert "no git commit, push, pull, node sync" in record.turn.content
+    assert "No git commit, push, pull, node sync" in record.turn.content
 
 
 def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog(monkeypatch, tmp_path):
@@ -2577,6 +3604,62 @@ def test_assistant_turn_translates_immediate_fleet_answer_for_persian_followup(m
     assert "MCP endpoint" not in followup.turn.content
 
 
+def test_assistant_turn_honors_server_grounded_semantic_transform_without_phrase_aliases(
+    monkeypatch,
+    tmp_path,
+):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        del self, api_key
+        captured.update(payload)
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "۴ فرمان موفق بود و پهپاد فرود آمد.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+    first = create_mock_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="Report the result.",
+        metadata={"fixture": "previous-answer"},
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="همین خلاصه را کوتاه و فارسی بگو",
+        metadata={
+            "_semantic_conversation_transform_kind": "transform_previous_answer",
+        },
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "conversation_transform"
+    assert "۴ فرمان موفق" in followup.turn.content
+    assert "session.previous_assistant_answer" in str(captured["input"])
+    assert first.turn.content in str(captured["input"])
+
+
 def test_assistant_turn_explicit_fleet_status_overrides_log_topic(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
@@ -2597,7 +3680,7 @@ def test_assistant_turn_explicit_fleet_status_overrides_log_topic(monkeypatch):
         audit=audit,
         actor="operator",
         session_id=first.session.id,
-        message="what is the current flee status and info?",
+        message="what is the current fleet status and info?",
     )
 
     assert followup.turn.provider == "mds-tools"
@@ -2728,7 +3811,7 @@ def test_assistant_turn_routes_can_you_warning_request_to_logs_not_capabilities(
         sessions=sessions,
         audit=audit,
         actor="operator",
-        message="wat droens are connected?",
+        message="what drones are connected?",
     )
 
     followup = create_assistant_turn(
@@ -2736,7 +3819,7 @@ def test_assistant_turn_routes_can_you_warning_request_to_logs_not_capabilities(
         audit=audit,
         actor="operator",
         session_id=first.session.id,
-        message="can you report any warnign if exist last 30 minutes in gcs?",
+        message="can you report any warning from the last 30 minutes in GCS?",
     )
 
     assert followup.turn.provider == "mds-tools"
@@ -2864,9 +3947,9 @@ def test_assistant_turn_records_query_adaptation_trace_for_multilingual_local_to
     assert record.turn.provider == "mds-tools"
     adaptation = record.audit_event.metadata["query_adaptation"]
     assert adaptation["input_language"] == "fr"
-    assert adaptation["routing_language"] == "en"
-    assert adaptation["strategy"] == "config-governed-cross-language-routing"
-    assert adaptation["applied_rule_count"] >= 2
+    assert adaptation["routing_language"] == "fr"
+    assert adaptation["strategy"] == "provider-semantic-routing-required"
+    assert adaptation["applied_rule_count"] == 0
     assert "Combien" not in str(adaptation)
     assert record.session.metadata["last_domain"] == "fleet"
     assert record.session.metadata["last_intent"] == "fleet_summary"
@@ -3113,6 +4196,271 @@ def test_openai_provider_prompt_template_is_config_driven(monkeypatch, tmp_path)
 
     assert str(captured["input"]).startswith("CONFIG TEMPLATE")
     assert "MESSAGE=Summarize." in str(captured["input"])
+
+
+def test_openai_semantic_routing_prompt_is_config_driven(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    config_path = tmp_path / "agent_assistant.yaml"
+    payload = yaml.safe_load(ASSISTANT_CONFIG_PATH.read_text(encoding="utf-8"))
+    payload["provider"] = "openai"
+    payload["semantic_routing_instructions"] = "CONFIGURED SEMANTIC CONTRACT"
+    config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    monkeypatch.setenv("MDS_AGENT_ASSISTANT_FILE", str(config_path))
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, request_payload, *, api_key):  # noqa: ANN001
+        del api_key
+        captured.update(request_payload)
+        semantic_payload = {
+            "normalized_message": "inspect status",
+            "language": "en",
+            "route_hint": "general_question",
+            "read_intents": [],
+            "read_target_drone_ids": [],
+            "response_detail": "brief",
+            "confidence": 0.98,
+            "needs_clarification": False,
+            "clarification_question": "",
+            "clarification_reason": "none",
+            "action_control_explicit": False,
+            "action_control_source_start": None,
+            "action_control_source_end": None,
+            "action_control_source_excerpt": None,
+            "notes": [],
+            "action_plan": None,
+        }
+        return {"output_text": json.dumps(semantic_payload)}
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    config = load_default_assistant_config()
+
+    rewrite = rewrite_operator_message_with_provider(
+        config=config,
+        message="inspect status",
+        previous_action_summary="target drone 1 from the previous completed action",
+        allowed_target_ids=("1",),
+    )
+
+    assert rewrite is not None
+    assert captured["instructions"] == "CONFIGURED SEMANTIC CONTRACT"
+    assert json.loads(str(captured["input"]))["previous_action_summary"] == (
+        "target drone 1 from the previous completed action"
+    )
+    assert json.loads(str(captured["input"]))["allowed_context_target_ids"] == ["1"]
+    assert rewrite.response_detail == "brief"
+    response_schema = captured["text"]["format"]["schema"]
+    assert "response_detail" in response_schema["required"]
+    assert response_schema["properties"]["response_detail"]["enum"] == [
+        "brief",
+        "standard",
+        "detailed",
+    ]
+    action_plan_schema = response_schema["properties"]["action_plan"]["anyOf"][0]
+    assert "target_references" in action_plan_schema["required"]
+
+
+def test_semantic_action_route_preserves_independent_read_intents():
+    message = "Report SITL status, then create one instance."
+    action_excerpt = "create one instance"
+    action_start = message.index(action_excerpt)
+    payload = {
+        "normalized_message": "Report SITL status, then create one instance.",
+        "language": "en",
+        "response_detail": "brief",
+        "route_hint": "draft_sitl_lifecycle_action",
+        "read_intents": ["sitl_status"],
+        "read_options": {},
+        "read_target_drone_ids": [],
+        "confidence": 0.99,
+        "needs_clarification": False,
+        "clarification_question": "",
+        "clarification_reason": "none",
+        "action_control_explicit": False,
+        "action_control_source_start": None,
+        "action_control_source_end": None,
+        "action_control_source_excerpt": None,
+        "notes": [],
+        "action_plan": {
+            "summary": "Create one SITL instance",
+            "coverage_complete": True,
+            "target_references": [],
+            "preconditions": [],
+            "steps": [
+                {
+                    "kind": "tool",
+                    "tool_id": "mds.sitl.instances.create",
+                    "arguments_json": "{}",
+                    "delay_seconds": None,
+                    "run_after_prior_failure": False,
+                    "monitor_requested": True,
+                    "label": "Create one SITL instance",
+                    "source_message_index": 0,
+                    "source_start": action_start,
+                    "source_end": action_start + len(action_excerpt),
+                    "source_excerpt": action_excerpt,
+                }
+            ],
+        },
+    }
+
+    rewrite = _semantic_rewrite_from_payload(
+        payload,
+        config=load_default_assistant_config(),
+        original_message=message,
+    )
+
+    assert rewrite.route_hint == "draft_sitl_lifecycle_action"
+    assert rewrite.read_intents == ("sitl_status",)
+    assert rewrite.action_plan is not None
+
+
+def test_semantic_transform_route_requires_no_read_or_action_plan():
+    payload = {
+        "normalized_message": "Rewrite the previous answer briefly in Persian.",
+        "language": "fa",
+        "response_detail": "brief",
+        "route_hint": "transform_previous_answer",
+        "read_intents": [],
+        "read_options": {},
+        "read_target_drone_ids": [],
+        "confidence": 0.99,
+        "needs_clarification": False,
+        "clarification_question": "",
+        "clarification_reason": "none",
+        "action_control_explicit": False,
+        "action_control_source_start": None,
+        "action_control_source_end": None,
+        "action_control_source_excerpt": None,
+        "notes": [],
+        "action_plan": None,
+    }
+
+    rewrite = _semantic_rewrite_from_payload(
+        payload,
+        config=load_default_assistant_config(),
+        original_message="همین خلاصه را کوتاه و فارسی بگو",
+    )
+
+    assert rewrite.route_hint == "transform_previous_answer"
+    assert rewrite.read_intents == ()
+    assert rewrite.action_plan is None
+    assert rewrite.usable_for_routing is True
+
+
+def test_sensitive_semantic_redaction_is_reversible_and_provider_safe(
+    monkeypatch,
+    tmp_path,
+):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    config = load_default_assistant_config()
+    message = (
+        "لطفاً raw ULog را برای 35.6892, 51.3890 "
+        "از 192.168.1.44 بررسی کن"
+    )
+    redaction = redact_sensitive_input_for_provider(config, message)
+
+    assert redaction.has_redactions is True
+    assert "35.6892, 51.3890" not in redaction.redacted_text
+    assert "192.168.1.44" not in redaction.redacted_text
+    assert "raw ULog" not in redaction.redacted_text
+    assert redaction.restore(redaction.redacted_text) == message
+    assert "35.6892" not in repr(redaction)
+    assert "192.168.1.44" not in repr(redaction)
+    assert all(
+        "35.6892" not in json.dumps(item, ensure_ascii=False)
+        and "192.168.1.44" not in json.dumps(item, ensure_ascii=False)
+        and "raw ULog" not in json.dumps(item, ensure_ascii=False)
+        for item in redaction.provider_placeholders()
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_post(self, request_payload, *, api_key):  # noqa: ANN001
+        del self, api_key
+        captured.update(request_payload)
+        provider_input = json.loads(str(request_payload["input"]))
+        return {
+            "output_text": json.dumps(
+                {
+                    "normalized_message": provider_input["operator_message"],
+                    "language": "fa",
+                    "response_detail": "brief",
+                    "route_hint": "read_status",
+                    "read_intents": ["drone_log_summary"],
+                    "read_options": {
+                        "drone_log_summary": {
+                            "verify_operation": False,
+                            "include_unified_logs": False,
+                            "analyze_latest_ulog": True,
+                        }
+                    },
+                    "read_target_drone_ids": [],
+                    "confidence": 0.99,
+                    "needs_clarification": False,
+                    "clarification_question": "",
+                    "clarification_reason": "none",
+                    "action_control_explicit": False,
+                    "action_control_source_start": None,
+                    "action_control_source_end": None,
+                    "action_control_source_excerpt": None,
+                    "notes": [],
+                    "action_plan": None,
+                },
+                ensure_ascii=False,
+            )
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    rewrite = rewrite_operator_message_with_provider(
+        config=config,
+        message=message,
+        read_intent_contracts=provider_read_intent_contracts(),
+    )
+
+    request_text = str(captured["input"])
+    assert "35.6892, 51.3890" not in request_text
+    assert "192.168.1.44" not in request_text
+    assert "raw ULog" not in request_text
+    assert rewrite is not None
+    assert rewrite.normalized_message == message
+    assert rewrite.language == "fa"
+    assert rewrite.read_options == {
+        "drone_log_summary": {
+            "verify_operation": False,
+            "include_unified_logs": False,
+            "analyze_latest_ulog": True,
+        }
+    }
+    response_schema = captured["text"]["format"]["schema"]
+    assert "read_options" in response_schema["required"]
+    assert (
+        response_schema["properties"]["read_options"]["properties"][
+            "drone_log_summary"
+        ]["anyOf"][0]["additionalProperties"]
+        is False
+    )
+
+
+def test_provider_log_read_contract_exposes_structured_depth_options():
+    contract = next(
+        item
+        for item in provider_read_intent_contracts()
+        if item["id"] == "drone_log_summary"
+    )
+
+    assert contract["options_schema"]["required"] == [
+        "verify_operation",
+        "include_unified_logs",
+        "analyze_latest_ulog",
+    ]
+    assert set(contract["options_schema"]["properties"]) == {
+        "verify_operation",
+        "include_unified_logs",
+        "analyze_latest_ulog",
+    }
 
 
 def test_openai_provider_receives_retrieved_docs_context_for_unexpected_prompt(monkeypatch, tmp_path):

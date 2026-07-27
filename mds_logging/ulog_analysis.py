@@ -6,11 +6,18 @@ never returns raw topic arrays, raw log message text, or file bytes.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import math
 import os
+import subprocess
+import sys
 from collections import Counter
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from functools import partial
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from threading import BoundedSemaphore, Lock
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
@@ -28,6 +35,324 @@ ULOG_SUMMARY_TOPIC_FILTER: tuple[str, ...] = (
     "vehicle_status",
 )
 DEFAULT_ULOG_SUMMARY_MAX_BYTES = 64 * 1024 * 1024
+DEFAULT_ULOG_SUMMARY_MAX_WORKERS = 2
+DEFAULT_ULOG_SUMMARY_MAX_QUEUE = 4
+DEFAULT_ULOG_SUMMARY_MAX_MEMORY_MB = 1024
+DEFAULT_ULOG_SUMMARY_MAX_CPU_SECONDS = 60
+DEFAULT_ULOG_SUMMARY_MAX_OUTPUT_BYTES = 8 * 1024 * 1024
+DEFAULT_ULOG_SUMMARY_MAX_OPEN_FILES = 64
+ULOG_SUMMARY_WORKER_RESULT_PREFIX = "MDS_ULOG_SUMMARY_RESULT:"
+_ULOG_SUMMARY_WORKER_GRACE_SECONDS = 2.0
+_ULOG_SUMMARY_EXECUTOR: ThreadPoolExecutor | None = None
+_ULOG_SUMMARY_SLOTS: BoundedSemaphore | None = None
+_ULOG_SUMMARY_EXECUTOR_LOCK = Lock()
+
+
+class UlogSummaryError(RuntimeError):
+    """Typed parser execution or result failure."""
+
+    def __init__(self, message: str, *, code: str, http_status: int) -> None:
+        super().__init__(message)
+        self.code = code
+        self.http_status = int(http_status)
+
+
+class UlogSummaryTimeoutError(TimeoutError):
+    """Raised when a parser worker exceeds its wall-clock deadline."""
+
+    code = "ulog_summary_timeout"
+    http_status = 504
+
+
+def _summary_executor() -> ThreadPoolExecutor:
+    global _ULOG_SUMMARY_EXECUTOR, _ULOG_SUMMARY_SLOTS
+    with _ULOG_SUMMARY_EXECUTOR_LOCK:
+        if _ULOG_SUMMARY_EXECUTOR is None:
+            max_workers = _env_int(
+                "MDS_ULOG_SUMMARY_MAX_WORKERS",
+                DEFAULT_ULOG_SUMMARY_MAX_WORKERS,
+            )
+            max_workers = max(1, min(max_workers, 8))
+            max_queue = _env_int(
+                "MDS_ULOG_SUMMARY_MAX_QUEUE",
+                DEFAULT_ULOG_SUMMARY_MAX_QUEUE,
+            )
+            max_queue = max(0, min(max_queue, 32))
+            _ULOG_SUMMARY_EXECUTOR = ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="mds-ulog-summary",
+            )
+            _ULOG_SUMMARY_SLOTS = BoundedSemaphore(max_workers + max_queue)
+        return _ULOG_SUMMARY_EXECUTOR
+
+
+def _submit_summary_operation(
+    operation: Callable[[], dict[str, Any]],
+) -> Future[dict[str, Any]]:
+    executor = _summary_executor()
+    slots = _ULOG_SUMMARY_SLOTS
+    if slots is None or not slots.acquire(blocking=False):
+        raise UlogSummaryError(
+            "ULog parser capacity is busy; retry after an active summary completes",
+            code="ulog_summary_busy",
+            http_status=429,
+        )
+    try:
+        future = executor.submit(operation)
+    except Exception:
+        slots.release()
+        raise
+    future.add_done_callback(lambda _future: slots.release())
+    return future
+
+
+def _validated_timeout_seconds(value: float) -> float:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ULog summary timeout must be a positive number") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("ULog summary timeout must be a positive number")
+    return timeout
+
+
+def _summary_memory_limit_mb() -> int:
+    configured = _env_int(
+        "MDS_ULOG_SUMMARY_MAX_MEMORY_MB",
+        DEFAULT_ULOG_SUMMARY_MAX_MEMORY_MB,
+    )
+    return max(128, min(configured, 4096))
+
+
+def _summary_cpu_limit_seconds() -> int:
+    configured = _env_int(
+        "MDS_ULOG_SUMMARY_MAX_CPU_SEC",
+        DEFAULT_ULOG_SUMMARY_MAX_CPU_SECONDS,
+    )
+    return max(1, min(configured, 300))
+
+
+def _summary_output_limit_bytes() -> int:
+    configured = _env_int(
+        "MDS_ULOG_SUMMARY_MAX_OUTPUT_BYTES",
+        DEFAULT_ULOG_SUMMARY_MAX_OUTPUT_BYTES,
+    )
+    return max(1024 * 1024, min(configured, 64 * 1024 * 1024))
+
+
+def _summary_open_file_limit() -> int:
+    configured = _env_int(
+        "MDS_ULOG_SUMMARY_MAX_OPEN_FILES",
+        DEFAULT_ULOG_SUMMARY_MAX_OPEN_FILES,
+    )
+    return max(16, min(configured, 256))
+
+
+def _worker_environment(repo_root: str) -> dict[str, str]:
+    """Return the minimal non-secret environment inherited by parser workers."""
+
+    return {
+        "PATH": os.defpath,
+        "PYTHONPATH": repo_root,
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "MDS_ULOG_SUMMARY_MAX_MEMORY_MB": str(_summary_memory_limit_mb()),
+        "MDS_ULOG_SUMMARY_MAX_CPU_SEC": str(_summary_cpu_limit_seconds()),
+        "MDS_ULOG_SUMMARY_MAX_OUTPUT_BYTES": str(_summary_output_limit_bytes()),
+        "MDS_ULOG_SUMMARY_MAX_OPEN_FILES": str(_summary_open_file_limit()),
+    }
+
+
+def _terminate_worker(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=0.5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=0.5)
+
+
+def _worker_result(stdout: str, stderr: str, returncode: int) -> dict[str, Any]:
+    result_line = next(
+        (
+            line[len(ULOG_SUMMARY_WORKER_RESULT_PREFIX):]
+            for line in reversed(stdout.splitlines())
+            if line.startswith(ULOG_SUMMARY_WORKER_RESULT_PREFIX)
+        ),
+        None,
+    )
+    if result_line is None:
+        detail = (stderr or stdout).strip()[:500]
+        raise UlogSummaryError(
+            detail or f"ULog parser worker exited with status {returncode}",
+            code="ulog_summary_worker_failed",
+            http_status=500,
+        )
+    try:
+        payload = json.loads(result_line)
+    except json.JSONDecodeError as exc:
+        raise UlogSummaryError(
+            "ULog parser worker returned invalid output",
+            code="ulog_summary_worker_invalid_output",
+            http_status=500,
+        ) from exc
+    if not isinstance(payload, dict):
+        raise UlogSummaryError(
+            "ULog parser worker returned an invalid result",
+            code="ulog_summary_worker_invalid_output",
+            http_status=500,
+        )
+    if not payload.get("ok"):
+        raise UlogSummaryError(
+            str(payload.get("error") or "ULog parser worker failed")[:500],
+            code=str(payload.get("code") or "ulog_summary_worker_failed"),
+            http_status=int(payload.get("http_status") or 500),
+        )
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        raise UlogSummaryError(
+            "ULog parser worker returned an invalid summary",
+            code="ulog_summary_worker_invalid_output",
+            http_status=500,
+        )
+    try:
+        from mds_logging.api_schemas import UlogDerivedSummary
+
+        return UlogDerivedSummary.model_validate(summary).model_dump(mode="json")
+    except Exception as exc:
+        raise UlogSummaryError(
+            "ULog parser worker returned an out-of-contract summary",
+            code="ulog_summary_worker_invalid_output",
+            http_status=500,
+        ) from exc
+
+
+def _raise_for_unparsed_summary(summary: Mapping[str, Any]) -> None:
+    if bool(summary.get("parsed")):
+        return
+    parser = summary.get("parser")
+    parser_payload = parser if isinstance(parser, Mapping) else {}
+    status = str(parser_payload.get("status") or "failed").strip().lower()
+    detail = str(parser_payload.get("error") or "ULog could not be parsed").strip()
+    if status == "skipped":
+        code, http_status = "ulog_summary_limit_exceeded", 413
+    elif status == "unavailable":
+        code, http_status = "ulog_summary_parser_unavailable", 503
+    elif detail == "ULog file not found":
+        code, http_status = "ulog_summary_not_found", 404
+    else:
+        code, http_status = "ulog_summary_parse_failed", 422
+    raise UlogSummaryError(detail[:500], code=code, http_status=http_status)
+
+
+def _run_summary_subprocess(
+    path: str | Path,
+    *,
+    source_metadata: Mapping[str, Any] | None,
+    max_bytes: int | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    timeout = _validated_timeout_seconds(timeout_seconds)
+    repo_root = str(Path(__file__).resolve().parents[1])
+    environment = _worker_environment(repo_root)
+    request_payload = json.dumps(
+        {
+            "path": str(Path(path)),
+            "source_metadata": dict(source_metadata or {}),
+            "max_bytes": max_bytes,
+        },
+        default=str,
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-m", "mds_logging.ulog_worker"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+        close_fds=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(request_payload, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_worker(process)
+        raise UlogSummaryTimeoutError(
+            f"ULog summary timed out after {timeout:g} second(s)"
+        ) from exc
+    if process.returncode != 0:
+        return _worker_result(stdout, stderr, process.returncode)
+    summary = _worker_result(stdout, stderr, process.returncode)
+    _raise_for_unparsed_summary(summary)
+    return summary
+
+
+def summarize_ulog_file_with_timeout(
+    path: str | Path,
+    *,
+    source_metadata: Mapping[str, Any] | None = None,
+    max_bytes: int | None = None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Run one isolated parser process with bounded concurrency and resources."""
+
+    timeout = _validated_timeout_seconds(timeout_seconds)
+    future = _submit_summary_operation(
+        partial(
+            _run_summary_subprocess,
+            path,
+            source_metadata=source_metadata,
+            max_bytes=max_bytes,
+            timeout_seconds=timeout,
+        )
+    )
+    try:
+        return future.result(timeout=timeout + _ULOG_SUMMARY_WORKER_GRACE_SECONDS)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise UlogSummaryTimeoutError(
+            f"ULog summary timed out after {timeout:g} second(s)"
+        ) from exc
+
+
+async def summarize_ulog_file_async(
+    path: str | Path,
+    *,
+    source_metadata: Mapping[str, Any] | None = None,
+    max_bytes: int | None = None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Parse one ULog outside the event loop in a killable worker process."""
+
+    timeout = _validated_timeout_seconds(timeout_seconds)
+    operation = partial(
+        _run_summary_subprocess,
+        path,
+        source_metadata=source_metadata,
+        max_bytes=max_bytes,
+        timeout_seconds=timeout,
+    )
+    concurrent_future = _submit_summary_operation(operation)
+    future = asyncio.wrap_future(concurrent_future)
+    try:
+        return await asyncio.wait_for(
+            future,
+            timeout=timeout + _ULOG_SUMMARY_WORKER_GRACE_SECONDS,
+        )
+    except asyncio.TimeoutError as exc:
+        concurrent_future.cancel()
+        raise UlogSummaryTimeoutError(
+            f"ULog summary timed out after {timeout:g} second(s)"
+        ) from exc
 
 
 def summarize_ulog_file(
@@ -53,6 +378,19 @@ def summarize_ulog_file(
             "log_id": metadata.get("log_id"),
             "date_utc": metadata.get("date_utc"),
             "size_bytes": int(metadata.get("size_bytes") or file_size or 0),
+        },
+        "correlation": {
+            "status": "unverified",
+            "verified": False,
+            "method": "source_metadata_only" if metadata.get("date_utc") else "none",
+            "evidence": {
+                "ulog_log_id": metadata.get("log_id"),
+                "ulog_started_at": metadata.get("date_utc"),
+                "matched_dimensions": [],
+            },
+            "limitations": [
+                "No GCS target, guarded-action reference, or command record was supplied to the ULog parser."
+            ],
         },
         "parser": {
             "name": "pyulog",
@@ -194,15 +532,13 @@ def _summarize_local_position(dataset: Any) -> dict[str, Any]:
     if dataset is None:
         return {}
     data = getattr(dataset, "data", {}) or {}
-    x = _finite_array(data.get("x"))
-    y = _finite_array(data.get("y"))
-    z = _finite_array(data.get("z"))
-    if x.size == 0 or y.size == 0 or z.size == 0:
+    samples = _joint_finite_sample_arrays(data, ("x", "y", "z"))
+    if not samples:
         return {}
-    size = min(x.size, y.size, z.size)
-    x = x[:size]
-    y = y[:size]
-    z = z[:size]
+    x = samples["x"]
+    y = samples["y"]
+    z = samples["z"]
+    size = x.size
     horizontal_from_start = np.sqrt((x - x[0]) ** 2 + (y - y[0]) ** 2)
     relative_up = -z
     return {
@@ -223,11 +559,18 @@ def _summarize_setpoint(dataset: Any) -> dict[str, Any]:
     if dataset is None:
         return {}
     data = getattr(dataset, "data", {}) or {}
-    result: dict[str, Any] = {"samples": _dataset_sample_count(dataset)}
-    for key, label in (("position[0]", "north_m"), ("position[1]", "east_m"), ("position[2]", "down_m")):
-        values = _finite_array(data.get(key))
-        if values.size:
-            result[f"{label}_range"] = _range(values)
+    coordinates = (
+        ("position[0]", "north_m"),
+        ("position[1]", "east_m"),
+        ("position[2]", "down_m"),
+    )
+    samples = _joint_finite_sample_arrays(data, tuple(key for key, _label in coordinates))
+    result: dict[str, Any] = {
+        "samples": int(samples["position[0]"].size) if samples else 0,
+    }
+    for key, label in coordinates:
+        if samples:
+            result[f"{label}_range"] = _range(samples[key])
     return result
 
 
@@ -294,6 +637,46 @@ def _finite_array(values: Any) -> np.ndarray:
     if array.size == 0:
         return array
     return array[np.isfinite(array)]
+
+
+def _joint_finite_sample_arrays(
+    data: Mapping[str, Any],
+    value_keys: Sequence[str],
+) -> dict[str, np.ndarray]:
+    """Return row-aligned finite values and their correlated PX4 timestamps."""
+
+    timestamp_keys = tuple(
+        key
+        for key in ("timestamp", "timestamp_sample")
+        if data.get(key) is not None
+    )
+    keys = (*value_keys, *timestamp_keys)
+    arrays: dict[str, np.ndarray] = {}
+    for key in keys:
+        values = data.get(key)
+        if values is None:
+            return {}
+        try:
+            arrays[key] = np.asarray(values, dtype=float).reshape(-1)
+        except (TypeError, ValueError):
+            return {}
+
+    if not arrays:
+        return {}
+    size = min(array.size for array in arrays.values())
+    if size == 0:
+        return {}
+
+    valid = np.ones(size, dtype=bool)
+    for array in arrays.values():
+        valid &= np.isfinite(array[:size])
+    if not np.any(valid):
+        return {}
+
+    return {
+        key: array[:size][valid]
+        for key, array in arrays.items()
+    }
 
 
 def _range(values: np.ndarray) -> dict[str, float]:

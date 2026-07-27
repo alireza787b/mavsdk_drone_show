@@ -1,7 +1,9 @@
 """Tests for GCS-side log API endpoints (local — no drone proxy)."""
+import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 import pytest
 
@@ -9,14 +11,27 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'gcs-server'))
 
 from fastapi import FastAPI
+from auth_runtime import MDSAuthMiddleware
 
 from mds_logging.watcher import LogWatcher
 from mds_logging.registry import register_component, clear_registry
 from tests.conftest import SyncASGITestClient as TestClient
+from src.security.auth import (
+    AuthService,
+    AuthSettings,
+    MACHINE_CREDENTIAL_HEADER,
+    ULOG_OP_DOWNLOAD_CREATE,
+    ULOG_OP_FILES_READ,
+    verify_machine_credential,
+)
 
 
 @pytest.fixture(autouse=True)
-def clean_registry():
+def clean_registry(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "MDS_AUTH_SESSION_SECRET_FILE",
+        str(tmp_path / "session-secret"),
+    )
     clear_registry()
     yield
     clear_registry()
@@ -26,9 +41,25 @@ def _make_gcs_app(log_dir, watcher=None):
     """Build a minimal FastAPI app with the GCS log router."""
     from log_routes import create_log_router
     app = FastAPI()
+    app.add_middleware(MDSAuthMiddleware)
     router = create_log_router(log_dir=log_dir, watcher=watcher)
     app.include_router(router)
     return app
+
+
+def _create_drone_machine_token(monkeypatch, tmp_path):
+    auth_dir = tmp_path / "machine-auth"
+    monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+    monkeypatch.setenv("MDS_AUTH_USERS_FILE", str(auth_dir / "users.json"))
+    monkeypatch.setenv("MDS_AUTH_SESSION_SECRET_FILE", str(auth_dir / "session_secret"))
+    monkeypatch.setenv("MDS_AUTH_CSRF_SECRET_FILE", str(auth_dir / "csrf_secret"))
+    service = AuthService(AuthSettings.from_env())
+    created = service.store.create_token(
+        "drone-5",
+        scopes=["drone"],
+        ttl_seconds=3600,
+    )
+    return created["token"]
 
 
 class TestGetSources:
@@ -129,11 +160,12 @@ class TestUlogSummaryUpload:
         os.makedirs(log_dir)
         captured = {}
 
-        def fake_summary(path, *, source_metadata=None, max_bytes=None):  # noqa: ANN001
+        async def fake_summary(path, *, source_metadata=None, max_bytes=None, timeout_seconds=None):  # noqa: ANN001
             captured["path"] = str(path)
             captured["exists_during_parse"] = Path(path).exists()
             captured["source_metadata"] = dict(source_metadata or {})
             captured["max_bytes"] = max_bytes
+            captured["timeout_seconds"] = timeout_seconds
             return {
                 "source": {
                     "source_kind": "uploaded_file",
@@ -150,7 +182,7 @@ class TestUlogSummaryUpload:
                 "raw_content_included": False,
             }
 
-        monkeypatch.setattr("mds_logging.ulog_analysis.summarize_ulog_file", fake_summary)
+        monkeypatch.setattr("mds_logging.ulog_analysis.summarize_ulog_file_async", fake_summary)
         client = TestClient(_make_gcs_app(log_dir))
 
         resp = client.post(
@@ -315,6 +347,149 @@ class TestExport:
 
 
 class TestDroneOnboardUlogProxy:
+    def test_proxy_attaches_scoped_node_credential_server_side(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import log_proxy
+
+        node_token = _create_drone_machine_token(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            log_proxy,
+            "load_config",
+            lambda: [{"hw_id": "5", "ip": "10.0.0.5"}],
+        )
+        captured = []
+
+        class FakeResponse:
+            status_code = 200
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"ok": True}
+
+        class FakeAsyncClient:
+            def __init__(self, **_kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def request(self, method, url, **kwargs):
+                captured.append((method, url, kwargs))
+                return FakeResponse()
+
+        monkeypatch.setattr(log_proxy.httpx, "AsyncClient", FakeAsyncClient)
+
+        asyncio.run(log_proxy.fetch_drone_ulog_files("10.0.0.5"))
+        asyncio.run(
+            log_proxy.create_drone_ulog_download_job(
+                "10.0.0.5",
+                12,
+                access_token="raw-job-capability",
+            )
+        )
+
+        files_headers = captured[0][2]["headers"]
+        create_headers = captured[1][2]["headers"]
+        assert MACHINE_CREDENTIAL_HEADER in files_headers
+        assert verify_machine_credential(
+            files_headers[MACHINE_CREDENTIAL_HEADER],
+            bearer_token=node_token,
+            audience="mds-drone:5",
+            operation=ULOG_OP_FILES_READ,
+            consume_nonce=False,
+        )
+        assert create_headers["X-MDS-ULog-Job-Token"] == "raw-job-capability"
+        assert verify_machine_credential(
+            create_headers[MACHINE_CREDENTIAL_HEADER],
+            bearer_token=node_token,
+            audience="mds-drone:5",
+            operation=ULOG_OP_DOWNLOAD_CREATE,
+            consume_nonce=False,
+        )
+
+    def test_proxy_fails_closed_without_drone_machine_token(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import log_proxy
+
+        auth_dir = tmp_path / "empty-auth"
+        monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+        monkeypatch.setenv("MDS_API_AUTH_ENABLED", "true")
+        monkeypatch.setattr(
+            log_proxy,
+            "load_config",
+            lambda: [{"hw_id": "5", "ip": "10.0.0.5"}],
+        )
+
+        with pytest.raises(log_proxy.DroneProxyResponseError) as error:
+            asyncio.run(log_proxy.fetch_drone_ulog_files("10.0.0.5"))
+
+        assert error.value.status_code == 503
+
+    def test_proxy_allows_zero_config_trusted_network_demo(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import log_proxy
+
+        auth_dir = tmp_path / "empty-auth"
+        monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+        monkeypatch.setenv("MDS_API_AUTH_ENABLED", "false")
+        monkeypatch.delenv("MDS_SITL_GCS_API_TOKEN_FILE", raising=False)
+        monkeypatch.setattr(
+            log_proxy,
+            "load_config",
+            lambda: [{"hw_id": "5", "ip": "10.0.0.5"}],
+        )
+
+        assert (
+            log_proxy._authenticated_ulog_headers(
+                "GET",
+                "10.0.0.5",
+                "/api/v1/ulog/files",
+            )
+            is None
+        )
+
+    def test_proxy_fails_closed_for_incomplete_hardened_sitl_config(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        import log_proxy
+
+        auth_dir = tmp_path / "empty-auth"
+        monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+        monkeypatch.setenv("MDS_API_AUTH_ENABLED", "false")
+        monkeypatch.setenv(
+            "MDS_SITL_GCS_API_TOKEN_FILE",
+            str(tmp_path / "missing-sitl-token"),
+        )
+        monkeypatch.setattr(
+            log_proxy,
+            "load_config",
+            lambda: [{"hw_id": "5", "ip": "10.0.0.5"}],
+        )
+
+        with pytest.raises(log_proxy.DroneProxyResponseError) as error:
+            log_proxy._authenticated_ulog_headers(
+                "GET",
+                "10.0.0.5",
+                "/api/v1/ulog/files",
+            )
+
+        assert error.value.status_code == 503
+
     def test_get_drone_ulog_policy(self, tmp_path, monkeypatch):
         import log_proxy
 
@@ -358,8 +533,9 @@ class TestDroneOnboardUlogProxy:
 
         monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
 
-        async def fake_create(_drone_ip, log_id):
+        async def fake_create(_drone_ip, log_id, *, access_token):
             assert log_id == 12
+            assert access_token
             return {
                 "job": {
                     "job_id": "job-12",
@@ -374,7 +550,7 @@ class TestDroneOnboardUlogProxy:
                     "download_filename": "mds-ulog_P2_H5_20260411T110000Z_L12.ulg",
                     "created_at": 1,
                     "updated_at": 1,
-                    "expires_at": 2,
+                    "expires_at": int(time.time() * 1000) + 60_000,
                     "error": None,
                 },
                 "timestamp": 1,
@@ -385,7 +561,7 @@ class TestDroneOnboardUlogProxy:
         resp = client.post("/api/logs/drone/5/ulog/files/12/download")
 
         assert resp.status_code == 200
-        assert resp.json()["job"]["job_id"] == "job-12"
+        assert resp.json()["job"]["job_id"] != "job-12"
 
     def test_download_drone_ulog_content_stream(self, tmp_path, monkeypatch):
         import log_proxy
@@ -413,13 +589,40 @@ class TestDroneOnboardUlogProxy:
 
         monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
 
-        async def fake_open(_drone_ip, job_id):
+        async def fake_create(_drone_ip, log_id, *, access_token):
+            assert log_id == 1
+            assert access_token
+            return {
+                "job": {
+                    "job_id": "job-1",
+                    "hw_id": "5",
+                    "pos_id": 2,
+                    "log_id": 1,
+                    "date_utc": "2026-04-11T11:00:00Z",
+                    "size_bytes": 4,
+                    "status": "ready",
+                    "progress": 1.0,
+                    "staged_filename": "5-job.ulg",
+                    "download_filename": "mds-ulog_P2_H5.ulg",
+                    "created_at": 1,
+                    "updated_at": 1,
+                    "expires_at": int(time.time() * 1000) + 60_000,
+                    "error": None,
+                },
+                "timestamp": 1,
+            }
+
+        async def fake_open(_drone_ip, job_id, *, access_token):
             assert job_id == "job-1"
+            assert access_token
             return FakeAsyncClient(), FakeAsyncResponse()
 
+        monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", fake_create)
         monkeypatch.setattr(log_proxy, "open_drone_ulog_download_stream", fake_open)
 
-        resp = client.get("/api/logs/drone/5/ulog/downloads/job-1/content")
+        created = client.post("/api/logs/drone/5/ulog/files/1/download")
+        handle = created.json()["job"]["job_id"]
+        resp = client.get(f"/api/logs/drone/5/ulog/downloads/{handle}/content")
 
         assert resp.status_code == 200
         assert resp.content == b"ulog"
@@ -442,3 +645,64 @@ class TestDroneOnboardUlogProxy:
 
         assert resp.status_code == 502
         assert "unreachable" in resp.json()["detail"]
+
+    def test_erase_all_drone_ulogs_requires_admin_role(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        auth_dir = tmp_path / "role-auth"
+        monkeypatch.setenv("MDS_AUTH_ENABLED", "true")
+        monkeypatch.setenv("MDS_API_AUTH_ENABLED", "true")
+        monkeypatch.setenv("MDS_AUTH_USERS_FILE", str(auth_dir / "users.json"))
+        monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+        monkeypatch.setenv("MDS_AUTH_SESSION_SECRET_FILE", str(auth_dir / "session_secret"))
+        monkeypatch.setenv("MDS_AUTH_CSRF_SECRET_FILE", str(auth_dir / "csrf_secret"))
+        service = AuthService(AuthSettings.from_env())
+        viewer_token = service.store.create_token(
+            "viewer",
+            scopes=["viewer"],
+            ttl_seconds=3600,
+        )["token"]
+        operator_token = service.store.create_token(
+            "operator",
+            scopes=["operator"],
+            ttl_seconds=3600,
+        )["token"]
+        admin_token = service.store.create_token(
+            "admin",
+            scopes=["admin"],
+            ttl_seconds=3600,
+        )["token"]
+        calls = []
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_erase(drone_ip):
+            calls.append(drone_ip)
+            return {
+                "status": "accepted",
+                "hw_id": "5",
+                "pos_id": 2,
+                "erased_count": 1,
+                "timestamp": 1,
+            }
+
+        monkeypatch.setattr(log_proxy, "erase_all_drone_ulogs", fake_erase)
+        client = TestClient(_make_gcs_app(str(tmp_path)))
+
+        viewer = client.post(
+            "/api/logs/drone/5/ulog/erase-all",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+        )
+        operator = client.post(
+            "/api/logs/drone/5/ulog/erase-all",
+            headers={"Authorization": f"Bearer {operator_token}"},
+        )
+        admin = client.post(
+            "/api/logs/drone/5/ulog/erase-all",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert viewer.status_code == 403
+        assert operator.status_code == 403
+        assert admin.status_code == 200
+        assert calls == ["10.0.0.5"]

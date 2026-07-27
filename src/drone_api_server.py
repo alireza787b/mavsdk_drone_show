@@ -36,10 +36,11 @@ import shutil
 import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set, Tuple
+from urllib.parse import quote
 
 # FastAPI imports
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 import uvicorn
@@ -105,6 +106,7 @@ from src.drone_api_routes import (
     DRONE_ULOG_FILES_ROUTE,
     DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE,
     DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE,
+    DRONE_ULOG_JOB_TOKEN_HEADER,
     DRONE_ULOG_POLICY_ROUTE,
     DRONE_WS_STATE_ROUTE,
     DRONE_WS_SWARM_STATE_ROUTE,
@@ -113,7 +115,7 @@ from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
     GCS_ORIGIN_BOOTSTRAP_ROUTE,
 )
-from src.gcs_auth_client import gcs_auth_headers
+from src.gcs_auth_client import gcs_auth_headers, read_gcs_api_token
 from src.managed_runtime_status import (
     build_connectivity_runtime_summary,
     build_mavlink_runtime_summary,
@@ -129,6 +131,18 @@ from src.settings.env_status import (
 )
 from src.settings.runtime import get_local_env_path
 from src.mission_startup import probe_offboard_armability
+from src.security.auth import (
+    MACHINE_CREDENTIAL_HEADER,
+    ULOG_OP_DOWNLOAD_CONTENT,
+    ULOG_OP_DOWNLOAD_CREATE,
+    ULOG_OP_DOWNLOAD_DELETE,
+    ULOG_OP_DOWNLOAD_STATUS,
+    ULOG_OP_ERASE,
+    ULOG_OP_FILES_READ,
+    ULOG_OP_POLICY_READ,
+    ULOG_OP_SUMMARY_READ,
+    verify_machine_credential,
+)
 from src.px4_param_models import (
     Px4ParamPatchApplyRequest,
     Px4ParamPatchApplyResponse,
@@ -140,7 +154,7 @@ from src.px4_param_models import (
     Px4ParamValueResponse,
 )
 from src.px4_params.service import Px4ParamService
-from src.ulog_service import OnboardUlogService
+from src.ulog_service import OnboardUlogService, UlogServiceError
 from functions.git_manager import get_local_git_report
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
@@ -864,6 +878,7 @@ class DroneAPIServer:
         self._live_probe_lock = asyncio.Lock()
         self._px4_param_lock = asyncio.Lock()
         self._ulog_lock = asyncio.Lock()
+        self._ulog_download_tasks: Set[asyncio.Task] = set()
         self._px4_param_snapshot_cache: Optional[Px4ParamSnapshotResponse] = None
         self._px4_param_service = Px4ParamService(
             params,
@@ -875,6 +890,7 @@ class DroneAPIServer:
             pos_id=safe_int(getattr(drone_config, "pos_id", None), None),
         )
 
+        self.app.add_event_handler("shutdown", self._shutdown_ulog_download_tasks)
         self.setup_routes()
 
     def set_drone_communicator(self, drone_communicator):
@@ -1023,9 +1039,33 @@ class DroneAPIServer:
         )
 
     def _ulog_failure_http_exception(self, action: str, exc: Exception) -> HTTPException:
-        capability = self._build_ulog_capability().model_dump()
+        capability = self._build_ulog_capability_payload()
         message = str(exc) or exc.__class__.__name__
         lowered = message.lower()
+
+        typed_status = getattr(exc, "http_status", None)
+        typed_code = getattr(exc, "code", None)
+        if isinstance(typed_status, int) and isinstance(typed_code, str):
+            return HTTPException(
+                status_code=typed_status,
+                detail={
+                    "error": typed_code,
+                    "message": message,
+                    "action": action,
+                    "ulog_capability": capability,
+                },
+            )
+
+        if isinstance(exc, TimeoutError):
+            return HTTPException(
+                status_code=504,
+                detail={
+                    "error": "ulog_summary_timeout",
+                    "message": message,
+                    "action": action,
+                    "ulog_capability": capability,
+                },
+            )
 
         if self._is_mavsdk_dependency_error(exc):
             error = capability.get("missing_dependency") or "mavsdk_server_unavailable"
@@ -1293,9 +1333,25 @@ class DroneAPIServer:
             await self._with_local_ulog_system(
                 lambda drone: self._ulog_service.perform_download(drone, job_id)
             )
+        except asyncio.CancelledError:
+            await self._ulog_service.mark_job_failed(job_id, "ULog download cancelled during shutdown")
+            raise
         except Exception as exc:
             logger.error(f"Onboard ULog download job {job_id} failed before completion: {exc}")
             await self._ulog_service.mark_job_failed(job_id, str(exc))
+
+    def _start_ulog_download_task(self, job_id: str) -> None:
+        task = asyncio.create_task(self._run_ulog_download_job(job_id))
+        self._ulog_download_tasks.add(task)
+        task.add_done_callback(self._ulog_download_tasks.discard)
+
+    async def _shutdown_ulog_download_tasks(self) -> None:
+        tasks = tuple(self._ulog_download_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._ulog_download_tasks.clear()
 
     def _assert_px4_param_mutation_allowed(self) -> None:
         require_disarmed = bool(
@@ -1322,6 +1378,55 @@ class DroneAPIServer:
                 status_code=409,
                 detail="Onboard ULog erase-all is blocked while the vehicle is armed.",
             )
+
+    def _require_ulog_machine_credential(
+        self,
+        request: Request,
+        *,
+        operation: str,
+    ) -> None:
+        token_file = os.environ.get("MDS_GCS_API_TOKEN_FILE", "").strip()
+        if not token_file:
+            if not getattr(self, "_ulog_open_mode_warning_logged", False):
+                logger.warning(
+                    "Onboard ULog routes are using trusted-network demo mode "
+                    "without GCS machine authentication. Configure "
+                    "MDS_GCS_API_TOKEN_FILE for hardened deployments."
+                )
+                self._ulog_open_mode_warning_logged = True
+            return
+
+        bearer_token = read_gcs_api_token()
+        if not bearer_token:
+            raise HTTPException(
+                status_code=503,
+                detail="Node machine authentication is configured but unavailable.",
+            )
+        credential = request.headers.get(MACHINE_CREDENTIAL_HEADER)
+        if not credential:
+            raise HTTPException(
+                status_code=401,
+                detail="GCS machine credential is required.",
+            )
+        audience = f"mds-drone:{str(getattr(self.drone_config, 'hw_id', '')).strip()}"
+        if verify_machine_credential(
+            credential,
+            bearer_token=bearer_token,
+            audience=audience,
+            operation=operation,
+        ) is None:
+            raise HTTPException(
+                status_code=401,
+                detail="GCS machine credential is invalid or expired.",
+            )
+
+    async def _assert_ulog_job_access(
+        self,
+        job_id: str,
+        access_token: str | None,
+    ) -> None:
+        if not await self._ulog_service.authorize_job(job_id, access_token):
+            raise HTTPException(status_code=404, detail=f"ULog download job {job_id} not found")
 
     @staticmethod
     def _serialize_drone_state_payload(drone_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -2017,15 +2122,23 @@ class DroneAPIServer:
                 raise self._px4_param_failure_http_exception("apply_px4_param_patch", exc) from exc
 
         @self.app.get(DRONE_ULOG_POLICY_ROUTE)
-        async def get_onboard_ulog_policy():
+        async def get_onboard_ulog_policy(request: Request):
             """Return the local onboard ULog subsystem policy envelope."""
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_POLICY_READ,
+            )
             return self._ulog_service.build_policy(
                 ulog_capability=self._build_ulog_capability()
             )
 
         @self.app.get(DRONE_ULOG_FILES_ROUTE)
-        async def list_onboard_ulog_files():
+        async def list_onboard_ulog_files(request: Request):
             """List onboard PX4 ULog files visible through MAVSDK."""
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_FILES_READ,
+            )
             try:
                 return await self._with_local_ulog_system(
                     lambda drone: self._ulog_service.list_entries(
@@ -2040,8 +2153,14 @@ class DroneAPIServer:
                 raise self._ulog_failure_http_exception("list_onboard_ulogs", exc) from exc
 
         @self.app.get(DRONE_ULOG_FILE_SUMMARY_ROUTE_TEMPLATE, response_model=OnboardUlogSummaryResponse)
-        async def summarize_onboard_ulog_file(log_id: int):
+        async def summarize_onboard_ulog_file(log_id: int, request: Request):
             """Return a safe derived summary for one onboard PX4 ULog."""
+            from mds_logging.ulog_analysis import UlogSummaryError
+
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_SUMMARY_READ,
+            )
             self._assert_ulog_download_allowed()
             try:
                 return await self._with_local_ulog_system(
@@ -2051,12 +2170,16 @@ class DroneAPIServer:
                         OnboardUlogDownloadRequest(pos_id=safe_int(getattr(self.drone_config, "pos_id", None), None)),
                     )
                 )
+            except UlogServiceError as exc:
+                raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
             except FileNotFoundError as exc:
                 if self._is_mavsdk_dependency_error(exc):
                     raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except ValueError as exc:
                 raise HTTPException(status_code=413, detail=str(exc)) from exc
+            except UlogSummaryError as exc:
+                raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
             except RuntimeError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
             except HTTPException:
@@ -2068,10 +2191,24 @@ class DroneAPIServer:
         @self.app.post(DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE)
         async def create_onboard_ulog_download(
             log_id: int,
+            http_request: Request,
             request: Optional[OnboardUlogDownloadRequest] = None,
+            ulog_job_token: str | None = Header(
+                default=None,
+                alias=DRONE_ULOG_JOB_TOKEN_HEADER,
+            ),
         ):
             """Create a short-lived staged onboard ULog download job."""
+            self._require_ulog_machine_credential(
+                http_request,
+                operation=ULOG_OP_DOWNLOAD_CREATE,
+            )
             self._assert_ulog_download_allowed()
+            if not ulog_job_token:
+                raise HTTPException(
+                    status_code=401,
+                    detail="ULog download job capability is required.",
+                )
             download_request = request or OnboardUlogDownloadRequest()
             try:
                 job_response = await self._with_local_ulog_system(
@@ -2079,14 +2216,16 @@ class DroneAPIServer:
                         drone,
                         int(log_id),
                         download_request,
+                        access_token=ulog_job_token,
                     )
                 )
-                asyncio.create_task(self._run_ulog_download_job(job_response.job.job_id))
+                self._start_ulog_download_task(job_response.job.job_id)
                 return job_response
-            except FileNotFoundError as exc:
-                if self._is_mavsdk_dependency_error(exc):
-                    raise self._ulog_failure_http_exception("create_ulog_download", exc) from exc
-                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except UlogServiceError as exc:
+                raise self._ulog_failure_http_exception(
+                    "create_ulog_download",
+                    exc,
+                ) from exc
             except HTTPException:
                 raise
             except Exception as exc:
@@ -2094,17 +2233,53 @@ class DroneAPIServer:
                 raise self._ulog_failure_http_exception("create_ulog_download", exc) from exc
 
         @self.app.get(DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE)
-        async def get_onboard_ulog_download_job(job_id: str):
+        async def get_onboard_ulog_download_job(
+            job_id: str,
+            request: Request,
+            ulog_job_token: str | None = Header(
+                default=None,
+                alias=DRONE_ULOG_JOB_TOKEN_HEADER,
+            ),
+        ):
             """Return the current state of a staged onboard ULog download job."""
-            job = await self._ulog_service.get_job(job_id)
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_DOWNLOAD_STATUS,
+            )
+            await self._assert_ulog_job_access(job_id, ulog_job_token)
+            try:
+                job = await self._ulog_service.get_job(job_id)
+            except UlogServiceError as exc:
+                raise self._ulog_failure_http_exception(
+                    "read_ulog_download_job",
+                    exc,
+                ) from exc
             if job is None:
                 raise HTTPException(status_code=404, detail=f"ULog download job {job_id} not found")
             return job
 
         @self.app.delete(DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE)
-        async def delete_onboard_ulog_download_job(job_id: str) -> OnboardUlogJobDeleteResponse:
+        async def delete_onboard_ulog_download_job(
+            job_id: str,
+            request: Request,
+            ulog_job_token: str | None = Header(
+                default=None,
+                alias=DRONE_ULOG_JOB_TOKEN_HEADER,
+            ),
+        ) -> OnboardUlogJobDeleteResponse:
             """Delete a staged onboard ULog download job and any staged file."""
-            deleted = await self._ulog_service.delete_job(job_id)
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_DOWNLOAD_DELETE,
+            )
+            await self._assert_ulog_job_access(job_id, ulog_job_token)
+            try:
+                deleted = await self._ulog_service.delete_job(job_id)
+            except UlogServiceError as exc:
+                raise self._ulog_failure_http_exception(
+                    "delete_ulog_download_job",
+                    exc,
+                ) from exc
             if not deleted:
                 raise HTTPException(status_code=404, detail=f"ULog download job {job_id} not found")
             return OnboardUlogJobDeleteResponse(
@@ -2114,24 +2289,73 @@ class DroneAPIServer:
             )
 
         @self.app.get(DRONE_ULOG_DOWNLOAD_CONTENT_ROUTE_TEMPLATE)
-        async def download_onboard_ulog_content(job_id: str):
+        async def download_onboard_ulog_content(
+            job_id: str,
+            request: Request,
+            ulog_job_token: str | None = Header(
+                default=None,
+                alias=DRONE_ULOG_JOB_TOKEN_HEADER,
+            ),
+        ):
             """Stream the staged onboard ULog file once the node-local job is ready."""
-            try:
-                stage_path, job = await self._ulog_service.get_ready_file(job_id)
-            except FileNotFoundError as exc:
-                raise HTTPException(status_code=404, detail=str(exc)) from exc
-            except RuntimeError as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-            return FileResponse(
-                path=stage_path,
-                media_type="application/octet-stream",
-                filename=job.download_filename or stage_path.name,
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_DOWNLOAD_CONTENT,
             )
+            await self._assert_ulog_job_access(job_id, ulog_job_token)
+            lease = self._ulog_service.lease_ready_file(job_id)
+            try:
+                file_handle, _stage_path, job = await lease.__aenter__()
+            except UlogServiceError as exc:
+                raise self._ulog_failure_http_exception(
+                    "stream_ulog_download",
+                    exc,
+                ) from exc
+
+            async def stream_file():
+                try:
+                    while True:
+                        chunk = await asyncio.to_thread(
+                            file_handle.read,
+                            1024 * 1024,
+                        )
+                        if not chunk:
+                            break
+                        yield chunk
+                finally:
+                    await lease.__aexit__(None, None, None)
+
+            try:
+                filename = Path(
+                    job.download_filename
+                    or f"mds-ulog_H{self.drone_config.hw_id}_L{job.log_id}.ulg"
+                ).name
+                encoded_filename = quote(filename, safe="._-")
+                response = StreamingResponse(
+                    stream_file(),
+                    media_type="application/octet-stream",
+                    headers={
+                        "Content-Disposition": (
+                            "attachment; "
+                            f"filename*=UTF-8''{encoded_filename}"
+                        ),
+                        "Content-Length": str(
+                            os.fstat(file_handle.fileno()).st_size
+                        ),
+                    },
+                )
+            except BaseException as exc:
+                await lease.__aexit__(type(exc), exc, exc.__traceback__)
+                raise
+            return response
 
         @self.app.post(DRONE_ULOG_ERASE_ALL_ROUTE)
-        async def erase_all_onboard_ulogs():
+        async def erase_all_onboard_ulogs(request: Request):
             """Erase all onboard PX4 ULog files through MAVSDK."""
+            self._require_ulog_machine_credential(
+                request,
+                operation=ULOG_OP_ERASE,
+            )
             self._assert_ulog_erase_allowed()
             try:
                 return await self._with_local_ulog_system(

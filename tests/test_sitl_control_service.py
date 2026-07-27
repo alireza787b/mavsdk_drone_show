@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -291,6 +293,42 @@ def test_build_create_env_keeps_explicit_baked_startup_override(tmp_path, monkey
     assert env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] == "false"
 
 
+def test_build_create_env_inherits_installation_sync_policy_when_omitted(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_SITL_GIT_SYNC", "false")
+    monkeypatch.setenv("MDS_SITL_REQUIREMENTS_SYNC", "false")
+    monkeypatch.delenv("MDS_SITL_USE_HOST_STARTUP_SCRIPT", raising=False)
+    service = _make_service(tmp_path)
+
+    env = service._build_create_instance_env(SitlControlCreateInstanceRequest())
+
+    assert env["MDS_SITL_GIT_SYNC"] == "false"
+    assert env["MDS_SITL_REQUIREMENTS_SYNC"] == "false"
+    assert env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] == "false"
+
+
+def test_build_create_env_propagates_active_gcs_endpoint_to_sitl_children(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_GCS_API_PORT", "5030")
+    socket_path = tmp_path / "docker.sock"
+    socket_path.write_text("", encoding="utf-8")
+    service = SitlControlService(
+        SimpleNamespace(
+            sim_mode=True,
+            GCS_IP="172.18.0.1",
+            gcs_api_port=5111,
+        ),
+        docker_socket_path=str(socket_path),
+        client_factory=lambda: _FakeClient([], []),
+        repo_root=str(tmp_path),
+    )
+
+    env = service._build_create_instance_env(SitlControlCreateInstanceRequest())
+
+    assert env["MDS_GCS_IP"] == "172.18.0.1"
+    assert env["MDS_GCS_API_PORT"] == "5111"
+    assert env["MDS_CONNECTIVITY_IP"] == "172.18.0.1"
+    assert env["MDS_CONNECTIVITY_PORT"] == "5111"
+
+
 def test_build_host_summary_detects_running_portainer_panel(tmp_path):
     image = _FakeImage("sha256:portainer", ["portainer/portainer-ce:latest"])
     portainer = _FakeContainer(name="portainer", image=image)
@@ -485,6 +523,122 @@ def test_create_instance_operation_uses_next_available_id_and_ip(tmp_path):
 
     assert service._resolve_create_instance_id(SimpleNamespace(instance_id=None)) == 4
     assert service._resolve_create_instance_ip(SimpleNamespace(ip_last_octet=None), 4) == 5
+
+
+def test_create_instance_rejects_existing_explicit_id_and_ip(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(
+        name="drone-3",
+        image=image,
+        env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"},
+        ip="172.18.0.4",
+    )
+    service = _make_service(tmp_path, containers=[drone], images=[image])
+
+    with pytest.raises(ValueError, match="drone-3 already exists"):
+        service._resolve_create_instance_id(SimpleNamespace(instance_id=3))
+    with pytest.raises(ValueError, match="last octet 4 is already in use"):
+        service._resolve_create_instance_ip(SimpleNamespace(ip_last_octet=4), 5)
+
+
+def test_create_instance_guard_blocks_mutation_when_inventory_changed(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(
+        name="drone-1",
+        image=image,
+        env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"},
+    )
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=True),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([drone], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    operation = service.create_instance(
+        SitlControlCreateInstanceRequest(expected_running_instance_count=0)
+    )
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "failed"
+    assert result.summary == "SITL action condition changed"
+    assert "found 1" in str(result.detail)
+    assert result.affected_instances == []
+
+
+def test_reconcile_guard_blocks_mutation_when_inventory_changed(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(
+        name="drone-1",
+        image=image,
+        env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"},
+    )
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=True),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([drone], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    operation = service.start_reconcile(
+        SitlControlReconcileRequest(
+            target_count=2,
+            expected_running_instance_count=0,
+        )
+    )
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "failed"
+    assert result.summary == "SITL action condition changed"
+    assert "found 1" in str(result.detail)
+
+
+def test_lifecycle_mutations_are_serialized_across_service_instances(tmp_path):
+    first_path = tmp_path / "first"
+    second_path = tmp_path / "second"
+    first_path.mkdir()
+    second_path.mkdir()
+    first = _make_service(first_path)
+    second = _make_service(second_path)
+    active = 0
+    max_active = 0
+    completion_count = 0
+    state_lock = threading.Lock()
+    completed = threading.Event()
+
+    def worker():
+        nonlocal active, completion_count, max_active
+        with state_lock:
+            active += 1
+            max_active = max(max_active, active)
+        time.sleep(0.03)
+        with state_lock:
+            active -= 1
+            completion_count += 1
+            if completion_count == 2:
+                completed.set()
+
+    first._launch_lifecycle_operation(target=worker, name="first", args=())
+    second._launch_lifecycle_operation(target=worker, name="second", args=())
+
+    assert completed.wait(timeout=1)
+    assert max_active == 1
 
 
 def test_instance_batch_action_restarts_requested_visible_containers(tmp_path):

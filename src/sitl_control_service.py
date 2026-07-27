@@ -58,6 +58,7 @@ _CONTAINER_NAME_PATTERN = re.compile(r"^drone-(\d+)$")
 _ACTIVE_OPERATION_STATUSES = {"accepted", "running"}
 _DEFAULT_LOG_LIMIT = 200
 _DEFAULT_HISTORY_LIMIT = 20
+_SITL_LIFECYCLE_LOCK = threading.Lock()
 
 
 def _operation_monitor_timeout_seconds() -> float:
@@ -128,6 +129,7 @@ class SitlControlService:
         self.repo_root = repo_root or str(Path(__file__).resolve().parents[1])
         self._operations: dict[str, SitlControlOperationResponse] = {}
         self._operations_lock = threading.Lock()
+        self._lifecycle_lock = _SITL_LIFECYCLE_LOCK
 
     def build_policy(self) -> SitlControlPolicyResponse:
         docker_state = self._get_docker_state()
@@ -253,7 +255,13 @@ class SitlControlService:
     def list_instances(self) -> SitlControlInstanceListResponse:
         client, docker_state = self._get_client()
         if client is None:
-            return SitlControlInstanceListResponse(instances=[], total_instances=0, docker=docker_state, timestamp=_now_ms())
+            return SitlControlInstanceListResponse(
+                instances=[],
+                total_instances=0,
+                running_instance_count=None,
+                docker=docker_state,
+                timestamp=_now_ms(),
+            )
 
         try:
             instances = [self._summarize_container(container) for container in self._list_relevant_containers(client)]
@@ -267,6 +275,9 @@ class SitlControlService:
             return SitlControlInstanceListResponse(
                 instances=instances,
                 total_instances=len(instances),
+                running_instance_count=sum(
+                    1 for instance in instances if str(instance.state or "").strip().casefold() == "running"
+                ),
                 docker=docker_state,
                 timestamp=_now_ms(),
             )
@@ -345,7 +356,7 @@ class SitlControlService:
             affected_instances=[f"drone-{drone_id}" for drone_id in self._desired_drone_ids(request)],
             metadata=request.model_dump(mode="json"),
         )
-        self._launch_background_operation(
+        self._launch_lifecycle_operation(
             target=self._run_reconcile_operation,
             name=f"sitl-reconcile-{operation.operation_id[:8]}",
             args=(operation.operation_id, request),
@@ -360,7 +371,7 @@ class SitlControlService:
             detail="Restarting the selected SITL container and waiting for Docker to report it healthy again.",
             affected_instances=[str(instance_name)],
         )
-        self._launch_background_operation(
+        self._launch_lifecycle_operation(
             target=self._run_instance_action,
             name=f"sitl-restart-{operation.operation_id[:8]}",
             args=(operation.operation_id, str(instance_name), "restart"),
@@ -369,24 +380,17 @@ class SitlControlService:
 
     def create_instance(self, request: SitlControlCreateInstanceRequest) -> SitlControlOperationResponse:
         self._ensure_mutation_allowed()
-        desired_instance_id = self._resolve_create_instance_id(request)
-        desired_name = f"drone-{desired_instance_id}"
-        resolved_ip = self._resolve_create_instance_ip(request, desired_instance_id)
         operation = self._create_operation(
             operation_type="create_instance",
-            summary=f"Creating {desired_name}",
-            detail="Launching one new SITL container without pruning the existing fleet.",
-            affected_instances=[desired_name],
-            metadata={
-                **request.model_dump(mode="json"),
-                "resolved_instance_id": desired_instance_id,
-                "resolved_ip_last_octet": resolved_ip,
-            },
+            summary="Creating SITL instance",
+            detail="Waiting for an atomic instance allocation.",
+            affected_instances=[],
+            metadata=request.model_dump(mode="json", exclude_none=True),
         )
-        self._launch_background_operation(
+        self._launch_lifecycle_operation(
             target=self._run_create_instance_operation,
             name=f"sitl-create-{operation.operation_id[:8]}",
-            args=(operation.operation_id, request, desired_instance_id, resolved_ip),
+            args=(operation.operation_id, request),
         )
         return operation
 
@@ -400,7 +404,7 @@ class SitlControlService:
             affected_instances=list(request.instance_names),
             metadata=request.model_dump(mode="json"),
         )
-        self._launch_background_operation(
+        self._launch_lifecycle_operation(
             target=self._run_instance_batch_action,
             name=f"sitl-{request.action}-batch-{operation.operation_id[:8]}",
             args=(operation.operation_id, request.action, list(request.instance_names)),
@@ -431,7 +435,7 @@ class SitlControlService:
             detail="Stopping and removing the selected SITL container with force cleanup.",
             affected_instances=[str(instance_name)],
         )
-        self._launch_background_operation(
+        self._launch_lifecycle_operation(
             target=self._run_instance_action,
             name=f"sitl-remove-{operation.operation_id[:8]}",
             args=(operation.operation_id, str(instance_name), "remove"),
@@ -747,17 +751,28 @@ class SitlControlService:
             self._close_client(client)
 
     def _resolve_create_instance_id(self, request: SitlControlCreateInstanceRequest) -> int:
-        if request.instance_id is not None:
-            return int(request.instance_id)
         current = self._current_instance_ids()
-        return (max(current) + 1) if current else 1
+        if request.instance_id is not None:
+            requested = int(request.instance_id)
+            if requested in current:
+                raise ValueError(f"SITL instance drone-{requested} already exists")
+            return requested
+        next_id = (max(current) + 1) if current else 1
+        if next_id > 999:
+            raise ValueError("No SITL instance id remains in the supported range")
+        return next_id
 
     def _resolve_create_instance_ip(self, request: SitlControlCreateInstanceRequest, instance_id: int) -> int:
-        if request.ip_last_octet is not None:
-            return int(request.ip_last_octet)
         current = self._current_ip_octets()
+        if request.ip_last_octet is not None:
+            requested = int(request.ip_last_octet)
+            if requested in current:
+                raise ValueError(f"SITL IP last octet {requested} is already in use")
+            return requested
         next_octet = (max(current) + 1) if current else max(2, instance_id + 1)
-        return min(max(next_octet, 2), 254)
+        if next_octet > 254:
+            raise ValueError("No SITL IP address remains in the configured /24 range")
+        return max(next_octet, 2)
 
     def _build_reconcile_command(self, request: SitlControlReconcileRequest) -> list[str]:
         command = [
@@ -788,27 +803,55 @@ class SitlControlService:
         return command
 
     def _build_reconcile_env(self, request: SitlControlReconcileRequest) -> dict[str, str]:
-        env = os.environ.copy()
-        env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
-        env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
-        if "MDS_SITL_USE_HOST_STARTUP_SCRIPT" not in env:
-            env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] = "true" if request.git_sync_enabled else "false"
-        if request.image_ref:
-            env["MDS_DOCKER_IMAGE"] = request.image_ref
-        if request.docker_network_name:
-            env["MDS_SITL_DOCKER_NETWORK"] = request.docker_network_name
-        return env
+        return self._build_lifecycle_env(request)
 
     def _build_create_instance_env(self, request: SitlControlCreateInstanceRequest) -> dict[str, str]:
+        return self._build_lifecycle_env(request)
+
+    def _build_lifecycle_env(
+        self,
+        request: SitlControlReconcileRequest | SitlControlCreateInstanceRequest,
+    ) -> dict[str, str]:
         env = os.environ.copy()
-        env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
-        env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
+        git_sync_enabled = (
+            request.git_sync_enabled
+            if request.git_sync_enabled is not None
+            else _env_flag(env.get("MDS_SITL_GIT_SYNC"), True)
+        )
+        requirements_sync_enabled = (
+            request.requirements_sync_enabled
+            if request.requirements_sync_enabled is not None
+            else _env_flag(env.get("MDS_SITL_REQUIREMENTS_SYNC"), True)
+        )
+        env["MDS_SITL_GIT_SYNC"] = "true" if git_sync_enabled else "false"
+        env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if requirements_sync_enabled else "false"
         if "MDS_SITL_USE_HOST_STARTUP_SCRIPT" not in env:
-            env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] = "true" if request.git_sync_enabled else "false"
+            env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] = "true" if git_sync_enabled else "false"
         if request.image_ref:
             env["MDS_DOCKER_IMAGE"] = request.image_ref
         if request.docker_network_name:
             env["MDS_SITL_DOCKER_NETWORK"] = request.docker_network_name
+
+        # Child SITL processes report command execution and telemetry back to
+        # the GCS instance that created them. Derive this endpoint from the
+        # active runtime instead of allowing image/profile defaults to point at
+        # another GCS process on the host.
+        gcs_ip = str(
+            getattr(self.params, "GCS_IP", None)
+            or env.get("MDS_GCS_IP")
+            or ""
+        ).strip()
+        raw_gcs_port = getattr(self.params, "gcs_api_port", None) or env.get("MDS_GCS_API_PORT")
+        try:
+            gcs_port = int(raw_gcs_port) if raw_gcs_port is not None else 0
+        except (TypeError, ValueError):
+            gcs_port = 0
+        if gcs_ip:
+            env["MDS_GCS_IP"] = gcs_ip
+            env["MDS_CONNECTIVITY_IP"] = gcs_ip
+        if gcs_port > 0:
+            env["MDS_GCS_API_PORT"] = str(gcs_port)
+            env["MDS_CONNECTIVITY_PORT"] = str(gcs_port)
         return env
 
     def _default_release_output_dir(self) -> str:
@@ -845,6 +888,27 @@ class SitlControlService:
     def _launch_background_operation(self, *, target: Callable[..., None], name: str, args: tuple[Any, ...]) -> None:
         thread = threading.Thread(target=target, name=name, args=args, daemon=True)
         thread.start()
+
+    def _launch_lifecycle_operation(
+        self,
+        *,
+        target: Callable[..., None],
+        name: str,
+        args: tuple[Any, ...],
+    ) -> None:
+        self._launch_background_operation(
+            target=self._run_serialized_lifecycle_operation,
+            name=name,
+            args=(target, args),
+        )
+
+    def _run_serialized_lifecycle_operation(
+        self,
+        target: Callable[..., None],
+        args: tuple[Any, ...],
+    ) -> None:
+        with self._lifecycle_lock:
+            target(*args)
 
     def _create_operation(
         self,
@@ -929,6 +993,39 @@ class SitlControlService:
         )
         self._append_operation_log(operation_id, f"ERROR: {detail}")
 
+    def _running_instance_guard_matches(
+        self,
+        operation_id: str,
+        expected_count: int | None,
+    ) -> bool:
+        """Recheck a narrowing inventory guard while holding the lifecycle lock."""
+
+        if expected_count is None:
+            return True
+        snapshot = self.list_instances()
+        observed_count = snapshot.running_instance_count
+        if observed_count is None:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL action condition unavailable",
+                detail=(
+                    "Running SITL instance count could not be verified; "
+                    "no lifecycle mutation was started."
+                ),
+            )
+            return False
+        if observed_count != expected_count:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL action condition changed",
+                detail=(
+                    f"Expected {expected_count} running SITL instance(s), "
+                    f"but found {observed_count}; no lifecycle mutation was started."
+                ),
+            )
+            return False
+        return True
+
     def _prune_operation_history_locked(self) -> None:
         ordered_ids = sorted(self._operations, key=lambda key: self._operations[key].created_at, reverse=True)
         for operation_id in ordered_ids[_DEFAULT_HISTORY_LIMIT:]:
@@ -936,6 +1033,11 @@ class SitlControlService:
 
     def _run_reconcile_operation(self, operation_id: str, request: SitlControlReconcileRequest) -> None:
         self._mark_operation_running(operation_id)
+        if not self._running_instance_guard_matches(
+            operation_id,
+            request.expected_running_instance_count,
+        ):
+            return
         command = self._build_reconcile_command(request)
         env = self._build_reconcile_env(request)
         desired_names = self._desired_container_names(request)
@@ -945,7 +1047,9 @@ class SitlControlService:
             self._append_operation_log(operation_id, f"Image: {request.image_ref}")
         self._append_operation_log(
             operation_id,
-            f"Sync flags: git={'on' if request.git_sync_enabled else 'off'}, requirements={'on' if request.requirements_sync_enabled else 'off'}",
+            "Sync flags: "
+            f"git={'on' if _env_flag(env.get('MDS_SITL_GIT_SYNC'), True) else 'off'}, "
+            f"requirements={'on' if _env_flag(env.get('MDS_SITL_REQUIREMENTS_SYNC'), True) else 'off'}",
         )
         self._append_operation_log(
             operation_id,
@@ -956,6 +1060,11 @@ class SitlControlService:
                 else "image-baked script"
             ),
         )
+        if env.get("MDS_GCS_IP") and env.get("MDS_GCS_API_PORT"):
+            self._append_operation_log(
+                operation_id,
+                f"Runtime GCS callback endpoint: http://{env['MDS_GCS_IP']}:{env['MDS_GCS_API_PORT']}",
+            )
 
         try:
             process = subprocess.Popen(
@@ -1021,16 +1130,61 @@ class SitlControlService:
         self,
         operation_id: str,
         request: SitlControlCreateInstanceRequest,
-        instance_id: int,
-        ip_last_octet: int,
     ) -> None:
         self._mark_operation_running(operation_id)
+        if not self._running_instance_guard_matches(
+            operation_id,
+            request.expected_running_instance_count,
+        ):
+            return
+        try:
+            instance_id = self._resolve_create_instance_id(request)
+            ip_last_octet = self._resolve_create_instance_ip(request, instance_id)
+        except Exception as exc:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL create failed",
+                detail=f"Instance allocation failed: {exc}",
+            )
+            return
         command = self._build_create_instance_command(instance_id, ip_last_octet, request)
         env = self._build_create_instance_env(request)
         desired_name = f"drone-{instance_id}"
+        self._update_operation(
+            operation_id,
+            summary=f"Creating {desired_name}",
+            detail="Launching one new SITL container without pruning the existing fleet.",
+            affected_instances=[desired_name],
+            metadata={
+                **request.model_dump(mode="json", exclude_none=True),
+                "resolved_instance_id": instance_id,
+                "resolved_ip_last_octet": ip_last_octet,
+                "effective_git_sync_enabled": _env_flag(
+                    env.get("MDS_SITL_GIT_SYNC"),
+                    True,
+                ),
+                "effective_requirements_sync_enabled": _env_flag(
+                    env.get("MDS_SITL_REQUIREMENTS_SYNC"),
+                    True,
+                ),
+                "effective_gcs_ip": env.get("MDS_GCS_IP"),
+                "effective_gcs_api_port": env.get("MDS_GCS_API_PORT"),
+            },
+        )
 
         self._append_operation_log(operation_id, f"Command: {' '.join(command)}")
         self._append_operation_log(operation_id, f"Target: {desired_name} ({ip_last_octet})")
+        self._append_operation_log(
+            operation_id,
+            "Sync flags: "
+            f"git={'on' if _env_flag(env.get('MDS_SITL_GIT_SYNC'), True) else 'off'}, "
+            f"requirements={'on' if _env_flag(env.get('MDS_SITL_REQUIREMENTS_SYNC'), True) else 'off'}",
+        )
+        if env.get("MDS_GCS_IP") and env.get("MDS_GCS_API_PORT"):
+            self._append_operation_log(
+                operation_id,
+                f"Runtime GCS callback endpoint: http://{env['MDS_GCS_IP']}:{env['MDS_GCS_API_PORT']}",
+            )
         if request.image_ref:
             self._append_operation_log(operation_id, f"Image: {request.image_ref}")
 

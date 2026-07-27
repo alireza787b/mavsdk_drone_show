@@ -1547,7 +1547,7 @@ display_startup_banner() {
         echo "|  |   |  ||  '--'  /.-'    | "
         echo "\`--'   \`--'\`-------' \`-----'  "
         echo ""
-        echo "MAVSDK Drone Show - Dashboard Services"
+        echo "MDS - Mission-Directed Swarm - Dashboard Services"
         echo "================================================"
         echo "Version:  $PROJECT_VERSION"
         echo "================================================"

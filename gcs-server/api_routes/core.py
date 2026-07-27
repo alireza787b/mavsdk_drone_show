@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from auth_runtime import authorize_websocket
@@ -12,6 +12,8 @@ from node_boot_status import get_all_node_boot_statuses, handle_node_boot_status
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
     HealthCheckResponse,
+    FleetActionReadinessResponse,
+    FleetActionReadinessTarget,
     HeartbeatData,
     HeartbeatPostResponse,
     HeartbeatRequest,
@@ -51,6 +53,102 @@ def _build_typed_telemetry_response(deps: Any, response: Response | None = None)
         total_drones=len(telemetry_data),
         online_drones=online_count,
         timestamp=int(time.time() * 1000),
+    )
+
+
+def _build_fleet_action_readiness_response(
+    deps: Any,
+    target_drone_ids: list[str],
+) -> FleetActionReadinessResponse:
+    """Return fresh, target-scoped flight-readiness evidence."""
+
+    requested = list(
+        dict.fromkeys(
+            str(item or "").strip()
+            for item in target_drone_ids
+            if str(item or "").strip()
+        )
+    )
+    now = time.time()
+    heartbeats = deps.get_all_heartbeats()
+    configured_ids = {
+        str(item.get("hw_id"))
+        for item in (deps.load_config() or [])
+        if item.get("hw_id") not in (None, "")
+    }
+    data_lock = getattr(deps, "data_lock", None)
+    if data_lock is not None:
+        with data_lock:
+            telemetry_rows = {
+                str(key): dict(value or {})
+                for key, value in (deps.telemetry_data_all_drones or {}).items()
+            }
+            telemetry_success_times = {
+                str(key): value
+                for key, value in (getattr(deps, "last_telemetry_time", {}) or {}).items()
+            }
+    else:
+        telemetry_rows = {
+            str(key): dict(value or {})
+            for key, value in (deps.telemetry_data_all_drones or {}).items()
+        }
+        telemetry_success_times = {
+            str(key): value
+            for key, value in (getattr(deps, "last_telemetry_time", {}) or {}).items()
+        }
+    telemetry_by_hw_id: dict[str, dict[str, Any]] = {}
+    success_time_by_hw_id: dict[str, Any] = {}
+    for key, row in telemetry_rows.items():
+        hw_id = str(row.get("hw_id") or key)
+        telemetry_by_hw_id[hw_id] = row
+        if key in telemetry_success_times:
+            success_time_by_hw_id[hw_id] = telemetry_success_times[key]
+        elif hw_id in telemetry_success_times:
+            success_time_by_hw_id[hw_id] = telemetry_success_times[hw_id]
+
+    thresholds = resolve_presence_thresholds(deps.Params)
+    targets: list[FleetActionReadinessTarget] = []
+    for hw_id in requested:
+        telemetry = telemetry_by_hw_id.get(hw_id, {})
+        heartbeat = heartbeats.get(hw_id, {}) if isinstance(heartbeats.get(hw_id), dict) else {}
+        presence = build_presence_snapshot(
+            hw_id=hw_id,
+            heartbeat=heartbeat,
+            telemetry=telemetry,
+            telemetry_success_time=success_time_by_hw_id.get(hw_id),
+            configured=hw_id in configured_ids,
+            now=now,
+            thresholds=thresholds,
+        )
+        # A heartbeat proves companion presence, but readiness fields are
+        # authoritative only while their telemetry sample is recent.
+        live = bool(presence.get("telemetry_recent"))
+        telemetry_available = bool(
+            telemetry and telemetry.get("telemetry_available", True)
+        )
+        ready_value = telemetry.get("is_ready_to_arm")
+        ready_to_arm = ready_value if isinstance(ready_value, bool) else None
+        targets.append(
+            FleetActionReadinessTarget(
+                hw_id=hw_id,
+                configured=hw_id in configured_ids,
+                live=live,
+                telemetry_available=telemetry_available,
+                ready_to_arm=ready_to_arm,
+                ready=bool(live and telemetry_available and ready_to_arm is True),
+                presence_state=str(presence.get("state") or "unknown"),
+                telemetry_age_sec=presence.get("telemetry_age_sec"),
+            )
+        )
+    ready_target_count = sum(item.ready for item in targets)
+    unavailable_target_ids = [item.hw_id for item in targets if not item.ready]
+    return FleetActionReadinessResponse(
+        target_drone_ids=requested,
+        all_targets_ready=bool(requested) and ready_target_count == len(requested),
+        ready_target_count=ready_target_count,
+        unavailable_target_ids=unavailable_target_ids,
+        targets=targets,
+        timestamp=int(now * 1000),
     )
 
 
@@ -281,6 +379,16 @@ def create_core_router(deps: Any) -> APIRouter:
     @router.get("/api/v1/fleet/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
     async def get_telemetry_typed(response: Response):
         return _build_typed_telemetry_response(deps, response=response)
+
+    @router.get(
+        "/api/v1/fleet/action-readiness",
+        response_model=FleetActionReadinessResponse,
+        tags=["Telemetry"],
+    )
+    async def get_fleet_action_readiness(
+        target_drone_ids: list[str] = Query(..., min_length=1, max_length=64),
+    ):
+        return _build_fleet_action_readiness_response(deps, target_drone_ids)
 
     @router.websocket("/ws/telemetry")
     async def websocket_telemetry(websocket: WebSocket):

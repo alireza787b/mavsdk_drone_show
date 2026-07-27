@@ -185,7 +185,7 @@ print_banner() {
         echo "|  |   |  ||  '--'  /.-'    | "
         echo "\`--'   \`--'\`-------' \`-----'  "
         echo -e "${NC}"
-        echo -e "${WHITE}MAVSDK Drone Show - Companion Node${NC}"
+        echo -e "${WHITE}MDS - Mission-Directed Swarm - Companion Node${NC}"
         echo "================================================"
         echo -e "Version:  ${WHITE}${MDS_VERSION}${NC}"
         [[ -n "$branch" ]] && echo -e "Branch:   ${WHITE}$branch${NC}"

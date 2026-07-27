@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   FaChevronDown,
   FaChevronRight,
   FaCheckCircle,
   FaCog,
   FaCopy,
+  FaEdit,
   FaExclamationTriangle,
   FaEllipsisH,
   FaPaperPlane,
@@ -46,10 +47,17 @@ import '../styles/SimurghOperatorPage.css';
 const STORAGE_KEY = 'mds.simurgh.chat.v2';
 const DASHBOARD_ACTOR = 'dashboard';
 const MAX_CONVERSATIONS = 30;
-const DEFAULT_MODEL = 'gpt-5.6';
 const ACTIVE_ACTION_RUN_STATES = new Set(['queued', 'running', 'pause_requested', 'paused', 'cancel_requested']);
-const TERMINAL_ACTION_RUN_STATES = new Set(['succeeded', 'failed', 'blocked', 'cancelled', 'interrupted']);
+const TERMINAL_ACTION_RUN_STATES = new Set(['succeeded', 'failed', 'blocked', 'skipped', 'cancelled', 'interrupted']);
 const ACTION_RUN_STATES = new Set([...ACTIVE_ACTION_RUN_STATES, ...TERMINAL_ACTION_RUN_STATES]);
+const ACTION_RUN_DISCOVERY_INTERVAL_MS = 15000;
+const ACTION_RUN_RECONCILE_INTERVAL_MS = 5000;
+const ACTION_RUN_RECONNECT_BASE_MS = 500;
+const ACTION_RUN_RECONNECT_MAX_MS = 5000;
+const ACTION_RUN_RECENT_STEP_COUNT = 2;
+const MAX_RECENT_UNLINKED_TERMINAL_RUNS = 3;
+const MOBILE_SETTINGS_QUERY = '(max-width: 640px)';
+const COMPACT_HISTORY_QUERY = '(max-width: 980px)';
 const STARTERS = [
   'How many drones do we have configured?',
   'Is there any drone connected?',
@@ -94,7 +102,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   action_circuit_breaker_enabled: true,
   always_confirm_before_action: true,
   provider: 'mock',
-  openai_model: DEFAULT_MODEL,
+  openai_model: '',
   web_search_enabled: false,
 });
 
@@ -199,7 +207,10 @@ function titleFromMessage(message) {
 
 function normalizeProgressState(value = '') {
   const state = String(value || '').trim().toLowerCase();
-  if (state === 'running' || state === 'active' || state === 'started') {
+  if (['pause_requested', 'paused', 'cancel_requested'].includes(state)) {
+    return state;
+  }
+  if (['running', 'active', 'started', 'monitoring', 'submitted', 'accepted'].includes(state)) {
     return 'running';
   }
   if (state === 'requested' || state === 'queued' || state === 'pending') {
@@ -231,6 +242,9 @@ function normalizeProgressState(value = '') {
   }
   if (state === 'blocked') {
     return 'blocked';
+  }
+  if (state === 'interrupted') {
+    return 'interrupted';
   }
   return '';
 }
@@ -333,34 +347,58 @@ function activityStatusText(state = '') {
   if (state === 'running' || state === 'requested') {
     return 'Working';
   }
+  if (state === 'pause_requested') {
+    return 'Pausing';
+  }
+  if (state === 'cancel_requested') {
+    return 'Cancelling';
+  }
   if (state === 'timeout') {
     return 'Timed out';
   }
   if (state === 'warning') {
     return 'Review';
   }
-  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled') {
+  if (state === 'paused') {
+    return 'Paused';
+  }
+  if (state === 'pending') {
+    return 'Pending';
+  }
+  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled' || state === 'interrupted') {
     return 'Stopped';
   }
-  return 'Ready';
+  return state === 'complete' ? 'Ready' : 'Pending';
 }
 
 function activityStepIcon(state = '') {
-  if (state === 'running') {
+  if (['running', 'requested', 'pause_requested', 'cancel_requested'].includes(state)) {
     return <FaCog aria-hidden="true" />;
   }
   if (state === 'warning' || state === 'timeout') {
     return <FaExclamationTriangle aria-hidden="true" />;
   }
-  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled') {
+  if (state === 'error' || state === 'blocked' || state === 'stopped' || state === 'cancelled' || state === 'interrupted') {
     return <FaTimes aria-hidden="true" />;
   }
-  return <FaCheckCircle aria-hidden="true" />;
+  if (state === 'complete') {
+    return <FaCheckCircle aria-hidden="true" />;
+  }
+  if (state === 'paused') {
+    return <FaPause aria-hidden="true" />;
+  }
+  return <FaEllipsisH aria-hidden="true" />;
 }
 
 function activityStateLabel(state = '') {
   if (state === 'running' || state === 'requested') {
     return 'in progress';
+  }
+  if (state === 'pause_requested') {
+    return 'pause requested';
+  }
+  if (state === 'cancel_requested') {
+    return 'cancellation requested';
   }
   if (state === 'complete') {
     return 'completed';
@@ -386,22 +424,75 @@ function activityStateLabel(state = '') {
   if (state === 'failed') {
     return 'failed';
   }
-  if (state === 'error' || state === 'blocked' || state === 'stopped') {
+  if (state === 'blocked') {
+    return 'blocked';
+  }
+  if (state === 'interrupted') {
+    return 'interrupted';
+  }
+  if (state === 'error' || state === 'stopped') {
     return 'stopped';
   }
   return 'status unavailable';
 }
 
+function actionResponseOutcome(data = {}) {
+  const safety = data?.trace?.safety && typeof data.trace.safety === 'object'
+    ? data.trace.safety
+    : {};
+  const run = safety?.action_run && typeof safety.action_run === 'object'
+    ? safety.action_run
+    : null;
+  const actionSubmitted = String(safety?.action_execution || '') === 'submitted';
+  if (!actionSubmitted && !(run && String(run.run_id || '').trim())) {
+    return { action: false, state: 'complete' };
+  }
+  const projection = actionExecutionProjection({
+    run,
+    monitorResult: safety?.action_monitor,
+    postActionResults: safety?.post_action_results,
+  });
+  return {
+    action: true,
+    state: {
+      succeeded: 'complete',
+      failed: 'error',
+      blocked: 'blocked',
+      cancelled: 'cancelled',
+      interrupted: 'interrupted',
+      timeout: 'timeout',
+      warning: 'warning',
+    }[projection.status] || 'running',
+  };
+}
+
 function finalizeProgressSteps(progress = [], finalData = {}) {
+  const outcome = actionResponseOutcome(finalData);
   const existing = (Array.isArray(progress) ? progress : [])
     .map(normalizeProgressStep)
     .filter(Boolean)
     .filter((step) => !isGenericProgressStep(step))
-    .map((step) => (step.state === 'running' ? { ...step, state: 'complete' } : step));
+    .map((step) => {
+      if (!['running', 'requested'].includes(step.state)) {
+        return step;
+      }
+      if (outcome.state === 'complete') {
+        return { ...step, state: 'complete' };
+      }
+      if (outcome.state === 'running') {
+        return { ...step, state: 'running' };
+      }
+      return { ...step, state: outcome.state };
+    });
   const summary = getTraceSummary(finalData.trace || {}, finalData);
   const finalStep = summary
-    ? { stage: 'result', state: 'complete', intent: 'assistant_answer', label: summary }
-    : { stage: 'result', state: 'complete', intent: 'assistant_answer', label: 'Answer ready' };
+    ? { stage: 'result', state: outcome.state, intent: 'assistant_answer', label: summary }
+    : {
+      stage: 'result',
+      state: outcome.state,
+      intent: 'assistant_answer',
+      label: outcome.action && outcome.state === 'running' ? 'Action accepted; monitoring continues' : 'Answer ready',
+    };
   return appendProgressStep(existing, finalStep).slice(-32);
 }
 
@@ -626,7 +717,7 @@ function normalizeProvider(value) {
 
 function normalizeSettings(payload = {}) {
   const provider = normalizeProvider(payload.provider || payload.assistant_provider || DEFAULT_SETTINGS.provider);
-  const openaiModel = String(payload.openai_model || payload.model || payload.assistant_model || DEFAULT_MODEL).trim();
+  const openaiModel = String(payload.openai_model || payload.model || payload.assistant_model || '').trim();
   return {
     agent_enabled: Boolean(payload.agent_enabled ?? DEFAULT_SETTINGS.agent_enabled),
     mcp_enabled: Boolean(payload.mcp_enabled ?? DEFAULT_SETTINGS.mcp_enabled),
@@ -637,7 +728,7 @@ function normalizeSettings(payload = {}) {
       payload.always_confirm_before_action ?? DEFAULT_SETTINGS.always_confirm_before_action
     ),
     provider,
-    openai_model: openaiModel && openaiModel !== 'mock-local' ? openaiModel : DEFAULT_MODEL,
+    openai_model: openaiModel && openaiModel !== 'mock-local' ? openaiModel : '',
     web_search_enabled: Boolean(payload.web_search_enabled ?? DEFAULT_SETTINGS.web_search_enabled),
   };
 }
@@ -647,7 +738,17 @@ function conversationPreview(conversation) {
   return lastMessage?.content || 'No messages yet';
 }
 
-function SafetyChips({ status }) {
+function SafetyChips({ status, evidenceState = 'loading' }) {
+  if (!status || ['loading', 'refreshing', 'unavailable'].includes(evidenceState)) {
+    const loading = evidenceState === 'loading' || evidenceState === 'refreshing';
+    return (
+      <div className="simurgh-chat__chips" aria-label="Simurgh posture">
+        <StatusBadge tone="muted" icon={loading ? <FaCog /> : <FaExclamationTriangle />}>
+          {evidenceState === 'refreshing' ? 'Refreshing posture' : loading ? 'Loading posture' : 'Posture unavailable'}
+        </StatusBadge>
+      </div>
+    );
+  }
   const agentEnabled = Boolean(status?.agent_enabled);
   const circuitBreaker = Boolean(status?.action_circuit_breaker_enabled);
   const mcpEnabled = Boolean(status?.mcp_enabled);
@@ -765,6 +866,46 @@ function ActiveToolSummary({ toolList }) {
   );
 }
 
+function useMediaQuery(query) {
+  const getMatches = useCallback(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return Boolean(window.matchMedia(query)?.matches);
+  }, [query]);
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+    const mediaQuery = window.matchMedia(query);
+    if (!mediaQuery) {
+      return undefined;
+    }
+    const handleChange = (event) => setMatches(event.matches);
+    setMatches(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+    mediaQuery.addListener?.(handleChange);
+    return () => mediaQuery.removeListener?.(handleChange);
+  }, [query]);
+
+  return matches;
+}
+
+function settingsFocusableElements(container) {
+  if (!container) {
+    return [];
+  }
+  return Array.from(container.querySelectorAll(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), '
+    + 'a[href], [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
+}
+
 function SettingsPanel({
   open,
   settings,
@@ -779,21 +920,72 @@ function SettingsPanel({
   onSave,
   onClose,
 }) {
+  const mobileModal = useMediaQuery(MOBILE_SETTINGS_QUERY);
+  const panelRef = useRef(null);
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!open || !mobileModal) {
+      return undefined;
+    }
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [mobileModal, open]);
+
   if (!open) {
     return null;
   }
   const availableModels = Array.from(new Set(
-    status?.available_models?.length ? status.available_models : [DEFAULT_MODEL, 'gpt-5.6-terra', 'gpt-5.6-luna']
+    Array.isArray(status?.available_models)
+      ? status.available_models.map((model) => String(model || '').trim()).filter(Boolean)
+      : []
   ));
   const openAiCredential = status?.credentials?.openai || {};
   const keyReady = Boolean(openAiCredential.ready || status?.openai_key_file_ready);
   const keyFingerprint = openAiCredential.fingerprint || status?.openai_key_fingerprint || '';
 
   return (
-    <aside className="simurgh-chat__settings" aria-label="Simurgh settings">
+    <aside
+      ref={panelRef}
+      className="simurgh-chat__settings"
+      role={mobileModal ? 'dialog' : undefined}
+      aria-modal={mobileModal ? 'true' : undefined}
+      aria-labelledby={mobileModal ? 'simurgh-settings-title' : undefined}
+      aria-label={mobileModal ? undefined : 'Simurgh settings'}
+      tabIndex={mobileModal ? -1 : undefined}
+      onKeyDown={(event) => {
+        if (!mobileModal) {
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+          return;
+        }
+        if (event.key !== 'Tab') {
+          return;
+        }
+        const focusable = settingsFocusableElements(panelRef.current);
+        if (!focusable.length) {
+          event.preventDefault();
+          panelRef.current?.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !panelRef.current?.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
       <header>
-        <h2>Settings</h2>
-        <button type="button" onClick={onClose} aria-label="Close Simurgh settings">
+        <h2 id="simurgh-settings-title">Settings</h2>
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close Simurgh settings">
           <FaTimes aria-hidden="true" />
         </button>
       </header>
@@ -909,10 +1101,21 @@ function SettingsPanel({
   );
 }
 
-function ConversationList({ conversations, activeConversationId, onSelect, onNewChat, onClearChats, onDeleteChat }) {
+function ConversationList({
+  conversations,
+  activeConversationId,
+  compact = false,
+  open = true,
+  onToggle,
+  onSelect,
+  onNewChat,
+  onClearChats,
+  onDeleteChat,
+}) {
   const [openActionsId, setOpenActionsId] = useState('');
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const historyRef = useRef(null);
+  const activeTitle = conversations.find((conversation) => conversation.id === activeConversationId)?.title || 'New chat';
 
   const closeActions = useCallback(() => {
     setOpenActionsId('');
@@ -945,9 +1148,31 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
   }, [closeActions, headerMenuOpen, openActionsId]);
 
   return (
-    <aside className="simurgh-chat__history" aria-label="Simurgh chat history" ref={historyRef}>
+    <aside
+      className={[
+        'simurgh-chat__history',
+        compact ? 'simurgh-chat__history--compact' : '',
+        compact && open ? 'is-open' : '',
+      ].filter(Boolean).join(' ')}
+      aria-label="Simurgh chat history"
+      ref={historyRef}
+    >
       <div className="simurgh-chat__history-header">
-        <h2>Chats</h2>
+        {compact ? (
+          <button
+            type="button"
+            className="simurgh-chat__history-compact-toggle"
+            aria-expanded={open}
+            aria-controls="simurgh-chat-history-list"
+            onClick={() => {
+              closeActions();
+              onToggle?.();
+            }}
+          >
+            {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+            <span>{activeTitle}</span>
+          </button>
+        ) : <h2>Chats</h2>}
         <div className="simurgh-chat__history-controls">
           <ActionIconButton icon={<FaPlus />} label="Start new Simurgh chat" size="sm" onClick={() => { closeActions(); onNewChat(); }} />
           <button
@@ -955,7 +1180,6 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
             className="simurgh-chat__history-overflow"
             aria-label="More chat history actions"
             title="More chat history actions"
-            aria-haspopup="menu"
             aria-expanded={headerMenuOpen}
             onClick={() => {
               setOpenActionsId('');
@@ -965,10 +1189,9 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
             <FaEllipsisH aria-hidden="true" />
           </button>
           {headerMenuOpen ? (
-            <div className="simurgh-chat__history-menu simurgh-chat__history-menu--header" role="menu">
+            <div className="simurgh-chat__history-menu simurgh-chat__history-menu--header">
               <button
                 type="button"
-                role="menuitem"
                 onClick={(event) => {
                   event.stopPropagation();
                   closeActions();
@@ -982,7 +1205,7 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
           ) : null}
         </div>
       </div>
-      <div className="simurgh-chat__history-list">
+      <div id="simurgh-chat-history-list" className="simurgh-chat__history-list" hidden={compact && !open}>
         {conversations.map((conversation) => {
           const active = conversation.id === activeConversationId;
           return (
@@ -1005,7 +1228,6 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
                 className="simurgh-chat__history-action"
                 aria-label={`More actions for ${conversation.title}`}
                 title="Chat actions"
-                aria-haspopup="menu"
                 aria-expanded={openActionsId === conversation.id}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -1016,10 +1238,9 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
                 <FaEllipsisH aria-hidden="true" />
               </button>
               {openActionsId === conversation.id ? (
-                <div className="simurgh-chat__history-menu" role="menu">
+                <div className="simurgh-chat__history-menu">
                   <button
                     type="button"
-                    role="menuitem"
                     onClick={(event) => {
                       event.stopPropagation();
                       closeActions();
@@ -1457,8 +1678,11 @@ function MessageContent({ content }) {
   );
 }
 
-function MessageActivity({ progress = [], streaming = false }) {
+function MessageActivity({ progress = [], streaming = false, actionRun = null }) {
   const [expanded, setExpanded] = useState(false);
+  if (actionRun && !streaming) {
+    return null;
+  }
   const steps = (Array.isArray(progress) ? progress : [])
     .map(normalizeProgressStep)
     .filter(Boolean)
@@ -1476,9 +1700,10 @@ function MessageActivity({ progress = [], streaming = false }) {
   }
   const previousSteps = steps.slice(Math.max(0, steps.length - 3), -1);
   const detailSteps = steps.slice(0, -1);
-  const currentState = latestStep?.state || (streaming ? 'running' : 'complete');
+  const currentState = latestStep?.state || (streaming ? 'running' : 'pending');
+  const active = streaming || currentState === 'running' || currentState === 'requested';
   return (
-    <div className="simurgh-chat__activity" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
+    <div className="simurgh-chat__activity" role={active ? 'status' : undefined} aria-live={active ? 'polite' : undefined}>
       <div className={`simurgh-chat__activity-current simurgh-chat__activity-current--${currentState}`}>
         <span className="simurgh-chat__thinking">{activityStatusText(currentState)}</span>
         {latestStep ? <span className="simurgh-chat__activity-label">{latestStep.label}</span> : null}
@@ -1497,7 +1722,7 @@ function MessageActivity({ progress = [], streaming = false }) {
       {previousSteps.length && !expanded ? (
         <ol className="simurgh-chat__activity-list" aria-label="Recent Simurgh activity preview">
           {previousSteps.map((step, index) => {
-            const state = step.state || 'complete';
+            const state = step.state || 'pending';
             return (
               <li
                 key={`${step.key}-${index}`}
@@ -1514,7 +1739,7 @@ function MessageActivity({ progress = [], streaming = false }) {
       {expanded && detailSteps.length ? (
         <ol className="simurgh-chat__activity-details" aria-label="Simurgh activity details">
           {detailSteps.map((step, index) => {
-            const state = step.state || 'complete';
+            const state = step.state || 'pending';
             return (
               <li
                 key={`detail-${step.key}-${index}`}
@@ -1539,6 +1764,7 @@ function MessageTrace({ message }) {
     : {};
   const summary = getTraceSummary(trace, message);
   const rows = buildTraceRows(trace, message);
+  const outcome = actionResponseOutcome(message);
 
   if (message.streaming || (!summary && !rows.length)) {
     return null;
@@ -1553,7 +1779,11 @@ function MessageTrace({ message }) {
         onClick={() => setOpen((current) => !current)}
       >
         {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
-        <FaCheckCircle aria-hidden="true" />
+        {outcome.action && outcome.state === 'running'
+          ? <FaCog aria-hidden="true" title="Action in progress" />
+          : outcome.action && outcome.state !== 'complete'
+            ? <FaExclamationTriangle aria-hidden="true" title="Action needs attention" />
+            : <FaCheckCircle aria-hidden="true" title="Evidence ready" />}
         <span>{summary || 'Checked Simurgh context'}</span>
       </button>
       {open ? (
@@ -1586,6 +1816,42 @@ function getPendingActionDraft(message) {
   return draft;
 }
 
+function getMessageActionDraftId(message) {
+  const safety = message?.trace?.safety;
+  const actionDraftId = String(safety?.action_draft?.draft_id || '').trim();
+  const actionRunDraftId = String(safety?.action_run?.draft_id || '').trim();
+  return actionRunDraftId || actionDraftId;
+}
+
+function getCurrentPendingActionDraftMessageId(messages = [], actionRuns = {}) {
+  let currentPending = null;
+
+  (Array.isArray(messages) ? messages : []).forEach((message) => {
+    const pendingDraft = getPendingActionDraft(message);
+    if (pendingDraft) {
+      currentPending = {
+        draftId: String(pendingDraft.draft_id).trim(),
+        messageId: String(message?.id || '').trim(),
+      };
+      return;
+    }
+
+    const resolvedDraftId = getMessageActionDraftId(message);
+    if (resolvedDraftId && resolvedDraftId === currentPending?.draftId) {
+      currentPending = null;
+    }
+  });
+
+  if (!currentPending) {
+    return '';
+  }
+
+  const hasActionRun = Object.values(actionRuns || {}).some(
+    (run) => String(run?.draft_id || '').trim() === currentPending.draftId
+  );
+  return hasActionRun ? '' : currentPending.messageId;
+}
+
 function actionDraftRawPayload(draft = {}) {
   if (draft?.draft_type === 'flight_action' || draft?.tool_id === 'mds.flight.command.execute') {
     const payload = {
@@ -1600,6 +1866,13 @@ function actionDraftRawPayload(draft = {}) {
     return Object.keys(payload).length ? payload : draft;
   }
   if (draft?.arguments && typeof draft.arguments === 'object') {
+    if (Array.isArray(draft.post_actions) && draft.post_actions.length) {
+      return {
+        primary_arguments: draft.arguments,
+        ...(draft.wait_condition ? { wait_condition: draft.wait_condition } : {}),
+        post_actions: draft.post_actions,
+      };
+    }
     return draft.arguments;
   }
   return draft || {};
@@ -1652,6 +1925,240 @@ function getMessageActionRunId(message) {
   return String(getMessageActionRun(message)?.run_id || '').trim();
 }
 
+function normalizeActionRunState(value = '') {
+  const state = String(value || '').trim().toLowerCase();
+  if (['accepted', 'active', 'monitoring', 'started', 'submitted'].includes(state)) {
+    return 'running';
+  }
+  if (['complete', 'completed', 'success', 'terminal_success'].includes(state)) {
+    return 'succeeded';
+  }
+  if (['error', 'failure', 'terminal_non_success', 'completion_unverified'].includes(state)) {
+    return 'failed';
+  }
+  if (state === 'canceled') {
+    return 'cancelled';
+  }
+  return ACTION_RUN_STATES.has(state) ? state : '';
+}
+
+function finiteActionRunNumber(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') {
+      continue;
+    }
+    const number = Number(value);
+    if (Number.isFinite(number)) {
+      return number;
+    }
+  }
+  return null;
+}
+
+function actionRunUpdatedAtMs(run = {}) {
+  const value = Date.parse(String(run?.updated_at || ''));
+  return Number.isFinite(value) ? value : null;
+}
+
+function actionRunObservationLabel(run = {}) {
+  const observedAt = finiteActionRunNumber(run?.monitor_checked_at_ms);
+  if (observedAt === null) {
+    return '';
+  }
+  return `Checked ${new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(observedAt))}`;
+}
+
+function actionRunClientOrder(run = {}) {
+  const stored = run?.client_order && typeof run.client_order === 'object'
+    ? run.client_order
+    : {};
+  return {
+    revision: finiteActionRunNumber(
+      stored.revision,
+      run?.revision,
+      run?.run_revision,
+      run?.update_revision,
+    ),
+    eventCursor: finiteActionRunNumber(
+      stored.event_cursor,
+      run?.event_cursor,
+      run?.last_event_id,
+    ),
+    updatedAtMs: finiteActionRunNumber(stored.updated_at_ms, actionRunUpdatedAtMs(run)),
+  };
+}
+
+function actionRunUpdateOrder(update = {}, candidate = {}) {
+  const payload = update?.event?.payload && typeof update.event.payload === 'object'
+    ? update.event.payload
+    : {};
+  return {
+    revision: finiteActionRunNumber(
+      update.revision,
+      update?.event?.revision,
+      payload.revision,
+      candidate?.revision,
+      candidate?.run_revision,
+      candidate?.update_revision,
+    ),
+    eventCursor: finiteActionRunNumber(
+      update.cursor,
+      update?.event?.id,
+      candidate?.event_cursor,
+      candidate?.last_event_id,
+    ),
+    updatedAtMs: finiteActionRunNumber(
+      update.updatedAtMs,
+      actionRunUpdatedAtMs(candidate),
+      Date.parse(String(update?.event?.created_at || '')),
+    ),
+  };
+}
+
+function actionRunEventCandidate(existing = {}, update = {}) {
+  const event = update?.event && typeof update.event === 'object' ? update.event : {};
+  const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
+  const streamEvent = String(update.streamEvent || event.event_type || '').trim();
+  const payloadState = normalizeActionRunState(payload.state);
+  const runStateEvent = streamEvent.startsWith('run_');
+  const nextState = runStateEvent ? payloadState : streamEvent === 'progress' ? 'running' : '';
+  const effectiveState = (
+    nextState === 'running'
+    && ['pause_requested', 'cancel_requested'].includes(String(existing.control_state || ''))
+  ) ? String(existing.control_state) : nextState;
+  const stepIndex = Number(payload.step_index);
+  return {
+    run_id: String(existing.run_id || update.runId || '').trim(),
+    ...(effectiveState ? {
+      state: effectiveState,
+      terminal: TERMINAL_ACTION_RUN_STATES.has(effectiveState),
+    } : {}),
+    ...(Number.isInteger(stepIndex) && stepIndex > 0 ? { current_step: stepIndex } : {}),
+    ...(Number(payload.step_count) > 0 ? { total_steps: Number(payload.step_count) } : {}),
+    ...(payload.summary || payload.label ? { summary: String(payload.summary || payload.label) } : {}),
+    ...(Array.isArray(payload.available_controls)
+      ? { available_controls: payload.available_controls }
+      : {}),
+    ...(payload.current_step_interruption && typeof payload.current_step_interruption === 'object'
+      ? { current_step_interruption: payload.current_step_interruption }
+      : {}),
+    monitor_status: 'live',
+    monitor_checked_at_ms: Date.now(),
+  };
+}
+
+function actionRunUpdateIsOlder(currentOrder, incomingOrder, updateType) {
+  if (
+    incomingOrder.revision !== null
+    && currentOrder.revision !== null
+    && incomingOrder.revision < currentOrder.revision
+  ) {
+    return true;
+  }
+  if (
+    updateType === 'event'
+    && incomingOrder.eventCursor !== null
+    && currentOrder.eventCursor !== null
+    && incomingOrder.eventCursor <= currentOrder.eventCursor
+  ) {
+    return true;
+  }
+  if (
+    updateType === 'snapshot'
+    && incomingOrder.revision === null
+    && currentOrder.revision === null
+    && incomingOrder.updatedAtMs !== null
+    && currentOrder.updatedAtMs !== null
+    && incomingOrder.updatedAtMs < currentOrder.updatedAtMs
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function reduceActionRun(currentRun = null, update = {}) {
+  const updateType = String(update.type || '');
+  if (updateType === 'reconnecting') {
+    if (
+      !currentRun
+      || currentRun.terminal === true
+      || TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(currentRun.state))
+      || currentRun.monitor_status === 'reconnecting'
+    ) {
+      return currentRun;
+    }
+    return { ...currentRun, monitor_status: 'reconnecting' };
+  }
+
+  const candidate = updateType === 'event'
+    ? actionRunEventCandidate(currentRun || {}, update)
+    : update.run;
+  const runId = String(candidate?.run_id || update.runId || '').trim();
+  if (!runId || !candidate || typeof candidate !== 'object') {
+    return currentRun;
+  }
+
+  const current = currentRun || {};
+  const currentOrder = actionRunClientOrder(current);
+  const incomingOrder = actionRunUpdateOrder(update, candidate);
+  if (currentRun && actionRunUpdateIsOlder(currentOrder, incomingOrder, updateType)) {
+    return currentRun;
+  }
+
+  const currentState = normalizeActionRunState(current.state);
+  const incomingState = normalizeActionRunState(candidate.state);
+  const currentTerminal = current.terminal === true || TERMINAL_ACTION_RUN_STATES.has(currentState);
+  const incomingTerminal = candidate.terminal === true || TERMINAL_ACTION_RUN_STATES.has(incomingState);
+  if (currentTerminal && !incomingTerminal) {
+    return currentRun;
+  }
+
+  const nextOrder = {
+    revision: finiteActionRunNumber(incomingOrder.revision, currentOrder.revision),
+    event_cursor: Math.max(
+      finiteActionRunNumber(currentOrder.eventCursor, 0),
+      finiteActionRunNumber(incomingOrder.eventCursor, 0),
+    ),
+    updated_at_ms: Math.max(
+      finiteActionRunNumber(currentOrder.updatedAtMs, 0),
+      finiteActionRunNumber(incomingOrder.updatedAtMs, 0),
+    ),
+  };
+  return {
+    ...current,
+    ...candidate,
+    run_id: runId,
+    ...(incomingState ? { state: incomingState } : {}),
+    terminal: incomingTerminal,
+    plan: candidate.plan || current.plan || {},
+    client_order: nextOrder,
+  };
+}
+
+function actionRunsReducer(current, update) {
+  const runId = String(update?.runId || update?.run?.run_id || '').trim();
+  if (!runId) {
+    return current;
+  }
+  const existing = current[runId] || null;
+  const nextRun = reduceActionRun(existing, { ...update, runId });
+  if (!nextRun || nextRun === existing) {
+    return current;
+  }
+  return { ...current, [runId]: nextRun };
+}
+
+function isTranscriptNearBottom(transcript, threshold = 80) {
+  if (!transcript) {
+    return false;
+  }
+  return transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight <= threshold;
+}
+
 function actionRunStateLabel(state) {
   return {
     queued: 'Queued',
@@ -1662,6 +2169,7 @@ function actionRunStateLabel(state) {
     succeeded: 'Complete',
     failed: 'Failed',
     blocked: 'Blocked',
+    skipped: 'Not needed',
     cancelled: 'Cancelled',
     interrupted: 'Interrupted',
   }[String(state || '').trim()] || 'Pending';
@@ -1684,6 +2192,9 @@ function actionRunStepState(value) {
   if (['cancelled', 'canceled'].includes(state)) {
     return 'cancelled';
   }
+  if (state === 'interrupted') {
+    return 'interrupted';
+  }
   if (state === 'skipped') {
     return 'skipped';
   }
@@ -1696,6 +2207,97 @@ function actionRunStepState(value) {
   return 'pending';
 }
 
+function actionExecutionProjection({
+  run = null,
+  monitorResult = null,
+  postActionResults = null,
+} = {}) {
+  const result = run?.result && typeof run.result === 'object' ? run.result : {};
+  const monitor = monitorResult && typeof monitorResult === 'object'
+    ? monitorResult
+    : result?.monitor_result && typeof result.monitor_result === 'object'
+      ? result.monitor_result
+      : {};
+  const postActions = Array.isArray(postActionResults)
+    ? postActionResults
+    : Array.isArray(result?.post_action_results)
+      ? result.post_action_results
+      : [];
+  const runState = run
+    ? normalizeActionRunState(run.state || run.control_state)
+    : '';
+  const completionIssue = run ? actionRunCompletionIssue(run) : null;
+  const verificationCandidates = [
+    monitor?.completion_verification,
+    ...postActions.map((item) => item?.completion_verification),
+    run?.completion_verification,
+  ].filter(hasCompletionVerification);
+  const completionVerification = [...verificationCandidates].reverse()[0] || null;
+  const unverifiedCompletion = completionIssue || (
+    completionVerification?.verified === false
+      ? {
+          stepIndex: Math.max(0, postActions.length),
+          kind: String(completionVerification.kind || '').trim(),
+          title: completionVerificationIssueTitle(completionVerification),
+          summary: String(
+            completionVerification.summary
+            || completionVerification.detail
+            || 'Final state was not verified.'
+          ).trim(),
+          verification: completionVerification,
+        }
+      : null
+  );
+  const postActionStates = postActions.map(actionRunResultStepState);
+  const monitorState = Object.keys(monitor).length ? actionRunResultStepState(monitor) : '';
+  const postActionsComplete = postActionStates.every((state) => state === 'complete');
+  const timedOut = Boolean(monitor.timed_out) || postActionStates.includes('timeout');
+  const interrupted = runState === 'interrupted' || postActionStates.includes('interrupted');
+  const cancelled = runState === 'cancelled' || postActionStates.includes('cancelled');
+  const blocked = runState === 'blocked' || postActionStates.includes('blocked');
+  const failed = runState === 'failed'
+    || monitor.success === false
+    || monitorState === 'failed'
+    || postActions.some((item) => item?.is_error === true)
+    || postActionStates.includes('failed')
+    || (
+      runState === 'succeeded'
+      && (
+        (Object.keys(monitor).length > 0 && monitor.success !== true && monitorState !== 'complete')
+        || !postActionsComplete
+      )
+    );
+
+  let status = runState || 'running';
+  if (unverifiedCompletion) {
+    status = 'warning';
+  } else if (timedOut) {
+    status = 'timeout';
+  } else if (interrupted) {
+    status = 'interrupted';
+  } else if (cancelled) {
+    status = 'cancelled';
+  } else if (blocked) {
+    status = 'blocked';
+  } else if (failed) {
+    status = 'failed';
+  } else if (!run && monitor.success === true && postActionsComplete) {
+    status = 'succeeded';
+  }
+
+  return {
+    status,
+    state: ['warning', 'timeout'].includes(status) ? 'failed' : status,
+    completionIssue: unverifiedCompletion,
+    completionVerification,
+    monitor,
+    postActions,
+    postActionStates,
+    postActionsComplete,
+    completedPostActions: postActionStates.filter((state) => state === 'complete').length,
+  };
+}
+
 function hasCompletionVerification(value) {
   return Boolean(
     value
@@ -1703,6 +2305,23 @@ function hasCompletionVerification(value) {
     && !Array.isArray(value)
     && Object.prototype.hasOwnProperty.call(value, 'verified')
   );
+}
+
+function completionVerificationIssueTitle(verification = {}) {
+  return String(verification?.kind || '').trim() === 'sitl_lifecycle'
+    ? 'SITL readiness not confirmed'
+    : 'Final state not confirmed';
+}
+
+function completionVerificationSuffix(verification = {}) {
+  const verified = verification?.verified === true;
+  return String(verification?.kind || '').trim() === 'sitl_lifecycle'
+    ? verified
+      ? 'SITL readiness confirmed'
+      : 'SITL readiness not confirmed'
+    : verified
+      ? 'final disarm confirmed'
+      : 'final disarm not confirmed';
 }
 
 function actionRunCompletionIssue(run = {}) {
@@ -1730,6 +2349,8 @@ function actionRunCompletionIssue(run = {}) {
   }
   return {
     stepIndex: issue.stepIndex,
+    kind: String(issue.verification.kind || '').trim(),
+    title: completionVerificationIssueTitle(issue.verification),
     summary: String(
       issue.verification.summary
       || issue.verification.detail
@@ -1759,7 +2380,7 @@ function actionRunStepView(run = {}, events = []) {
   const steps = actionDraftPlanSteps(run.plan || {});
   const states = steps.map(() => 'pending');
   const hasStepEvidence = steps.map(() => false);
-  const runState = String(run.terminal ? run.state : (run.control_state || run.state || ''));
+  const runState = actionExecutionProjection({ run }).state;
   (Array.isArray(events) ? events : []).forEach((event) => {
     const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
     const index = Number(payload.step_index);
@@ -1817,7 +2438,26 @@ function actionRunStepView(run = {}, events = []) {
       }
     });
   }
-  if (['cancelled', 'blocked', 'interrupted'].includes(runState)) {
+  if (runState === 'skipped') {
+    states.forEach((state, index) => {
+      if (!hasStepEvidence[index] && ['pending', 'running', 'paused'].includes(state)) {
+        states[index] = 'skipped';
+      }
+    });
+  }
+  if (['failed', 'cancelled', 'blocked', 'interrupted'].includes(runState)) {
+    const terminalStepIndex = states.length
+      ? Math.min(states.length - 1, Math.max(0, currentStep - 1))
+      : -1;
+    if (terminalStepIndex >= 0 && ['pending', 'running', 'paused'].includes(states[terminalStepIndex])) {
+      states[terminalStepIndex] = runState === 'cancelled'
+        ? 'cancelled'
+        : runState === 'blocked'
+          ? 'blocked'
+          : runState === 'interrupted'
+            ? 'interrupted'
+            : 'failed';
+    }
     states.forEach((state, index) => {
       if (state === 'pending' && index + 1 > currentStep) {
         states[index] = runState === 'cancelled' ? 'cancelled' : 'skipped';
@@ -1834,8 +2474,185 @@ function latestActionRunActivity(events = []) {
   return candidates.length ? candidates[candidates.length - 1].payload : null;
 }
 
+const ACTION_RUN_CONTROL_COPY = Object.freeze({
+  pause_after_current_step: {
+    label: 'Pause after step',
+    title: 'Pause after the current dispatched step finishes',
+  },
+  resume: {
+    label: 'Resume',
+    title: 'Resume the remaining approved steps',
+  },
+  cancel_remaining: {
+    label: 'Cancel remaining',
+    title: 'Let the current dispatched step finish, then cancel the remaining steps',
+  },
+});
+
+function actionRunControlDescription(run = {}, action = '', fallback = '') {
+  const interruption = (
+    run?.current_step_interruption
+    && typeof run.current_step_interruption === 'object'
+  ) ? run.current_step_interruption : {};
+  const actionContract = (
+    interruption[action]
+    && typeof interruption[action] === 'object'
+  ) ? interruption[action] : {};
+
+  if (action === 'cancel_remaining') {
+    if (actionContract.stops_current_step === true) {
+      return 'Stop the current local wait, then cancel every remaining step.';
+    }
+    if (actionContract.waits_for_terminal === true) {
+      return 'Let the dispatched current step reach a terminal state, then cancel every remaining step.';
+    }
+    if (actionContract.blocks_future_dispatches === true) {
+      return 'Prevent the next step from being dispatched and cancel every remaining step.';
+    }
+  }
+  if (action === 'pause_after_current_step' && actionContract.pauses_before_next_dispatch === true) {
+    return 'Let the current step finish, then pause before the next step is dispatched.';
+  }
+  return fallback;
+}
+
+function actionRunAvailableControls(run = {}, state = '') {
+  const hasExplicitControls = Object.prototype.hasOwnProperty.call(run, 'available_controls');
+  const source = run.available_controls;
+  const explicitItems = Array.isArray(source)
+    ? source
+    : source && typeof source === 'object'
+      ? Object.entries(source).map(([action, value]) => (
+          value && typeof value === 'object' ? { action, ...value } : { action, enabled: value !== false }
+        ))
+      : typeof source === 'string' && source.trim()
+        ? [source.trim()]
+        : [];
+
+  if (!hasExplicitControls || !ACTIVE_ACTION_RUN_STATES.has(state)) {
+    return [];
+  }
+  return explicitItems
+    .map((item) => {
+      const action = String(typeof item === 'string' ? item : item?.action || item?.id || '').trim();
+      if (!ACTION_RUN_CONTROL_COPY[action]) {
+        return null;
+      }
+      return {
+        action,
+        enabled: typeof item === 'object' ? item.enabled !== false : true,
+        reason: typeof item === 'object' ? String(item.reason || '').trim() : '',
+      };
+    })
+    .filter(Boolean);
+}
+
+function actionRunFocusStepIndex(run = {}, steps = []) {
+  if (!steps.length) {
+    return -1;
+  }
+  const currentStep = Number(run.current_step);
+  if (Number.isInteger(currentStep) && currentStep > 0) {
+    return Math.min(steps.length - 1, currentStep - 1);
+  }
+  const activeIndex = steps.findIndex((step) => ['running', 'paused'].includes(step.state));
+  if (activeIndex >= 0) {
+    return activeIndex;
+  }
+  const firstPending = steps.findIndex((step) => step.state === 'pending');
+  if (firstPending >= 0) {
+    return firstPending;
+  }
+  return steps.length - 1;
+}
+
+function actionRunCompactStepIndexes(run = {}, steps = []) {
+  const focusIndex = actionRunFocusStepIndex(run, steps);
+  if (focusIndex < 0) {
+    return new Set();
+  }
+  const firstIndex = Math.max(0, focusIndex - ACTION_RUN_RECENT_STEP_COUNT);
+  return new Set(
+    Array.from({ length: focusIndex - firstIndex + 1 }, (_, offset) => firstIndex + offset),
+  );
+}
+
+function actionRunOperatorStatus({
+  run = {},
+  activity = null,
+  steps = [],
+  state = '',
+  fallback = '',
+}) {
+  const stepIndexValue = finiteActionRunNumber(activity?.step_index, run.current_step);
+  const stepIndex = stepIndexValue === null ? 0 : Math.max(0, Math.trunc(stepIndexValue));
+  const step = stepIndex > 0 ? steps[stepIndex - 1] : null;
+  const stepLabel = String(activity?.step_label || step?.title || '').trim();
+  if (!stepLabel || !ACTIVE_ACTION_RUN_STATES.has(state)) {
+    return fallback;
+  }
+  const stepCount = Math.max(steps.length, Number(activity?.step_count) || Number(run.total_steps) || 0);
+  const prefix = stepCount > 0 && stepIndex > 0
+    ? `Step ${stepIndex}/${stepCount}: ${stepLabel}`
+    : stepLabel;
+  const remainingSeconds = finiteActionRunNumber(activity?.remaining_seconds);
+  if (remainingSeconds !== null) {
+    return `${prefix} · ${Math.max(0, Math.ceil(remainingSeconds))}s remaining`;
+  }
+  const elapsedSeconds = finiteActionRunNumber(activity?.elapsed_seconds);
+  if (elapsedSeconds !== null) {
+    return `${prefix} · ${Math.max(0, elapsedSeconds).toFixed(1)}s elapsed`;
+  }
+  const activityState = activity ? actionRunStepState(activity.state) : 'running';
+  return `${prefix} · ${activityStateLabel(activityState)}`;
+}
+
+function actionRunLiveAnnouncement({
+  run,
+  state,
+  title,
+  currentActivity,
+  currentLabel,
+  activityState,
+  pendingControlLabel,
+  monitoringStale,
+  completionIssue,
+  steps,
+}) {
+  if (pendingControlLabel) {
+    return `${title}: ${pendingControlLabel}`;
+  }
+  if (completionIssue?.summary) {
+    return `${title}: ${completionIssue.summary}`;
+  }
+  if (monitoringStale) {
+    return `${title}: Live updates interrupted; reconnecting`;
+  }
+  if (TERMINAL_ACTION_RUN_STATES.has(state)) {
+    return `${title}: ${actionRunStateLabel(state)}. ${currentLabel}`;
+  }
+  if (!currentActivity) {
+    return `${title}: ${currentLabel}`;
+  }
+  if (finiteActionRunNumber(currentActivity.remaining_seconds) !== null) {
+    const stepIndex = Math.max(0, Number(currentActivity.step_index || run?.current_step) || 0);
+    const stepLabel = String(
+      currentActivity.step_label
+      || steps[Math.max(0, stepIndex - 1)]?.title
+      || 'Waiting'
+    ).trim();
+    return `${title}: ${stepIndex ? `Step ${stepIndex}: ` : ''}${stepLabel} · in progress`;
+  }
+  return `${title}: ${currentLabel}${activityState ? ` · ${activityStateLabel(activityState)}` : ''}`;
+}
+
 function PendingActionPlan({ draft }) {
   const steps = actionDraftPlanSteps(draft);
+  const conditions = Array.isArray(draft?.display_plan?.conditions)
+    ? draft.display_plan.conditions
+        .map((item) => String(item?.label || '').trim())
+        .filter(Boolean)
+    : [];
   const target = String(draft?.display_plan?.target || actionTargetLabel(draft) || 'Guarded GCS operation');
   const title = String(draft?.display_plan?.title || 'Review action');
   return (
@@ -1847,6 +2664,14 @@ function PendingActionPlan({ draft }) {
           <span>{target}</span>
         </div>
       </header>
+      {conditions.length ? (
+        <div className="simurgh-chat__action-plan-conditions">
+          <strong>Only if</strong>
+          <ul>
+            {conditions.map((condition) => <li key={condition}>{condition}</li>)}
+          </ul>
+        </div>
+      ) : null}
       <ol className="simurgh-chat__action-plan-steps">
         {steps.map((step, index) => (
           <li key={`${draft?.draft_id || 'draft'}-${index}-${step.title}`}>
@@ -1873,40 +2698,46 @@ function ActionResultSummary({ message }) {
     ? safety.action_monitor
     : {};
   const postActions = Array.isArray(safety?.post_action_results) ? safety.post_action_results : [];
-  const hasVerificationResult = (value) => value
-    && typeof value === 'object'
-    && Object.prototype.hasOwnProperty.call(value, 'verified');
-  const completionVerification = [...postActions]
-    .reverse()
-    .map((item) => item?.completion_verification)
-    .find(hasVerificationResult)
-    || (hasVerificationResult(monitor?.completion_verification)
-      ? monitor.completion_verification
-      : null);
-  const failed = monitor.success === false || postActions.some((item) => item?.is_error);
-  const timedOut = Boolean(monitor.timed_out) || postActions.some((item) => /timeout/i.test(String(item?.status || '')));
-  const unverifiedFinalState = Boolean(completionVerification && !completionVerification.verified);
-  const monitored = Object.keys(monitor).length > 0 || postActions.length > 0;
-  const title = timedOut
-    ? 'Monitoring timed out'
-    : failed
-      ? 'Sequence stopped'
-      : unverifiedFinalState
-        ? 'Final state not confirmed'
-      : monitored
+  const projection = actionExecutionProjection({
+    monitorResult: monitor,
+    postActionResults: postActions,
+  });
+  const completionVerification = projection.completionVerification;
+  const unverifiedFinalState = projection.status === 'warning';
+  const timedOut = projection.status === 'timeout';
+  const failed = ['failed', 'blocked', 'cancelled', 'interrupted'].includes(projection.status);
+  const completed = projection.status === 'succeeded';
+  const title = unverifiedFinalState
+    ? completionVerificationIssueTitle(completionVerification)
+    : timedOut
+      ? 'Monitoring timed out'
+      : failed
+        ? 'Sequence stopped'
+      : completed
         ? 'Command sequence complete'
-        : 'Action submitted';
-  let detail = postActions.length
-    ? `${postActions.filter((item) => !item?.is_error).length + (monitor.success === true ? 1 : 0)} of ${postActions.length + 1} steps completed`
-    : monitor.success === true ? 'Command reached a successful terminal state' : 'Accepted by the GCS';
+        : 'Action accepted';
+  let detail = completed
+    ? postActions.length
+      ? `${projection.completedPostActions + 1} of ${postActions.length + 1} steps completed`
+      : 'Command reached a successful terminal state'
+    : failed || timedOut || unverifiedFinalState
+      ? postActions.length
+        ? `${projection.completedPostActions + (monitor.success === true ? 1 : 0)} of ${postActions.length + 1} steps completed`
+        : 'The command did not reach a verified successful terminal state'
+      : 'Accepted by the GCS; completion is still pending';
   if (completionVerification?.verified) {
-    detail += ' · final disarm confirmed';
+    detail += ` · ${completionVerificationSuffix(completionVerification)}`;
   } else if (unverifiedFinalState) {
-    detail += ' · final disarm not confirmed';
+    const verificationSummary = String(completionVerification?.summary || '').trim();
+    detail += ` · ${verificationSummary || completionVerificationSuffix(completionVerification)}`;
   }
   return (
-    <div className={`simurgh-chat__action-result simurgh-chat__action-result--${failed || timedOut || unverifiedFinalState ? 'warning' : 'success'}`}>
-      {failed || timedOut || unverifiedFinalState ? <FaExclamationTriangle aria-hidden="true" /> : <FaCheckCircle aria-hidden="true" />}
+    <div className={`simurgh-chat__action-result simurgh-chat__action-result--${failed || timedOut || unverifiedFinalState ? 'warning' : completed ? 'success' : 'active'}`}>
+      {failed || timedOut || unverifiedFinalState
+        ? <FaExclamationTriangle aria-hidden="true" title="Action needs attention" />
+        : completed
+          ? <FaCheckCircle aria-hidden="true" title="Action succeeded" />
+          : <FaCog aria-hidden="true" title="Action in progress" />}
       <div>
         <strong>{title}</strong>
         <span>{detail}</span>
@@ -1922,71 +2753,129 @@ function PendingActionDraftRawPayload({ draft }) {
   if (!rawJson || rawJson === '{}') {
     return null;
   }
+  const detailsId = `simurgh-action-raw-${String(draft?.draft_id || 'payload').replace(/[^A-Za-z0-9_-]/g, '-')}`;
   return (
     <div className={`simurgh-chat__action-draft-raw${open ? ' is-open' : ''}`}>
       <button
         type="button"
         className="simurgh-chat__action-draft-raw-toggle"
         aria-expanded={open}
+        aria-controls={detailsId}
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
         <span>Raw action JSON</span>
       </button>
-      {open ? <CodeBlock content={rawJson} language="json" blockId={`draft-raw-${draft?.draft_id || 'payload'}`} /> : null}
+      {open ? (
+        <div id={detailsId}>
+          <CodeBlock content={rawJson} language="json" blockId={`draft-raw-${draft?.draft_id || 'payload'}`} />
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
+function ActionRunCard({ run, events = [], onControl, controlBusy = {}, showContext = false }) {
+  const [stepsOpen, setStepsOpen] = useState(false);
   const runId = String(run?.run_id || '').trim();
   if (!runId) {
     return null;
   }
   const steps = actionRunStepView(run, events);
   const activity = latestActionRunActivity(events);
-  const state = String(run.terminal ? run.state : (run.control_state || run.state || 'queued'));
-  const completionIssue = actionRunCompletionIssue(run);
+  const projection = actionExecutionProjection({ run });
+  const state = projection.state || 'queued';
+  const completionIssue = projection.completionIssue;
   const displayState = completionIssue ? 'failed' : state;
   const active = !completionIssue && ACTIVE_ACTION_RUN_STATES.has(state);
+  const monitoringStale = active && run?.monitor_status === 'reconnecting';
   const totalSteps = Math.max(1, Number(run.total_steps) || steps.length || 1);
-  const currentStep = Math.min(totalSteps, Math.max(0, Number(run.current_step) || 0));
   const completedSteps = steps.filter((step) => step.state === 'complete').length;
-  const progressValue = completionIssue
-    ? completedSteps
-    : state === 'succeeded'
-      ? totalSteps
-      : Math.max(completedSteps, currentStep > 0 ? currentStep - (active ? 1 : 0) : 0);
+  const progressValue = state === 'succeeded' && !completionIssue ? totalSteps : completedSteps;
   const title = String(run?.plan?.display_plan?.title || (steps.length > 1 ? 'Action sequence' : 'Guarded action'));
   const target = String(run?.plan?.display_plan?.target || actionTargetLabel(run.plan || {}) || 'GCS operation');
-  const currentLabel = String(completionIssue?.summary || activity?.label || run.summary || actionRunStateLabel(state));
-  const activityState = actionRunStepState(activity?.state);
-  const busy = controlBusy === runId;
-  const canResume = state === 'paused' || state === 'pause_requested';
-  const canPause = state === 'queued' || state === 'running';
+  const currentActivity = active ? activity : null;
+  const fallbackCurrentLabel = String(
+    completionIssue?.summary
+    || (monitoringStale ? 'Live updates interrupted; reconnecting' : '')
+    || currentActivity?.label
+    || run.summary
+    || actionRunStateLabel(state)
+  );
+  const currentLabel = actionRunOperatorStatus({
+    run,
+    activity: currentActivity,
+    steps,
+    state,
+    fallback: fallbackCurrentLabel,
+  });
+  const observationLabel = actionRunObservationLabel(run);
+  const activityState = actionRunStepState(currentActivity?.state);
+  const pendingControl = String(controlBusy?.[runId] || '').trim();
+  const busy = Boolean(pendingControl);
+  const availableControls = active ? actionRunAvailableControls(run, state) : [];
   const tone = completionIssue
     ? 'warning'
+    : monitoringStale
+      ? 'warning'
     : ['failed', 'blocked', 'interrupted'].includes(state)
     ? 'danger'
-    : state === 'cancelled' ? 'warning' : state === 'succeeded' ? 'success' : 'active';
+    : ['cancelled', 'skipped'].includes(state) ? 'warning' : state === 'succeeded' ? 'success' : 'active';
   const skippedSteps = steps.filter((step) => step.state === 'skipped').length;
+  const pendingControlLabel = {
+    pause_after_current_step: 'Requesting pause after this step',
+    resume: 'Requesting resume',
+    cancel_remaining: 'Requesting cancellation of remaining steps',
+  }[pendingControl] || '';
+  const liveAnnouncement = actionRunLiveAnnouncement({
+    run,
+    state,
+    title,
+    currentActivity,
+    currentLabel,
+    activityState,
+    pendingControlLabel,
+    monitoringStale,
+    completionIssue,
+    steps,
+  });
+  const compactStepIndexes = actionRunCompactStepIndexes(run, steps);
+  const focusStepIndex = actionRunFocusStepIndex(run, steps);
+  const hiddenStepCount = steps.filter((step, index) => !compactStepIndexes.has(index)).length;
+  const stepsId = `simurgh-action-steps-${runId.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+  const cardLabel = `${title} for ${target}: ${completionIssue ? 'needs review' : actionRunStateLabel(displayState)}`;
+  const sessionLabel = String(run?.session_id || '').trim();
+  const startedLabel = formatConversationTime(run?.created_at);
 
   return (
-    <section className={`simurgh-chat__action-run simurgh-chat__action-run--${tone}`} aria-label={`Action run ${runId}`}>
+    <section
+      className={`simurgh-chat__action-run simurgh-chat__action-run--${tone}`}
+      aria-label={cardLabel}
+      data-action-run-id={runId}
+      tabIndex={-1}
+    >
       <header className="simurgh-chat__action-run-header">
         <div className="simurgh-chat__action-run-title">
-          {tone === 'danger' || tone === 'warning'
-            ? <FaExclamationTriangle aria-hidden="true" />
-            : <FaCheckCircle aria-hidden="true" />}
+          {tone === 'danger' || (tone === 'warning' && state !== 'skipped')
+            ? <FaExclamationTriangle aria-hidden="true" title="Action needs attention" />
+            : tone === 'success' || state === 'skipped'
+              ? <FaCheckCircle aria-hidden="true" title={state === 'skipped' ? 'Action not needed' : 'Action succeeded'} />
+              : <FaCog aria-hidden="true" title="Action in progress" />}
           <div>
             <strong>{title}</strong>
             <span>{target}</span>
           </div>
         </div>
         <span className={`simurgh-chat__action-run-state simurgh-chat__action-run-state--${displayState}`}>
-          {completionIssue ? 'Needs review' : actionRunStateLabel(displayState)}
+          {completionIssue ? 'Needs review' : monitoringStale ? 'Reconnecting' : actionRunStateLabel(displayState)}
         </span>
       </header>
+      {showContext ? (
+        <div className="simurgh-chat__action-run-context">
+          <span>Operator session{sessionLabel ? ` ${sessionLabel.slice(0, 12)}` : ''}</span>
+          {startedLabel ? <span>Started {startedLabel}</span> : null}
+        </div>
+      ) : null}
       <div className="simurgh-chat__action-run-progress-row">
         <div
           className="simurgh-chat__action-run-progress"
@@ -1995,39 +2884,60 @@ function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
           aria-valuemin="0"
           aria-valuemax={totalSteps}
           aria-valuenow={Math.min(totalSteps, Math.max(0, progressValue))}
+          aria-valuetext={`${Math.min(totalSteps, Math.max(0, completedSteps))} of ${totalSteps} steps complete${currentActivity?.label ? `; ${currentActivity.label}` : ''}`}
         >
           <span style={{ width: `${Math.min(100, Math.max(0, (progressValue / totalSteps) * 100))}%` }} />
         </div>
         <span>{Math.min(totalSteps, Math.max(0, completedSteps))}/{totalSteps}</span>
       </div>
-      <div className="simurgh-chat__action-run-current" role={active ? 'status' : undefined} aria-live={active ? 'polite' : undefined}>
-        <span className={`simurgh-chat__action-run-pulse${active ? ' is-active' : ''}`} aria-hidden="true" />
+      <div className="simurgh-chat__action-run-current">
+        <span className={`simurgh-chat__action-run-pulse${active && !monitoringStale ? ' is-active' : ''}`} aria-hidden="true" />
         <span>
-          {activity && activityState
+          {pendingControlLabel
+            || (currentActivity && activityState
             ? `${currentLabel} · ${activityStateLabel(activityState)}`
-            : currentLabel}
+            : currentLabel)}
         </span>
+        {observationLabel ? <small>{observationLabel}</small> : null}
       </div>
+      <span
+        className="simurgh-chat__sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveAnnouncement}
+      </span>
       {completionIssue ? (
         <div className="simurgh-chat__action-result simurgh-chat__action-result--warning" role="alert">
           <FaExclamationTriangle aria-hidden="true" />
           <div>
-            <strong>Final state not confirmed</strong>
+            <strong>{completionIssue.title}</strong>
             <span>
               {skippedSteps
                 ? `${skippedSteps} dependent step${skippedSteps === 1 ? '' : 's'} remained skipped.`
-                : 'Review final vehicle telemetry before continuing.'}
+                : completionIssue.kind === 'sitl_lifecycle'
+                  ? 'Review the SITL lifecycle evidence before continuing.'
+                  : 'Review final vehicle telemetry before continuing.'}
             </span>
           </div>
         </div>
       ) : null}
-      <ol className="simurgh-chat__action-run-steps" aria-label="Action sequence progress">
+      <ol id={stepsId} className="simurgh-chat__action-run-steps" aria-label="Action sequence progress">
         {steps.map((step, index) => (
-          <li key={`${runId}-step-${index}`} className={`simurgh-chat__action-run-step simurgh-chat__action-run-step--${step.state}`}>
+          <li
+            key={`${runId}-step-${index}`}
+            className={[
+              'simurgh-chat__action-run-step',
+              `simurgh-chat__action-run-step--${step.state}`,
+              !stepsOpen && index < focusStepIndex ? 'simurgh-chat__action-run-step--recent' : '',
+            ].filter(Boolean).join(' ')}
+            hidden={!stepsOpen && !compactStepIndexes.has(index)}
+          >
             <span className="simurgh-chat__action-run-step-icon" aria-hidden="true">
               {step.state === 'complete'
                 ? <FaCheckCircle />
-                : ['failed', 'timeout', 'blocked'].includes(step.state)
+                : ['failed', 'timeout', 'blocked', 'interrupted'].includes(step.state)
                   ? <FaExclamationTriangle />
                   : index + 1}
             </span>
@@ -2036,40 +2946,47 @@ function ActionRunCard({ run, events = [], onControl, controlBusy = '' }) {
           </li>
         ))}
       </ol>
-      {active ? (
+      {hiddenStepCount ? (
+        <button
+          type="button"
+          className="simurgh-chat__action-run-details-toggle"
+          aria-expanded={stepsOpen}
+          aria-controls={stepsId}
+          onClick={() => setStepsOpen((value) => !value)}
+        >
+          {stepsOpen ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+          <span>{stepsOpen ? 'Show current progress' : `Show all ${steps.length} steps`}</span>
+        </button>
+      ) : null}
+      {availableControls.length ? (
         <div className="simurgh-chat__action-run-controls" aria-label="Active action run controls">
-          {canPause ? (
-            <button
-              type="button"
-              disabled={busy}
-              title="Pause after the current dispatched step finishes"
-              onClick={() => onControl?.(runId, 'pause_after_current_step')}
-            >
-              <FaPause aria-hidden="true" />
-              <span>Pause after step</span>
-            </button>
-          ) : null}
-          {canResume ? (
-            <button
-              type="button"
-              disabled={busy}
-              title="Resume the remaining approved steps"
-              onClick={() => onControl?.(runId, 'resume')}
-            >
-              <FaPlay aria-hidden="true" />
-              <span>Resume</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="simurgh-chat__action-run-cancel"
-            disabled={busy || state === 'cancel_requested'}
-            title="Let the current dispatched step finish, then cancel the remaining steps"
-            onClick={() => onControl?.(runId, 'cancel_remaining')}
-          >
-            <FaStop aria-hidden="true" />
-            <span>Cancel remaining</span>
-          </button>
+          {availableControls.map((control) => {
+            const copy = ACTION_RUN_CONTROL_COPY[control.action];
+            const description = control.reason || actionRunControlDescription(run, control.action, copy.title);
+            const descriptionId = `simurgh-action-control-${runId}-${control.action}`
+              .replace(/[^A-Za-z0-9_-]/g, '-');
+            return (
+              <React.Fragment key={control.action}>
+                <button
+                  type="button"
+                  className={control.action === 'cancel_remaining' ? 'simurgh-chat__action-run-cancel' : undefined}
+                  disabled={busy || !control.enabled}
+                  title={description}
+                  aria-label={copy.label}
+                  aria-describedby={descriptionId}
+                  onClick={() => onControl?.(runId, control.action)}
+                >
+                  {control.action === 'pause_after_current_step'
+                    ? <FaPause aria-hidden="true" />
+                    : control.action === 'resume'
+                      ? <FaPlay aria-hidden="true" />
+                      : <FaStop aria-hidden="true" />}
+                  <span>{copy.label}</span>
+                </button>
+                <span id={descriptionId} className="simurgh-chat__sr-only">{description}</span>
+              </React.Fragment>
+            );
+          })}
         </div>
       ) : null}
       <PendingActionDraftRawPayload draft={run.plan || {}} />
@@ -2085,11 +3002,17 @@ function MessageBubble({
   actionRun = null,
   actionRunEvents = [],
   onActionRunControl,
-  actionRunControlBusy = '',
+  actionRunControlBusy = {},
+  onAmendDraft,
 }) {
   const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
   const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
   const pendingDraft = actionControlsEnabled ? getPendingActionDraft(message) : null;
+  const pendingDraftTitle = String(pendingDraft?.display_plan?.title || pendingDraft?.action_label || 'action').trim();
+  const pendingDraftTarget = String(
+    pendingDraft?.display_plan?.target || actionTargetLabel(pendingDraft || {})
+  ).trim();
+  const pendingDraftControlContext = [pendingDraftTitle, pendingDraftTarget].filter(Boolean).join(' for ');
   return (
     <article className={`simurgh-chat__message simurgh-chat__message--${message.role}${message.streaming ? ' simurgh-chat__message--streaming' : ''}`}>
       <div className="simurgh-chat__avatar" aria-hidden="true">
@@ -2098,10 +3021,18 @@ function MessageBubble({
       <div className="simurgh-chat__bubble">
         <div className="simurgh-chat__bubble-header">
           <span>{roleLabel}</span>
-          <CopyButton text={message.content} label={copyLabel} className="simurgh-chat__copy-button--message" />
+          {!pendingDraft && !actionRun ? (
+            <CopyButton text={message.content} label={copyLabel} className="simurgh-chat__copy-button--message" />
+          ) : null}
         </div>
-        {message.role === 'assistant' ? <MessageActivity progress={message.progress || []} streaming={Boolean(message.streaming)} /> : null}
-        {message.role === 'assistant' ? <MessageTrace message={message} /> : null}
+        {message.role === 'assistant' ? (
+          <MessageActivity
+            progress={message.progress || []}
+            streaming={Boolean(message.streaming)}
+            actionRun={actionRun}
+          />
+        ) : null}
+        {message.role === 'assistant' && !pendingDraft && !actionRun ? <MessageTrace message={message} /> : null}
         {pendingDraft ? <PendingActionPlan draft={pendingDraft} /> : null}
         {actionRun ? (
           <ActionRunCard
@@ -2112,7 +3043,7 @@ function MessageBubble({
           />
         ) : null}
         {message.role === 'assistant' ? <ActionResultSummary message={message} /> : null}
-        {message.content ? <MessageContent content={message.content} /> : null}
+        {message.content && !pendingDraft && !actionRun ? <MessageContent content={message.content} /> : null}
         {pendingDraft ? (
           <>
             <PendingActionDraftRawPayload draft={pendingDraft} />
@@ -2121,7 +3052,16 @@ function MessageBubble({
                 type="button"
                 className="simurgh-chat__action-draft-button simurgh-chat__action-draft-button--confirm"
                 disabled={submitting}
-                onClick={() => onSubmitPrompt?.(`confirm action ${pendingDraft.draft_id}`)}
+                aria-label={`Confirm ${pendingDraftControlContext}`}
+                onClick={() => onSubmitPrompt?.(
+                  'Confirm',
+                  {
+                    actionDraft: pendingDraft,
+                    actionIntent: 'confirm',
+                    actionDraftId: pendingDraft.draft_id,
+                    suppressUserMessage: true,
+                  }
+                )}
               >
                 <FaCheckCircle aria-hidden="true" />
                 <span>Confirm</span>
@@ -2130,10 +3070,29 @@ function MessageBubble({
                 type="button"
                 className="simurgh-chat__action-draft-button"
                 disabled={submitting}
-                onClick={() => onSubmitPrompt?.(`cancel action ${pendingDraft.draft_id}`)}
+                aria-label={`Reject ${pendingDraftControlContext}`}
+                onClick={() => onSubmitPrompt?.(
+                  'Reject',
+                  {
+                    actionDraft: pendingDraft,
+                    actionIntent: 'reject',
+                    actionDraftId: pendingDraft.draft_id,
+                    suppressUserMessage: true,
+                  }
+                )}
               >
                 <FaTimes aria-hidden="true" />
                 <span>Reject</span>
+              </button>
+              <button
+                type="button"
+                className="simurgh-chat__action-draft-button"
+                disabled={submitting}
+                aria-label={`Amend ${pendingDraftControlContext}`}
+                onClick={() => onAmendDraft?.(pendingDraft)}
+              >
+                <FaEdit aria-hidden="true" />
+                <span>Amend</span>
               </button>
             </div>
           </>
@@ -2160,11 +3119,14 @@ function EmptyChat({ onPickPrompt }) {
 }
 
 export default function SimurghOperatorPage() {
+  const compactHistory = useMediaQuery(COMPACT_HISTORY_QUERY);
   const [status, setStatus] = useState(null);
+  const [statusEvidenceState, setStatusEvidenceState] = useState('loading');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState(null);
   const [candidateReview, setCandidateReview] = useState(null);
@@ -2176,21 +3138,83 @@ export default function SimurghOperatorPage() {
   });
   const [activeConversationId, setActiveConversationId] = useState(() => readStoredConversations()[0]?.id || '');
   const [draft, setDraft] = useState('');
+  const [amendmentContext, setAmendmentContext] = useState(null);
+  const [assistantAnnouncement, setAssistantAnnouncement] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [chatError, setChatError] = useState('');
-  const [actionRuns, setActionRuns] = useState({});
+  const [actionRuns, dispatchActionRunUpdate] = useReducer(actionRunsReducer, {});
   const [actionRunEvents, setActionRunEvents] = useState({});
-  const [actionRunControlBusy, setActionRunControlBusy] = useState('');
+  const [actionRunControlBusy, setActionRunControlBusy] = useState({});
+  const [actionRunFocusId, setActionRunFocusId] = useState('');
   const abortRef = useRef(null);
+  const actionRunsSnapshotRef = useRef({});
   const actionRunStreamsRef = useRef(new Map());
+  const actionRunReconnectAttemptsRef = useRef(new Map());
+  const actionRunReconnectTimersRef = useRef(new Map());
   const actionRunCursorsRef = useRef(new Map());
   const hydratedActionRunsRef = useRef(new Set());
+  const knownNonterminalActionRunIdsRef = useRef(new Set());
+  const linkedActionRunIdsRef = useRef(new Set());
+  const terminalActionRunIdsRef = useRef(new Set());
+  const actionRunSnapshotsInFlightRef = useRef(new Set());
+  const actionRunControlsInFlightRef = useRef(new Set());
+  const actionRunTrackingEnabledRef = useRef(true);
+  const trackActionRunRef = useRef(null);
   const transcriptRef = useRef(null);
+  const transcriptAutoScrollRef = useRef(true);
+  const composerRef = useRef(null);
+  const settingsTriggerRef = useRef(null);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || conversations[0],
     [activeConversationId, conversations]
   );
+  const actionRunUiRevision = useMemo(() => (
+    Object.values(actionRuns)
+      .map((run) => {
+        const order = actionRunClientOrder(run);
+        return [
+          run?.run_id,
+          order.revision,
+          order.eventCursor,
+          order.updatedAtMs,
+          normalizeActionRunState(run?.state),
+          run?.current_step,
+          run?.total_steps,
+          run?.summary,
+          run?.monitor_status,
+        ].join(':');
+      })
+      .sort()
+      .join('|')
+  ), [actionRuns]);
+
+  useEffect(() => {
+    actionRunsSnapshotRef.current = actionRuns;
+    Object.entries(actionRuns).forEach(([runId, run]) => {
+      const state = normalizeActionRunState(run?.state);
+      const terminal = run?.terminal === true || TERMINAL_ACTION_RUN_STATES.has(state);
+      if (!terminal) {
+        if (!terminalActionRunIdsRef.current.has(runId)) {
+          knownNonterminalActionRunIdsRef.current.add(runId);
+        }
+        return;
+      }
+      terminalActionRunIdsRef.current.add(runId);
+      knownNonterminalActionRunIdsRef.current.delete(runId);
+      actionRunReconnectAttemptsRef.current.delete(runId);
+      const reconnectTimer = actionRunReconnectTimersRef.current.get(runId);
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+        actionRunReconnectTimersRef.current.delete(runId);
+      }
+      const controller = actionRunStreamsRef.current.get(runId);
+      if (controller) {
+        controller.abort();
+        actionRunStreamsRef.current.delete(runId);
+      }
+    });
+  }, [actionRuns]);
 
   useEffect(() => {
     if (!activeConversationId && conversations[0]?.id) {
@@ -2207,8 +3231,26 @@ export default function SimurghOperatorPage() {
     if (!transcript) {
       return;
     }
-    transcript.scrollTop = transcript.scrollHeight;
-  }, [activeConversation?.updatedAt, submitting]);
+    if (transcriptAutoScrollRef.current) {
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+  }, [actionRunUiRevision, activeConversation?.updatedAt, submitting]);
+
+  useEffect(() => {
+    if (!actionRunFocusId) {
+      return undefined;
+    }
+    const focusTimer = window.setTimeout(() => {
+      const card = Array.from(
+        transcriptRef.current?.querySelectorAll('[data-action-run-id]') || []
+      ).find((element) => element.dataset.actionRunId === actionRunFocusId);
+      if (card) {
+        card.focus();
+        setActionRunFocusId('');
+      }
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [actionRunFocusId, actionRunUiRevision, activeConversation?.updatedAt]);
 
   const loadCandidateReview = useCallback(async () => {
     try {
@@ -2230,20 +3272,26 @@ export default function SimurghOperatorPage() {
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
+    setStatusEvidenceState((current) => (current === 'loading' ? 'loading' : 'refreshing'));
     setPageError('');
     try {
       const runtimeResponse = await getSimurghRuntimeSettingsResponse();
       const runtimeStatus = runtimeResponse?.data || null;
       setStatus(runtimeStatus);
       setSettings(normalizeSettings(runtimeStatus));
+      setStatusEvidenceState(runtimeStatus ? 'fresh' : 'unavailable');
     } catch (runtimeError) {
       try {
         const statusResponse = await getSimurghStatusResponse();
         const legacyStatus = statusResponse?.data || null;
         setStatus(legacyStatus);
         setSettings(normalizeSettings(legacyStatus));
+        setStatusEvidenceState(legacyStatus ? 'degraded' : 'unavailable');
         setPageError(normalizeError(runtimeError, 'Runtime settings are unavailable; showing status only.'));
       } catch (statusError) {
+        setStatus(null);
+        setSettings(DEFAULT_SETTINGS);
+        setStatusEvidenceState('unavailable');
         setPageError(normalizeError(statusError, 'Could not load Simurgh status.'));
       }
     } finally {
@@ -2273,20 +3321,34 @@ export default function SimurghOperatorPage() {
     }));
   }, [updateConversation]);
 
-  const upsertActionRun = useCallback((candidate) => {
+  const upsertActionRun = useCallback((candidate, order = {}) => {
     const runId = String(candidate?.run_id || '').trim();
     if (!runId) {
       return null;
     }
-    setActionRuns((current) => ({
-      ...current,
-      [runId]: {
-        ...(current[runId] || {}),
-        ...candidate,
-        plan: candidate?.plan || current[runId]?.plan || {},
-      },
-    }));
+    const observedCandidate = {
+      ...candidate,
+      monitor_checked_at_ms: Date.now(),
+    };
+    const cursor = finiteActionRunNumber(order.cursor, candidate?.event_cursor, candidate?.last_event_id);
+    if (cursor !== null) {
+      actionRunCursorsRef.current.set(
+        runId,
+        Math.max(Number(actionRunCursorsRef.current.get(runId) || 0), cursor),
+      );
+    }
+    dispatchActionRunUpdate({
+      type: 'snapshot',
+      runId,
+      run: observedCandidate,
+      cursor,
+      revision: order.revision,
+    });
     return runId;
+  }, []);
+
+  const markActionRunReconnecting = useCallback((runId) => {
+    dispatchActionRunUpdate({ type: 'reconnecting', runId });
   }, []);
 
   const appendActionRunEvent = useCallback((runId, event) => {
@@ -2310,76 +3372,128 @@ export default function SimurghOperatorPage() {
   }, []);
 
   const applyActionRunStreamEvent = useCallback((runId, streamEvent, data) => {
+    actionRunReconnectAttemptsRef.current.set(runId, 0);
     if (streamEvent === 'run_snapshot') {
-      upsertActionRun(data?.run);
+      upsertActionRun(data?.run, {
+        cursor: finiteActionRunNumber(
+          data?.event_cursor,
+          data?.last_event_id,
+          actionRunCursorsRef.current.get(runId),
+        ),
+        revision: finiteActionRunNumber(data?.revision, data?.run?.revision),
+      });
       return;
     }
     if (!data || typeof data !== 'object') {
       return;
     }
     appendActionRunEvent(runId, data);
-    const payload = data.payload && typeof data.payload === 'object' ? data.payload : {};
-    const state = ACTION_RUN_STATES.has(String(payload.state || '')) ? String(payload.state) : '';
-    const stepIndex = Number(payload.step_index);
-    setActionRuns((current) => {
-      const existing = current[runId];
-      if (!existing) {
-        return current;
-      }
-      const effectiveState = (
-        state
-        && !TERMINAL_ACTION_RUN_STATES.has(state)
-        && ['pause_requested', 'cancel_requested'].includes(String(existing.control_state || ''))
-      ) ? String(existing.control_state) : state;
-      return {
-        ...current,
-        [runId]: {
-          ...existing,
-          ...(effectiveState ? { state: effectiveState, terminal: TERMINAL_ACTION_RUN_STATES.has(effectiveState) } : {}),
-          ...(Number.isInteger(stepIndex) && stepIndex > 0 ? { current_step: stepIndex } : {}),
-          ...(Number(payload.step_count) > 0 ? { total_steps: Number(payload.step_count) } : {}),
-          ...(payload.summary || payload.label ? { summary: String(payload.summary || payload.label) } : {}),
-        },
-      };
+    dispatchActionRunUpdate({
+      type: 'event',
+      runId,
+      streamEvent,
+      event: data,
+      cursor: finiteActionRunNumber(data.id),
+      revision: finiteActionRunNumber(data.revision, data?.payload?.revision),
     });
   }, [appendActionRunEvent, upsertActionRun]);
+
+  const scheduleActionRunReconnect = useCallback((runId) => {
+    const stableRunId = String(runId || '').trim();
+    if (
+      !stableRunId
+      || !actionRunTrackingEnabledRef.current
+      || terminalActionRunIdsRef.current.has(stableRunId)
+      || actionRunStreamsRef.current.has(stableRunId)
+      || actionRunReconnectTimersRef.current.has(stableRunId)
+    ) {
+      return;
+    }
+    const attempts = Number(actionRunReconnectAttemptsRef.current.get(stableRunId) || 0) + 1;
+    actionRunReconnectAttemptsRef.current.set(stableRunId, attempts);
+    const delay = Math.min(
+      ACTION_RUN_RECONNECT_MAX_MS,
+      ACTION_RUN_RECONNECT_BASE_MS * (2 ** Math.max(0, attempts - 1)),
+    );
+    const timerId = window.setTimeout(() => {
+      actionRunReconnectTimersRef.current.delete(stableRunId);
+      if (!actionRunTrackingEnabledRef.current || terminalActionRunIdsRef.current.has(stableRunId)) {
+        return;
+      }
+      trackActionRunRef.current?.(stableRunId);
+    }, delay);
+    actionRunReconnectTimersRef.current.set(stableRunId, timerId);
+  }, []);
 
   const trackActionRun = useCallback((candidate) => {
     const runId = typeof candidate === 'string'
       ? String(candidate).trim()
       : String(candidate?.run_id || '').trim();
-    const state = typeof candidate === 'object' ? String(candidate?.state || '') : '';
-    if (!runId || TERMINAL_ACTION_RUN_STATES.has(state) || actionRunStreamsRef.current.has(runId)) {
+    const state = typeof candidate === 'object' ? normalizeActionRunState(candidate?.state) : '';
+    const terminal = typeof candidate === 'object' && candidate?.terminal === true;
+    if (!runId || terminal || TERMINAL_ACTION_RUN_STATES.has(state) || terminalActionRunIdsRef.current.has(runId)) {
+      return;
+    }
+    knownNonterminalActionRunIdsRef.current.add(runId);
+    if (actionRunStreamsRef.current.has(runId)) {
       return;
     }
     const controller = new AbortController();
     actionRunStreamsRef.current.set(runId, controller);
     const after = Number(actionRunCursorsRef.current.get(runId) || 0);
+    let reconnectCandidate = null;
     streamSimurghActionRunEventsResponse(runId, { after }, {
       signal: controller.signal,
       onEvent: ({ event, data }) => applyActionRunStreamEvent(runId, event, data),
     })
       .then(async () => {
+        markActionRunReconnecting(runId);
         const response = await getSimurghActionRunResponse(runId);
-        upsertActionRun(response?.data);
+        reconnectCandidate = response?.data || null;
+        const responseState = normalizeActionRunState(response?.data?.state);
+        const responseTerminal = response?.data?.terminal === true || TERMINAL_ACTION_RUN_STATES.has(responseState);
+        upsertActionRun(response?.data ? {
+          ...response.data,
+          monitor_status: responseTerminal ? 'live' : 'reconnecting',
+        } : response?.data);
       })
       .catch(async (error) => {
         if (error?.name === 'AbortError' || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
           return;
         }
+        markActionRunReconnecting(runId);
         try {
           const response = await getSimurghActionRunResponse(runId);
-          upsertActionRun(response?.data);
+          reconnectCandidate = response?.data || null;
+          const responseState = normalizeActionRunState(response?.data?.state);
+          const responseTerminal = response?.data?.terminal === true || TERMINAL_ACTION_RUN_STATES.has(responseState);
+          upsertActionRun(response?.data ? {
+            ...response.data,
+            monitor_status: responseTerminal ? 'live' : 'reconnecting',
+          } : response?.data);
         } catch (refreshError) {
-          // Periodic active-run discovery retries transient stream and snapshot failures.
+          markActionRunReconnecting(runId);
         }
       })
       .finally(() => {
         if (actionRunStreamsRef.current.get(runId) === controller) {
           actionRunStreamsRef.current.delete(runId);
         }
+        const latestRun = reconnectCandidate || actionRunsSnapshotRef.current[runId] || candidate;
+        const latestState = normalizeActionRunState(latestRun?.state);
+        if (
+          latestRun?.terminal !== true
+          && !TERMINAL_ACTION_RUN_STATES.has(latestState)
+          && !terminalActionRunIdsRef.current.has(runId)
+        ) {
+          scheduleActionRunReconnect(runId);
+        }
       });
-  }, [applyActionRunStreamEvent, upsertActionRun]);
+  }, [applyActionRunStreamEvent, markActionRunReconnecting, scheduleActionRunReconnect, upsertActionRun]);
+
+  useEffect(() => {
+    trackActionRunRef.current = trackActionRun;
+  }, [trackActionRun]);
 
   const registerActionRunFromTurn = useCallback((turn) => {
     const run = turn?.trace?.safety?.action_run;
@@ -2389,10 +3503,35 @@ export default function SimurghOperatorPage() {
     }
   }, [trackActionRun, upsertActionRun]);
 
+  const recoverActionRunByDraftId = useCallback(async (draftId) => {
+    const stableDraftId = String(draftId || '').trim();
+    if (!stableDraftId) {
+      return null;
+    }
+    const response = await getSimurghActionRunsResponse({
+      actor: DASHBOARD_ACTOR,
+      activeOnly: false,
+      limit: 50,
+    });
+    const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
+    const run = runs.find((candidate) => String(candidate?.draft_id || '').trim() === stableDraftId) || null;
+    if (run) {
+      upsertActionRun({ ...run, monitor_status: 'live' });
+      if (!run.terminal) {
+        trackActionRun(run);
+      }
+    }
+    return run;
+  }, [trackActionRun, upsertActionRun]);
+
   useEffect(() => {
     let mounted = true;
+    actionRunTrackingEnabledRef.current = true;
     const actionRunStreams = actionRunStreamsRef.current;
-    const refreshActiveRuns = async () => {
+    const actionRunReconnectAttempts = actionRunReconnectAttemptsRef.current;
+    const actionRunReconnectTimers = actionRunReconnectTimersRef.current;
+    const actionRunSnapshotsInFlight = actionRunSnapshotsInFlightRef.current;
+    const discoverActiveRuns = async () => {
       try {
         const response = await getSimurghActionRunsResponse({ actor: DASHBOARD_ACTOR, activeOnly: true, limit: 20 });
         if (!mounted) {
@@ -2400,33 +3539,103 @@ export default function SimurghOperatorPage() {
         }
         const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
         runs.forEach((run) => {
-          upsertActionRun(run);
+          upsertActionRun({ ...run, monitor_status: 'live', discovered_unlinked: true });
           trackActionRun(run);
         });
       } catch (error) {
         // Chat remains available; the next refresh retries action-run discovery.
       }
     };
-    refreshActiveRuns();
-    const intervalId = window.setInterval(refreshActiveRuns, 5000);
+    const discoverRecentRuns = async () => {
+      try {
+        const response = await getSimurghActionRunsResponse({
+          actor: DASHBOARD_ACTOR,
+          activeOnly: false,
+          limit: 20,
+        });
+        if (!mounted) {
+          return;
+        }
+        const runs = Array.isArray(response?.data?.runs) ? response.data.runs : [];
+        const activeRuns = runs.filter((run) => (
+          ACTIVE_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state))
+        ));
+        const terminalRuns = runs
+          .filter((run) => TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state)))
+          .sort((left, right) => actionRunUpdatedAtMs(right) - actionRunUpdatedAtMs(left))
+          .slice(0, MAX_RECENT_UNLINKED_TERMINAL_RUNS);
+        [...activeRuns, ...terminalRuns].forEach((run) => {
+          upsertActionRun({ ...run, monitor_status: 'live', discovered_unlinked: true });
+          if (!run.terminal) {
+            trackActionRun(run);
+          }
+        });
+      } catch (error) {
+        // Recent durable results are supplementary; active-run discovery still retries.
+      }
+    };
+    const reconcileKnownRuns = async () => {
+      const runIds = Array.from(new Set([
+        ...knownNonterminalActionRunIdsRef.current,
+        ...linkedActionRunIdsRef.current,
+        ...Object.values(actionRunsSnapshotRef.current)
+          .filter((run) => !run?.terminal && !TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state)))
+          .map((run) => String(run?.run_id || '').trim())
+          .filter(Boolean),
+      ])).filter((runId) => !terminalActionRunIdsRef.current.has(runId));
+      await Promise.allSettled(runIds.map(async (runId) => {
+        if (actionRunSnapshotsInFlight.has(runId)) {
+          return;
+        }
+        actionRunSnapshotsInFlight.add(runId);
+        try {
+          const response = await getSimurghActionRunResponse(runId);
+          if (!mounted) {
+            return;
+          }
+          const run = response?.data;
+          upsertActionRun(run ? { ...run, monitor_status: 'live' } : run);
+          if (run && !run.terminal) {
+            trackActionRun(run);
+          }
+        } catch (error) {
+          markActionRunReconnecting(runId);
+        } finally {
+          actionRunSnapshotsInFlight.delete(runId);
+        }
+      }));
+    };
+    discoverActiveRuns();
+    discoverRecentRuns();
+    reconcileKnownRuns();
+    const discoveryIntervalId = window.setInterval(discoverActiveRuns, ACTION_RUN_DISCOVERY_INTERVAL_MS);
+    const reconcileIntervalId = window.setInterval(reconcileKnownRuns, ACTION_RUN_RECONCILE_INTERVAL_MS);
     return () => {
       mounted = false;
-      window.clearInterval(intervalId);
+      actionRunTrackingEnabledRef.current = false;
+      window.clearInterval(discoveryIntervalId);
+      window.clearInterval(reconcileIntervalId);
       actionRunStreams.forEach((controller) => controller.abort());
       actionRunStreams.clear();
+      actionRunReconnectTimers.forEach((timerId) => window.clearTimeout(timerId));
+      actionRunReconnectTimers.clear();
+      actionRunReconnectAttempts.clear();
+      actionRunSnapshotsInFlight.clear();
     };
-  }, [trackActionRun, upsertActionRun]);
+  }, [markActionRunReconnecting, trackActionRun, upsertActionRun]);
 
   const linkedActionRunIds = useMemo(() => Array.from(new Set(
-    conversations.flatMap((conversation) => (
-      (Array.isArray(conversation.messages) ? conversation.messages : [])
-        .map(getMessageActionRunId)
-        .filter(Boolean)
-    ))
-  )), [conversations]);
+    (Array.isArray(activeConversation?.messages) ? activeConversation.messages : [])
+      .map(getMessageActionRunId)
+      .filter(Boolean)
+  )), [activeConversation?.messages]);
 
   useEffect(() => {
+    linkedActionRunIdsRef.current = new Set(linkedActionRunIds);
     linkedActionRunIds.forEach((runId) => {
+      if (!terminalActionRunIdsRef.current.has(runId)) {
+        knownNonterminalActionRunIdsRef.current.add(runId);
+      }
       if (hydratedActionRunsRef.current.has(runId)) {
         return;
       }
@@ -2434,7 +3643,7 @@ export default function SimurghOperatorPage() {
       getSimurghActionRunResponse(runId)
         .then((response) => {
           const run = response?.data;
-          upsertActionRun(run);
+          upsertActionRun(run ? { ...run, monitor_status: 'live' } : run);
           if (run && !run.terminal) {
             trackActionRun(run);
           }
@@ -2450,7 +3659,9 @@ export default function SimurghOperatorPage() {
     setConversations((current) => [conversation, ...current].slice(0, MAX_CONVERSATIONS));
     setActiveConversationId(conversation.id);
     setDraft('');
+    setAmendmentContext(null);
     setChatError('');
+    setHistoryOpen(false);
   }, []);
 
   const handleClearChats = useCallback(() => {
@@ -2459,7 +3670,9 @@ export default function SimurghOperatorPage() {
     setConversations([conversation]);
     setActiveConversationId(conversation.id);
     setDraft('');
+    setAmendmentContext(null);
     setChatError('');
+    setHistoryOpen(false);
   }, []);
 
   const handleDeleteChat = useCallback((conversationId) => {
@@ -2469,6 +3682,7 @@ export default function SimurghOperatorPage() {
     });
     setActiveConversationId((activeId) => (activeId === conversationId ? '' : activeId));
     setDraft('');
+    setAmendmentContext(null);
     setChatError('');
   }, []);
 
@@ -2476,9 +3690,6 @@ export default function SimurghOperatorPage() {
     setSettings((current) => {
       const next = { ...current, ...patch };
       next.provider = normalizeProvider(next.provider);
-      if (!next.openai_model || next.openai_model === 'mock-local') {
-        next.openai_model = DEFAULT_MODEL;
-      }
       return next;
     });
     setSettingsNotice(null);
@@ -2499,6 +3710,7 @@ export default function SimurghOperatorPage() {
       const nextStatus = response?.data || null;
       setStatus(nextStatus);
       setSettings(normalizeSettings(nextStatus));
+      setStatusEvidenceState(nextStatus ? 'fresh' : 'unavailable');
       setCredentialDraft('');
       setSettingsNotice({
         tone: 'success',
@@ -2520,10 +3732,11 @@ export default function SimurghOperatorPage() {
 
   const handleActionRunControl = useCallback(async (runId, action) => {
     const stableRunId = String(runId || '').trim();
-    if (!stableRunId || actionRunControlBusy) {
+    if (!stableRunId || actionRunControlsInFlightRef.current.has(stableRunId)) {
       return;
     }
-    setActionRunControlBusy(stableRunId);
+    actionRunControlsInFlightRef.current.add(stableRunId);
+    setActionRunControlBusy((current) => ({ ...current, [stableRunId]: action }));
     setChatError('');
     try {
       const response = await controlSimurghActionRunResponse(stableRunId, {
@@ -2540,17 +3753,42 @@ export default function SimurghOperatorPage() {
     } catch (error) {
       setChatError(normalizeError(error, 'Could not update the active action run.'));
     } finally {
-      setActionRunControlBusy('');
+      actionRunControlsInFlightRef.current.delete(stableRunId);
+      setActionRunControlBusy((current) => {
+        const next = { ...current };
+        delete next[stableRunId];
+        return next;
+      });
     }
-  }, [actionRunControlBusy, trackActionRun, upsertActionRun]);
+  }, [trackActionRun, upsertActionRun]);
 
-  const submitMessage = useCallback(async (rawMessage) => {
+  const handleAmendActionDraft = useCallback((actionDraft) => {
+    const draftId = String(actionDraft?.draft_id || '').trim();
+    if (!draftId) {
+      return;
+    }
+    setAmendmentContext({
+      actionDraft,
+      actionDraftId: draftId,
+      conversationId: activeConversation?.id || '',
+    });
+    setDraft('');
+    window.setTimeout(() => composerRef.current?.focus(), 0);
+  }, [activeConversation?.id]);
+
+  const submitMessage = useCallback(async (rawMessage, requestContext = {}) => {
     const message = String(rawMessage || '').trim();
     if (!message || submitting || !activeConversation) {
       return;
     }
 
     const conversationId = activeConversation.id;
+    const actionDraft = requestContext?.actionDraft && typeof requestContext.actionDraft === 'object'
+      ? requestContext.actionDraft
+      : null;
+    const actionIntent = String(requestContext?.actionIntent || '').trim();
+    const includeUserMessage = requestContext?.suppressUserMessage !== true;
+    let actionRunFocusTarget = '';
     const assistantMessageId = `assistant-stream-${Date.now()}`;
     const userMessage = {
       id: `user-${Date.now()}`,
@@ -2567,13 +3805,21 @@ export default function SimurghOperatorPage() {
       progress: [{ stage: 'understanding', state: 'running', label: 'Reading request' }],
     };
     setDraft('');
+    if (actionIntent === 'amend') {
+      setAmendmentContext(null);
+    }
+    transcriptAutoScrollRef.current = true;
     setSubmitting(true);
     setChatError('');
     updateConversation(conversationId, (conversation) => ({
       ...conversation,
       title: conversation.messages.length ? conversation.title : titleFromMessage(message),
       updatedAt: nowIso(),
-      messages: [...conversation.messages, userMessage, assistantPlaceholder],
+      messages: [
+        ...conversation.messages,
+        ...(includeUserMessage ? [userMessage] : []),
+        assistantPlaceholder,
+      ],
     }));
 
     try {
@@ -2582,7 +3828,15 @@ export default function SimurghOperatorPage() {
       const payload = {
         actor: DASHBOARD_ACTOR,
         message,
-        metadata: { source: 'simurgh-dashboard' },
+        metadata: {
+          source: 'simurgh-dashboard',
+          ...(actionIntent && (requestContext?.actionDraftId || actionDraft?.draft_id)
+            ? {
+              action_intent: actionIntent,
+              draft_id: requestContext.actionDraftId || actionDraft.draft_id,
+            }
+            : {}),
+        },
       };
       if (activeConversation.backendSessionId) {
         payload.session_id = activeConversation.backendSessionId;
@@ -2646,12 +3900,40 @@ export default function SimurghOperatorPage() {
         });
         finalData = response?.data || finalData || {};
       } catch (streamError) {
-        const canFallback = /not available|not readable/i.test(streamError?.message || '');
-        if (!canFallback) {
-          throw streamError;
+        if (finalData) {
+          // A complete final event is authoritative even if the transport closes noisily afterward.
+        } else if (actionIntent === 'confirm' && actionDraft?.draft_id) {
+          try {
+            const recoveredRun = await recoverActionRunByDraftId(actionDraft.draft_id);
+            if (recoveredRun) {
+              finalData = {
+                id: assistantMessageId,
+                content: recoveredRun.terminal
+                  ? `Confirmation accepted. The action run is ${actionRunStateLabel(recoveredRun.state).toLowerCase()}.`
+                  : 'Confirmation accepted. Reconnected to the durable action run.',
+                session: { id: recoveredRun.session_id || activeConversation.backendSessionId },
+                trace: {
+                  safety: {
+                    action_execution: 'submitted',
+                    action_run: recoveredRun,
+                  },
+                },
+              };
+            }
+          } catch (recoveryError) {
+            // The retryable confirmation card below keeps the operator out of an ambiguous state.
+          }
+          if (!finalData) {
+            throw streamError;
+          }
+        } else {
+          const canFallback = /not available|not readable/i.test(streamError?.message || '');
+          if (!canFallback) {
+            throw streamError;
+          }
+          const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
+          finalData = response?.data || {};
         }
-        const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
-        finalData = response?.data || {};
       }
 
       updateConversation(conversationId, (conversation) => ({
@@ -2680,51 +3962,140 @@ export default function SimurghOperatorPage() {
         )),
       }));
       registerActionRunFromTurn(finalData);
+      if (actionIntent === 'confirm') {
+        actionRunFocusTarget = String(finalData?.trace?.safety?.action_run?.run_id || '').trim();
+        if (actionRunFocusTarget) {
+          setActionRunFocusId(actionRunFocusTarget);
+        }
+      }
+      setAssistantAnnouncement({
+        id: `${finalData.id || assistantMessageId}-${Date.now()}`,
+        text: actionRunFocusTarget
+          ? 'Action accepted. Live progress is available.'
+          : finalData?.trace?.safety?.action_execution === 'awaiting_confirmation'
+            ? 'Action plan ready for review.'
+            : 'Simurgh response ready.',
+      });
       await loadStatus();
     } catch (error) {
       if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        if (actionIntent === 'confirm' && actionDraft?.draft_id) {
+          try {
+            const recoveredRun = await recoverActionRunByDraftId(actionDraft.draft_id);
+            if (recoveredRun) {
+              actionRunFocusTarget = String(recoveredRun.run_id || '').trim();
+              setActionRunFocusId(actionRunFocusTarget);
+              updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                ...currentMessage,
+                streaming: false,
+                progress: finalizeProgressSteps(currentMessage.progress || [], {
+                  trace: {
+                    safety: {
+                      action_run: recoveredRun,
+                    },
+                  },
+                }),
+                content: recoveredRun.terminal
+                  ? `Confirmation accepted. The action run is ${actionRunStateLabel(recoveredRun.state).toLowerCase()}.`
+                  : 'Confirmation accepted. The action is still running in the live action card.',
+                trace: {
+                  safety: {
+                    action_execution: 'submitted',
+                    action_run: recoveredRun,
+                  },
+                },
+              }));
+              return;
+            }
+          } catch (recoveryError) {
+            // Keep the explicit stopped-response state when no durable run can
+            // be recovered. The action card discovery loop will retry.
+          }
+        }
         updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
           ...currentMessage,
           streaming: false,
           progress: stopProgressSteps(currentMessage.progress || []),
-          content: currentMessage.content || 'Response stopped.',
+          content: currentMessage.content || 'Response stopped. No action result was received.',
         }));
       } else {
         const detail = normalizeError(error);
-        setChatError(detail);
+        const retryableActionDraft = actionDraft && ['confirm', 'reject'].includes(actionIntent);
+        setChatError(retryableActionDraft ? '' : detail);
         updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
           ...currentMessage,
           streaming: false,
-          progress: appendProgressStep(currentMessage.progress || [], { stage: 'error', state: 'error', label: 'Request failed' }),
-          content: detail,
+          progress: appendProgressStep(currentMessage.progress || [], {
+            stage: 'error',
+            state: 'error',
+            label: retryableActionDraft ? 'Confirmation status unknown' : 'Request failed',
+          }),
+          content: retryableActionDraft
+            ? `The connection interrupted before ${actionIntent === 'confirm' ? 'confirmation' : 'rejection'} could be verified. Retry below; the guarded request is idempotent.`
+            : detail,
+          ...(retryableActionDraft ? {
+            trace: {
+              safety: {
+                action_execution: 'awaiting_confirmation',
+                action_draft: actionDraft,
+              },
+            },
+          } : {}),
         }));
       }
     } finally {
       setSubmitting(false);
       abortRef.current = null;
+      if (actionIntent === 'reject' || (actionIntent === 'confirm' && !actionRunFocusTarget)) {
+        window.setTimeout(() => composerRef.current?.focus(), 0);
+      }
     }
-  }, [activeConversation, loadStatus, registerActionRunFromTurn, submitting, updateConversation, updateConversationMessage]);
+  }, [activeConversation, loadStatus, recoverActionRunByDraftId, registerActionRunFromTurn, submitting, updateConversation, updateConversationMessage]);
 
   const handleSubmit = useCallback((event) => {
     event.preventDefault();
-    submitMessage(draft);
-  }, [draft, submitMessage]);
+    const activeAmendment = amendmentContext?.conversationId === activeConversation?.id
+      ? amendmentContext
+      : null;
+    submitMessage(draft, activeAmendment ? {
+      actionDraft: activeAmendment.actionDraft,
+      actionIntent: 'amend',
+      actionDraftId: activeAmendment.actionDraftId,
+    } : {});
+  }, [activeConversation?.id, amendmentContext, draft, submitMessage]);
+
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    window.setTimeout(() => settingsTriggerRef.current?.focus(), 0);
+  }, []);
 
   const stopRequest = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
   const activeMessages = activeConversation?.messages || [];
-  const latestMessageId = activeMessages[activeMessages.length - 1]?.id || '';
+  const currentPendingActionDraftMessageId = getCurrentPendingActionDraftMessageId(activeMessages, actionRuns);
   const activeMessageActionRunIds = new Set(activeMessages.map(getMessageActionRunId).filter(Boolean));
   const unlinkedActiveRuns = Object.values(actionRuns)
-    .filter((run) => ACTIVE_ACTION_RUN_STATES.has(String(run?.state || '')))
+    .filter((run) => ACTIVE_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state)))
     .filter((run) => !activeMessageActionRunIds.has(String(run?.run_id || '')))
     .sort((left, right) => String(left?.created_at || '').localeCompare(String(right?.created_at || '')));
-  const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
-  const subtitle = status
+  const unlinkedTerminalRuns = Object.values(actionRuns)
+    .filter((run) => (
+      run?.discovered_unlinked
+      && TERMINAL_ACTION_RUN_STATES.has(normalizeActionRunState(run?.state))
+    ))
+    .filter((run) => !activeMessageActionRunIds.has(String(run?.run_id || '')))
+    .sort((left, right) => actionRunUpdatedAtMs(right) - actionRunUpdatedAtMs(left))
+    .slice(0, MAX_RECENT_UNLINKED_TERMINAL_RUNS);
+  const unlinkedRuns = [...unlinkedActiveRuns, ...unlinkedTerminalRuns];
+  const statusAvailable = Boolean(status) && ['fresh', 'degraded'].includes(statusEvidenceState);
+  const canSend = draft.trim().length > 0 && !submitting && statusAvailable && Boolean(status?.agent_enabled);
+  const subtitle = statusAvailable
     ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
-    : loading ? 'Loading runtime' : 'Runtime unavailable';
+    : statusEvidenceState === 'refreshing'
+      ? 'Refreshing runtime'
+      : loading ? 'Loading runtime' : 'Runtime unavailable';
 
   return (
     <PageShell
@@ -2733,13 +4104,21 @@ export default function SimurghOperatorPage() {
       title="Operator Chat"
       subtitle={subtitle}
       icon={<SimurghMark className="simurgh-chat__mark--shell" />}
-      status={<SafetyChips status={status} />}
+      status={<SafetyChips status={status} evidenceState={statusEvidenceState} />}
       actions={(
         <ActionIconButton
           icon={<FaCog />}
           label="Open Simurgh settings"
           active={settingsOpen}
-          onClick={() => setSettingsOpen((open) => !open)}
+          disabled={!statusAvailable}
+          onClick={(event) => {
+            settingsTriggerRef.current = event.currentTarget;
+            if (settingsOpen) {
+              closeSettings();
+            } else {
+              setSettingsOpen(true);
+            }
+          }}
         />
       )}
     >
@@ -2750,13 +4129,35 @@ export default function SimurghOperatorPage() {
         <ConversationList
           conversations={conversations}
           activeConversationId={activeConversation?.id || ''}
-          onSelect={setActiveConversationId}
+          compact={compactHistory}
+          open={!compactHistory || historyOpen}
+          onToggle={() => setHistoryOpen((open) => !open)}
+          onSelect={(conversationId) => {
+            setActiveConversationId(conversationId);
+            setHistoryOpen(false);
+          }}
           onNewChat={handleNewChat}
           onClearChats={handleClearChats}
           onDeleteChat={handleDeleteChat}
         />
         <section className="simurgh-chat__main" aria-label="Simurgh assistant">
-          <div className="simurgh-chat__transcript" ref={transcriptRef}>
+          <span
+            key={assistantAnnouncement?.id || 'simurgh-answer-announcement'}
+            className="simurgh-chat__sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            aria-label="Simurgh answer announcements"
+          >
+            {assistantAnnouncement?.text || ''}
+          </span>
+          <div
+            className="simurgh-chat__transcript"
+            ref={transcriptRef}
+            onScroll={(event) => {
+              transcriptAutoScrollRef.current = isTranscriptNearBottom(event.currentTarget);
+            }}
+          >
             {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
             {activeMessages.map((message) => {
               const embeddedRun = getMessageActionRun(message);
@@ -2767,44 +4168,74 @@ export default function SimurghOperatorPage() {
                   message={message}
                   onSubmitPrompt={submitMessage}
                   submitting={submitting}
-                  actionControlsEnabled={message.id === latestMessageId}
+                  actionControlsEnabled={message.id === currentPendingActionDraftMessageId}
                   actionRun={runId ? (actionRuns[runId] || embeddedRun) : null}
                   actionRunEvents={runId ? (actionRunEvents[runId] || []) : []}
                   onActionRunControl={handleActionRunControl}
                   actionRunControlBusy={actionRunControlBusy}
+                  onAmendDraft={handleAmendActionDraft}
                 />
               );
             })}
-            {unlinkedActiveRuns.length ? (
-              <section className="simurgh-chat__active-runs" aria-label="Active Simurgh operations">
-                <span className="simurgh-chat__active-runs-label">Active operations</span>
-                {unlinkedActiveRuns.map((run) => (
-                  <ActionRunCard
-                    key={run.run_id}
-                    run={run}
-                    events={actionRunEvents[run.run_id] || []}
-                    onControl={handleActionRunControl}
-                    controlBusy={actionRunControlBusy}
-                  />
-                ))}
-              </section>
-            ) : null}
           </div>
+          {unlinkedRuns.length ? (
+            <section className="simurgh-chat__active-runs" aria-label="Active operations across chats">
+              <span className="simurgh-chat__active-runs-label">Operations across chats</span>
+              {unlinkedRuns.map((run) => (
+                <ActionRunCard
+                  key={run.run_id}
+                  run={run}
+                  events={actionRunEvents[run.run_id] || []}
+                  onControl={handleActionRunControl}
+                  controlBusy={actionRunControlBusy}
+                  showContext
+                />
+              ))}
+            </section>
+          ) : null}
           {chatError ? <div className="simurgh-chat__error" role="alert">{chatError}</div> : null}
           <form className="simurgh-chat__composer" onSubmit={handleSubmit}>
+            {amendmentContext?.conversationId === activeConversation?.id ? (
+              <div className="simurgh-chat__composer-context" role="status">
+                <FaEdit aria-hidden="true" />
+                <span>Amending proposed action</span>
+                <button
+                  type="button"
+                  aria-label="Cancel action amendment"
+                  onClick={() => {
+                    setAmendmentContext(null);
+                    setDraft('');
+                    composerRef.current?.focus();
+                  }}
+                >
+                  <FaTimes aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
             <textarea
+              ref={composerRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
+                const composing = Boolean(
+                  event.isComposing
+                  || event.nativeEvent?.isComposing
+                  || event.keyCode === 229
+                  || event.nativeEvent?.keyCode === 229
+                );
+                if (event.key === 'Enter' && !event.shiftKey && !composing) {
                   event.preventDefault();
                   handleSubmit(event);
                 }
               }}
               rows={1}
-              placeholder={status?.agent_enabled ? 'Message Simurgh' : 'Simurgh agent is disabled'}
+              placeholder={
+                !statusAvailable
+                  ? 'Simurgh runtime is unavailable'
+                  : status?.agent_enabled ? 'Message Simurgh' : 'Simurgh agent is disabled'
+              }
               aria-label="Message Simurgh"
-              disabled={!status?.agent_enabled}
+              disabled={!statusAvailable || !status?.agent_enabled}
             />
             {submitting ? (
               <ActionIconButton icon={<FaStop />} label="Stop Simurgh response" onClick={stopRequest}>
@@ -2829,7 +4260,7 @@ export default function SimurghOperatorPage() {
           onCredentialDraftChange={setCredentialDraft}
           onChange={handleSettingsChange}
           onSave={saveSettings}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
         />
       </section>
     </PageShell>

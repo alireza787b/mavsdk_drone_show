@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from mds_logging.api_schemas import (
@@ -355,7 +355,11 @@ def create_log_router(
     @router.post("/ulog/summary", response_model=OnboardUlogSummaryResponse)
     async def summarize_uploaded_ulog_file_route(file: UploadFile = File(...)):
         """Return a derived local summary for an uploaded PX4 ULog file."""
-        from mds_logging.ulog_analysis import summarize_ulog_file
+        from mds_logging.ulog_analysis import (
+            UlogSummaryError,
+            summarize_ulog_file_async,
+        )
+        from src.ulog_proxy_policy import drone_ulog_summary_timeout_seconds
 
         filename = str(file.filename or "").strip()
         if filename and not filename.lower().endswith(".ulg"):
@@ -380,15 +384,24 @@ def create_log_router(
                     handle.write(chunk)
             if total_bytes <= 0:
                 raise HTTPException(status_code=400, detail="Uploaded ULog is empty")
-            summary = summarize_ulog_file(
-                temp_path,
-                source_metadata={
-                    "log_id": 0,
-                    "source_kind": "uploaded_file",
-                    "size_bytes": total_bytes,
-                },
-                max_bytes=max_bytes,
-            )
+            try:
+                summary = await summarize_ulog_file_async(
+                    temp_path,
+                    source_metadata={
+                        "log_id": 0,
+                        "source_kind": "uploaded_file",
+                        "size_bytes": total_bytes,
+                    },
+                    max_bytes=max_bytes,
+                    timeout_seconds=drone_ulog_summary_timeout_seconds(),
+                )
+            except TimeoutError as exc:
+                raise HTTPException(status_code=504, detail=str(exc)) from exc
+            except UlogSummaryError as exc:
+                raise HTTPException(
+                    status_code=exc.http_status,
+                    detail={"error": exc.code, "message": str(exc)},
+                ) from exc
             summary.pop("raw_content_included", None)
             return OnboardUlogSummaryResponse(
                 hw_id="uploaded",
@@ -408,7 +421,7 @@ def create_log_router(
         "/drone/{drone_id}/ulog/files/{log_id}/download",
         response_model=OnboardUlogDownloadJobResponse,
     )
-    async def create_drone_ulog_download_job_route(drone_id: int, log_id: int):
+    async def create_drone_ulog_download_job_route(request: Request, drone_id: int, log_id: int):
         """Start a staged onboard ULog download job on a specific drone."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -416,12 +429,38 @@ def create_log_router(
             create_drone_ulog_download_job as create_job,
             resolve_drone_ip,
         )
+        from ulog_job_handles import (
+            create_ulog_job_capability,
+            issue_ulog_job_handle,
+            protect_ulog_job_payload,
+            require_raw_ulog_actor,
+        )
 
+        owner = require_raw_ulog_actor(request)
+        capability = create_ulog_job_capability(
+            drone_id=drone_id,
+            owner_fingerprint=owner,
+        )
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         try:
-            return await create_job(ip, log_id)
+            payload = await create_job(
+                ip,
+                log_id,
+                access_token=capability.access_token,
+            )
+            raw_job = payload.get("job") if isinstance(payload, dict) else None
+            if not isinstance(raw_job, dict):
+                raise HTTPException(status_code=502, detail="Drone returned an invalid ULog job.")
+            handle = issue_ulog_job_handle(
+                drone_id=drone_id,
+                node_job_id=str(raw_job.get("job_id") or ""),
+                owner_fingerprint=owner,
+                expires_at_ms=raw_job.get("expires_at"),
+                capability_nonce=capability.nonce,
+            )
+            return protect_ulog_job_payload(payload, handle=handle)
         except DroneProxyUnavailableError as exc:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
         except DroneProxyResponseError as exc:
@@ -431,7 +470,7 @@ def create_log_router(
         "/drone/{drone_id}/ulog/downloads/{job_id}",
         response_model=OnboardUlogDownloadJobResponse,
     )
-    async def get_drone_ulog_download_job(drone_id: int, job_id: str):
+    async def get_drone_ulog_download_job(request: Request, drone_id: int, job_id: str):
         """Fetch status for a staged onboard ULog download job."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -439,12 +478,28 @@ def create_log_router(
             fetch_drone_ulog_download_job,
             resolve_drone_ip,
         )
+        from ulog_job_handles import (
+            protect_ulog_job_payload,
+            require_raw_ulog_actor,
+            resolve_ulog_job_handle,
+        )
 
+        owner = require_raw_ulog_actor(request)
+        resolved = resolve_ulog_job_handle(
+            job_id,
+            drone_id=drone_id,
+            owner_fingerprint=owner,
+        )
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         try:
-            return await fetch_drone_ulog_download_job(ip, job_id)
+            payload = await fetch_drone_ulog_download_job(
+                ip,
+                resolved.node_job_id,
+                access_token=resolved.access_token,
+            )
+            return protect_ulog_job_payload(payload, handle=job_id)
         except DroneProxyUnavailableError as exc:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
         except DroneProxyResponseError as exc:
@@ -454,7 +509,7 @@ def create_log_router(
         "/drone/{drone_id}/ulog/downloads/{job_id}",
         response_model=OnboardUlogJobDeleteResponse,
     )
-    async def delete_drone_ulog_download_job_route(drone_id: int, job_id: str):
+    async def delete_drone_ulog_download_job_route(request: Request, drone_id: int, job_id: str):
         """Delete a staged onboard ULog download job and staged file."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -462,19 +517,31 @@ def create_log_router(
             delete_drone_ulog_download_job as delete_job,
             resolve_drone_ip,
         )
+        from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
 
+        owner = require_raw_ulog_actor(request)
+        resolved = resolve_ulog_job_handle(
+            job_id,
+            drone_id=drone_id,
+            owner_fingerprint=owner,
+        )
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         try:
-            return await delete_job(ip, job_id)
+            payload = await delete_job(
+                ip,
+                resolved.node_job_id,
+                access_token=resolved.access_token,
+            )
+            return {**payload, "job_id": job_id}
         except DroneProxyUnavailableError as exc:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
         except DroneProxyResponseError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
     @router.get("/drone/{drone_id}/ulog/downloads/{job_id}/content")
-    async def download_drone_ulog_content(drone_id: int, job_id: str):
+    async def download_drone_ulog_content(request: Request, drone_id: int, job_id: str):
         """Proxy staged onboard ULog file bytes from drone to browser."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -482,21 +549,60 @@ def create_log_router(
             open_drone_ulog_download_stream,
             resolve_drone_ip,
         )
+        from src.ulog_transfer_policy import (
+            ulog_download_max_bytes,
+            ulog_download_timeout_seconds,
+        )
+        from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
 
+        owner = require_raw_ulog_actor(request)
+        resolved = resolve_ulog_job_handle(
+            job_id,
+            drone_id=drone_id,
+            owner_fingerprint=owner,
+        )
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
 
         try:
-            client, upstream = await open_drone_ulog_download_stream(ip, job_id)
+            client, upstream = await open_drone_ulog_download_stream(
+                ip,
+                resolved.node_job_id,
+                access_token=resolved.access_token,
+            )
         except DroneProxyUnavailableError as exc:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
         except DroneProxyResponseError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
+        max_bytes = ulog_download_max_bytes()
+        content_length = upstream.headers.get("content-length")
+        if content_length:
+            try:
+                declared_size = int(content_length)
+            except (TypeError, ValueError):
+                declared_size = -1
+            if declared_size < 0 or declared_size > max_bytes:
+                await upstream.aclose()
+                await client.aclose()
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"ULog content exceeds MDS_ULOG_DOWNLOAD_MAX_BYTES ({max_bytes} bytes)",
+                )
+
         async def iter_content():
+            total_bytes = 0
+            deadline = time.monotonic() + ulog_download_timeout_seconds()
             try:
                 async for chunk in upstream.aiter_bytes():
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("ULog browser transfer exceeded its total deadline")
+                    total_bytes += len(chunk)
+                    if total_bytes > max_bytes:
+                        raise RuntimeError(
+                            "ULog browser transfer exceeded MDS_ULOG_DOWNLOAD_MAX_BYTES"
+                        )
                     yield chunk
             finally:
                 await upstream.aclose()
@@ -506,7 +612,6 @@ def create_log_router(
         content_disposition = upstream.headers.get("content-disposition")
         if content_disposition:
             response_headers["Content-Disposition"] = content_disposition
-        content_length = upstream.headers.get("content-length")
         if content_length:
             response_headers["Content-Length"] = content_length
 
@@ -517,8 +622,9 @@ def create_log_router(
         )
 
     @router.post("/drone/{drone_id}/ulog/erase-all", response_model=OnboardUlogEraseAllResponse)
-    async def erase_all_drone_ulogs_route(drone_id: int):
+    async def erase_all_drone_ulogs_route(request: Request, drone_id: int):
         """Erase all onboard PX4 ULogs on a specific drone."""
+        from auth_runtime import require_admin_request
         from log_proxy import (
             DroneProxyResponseError,
             DroneProxyUnavailableError,
@@ -526,6 +632,7 @@ def create_log_router(
             resolve_drone_ip,
         )
 
+        require_admin_request(request)
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")

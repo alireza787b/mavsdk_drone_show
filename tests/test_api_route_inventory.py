@@ -48,6 +48,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/system/health",
         "/api/v1/fleet/telemetry",
         "/api/v1/fleet/heartbeats",
+        "/api/v1/fleet/action-readiness",
         "/api/v1/fleet/candidates",
         "/api/v1/fleet/candidates/{candidate_id}",
         "/api/v1/fleet/git-sync",

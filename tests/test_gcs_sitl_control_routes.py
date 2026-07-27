@@ -128,6 +128,7 @@ class _FakeSitlControlService:
                 )
             ],
             total_instances=1,
+            running_instance_count=1,
             docker=SitlControlDockerState(
                 available=True,
                 socket_path="/var/run/docker.sock",

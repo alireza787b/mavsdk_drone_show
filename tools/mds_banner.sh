@@ -49,7 +49,7 @@ print_mds_banner() {
     echo -e "${cyan}|  |   |  ||  '--'  /.-'    | ${nc}"
     echo -e "${cyan}\`--'   \`--'\`-------' \`-----'  ${nc}"
     echo ""
-    echo -e "${white}MAVSDK Drone Show - ${context}${nc}"
+    echo -e "${white}MDS - Mission-Directed Swarm - ${context}${nc}"
     echo "================================================"
     [[ -n "$version" ]] && echo -e "Version:  ${white}$version${nc}"
     [[ -n "$branch" ]]  && echo -e "Branch:   ${white}$branch${nc}"

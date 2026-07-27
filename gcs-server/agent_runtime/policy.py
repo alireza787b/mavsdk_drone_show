@@ -16,12 +16,18 @@ from .models import (
     ToolDefinition,
     ToolExposure,
     ToolRiskClass,
+    VALID_ACTOR_ROLES,
 )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_POLICY_PATH = REPO_ROOT / "config" / "agent_policy.yaml"
 VALID_RISK_VALUES = frozenset(risk.value for risk in ToolRiskClass)
+ACTOR_ROLE_RANK = {
+    "viewer": 0,
+    "operator": 1,
+    "admin": 2,
+}
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -50,6 +56,17 @@ def _risk_set(value: object, *, field_name: str) -> frozenset[str]:
     if invalid:
         raise AgentRuntimeError(f"{field_name} contains invalid risk class(es): {', '.join(invalid)}")
     return risks
+
+
+def _normalized_actor_role(value: object) -> str | None:
+    """Resolve the caller role without granting implicit privilege."""
+
+    normalized = str(value or "").strip().lower()
+    if normalized == "agent":
+        return "viewer"
+    if normalized in VALID_ACTOR_ROLES:
+        return normalized
+    return None
 
 
 @dataclass(frozen=True)
@@ -213,6 +230,7 @@ class AgentPolicy:
         *,
         channel: str = "agent",
         approved: bool = False,
+        actor_role: str | None = "viewer",
     ) -> PolicyDecision:
         """Evaluate a curated tool request against deny-by-default policy."""
 
@@ -223,6 +241,17 @@ class AgentPolicy:
                 reasons=("unknown tool",),
             )
         reasons: list[str] = []
+        normalized_actor_role = _normalized_actor_role(actor_role)
+        required_role_rank = ACTOR_ROLE_RANK.get(tool.required_role)
+        if required_role_rank is None:
+            reasons.append(f"tool required role {tool.required_role!r} is unsupported")
+        elif normalized_actor_role is None:
+            reasons.append("actor role is missing or unsupported")
+        elif ACTOR_ROLE_RANK[normalized_actor_role] < required_role_rank:
+            reasons.append(
+                f"actor role {normalized_actor_role!r} does not satisfy "
+                f"required role {tool.required_role!r}"
+            )
         if not self.agent_enabled:
             reasons.append("agent runtime disabled")
         if channel == "mcp" and not self.mcp_enabled:

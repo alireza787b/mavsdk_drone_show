@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -22,6 +23,7 @@ from .tool_registry import ToolRegistry, load_default_tool_registry
 
 DEFAULT_INTERNAL_TOOL_TIMEOUT_SECONDS = 20.0
 DEFAULT_TOOL_MAX_RESPONSE_CHARS = 24000
+MAX_INTERNAL_TOOL_TIMEOUT_SECONDS = 600.0
 ADVISORY_ANSWER_TOOL_ID = "mds.operator.question.answer"
 DOCS_SEARCH_TOOL_ID = "mds.docs.search"
 DOCS_CHUNK_READ_TOOL_ID = "mds.docs.chunk.read"
@@ -133,6 +135,22 @@ def _internal_execution_context(
     return InternalToolExecutionContext.from_request(target)
 
 
+def _tool_timeout_seconds(tool: ToolDefinition, fallback: float) -> float:
+    default = (
+        tool.execution_timeout_default_seconds
+        if tool.execution_timeout_default_seconds is not None
+        else fallback
+    )
+    raw = os.getenv(tool.execution_timeout_env) if tool.execution_timeout_env else None
+    try:
+        value = float(raw) if raw is not None else float(default)
+    except (TypeError, ValueError):
+        value = float(default)
+    if value <= 0:
+        value = float(default)
+    return min(value, MAX_INTERNAL_TOOL_TIMEOUT_SECONDS)
+
+
 def is_read_only_route_tool(tool: ToolDefinition) -> bool:
     """Return whether a registry tool is callable by the current read-only adapter."""
 
@@ -180,6 +198,7 @@ def is_guarded_route_tool(tool: ToolDefinition) -> bool:
 def list_policy_allowed_read_only_tools(
     *,
     channel: str,
+    actor_role: str | None = "viewer",
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
 ) -> tuple[ToolDefinition, ...]:
@@ -189,7 +208,11 @@ def list_policy_allowed_read_only_tools(
     active_policy = policy or load_default_policy()
     visible: list[ToolDefinition] = []
     for tool in active_registry.list_tools():
-        decision = active_policy.evaluate_tool(tool, channel=channel)
+        decision = active_policy.evaluate_tool(
+            tool,
+            channel=channel,
+            actor_role=actor_role,
+        )
         if decision.status is PolicyDecisionStatus.ALLOW and is_read_only_callable_tool(tool):
             visible.append(tool)
     return tuple(visible)
@@ -198,6 +221,7 @@ def list_policy_allowed_read_only_tools(
 def list_policy_available_guarded_tools(
     *,
     channel: str,
+    actor_role: str | None = "viewer",
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
 ) -> tuple[ToolDefinition, ...]:
@@ -213,7 +237,11 @@ def list_policy_available_guarded_tools(
     for tool in active_registry.list_tools():
         if not is_guarded_route_tool(tool):
             continue
-        decision = active_policy.evaluate_tool(tool, channel=channel)
+        decision = active_policy.evaluate_tool(
+            tool,
+            channel=channel,
+            actor_role=actor_role,
+        )
         if decision.status in {PolicyDecisionStatus.ALLOW, PolicyDecisionStatus.REQUIRE_APPROVAL}:
             visible.append(tool)
     return tuple(visible)
@@ -222,6 +250,7 @@ def list_policy_available_guarded_tools(
 def summarize_read_only_tool_catalog(
     *,
     channel: str,
+    actor_role: str | None = "viewer",
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
 ) -> ToolCatalogSummary:
@@ -242,6 +271,7 @@ def summarize_read_only_tool_catalog(
         policy=active_policy,
         allowed_tools=list_policy_allowed_read_only_tools(
             channel=channel,
+            actor_role=actor_role,
             registry=active_registry,
             policy=active_policy,
         ),
@@ -256,6 +286,7 @@ async def execute_policy_allowed_read_only_tool(
     name: str,
     arguments: dict[str, Any],
     channel: str,
+    actor_role: str | None = "viewer",
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
     timeout_seconds: float = DEFAULT_INTERNAL_TOOL_TIMEOUT_SECONDS,
@@ -268,7 +299,11 @@ async def execute_policy_allowed_read_only_tool(
     if tool is None:
         return ReadOnlyToolCallResult.error(f"Unknown Simurgh tool: {name}")
     active_policy = policy or load_default_policy()
-    decision = active_policy.evaluate_tool(tool, channel=channel)
+    decision = active_policy.evaluate_tool(
+        tool,
+        channel=channel,
+        actor_role=actor_role,
+    )
     if decision.status is not PolicyDecisionStatus.ALLOW:
         return ReadOnlyToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
     if is_read_only_advisory_tool(tool):
@@ -277,6 +312,7 @@ async def execute_policy_allowed_read_only_tool(
             name=name,
             arguments=arguments,
             channel=channel,
+            actor_role=actor_role,
             registry=active_registry,
             policy=active_policy,
         )
@@ -292,11 +328,12 @@ async def execute_policy_allowed_read_only_tool(
     headers: dict[str, str] = {INTERNAL_TOOL_CALL_HEADER: INTERNAL_TOOL_CALL_VALUE}
 
     execution_context = _internal_execution_context(request)
+    effective_timeout_seconds = _tool_timeout_seconds(tool, timeout_seconds)
     transport = httpx.ASGITransport(app=execution_context.app, client=(INTERNAL_TOOL_CLIENT_HOST, 0))
     async with httpx.AsyncClient(
         transport=transport,
         base_url=execution_context.base_url,
-        timeout=timeout_seconds,
+        timeout=effective_timeout_seconds,
     ) as client:
         response = await client.get(route_path, headers=headers)
 
@@ -306,11 +343,11 @@ async def execute_policy_allowed_read_only_tool(
     except ValueError:
         structured = None
 
-    text = json.dumps(structured, indent=2, sort_keys=True, default=str) if structured is not None else response.text
-    truncated = False
-    if len(text) > max_response_chars:
-        text = text[:max_response_chars] + "\n...[truncated by Simurgh response limit]"
-        truncated = True
+    text, structured_content, truncated = _bounded_tool_response(
+        structured=structured,
+        fallback_text=response.text,
+        max_response_chars=max_response_chars,
+    )
 
     evidence = ReadOnlyEvidenceBundle.from_route_tool_result(
         tool_id=tool.id,
@@ -318,7 +355,7 @@ async def execute_policy_allowed_read_only_tool(
         route_method=tool.route_method,
         route_path=route_path,
         content=text,
-        summary=_route_evidence_summary(structured, text),
+        summary=_route_evidence_summary(structured_content, text),
         status_code=response.status_code,
         truncated=truncated,
         docs=tool.docs,
@@ -329,7 +366,7 @@ async def execute_policy_allowed_read_only_tool(
     return ReadOnlyToolCallResult(
         text=text,
         is_error=response.status_code >= 400,
-        structured_content=structured,
+        structured_content=structured_content,
         status_code=response.status_code,
         truncated=truncated,
         evidence=evidence,
@@ -343,8 +380,10 @@ async def execute_policy_allowed_guarded_route_tool(
     arguments: dict[str, Any],
     channel: str,
     approved: bool,
+    actor_role: str | None = "viewer",
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
+    current_policy_loader: Callable[[], AgentPolicy] | None = None,
     timeout_seconds: float = DEFAULT_INTERNAL_TOOL_TIMEOUT_SECONDS,
     max_response_chars: int = DEFAULT_TOOL_MAX_RESPONSE_CHARS,
 ) -> GuardedToolCallResult:
@@ -355,13 +394,18 @@ async def execute_policy_allowed_guarded_route_tool(
     if tool is None:
         return GuardedToolCallResult.error(f"Unknown Simurgh tool: {name}")
     active_policy = policy or load_default_policy()
-    decision = active_policy.evaluate_tool(tool, channel=channel, approved=approved)
+    decision = active_policy.evaluate_tool(
+        tool,
+        channel=channel,
+        approved=approved,
+        actor_role=actor_role,
+    )
     if decision.status is not PolicyDecisionStatus.ALLOW:
         return GuardedToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
     if not is_guarded_route_tool(tool):
         return GuardedToolCallResult.error("Only approved guarded non-destructive GCS route tools are callable.")
 
-    schema_error = _validate_tool_arguments(arguments, dict(tool.input_schema or {}))
+    schema_error = validate_tool_arguments(arguments, dict(tool.input_schema or {}))
     if schema_error:
         return GuardedToolCallResult.error(schema_error)
 
@@ -381,6 +425,27 @@ async def execute_policy_allowed_guarded_route_tool(
         base_url=execution_context.base_url,
         timeout=timeout_seconds,
     ) as client:
+        try:
+            current_policy = (
+                current_policy_loader()
+                if current_policy_loader is not None
+                else load_default_policy()
+            )
+            current_decision = current_policy.evaluate_tool(
+                tool,
+                channel=channel,
+                approved=approved,
+                actor_role=actor_role,
+            )
+        except Exception:
+            return GuardedToolCallResult.error(
+                "Simurgh policy denied this tool call: current policy could not be loaded"
+            )
+        if current_decision.status is not PolicyDecisionStatus.ALLOW:
+            return GuardedToolCallResult.error(
+                "Simurgh policy denied this tool call: "
+                + "; ".join(current_decision.reasons)
+            )
         response = await client.request(str(tool.route_method), route_path, headers=headers, json=body)
 
     content_type = response.headers.get("content-type", "")
@@ -388,18 +453,39 @@ async def execute_policy_allowed_guarded_route_tool(
         structured = response.json() if "application/json" in content_type else None
     except ValueError:
         structured = None
-    text = json.dumps(structured, indent=2, sort_keys=True, default=str) if structured is not None else response.text
-    truncated = False
-    if len(text) > max_response_chars:
-        text = text[:max_response_chars] + "\n...[truncated by Simurgh response limit]"
-        truncated = True
+    text, structured_content, truncated = _bounded_tool_response(
+        structured=structured,
+        fallback_text=response.text,
+        max_response_chars=max_response_chars,
+    )
     return GuardedToolCallResult(
         text=text,
         is_error=response.status_code >= 400,
-        structured_content=structured,
+        structured_content=structured_content,
         status_code=response.status_code,
         truncated=truncated,
     )
+
+
+def _bounded_tool_response(
+    *,
+    structured: Any | None,
+    fallback_text: str,
+    max_response_chars: int,
+) -> tuple[str, Any | None, bool]:
+    """Bound both MCP text and structured content through one response budget."""
+
+    text = (
+        json.dumps(structured, indent=2, sort_keys=True, default=str)
+        if structured is not None
+        else fallback_text
+    )
+    if len(text) <= max_response_chars:
+        return text, structured, False
+    bounded_text = text[:max_response_chars] + "\n...[truncated by Simurgh response limit]"
+    # Omitting structuredContent is intentional: returning the original object
+    # would bypass the same response limit applied to the text representation.
+    return bounded_text, None, True
 
 
 def _route_evidence_summary(structured: Any | None, text: str) -> str:
@@ -503,7 +589,7 @@ def _route_path_with_arguments(tool: ToolDefinition, arguments: dict[str, Any]) 
             return ReadOnlyToolCallResult.error("This Simurgh tool does not accept arguments yet.")
         return ReadOnlyToolCallResult(text=tool.route_path, is_error=False)
 
-    validation_error = _validate_tool_arguments(arguments, schema)
+    validation_error = validate_tool_arguments(arguments, schema)
     if validation_error:
         return ReadOnlyToolCallResult.error(validation_error)
 
@@ -519,26 +605,44 @@ def _route_path_with_arguments(tool: ToolDefinition, arguments: dict[str, Any]) 
     for key, value in sorted(arguments.items()):
         if key in path_param_names or value is None:
             continue
-        if isinstance(value, bool):
-            encoded_value = "true" if value else "false"
-        else:
-            encoded_value = str(value)
-        query_items.append((key, encoded_value))
+        values = (
+            value
+            if isinstance(value, Sequence)
+            and not isinstance(value, (str, bytes, bytearray))
+            else (value,)
+        )
+        for item in values:
+            encoded_value = (
+                "true"
+                if item is True
+                else "false"
+                if item is False
+                else str(item)
+            )
+            query_items.append((key, encoded_value))
     if query_items:
         route_path = route_path + "?" + urlencode(query_items)
     return ReadOnlyToolCallResult(text=route_path, is_error=False)
 
 
-def _validate_tool_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> str | None:
+def validate_tool_arguments(
+    arguments: dict[str, Any],
+    schema: dict[str, Any],
+    *,
+    allow_missing_required: bool = False,
+) -> str | None:
+    """Validate registry arguments before confirmation and again before execution."""
+
     if not isinstance(arguments, dict):
         return "Tool arguments must be an object."
     properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
     required = tuple(str(item) for item in schema.get("required", []) if str(item))
     additional_allowed = bool(schema.get("additionalProperties", True))
 
-    for name in required:
-        if name not in arguments or arguments[name] is None or arguments[name] == "":
-            return f"Missing required argument: {name}"
+    if not allow_missing_required:
+        for name in required:
+            if name not in arguments or arguments[name] is None or arguments[name] == "":
+                return f"Missing required argument: {name}"
     if not additional_allowed:
         extra = sorted(set(arguments) - set(properties))
         if extra:
@@ -619,6 +723,7 @@ def execute_policy_allowed_advisory_tool(
     name: str,
     arguments: dict[str, Any],
     channel: str,
+    actor_role: str | None = "viewer",
     deps: Any | None = None,
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
@@ -630,20 +735,35 @@ def execute_policy_allowed_advisory_tool(
     if tool is None:
         return ReadOnlyToolCallResult.error(f"Unknown Simurgh tool: {name}")
     active_policy = policy or load_default_policy()
-    decision = active_policy.evaluate_tool(tool, channel=channel)
+    decision = active_policy.evaluate_tool(
+        tool,
+        channel=channel,
+        actor_role=actor_role,
+    )
     if decision.status is not PolicyDecisionStatus.ALLOW:
         return ReadOnlyToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
     if not is_read_only_advisory_tool(tool):
         return ReadOnlyToolCallResult.error("This Simurgh tool is not a local advisory tool.")
-    return _execute_advisory_tool(tool, arguments, deps=deps)
+    return _execute_advisory_tool(
+        tool,
+        arguments,
+        actor_role=actor_role,
+        deps=deps,
+    )
 
 
-def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, deps: Any | None = None) -> ReadOnlyToolCallResult:
+def _execute_advisory_tool(
+    tool: ToolDefinition,
+    arguments: dict[str, Any],
+    *,
+    actor_role: str | None = "viewer",
+    deps: Any | None = None,
+) -> ReadOnlyToolCallResult:
     """Execute a route-less local tool from the same registry used by MCP."""
 
     if tool.id not in LOCAL_TOOL_IDS:
         return ReadOnlyToolCallResult.error(f"Unsupported Simurgh local tool: {tool.id}")
-    schema_error = _validate_tool_arguments(arguments, dict(tool.input_schema or {}))
+    schema_error = validate_tool_arguments(arguments, dict(tool.input_schema or {}))
     if schema_error:
         return ReadOnlyToolCallResult.error(schema_error)
 
@@ -760,13 +880,17 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
             },
         )
 
-    answer = answer_mds_read_only_question(routing_question, deps=deps, conversation_topic=conversation_topic)
+    answer = answer_mds_read_only_question(
+        routing_question,
+        deps=deps,
+        conversation_topic=conversation_topic,
+        actor_role=actor_role,
+    )
     if answer is None:
         return ReadOnlyToolCallResult(
             text=(
-                "I do not have a deterministic MDS read-only answer for that question yet. "
-                "Use MCP resources/list for available docs/context, tools/list for approved read-only GCS tools, "
-                "mds.docs.search for indexed public docs, or ask a narrower fleet, show, swarm, logs, SITL, board setup, or capability question."
+                "I could not identify the MDS information you want yet. "
+                "Do you mean fleet/telemetry, SITL, missions, logs/ULogs, system status, or setup?"
             ),
             is_error=False,
             structured_content={
@@ -780,9 +904,8 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
     if allowed_intents and answer.intent not in allowed_intents:
         return ReadOnlyToolCallResult(
             text=(
-                f"{tool.id} did not match this question. "
-                "Use tools/list to choose the right Simurgh read-only tool, or call "
-                f"{ADVISORY_ANSWER_TOOL_ID} for general operator question routing."
+                "I checked the available MDS context, but this tool is not the right source for that request. "
+                "Tell me whether you want fleet/telemetry, SITL, missions, logs/ULogs, system status, or setup."
             ),
             is_error=False,
             structured_content={

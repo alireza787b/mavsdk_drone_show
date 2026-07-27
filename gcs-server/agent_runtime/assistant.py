@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
 import httpx
@@ -35,6 +35,7 @@ from .mds_read_tools import (
     build_mds_read_only_plan,
     infer_mds_read_topic,
     is_safe_blocked_term_read_only_intent,
+    provider_read_intent_options_schema,
 )
 from .models import AgentRuntimeError, AgentSession, AuditEvent, ContextResource, stable_payload_hash, utc_now
 from .policy import load_default_policy
@@ -79,11 +80,11 @@ MOCK_ASSISTANT_ADAPTER_VERSION = "mock-v1"
 MOCK_ASSISTANT_MODEL = "mock-local"
 OPENAI_ASSISTANT_ADAPTER_VERSION = "openai-responses-v1"
 OPENAI_SEMANTIC_REWRITE_ADAPTER_VERSION = "openai-semantic-rewrite-v1"
-DEFAULT_OPENAI_MODEL = "gpt-5.6"
+DEFAULT_OPENAI_MODEL = "gpt-5.6-sol"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 ALLOWED_OPENAI_BASE_URLS = (DEFAULT_OPENAI_BASE_URL,)
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 30.0
-DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 900
+DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 4000
 DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
 DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE = "medium"
@@ -195,6 +196,65 @@ class SensitiveInputPattern:
         return re.search(self.regex, message, flags=re.IGNORECASE) is not None
 
 
+@dataclass(frozen=True)
+class SensitiveInputReplacement:
+    """One process-local sensitive value represented by an opaque token."""
+
+    placeholder: str
+    value: str = field(repr=False)
+    labels: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SensitiveInputRedaction:
+    """Provider-safe text plus a process-local reversible replacement map."""
+
+    redacted_text: str
+    replacements: tuple[SensitiveInputReplacement, ...] = field(
+        default=(),
+        repr=False,
+    )
+
+    @property
+    def has_redactions(self) -> bool:
+        return bool(self.replacements)
+
+    def restore(self, value: str) -> str:
+        """Restore placeholders in provider output without exposing the map."""
+
+        restored = str(value or "")
+        for replacement in self.replacements:
+            restored = restored.replace(replacement.placeholder, replacement.value)
+        return restored
+
+    def provider_placeholders(self) -> tuple[dict[str, object], ...]:
+        """Describe placeholders to the provider without returning raw values."""
+
+        return tuple(
+            {
+                "placeholder": replacement.placeholder,
+                "labels": list(replacement.labels),
+            }
+            for replacement in self.replacements
+        )
+
+    def restore_payload(self, value: object) -> object:
+        """Restore placeholder-bearing strings in a decoded provider payload."""
+
+        if isinstance(value, str):
+            return self.restore(value)
+        if isinstance(value, list):
+            return [self.restore_payload(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self.restore_payload(item) for item in value)
+        if isinstance(value, Mapping):
+            return {
+                key: self.restore_payload(item)
+                for key, item in value.items()
+            }
+        return value
+
+
 def _sensitive_input_patterns(value: object) -> tuple[SensitiveInputPattern, ...]:
     if value in (None, ""):
         return ()
@@ -206,6 +266,86 @@ def _sensitive_input_patterns(value: object) -> tuple[SensitiveInputPattern, ...
             raise AgentRuntimeError("each sensitive_input_patterns item must be an object")
         patterns.append(SensitiveInputPattern.from_mapping(item))
     return tuple(patterns)
+
+
+def redact_sensitive_input_for_provider(
+    config: "AssistantConfig",
+    message: str,
+    *,
+    token_namespace: str = "S",
+) -> SensitiveInputRedaction:
+    """Tokenize configured sensitive spans before semantic provider routing.
+
+    Tokens have the same character length as the source span so provider
+    source coordinates remain valid. Raw values live only in the returned
+    process-local mapping and are excluded from placeholder metadata/repr.
+    """
+
+    source = str(message or "")
+    if not source:
+        return SensitiveInputRedaction(redacted_text="")
+
+    candidates: list[tuple[int, int, str]] = []
+    for term in config.sensitive_input_terms:
+        term_value = str(term or "").strip()
+        if not term_value:
+            continue
+        pattern = re.compile(
+            rf"(?<!\w){re.escape(term_value)}(?!\w)",
+            flags=re.IGNORECASE,
+        )
+        candidates.extend(
+            (match.start(), match.end(), term_value)
+            for match in pattern.finditer(source)
+        )
+    for configured_pattern in config.sensitive_input_patterns:
+        compiled = re.compile(configured_pattern.regex, flags=re.IGNORECASE)
+        candidates.extend(
+            (match.start(), match.end(), configured_pattern.label)
+            for match in compiled.finditer(source)
+            if match.end() > match.start()
+        )
+    if not candidates:
+        return SensitiveInputRedaction(redacted_text=source)
+
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    merged: list[tuple[int, int, set[str]]] = []
+    for start, end, label in candidates:
+        if merged and start < merged[-1][1]:
+            previous_start, previous_end, previous_labels = merged[-1]
+            merged[-1] = (
+                previous_start,
+                max(previous_end, end),
+                {*previous_labels, label},
+            )
+            continue
+        merged.append((start, end, {label}))
+
+    namespace = re.sub(r"[^A-Za-z0-9]", "", str(token_namespace or "S"))[:4] or "S"
+    chunks: list[str] = []
+    replacements: list[SensitiveInputReplacement] = []
+    cursor = 0
+    for index, (start, end, labels) in enumerate(merged, start=1):
+        raw_value = source[start:end]
+        base = f"<{namespace}{index}>"
+        if len(raw_value) >= len(base):
+            placeholder = base + ("_" * (len(raw_value) - len(base)))
+        else:
+            placeholder = chr(0xE000 + ((index - 1) % 0x1900)) * len(raw_value)
+        chunks.extend((source[cursor:start], placeholder))
+        replacements.append(
+            SensitiveInputReplacement(
+                placeholder=placeholder,
+                value=raw_value,
+                labels=tuple(sorted(labels)),
+            )
+        )
+        cursor = end
+    chunks.append(source[cursor:])
+    return SensitiveInputRedaction(
+        redacted_text="".join(chunks),
+        replacements=tuple(replacements),
+    )
 
 
 def _env_int(name: str, default: int) -> int:
@@ -516,6 +656,7 @@ class AssistantConfig:
     response_template: AssistantResponseTemplate
     provider_instructions: str
     provider_input_template: str
+    semantic_routing_instructions: str
     openai: OpenAIProviderConfig
 
     @classmethod
@@ -563,6 +704,9 @@ class AssistantConfig:
             response_template=AssistantResponseTemplate.from_mapping(response_template_raw),
             provider_instructions=str(payload.get("provider_instructions") or "").strip(),
             provider_input_template=str(payload.get("provider_input_template") or "").strip(),
+            semantic_routing_instructions=str(
+                payload.get("semantic_routing_instructions") or ""
+            ).strip(),
             openai=OpenAIProviderConfig.from_mapping(openai_raw),
         )
         config.validate()
@@ -585,6 +729,8 @@ class AssistantConfig:
             raise AgentRuntimeError("assistant provider_instructions is required")
         if not self.provider_input_template:
             raise AgentRuntimeError("assistant provider_input_template is required")
+        if not self.semantic_routing_instructions:
+            raise AgentRuntimeError("assistant semantic_routing_instructions is required")
         for placeholder in ("{message}", "{context_blocks}"):
             if placeholder not in self.provider_input_template:
                 raise AgentRuntimeError(f"assistant provider_input_template must include {placeholder}")
@@ -608,6 +754,7 @@ class AssistantConfig:
             response_template=self.response_template,
             provider_instructions=self.provider_instructions,
             provider_input_template=self.provider_input_template,
+            semantic_routing_instructions=self.semantic_routing_instructions,
             openai=self.openai,
         )
         updated.validate()
@@ -706,8 +853,18 @@ class ProviderSemanticRewrite:
     language: str
     route_hint: str
     confidence: float
+    response_detail: str = "standard"
+    read_intents: tuple[str, ...] = ()
+    read_options: Mapping[str, Mapping[str, bool]] = field(default_factory=dict)
+    read_target_drone_ids: tuple[str, ...] = ()
     needs_clarification: bool = False
     clarification_question: str = ""
+    clarification_reason: str = "none"
+    action_control_explicit: bool = False
+    action_control_source_start: int | None = None
+    action_control_source_end: int | None = None
+    action_control_source_excerpt: str = ""
+    action_control_grounding_error: str = ""
     notes: tuple[str, ...] = ()
     action_plan: ProviderActionPlan | None = None
     provider: str = OPENAI_ASSISTANT_PROVIDER
@@ -720,6 +877,13 @@ class ProviderSemanticRewrite:
             return False
         if self.confidence < 0.62:
             return False
+        if self.route_hint in {"confirm_pending_action", "reject_pending_action"}:
+            if (
+                self.action_control_grounding_error
+                or not self.action_control_explicit
+                or not self.action_control_source_excerpt
+            ):
+                return False
         return bool(self.normalized_message.strip())
 
     def public_metadata(self) -> dict[str, Any]:
@@ -728,10 +892,21 @@ class ProviderSemanticRewrite:
             "model": self.model,
             "adapter_version": self.adapter_version,
             "language": self.language,
+            "response_detail": self.response_detail,
             "route_hint": self.route_hint,
+            "read_intents": list(self.read_intents),
+            "read_options": {
+                intent: dict(options)
+                for intent, options in self.read_options.items()
+            },
+            "read_target_drone_ids": list(self.read_target_drone_ids),
             "confidence": round(float(self.confidence), 3),
             "needs_clarification": self.needs_clarification,
             "clarification_question_present": bool(self.clarification_question),
+            "clarification_reason": self.clarification_reason,
+            "action_control_explicit": self.action_control_explicit,
+            "action_control_source_grounded": bool(self.action_control_source_excerpt),
+            "action_control_grounding_error": self.action_control_grounding_error,
             "notes": list(self.notes[:8]),
             "action_plan": self.action_plan.public_metadata() if self.action_plan is not None else None,
             "usable_for_routing": self.usable_for_routing,
@@ -1420,7 +1595,11 @@ def rewrite_operator_message_with_provider(
     runtime_mode: str = "",
     previous_action_summary: str = "",
     clarification_context: str = "",
+    grounding_messages: Sequence[str] = (),
+    allowed_target_ids: Sequence[str] = (),
     action_tool_contracts: tuple[Mapping[str, Any], ...] = (),
+    action_precondition_fact_contracts: tuple[Mapping[str, Any], ...] = (),
+    read_intent_contracts: tuple[Mapping[str, Any], ...] = (),
 ) -> ProviderSemanticRewrite | None:
     """Use OpenAI as a semantic routing normalizer for authenticated chat.
 
@@ -1440,12 +1619,70 @@ def rewrite_operator_message_with_provider(
     if not original:
         return None
 
+    operator_redaction = redact_sensitive_input_for_provider(
+        config,
+        original,
+        token_namespace="OP",
+    )
+    safe_grounding_messages: list[str] = []
+    grounding_redactions: list[SensitiveInputRedaction] = []
+    for item in grounding_messages[:4]:
+        value = str(item or "").strip()
+        if not value or value == original:
+            continue
+        value = value[:4000]
+        redaction = redact_sensitive_input_for_provider(
+            config,
+            value,
+            token_namespace=f"G{len(grounding_redactions) + 1}",
+        )
+        if redaction.redacted_text not in safe_grounding_messages:
+            safe_grounding_messages.append(redaction.redacted_text)
+            grounding_redactions.append(redaction)
+    previous_action_redaction = redact_sensitive_input_for_provider(
+        config,
+        str(previous_action_summary or "")[:1200],
+        token_namespace="PA",
+    )
+    clarification_redaction = redact_sensitive_input_for_provider(
+        config,
+        str(clarification_context or "")[:1200],
+        token_namespace="CL",
+    )
+    safe_allowed_target_ids = tuple(
+        dict.fromkeys(
+            str(item or "").strip()
+            for item in allowed_target_ids
+            if str(item or "").strip()
+        )
+    )[:64]
+    placeholder_descriptors: list[dict[str, object]] = []
+    for scope, redaction in (
+        ("operator_message", operator_redaction),
+        ("previous_action_summary", previous_action_redaction),
+        ("clarification_context", clarification_redaction),
+        *(
+            (f"grounding_messages[{index}]", redaction)
+            for index, redaction in enumerate(grounding_redactions)
+        ),
+    ):
+        placeholder_descriptors.extend(
+            {
+                "scope": scope,
+                **descriptor,
+            }
+            for descriptor in redaction.provider_placeholders()
+        )
+
     request_payload = {
-        "operator_message": original[:4000],
+        "operator_message": operator_redaction.redacted_text[:4000],
         "conversation_topic": str(conversation_topic or "")[:80],
         "runtime_mode": str(runtime_mode or "")[:40],
-        "previous_action_summary": str(previous_action_summary or "")[:240],
-        "clarification_context": str(clarification_context or "")[:1200],
+        "previous_action_summary": previous_action_redaction.redacted_text,
+        "clarification_context": clarification_redaction.redacted_text,
+        "grounding_messages": safe_grounding_messages,
+        "sensitive_placeholders": placeholder_descriptors,
+        "allowed_context_target_ids": list(safe_allowed_target_ids),
         "routing_contract": {
             "allowed_task_kinds": [
                 "read_status",
@@ -1454,6 +1691,7 @@ def rewrite_operator_message_with_provider(
                 "draft_flight_action",
                 "confirm_pending_action",
                 "reject_pending_action",
+                "transform_previous_answer",
                 "clarify",
             ],
             "important_domains": [
@@ -1474,19 +1712,28 @@ def rewrite_operator_message_with_provider(
             "action_boundary": "Interpret into a reviewable typed plan only. Never approve or execute it.",
         },
         "action_tool_contracts": [dict(item) for item in action_tool_contracts[:32]],
+        "action_precondition_fact_contracts": [
+            dict(item) for item in action_precondition_fact_contracts[:32]
+        ],
+        "read_intent_contracts": [dict(item) for item in read_intent_contracts[:64]],
     }
+    response_schema = provider_semantic_rewrite_json_schema()
+    response_schema["properties"]["read_options"] = provider_read_intent_options_schema()
+    required = response_schema.get("required")
+    if isinstance(required, list) and "read_options" not in required:
+        required.append("read_options")
     payload = {
         "model": config.openai.model,
-        "instructions": _semantic_rewrite_instructions(),
+        "instructions": config.semantic_routing_instructions,
         "input": json.dumps(request_payload, ensure_ascii=False, sort_keys=True),
-        "max_output_tokens": min(max(config.openai.max_output_tokens, 600), 2500),
+        "max_output_tokens": min(config.openai.max_output_tokens, 8000),
         "reasoning": {"effort": "low"},
         "text": {
             "format": {
                 "type": "json_schema",
                 "name": "simurgh_semantic_intent",
                 "strict": True,
-                "schema": provider_semantic_rewrite_json_schema(),
+                "schema": response_schema,
             },
             "verbosity": "low",
         },
@@ -1506,33 +1753,22 @@ def rewrite_operator_message_with_provider(
     decoded = _extract_semantic_rewrite_json(text)
     if not decoded:
         raise AgentRuntimeError("OpenAI semantic rewrite did not return valid JSON")
-    return _semantic_rewrite_from_payload(decoded, config=config, original_message=original)
-
-
-def _semantic_rewrite_instructions() -> str:
-    return """You are the semantic-understanding layer for Simurgh, an MDS drone GCS assistant.
-
-Return exactly one JSON object and no Markdown.
-
-Your job:
-- infer what the operator means across typos, wrong technical words, mixed language, casual tone, and expert shorthand;
-- classify the task kind and, for an action, return one ordered typed plan using only action_tool_contracts;
-- never answer the user, approve an action, or claim execution.
-
-Rules:
-- If the operator intends Simurgh to make a SITL/simulator/drone instance available for testing, classify that as a draft_sitl_lifecycle_action.
-- If the operator is only asking how to do something, for docs, or for a procedure, do not convert it into an action.
-- For non-action routing, normalized_message may be concise English. For an action, action_plan is authoritative and normalized_message is only a short summary.
-- If clarification_context is present, interpret the new operator message as the answer to that specific prior question and retain the prior request's targets, values, and sequence.
-- Preserve every action, pause, value, unit, target, simultaneous grouping, dependency, and ordering as a distinct ordered action_plan step.
-- A stationary timed hold, dwell, or pause is a delay step. An aircraft HOLD-mode command is a tool step only if an allowed tool contract supports it.
-- Every action_plan step must cite an exact non-empty substring from operator_message using zero-based source_start/source_end and source_excerpt. Never invent a source span.
-- Use arguments_json for the selected tool's arguments. Omit generated fields such as idempotency keys and operator labels. If the operator leaves a contextual target implicit, omit target_drone_ids so local runtime context can resolve it.
-- Use after_command_terminal_success for normal dependent steps. Use after_command_terminal only for an explicit terminal recovery step such as LAND or RTL that the operator wants attempted even after a prior non-success.
-- If the operator asks for status/readiness/telemetry/log/ULog/system state, normalize as read_status.
-- If the operator says confirm/cancel with a draft id, preserve that exact id.
-- If multiple safety-relevant meanings are genuinely possible, set needs_clarification=true and ask one short clarification.
-- Do not include private state, code blocks, or explanations. The API schema defines the exact response shape."""
+    restored_payload: object = operator_redaction.restore_payload(decoded)
+    for redaction in (
+        previous_action_redaction,
+        clarification_redaction,
+        *grounding_redactions,
+    ):
+        restored_payload = redaction.restore_payload(restored_payload)
+    if not isinstance(restored_payload, Mapping):
+        raise AgentRuntimeError("OpenAI semantic rewrite did not return an object")
+    return _semantic_rewrite_from_payload(
+        restored_payload,
+        config=config,
+        original_message=original,
+        grounding_messages=tuple(str(item or "").strip()[:4000] for item in grounding_messages[:4]),
+        allowed_target_ids=safe_allowed_target_ids,
+    )
 
 
 def _extract_semantic_rewrite_json(text: str) -> Mapping[str, Any] | None:
@@ -1560,9 +1796,14 @@ def _semantic_rewrite_from_payload(
     *,
     config: AssistantConfig,
     original_message: str = "",
+    grounding_messages: Sequence[str] = (),
+    allowed_target_ids: Sequence[str] = (),
 ) -> ProviderSemanticRewrite:
     normalized = re.sub(r"\s+", " ", str(payload.get("normalized_message") or "")).strip()
     language = str(payload.get("language") or "").strip()[:40]
+    response_detail = str(payload.get("response_detail") or "standard").strip().lower()
+    if response_detail not in {"brief", "standard", "detailed"}:
+        response_detail = "standard"
     route_hint = str(payload.get("route_hint") or "").strip().lower().replace("-", "_")[:80]
     try:
         confidence = float(payload.get("confidence"))
@@ -1580,23 +1821,158 @@ def _semantic_rewrite_from_payload(
         "draft_flight_action",
         "confirm_pending_action",
         "reject_pending_action",
+        "transform_previous_answer",
         "clarify",
     }:
         route_hint = "clarify" if bool(payload.get("needs_clarification")) else "general_question"
+    raw_read_intents = payload.get("read_intents")
+    read_intents: list[str] = []
+    if isinstance(raw_read_intents, list):
+        for item in raw_read_intents:
+            value = str(item or "").strip()[:120]
+            if value and value not in read_intents:
+                read_intents.append(value)
+    read_capable_routes = {
+        "read_status",
+        "draft_sitl_lifecycle_action",
+        "draft_flight_action",
+    }
+    if route_hint not in read_capable_routes:
+        read_intents = []
+    raw_read_options = payload.get("read_options")
+    read_options: dict[str, dict[str, bool]] = {}
+    if isinstance(raw_read_options, Mapping) and route_hint in read_capable_routes:
+        allowed_option_schema = provider_read_intent_options_schema()
+        allowed_intents = allowed_option_schema.get("properties")
+        if isinstance(allowed_intents, Mapping):
+            for intent, raw_options in raw_read_options.items():
+                if intent not in read_intents or not isinstance(raw_options, Mapping):
+                    continue
+                intent_schema = allowed_intents.get(intent)
+                if not isinstance(intent_schema, Mapping):
+                    continue
+                option_schema = intent_schema
+                for variant in intent_schema.get("anyOf") or ():
+                    if (
+                        isinstance(variant, Mapping)
+                        and variant.get("type") == "object"
+                    ):
+                        option_schema = variant
+                        break
+                allowed_keys = option_schema.get("properties")
+                if not isinstance(allowed_keys, Mapping):
+                    continue
+                read_options[str(intent)] = {
+                    str(key): bool(value)
+                    for key, value in raw_options.items()
+                    if key in allowed_keys and isinstance(value, bool)
+                }
+    raw_read_targets = payload.get("read_target_drone_ids")
+    read_target_drone_ids: list[str] = []
+    if isinstance(raw_read_targets, list):
+        for item in raw_read_targets:
+            value = str(item or "").strip()[:64]
+            if value and value not in read_target_drone_ids:
+                read_target_drone_ids.append(value)
+    if route_hint not in read_capable_routes:
+        read_target_drone_ids = []
+    clarification_reason = str(payload.get("clarification_reason") or "none").strip().lower()
+    if clarification_reason not in {"none", "semantic_ambiguity", "missing_runtime_context"}:
+        clarification_reason = "semantic_ambiguity" if bool(payload.get("needs_clarification")) else "none"
+    needs_clarification = bool(payload.get("needs_clarification"))
+    clarification_question = str(payload.get("clarification_question") or "").strip()[:240]
+    if route_hint == "clarify" or clarification_reason != "none":
+        needs_clarification = True
+    if needs_clarification:
+        if clarification_reason == "none":
+            clarification_reason = "semantic_ambiguity"
+        if not clarification_question:
+            clarification_question = "What should I use for the missing or ambiguous detail?"
+    else:
+        clarification_reason = "none"
+        clarification_question = ""
     try:
         action_plan = parse_provider_action_plan(
             payload.get("action_plan"),
             original_message=original_message,
+            grounding_messages=grounding_messages,
+            allowed_target_ids=allowed_target_ids,
         )
     except ValueError as exc:
         raise AgentRuntimeError(f"OpenAI semantic action intent failed validation: {exc}") from exc
+    action_route_hints = {"draft_sitl_lifecycle_action", "draft_flight_action"}
+    if action_plan is not None and route_hint not in action_route_hints:
+        raise AgentRuntimeError("OpenAI semantic action intent conflicts with the selected non-action route")
+    if route_hint in {
+        "read_status",
+        "general_question",
+        "confirm_pending_action",
+        "reject_pending_action",
+        "transform_previous_answer",
+    }:
+        if action_plan is not None:
+            raise AgentRuntimeError("OpenAI semantic non-action route must not include an action plan")
+    action_control_explicit = bool(payload.get("action_control_explicit"))
+    action_control_source_excerpt = str(
+        payload.get("action_control_source_excerpt") or ""
+    )
+    raw_control_start = payload.get("action_control_source_start")
+    raw_control_end = payload.get("action_control_source_end")
+    action_control_source_start: int | None = None
+    action_control_source_end: int | None = None
+    action_control_grounding_error = ""
+    control_route = route_hint in {"confirm_pending_action", "reject_pending_action"}
+    if control_route:
+        try:
+            action_control_source_start = int(raw_control_start)
+            action_control_source_end = int(raw_control_end)
+        except (TypeError, ValueError):
+            action_control_grounding_error = "missing_source_coordinates"
+        exact_control_span = bool(
+            not action_control_grounding_error
+            and action_control_explicit
+            and action_control_source_excerpt
+            and action_control_source_start >= 0
+            and action_control_source_end > action_control_source_start
+            and action_control_source_end <= len(original_message)
+            and original_message[
+                action_control_source_start:action_control_source_end
+            ]
+            == action_control_source_excerpt
+        )
+        if not exact_control_span:
+            action_control_grounding_error = (
+                action_control_grounding_error or "source_span_mismatch"
+            )
+            action_control_source_start = None
+            action_control_source_end = None
+            action_control_source_excerpt = ""
+    elif (
+        action_control_explicit
+        or action_control_source_excerpt
+        or raw_control_start is not None
+        or raw_control_end is not None
+    ):
+        raise AgentRuntimeError(
+            "OpenAI semantic non-control route must not include action-control evidence"
+        )
     return ProviderSemanticRewrite(
         normalized_message=normalized,
         language=language or "unknown",
         route_hint=route_hint,
         confidence=confidence,
-        needs_clarification=bool(payload.get("needs_clarification")),
-        clarification_question=str(payload.get("clarification_question") or "").strip()[:240],
+        response_detail=response_detail,
+        read_intents=tuple(read_intents[:8]),
+        read_options=read_options,
+        read_target_drone_ids=tuple(read_target_drone_ids[:32]),
+        needs_clarification=needs_clarification,
+        clarification_question=clarification_question,
+        clarification_reason=clarification_reason,
+        action_control_explicit=action_control_explicit,
+        action_control_source_start=action_control_source_start,
+        action_control_source_end=action_control_source_end,
+        action_control_source_excerpt=action_control_source_excerpt,
+        action_control_grounding_error=action_control_grounding_error,
         notes=tuple(notes),
         action_plan=action_plan,
         model=config.openai.model,
@@ -2085,7 +2461,6 @@ def _previous_evidence_followup_kind(message: str) -> str | None:
             "is this wrong",
             "does this mean something is wrong",
             "does it mean something is wrong",
-            "does thsi mean sth is wrong",
             "something wrong",
             "should i worry",
             "should we worry",
@@ -2633,7 +3008,7 @@ def _provider_failure_turn(
         content = "\n\n".join(
             (
                 local_fallback.content,
-                "Provider note: external model/search composition was unavailable for this turn, so Simurgh returned the deterministic read-only evidence instead of a raw transport failure.",
+                "The external provider was unavailable; I returned the verified local MDS result.",
             )
         )
         return AssistantTurnResult(
@@ -2646,15 +3021,15 @@ def _provider_failure_turn(
             context_documents=context_documents,
             blocked_intents=(),
             safety_notes=(
-                "External assistant provider failed after routing; deterministic local read-only evidence was returned.",
-                f"Provider failure class: {safe_error or provider-unavailable}.",
+                "External assistant provider failed after routing; verified local MDS evidence was returned.",
+                f"Provider failure class: {safe_error or 'provider-unavailable'}.",
                 "No direct drone API, raw command, GCS mutation, or mission action was exposed.",
             ),
         )
     content = (
         "I could not reach the external assistant provider/search service for that turn. "
-        "The chat state was kept, and no GCS mutation or drone command was attempted. "
-        "Please retry, or ask for an MDS read-only status/tool answer that can be resolved locally."
+        "The chat state was kept and no action was executed. "
+        "Retry, or tell me whether you want a status check, a guarded action plan, a log/ULog review, or setup guidance."
     )
     return AssistantTurnResult(
         id=f"turn-{uuid.uuid4().hex}",
@@ -2667,7 +3042,7 @@ def _provider_failure_turn(
         blocked_intents=(),
         safety_notes=(
             "External assistant provider failed; Simurgh returned a bounded fallback instead of exposing raw transport errors.",
-            f"Provider failure class: {safe_error or provider-unavailable}.",
+            f"Provider failure class: {safe_error or 'provider-unavailable'}.",
             "No direct drone API, raw command, GCS mutation, or mission action was exposed.",
         ),
     )
@@ -2690,17 +3065,20 @@ def _previous_evidence_followup_fallback_turn(
         compact_lines.append(line)
         if len(compact_lines) >= 4:
             break
-    quoted = "\n".join(f"- {line}" for line in compact_lines) or "- Previous read-only answer is available in this chat session."
+    quoted = (
+        "\n".join(f"- {line}" for line in compact_lines)
+        or "- Evidence from the previous check is available in this chat."
+    )
     if followup_kind == "assess_previous_evidence":
-        lead = "Based only on the previous read-only Simurgh answer, I would treat this as something to interpret before acting, not as proof of a new drone action or live-state change."
+        lead = "Based on the evidence already checked in this chat, this needs interpretation before acting; it is not proof of a new action or live-state change."
     elif followup_kind == "next_steps_previous_evidence":
-        lead = "Based only on the previous read-only Simurgh answer, the next step is to verify the relevant GCS page/log/source before changing anything."
+        lead = "Based on the evidence already checked in this chat, the next step is to verify the relevant live GCS source before changing anything."
     elif followup_kind in {"source_previous_evidence", "open_previous_evidence"}:
-        lead = "Based only on the previous read-only Simurgh answer, these are the source clues I can safely carry forward. I cannot invent a new source or claim a fresh check."
+        lead = "These are the source clues from the previous check. I cannot invent a new source or claim that I ran a fresh check."
     elif followup_kind == "field_brief_previous_evidence":
-        lead = "Field brief from the previous read-only Simurgh answer only. Treat this as an operator checklist, not as a new live check or action approval."
+        lead = "Field brief from the evidence already checked. Treat this as an operator checklist, not as a new live check or action approval."
     else:
-        lead = "Based only on the previous read-only Simurgh answer, here is the relevant context I can safely carry forward."
+        lead = "Here is the relevant context from the evidence already checked in this chat."
     content = "\n\n".join(
         (
             lead,
@@ -2755,6 +3133,7 @@ def create_assistant_turn(
     sessions: AgentSessionStore,
     audit: InMemoryAuditSink,
     actor: str,
+    actor_role: str | None = "operator",
     message: str,
     deps: Any | None = None,
     session_id: str | None = None,
@@ -2851,7 +3230,12 @@ def create_assistant_turn(
     provider_composed_from_tool = False
     provider_composition_error = ""
     provider_composed_from_previous_evidence = False
-    transform_kind = _conversation_transform_kind(routing_message)
+    transform_override = str(
+        (metadata or {}).get("_semantic_conversation_transform_kind") or ""
+    ).strip()
+    if transform_override not in {"transform_previous_answer"}:
+        transform_override = ""
+    transform_kind = transform_override or _conversation_transform_kind(routing_message)
     transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
     if force_provider is None and transform_kind and transform_answer and not blocked_matches and not sensitive_matches:
         adapter = _adapter_for_config(config)
@@ -2961,6 +3345,7 @@ def create_assistant_turn(
                 name=ADVISORY_ANSWER_TOOL_ID,
                 arguments=tool_arguments,
                 channel="agent",
+                actor_role=actor_role,
                 deps=deps,
                 policy=policy,
             )
@@ -3052,6 +3437,7 @@ def create_assistant_turn(
                         routing_message,
                         deps=deps,
                         conversation_topic=conversation_topic,
+                        actor_role=actor_role,
                     )
                 turn = _provider_failure_turn(
                     exc=exc,
@@ -3154,6 +3540,7 @@ def create_mock_assistant_turn(
     sessions: AgentSessionStore,
     audit: InMemoryAuditSink,
     actor: str,
+    actor_role: str | None = "operator",
     message: str,
     deps: Any | None = None,
     session_id: str | None = None,
@@ -3167,6 +3554,7 @@ def create_mock_assistant_turn(
         sessions=sessions,
         audit=audit,
         actor=actor,
+        actor_role=actor_role,
         message=message,
         deps=deps,
         session_id=session_id,

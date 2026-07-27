@@ -908,7 +908,7 @@ _cors_origin_regex = os.environ.get(
 
 app = FastAPI(
     title="GCS Server API",
-    description="Ground Control Station server for MAVSDK Drone Show with HTTP REST and WebSocket support",
+    description="MDS Ground Control Station with HTTP REST and WebSocket support",
     version=MDS_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",

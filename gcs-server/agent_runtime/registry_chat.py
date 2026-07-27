@@ -57,15 +57,12 @@ _DIRECT_ACTION_TERMS = (
 _STATE_TERMS = (
     "available",
     "check",
-    "chrek",
-    "chrekcnget",
     "configured",
     "current",
     "do we have",
     "count",
     "is there",
     "list",
-    "lsit",
     "loaded",
     "now",
     "how many",
@@ -131,16 +128,10 @@ _CONCRETE_STATE_TERMS = (
 _SITL_RUNTIME_STATE_TERMS = (
     "instance",
     "instances",
-    "instace",
-    "instaces",
-    "isntance",
-    "isntances",
     "operation",
     "operations",
     "policy",
-    "runing",
     "running",
-    "runnign",
     "status",
     "state",
 )
@@ -189,7 +180,6 @@ _BAD_ARGUMENT_VALUES = {
     "positions",
     "read",
     "ready",
-    "reay",
     "registry",
     "rows",
     "show",
@@ -284,7 +274,7 @@ _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] =
 _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("simurgh status", "assistant status", "agent status"), ("mds.simurgh.status.read",), "Simurgh status"),
     (("quickscout", "quick scout", "sar", "search and rescue", "scout mission"), ("mds.sar.missions.read",), "QuickScout/SAR mission catalog"),
-    (("sitl", "simulator", "simulation instance", "sim instance", "sitl instance", "sitl instace", "sitl isntance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
+    (("sitl", "simulator", "simulation instance", "sim instance", "sitl instance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
     (("node boot", "boot status", "boot init", "initializing", "initialisation", "initialization", "git sync phase"), ("mds.fleet.node_boot_status.read",), "fleet node boot/init status"),
     (("sidecar", "wifi manager", "mavlink dashboard", "board dashboard", "board sidecar"), ("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "fleet sidecar and board connectivity state"),
     (("git sync", "repo sync", "repository sync", "sync posture", "sync status", "out of sync"), ("mds.fleet.git_sync.read", "mds.git.status.read", "mds.fleet.node_boot_status.read"), "fleet git sync posture"),
@@ -403,6 +393,82 @@ class RegistryReadToolResult:
     result: ReadOnlyToolCallResult
 
 
+@dataclass(frozen=True)
+class RegistryReadCoverage:
+    required_tool_ids: tuple[str, ...]
+    provider_added_tool_ids: tuple[str, ...]
+    provider_dropped_tool_ids: tuple[str, ...]
+    effective_tool_ids: tuple[str, ...]
+
+
+def reconcile_registry_read_tool_ids(
+    required_tool_ids: Sequence[str],
+    provider_tool_ids: Sequence[str],
+    *,
+    limit: int = 8,
+) -> RegistryReadCoverage:
+    """Preserve grounded coverage while bounding optional provider additions."""
+
+    required = tuple(
+        dict.fromkeys(str(tool_id or "").strip() for tool_id in required_tool_ids if str(tool_id or "").strip())
+    )
+    provider = tuple(
+        dict.fromkeys(str(tool_id or "").strip() for tool_id in provider_tool_ids if str(tool_id or "").strip())
+    )
+    bounded_limit = max(1, int(limit))
+    if len(required) > bounded_limit:
+        return RegistryReadCoverage(
+            required_tool_ids=required,
+            provider_added_tool_ids=(),
+            provider_dropped_tool_ids=tuple(tool_id for tool_id in provider if tool_id not in required),
+            effective_tool_ids=required,
+        )
+    additions = tuple(tool_id for tool_id in provider if tool_id not in required)
+    available_slots = bounded_limit - len(required)
+    added = additions[:available_slots]
+    return RegistryReadCoverage(
+        required_tool_ids=required,
+        provider_added_tool_ids=added,
+        provider_dropped_tool_ids=additions[available_slots:],
+        effective_tool_ids=(*required, *added),
+    )
+
+
+def build_registry_read_plan_from_tool_ids(
+    tool_ids: Sequence[str],
+    *,
+    allowed_tools: Sequence[ToolDefinition],
+    label: str,
+    domain: str,
+    selection_source: str,
+    limit: int = 4,
+) -> RegistryReadPlan | None:
+    """Build a bounded no-argument plan from already-grounded registry tool IDs."""
+
+    normalized_tool_ids = tuple(
+        dict.fromkeys(str(tool_id or "").strip() for tool_id in tool_ids if str(tool_id or "").strip())
+    )
+    bounded_limit = max(1, int(limit))
+    if not normalized_tool_ids or len(normalized_tool_ids) > bounded_limit:
+        return None
+    allowed_by_id = {tool.id: tool for tool in allowed_tools}
+    calls: list[RegistryReadCall] = []
+    for tool_id in normalized_tool_ids:
+        tool = allowed_by_id.get(tool_id)
+        if not tool or not tool.read_only or tool.destructive:
+            return None
+        schema = tool.input_schema if isinstance(tool.input_schema, Mapping) else {}
+        if schema.get("required"):
+            return None
+        calls.append(RegistryReadCall(tool=tool, arguments={}))
+    return RegistryReadPlan(
+        label=str(label or "grounded current state").strip(),
+        domain=str(domain or "runtime").strip(),
+        tool_calls=tuple(calls),
+        selection_source=str(selection_source or "grounded_tool_ids").strip(),
+    )
+
+
 def plan_registry_read_tool_calls(
     message: str,
     *,
@@ -495,11 +561,13 @@ def plan_registry_read_tool_calls(
         missing_typed_metadata_ids = ()
         missing_typed_metadata_label = ""
         selection_source = "sitl_px4_readiness_rules"
-    advisory_defer_argument_ids = argument_ids if had_argument_rule_ids else ()
+    explicit_typed_record_request = bool(supplied_typed_metadata_ids) or bool(
+        argument_ids and _looks_like_typed_detail_prompt(normalized)
+    )
     if not live_sitl_readiness and not sitl_topic_state_followup and _should_defer_to_advisory(
         local_intent,
         normalized,
-        argument_ids=advisory_defer_argument_ids,
+        explicit_typed_record_request=explicit_typed_record_request,
     ):
         return None
 
@@ -693,18 +761,12 @@ def _looks_like_sitl_topic_runtime_state_followup(text: str, *, conversation_top
             "active",
             "check",
             "check/get",
-            "chrek",
-            "chrekcnget",
             "count",
             "current",
             "first",
             "instance",
             "instances",
-            "instace",
-            "isntance",
-            "isntnace",
             "list",
-            "lsit",
             "only one",
             "running",
             "should be one",
@@ -718,17 +780,26 @@ def _looks_like_sitl_topic_runtime_state_followup(text: str, *, conversation_top
     )
 
 
-def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
+def _should_defer_to_advisory(
+    local_intent: str | None,
+    text: str,
+    *,
+    explicit_typed_record_request: bool,
+) -> bool:
     intent = str(local_intent or "").strip()
     if _looks_like_sitl_px4_readiness_prompt(text):
         return False
     if _compound_state_tool_ids_for_query(text)[0]:
         return False
+    # The local log evidence orchestrator owns broad fleet fan-out, bounded
+    # ULog parsing, command correlation, and unavailable-source accounting.
+    # Explicit typed-record requests still belong to the registry planner so
+    # it can discover a missing identifier or read the requested record.
+    if intent in {"backend_log_summary", "drone_log_summary"}:
+        return not explicit_typed_record_request
     if intent not in _ADVISORY_FIRST_INTENTS:
         return False
-    if intent == "drone_log_summary":
-        return True
-    if argument_ids:
+    if explicit_typed_record_request:
         return False
     if intent == "fleet_summary" and _has_any(
         text,
@@ -745,7 +816,7 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         ),
     ):
         return False
-    if intent in {"backend_log_summary", "drone_log_summary", "fleet_connectivity", "fleet_summary"}:
+    if intent in {"fleet_connectivity", "fleet_summary"}:
         return True
     if intent == "docs_help" and _has_any(text, ("mission", "missions", "available", "current", "status", "running", "state")):
         return False
@@ -795,11 +866,15 @@ def format_registry_read_results(
     if sitl_readiness_summary:
         return sitl_readiness_summary
 
+    sitl_runtime_summary = _format_sitl_runtime_state(results)
+    if sitl_runtime_summary:
+        return sitl_runtime_summary
+
     composer = AnswerComposer()
-    composer.line(f"Read-only registry check for {plan.label}:")
-    composer.line(
-        f"I checked the approved MDS registry/MCP read-only surface for this. Source: `{registry_path}`, executed through the same internal adapter used by MCP `tools/call`."
-    )
+    label = str(plan.label or "MDS status").strip()
+    label = label[:1].upper() + label[1:]
+    composer.line(f"{label}:")
+    composer.line("I checked the current MDS state.")
     if plan.clarification:
         composer.line(plan.clarification)
     composer.blank()
@@ -814,7 +889,100 @@ def format_registry_read_results(
             f"({status}; `{item.tool.id}`{argument_text})"
         )
     composer.blank()
-    composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
+    composer.line("No write, upload, mission, or drone command was executed.")
+    return composer.render()
+
+
+def registry_read_tool_ids_have_operator_summary(tool_ids: Sequence[str]) -> bool:
+    """Return whether registry evidence has a dedicated concise formatter."""
+
+    normalized = {
+        str(tool_id or "").strip()
+        for tool_id in tool_ids
+        if str(tool_id or "").strip()
+    }
+    if "mds.sitl.instances.read" not in normalized:
+        return False
+    return bool(
+        "mds.sitl.policy.read" in normalized
+        or "mds.fleet.telemetry.read" in normalized
+        or "mds.config.fleet.read" in normalized
+    )
+
+
+def _format_sitl_runtime_state(results: Sequence[RegistryReadToolResult]) -> str:
+    by_id = {item.tool.id: item for item in results}
+    if any(
+        tool_id in by_id
+        for tool_id in (
+            "mds.config.fleet.read",
+            "mds.fleet.heartbeats.read",
+            "mds.fleet.telemetry.read",
+        )
+    ):
+        return ""
+    sitl_instances = by_id.get("mds.sitl.instances.read")
+    if sitl_instances is None:
+        return ""
+
+    payload = sitl_instances.result.structured_content
+    instances = _sitl_instance_rows(payload)
+    total = _sitl_instance_total(payload)
+    active = _sitl_active_count(payload)
+    docker = _mapping_value(payload, ("docker",))
+    docker_available = (
+        _mapping_value(docker, ("daemon_reachable", "available", "socket_exists"))
+        if isinstance(docker, Mapping)
+        else None
+    )
+    policy = by_id.get("mds.sitl.policy.read")
+    policy_payload = policy.result.structured_content if policy else None
+    sim_mode = _mapping_value(policy_payload, ("sim_mode", "enabled"))
+    read_only = _mapping_value(policy_payload, ("read_only",))
+    host_result = by_id.get("mds.sitl.host.read")
+    host_payload = host_result.result.structured_content if host_result else None
+    host_name = _mapping_value(host_payload, ("host", "hostname", "name"))
+    host_available = _mapping_value(host_payload, ("available", "reachable"))
+    host_docker = _mapping_value(host_payload, ("docker",))
+    host_docker_reachable = (
+        _mapping_value(host_docker, ("daemon_reachable", "available", "socket_exists"))
+        if isinstance(host_docker, Mapping)
+        else None
+    )
+
+    composer = AnswerComposer()
+    total_text = "unknown" if total is None else str(total)
+    active_text = "unknown" if active is None else str(active)
+    composer.line(
+        f"SITL instances: {total_text} total, {active_text} active; "
+        f"Docker reachable: {_yes_no_unknown(docker_available)}."
+    )
+    if host_result is not None:
+        host_bits = [f"host: {host_name if host_name not in (None, '') else 'unknown'}"]
+        if host_available is not None:
+            host_bits.append(f"available: {_yes_no_unknown(host_available)}")
+        if host_docker_reachable is not None:
+            host_bits.append(f"Docker reachable: {_yes_no_unknown(host_docker_reachable)}")
+        composer.line("SITL " + "; ".join(host_bits) + ".")
+    active_instances = [item for item in instances if _sitl_instance_is_active(item)]
+    if active_instances:
+        composer.line(
+            "Active container(s): "
+            + ", ".join(
+                f"{_sitl_instance_name(item) or 'SITL instance'}={_sitl_instance_state(item)}"
+                for item in active_instances[:8]
+            )
+            + "."
+        )
+    elif total == 0:
+        composer.line("No simulator drone instance is currently running.")
+    if sim_mode is not None or read_only is not None:
+        values = []
+        if sim_mode is not None:
+            values.append(f"sim_mode={sim_mode}")
+        if read_only is not None:
+            values.append(f"read_only={read_only}")
+        composer.line("SITL policy: " + ", ".join(values) + ".")
     return composer.render()
 
 
@@ -1232,6 +1400,9 @@ def _sitl_instance_total(value: Any) -> int | None:
 def _sitl_active_count(value: Any) -> int | None:
     instances: Any = None
     if isinstance(value, Mapping):
+        declared_count = value.get("running_instance_count")
+        if isinstance(declared_count, int) and not isinstance(declared_count, bool):
+            return declared_count
         instances = value.get("instances")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         instances = value
@@ -1335,19 +1506,19 @@ def _looks_like_docs_or_workflow_prompt(text: str) -> bool:
 
 
 def _looks_like_typed_detail_prompt(text: str) -> bool:
-    return _has_any(
+    if _has_any(
         text,
         (
             "detail",
             "details",
             "specific",
-            "single",
-            "one ",
             " by id",
             " for id",
             " with id",
         ),
-    )
+    ):
+        return True
+    return bool(re.search(r"\b(?:one|single)\b", text))
 
 
 def _looks_like_capability_catalog_prompt(text: str) -> bool:
@@ -1403,13 +1574,11 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "check",
             "do it",
             "healthy",
-            "healty",
             "pre-flight",
             "preflight",
             "ready",
             "readiness",
             "report",
-            "reprot",
         ),
     ):
         return False
@@ -1421,10 +1590,6 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "simulation",
             "instance",
             "instances",
-            "instace",
-            "instaces",
-            "isntance",
-            "isntances",
             "container",
             "containers",
             "docker",
@@ -1451,7 +1616,6 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "gps",
             "health",
             "healthy",
-            "healty",
             "heartbeat",
             "mavlink",
             "pre-flight",
@@ -1459,9 +1623,7 @@ def _looks_like_sitl_px4_readiness_prompt(text: str, *, conversation_topic: str 
             "px4 status",
             "ready",
             "readiness",
-            "reprot",
             "telemetry",
-            "telemtery",
             "up now",
             "why not",
         ),
@@ -1506,15 +1668,15 @@ def _metadata_ranked_tool_ids(
             continue
         score = 0
         for term in terms:
-            if term in str(tool.id).casefold():
+            if _metadata_term_matches(term, tool.id):
                 score += 4
-            elif term in str(tool.title).casefold():
+            elif _metadata_term_matches(term, tool.title):
                 score += 3
-            elif term in " ".join(tool.tags).casefold():
+            elif _metadata_term_matches(term, " ".join(tool.tags)):
                 score += 3
-            elif tool.route_path and term in tool.route_path.casefold():
+            elif tool.route_path and _metadata_term_matches(term, tool.route_path):
                 score += 2
-            elif term in searchable:
+            elif _metadata_term_matches(term, searchable):
                 score += 1
         domain_match = _searchable_matches_domain(searchable, domain)
         if not context_prefixes and domain and domain not in {"docs", "general"} and not domain_match and score < 6:
@@ -1567,9 +1729,21 @@ def _tool_search_text(tool: ToolDefinition) -> str:
     return " ".join(str(value or "").casefold() for value in values)
 
 
+def _metadata_term_matches(term: str, value: object) -> bool:
+    """Match metadata on token boundaries so prose cannot select accidental tools."""
+
+    term_tokens = re.findall(r"[a-z0-9]+", str(term or "").casefold())
+    value_tokens = re.findall(r"[a-z0-9]+", str(value or "").casefold())
+    if not term_tokens or len(term_tokens) > len(value_tokens):
+        return False
+    width = len(term_tokens)
+    return any(value_tokens[index : index + width] == term_tokens for index in range(len(value_tokens) - width + 1))
+
+
 def _query_terms(text: str) -> tuple[str, ...]:
     ignored = {
         "about",
+        "and",
         "any",
         "are",
         "can",
@@ -1581,7 +1755,9 @@ def _query_terms(text: str) -> tuple[str, ...]:
         "fleet",
         "from",
         "have",
+        "how",
         "latest",
+        "many",
         "now",
         "read",
         "report",
@@ -1793,6 +1969,8 @@ def _extract_argument_value(
         return _extract_integer_arg(name, text)
     if expected_type == "number":
         return _extract_number_arg(name, text)
+    if expected_type == "array":
+        return _extract_array_arg(name, schema, text)
     if expected_type != "string":
         return None
     if name == "sidecar":
@@ -1942,6 +2120,68 @@ def _extract_number_arg(name: str, text: str) -> float | None:
     return None
 
 
+def _extract_array_arg(name: str, schema: Mapping[str, Any], text: str) -> list[Any] | None:
+    """Extract a schema-typed list from an explicit named argument.
+
+    Natural-language target grounding remains provider/local-context driven. This
+    parser only handles explicit ``name=value`` metadata used by registry tooling
+    and diagnostics, so adding a future array-valued tool does not require a
+    tool-specific alias table.
+    """
+
+    labels = tuple(
+        dict.fromkeys(
+            (
+                name,
+                name.replace("_", " "),
+                name.removesuffix("_ids").replace("_", " ") + " ids",
+            )
+        )
+    )
+    raw_value = ""
+    for label in labels:
+        match = re.search(
+            rf"(?<![a-z0-9_]){re.escape(label)}(?![a-z0-9_])\s*(?:=|:|is)\s*"
+            r"(\[[^\]]*\]|[A-Za-z0-9_.:-]+(?:\s*,\s*[A-Za-z0-9_.:-]+)*)",
+            text,
+        )
+        if match:
+            raw_value = match.group(1).strip()
+            break
+    if not raw_value:
+        return None
+
+    if raw_value.startswith("[") and raw_value.endswith("]"):
+        raw_value = raw_value[1:-1]
+    raw_items = [
+        item.strip().strip("'\"")
+        for item in raw_value.split(",")
+        if item.strip().strip("'\"")
+    ]
+    item_schema = schema.get("items") if isinstance(schema.get("items"), Mapping) else {}
+    item_type = str(item_schema.get("type") or "string")
+    values: list[Any] = []
+    for raw_item in raw_items:
+        if item_type == "string":
+            value: Any = raw_item
+        elif item_type == "integer":
+            try:
+                value = int(raw_item)
+            except ValueError:
+                return None
+        elif item_type == "number":
+            try:
+                value = float(raw_item)
+            except ValueError:
+                return None
+        else:
+            return None
+        if not _value_matches_schema(value, item_schema):
+            return None
+        values.append(value)
+    return values or None
+
+
 def _extract_lat_lon(text: str) -> tuple[float, float] | None:
     lat = None
     lon = None
@@ -1998,6 +2238,20 @@ def _value_matches_schema(value: Any, schema: Mapping[str, Any]) -> bool:
         return False
     if expected_type == "number" and (not isinstance(value, (int, float)) or isinstance(value, bool)):
         return False
+    if expected_type == "array":
+        if not isinstance(value, list):
+            return False
+        min_items = schema.get("minItems")
+        max_items = schema.get("maxItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            return False
+        if isinstance(max_items, int) and len(value) > max_items:
+            return False
+        if schema.get("uniqueItems") and len({_canonical_argument_item(item) for item in value}) != len(value):
+            return False
+        item_schema = schema.get("items") if isinstance(schema.get("items"), Mapping) else {}
+        if item_schema and not all(_value_matches_schema(item, item_schema) for item in value):
+            return False
     enum = schema.get("enum")
     if isinstance(enum, list) and enum and value not in enum:
         return False
@@ -2019,6 +2273,10 @@ def _value_matches_schema(value: Any, schema: Mapping[str, Any]) -> bool:
         if isinstance(maximum, (int, float)) and value > maximum:
             return False
     return True
+
+
+def _canonical_argument_item(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _argument_summary(arguments: Mapping[str, Any]) -> str:

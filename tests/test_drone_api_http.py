@@ -7,12 +7,60 @@ Tests for all HTTP REST endpoints in the Drone API Server.
 
 import pytest
 import asyncio
-import json
 import logging
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock
-from fastapi.testclient import TestClient
 from src.enums import Mission
 from mds_logging.api_schemas import OnboardUlogDownloadJob, OnboardUlogDownloadJobResponse
+from src.security.auth import (
+    AuthService,
+    AuthSettings,
+    MACHINE_CREDENTIAL_HEADER,
+    ULOG_OP_DOWNLOAD_CONTENT,
+    ULOG_OP_DOWNLOAD_CREATE,
+    ULOG_OP_DOWNLOAD_DELETE,
+    ULOG_OP_ERASE,
+    ULOG_OP_FILES_READ,
+    ULOG_OP_POLICY_READ,
+)
+from src.ulog_service import UlogJobConflictError
+
+
+@pytest.fixture
+def ulog_machine_headers(api_server, monkeypatch, tmp_path):
+    auth_dir = tmp_path / "machine-auth"
+    token_file = auth_dir / "node-token"
+    monkeypatch.setenv("MDS_API_TOKENS_FILE", str(auth_dir / "api_tokens.json"))
+    monkeypatch.setenv("MDS_AUTH_USERS_FILE", str(auth_dir / "users.json"))
+    monkeypatch.setenv("MDS_AUTH_SESSION_SECRET_FILE", str(auth_dir / "session_secret"))
+    monkeypatch.setenv("MDS_AUTH_CSRF_SECRET_FILE", str(auth_dir / "csrf_secret"))
+    monkeypatch.setenv("MDS_GCS_API_TOKEN_FILE", str(token_file))
+
+    service = AuthService(AuthSettings.from_env())
+    created = service.store.create_token(
+        "drone-1",
+        scopes=["drone"],
+        ttl_seconds=3600,
+    )
+    token_file.parent.mkdir(parents=True, exist_ok=True)
+    token_file.write_text(f"{created['token']}\n", encoding="utf-8")
+
+    def build(
+        operation: str,
+        *,
+        audience: str | None = None,
+        now_epoch: int | None = None,
+        ttl_seconds: int = 15,
+    ) -> dict[str, str]:
+        credential = service.issue_machine_credential(
+            audience=audience or f"mds-drone:{api_server.drone_config.hw_id}",
+            operation=operation,
+            ttl_seconds=ttl_seconds,
+            now_epoch=now_epoch,
+        )
+        return {MACHINE_CREDENTIAL_HEADER: credential}
+
+    return build
 
 
 class TestHealthCheck:
@@ -787,8 +835,11 @@ class TestDroneState:
         assert data["failed_count"] == 0
         assert data["verified_count"] == 1
 
-    def test_get_onboard_ulog_policy(self, test_client):
-        response = test_client.get("/api/v1/ulog/policy")
+    def test_get_onboard_ulog_policy(self, test_client, ulog_machine_headers):
+        response = test_client.get(
+            "/api/v1/ulog/policy",
+            headers=ulog_machine_headers(ULOG_OP_POLICY_READ),
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -798,7 +849,13 @@ class TestDroneState:
         assert "ulog_capability" in data
         assert "mavsdk_server_present" in data["ulog_capability"]
 
-    def test_list_onboard_ulog_files_success(self, test_client, api_server, monkeypatch):
+    def test_list_onboard_ulog_files_success(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        ulog_machine_headers,
+    ):
         async def fake_with_local_system(operation):
             return await operation(object())
 
@@ -818,7 +875,10 @@ class TestDroneState:
             ),
         )
 
-        response = test_client.get("/api/v1/ulog/files")
+        response = test_client.get(
+            "/api/v1/ulog/files",
+            headers=ulog_machine_headers(ULOG_OP_FILES_READ),
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -830,20 +890,30 @@ class TestDroneState:
         test_client,
         api_server,
         monkeypatch,
+        ulog_machine_headers,
     ):
         async def fake_with_local_system(operation):
             raise FileNotFoundError("mavsdk_server binary not found")
 
         monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
 
-        response = test_client.get("/api/v1/ulog/files")
+        response = test_client.get(
+            "/api/v1/ulog/files",
+            headers=ulog_machine_headers(ULOG_OP_FILES_READ),
+        )
 
         assert response.status_code == 424
         detail = response.json()["detail"]
         assert detail["error"] == "mavsdk_server_missing"
         assert detail["ulog_capability"]["mavsdk_server_present"] is False
 
-    def test_create_onboard_ulog_download_job_success(self, test_client, api_server, monkeypatch):
+    def test_create_onboard_ulog_download_job_success(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        ulog_machine_headers,
+    ):
         scheduled = []
 
         async def fake_with_local_system(operation):
@@ -883,19 +953,266 @@ class TestDroneState:
         monkeypatch.setattr(api_server, "_run_ulog_download_job", AsyncMock(return_value=None))
         monkeypatch.setattr(asyncio, "create_task", fake_create_task)
 
-        response = test_client.post("/api/v1/ulog/files/9/download", json={})
+        headers = ulog_machine_headers(ULOG_OP_DOWNLOAD_CREATE)
+        headers["X-MDS-ULog-Job-Token"] = "test-capability"
+        response = test_client.post(
+            "/api/v1/ulog/files/9/download",
+            json={},
+            headers=headers,
+        )
 
         assert response.status_code == 200
         assert response.json()["job"]["job_id"] == "job-1"
         assert scheduled == [True]
+        assert (
+            api_server._ulog_service.create_download_job.await_args.kwargs["access_token"]
+            == "test-capability"
+        )
 
-    def test_erase_all_onboard_ulogs_rejected_while_armed(self, test_client, mock_drone_config):
+    def test_create_onboard_ulog_download_requires_capability(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        response = test_client.post(
+            "/api/v1/ulog/files/9/download",
+            json={},
+            headers=ulog_machine_headers(ULOG_OP_DOWNLOAD_CREATE),
+        )
+
+        assert response.status_code == 401
+
+    def test_download_onboard_ulog_stream_holds_verified_file_lease(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        tmp_path,
+        ulog_machine_headers,
+    ):
+        staged_path = tmp_path / "staged.ulg"
+        staged_path.write_bytes(b"ulog-stream")
+        lifecycle = []
+        job = OnboardUlogDownloadJob(
+            job_id="job-1",
+            hw_id="1",
+            pos_id=1,
+            log_id=9,
+            date_utc="2026-04-11T10:00:00Z",
+            size_bytes=11,
+            status="ready",
+            progress=1.0,
+            staged_filename="1-job.ulg",
+            download_filename="mds-ulog_P1_H1_L9.ulg",
+            created_at=1,
+            updated_at=1,
+            expires_at=2,
+            error=None,
+        )
+
+        @asynccontextmanager
+        async def fake_lease(job_id):
+            assert job_id == "job-1"
+            lifecycle.append("entered")
+            with staged_path.open("rb") as file_handle:
+                try:
+                    yield file_handle, staged_path, job
+                finally:
+                    lifecycle.append("exited")
+
+        monkeypatch.setattr(
+            api_server,
+            "_assert_ulog_job_access",
+            AsyncMock(return_value=None),
+        )
+        monkeypatch.setattr(
+            api_server._ulog_service,
+            "lease_ready_file",
+            fake_lease,
+        )
+
+        headers = ulog_machine_headers(ULOG_OP_DOWNLOAD_CONTENT)
+        headers["X-MDS-ULog-Job-Token"] = "test-capability"
+        response = test_client.get(
+            "/api/v1/ulog/downloads/job-1/content",
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"ulog-stream"
+        assert response.headers["content-length"] == "11"
+        assert "mds-ulog_P1_H1_L9.ulg" in response.headers["content-disposition"]
+        assert lifecycle == ["entered", "exited"]
+
+    def test_delete_onboard_ulog_maps_active_job_conflict(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        ulog_machine_headers,
+    ):
+        monkeypatch.setattr(
+            api_server,
+            "_assert_ulog_job_access",
+            AsyncMock(return_value=None),
+        )
+        monkeypatch.setattr(
+            api_server._ulog_service,
+            "delete_job",
+            AsyncMock(side_effect=UlogJobConflictError("job is active")),
+        )
+
+        headers = ulog_machine_headers(ULOG_OP_DOWNLOAD_DELETE)
+        headers["X-MDS-ULog-Job-Token"] = "test-capability"
+        response = test_client.delete(
+            "/api/v1/ulog/downloads/job-1",
+            headers=headers,
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["error"] == "ulog_job_conflict"
+
+    def test_erase_all_onboard_ulogs_rejected_while_armed(
+        self,
+        test_client,
+        mock_drone_config,
+        ulog_machine_headers,
+    ):
         mock_drone_config.is_armed = True
 
-        response = test_client.post("/api/v1/ulog/erase-all")
+        response = test_client.post(
+            "/api/v1/ulog/erase-all",
+            headers=ulog_machine_headers(ULOG_OP_ERASE),
+        )
 
         assert response.status_code == 409
         assert "armed" in response.json()["detail"]
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [
+            ("GET", "/api/v1/ulog/policy"),
+            ("GET", "/api/v1/ulog/files"),
+            ("GET", "/api/v1/ulog/files/1/summary"),
+            ("POST", "/api/v1/ulog/files/1/download"),
+            ("GET", "/api/v1/ulog/downloads/job-1"),
+            ("DELETE", "/api/v1/ulog/downloads/job-1"),
+            ("GET", "/api/v1/ulog/downloads/job-1/content"),
+            ("POST", "/api/v1/ulog/erase-all"),
+        ],
+    )
+    def test_every_onboard_ulog_endpoint_requires_machine_credential(
+        self,
+        test_client,
+        ulog_machine_headers,
+        method,
+        path,
+    ):
+        assert ulog_machine_headers
+        response = test_client.request(method, path, json={})
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "GCS machine credential is required."
+
+    def test_onboard_ulog_policy_allows_zero_config_trusted_network_demo(
+        self,
+        test_client,
+        monkeypatch,
+    ):
+        monkeypatch.delenv("MDS_GCS_API_TOKEN_FILE", raising=False)
+
+        response = test_client.get("/api/v1/ulog/policy")
+
+        assert response.status_code == 200
+
+    def test_onboard_ulog_fails_closed_when_configured_token_is_unavailable(
+        self,
+        test_client,
+        monkeypatch,
+        tmp_path,
+    ):
+        monkeypatch.setenv(
+            "MDS_GCS_API_TOKEN_FILE",
+            str(tmp_path / "missing-node-token"),
+        )
+
+        response = test_client.get("/api/v1/ulog/policy")
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == (
+            "Node machine authentication is configured but unavailable."
+        )
+
+    def test_onboard_ulog_rejects_expired_machine_credential(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        response = test_client.get(
+            "/api/v1/ulog/policy",
+            headers=ulog_machine_headers(
+                ULOG_OP_POLICY_READ,
+                now_epoch=100,
+                ttl_seconds=1,
+            ),
+        )
+
+        assert response.status_code == 401
+
+    def test_onboard_ulog_rejects_wrong_audience(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        response = test_client.get(
+            "/api/v1/ulog/policy",
+            headers=ulog_machine_headers(
+                ULOG_OP_POLICY_READ,
+                audience="mds-drone:2",
+            ),
+        )
+
+        assert response.status_code == 401
+
+    def test_onboard_ulog_rejects_wrong_operation_scope(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        response = test_client.get(
+            "/api/v1/ulog/files",
+            headers=ulog_machine_headers(ULOG_OP_POLICY_READ),
+        )
+
+        assert response.status_code == 401
+
+    def test_onboard_ulog_rejects_tampered_machine_credential(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        headers = ulog_machine_headers(ULOG_OP_POLICY_READ)
+        credential = headers[MACHINE_CREDENTIAL_HEADER]
+        headers[MACHINE_CREDENTIAL_HEADER] = (
+            credential[:-1] + ("A" if credential[-1] != "A" else "B")
+        )
+
+        response = test_client.get("/api/v1/ulog/policy", headers=headers)
+
+        assert response.status_code == 401
+
+    def test_onboard_ulog_rejects_immediate_machine_credential_replay(
+        self,
+        test_client,
+        ulog_machine_headers,
+    ):
+        headers = ulog_machine_headers(ULOG_OP_POLICY_READ)
+
+        first = test_client.get("/api/v1/ulog/policy", headers=headers)
+        replay = test_client.get("/api/v1/ulog/policy", headers=headers)
+
+        assert first.status_code == 200
+        assert replay.status_code == 401
 
 
 class TestCommands:

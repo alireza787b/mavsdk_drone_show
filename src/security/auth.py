@@ -8,12 +8,14 @@ agent/MCP tooling.
 from __future__ import annotations
 
 import base64
+import calendar
 import hashlib
 import hmac
 import json
 import os
 import secrets
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +51,38 @@ CSRF_COOKIE_NAME = "mds_csrf"
 VALID_ROLES = {"admin", "operator", "viewer"}
 VALID_TOKEN_SCOPES = {"admin", "operator", "viewer", "agent", "drone", "readonly"}
 PBKDF2_ITERATIONS = 600_000
+MACHINE_CREDENTIAL_HEADER = "X-MDS-Machine-Credential"
+MACHINE_CREDENTIAL_TTL_SECONDS = 15
+MACHINE_CREDENTIAL_MAX_TTL_SECONDS = 30
+MACHINE_CREDENTIAL_MAX_SIGNERS = 32
+MACHINE_CREDENTIAL_MAX_BYTES = 16 * 1024
+MACHINE_CREDENTIAL_CLOCK_SKEW_SECONDS = 5
+MACHINE_CREDENTIAL_PREFIX = "mdsm1"
+MACHINE_CREDENTIAL_SIGNING_DOMAIN = b"mds-gcs-to-node-v1"
+MACHINE_CREDENTIAL_REQUIRED_TOKEN_SCOPE = "drone"
+ULOG_OP_POLICY_READ = "ulog.policy.read"
+ULOG_OP_FILES_READ = "ulog.files.read"
+ULOG_OP_SUMMARY_READ = "ulog.summary.read"
+ULOG_OP_DOWNLOAD_CREATE = "ulog.download.create"
+ULOG_OP_DOWNLOAD_STATUS = "ulog.download.status"
+ULOG_OP_DOWNLOAD_DELETE = "ulog.download.delete"
+ULOG_OP_DOWNLOAD_CONTENT = "ulog.download.content"
+ULOG_OP_ERASE = "ulog.erase"
+ULOG_MACHINE_OPERATIONS = frozenset(
+    {
+        ULOG_OP_POLICY_READ,
+        ULOG_OP_FILES_READ,
+        ULOG_OP_SUMMARY_READ,
+        ULOG_OP_DOWNLOAD_CREATE,
+        ULOG_OP_DOWNLOAD_STATUS,
+        ULOG_OP_DOWNLOAD_DELETE,
+        ULOG_OP_DOWNLOAD_CONTENT,
+        ULOG_OP_ERASE,
+    }
+)
+_MACHINE_CREDENTIAL_REPLAY_LIMIT = 4096
+_MACHINE_CREDENTIAL_REPLAY_LOCK = threading.Lock()
+_MACHINE_CREDENTIAL_REPLAY_CACHE: dict[str, int] = {}
 
 
 def utc_now_iso() -> str:
@@ -191,6 +225,164 @@ def verify_api_token(token: str, stored_hash: str) -> bool:
     if not token or not stored_hash:
         return False
     return hmac.compare_digest(hash_api_token(token), stored_hash)
+
+
+class MachineCredentialUnavailable(RuntimeError):
+    """Raised when no existing drone machine token can sign a node request."""
+
+
+def _urlsafe_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _urlsafe_decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+
+
+def _machine_signing_key(token_hash: str) -> bytes:
+    normalized = str(token_hash or "").strip()
+    if not normalized.startswith("sha256:") or len(normalized) != len("sha256:") + 64:
+        raise ValueError("machine token hash is invalid")
+    return hmac.new(
+        normalized.encode("ascii"),
+        MACHINE_CREDENTIAL_SIGNING_DOMAIN,
+        hashlib.sha256,
+    ).digest()
+
+
+def _machine_signing_key_id(signing_key: bytes) -> str:
+    return hashlib.sha256(signing_key).hexdigest()[:16]
+
+
+def _token_record_is_active(record: dict[str, Any], *, now_epoch: int) -> bool:
+    if bool(record.get("revoked")):
+        return False
+    expires_at = record.get("expires_at")
+    if not expires_at:
+        return True
+    try:
+        expires_epoch = calendar.timegm(
+            time.strptime(str(expires_at), "%Y-%m-%dT%H:%M:%SZ")
+        )
+    except (TypeError, ValueError):
+        return False
+    return now_epoch < expires_epoch
+
+
+def _consume_machine_credential_nonce(jti: str, expires_at: int, *, now_epoch: int) -> bool:
+    """Reject immediate replay in one node process while keeping memory bounded."""
+
+    with _MACHINE_CREDENTIAL_REPLAY_LOCK:
+        expired = [
+            nonce
+            for nonce, expiry in _MACHINE_CREDENTIAL_REPLAY_CACHE.items()
+            if expiry <= now_epoch
+        ]
+        for nonce in expired:
+            _MACHINE_CREDENTIAL_REPLAY_CACHE.pop(nonce, None)
+        if jti in _MACHINE_CREDENTIAL_REPLAY_CACHE:
+            return False
+        if len(_MACHINE_CREDENTIAL_REPLAY_CACHE) >= _MACHINE_CREDENTIAL_REPLAY_LIMIT:
+            oldest = min(
+                _MACHINE_CREDENTIAL_REPLAY_CACHE,
+                key=_MACHINE_CREDENTIAL_REPLAY_CACHE.__getitem__,
+            )
+            _MACHINE_CREDENTIAL_REPLAY_CACHE.pop(oldest, None)
+        _MACHINE_CREDENTIAL_REPLAY_CACHE[jti] = int(expires_at)
+        return True
+
+
+def verify_machine_credential(
+    credential: str | None,
+    *,
+    bearer_token: str | None,
+    audience: str,
+    operation: str,
+    now_epoch: int | None = None,
+    consume_nonce: bool = True,
+) -> dict[str, Any] | None:
+    """Verify one short-lived GCS-to-node credential with the node machine token."""
+
+    compact = str(credential or "").strip()
+    if (
+        not compact
+        or len(compact.encode("utf-8")) > MACHINE_CREDENTIAL_MAX_BYTES
+        or not bearer_token
+    ):
+        return None
+    parts = compact.split(".")
+    if len(parts) != 3 or parts[0] != MACHINE_CREDENTIAL_PREFIX:
+        return None
+
+    try:
+        claims_raw = _urlsafe_decode(parts[1])
+        signatures_raw = _urlsafe_decode(parts[2])
+        claims = json.loads(claims_raw.decode("utf-8"))
+        signatures = json.loads(signatures_raw.decode("utf-8"))
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(claims, dict) or not isinstance(signatures, dict):
+        return None
+
+    expected_audience = str(audience or "").strip()
+    expected_operation = str(operation or "").strip()
+    if (
+        claims.get("version") != 1
+        or not expected_audience
+        or expected_operation not in ULOG_MACHINE_OPERATIONS
+        or not hmac.compare_digest(str(claims.get("audience") or ""), expected_audience)
+        or not hmac.compare_digest(str(claims.get("operation") or ""), expected_operation)
+    ):
+        return None
+
+    try:
+        issued_at = int(claims["issued_at"])
+        expires_at = int(claims["expires_at"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    now = int(time.time()) if now_epoch is None else int(now_epoch)
+    if (
+        issued_at > now + MACHINE_CREDENTIAL_CLOCK_SKEW_SECONDS
+        or expires_at <= now
+        or expires_at <= issued_at
+        or expires_at - issued_at > MACHINE_CREDENTIAL_MAX_TTL_SECONDS
+    ):
+        return None
+
+    jti = str(claims.get("jti") or "").strip()
+    if len(jti) < 16 or len(jti) > 128:
+        return None
+
+    try:
+        signing_key = _machine_signing_key(hash_api_token(str(bearer_token)))
+    except ValueError:
+        return None
+    key_id = _machine_signing_key_id(signing_key)
+    supplied_signature = signatures.get(key_id)
+    if not isinstance(supplied_signature, str):
+        return None
+    signing_input = f"{MACHINE_CREDENTIAL_PREFIX}.{parts[1]}".encode("ascii")
+    expected_signature = _urlsafe_encode(
+        hmac.new(signing_key, signing_input, hashlib.sha256).digest()
+    )
+    if not hmac.compare_digest(supplied_signature, expected_signature):
+        return None
+    if consume_nonce and not _consume_machine_credential_nonce(
+        jti,
+        expires_at,
+        now_epoch=now,
+    ):
+        return None
+    return dict(claims)
 
 
 @dataclass(frozen=True)
@@ -471,6 +663,7 @@ class AuthService:
         self.store = AuthStore(self.settings)
         self._session_serializer: URLSafeTimedSerializer | None = None
         self._csrf_serializer: URLSafeTimedSerializer | None = None
+        self._scoped_serializers: dict[str, URLSafeTimedSerializer] = {}
 
     def _get_session_serializer(self) -> URLSafeTimedSerializer:
         if URLSafeTimedSerializer is None:
@@ -491,6 +684,160 @@ class AuthService:
                 salt="mds-csrf-v1",
             )
         return self._csrf_serializer
+
+    def _get_scoped_serializer(self, scope: str) -> URLSafeTimedSerializer:
+        normalized_scope = str(scope or "").strip()
+        if not normalized_scope:
+            raise ValueError("signing scope is required")
+        if URLSafeTimedSerializer is None:
+            raise RuntimeError("Scoped token signing requires the itsdangerous package.")
+        serializer = self._scoped_serializers.get(normalized_scope)
+        if serializer is None:
+            serializer = URLSafeTimedSerializer(
+                _ensure_secret_file(self.settings.session_secret_file),
+                salt=f"mds-{normalized_scope}",
+            )
+            self._scoped_serializers[normalized_scope] = serializer
+        return serializer
+
+    def sign_scoped_payload(self, scope: str, payload: dict[str, Any]) -> str:
+        """Sign a short-lived internal handle without exposing the signing key."""
+
+        return self._get_scoped_serializer(scope).dumps(dict(payload))
+
+    def verify_scoped_payload(
+        self,
+        scope: str,
+        token: str,
+        *,
+        max_age_seconds: int,
+    ) -> dict[str, Any] | None:
+        """Verify one scoped handle and return its object payload."""
+
+        try:
+            payload = self._get_scoped_serializer(scope).loads(
+                token,
+                max_age=max(1, int(max_age_seconds)),
+            )
+        except (BadSignature, SignatureExpired, TypeError, ValueError):
+            return None
+        return dict(payload) if isinstance(payload, dict) else None
+
+    def derive_scoped_secret(self, scope: str, payload: dict[str, Any]) -> str:
+        """Derive a non-reversible capability from the local signing secret."""
+
+        normalized_scope = str(scope or "").strip()
+        if not normalized_scope:
+            raise ValueError("secret scope is required")
+        signing_secret = _ensure_secret_file(self.settings.session_secret_file).encode("utf-8")
+        message = json.dumps(
+            dict(payload),
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+        digest = hmac.new(
+            signing_secret,
+            normalized_scope.encode("utf-8") + b"\0" + message,
+            hashlib.sha256,
+        ).digest()
+        return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+    def issue_machine_credential(
+        self,
+        *,
+        audience: str,
+        operation: str,
+        target_ip: str | None = None,
+        ttl_seconds: int = MACHINE_CREDENTIAL_TTL_SECONDS,
+        now_epoch: int | None = None,
+    ) -> str:
+        """Issue a scoped node credential from existing active drone tokens.
+
+        The GCS stores only hashes of machine bearer tokens. Those high-entropy
+        hashes are domain-separated into signing keys; a node derives the same
+        key from its root-readable MDS_GCS_API_TOKEN_FILE token. A recent
+        last-used IP narrows signing to the target token. Small bootstrap fleets
+        can use a bounded signature set until that association is established.
+        """
+
+        normalized_audience = str(audience or "").strip()
+        normalized_operation = str(operation or "").strip()
+        if not normalized_audience:
+            raise ValueError("machine credential audience is required")
+        if normalized_operation not in ULOG_MACHINE_OPERATIONS:
+            raise ValueError("machine credential operation is not allowed")
+
+        now = int(time.time()) if now_epoch is None else int(now_epoch)
+        ttl = max(1, min(int(ttl_seconds), MACHINE_CREDENTIAL_MAX_TTL_SECONDS))
+        active_records: list[dict[str, Any]] = []
+        for record in self.store.load_tokens().get("tokens", []):
+            if not isinstance(record, dict):
+                continue
+            scopes = {
+                str(scope).strip().lower()
+                for scope in record.get("scopes", [])
+                if str(scope).strip()
+            }
+            if (
+                MACHINE_CREDENTIAL_REQUIRED_TOKEN_SCOPE not in scopes
+                or not _token_record_is_active(record, now_epoch=now)
+            ):
+                continue
+            try:
+                _machine_signing_key(str(record.get("token_hash") or ""))
+            except ValueError:
+                continue
+            active_records.append(record)
+
+        normalized_target_ip = str(target_ip or "").strip()
+        matching_records = [
+            record
+            for record in active_records
+            if normalized_target_ip
+            and hmac.compare_digest(
+                str(record.get("last_used_ip") or "").strip(),
+                normalized_target_ip,
+            )
+        ]
+        signing_records = matching_records or active_records
+        if not signing_records:
+            raise MachineCredentialUnavailable(
+                "No active drone-scoped machine token is available."
+            )
+        if len(signing_records) > MACHINE_CREDENTIAL_MAX_SIGNERS:
+            raise MachineCredentialUnavailable(
+                "The target node has no unique recent machine-token association."
+            )
+
+        claims = {
+            "version": 1,
+            "issuer": "mds-gcs",
+            "audience": normalized_audience,
+            "operation": normalized_operation,
+            "issued_at": now,
+            "expires_at": now + ttl,
+            "jti": secrets.token_urlsafe(24),
+        }
+        claims_segment = _urlsafe_encode(_canonical_json_bytes(claims))
+        signing_input = (
+            f"{MACHINE_CREDENTIAL_PREFIX}.{claims_segment}".encode("ascii")
+        )
+        signatures: dict[str, str] = {}
+        for record in signing_records:
+            signing_key = _machine_signing_key(str(record["token_hash"]))
+            signatures[_machine_signing_key_id(signing_key)] = _urlsafe_encode(
+                hmac.new(signing_key, signing_input, hashlib.sha256).digest()
+            )
+        signature_segment = _urlsafe_encode(_canonical_json_bytes(signatures))
+        credential = (
+            f"{MACHINE_CREDENTIAL_PREFIX}.{claims_segment}.{signature_segment}"
+        )
+        if len(credential.encode("utf-8")) > MACHINE_CREDENTIAL_MAX_BYTES:
+            raise MachineCredentialUnavailable(
+                "Machine credential exceeds the transport header budget."
+            )
+        return credential
 
     def setup_required(self) -> bool:
         return self.settings.dashboard_auth_enabled and not self.store.has_users()

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from agent_runtime import AgentRuntimeError, OpenAIResponsesAssistantAdapter
-from agent_runtime.assistant import _provider_tool_composition_message
+from agent_runtime.assistant import ProviderSemanticRewrite, _provider_tool_composition_message
 from api_routes.simurgh import create_simurgh_router
 
 
@@ -94,9 +94,9 @@ def _client_with_registry_probe_routes(auth_context=None) -> TestClient:
     def fleet_config():
         return [
             {"hw_id": 1, "callsign": "SCOUT", "ip": "172.18.0.2", "mavlink_port": 14563},
-            {"hw_id": 2, "callsign": "NET-LEADER", "ip": "172.18.0.3", "mavlink_port": 14564},
-            {"hw_id": 3, "callsign": "NET-LEFT", "ip": "172.18.0.4", "mavlink_port": 14565},
-            {"hw_id": 4, "callsign": "NET-RIGHT", "ip": "172.18.0.5", "mavlink_port": 14566},
+            {"hw_id": 2, "callsign": "DRONE-2", "ip": "172.18.0.3", "mavlink_port": 14564},
+            {"hw_id": 3, "callsign": "DRONE-3", "ip": "172.18.0.4", "mavlink_port": 14565},
+            {"hw_id": 4, "callsign": "DRONE-4", "ip": "172.18.0.5", "mavlink_port": 14566},
         ]
 
     @app.get("/api/sar/missions")
@@ -459,6 +459,43 @@ def test_simurgh_assistant_turn_rejects_cross_actor_session_reuse(monkeypatch):
     assert "different actor" in response.json()["detail"]
 
 
+def test_cross_actor_session_is_rejected_before_semantic_provider_call(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    provider_called = False
+
+    def fail_if_called(**_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider must not see another actor's session")
+
+    monkeypatch.setattr(
+        "api_routes.simurgh._has_external_assistant_provider_auth",
+        lambda _request: True,
+    )
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_if_called,
+    )
+    client = _client()
+    session = client.post(
+        "/api/v1/simurgh/sessions",
+        json={"actor": "operator-a"},
+    ).json()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator-b",
+            "session_id": session["id"],
+            "message": "remove it",
+        },
+    )
+
+    assert response.status_code == 403
+    assert provider_called is False
+
+
 def test_simurgh_assistant_turn_rejects_oversized_metadata(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()
@@ -604,6 +641,10 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     def fail_post(self, payload, *, api_key):  # noqa: ANN001
         raise AssertionError("safe ULog inventory must stay local and not call provider")
@@ -637,6 +678,33 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
 
     monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
 
+    def fake_command_tracker_snapshot(self):  # noqa: ARG001
+        return {
+            "available": True,
+            "stats": {
+                "total_commands": 1,
+                "successful_commands": 1,
+                "failed_commands": 0,
+                "partial_commands": 0,
+            },
+            "active": [],
+            "recent": [
+                {
+                    "command_id": "cmd-move",
+                    "mission_name": "PRECISION_MOVE",
+                    "phase": "terminal",
+                    "status": "completed",
+                    "outcome": "success",
+                    "target_drones": [1],
+                    "created_at": None,
+                    "updated_at": None,
+                    "operator_label": "",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_command_tracker_snapshot", fake_command_tracker_snapshot)
+
     deps = SimpleNamespace(
         load_config=lambda: [
             {
@@ -647,21 +715,6 @@ def test_simurgh_assistant_safe_ulog_inventory_uses_local_log_tools(monkeypatch,
                 "mavlink_port": 14550,
             }
         ],
-        get_command_tracker=lambda: SimpleNamespace(
-            _stats={"total_commands": 1, "successful_commands": 1, "failed_commands": 0, "partial_commands": 0},
-            _commands={
-                "move": SimpleNamespace(
-                    command_id="cmd-move",
-                    mission_name="PRECISION_MOVE",
-                    phase="terminal",
-                    status="completed",
-                    outcome="success",
-                    target_drones=[1],
-                    created_at=None,
-                    updated_at=None,
-                )
-            },
-        ),
     )
     app = FastAPI()
 
@@ -756,6 +809,10 @@ def test_simurgh_assistant_turn_composes_previous_evidence_followup_when_authent
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     def fake_recent_warning_events(self, **_kwargs):  # noqa: ANN001
         return (
@@ -820,11 +877,88 @@ def test_simurgh_assistant_turn_composes_previous_evidence_followup_when_authent
     assert "session.previous_read_only_mds_evidence" in followup_input
 
 
+def test_semantic_previous_answer_transform_bypasses_deterministic_status_routing(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def semantic_rewrite(**kwargs):  # noqa: ANN003
+        if kwargs["message"] != "همین خلاصه را کوتاه و فارسی بگو":
+            return None
+        return ProviderSemanticRewrite(
+            normalized_message="Rewrite the previous answer briefly in Persian.",
+            language="fa",
+            route_hint="transform_previous_answer",
+            response_detail="brief",
+            confidence=0.99,
+            model="test-semantic-model",
+        )
+
+    captured: list[dict[str, object]] = []
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        del self
+        captured.append({"payload": payload, "api_key": api_key})
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "۴ فرمان موفق بود؛ پهپاد فرود آمد و غیرمسلح شد.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        semantic_rewrite,
+    )
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    client = _client(
+        auth_context={"kind": "session", "role": "operator", "username": "operator"}
+    )
+
+    first = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "How many configured drones are there?"},
+    )
+    assert first.status_code == 200
+
+    followup = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": first.json()["session"]["id"],
+            "message": "همین خلاصه را کوتاه و فارسی بگو",
+        },
+    )
+
+    assert followup.status_code == 200
+    payload = followup.json()
+    assert payload["provider"] == "openai"
+    assert payload["trace"]["tool"]["intent"] == "conversation_transform"
+    assert payload["trace"]["intent"]["route"] == "provider_transform"
+    assert "۴ فرمان موفق" in payload["content"]
+    assert "session.previous_assistant_answer" in str(captured[-1]["payload"]["input"])
+
+
 def test_simurgh_assistant_turn_sources_registry_previous_evidence_when_authenticated(monkeypatch, tmp_path):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     captured: list[dict[str, object]] = []
 
@@ -885,6 +1019,10 @@ def test_simurgh_assistant_capability_question_after_evidence_is_not_source_foll
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     captured: list[dict[str, object]] = []
 
@@ -934,7 +1072,7 @@ def test_simurgh_assistant_capability_question_after_evidence_is_not_source_foll
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_domain_tool_summary"
     assert payload["trace"]["query"]["response_mode"] == "capability"
-    assert "Registry-backed read-only capability summary" in payload["content"]
+    assert "Approved MDS capabilities for SITL" in payload["content"]
     assert "mds.sitl.instances.read" in payload["content"]
     assert len(captured) == 1
 
@@ -944,6 +1082,10 @@ def test_simurgh_assistant_registry_domain_menu_stays_local_when_authenticated(m
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     def fail_post(self, payload, *, api_key):  # noqa: ANN001
         raise AssertionError("registry-domain capability menus should not wait on provider composition")
@@ -961,7 +1103,7 @@ def test_simurgh_assistant_registry_domain_menu_stays_local_when_authenticated(m
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_domain_tool_summary"
     assert "mds.sar.mission.status.read" in payload["content"]
-    assert "This answer only describes the approved capability surface" in payload["content"]
+    assert "No route, configuration, upload, mission, or drone action was executed." in payload["content"]
 
 
 def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
@@ -979,10 +1121,10 @@ def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
     assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
-    assert "Read-only registry check for SITL runtime state" in payload["content"]
-    assert "mds.sitl.instances.read" in payload["content"]
-    assert "total_instances: 1" in payload["content"]
-    assert "MCP `tools/call`" in payload["content"]
+    assert "SITL instances: 1 total, 1 active" in payload["content"]
+    assert "Active container(s): drone-1=running" in payload["content"]
+    assert "Read-only registry check" not in payload["content"]
+    assert "MCP `tools/call`" not in payload["content"]
     assert "| Tool |" not in payload["content"]
     evidence = payload["trace"]["tool"]["evidence"]
     assert evidence["intent"] == "registry_read_execution"
@@ -1054,14 +1196,14 @@ def test_simurgh_assistant_correction_prompt_executes_sitl_readiness_tools(monke
     assert "This answer only describes the approved capability surface" not in payload["content"]
 
 
-def test_simurgh_assistant_routes_typo_sitl_running_prompt_to_instance_state(monkeypatch):
+def test_simurgh_assistant_routes_sitl_running_prompt_to_instance_state(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     client = _client_with_registry_probe_routes()
 
     response = client.post(
         "/api/v1/simurgh/assistant/turns",
-        json={"actor": "operator", "message": "do we have any sitl instace runnign now?"},
+        json={"actor": "operator", "message": "do we have any SITL instance running now?"},
     )
 
     assert response.status_code == 200
@@ -1069,8 +1211,9 @@ def test_simurgh_assistant_routes_typo_sitl_running_prompt_to_instance_state(mon
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
     assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
-    assert "Read-only registry check for SITL runtime state" in payload["content"]
-    assert "mds.sitl.instances.read" in payload["content"]
+    assert "SITL instances: 1 total, 1 active" in payload["content"]
+    assert "Active container(s): drone-1=running" in payload["content"]
+    assert "Read-only registry check" not in payload["content"]
 
 
 def test_simurgh_assistant_compound_fleet_and_sitl_status_is_concise(monkeypatch):
@@ -1159,7 +1302,7 @@ def test_simurgh_assistant_compound_live_fleet_and_sitl_count_uses_live_evidence
     assert "SITL instances: 1 total, 1 active." in payload["content"]
 
 
-def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatch):
+def test_simurgh_mock_provider_does_not_promote_followup_text_to_sitl_action(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
@@ -1186,21 +1329,14 @@ def test_simurgh_assistant_uses_sitl_topic_for_followup_create_action(monkeypatc
     assert action_response.status_code == 200
     payload = action_response.json()
     content = payload["content"]
-    assert "Review the guarded action plan" in content
-    assert '"instance_id": 1' not in content
-    assert "advisory-only" not in content
-    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
-    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
-    assert payload["trace"]["safety"]["action_draft"]["arguments"] == {
-        "git_sync_enabled": True,
-        "requirements_sync_enabled": True,
-        "instance_id": 1,
-        "ip_last_octet": 2,
-    }
-    assert payload["trace"]["safety"]["action_draft"]["display_plan"]["steps"][0]["label"] == "Create SITL instance"
+    assert "could not safely map" in content
+    assert "complete action plan" in content
+    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
+    assert payload["trace"]["tool"]["ids"] == []
+    assert payload["trace"]["safety"]["action_execution"] == "none"
 
 
-def test_simurgh_assistant_mixed_status_and_sitl_action_answers_status_before_draft(monkeypatch):
+def test_simurgh_mock_provider_does_not_promote_mixed_status_action_text(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "sitl")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
@@ -1219,18 +1355,11 @@ def test_simurgh_assistant_mixed_status_and_sitl_action_answers_status_before_dr
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "Read-only status checked before drafting" in content
-    assert "Configured fleet: 4 drone(s)." in content
-    assert "SITL instances: 1 total, 1 active." in content
-    assert "Review the guarded action plan" in content
-    assert '"git_sync_enabled"' not in content
-    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
-    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
-    assert payload["trace"]["safety"]["pre_action_read_only_tool_ids"] == [
-        "mds.config.fleet.read",
-        "mds.sitl.instances.read",
-        "mds.sitl.policy.read",
-    ]
+    assert "could not safely map" in content
+    assert "complete action plan" in content
+    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
+    assert payload["trace"]["tool"]["ids"] == []
+    assert payload["trace"]["safety"]["action_execution"] == "none"
 
 
 @pytest.mark.parametrize(
@@ -1365,7 +1494,7 @@ def test_simurgh_assistant_executes_registry_read_only_sar_catalog(monkeypatch):
     assert payload["session"]["metadata"]["last_domain"] == "sar"
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
     assert payload["trace"]["tool"]["ids"] == ["mds.sar.missions.read"]
-    assert "Read-only registry check for QuickScout/SAR mission catalog" in payload["content"]
+    assert "QuickScout/SAR mission catalog:" in payload["content"]
     assert "count: 1" in payload["content"]
     assert "mission_id=sar-1" in payload["content"]
     assert payload["trace"]["tool"]["evidence"]["source"] == "registry_read_only_mds"
@@ -1452,7 +1581,7 @@ def test_simurgh_assistant_falls_back_to_no_argument_sidecar_tools_when_typed_id
     payload = response.json()
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecars.read", "mds.fleet.network_status.read"]
-    assert "Read-only registry check for fleet sidecar and board connectivity state" in payload["content"]
+    assert "Fleet sidecar and board connectivity state:" in payload["content"]
     assert "one fleet sidecar table" not in payload["content"]
     assert "sidecars: 2 item(s)" in payload["content"]
 
@@ -1508,14 +1637,14 @@ def test_provider_tool_composition_message_has_safe_fallback_labels():
     assert "Response mode: status." in message
 
 
-def test_simurgh_assistant_turn_uses_adapted_routing_for_local_auth_gate(monkeypatch):
+def test_simurgh_assistant_turn_uses_canonical_routing_for_local_auth_gate(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     client = _client()
 
     first = client.post(
         "/api/v1/simurgh/assistant/turns",
-        json={"actor": "operator", "message": "wat droens are connected?"},
+        json={"actor": "operator", "message": "what drones are connected?"},
     )
     assert first.status_code == 200
     first_payload = first.json()
@@ -1527,7 +1656,7 @@ def test_simurgh_assistant_turn_uses_adapted_routing_for_local_auth_gate(monkeyp
         json={
             "actor": "operator",
             "session_id": first_payload["session"]["id"],
-            "message": "can you report any warnign if exist last 30 minutes in gcs?",
+            "message": "can you report any warning from the last 30 minutes in GCS?",
         },
     )
 
@@ -1557,7 +1686,7 @@ def test_simurgh_assistant_turn_explicit_fleet_prompt_overrides_log_session_topi
         json={
             "actor": "operator",
             "session_id": first_payload["session"]["id"],
-            "message": "what is the current flee status and info?",
+            "message": "what is the current fleet status and info?",
         },
     )
 
@@ -1638,8 +1767,9 @@ def test_simurgh_assistant_turn_routes_multilingual_local_prompt_with_adaptation
     payload = response.json()
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["language"]["language"] == "fr"
-    assert payload["trace"]["adaptation"]["routing_language"] == "en"
-    assert payload["trace"]["adaptation"]["strategy"] == "config-governed-cross-language-routing"
+    assert payload["trace"]["adaptation"]["routing_language"] == "fr"
+    assert payload["trace"]["adaptation"]["strategy"] == "provider-semantic-routing-required"
+    assert payload["trace"]["adaptation"]["applied_rule_count"] == 0
     assert payload["trace"]["query"]["domain"] == "fleet"
     assert payload["trace"]["tool"]["intent"] == "fleet_summary"
     assert "Combien" not in str(payload["trace"])
@@ -1681,6 +1811,10 @@ def test_simurgh_assistant_sitl_only_one_list_followup_stays_local(monkeypatch, 
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        lambda **_kwargs: None,
+    )
 
     def fail_provider_call(self, payload, *, api_key):  # noqa: ANN001
         raise AssertionError("SITL instance list/count follow-ups must stay on local registry tools")
@@ -1714,9 +1848,9 @@ def test_simurgh_assistant_sitl_only_one_list_followup_stays_local(monkeypatch, 
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
     assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
     assert payload["trace"]["query"]["read_only_plan"]["selection_source"] == "sitl_topic_followup_rules"
-    assert "Read-only registry check for SITL runtime state" in payload["content"]
-    assert "total_instances: 1" in payload["content"]
-    assert "state=running" in payload["content"]
+    assert "SITL instances: 1 total, 1 active" in payload["content"]
+    assert "Active container(s): drone-1=running" in payload["content"]
+    assert "Read-only registry check" not in payload["content"]
     assert "Public web sources" not in payload["content"]
 
 

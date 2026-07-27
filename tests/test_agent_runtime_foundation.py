@@ -18,12 +18,14 @@ from agent_runtime import (
     InMemoryAuditSink,
     JsonlAuditSink,
     PolicyDecisionStatus,
+    ToolRegistry,
     ToolExposure,
     ToolRiskClass,
     load_default_context_index,
     load_default_policy,
     load_default_tool_registry,
 )
+from agent_runtime.tool_executor import _route_path_with_arguments
 from tests.test_api_route_inventory import GCS_EXPECTED_HTTP
 
 
@@ -40,6 +42,10 @@ def _enabled_policy_payload(*, mode: str = "read_only", mcp_enabled: bool = Fals
     return payload
 
 
+def _registry_tool_payload(payload: dict, tool_id: str) -> dict:
+    return next(tool for tool in payload["tools"] if tool["id"] == tool_id)
+
+
 def test_default_registry_loads_with_curated_exposure_boundaries():
     registry = load_default_tool_registry()
 
@@ -51,6 +57,45 @@ def test_default_registry_loads_with_curated_exposure_boundaries():
     assert registry.require("mds.commands.status.read").input_schema["required"] == ["command_id"]
     assert registry.require("mds.commands.raw_submit").exposure is ToolExposure.EXCLUDE
     assert registry.require("mds.drone.commands.raw_submit").boundary == "drone"
+    assert registry.require("mds.sar.mission.plan").assistant_action == {}
+    assert registry.require("mds.sitl.instances.create").assistant_action == {
+        "intent": "sitl_lifecycle_action",
+        "fixed_cardinality": 1,
+        "monitor_kind": "sitl_operation",
+        "monitor_tool_id": "mds.sitl.operation.read",
+        "result_target_source": "affected_instances",
+        "resource_bindings": [
+            {
+                "namespace": "sitl_fleet",
+                "key": "fleet",
+            }
+        ],
+        "execution_guards": {
+            "sitl.running_instance_count": {
+                "argument": "expected_running_instance_count",
+            }
+        },
+        "completion_evidence": {
+            "strategy": "sitl_lifecycle",
+            "instances_tool_id": "mds.sitl.instances.read",
+            "heartbeats_tool_id": "mds.fleet.heartbeats.read",
+            "telemetry_tool_id": "mds.fleet.telemetry.read",
+        },
+    }
+    assert registry.require("mds.flight.command.execute").assistant_action == {
+        "intent": "flight_action",
+        "monitor_kind": "command",
+        "resource_bindings": [
+            {
+                "namespace": "vehicle",
+                "argument": "target_drone_ids",
+            }
+        ],
+        "target_binding": {
+            "argument": "target_drone_ids",
+            "value_template": "{id}",
+        },
+    }
 
     unsafe_direct_allows = [
         tool.id
@@ -59,8 +104,49 @@ def test_default_registry_loads_with_curated_exposure_boundaries():
         or tool.risk_class in {ToolRiskClass.OPERATE, ToolRiskClass.ADMIN, ToolRiskClass.DESTRUCTIVE}
         or tool.destructive
     ]
-
     assert unsafe_direct_allows == []
+
+
+def test_read_tool_route_repeats_array_query_arguments():
+    tool = load_default_tool_registry().require("mds.fleet.action_readiness.read")
+
+    result = _route_path_with_arguments(
+        tool,
+        {"target_drone_ids": ["1", "3"]},
+    )
+
+    assert result.is_error is False
+    assert result.text == (
+        "/api/v1/fleet/action-readiness?"
+        "target_drone_ids=1&target_drone_ids=3"
+    )
+
+
+def test_registry_rejects_target_binding_to_non_array_argument():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.action")
+    action_tool["assistant_action"]["target_binding"]["argument"] = "action"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"target_binding\.argument must reference a string-array input property",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_execution_guard_exposed_to_provider():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    argument = action_tool["assistant_action"]["execution_guards"][
+        "sitl.running_instance_count"
+    ]["argument"]
+    action_tool["input_schema"]["properties"][argument].pop("x-simurgh-internal")
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"execution_guards.*must reference an internal input property",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
 
 
 def test_gcs_backed_tool_routes_match_frozen_inventory():
@@ -117,6 +203,120 @@ def test_registry_wraps_invalid_enum_values_as_agent_errors():
 
     with pytest.raises(AgentRuntimeError, match="invalid exposure or risk_class"):
         load_default_tool_registry().__class__.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_unsupported_action_result_target_source():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    action_tool["assistant_action"]["result_target_source"] = "operator_prose"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"assistant_action\.result_target_source is unsupported",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_unknown_assistant_monitor_reference():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    action_tool["assistant_action"]["monitor_tool_id"] = "mds.sitl.operation.missing"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"mds\.sitl\.instances\.create\.assistant_action\.monitor_tool_id "
+        r"references unknown tool 'mds\.sitl\.operation\.missing'",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+@pytest.mark.parametrize(
+    ("target_changes", "error_pattern"),
+    [
+        (
+            {"exposure": "guarded"},
+            r"monitor_tool_id references guarded tool 'mds\.sitl\.operation\.read'",
+        ),
+        (
+            {"read_only": False},
+            r"monitor_tool_id references non-read tool 'mds\.sitl\.operation\.read'",
+        ),
+        (
+            {
+                "destructive": True,
+                "exposure": "guarded",
+                "risk_class": "destructive",
+            },
+            r"monitor_tool_id references destructive tool 'mds\.sitl\.operation\.read'",
+        ),
+        (
+            {"route": {"method": "POST", "path": "/api/v1/system/sitl/operations/{operation_id}"}},
+            r"whose read route must use GET",
+        ),
+    ],
+)
+def test_registry_rejects_unsafe_assistant_monitor_targets(target_changes, error_pattern):
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    monitor_tool = _registry_tool_payload(payload, "mds.sitl.operation.read")
+    monitor_tool.update(target_changes)
+
+    with pytest.raises(AgentRuntimeError, match=error_pattern):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_monitor_unavailable_in_action_runtime_mode():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    monitor_tool = _registry_tool_payload(payload, "mds.sitl.operation.read")
+    monitor_tool["runtime_modes"] = ["real"]
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"monitor_tool_id references 'mds\.sitl\.operation\.read', which is unavailable "
+        r"in assistant action runtime mode\(s\): sitl",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_operation_monitor_with_incompatible_arguments():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    action_tool["assistant_action"]["monitor_tool_id"] = "mds.commands.status.read"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"monitor_tool_id references 'mds\.commands\.status\.read', "
+        r"which must require operation_id",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_unknown_completion_evidence_reference():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    completion = action_tool["assistant_action"]["completion_evidence"]
+    completion["instances_tool_id"] = "mds.sitl.instances.missing"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"completion_evidence\.instances_tool_id references unknown tool "
+        r"'mds\.sitl\.instances\.missing'",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
+
+
+def test_registry_rejects_completion_reader_that_requires_arguments():
+    payload = yaml.safe_load(TOOL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    action_tool = _registry_tool_payload(payload, "mds.sitl.instances.create")
+    completion = action_tool["assistant_action"]["completion_evidence"]
+    completion["instances_tool_id"] = "mds.sitl.operation.read"
+
+    with pytest.raises(
+        AgentRuntimeError,
+        match=r"completion_evidence\.instances_tool_id references "
+        r"'mds\.sitl\.operation\.read', which requires argument\(s\) that completion "
+        r"evidence does not provide: operation_id",
+    ):
+        ToolRegistry.from_mapping(payload, path=TOOL_REGISTRY_PATH)
 
 
 def test_default_policy_enables_non_executing_runtime_and_allows_safe_observe():
@@ -211,20 +411,28 @@ def test_sitl_policy_approval_gate_runs_before_final_circuit_breaker_stop():
     flight_tool = registry.require("mds.flight.command.execute")
 
     assert policy.action_circuit_breaker_enabled is True
-    approval = policy.evaluate_tool(tool)
+    approval = policy.evaluate_tool(tool, actor_role="admin")
     assert approval.status is PolicyDecisionStatus.REQUIRE_APPROVAL
     assert approval.approval_required is True
 
-    blocked = policy.evaluate_tool(tool, approved=True)
+    blocked = policy.evaluate_tool(tool, approved=True, actor_role="admin")
     assert blocked.status is PolicyDecisionStatus.DENY
     assert "Simurgh action circuit breaker is enabled" in blocked.reasons
     assert "circuit breaker is the final execution stop" in blocked.reasons
 
-    reconcile_blocked = policy.evaluate_tool(reconcile_tool, approved=True)
+    reconcile_blocked = policy.evaluate_tool(
+        reconcile_tool,
+        approved=True,
+        actor_role="admin",
+    )
     assert reconcile_blocked.status is PolicyDecisionStatus.DENY
     assert "Simurgh action circuit breaker is enabled" in reconcile_blocked.reasons
 
-    batch_blocked = policy.evaluate_tool(batch_action_tool, approved=True)
+    batch_blocked = policy.evaluate_tool(
+        batch_action_tool,
+        approved=True,
+        actor_role="admin",
+    )
     assert batch_blocked.status is PolicyDecisionStatus.DENY
     assert "Simurgh action circuit breaker is enabled" in batch_blocked.reasons
 
@@ -232,17 +440,56 @@ def test_sitl_policy_approval_gate_runs_before_final_circuit_breaker_stop():
     payload["defaults"]["action_circuit_breaker_enabled"] = False
     policy = AgentPolicy.from_mapping(payload, path=POLICY_PATH)
 
-    assert policy.evaluate_tool(tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
-    assert policy.evaluate_tool(tool, approved=True).status is PolicyDecisionStatus.ALLOW
-    assert policy.evaluate_tool(batch_action_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
-    assert policy.evaluate_tool(batch_action_tool, approved=True).status is PolicyDecisionStatus.ALLOW
-    assert policy.evaluate_tool(reconcile_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
-    assert policy.evaluate_tool(reconcile_tool, approved=True).status is PolicyDecisionStatus.ALLOW
-    assert policy.evaluate_tool(flight_tool).status is PolicyDecisionStatus.REQUIRE_APPROVAL
-    assert policy.evaluate_tool(flight_tool, approved=True).status is PolicyDecisionStatus.ALLOW
-    assert policy.evaluate_tool(registry.require("mds.sar.mission.plan")).status is PolicyDecisionStatus.REQUIRE_APPROVAL
-    assert policy.evaluate_tool(registry.require("mds.sar.mission.plan"), approved=True).status is PolicyDecisionStatus.ALLOW
-    assert policy.evaluate_tool(registry.require("mds.sar.mission.launch"), approved=True).status is PolicyDecisionStatus.DENY
+    assert policy.evaluate_tool(
+        tool,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(
+        tool,
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(
+        batch_action_tool,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(
+        batch_action_tool,
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(
+        reconcile_tool,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(
+        reconcile_tool,
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(
+        flight_tool,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(
+        flight_tool,
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(
+        registry.require("mds.sar.mission.plan"),
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert policy.evaluate_tool(
+        registry.require("mds.sar.mission.plan"),
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.ALLOW
+    assert policy.evaluate_tool(
+        registry.require("mds.sar.mission.launch"),
+        approved=True,
+        actor_role="admin",
+    ).status is PolicyDecisionStatus.DENY
 
 
 def test_policy_env_overrides_action_circuit_and_confirmation(monkeypatch):
@@ -342,6 +589,29 @@ def test_session_store_marks_expired_sessions_during_listing():
 
     assert store.list_sessions(include_closed=False) == []
     assert store.require(session.id).closed
+
+
+def test_session_store_keeps_only_a_bounded_recent_operator_message_ring():
+    store = AgentSessionStore(ttl_seconds=60)
+    session = store.create(actor="operator", mode="read_only")
+
+    for index in range(6):
+        store.update_private_context(
+            session.id,
+            {"last_user_message": f"operator message {index}"},
+        )
+    store.update_private_context(
+        session.id,
+        {"last_user_message": "operator message 5"},
+    )
+
+    private_context = store.get_private_context(session.id)
+    assert json.loads(private_context["recent_operator_messages"]) == [
+        "operator message 2",
+        "operator message 3",
+        "operator message 4",
+        "operator message 5",
+    ]
 
 
 def test_context_index_loads_agent_docs_and_blocks_path_escape():

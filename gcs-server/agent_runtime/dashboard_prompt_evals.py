@@ -15,9 +15,17 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Mapping
 
 import yaml
+
+from mds_logging.api_schemas import (
+    OnboardUlogEntry,
+    OnboardUlogListResponse,
+    OnboardUlogPolicy,
+    OnboardUlogSummaryResponse,
+)
 
 from .assistant import create_assistant_turn
 from .audit import InMemoryAuditSink
@@ -66,6 +74,18 @@ class _DashboardPromptEvalDeps:
         }
         self.last_telemetry_time = {"1": now}
         self._heartbeats = {"1": {"timestamp": int(now * 1000), "ip": "192.0.2.10"}}
+        self.sitl_control_service = SimpleNamespace(
+            list_instances=lambda: {
+                "instances": [],
+                "total_instances": 0,
+                "running_instance_count": 0,
+                "docker": {"daemon_reachable": True},
+            },
+            build_policy=lambda: {
+                "sim_mode": True,
+                "read_only": False,
+            },
+        )
 
     @staticmethod
     def load_config() -> list[dict[str, object]]:
@@ -104,15 +124,52 @@ class _DashboardPromptEvalDeps:
         if path == "/api/logs/sessions/eval-session":
             return {"lines": [{"level": "INFO", "message": "Eval flight command completed."}]}
         if path == "/api/v1/ulog/files":
-            return {"files": [{"log_id": 1, "size_bytes": 2048, "date_utc": "fixture"}]}
+            return OnboardUlogListResponse(
+                hw_id="1",
+                pos_id=1,
+                count=1,
+                files=[
+                    OnboardUlogEntry(
+                        id=1,
+                        size_bytes=2048,
+                        date_utc="2026-06-21T14:00:00Z",
+                    )
+                ],
+                policy=OnboardUlogPolicy(),
+                timestamp=int(time.time() * 1000),
+            ).model_dump()
         if path == "/api/v1/ulog/files/1/summary":
-            return {
-                "log_id": 1,
-                "duration_seconds": 12.0,
-                "local_movement_m": {"north": 5.0, "east": 0.0, "up": 0.0},
-                "battery": {"start_voltage_v": 16.2, "end_voltage_v": 15.9},
-                "command_ack_count": 3,
-            }
+            return OnboardUlogSummaryResponse(
+                hw_id="1",
+                pos_id=1,
+                log_id=1,
+                source={"source_kind": "eval_fixture", "log_id": 1},
+                parser={"name": "pyulog", "status": "ok", "available": True},
+                parsed=True,
+                duration_sec=12.0,
+                local_position={
+                    "samples": 10,
+                    "max_horizontal_distance_from_start_m": 5.0,
+                    "final_relative_position_m": {
+                        "north": 5.0,
+                        "east": 0.0,
+                        "up": 0.0,
+                    },
+                },
+                battery={
+                    "samples": 10,
+                    "voltage_v": {"min": 15.9, "max": 16.2, "final": 15.9},
+                },
+                commands={
+                    "vehicle_command_ack": {
+                        "samples": 3,
+                        "command_counts": {"22": 1, "192": 1, "20": 1},
+                        "result_counts": {"0": 3},
+                    }
+                },
+                staged_job_deleted=True,
+                timestamp=int(time.time() * 1000),
+            ).model_dump()
         raise RuntimeError(f"unsupported dashboard eval drone-log path: {path}")
 
 

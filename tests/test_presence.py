@@ -53,3 +53,26 @@ def test_presence_snapshot_uses_recent_telemetry_as_fresh_source():
     assert snapshot["state"] == "live"
     assert snapshot["fresh"] is True
     assert snapshot["source"] == "telemetry"
+
+
+def test_presence_snapshot_keeps_node_presence_separate_from_telemetry_freshness():
+    from presence import PresenceThresholds, build_presence_snapshot
+
+    now = 1_700_000_000.0
+    snapshot = build_presence_snapshot(
+        hw_id="1",
+        heartbeat={"timestamp": int((now - 1) * 1000)},
+        telemetry={
+            "telemetry_available": True,
+            "is_ready_to_arm": True,
+            "is_armed": False,
+        },
+        telemetry_success_time=now - 300,
+        now=now,
+        thresholds=PresenceThresholds(20, 30, 60, 300),
+    )
+
+    assert snapshot["fresh"] is True
+    assert snapshot["heartbeat_recent"] is True
+    assert snapshot["telemetry_recent"] is False
+    assert snapshot["source"] == "heartbeat"

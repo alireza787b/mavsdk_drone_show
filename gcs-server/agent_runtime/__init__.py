@@ -47,13 +47,8 @@ from .audit import InMemoryAuditSink, JsonlAuditSink
 from .context import AgentContextIndex, load_default_context_index
 from .language import LanguageProfile, detect_language_profile, provider_language_guidance
 from .query_adaptation import (
-    DEFAULT_QUERY_ADAPTATION_CONFIG_PATH,
-    QUERY_ADAPTATION_CONFIG_ENV,
     QueryAdaptation,
-    QueryAdaptationConfig,
-    QueryReplacementRule,
     adapt_operator_query,
-    load_default_query_adaptation_config,
     normalize_operator_query_text,
 )
 from .evals import (
@@ -150,7 +145,6 @@ __all__ = [
     "DEFAULT_ASSISTANT_HISTORY_PATH",
     "DEFAULT_OPENAI_BASE_URL",
     "DEFAULT_OPENAI_MODEL",
-    "DEFAULT_QUERY_ADAPTATION_CONFIG_PATH",
     "DEFAULT_PROVIDER_SMOKE_SUITE_PATH",
     "InMemoryApprovalBroker",
     "InMemoryAuditSink",
@@ -172,7 +166,6 @@ __all__ = [
     "OPENAI_MODEL_ENV",
     "OpenAIProviderConfig",
     "OpenAIResponsesAssistantAdapter",
-    "QUERY_ADAPTATION_CONFIG_ENV",
     "PolicyDecision",
     "PolicyDecisionStatus",
     "ProviderSmokeExpectation",
@@ -182,8 +175,6 @@ __all__ = [
     "ProviderSmokeSuite",
     "ProviderResponseFixture",
     "QueryAdaptation",
-    "QueryAdaptationConfig",
-    "QueryReplacementRule",
     "SimurghMcpResourceProvider",
     "SUPPORTED_ASSISTANT_PROVIDER",
     "SUPPORTED_ASSISTANT_PROVIDERS",
@@ -204,7 +195,6 @@ __all__ = [
     "load_default_provider_smoke_suite",
     "load_default_context_index",
     "load_default_policy",
-    "load_default_query_adaptation_config",
     "load_default_tool_registry",
     "mcp_bearer_challenge",
     "mcp_protected_resource_metadata",

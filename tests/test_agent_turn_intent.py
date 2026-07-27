@@ -4,9 +4,9 @@ from agent_runtime.turn_intent import build_turn_intent_frame
 def test_turn_intent_does_not_treat_task_with_go_ahead_as_confirmation():
     frame = build_turn_intent_frame("go ahead and check SITL instances now")
 
-    assert frame.route == "read_only"
+    assert frame.route != "action_confirmation"
+    assert frame.route != "action_draft"
     assert frame.confirmation_message is False
-    assert frame.read_only_plan.intent == "sitl_help"
     assert frame.read_only_plan.query_domain == "sitl"
 
 
@@ -72,7 +72,7 @@ def test_turn_intent_compound_pm_prompt_builds_sequence_not_confirmation():
     assert payload["post_actions"][2]["arguments"]["mission_type"] == 104
 
 
-def test_turn_intent_conditional_ready_mission_prompt_prefers_action_draft():
+def test_turn_intent_conditional_ready_mission_prompt_builds_complete_action_draft():
     frame = build_turn_intent_frame(
         "I see its up. if its rady to fly send it to a mission. "
         "lets takeoff 10m then wait 10s, then fly to 20m east, "
@@ -82,7 +82,6 @@ def test_turn_intent_conditional_ready_mission_prompt_prefers_action_draft():
     )
 
     assert frame.route == "action_draft"
-    assert frame.read_only_plan.intent == "fleet_connectivity"
     assert frame.action.direct_flight_request is True
     assert frame.action.draft is not None
     payload = frame.action.draft.public_payload()

@@ -228,7 +228,7 @@ print_banner() {
     echo -e "${CYAN}|  |   |  ||  '--'  /.-'    | ${NC}"
     echo -e "${CYAN}\`--'   \`--'\`-------' \`-----'  ${NC}"
     echo ""
-    echo -e "${WHITE}MAVSDK Drone Show - Companion Node Bootstrap${NC}"
+    echo -e "${WHITE}MDS - Mission-Directed Swarm - Companion Node Bootstrap${NC}"
     echo "================================================================"
     echo -e "Version:  ${WHITE}${MDS_VERSION:-5.5}${NC}"
     echo -e "Branch:   ${WHITE}$BRANCH${NC}"

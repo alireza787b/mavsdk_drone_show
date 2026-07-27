@@ -145,6 +145,11 @@ class SitlControlInstanceListResponse(BaseModel):
 
     instances: List[SitlControlInstanceSummary]
     total_instances: int = Field(..., ge=0)
+    running_instance_count: Optional[int] = Field(
+        ...,
+        ge=0,
+        description="Containers whose authoritative Docker state is exactly running; null when Docker is unavailable.",
+    )
     docker: SitlControlDockerState
     timestamp: int
 
@@ -169,8 +174,9 @@ class SitlControlReconcileRequest(BaseModel):
     docker_network_name: Optional[str] = None
     start_id: int = Field(1, ge=1, le=999)
     start_ip: int = Field(2, ge=2, le=254)
-    git_sync_enabled: bool = True
-    requirements_sync_enabled: bool = True
+    git_sync_enabled: Optional[bool] = None
+    requirements_sync_enabled: Optional[bool] = None
+    expected_running_instance_count: Optional[int] = Field(None, ge=0)
 
     @field_validator("image_ref", "subnet", "docker_network_name", mode="before")
     @classmethod
@@ -189,8 +195,9 @@ class SitlControlCreateInstanceRequest(BaseModel):
     image_ref: Optional[str] = None
     subnet: Optional[str] = None
     docker_network_name: Optional[str] = None
-    git_sync_enabled: bool = True
-    requirements_sync_enabled: bool = True
+    git_sync_enabled: Optional[bool] = None
+    requirements_sync_enabled: Optional[bool] = None
+    expected_running_instance_count: Optional[int] = Field(None, ge=0)
 
     @field_validator("image_ref", "subnet", "docker_network_name", mode="before")
     @classmethod

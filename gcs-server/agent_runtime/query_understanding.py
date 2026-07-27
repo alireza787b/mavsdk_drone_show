@@ -101,7 +101,6 @@ DOMAIN_SIGNALS: Mapping[str, tuple[str, ...]] = {
         "search and rescue",
         "quickscout",
         "quick scout",
-        "quick scoute",
         "mission workspace",
         "mission finding",
         "mission findings",

@@ -1,18 +1,61 @@
 #!/usr/bin/env python3
 """
-Release notes generator for MAVSDK Drone Show
+Release notes generator for MDS - Mission-Directed Swarm
 
-Generates formatted release notes from conventional commits.
+Uses the curated CHANGELOG entry for the target tag when available and falls
+back to conventional commits. All release links resolve through the immutable
+target tag.
 """
 
 import os
-import subprocess
 import re
+import subprocess
 from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from urllib.parse import quote
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OFFICIAL_REPOSITORY = "alireza787b/mavsdk_drone_show"
+PROJECT_NAME = "MDS - Mission-Directed Swarm"
+
+
+def get_release_repository():
+    """Return the repository used for release links."""
+    configured = os.environ.get("GITHUB_REPOSITORY", OFFICIAL_REPOSITORY).strip()
+    return configured or OFFICIAL_REPOSITORY
+
+
+def get_curated_changelog_entry(release_tag):
+    """Return (release_date, markdown) for an exact release tag, if present."""
+    changelog_path = PROJECT_ROOT / "CHANGELOG.md"
+    if not changelog_path.exists():
+        return None
+
+    release_name = release_tag.removeprefix("v")
+    changelog = changelog_path.read_text(encoding="utf-8")
+    heading = re.compile(
+        rf"^## \[{re.escape(release_name)}\](?:\s+-\s+([^\n]+))?\s*$",
+        re.MULTILINE,
+    )
+    match = heading.search(changelog)
+    if match is None:
+        return None
+
+    following_heading = re.search(
+        r"^## \[[^\]]+\].*$",
+        changelog[match.end():],
+        re.MULTILINE,
+    )
+    end = (
+        match.end() + following_heading.start()
+        if following_heading is not None
+        else len(changelog)
+    )
+    section = changelog[match.end():end].strip()
+    section = re.sub(r"\n---\s*$", "", section).strip()
+    if not section:
+        return None
+    return (match.group(1), section)
 
 
 def get_git_commits_since_last_tag():
@@ -92,7 +135,7 @@ def parse_conventional_commit(commit):
     return commit_type, scope, description, is_breaking
 
 
-def categorize_commits(commits):
+def categorize_commits(commits, repository):
     """
     Categorize commits by type
 
@@ -109,7 +152,10 @@ def categorize_commits(commits):
             entry = f"- **{scope}**: {description}"
 
         # Add commit hash reference
-        entry += f" ([`{commit['hash']}`](https://github.com/alireza787b/mavsdk_drone_show/commit/{commit['hash']}))"
+        entry += (
+            f" ([`{commit['hash']}`]"
+            f"(https://github.com/{repository}/commit/{commit['hash']}))"
+        )
 
         if is_breaking:
             categories['breaking'].append(entry)
@@ -135,116 +181,81 @@ def categorize_commits(commits):
 
 def generate_release_notes():
     """Generate formatted release notes"""
-    # Read current version
     version_file = PROJECT_ROOT / "VERSION"
     version = version_file.read_text().strip() if version_file.exists() else "Unknown"
     release_tag = os.environ.get("RELEASE_TAG_OVERRIDE", f"v{version}").strip() or f"v{version}"
+    repository = get_release_repository()
+    tag_ref = quote(release_tag, safe="._-")
+    curated_entry = get_curated_changelog_entry(release_tag)
+    notes = [f"# {PROJECT_NAME} {release_tag}", ""]
 
-    commits = get_git_commits_since_last_tag()
+    if curated_entry is not None:
+        release_date, changelog_markdown = curated_entry
+        if release_date:
+            notes.extend([f"**Release date:** {release_date}", ""])
+        notes.extend([changelog_markdown, ""])
+        source_note = "Generated from the curated CHANGELOG.md release entry."
+    else:
+        commits = get_git_commits_since_last_tag()
+        categories = categorize_commits(commits, repository)
+        sections = (
+            ("breaking", "## ⚠️ BREAKING CHANGES"),
+            ("features", "## ✨ New Features"),
+            ("fixes", "## 🐛 Bug Fixes"),
+            ("performance", "## ⚡ Performance Improvements"),
+            ("refactor", "## ♻️ Code Refactoring"),
+            ("documentation", "## 📚 Documentation"),
+            ("tests", "## 🧪 Tests"),
+            ("chore", "## 🔧 Maintenance"),
+            ("other", "## 📦 Other Changes"),
+        )
+        for category, title in sections:
+            if categories[category]:
+                notes.extend([title, "", *categories[category], ""])
+        if not commits:
+            notes.extend(
+                [
+                    "## Changes",
+                    "",
+                    (
+                        "No conventional commits were found. "
+                        f"See the [tag history](https://github.com/{repository}/commits/{tag_ref})."
+                    ),
+                    "",
+                ]
+            )
+        source_note = (
+            "Generated from conventional commits because no exact "
+            "CHANGELOG entry was found."
+        )
 
-    if not commits:
-        print(f"""# Release {release_tag}
-
-## Changes
-
-No conventional commits found. See [commit history](https://github.com/alireza787b/mavsdk_drone_show/commits/main) for details.
-
----
-
-🤖 *Auto-generated release notes*
-""")
-        return
-
-    categories = categorize_commits(commits)
-
-    # Build release notes
-    notes = [f"# MAVSDK Drone Show {release_tag}", ""]
-
-    # Breaking changes (if any)
-    if categories['breaking']:
-        notes.append("## ⚠️ BREAKING CHANGES")
-        notes.append("")
-        notes.extend(categories['breaking'])
-        notes.append("")
-
-    # Features
-    if categories['features']:
-        notes.append("## ✨ New Features")
-        notes.append("")
-        notes.extend(categories['features'])
-        notes.append("")
-
-    # Fixes
-    if categories['fixes']:
-        notes.append("## 🐛 Bug Fixes")
-        notes.append("")
-        notes.extend(categories['fixes'])
-        notes.append("")
-
-    # Performance
-    if categories['performance']:
-        notes.append("## ⚡ Performance Improvements")
-        notes.append("")
-        notes.extend(categories['performance'])
-        notes.append("")
-
-    # Refactoring
-    if categories['refactor']:
-        notes.append("## ♻️ Code Refactoring")
-        notes.append("")
-        notes.extend(categories['refactor'])
-        notes.append("")
-
-    # Documentation
-    if categories['documentation']:
-        notes.append("## 📚 Documentation")
-        notes.append("")
-        notes.extend(categories['documentation'])
-        notes.append("")
-
-    # Tests
-    if categories['tests']:
-        notes.append("## 🧪 Tests")
-        notes.append("")
-        notes.extend(categories['tests'])
-        notes.append("")
-
-    # Chore
-    if categories['chore']:
-        notes.append("## 🔧 Maintenance")
-        notes.append("")
-        notes.extend(categories['chore'])
-        notes.append("")
-
-    # Other
-    if categories['other']:
-        notes.append("## 📦 Other Changes")
-        notes.append("")
-        notes.extend(categories['other'])
-        notes.append("")
-
-    # Footer
     notes.append("---")
     notes.append("")
     notes.append("## 📥 Installation")
     notes.append("")
     notes.append("```bash")
-    notes.append("git clone https://github.com/alireza787b/mavsdk_drone_show.git")
+    notes.append(
+        f"git clone --branch {release_tag} --depth 1 "
+        f"https://github.com/{repository}.git"
+    )
     notes.append("cd mavsdk_drone_show")
     notes.append("# Follow docs/guides/sitl-comprehensive.md for Docker/SITL setup")
     notes.append("```")
     notes.append("")
     notes.append("## 📚 Documentation")
     notes.append("")
-    notes.append("- [Documentation](https://github.com/alireza787b/mavsdk_drone_show/tree/main/docs)")
-    notes.append("- [CHANGELOG](https://github.com/alireza787b/mavsdk_drone_show/blob/main/CHANGELOG.md)")
-    notes.append("- [Contributing Guide](https://github.com/alireza787b/mavsdk_drone_show/blob/main/CONTRIBUTING.md)")
+    notes.append(f"- [Documentation](https://github.com/{repository}/tree/{tag_ref}/docs)")
+    notes.append(f"- [CHANGELOG](https://github.com/{repository}/blob/{tag_ref}/CHANGELOG.md)")
+    notes.append(
+        f"- [Contributing Guide]"
+        f"(https://github.com/{repository}/blob/{tag_ref}/CONTRIBUTING.md)"
+    )
     notes.append("")
     notes.append("---")
     notes.append("")
     notes.append(f"**Release tag**: `{release_tag}`")
     notes.append("")
-    notes.append("🤖 *Auto-generated release notes*")
+    notes.append(f"*{source_note}*")
 
     print('\n'.join(notes))
 

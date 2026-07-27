@@ -525,6 +525,30 @@ class TelemetryResponse(BaseModel):
         return value
 
 
+class FleetActionReadinessTarget(BaseModel):
+    """Bounded live readiness evidence for one guarded-action target."""
+
+    hw_id: str
+    configured: bool
+    live: bool
+    telemetry_available: bool
+    ready_to_arm: Optional[bool] = None
+    ready: bool
+    presence_state: str
+    telemetry_age_sec: Optional[float] = Field(None, ge=0)
+
+
+class FleetActionReadinessResponse(BaseModel):
+    """Runtime-neutral precondition evidence for guarded flight actions."""
+
+    target_drone_ids: List[str]
+    all_targets_ready: bool
+    ready_target_count: int = Field(..., ge=0)
+    unavailable_target_ids: List[str]
+    targets: List[FleetActionReadinessTarget]
+    timestamp: int
+
+
 # ============================================================================
 # Heartbeat Schemas
 # ============================================================================

@@ -2,7 +2,7 @@
   "name": "drone-dashboard",
   "version": "5.5",
   "private": true,
-  "license": "CC-BY-NC-SA-4.0",
+  "license": "SEE LICENSE IN ../../../LICENSE",
   "homepage": "/",
   "engines": {
     "node": ">=20 <23",
@@ -16,14 +16,11 @@
     "@mui/x-data-grid": "^7.28.0",
     "@react-three/drei": "^9.80.2",
     "@react-three/fiber": "^8.18.0",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^14.0.0",
-    "@testing-library/user-event": "^13.5.0",
     "@turf/area": "^7.3.4",
     "@turf/buffer": "^7.3.4",
     "@turf/distance": "^7.2.0",
     "@turf/helpers": "^7.3.4",
-    "axios": "^1.7.7",
+    "axios": "^1.18.1",
     "classnames": "^2.3.2",
     "coordinate-parser": "^1.0.7",
     "cytoscape": "^3.26.0",
@@ -31,10 +28,9 @@
     "leaflet": "^1.9.4",
     "lodash": "^4.17.21",
     "mapbox-gl": "^2.15.0",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.0",
     "papaparse": "^5.4.1",
     "plotly.js-dist": "^2.25.2",
-    "postcss": "^8.4.39",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-cytoscapejs": "^2.0.0",
@@ -45,8 +41,7 @@
     "react-map-gl": "^7.1.9",
     "react-plotly.js": "^2.6.0",
     "react-pro-sidebar": "^1.1.0",
-    "react-router-dom": "^6.15.0",
-    "react-scripts": "^5.0.1",
+    "react-router-dom": "^6.30.4",
     "react-time-picker": "^7.0.0",
     "react-toastify": "^10.0.6",
     "react-tooltip": "^5.28.0",
@@ -56,6 +51,7 @@
   "scripts": {
     "start": "NODE_OPTIONS=--max-old-space-size=4096 PORT=3030 react-scripts start",
     "build": "GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=4096 react-scripts build",
+    "build:release": "REACT_APP_GIT_COMMIT=\"${REACT_APP_GIT_COMMIT:-$(git rev-parse HEAD 2>/dev/null || printf unknown)}\" REACT_APP_GIT_BRANCH=\"${REACT_APP_GIT_BRANCH:-$(git describe --tags --exact-match 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)}\" GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=4096 react-scripts build",
     "test": "react-scripts test",
     "audit:ui": "python3 ../../../tools/audit_frontend_ui.py --strict",
     "eject": "react-scripts eject"
@@ -94,9 +90,14 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^13.5.0",
     "ajv": "^8.12.0",
     "ajv-keywords": "^5.1.0",
-    "eslint-plugin-jest": "^27.2.3"
+    "eslint-plugin-jest": "^27.2.3",
+    "postcss": "^8.5.23",
+    "react-scripts": "^5.0.1"
   },
   "jest": {
     "transformIgnorePatterns": [

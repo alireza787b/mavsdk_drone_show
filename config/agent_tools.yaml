@@ -545,6 +545,88 @@ tools:
   safety_notes:
   - Telemetry may include live coordinates and must not be published in public reports.
   - Stale telemetry is not truth for command decisions.
+- id: mds.fleet.action_readiness.read
+  title: Read target flight readiness
+  description: Read freshness-bounded GCS readiness evidence for an exact set of drone targets.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/action-readiness
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - mission_state
+  tags:
+  - fleet
+  - telemetry
+  - readiness
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - This is fresh target-scoped evidence, not an approval or flight-clearance bypass.
+  - The command layer still rechecks policy, telemetry, confirmation, and circuit-breaker state.
+  assistant_facts:
+    fleet.targets_ready_to_arm:
+      title: Target drones ready to arm
+      path:
+      - all_targets_ready
+      value_type: boolean
+      target_binding:
+        argument: target_drone_ids
+        value_template: '{id}'
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - target_drone_ids
+    properties:
+      target_drone_ids:
+        type: array
+        minItems: 1
+        maxItems: 64
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 64
+  output_schema:
+    type: object
+    required:
+    - target_drone_ids
+    - all_targets_ready
+    - ready_target_count
+    - unavailable_target_ids
+    - targets
+    - timestamp
+    properties:
+      target_drone_ids:
+        type: array
+        items:
+          type: string
+      all_targets_ready:
+        type: boolean
+      ready_target_count:
+        type: integer
+        minimum: 0
+      unavailable_target_ids:
+        type: array
+        items:
+          type: string
+      targets:
+        type: array
+        items:
+          type: object
+      timestamp:
+        type: integer
 - id: mds.fleet.heartbeats.read
   title: Read fleet heartbeats
   description: Read drone heartbeat and presence state as seen by the GCS.
@@ -843,6 +925,37 @@ tools:
   - docs/guides/sitl-control.md
   safety_notes:
   - Instance state may include host resource and port details.
+  assistant_facts:
+    sitl.running_instance_count:
+      title: Running SITL instances
+      path:
+      - running_instance_count
+      value_type: integer
+  output_schema:
+    type: object
+    required:
+    - instances
+    - total_instances
+    - running_instance_count
+    - docker
+    - timestamp
+    properties:
+      instances:
+        type: array
+        items:
+          type: object
+      total_instances:
+        type: integer
+        minimum: 0
+      running_instance_count:
+        anyOf:
+        - type: integer
+          minimum: 0
+        - type: 'null'
+      docker:
+        type: object
+      timestamp:
+        type: integer
 - id: mds.sar.missions.read
   title: Read SAR missions
   description: Read QuickScout/SAR mission catalog and status summaries.
@@ -960,6 +1073,23 @@ tools:
   - docs/guides/sitl-control.md
   safety_notes:
   - Simulation mutation is never valid in read-only mode.
+  assistant_action:
+    intent: sitl_lifecycle_action
+    fixed_cardinality: 1
+    monitor_kind: sitl_operation
+    monitor_tool_id: mds.sitl.operation.read
+    result_target_source: affected_instances
+    resource_bindings:
+    - namespace: sitl_fleet
+      key: fleet
+    execution_guards:
+      sitl.running_instance_count:
+        argument: expected_running_instance_count
+    completion_evidence: &sitl_lifecycle_completion_evidence
+      strategy: sitl_lifecycle
+      instances_tool_id: mds.sitl.instances.read
+      heartbeats_tool_id: mds.fleet.heartbeats.read
+      telemetry_tool_id: mds.fleet.telemetry.read
   input_schema:
     type: object
     additionalProperties: false
@@ -988,6 +1118,10 @@ tools:
         type: boolean
       requirements_sync_enabled:
         type: boolean
+      expected_running_instance_count:
+        type: integer
+        minimum: 0
+        x-simurgh-internal: true
 - id: mds.sitl.instances.action
   title: Run SITL instance lifecycle action
   description: Restart or remove named SITL instances through the GCS simulation
@@ -1018,6 +1152,19 @@ tools:
   safety_notes:
   - Simulation mutation is never valid in read-only mode.
   - Remove only affects explicitly named MDS-managed SITL containers.
+  assistant_action:
+    intent: sitl_lifecycle_action
+    monitor_kind: sitl_operation
+    monitor_tool_id: mds.sitl.operation.read
+    resource_bindings:
+    - namespace: sitl_fleet
+      key: fleet
+    - namespace: sitl_instance
+      argument: instance_names
+    target_binding:
+      argument: instance_names
+      value_template: drone-{id}
+    completion_evidence: *sitl_lifecycle_completion_evidence
   input_schema:
     type: object
     additionalProperties: false
@@ -1069,6 +1216,18 @@ tools:
   - Simulation mutation is never valid in read-only mode or real mode.
   - Reconcile may remove extra MDS-managed SITL containers that are outside the
     requested target count.
+  assistant_action:
+    intent: sitl_lifecycle_action
+    monitor_kind: sitl_operation
+    monitor_tool_id: mds.sitl.operation.read
+    result_target_source: affected_instances
+    resource_bindings:
+    - namespace: sitl_fleet
+      key: fleet
+    execution_guards:
+      sitl.running_instance_count:
+        argument: expected_running_instance_count
+    completion_evidence: *sitl_lifecycle_completion_evidence
   input_schema:
     type: object
     additionalProperties: false
@@ -1103,6 +1262,10 @@ tools:
         type: boolean
       requirements_sync_enabled:
         type: boolean
+      expected_running_instance_count:
+        type: integer
+        minimum: 0
+        x-simurgh-internal: true
 - id: mds.flight.command.execute
   title: Execute curated flight command
   description: Guarded Simurgh wrapper for a small typed set of GCS flight commands.
@@ -1142,6 +1305,15 @@ tools:
     and approval, so dry-runs can still report what would have been sent.
   - Live command validation remains in the GCS command subsystem; stale telemetry
     or failed preflight checks can still reject the command.
+  assistant_action:
+    intent: flight_action
+    monitor_kind: command
+    resource_bindings:
+    - namespace: vehicle
+      argument: target_drone_ids
+    target_binding:
+      argument: target_drone_ids
+      value_template: '{id}'
   input_schema:
     type: object
     additionalProperties: false
@@ -1151,6 +1323,12 @@ tools:
     - target_drone_ids
     properties:
       mission_type:
+        description: >
+          Curated command semantic. TAKE_OFF/10 climbs to takeoff_altitude;
+          LAND/101 lands at the current location; RETURN_RTL/104 returns to the
+          launch/home position and completes the configured PX4 RTL landing;
+          PRECISION_MOVE/112 performs the typed relative translation. Do not
+          append LAND after RETURN_RTL merely to express "return and land".
         oneOf:
         - type: integer
           enum:
@@ -1179,8 +1357,69 @@ tools:
         exclusiveMinimum: 0
       precision_move:
         type: object
-        additionalProperties: true
-        description: Typed relative move payload for PRECISION_MOVE.
+        additionalProperties: false
+        description: >
+          Typed relative move payload for PRECISION_MOVE. Use frame=ned with
+          translation_m north/east/up for compass-relative requests, or
+          frame=body with forward/right/up for vehicle-relative requests.
+        required:
+        - frame
+        - translation_m
+        properties:
+          frame:
+            type: string
+            enum:
+            - ned
+            - body
+          translation_m:
+            type: object
+            additionalProperties: false
+            minProperties: 1
+            description: >
+              Metres in the selected frame. NED accepts north/east/up; body
+              accepts forward/right/up. Omitted axes are zero.
+            properties:
+              north:
+                type: number
+              east:
+                type: number
+              forward:
+                type: number
+              right:
+                type: number
+              up:
+                type: number
+          yaw:
+            type: object
+            additionalProperties: false
+            properties:
+              mode:
+                type: string
+                enum:
+                - hold_current
+                - absolute_heading
+                - relative_delta
+              degrees:
+                type: number
+          speed_m_s:
+            type: number
+            exclusiveMinimum: 0
+          position_tolerance_m:
+            type: number
+            exclusiveMinimum: 0
+          yaw_tolerance_deg:
+            type: number
+            exclusiveMinimum: 0
+          settle_time_sec:
+            type: number
+            exclusiveMinimum: 0
+          timeout_sec:
+            type: number
+            exclusiveMinimum: 0
+          hold_mode:
+            type: string
+            enum:
+            - px4_hold
       operator_label:
         type: string
         maxLength: 200
@@ -1863,6 +2102,9 @@ tools:
   - docs/guides/logging-system.md
   safety_notes:
   - Lists onboard ULog metadata only; it does not create download jobs, stream file content, or erase logs.
+  execution:
+    timeout_env: MDS_ULOG_PROXY_TIMEOUT_SEC
+    default_timeout_seconds: 30
   input_schema:
     type: object
     additionalProperties: false
@@ -1874,6 +2116,61 @@ tools:
         minimum: 1
         maximum: 9999
         description: Hardware id of the configured drone.
+  output_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - schema_version
+    - hw_id
+    - pos_id
+    - count
+    - files
+    - policy
+    - ulog_capability
+    - timestamp
+    properties:
+      schema_version:
+        type: string
+        const: '1.0'
+      hw_id:
+        type: string
+      pos_id:
+        type:
+        - integer
+        - 'null'
+      count:
+        type: integer
+        minimum: 0
+      files:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required:
+          - id
+          - date_utc
+          - size_bytes
+          properties:
+            id:
+              type: integer
+              minimum: 0
+            date_utc:
+              type:
+              - string
+              - 'null'
+            size_bytes:
+              type: integer
+              minimum: 0
+      policy:
+        type: object
+        additionalProperties: true
+      ulog_capability:
+        type:
+        - object
+        - 'null'
+        additionalProperties: true
+      timestamp:
+        type: integer
 - id: mds.logs.drone_ulog_summary.read
   title: Read drone ULog summary
   description: Parse one onboard PX4 ULog through the GCS log proxy and return derived local metrics only, without returning raw ULog content.
@@ -1909,6 +2206,9 @@ tools:
   - Returns bounded derived metrics such as duration, topic/sample counts, local-position envelope, battery ranges, command/ack counts, and dropout counts.
   - Does not expose raw ULog bytes, raw topic arrays, raw logged-message text, exact coordinates, erase actions, or browser download content.
   - The staged ULog job and temporary GCS file are deleted after parsing.
+  execution:
+    timeout_env: MDS_ULOG_SUMMARY_TIMEOUT_SEC
+    default_timeout_seconds: 90
   input_schema:
     type: object
     additionalProperties: false
@@ -1926,6 +2226,440 @@ tools:
         minimum: 0
         maximum: 2147483647
         description: ULog id returned by mds.logs.drone_ulog_files.read.
+  output_schema:
+    type: object
+    additionalProperties: false
+    $defs:
+      metric_range:
+        type: object
+        additionalProperties: false
+        properties:
+          min:
+            type:
+            - number
+            - 'null'
+          max:
+            type:
+            - number
+            - 'null'
+          final:
+            type:
+            - number
+            - 'null'
+      vector_3:
+        type: object
+        additionalProperties: false
+        properties:
+          north:
+            type:
+            - number
+            - 'null'
+          east:
+            type:
+            - number
+            - 'null'
+          up:
+            type:
+            - number
+            - 'null'
+      count_map:
+        type: object
+        maxProperties: 128
+        propertyNames:
+          type: string
+          minLength: 1
+          maxLength: 128
+        additionalProperties:
+          type: integer
+          minimum: 0
+      source:
+        type: object
+        additionalProperties: false
+        properties:
+          source_kind:
+            type: string
+            minLength: 1
+            maxLength: 64
+          log_id:
+            type:
+            - integer
+            - 'null'
+            minimum: 0
+          date_utc:
+            type:
+            - string
+            - 'null'
+            maxLength: 64
+          size_bytes:
+            type: integer
+            minimum: 0
+      parser:
+        type: object
+        additionalProperties: false
+        properties:
+          name:
+            type: string
+            minLength: 1
+            maxLength: 64
+          available:
+            type: boolean
+          status:
+            type: string
+            enum:
+            - not_started
+            - ok
+            - failed
+            - skipped
+            - unavailable
+          error:
+            type:
+            - string
+            - 'null'
+            maxLength: 500
+          topics_requested:
+            type: array
+            maxItems: 32
+            items:
+              type: string
+              minLength: 1
+              maxLength: 128
+          topics_present:
+            type: array
+            maxItems: 32
+            items:
+              type: string
+              minLength: 1
+              maxLength: 128
+          topic_sample_counts:
+            $ref: '#/$defs/count_map'
+      dropouts:
+        type: object
+        additionalProperties: false
+        properties:
+          count:
+            type: integer
+            minimum: 0
+          total_duration_sec:
+            type: number
+            minimum: 0
+          max_duration_ms:
+            type: number
+            minimum: 0
+      logged_messages:
+        type: object
+        additionalProperties: false
+        properties:
+          count:
+            type: integer
+            minimum: 0
+          levels:
+            $ref: '#/$defs/count_map'
+          raw_text_included:
+            type: boolean
+            const: false
+      system:
+        type: object
+        additionalProperties: false
+        properties:
+          sys_name:
+            type:
+            - string
+            - 'null'
+            maxLength: 128
+          ver_hw:
+            type:
+            - string
+            - 'null'
+            maxLength: 128
+      local_position:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          x_range_m:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          y_range_m:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          relative_altitude_range_m:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          max_horizontal_distance_from_start_m:
+            type:
+            - number
+            - 'null'
+            minimum: 0
+          final_relative_position_m:
+            anyOf:
+            - $ref: '#/$defs/vector_3'
+            - type: 'null'
+      trajectory_setpoint:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          north_m_range:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          east_m_range:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          down_m_range:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+      battery:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          voltage_v:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+          remaining:
+            anyOf:
+            - $ref: '#/$defs/metric_range'
+            - type: 'null'
+      vehicle_status:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          arming_state:
+            $ref: '#/$defs/count_map'
+          nav_state:
+            $ref: '#/$defs/count_map'
+          failsafe:
+            $ref: '#/$defs/count_map'
+          hil_state:
+            $ref: '#/$defs/count_map'
+      land_detected:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          landed:
+            $ref: '#/$defs/count_map'
+          maybe_landed:
+            $ref: '#/$defs/count_map'
+          ground_contact:
+            $ref: '#/$defs/count_map'
+          freefall:
+            $ref: '#/$defs/count_map'
+      vehicle_command:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          command_counts:
+            $ref: '#/$defs/count_map'
+      vehicle_command_ack:
+        type: object
+        additionalProperties: false
+        properties:
+          samples:
+            type: integer
+            minimum: 0
+          command_counts:
+            $ref: '#/$defs/count_map'
+          result_counts:
+            $ref: '#/$defs/count_map'
+      commands:
+        type: object
+        additionalProperties: false
+        properties:
+          vehicle_command:
+            anyOf:
+            - $ref: '#/$defs/vehicle_command'
+            - type: 'null'
+          vehicle_command_ack:
+            anyOf:
+            - $ref: '#/$defs/vehicle_command_ack'
+            - type: 'null'
+      correlation_evidence:
+        type: object
+        additionalProperties: false
+        properties:
+          target_drone_id:
+            type:
+            - string
+            - 'null'
+            maxLength: 128
+          ulog_log_id:
+            type:
+            - integer
+            - 'null'
+            minimum: 0
+          ulog_started_at:
+            type:
+            - string
+            - 'null'
+            maxLength: 64
+          ulog_ended_at:
+            type:
+            - string
+            - 'null'
+            maxLength: 64
+          action_reference:
+            type:
+            - string
+            - 'null'
+            maxLength: 256
+          command_ids:
+            type: array
+            maxItems: 128
+            items:
+              type: string
+              minLength: 1
+              maxLength: 128
+          command_window_started_at:
+            type:
+            - string
+            - 'null'
+            maxLength: 64
+          command_window_ended_at:
+            type:
+            - string
+            - 'null'
+            maxLength: 64
+          matched_dimensions:
+            type: array
+            maxItems: 4
+            items:
+              type: string
+              enum:
+              - target
+              - time
+              - action_reference
+              - command_id
+      correlation:
+        type: object
+        additionalProperties: false
+        properties:
+          status:
+            type: string
+            enum:
+            - unverified
+            - candidate
+            - verified
+            - ambiguous
+          verified:
+            type: boolean
+          method:
+            type: string
+            enum:
+            - none
+            - source_metadata_only
+            - gcs_target_time_command_overlap
+            - gcs_target_time_action_command_overlap
+          evidence:
+            $ref: '#/$defs/correlation_evidence'
+          limitations:
+            type: array
+            maxItems: 16
+            items:
+              type: string
+              minLength: 1
+              maxLength: 512
+    required:
+    - schema_version
+    - hw_id
+    - pos_id
+    - log_id
+    - source
+    - parser
+    - parsed
+    - duration_sec
+    - dropouts
+    - logged_messages
+    - system
+    - correlation
+    - staged_job_deleted
+    - raw_content_included
+    - timestamp
+    properties:
+      schema_version:
+        type: string
+        const: '1.0'
+      hw_id:
+        type: string
+      pos_id:
+        type:
+        - integer
+        - 'null'
+      log_id:
+        type: integer
+        minimum: 0
+      source:
+        $ref: '#/$defs/source'
+      parser:
+        $ref: '#/$defs/parser'
+      parsed:
+        type: boolean
+      duration_sec:
+        type:
+        - number
+        - 'null'
+      dropouts:
+        $ref: '#/$defs/dropouts'
+      logged_messages:
+        $ref: '#/$defs/logged_messages'
+      system:
+        $ref: '#/$defs/system'
+      local_position:
+        anyOf:
+        - $ref: '#/$defs/local_position'
+        - type: 'null'
+      trajectory_setpoint:
+        anyOf:
+        - $ref: '#/$defs/trajectory_setpoint'
+        - type: 'null'
+      battery:
+        anyOf:
+        - $ref: '#/$defs/battery'
+        - type: 'null'
+      vehicle_status:
+        anyOf:
+        - $ref: '#/$defs/vehicle_status'
+        - type: 'null'
+      land_detected:
+        anyOf:
+        - $ref: '#/$defs/land_detected'
+        - type: 'null'
+      commands:
+        anyOf:
+        - $ref: '#/$defs/commands'
+        - type: 'null'
+      correlation:
+        $ref: '#/$defs/correlation'
+      staged_job_deleted:
+        type:
+        - boolean
+        - 'null'
+      raw_content_included:
+        type: boolean
+        const: false
+      timestamp:
+        type: integer
 - id: mds.commands.statistics.read
   title: Read command statistics
   description: Read aggregate GCS command-tracker statistics without creating or

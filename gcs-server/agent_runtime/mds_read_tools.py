@@ -7,12 +7,15 @@ that return metadata or derived metrics without exposing raw artifacts.
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import hashlib
 import json
 import math
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -23,7 +26,9 @@ from urllib.parse import urlparse
 
 import yaml
 from fastapi import HTTPException
+from mds_logging.api_schemas import UlogActionCorrelation, UlogCorrelationEvidence
 
+from src.enums import Mission, State
 from src.ulog_proxy_policy import (
     drone_ulog_proxy_timeout_seconds,
     drone_ulog_summary_timeout_seconds,
@@ -41,13 +46,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 READ_TOOL_PROVIDER = "mds-tools"
 READ_TOOL_MODEL = "local-read-only"
 READ_TOOL_ADAPTER_VERSION = "mds-read-tools-v1"
-DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5")
+DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5")
 DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 MCP_ENDPOINT_PATH = "/api/v1/simurgh/mcp"
 MCP_RESOURCE_URL_ENV = "MDS_MCP_RESOURCE_URL"
 DRONE_LOG_PROXY_TIMEOUT_SECONDS = 2.5
+DEFAULT_DRONE_LOG_EVIDENCE_DEADLINE_SECONDS = 45.0
+DEFAULT_DRONE_LOG_MAX_WORKERS = 4
+DRONE_LOG_WARNING_SAMPLE_LIMIT = 3
+_DRONE_LOG_EVIDENCE_EXECUTOR: concurrent.futures.ThreadPoolExecutor | None = None
+_DRONE_LOG_EVIDENCE_EXECUTOR_LOCK = threading.Lock()
+ULOG_COMMAND_CORRELATION_TOLERANCE_SECONDS = 30.0
+MAV_RESULT_NON_FAILURE_CODES = frozenset({0, 5})  # ACCEPTED, IN_PROGRESS
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 LATEST_SESSION_GROUP_SECONDS = 15
 QUICKSCOUT_FIELD_READY_STALE_SECONDS = 6 * 3600
@@ -73,11 +85,22 @@ READ_CONVERSATION_TOPICS = frozenset(
         "ui",
     }
 )
+
+
+def _drone_log_evidence_executor() -> concurrent.futures.ThreadPoolExecutor:
+    global _DRONE_LOG_EVIDENCE_EXECUTOR
+    with _DRONE_LOG_EVIDENCE_EXECUTOR_LOCK:
+        if _DRONE_LOG_EVIDENCE_EXECUTOR is None:
+            _DRONE_LOG_EVIDENCE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+                max_workers=DEFAULT_DRONE_LOG_MAX_WORKERS,
+                thread_name_prefix="simurgh-log-evidence",
+            )
+        return _DRONE_LOG_EVIDENCE_EXECUTOR
 READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability", "clarify"})
 READ_ONLY_ACTION_POSTURE = "read-only-local; no action, upload, config mutation, or raw artifact exposure"
 
-# Trace-only expected evidence IDs. Execution still records the actual tool IDs
-# returned by the selected local read-only answer.
+# Minimum evidence contracts for locally grounded intents. Execution records the
+# actual tools and provider-selected additions separately.
 LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "action_capability": ("mds.simurgh.policy.read", "mds.simurgh.tools.read"),
     "add_drone_workflow": (
@@ -100,6 +123,15 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     ),
     "environment_summary": ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
     "fleet_connectivity": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+    "fleet_status": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+    "fleet_sitl_summary": (
+        "mds.config.fleet.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+        "mds.fleet.network_status.read",
+        "mds.sitl.instances.read",
+        "mds.sitl.policy.read",
+    ),
     "fleet_enrollment_summary": ("mds.fleet.candidates.read",),
     "fleet_summary": ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
     "general_knowledge": ("simurgh.general_knowledge.read",),
@@ -137,6 +169,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
         "mds.fleet.sidecars.connectivity_profile.read",
     ),
     "sitl_help": ("mds.docs.search", "mds.system.runtime_status.read"),
+    "sitl_status": ("mds.sitl.instances.read", "mds.sitl.policy.read"),
     "swarm_readiness": (
         "mds.config.swarm.read",
         "mds.config.positions.read",
@@ -148,6 +181,165 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "swarm_topology": ("mds.config.swarm.read", "mds.config.positions.read"),
     "system_status": ("mds.system.health.read", "mds.system.runtime_status.read", "mds.simurgh.status.read"),
 }
+
+# The provider may select one of these stable, local evidence intents during
+# semantic routing. The model never receives runtime evidence and cannot call
+# the tools directly; this contract only replaces brittle prose re-parsing.
+PROVIDER_READ_INTENT_DESCRIPTIONS: Mapping[str, str] = {
+    "previous_action_summary": "Verify what the current session's latest guarded action plan actually executed, including waits and ordered steps.",
+    "fleet_connectivity": "Read current vehicle presence, heartbeat, telemetry freshness, and network reachability.",
+    "fleet_status": "Read the current vehicle flight-state snapshot: presence, telemetry freshness, arm and preflight state, flight mode, system status, GPS, battery, and altitude; include position only when requested.",
+    "fleet_summary": "Read configured fleet identities, positions, and swarm assignments.",
+    "fleet_sitl_summary": "Read configured fleet count together with current SITL instance, active-container, Docker, and policy state.",
+    "runtime_summary": "Read current GCS mode and Simurgh runtime posture.",
+    "sitl_status": "Read current SITL instance inventory, active count, Docker availability, and SITL policy.",
+    "system_status": "Read GCS service and host health.",
+    "command_summary": "Read active and recent command tracker state.",
+    "drone_log_summary": "Read per-drone log sessions, onboard ULog inventory, and derived newest-ULog summaries.",
+    "backend_log_summary": "Read warning and error evidence from unified GCS logs.",
+}
+
+DRONE_LOG_READ_OPTIONS_SCHEMA: Mapping[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "verify_operation": {"type": "boolean"},
+        "include_unified_logs": {"type": "boolean"},
+        "analyze_latest_ulog": {"type": "boolean"},
+    },
+    "required": [
+        "verify_operation",
+        "include_unified_logs",
+        "analyze_latest_ulog",
+    ],
+}
+
+
+@dataclass(frozen=True)
+class DroneLogReadOptions:
+    """Structured evidence depth selected by semantic provider routing."""
+
+    verify_operation: bool = False
+    include_unified_logs: bool = False
+    analyze_latest_ulog: bool = False
+
+    @classmethod
+    def from_mapping(
+        cls,
+        value: Mapping[str, object] | None,
+    ) -> "DroneLogReadOptions":
+        source = value if isinstance(value, Mapping) else {}
+        def flag(name: str) -> bool:
+            raw = source.get(name)
+            return raw if isinstance(raw, bool) else False
+
+        return cls(
+            verify_operation=flag("verify_operation"),
+            include_unified_logs=flag("include_unified_logs"),
+            analyze_latest_ulog=flag("analyze_latest_ulog"),
+        )
+
+
+@dataclass(frozen=True)
+class _DroneLogBaseEvidence:
+    """One drone's bounded inventory and latest-session evidence."""
+
+    hw_id: int
+    ip: str
+    sessions: tuple[dict[str, Any], ...] = ()
+    session_error: str = ""
+    warning_error_count: int | None = None
+    warning_error_label: str = "not checked"
+    warning_error_detail: str = ""
+    warning_error_samples: tuple[dict[str, str], ...] = ()
+    ulog_files: tuple[dict[str, Any], ...] = ()
+    ulog_error: str = ""
+
+
+def _normalize_response_detail(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {"brief", "standard", "detailed"} else "standard"
+
+
+_REDUNDANT_STATUS_LINES = frozenset(
+    {
+        "No action was executed.",
+        "No drone command was sent.",
+        "No SITL or drone action was executed.",
+        "No action was executed; raw ULog content was not exposed.",
+    }
+)
+
+
+def _compact_operator_status(content: str) -> str:
+    """Keep status prose concise while retaining safety facts in trace metadata."""
+
+    compacted: list[str] = []
+    for raw_line in str(content or "").splitlines():
+        stripped = raw_line.strip()
+        if stripped in _REDUNDANT_STATUS_LINES:
+            continue
+        for suffix in (
+            " No drone command was sent.",
+            " No action was executed.",
+        ):
+            if stripped.endswith(suffix):
+                raw_line = raw_line[: -len(suffix)].rstrip()
+                break
+        compacted.append(raw_line)
+    return "\n".join(compacted).strip()
+
+
+def provider_read_intent_contracts() -> tuple[dict[str, Any], ...]:
+    """Return the bounded semantic read menu used by the provider router."""
+
+    contracts: list[dict[str, Any]] = []
+    virtual_intents = ("previous_action_summary",)
+    for intent in (*virtual_intents, *LOCAL_INTENT_TOOL_IDS):
+        if any(item["id"] == intent for item in contracts):
+            continue
+        contract = {
+            "id": intent,
+            "description": PROVIDER_READ_INTENT_DESCRIPTIONS.get(
+                intent,
+                intent.replace("_", " "),
+            ),
+            "tool_ids": list(provider_read_intent_tool_ids(intent) or ()),
+        }
+        if intent == "drone_log_summary":
+            contract["options_schema"] = dict(DRONE_LOG_READ_OPTIONS_SCHEMA)
+        contracts.append(contract)
+    return tuple(contracts)
+
+
+def provider_read_intent_options_schema() -> dict[str, Any]:
+    """Return strict provider output options keyed by read intent."""
+
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "drone_log_summary": {
+                "anyOf": [
+                    dict(DRONE_LOG_READ_OPTIONS_SCHEMA),
+                    {"type": "null"},
+                ]
+            }
+        },
+        "required": ["drone_log_summary"],
+    }
+
+
+def provider_read_intent_tool_ids(intent: str) -> tuple[str, ...] | None:
+    """Resolve a provider-selected read intent to local evidence tools."""
+
+    normalized = str(intent or "").strip()
+    if normalized in {"previous_action_summary"}:
+        return ()
+    tool_ids = LOCAL_INTENT_TOOL_IDS.get(normalized)
+    return tuple(tool_ids) if tool_ids is not None else None
+
+
 FLEET_LIVE_TERMS = (
     "arm",
     "armed",
@@ -372,9 +564,14 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return contextual_intent
 
     if _looks_like_compound_fleet_sitl_state_question(normalized):
-        return "runtime_summary"
+        return "fleet_sitl_summary"
     if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
         return "fleet_connectivity"
+    # Prefer the most evidence-rich intent when a request spans command
+    # tracking and flight logs. The drone-log answer already composes command
+    # evidence and can additionally inspect ULogs; the inverse is not true.
+    if _looks_like_drone_log_summary_question(normalized):
+        return "drone_log_summary"
     if _looks_like_command_summary_question(normalized):
         return "command_summary"
     if _looks_like_git_status_question(normalized):
@@ -387,8 +584,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "system_status"
     if _looks_like_environment_summary_question(normalized):
         return "environment_summary"
-    if _looks_like_drone_log_summary_question(normalized):
-        return "drone_log_summary"
     if _has_any(normalized, ("log", "logs", "warning", "warnings", "error", "errors", "backend")) and _has_any(
         normalized,
         ("check", "see", "show", "what", "which", "any", "have", "list", "summary"),
@@ -502,20 +697,43 @@ def answer_mds_read_only_question(
     *,
     deps: Any | None = None,
     conversation_topic: str | None = None,
+    intent_override: str | None = None,
+    target_drone_ids: Sequence[str] = (),
+    action_context: Mapping[str, Any] | None = None,
+    response_detail: str = "standard",
+    read_options: Mapping[str, Mapping[str, object]] | None = None,
+    actor_role: str | None = "operator",
 ) -> MdsReadToolAnswer | None:
     """Answer an MDS prompt using only local read-only GCS context."""
 
     plan = build_mds_read_only_plan(message, conversation_topic=conversation_topic)
-    intent = plan.intent
+    requested_intent = str(intent_override or "").strip()
+    intent = requested_intent or plan.intent
+    if requested_intent and provider_read_intent_tool_ids(requested_intent) is None:
+        return None
     if intent is None:
         return None
 
     response_mode = plan.response_mode
-    tools = MdsReadOnlyTools(deps=deps)
+    normalized_detail = _normalize_response_detail(response_detail)
+    tools = MdsReadOnlyTools(deps=deps, actor_role=actor_role)
     if intent == "fleet_summary":
         return tools.fleet_summary(message)
+    if intent == "fleet_sitl_summary":
+        return tools.fleet_sitl_summary(message=message, response_detail=normalized_detail)
     if intent == "fleet_connectivity":
-        return tools.fleet_connectivity(message=message)
+        return tools.fleet_connectivity(
+            message=message,
+            target_drone_ids=target_drone_ids,
+            response_detail=normalized_detail,
+        )
+    if intent == "fleet_status":
+        return tools.fleet_connectivity(
+            message=message,
+            detail_profile="full" if _wants_fleet_position_details(_normalize_text(message)) else "health",
+            target_drone_ids=target_drone_ids,
+            response_detail=normalized_detail,
+        )
     if intent == "fleet_enrollment_summary":
         return tools.fleet_enrollment_summary(message=message)
     if intent == "swarm_topology":
@@ -536,6 +754,8 @@ def answer_mds_read_only_question(
         return tools.runtime_summary()
     if intent == "sitl_help":
         return tools.sitl_help()
+    if intent == "sitl_status":
+        return tools.sitl_status(response_detail=normalized_detail)
     if intent == "swarm_readiness":
         return tools.swarm_readiness(message)
     if intent == "sar_summary":
@@ -551,7 +771,18 @@ def answer_mds_read_only_question(
     if intent == "backend_log_summary":
         return tools.backend_log_summary(response_mode=response_mode, message=message)
     if intent == "drone_log_summary":
-        return tools.drone_log_summary(message=message)
+        return tools.drone_log_summary(
+            message=message,
+            target_drone_ids=target_drone_ids,
+            action_context=action_context,
+            response_detail=normalized_detail,
+            read_options=(
+                read_options.get("drone_log_summary")
+                if isinstance(read_options, Mapping)
+                and isinstance(read_options.get("drone_log_summary"), Mapping)
+                else None
+            ),
+        )
     if intent == "action_capability":
         return tools.action_capability(message)
     if intent == "registry_domain_tool_summary":
@@ -567,7 +798,7 @@ def answer_mds_read_only_question(
     if intent == "origin_status":
         return tools.origin_status()
     if intent == "command_summary":
-        return tools.command_summary(message=message)
+        return tools.command_summary(message=message, action_context=action_context)
     if intent == "node_boot_status":
         return tools.node_boot_status(message=message)
     if intent == "git_status_summary":
@@ -587,7 +818,7 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
     normalized_intent = str(intent or classify_mds_read_intent(message) or "").strip()
     if normalized_intent in {"show_summary", "show_modes_help", "show_upload_help"}:
         return "drone_show"
-    if normalized_intent in {"fleet_summary", "fleet_connectivity"}:
+    if normalized_intent in {"fleet_summary", "fleet_connectivity", "fleet_sitl_summary"}:
         return "fleet"
     if normalized_intent == "fleet_enrollment_summary":
         return "setup"
@@ -781,8 +1012,14 @@ def is_safe_blocked_term_read_only_intent(message: str, intent: str | None) -> b
 class MdsReadOnlyTools:
     """Small curated GCS read surface for Simurgh chat answers."""
 
-    def __init__(self, *, deps: Any | None = None):
+    def __init__(
+        self,
+        *,
+        deps: Any | None = None,
+        actor_role: str | None = "operator",
+    ):
         self.deps = deps
+        self.actor_role = actor_role
 
     def general_knowledge(self, message: str) -> MdsReadToolAnswer:
         normalized = _normalize_text(message)
@@ -953,13 +1190,13 @@ class MdsReadOnlyTools:
             composer.line(f"I do not see drone {specific_hw_id} in the current GCS fleet configuration.")
             composer.blank()
             composer.line(f"Configured drone count: {len(config)}.")
-            composer.line("This is read-only GCS configuration; no drone command was sent.")
+            composer.line("No action was executed.")
             return self._answer("fleet_summary", composer.render(), ("mds.config.fleet.read",))
         if specific_label and not rows:
             composer.line(f"I do not see a configured drone matching '{specific_label}' in the current GCS fleet configuration.")
             composer.blank()
             composer.line(f"Configured drone count: {len(config)}.")
-            composer.line("This is read-only GCS configuration; no drone command was sent.")
+            composer.line("No action was executed.")
             return self._answer("fleet_summary", composer.render(), ("mds.config.fleet.read",))
 
         if specific_label:
@@ -996,21 +1233,68 @@ class MdsReadOnlyTools:
         swarm_assignments = self._swarm_assignments()
         if specific_hw_id is None:
             composer.blank().line(f"Swarm assignments loaded: {len(swarm_assignments)}.")
-        composer.line("This is a read-only dashboard answer; no action was executed.")
+        composer.line("No action was executed.")
         return self._answer(
             "fleet_summary",
             composer.render(),
             ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
         )
 
-    def fleet_connectivity(self, message: str = "") -> MdsReadToolAnswer:
+    def fleet_sitl_summary(
+        self,
+        message: str = "",
+        *,
+        response_detail: str = "standard",
+    ) -> MdsReadToolAnswer:
+        """Compose fleet configuration and live SITL inventory in one status answer."""
+
+        config = self._fleet_config()
+        normalized_message = _normalize_text(message)
+        live_requested = _looks_like_live_fleet_count_state_question(normalized_message)
+        sitl_answer = self.sitl_status(
+            response_detail="brief" if _normalize_response_detail(response_detail) != "detailed" else "standard"
+        )
+        composer = AnswerComposer()
+        if not live_requested or _has_domain_signal(normalized_message, ("configured", "defined", "inventory")):
+            composer.line(f"Configured drones: {len(config)}.")
+        if live_requested:
+            connectivity = self.fleet_connectivity(message=message, response_detail="brief")
+            connectivity_summary = next(
+                (line.strip() for line in connectivity.content.splitlines() if line.strip()),
+                "Live drone count is unavailable.",
+            )
+            composer.line(connectivity_summary)
+        composer.line(sitl_answer.content)
+        return self._answer(
+            "fleet_sitl_summary",
+            composer.render(),
+            (
+                "mds.config.fleet.read",
+                "mds.fleet.heartbeats.read",
+                "mds.fleet.telemetry.read",
+                "mds.fleet.network_status.read",
+                "mds.sitl.instances.read",
+                "mds.sitl.policy.read",
+            ),
+            response_mode="status",
+        )
+
+    def fleet_connectivity(
+        self,
+        message: str = "",
+        *,
+        detail_profile: str = "auto",
+        target_drone_ids: Sequence[str] = (),
+        response_detail: str = "standard",
+    ) -> MdsReadToolAnswer:
         config = self._fleet_config()
         heartbeats = self._heartbeat_snapshot()
         telemetry = self._telemetry_snapshot()
         telemetry_success_times = self._telemetry_success_times()
         normalized_message = _normalize_text(message)
-        wants_position = _wants_fleet_position_details(normalized_message)
-        wants_health = _wants_fleet_health_details(normalized_message)
+        normalized_profile = str(detail_profile or "auto").strip().casefold()
+        wants_position = normalized_profile == "full" or _wants_fleet_position_details(normalized_message)
+        wants_health = normalized_profile in {"health", "full"} or _wants_fleet_health_details(normalized_message)
 
         try:
             from params import Params
@@ -1021,18 +1305,26 @@ class MdsReadOnlyTools:
             build_presence_snapshot = None
             thresholds = None
 
+        requested_targets = tuple(
+            dict.fromkeys(_as_str(item) for item in target_drone_ids if _as_str(item))
+        )
         all_hw_ids = sorted(
             {
                 *(_as_str(drone.get("hw_id")) for drone in config),
                 *(_as_str(key) for key in heartbeats),
                 *(_as_str(key) for key in telemetry),
+                *requested_targets,
             },
             key=_natural_key,
         )
+        if requested_targets:
+            requested_set = set(requested_targets)
+            all_hw_ids = [hw_id for hw_id in all_hw_ids if hw_id in requested_set]
         config_lookup = {_as_str(drone.get("hw_id")): drone for drone in config}
         live_count = 0
         rows: list[tuple[str, ...]] = []
         health_verdict_rows: list[dict[str, Any]] = []
+        compact_health_rows: list[dict[str, str]] = []
         now = time.time()
         for hw_id in all_hw_ids:
             heartbeat = _copy_mapping(heartbeats.get(hw_id) or heartbeats.get(_maybe_int_key(hw_id)))
@@ -1062,12 +1354,25 @@ class MdsReadOnlyTools:
             if wants_position and wants_health:
                 lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
                 health = _fleet_health_summary(telemetry_row)
+                compact_health_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "presence": str(state),
+                        "battery": health["battery"],
+                        "armed": health["armed"],
+                        "final_state": health["final_state"],
+                        "ready": health["ready"],
+                        "gps": gps_label,
+                        "evidence": str(detail),
+                    }
+                )
                 health_verdict_rows.append(
                     {
                         "drone": f"Drone {hw_id}",
                         "live": live,
                         "ready": health["ready"],
                         "armed": health["armed"],
+                        "final_state": health["final_state"],
                         "gps": gps_label,
                     }
                 )
@@ -1081,6 +1386,7 @@ class MdsReadOnlyTools:
                         position,
                         health["battery"],
                         health["armed"],
+                        health["final_state"],
                         health["ready"],
                         health["mode"],
                         health["system"],
@@ -1104,12 +1410,25 @@ class MdsReadOnlyTools:
                 )
             elif wants_health:
                 health = _fleet_health_summary(telemetry_row)
+                compact_health_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "presence": str(state),
+                        "battery": health["battery"],
+                        "armed": health["armed"],
+                        "final_state": health["final_state"],
+                        "ready": health["ready"],
+                        "gps": health["gps"],
+                        "evidence": str(detail),
+                    }
+                )
                 health_verdict_rows.append(
                     {
                         "drone": f"Drone {hw_id}",
                         "live": live,
                         "ready": health["ready"],
                         "armed": health["armed"],
+                        "final_state": health["final_state"],
                         "gps": health["gps"],
                     }
                 )
@@ -1119,6 +1438,7 @@ class MdsReadOnlyTools:
                         str(state),
                         health["battery"],
                         health["armed"],
+                        health["final_state"],
                         health["ready"],
                         health["mode"],
                         health["system"],
@@ -1130,20 +1450,34 @@ class MdsReadOnlyTools:
                 rows.append((f"Drone {hw_id}", str(role), str(state), str(ip), str(detail)))
 
         composer = AnswerComposer()
+        brief = _normalize_response_detail(response_detail) == "brief"
+        if requested_targets:
+            composer.line("Scope: " + ", ".join(f"Drone {target}" for target in requested_targets) + ".")
         if not all_hw_ids:
             composer.line("Connectivity from GCS state: no configured drone IDs, heartbeats, or telemetry rows are visible to this GCS runtime right now.")
             if wants_position:
                 composer.line(
                     "GPS, Latitude, Longitude, and Altitude evidence are unavailable because there is no readable fleet row, heartbeat row, or telemetry row in this runtime snapshot."
                 )
-            composer.line("This is a read-only presence check; no drone command was sent.")
+            composer.line("No action was executed.")
         else:
             composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
             if wants_health:
                 composer.line(_fleet_health_verdict_line(health_verdict_rows))
-            if wants_position and wants_health:
+            if brief and wants_health:
+                composer.bullets(
+                    (
+                        f"{item['drone']}: {item['presence']}; ready {item['ready']}; armed {item['armed']}; "
+                        f"{item['final_state']}; GPS {item['gps']}; battery {item['battery']}; {item['evidence']}"
+                    )
+                    for item in compact_health_rows
+                )
+            elif wants_position and wants_health:
                 composer.blank().table(
-                    ("Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Ready", "Mode", "System", "Evidence"),
+                    (
+                        "Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Final state",
+                        "Ready", "Mode", "System", "Evidence",
+                    ),
                     rows,
                 )
                 composer.blank().line(
@@ -1159,7 +1493,10 @@ class MdsReadOnlyTools:
                 )
             elif wants_health:
                 composer.blank().table(
-                    ("Drone", "Presence", "Battery", "Armed", "Ready", "Mode", "System", "GPS", "Evidence"),
+                    (
+                        "Drone", "Presence", "Battery", "Armed", "Final state", "Ready", "Mode",
+                        "System", "GPS", "Evidence",
+                    ),
                     rows,
                 )
                 composer.blank().line(
@@ -1167,10 +1504,16 @@ class MdsReadOnlyTools:
                 )
             else:
                 composer.blank().table(("Drone", "Role", "Presence", "IP", "Evidence"), rows)
-            composer.blank().line("Use this as operator presence evidence only; it is not a readiness-to-fly decision.")
-            composer.line("No drone command was sent.")
+            if wants_health and not brief:
+                composer.blank().line(
+                    "This is the current MDS telemetry/preflight report. Missing values remain unknown."
+                )
+            elif not wants_health and not brief:
+                composer.blank().line("This is the current MDS presence snapshot.")
+            if not brief:
+                composer.line("No drone command was sent.")
         return self._answer(
-            "fleet_connectivity",
+            "fleet_status" if normalized_profile in {"health", "full"} else "fleet_connectivity",
             composer.render(),
             ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
         )
@@ -1186,7 +1529,7 @@ class MdsReadOnlyTools:
         visible = [selected] if selected else active[:8]
 
         composer = AnswerComposer()
-        composer.line("Fleet Enrollment status from read-only GCS candidate registry:")
+        composer.line("Fleet Enrollment status from current GCS state:")
         composer.blank().table(
             ("Area", "Current evidence"),
             (
@@ -1209,7 +1552,7 @@ class MdsReadOnlyTools:
                 "Open [Fleet Enrollment](/fleet-enrollment) and check GCS API/service logs before accepting, replacing, recovering, "
                 "rejecting, or ignoring any candidate."
             )
-            composer.line("This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, or synced.")
+            composer.line("No enrollment change was executed.")
             return self._answer(
                 "fleet_enrollment_summary",
                 composer.render(),
@@ -1225,7 +1568,7 @@ class MdsReadOnlyTools:
                 "Use [Fleet Enrollment](/fleet-enrollment) after a node bootstrap/announce, then verify identity, IP, runtime mode, "
                 "PX4 `SYS_ID`, MAVLink routing, and sidecar profile before accepting anything into the fleet."
             )
-            composer.line("This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, or synced.")
+            composer.line("No enrollment change was executed.")
             return self._answer(
                 "fleet_enrollment_summary",
                 composer.render(),
@@ -1262,9 +1605,7 @@ class MdsReadOnlyTools:
             "Use [Fleet Enrollment](/fleet-enrollment) for accept/replace/recover/reject/ignore decisions and [Fleet Ops](/fleet-ops) "
             "for the required post-enrollment repo/config sync."
         )
-        composer.line(
-            "This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, committed, pushed, synced, or commanded."
-        )
+        composer.line("No enrollment, repository, or flight action was executed.")
         return self._answer(
             "fleet_enrollment_summary",
             composer.render(),
@@ -1415,7 +1756,7 @@ class MdsReadOnlyTools:
         processed_drones = status.get("processed_drones") or []
 
         composer = AnswerComposer()
-        composer.line("Smart Swarm readiness snapshot from read-only GCS evidence:")
+        composer.line("Smart Swarm readiness from current GCS evidence:")
         composer.blank().table(
             ("Area", "Current evidence"),
             (
@@ -1457,7 +1798,7 @@ class MdsReadOnlyTools:
 
         composer.blank().line("Before turning aircraft on or flying, do the human field checks separately: QGC identity/SYS_ID, fresh MAVLink telemetry, GPS/RTK quality, battery, mode/arming state, geofence/airspace/weather, and a clear abort/RTL plan.")
         composer.line("Pages: [Swarm Design](/swarm-design), [Swarm Trajectory](/swarm-trajectory), [Mission Config](/mission-config), [Overview](/).")
-        composer.line("This is a read-only readiness advisory; no config write, mission action, or drone command was sent.")
+        composer.line("No configuration, mission, or drone action was executed.")
         return self._answer(
             "swarm_readiness",
             composer.render(),
@@ -1481,7 +1822,7 @@ class MdsReadOnlyTools:
         workspace = self._quickscout_workspace(mission_id) if mission_id else {}
 
         composer = AnswerComposer()
-        composer.line("QuickScout/SAR mission status from read-only GCS evidence:")
+        composer.line("QuickScout/SAR mission status from current GCS evidence:")
 
         if not missions:
             composer.blank().line(
@@ -1492,7 +1833,7 @@ class MdsReadOnlyTools:
                 "Use [QuickScout](/quickscout) to plan/reopen missions. For field use, a human operator still needs fresh telemetry, "
                 "valid GPS/RTK as required by the package, battery/mode checks, airspace/weather review, and an abort/RTL plan."
             )
-            composer.line("This is read-only QuickScout inspection; no mission was planned, launched, paused, resumed, aborted, or changed.")
+            composer.line("No mission action was executed.")
             return self._answer("sar_summary", composer.render(), ("mds.sar.missions.read",))
 
         selected_status = status or selected
@@ -1578,7 +1919,7 @@ class MdsReadOnlyTools:
             "Use [QuickScout](/quickscout) for mission workspace/monitor review. "
             "Field readiness still requires live telemetry/GPS, battery, mode/arming, geofence, weather/airspace, and human launch review."
         )
-        composer.line("This is read-only QuickScout inspection; no plan, launch, pause/resume, abort, finding update, config write, or drone command was sent.")
+        composer.line("No mission, configuration, or drone action was executed.")
         return self._answer(
             "sar_summary",
             composer.render(),
@@ -1671,7 +2012,7 @@ class MdsReadOnlyTools:
             + _doc_link("GCS API surface", "mds.gcs_api")
             + "."
         )
-        composer.line("This is read-only file/config inspection; no show was deployed or commanded.")
+        composer.line("No show was deployed or commanded.")
         return composer.render()
 
     def _show_summary_interpretation_content(
@@ -1723,7 +2064,7 @@ class MdsReadOnlyTools:
             + _doc_link("GCS API surface", "mds.gcs_api")
             + "."
         )
-        composer.line("This is read-only interpretation; no show was deployed, launched, or commanded.")
+        composer.line("No show was deployed, launched, or commanded.")
         return composer.render()
 
     def _show_package_lines(self, *, skybrush: Mapping[str, Any], custom: Mapping[str, Any]) -> tuple[str, ...]:
@@ -1818,7 +2159,7 @@ class MdsReadOnlyTools:
 
         content = "\n".join(
             [
-                "I can explain MDS workflows and inspect read-only GCS state from this chat.",
+                "I can explain MDS workflows and inspect current GCS state from this chat.",
                 "Common pages: [Mission Config](/mission-config), [Swarm Design](/swarm-design), [Show Design](/manage-drone-show), [Swarm Trajectory](/swarm-trajectory).",
                 "No drone command was sent.",
             ]
@@ -1859,7 +2200,7 @@ class MdsReadOnlyTools:
             if len(read_only_menu) > 12:
                 preview.append(f"{len(read_only_menu) - 12} more read-only registry tools are available in `config/agent_tools.yaml`.")
             if not preview:
-                preview = ["No read-only GCS tools are currently allowed by Simurgh policy."]
+                preview = ["No approved GCS tools are currently available to Simurgh."]
 
             registry_path = registry.path
             try:
@@ -1886,7 +2227,7 @@ class MdsReadOnlyTools:
                     ("MCP endpoint", f"{mcp_status} at `{mcp_endpoint}`"),
                     ("Endpoint source", mcp_endpoint_source),
                     ("MCP auth", mcp_auth_label),
-                    ("Read-only GCS tools allowed", str(len(read_only_menu))),
+                    ("Approved GCS tools", str(len(read_only_menu))),
                     ("Guarded/future candidates", str(guarded)),
                     ("Explicitly excluded dangerous/admin/drone-local tools", str(excluded)),
                 ),
@@ -1920,16 +2261,9 @@ class MdsReadOnlyTools:
             tools = _matching_registry_tools(summary.allowed_tools, normalized, registry_domains)
             selected_domains = _registry_domains_from_tools(tools) or registry_domains
 
-            registry_path = summary.registry.path
-            try:
-                registry_label = registry_path.relative_to(REPO_ROOT).as_posix()
-            except ValueError:
-                registry_label = registry_path.as_posix()
-
             composer = AnswerComposer()
             domain_label = _registry_domain_summary_label(selected_domains, fallback=plan.domain)
-            composer.line(f"Registry-backed read-only capability summary for {domain_label}:")
-            composer.line(f"Source: `{registry_label}` filtered by current Simurgh policy for the dashboard/agent channel.")
+            composer.line(f"Approved MDS capabilities for {domain_label}:")
             composer.blank()
             if tools:
                 rows = [
@@ -1943,12 +2277,15 @@ class MdsReadOnlyTools:
                 ]
                 composer.table(("Capability", "Reads", "Route / adapter", "Args"), rows)
                 if len(tools) > 12:
-                    composer.blank().line(f"{len(tools) - 12} more matching read-only tools are available through the same registry/MCP menu.")
+                    composer.blank().line(f"{len(tools) - 12} more matching capabilities are available through the same MDS/MCP menu.")
             else:
-                composer.line("No policy-allowed read-only registry tools matched that domain yet.")
+                composer.line("No approved capability matched that domain yet.")
             composer.blank()
-            composer.line("How this is used: Dashboard chat and external MCP clients discover the same approved menu; external clients call it with `tools/list` and `tools/call` when MCP auth is valid.")
-            composer.line("This answer only describes the approved capability surface; it did not call a route, mutate config, upload assets, or command a drone.")
+            composer.line(
+                "Dashboard chat and external MCP clients use the same approved capability menu; "
+                "MCP clients discover it with `tools/list`."
+            )
+            composer.line("No route, configuration, upload, mission, or drone action was executed.")
             content = composer.render()
             tool_ids = tuple(tool.id for tool in tools[:16]) or ("mds.simurgh.tools.read", "mds.simurgh.policy.read")
         except Exception as exc:
@@ -2059,7 +2396,7 @@ class MdsReadOnlyTools:
             wifi = build_connectivity_runtime_summary(REPO_ROOT)
             mavlink = build_mavlink_runtime_summary(REPO_ROOT)
             composer = AnswerComposer()
-            composer.line("Fleet Ops sidecar status from read-only GCS state:")
+            composer.line("Fleet Ops sidecar status from current GCS state:")
             composer.blank().table(
                 ("Sidecar", "Purpose", "Dashboard", "Runtime"),
                 (
@@ -2100,7 +2437,7 @@ class MdsReadOnlyTools:
                     composer.line(f"Showing 8 of {len(node_rows)} sidecar row(s); open Fleet Ops for the full table.")
 
             composer.blank().line("Use [Fleet Ops](/fleet-ops) for the full fleet posture, [Wi-Fi profiles](/fleet-ops/wifi) for Smart Wi-Fi Manager, and [MAVLink profiles](/fleet-ops/mavlink) for MAVLink Anywhere.")
-            composer.line("Read-only meaning: Simurgh can inspect sidecar state, dashboards, modes, drift, profiles/endpoints, and job results. Profile apply/reconcile/delete remains a human-controlled Fleet Ops action.")
+            composer.line("Simurgh can inspect sidecar state here; profile apply/reconcile/delete remains a human-controlled Fleet Ops action.")
             composer.line("If a node dashboard is reachable but profile mutation reports a required API token, treat that as sidecar mutation-token configuration, not a MAVLink flight-control issue.")
             network_details = self._fleet_network_details()
             network_count = _network_detail_count(network_details)
@@ -2335,14 +2672,14 @@ class MdsReadOnlyTools:
                 )
 
             composer = AnswerComposer()
-            composer.line("PX4 parameter support in MDS is read-only/advisory from Simurgh right now.")
+            composer.line("PX4 parameter support in Simurgh provides status and profile guidance.")
             composer.blank().table(
                 ("Capability", "Current value"),
                 (
                     ("Profiles available", str(profiles.get("total_profiles", len(profile_rows)))),
                     ("Supports MDS profiles", str(policy.get("supports_mds_profiles", True))),
                     ("Snapshot route", "available through GCS API / PX4 Parameters page"),
-                    ("Patch/apply", "not executable by Simurgh in this read-only slice"),
+                    ("Patch/apply", "not registered as a conversational Simurgh action"),
                 ),
             )
             if profile_rows:
@@ -2393,17 +2730,29 @@ class MdsReadOnlyTools:
         else:
             composer.blank().line("No launch/trajectory start positions are visible from the GCS config loader.")
         composer.blank().line("Edit/check this from [Mission Config](/mission-config) and review deviations at [Origin](/origin) when available.")
-        composer.line("This is read-only configuration inspection; no origin, launch position, route, or drone command was changed.")
+        composer.line("No origin, launch position, route, or drone command was changed.")
         return self._answer(
             "origin_status",
             composer.render(),
             ("mds.origin.read", "mds.navigation.global_origin.read", "mds.config.positions.read"),
         )
 
-    def command_summary(self, message: str = "") -> MdsReadToolAnswer:
-        snapshot = self._command_tracker_snapshot()
+    def command_summary(
+        self,
+        message: str = "",
+        *,
+        action_context: Mapping[str, Any] | None = None,
+    ) -> MdsReadToolAnswer:
+        snapshot = _scope_command_snapshot_to_action(
+            self._command_tracker_snapshot(),
+            action_context,
+        )
         composer = AnswerComposer()
-        composer.line("GCS command tracker summary:")
+        composer.line(
+            "Action-run command tracker summary:"
+            if snapshot.get("action_scoped")
+            else "GCS command tracker summary:"
+        )
         if not snapshot.get("available"):
             composer.blank().line("The command tracker is not available from this Simurgh process.")
         else:
@@ -2415,10 +2764,10 @@ class MdsReadOnlyTools:
                 (
                     ("Active commands", str(len(active))),
                     ("Recent commands retained", str(len(recent))),
-                    ("Total commands since tracker start", str(stats.get("total_commands", 0))),
-                    ("Successful", str(stats.get("successful_commands", 0))),
-                    ("Failed", str(stats.get("failed_commands", 0))),
-                    ("Partial", str(stats.get("partial_commands", 0))),
+                    ("Total commands since tracker start", _known_metric(stats, "total_commands")),
+                    ("Successful", _known_metric(stats, "successful_commands")),
+                    ("Failed", _known_metric(stats, "failed_commands")),
+                    ("Partial", _known_metric(stats, "partial_commands")),
                 ),
             )
             selected = active if _has_domain_signal(_normalize_text(message), ("active", "running", "in progress")) else recent[:8]
@@ -2439,7 +2788,12 @@ class MdsReadOnlyTools:
                 )
             else:
                 composer.blank().line("No active/recent command records are currently retained in the tracker.")
-        composer.blank().line("Open the command/audit UI for full command details. This is read-only tracker inspection; no command was submitted, retried, or cancelled.")
+            missing_command_ids = snapshot.get("missing_command_ids")
+            if isinstance(missing_command_ids, list) and missing_command_ids:
+                composer.blank().line(
+                    f"{len(missing_command_ids)} command ID(s) from the durable action run are no longer retained by the in-memory tracker."
+                )
+        composer.blank().line("Open the command/audit UI for full command details. No command was submitted, retried, or cancelled.")
         return self._answer(
             "command_summary",
             composer.render(),
@@ -2454,7 +2808,7 @@ class MdsReadOnlyTools:
         wants_commit_detail = _has_domain_signal(_normalize_text(message), ("commit", "uncommitted", "dirty", "push", "pushed", "write-back", "writeback"))
 
         composer = AnswerComposer()
-        composer.line("GCS repository and fleet sync status from read-only git evidence:")
+        composer.line("GCS repository and fleet sync status from current git evidence:")
         composer.blank().table(
             ("Area", "Value"),
             (
@@ -2489,7 +2843,7 @@ class MdsReadOnlyTools:
         elif wants_commit_detail:
             composer.blank().line("Operator meaning: no uncommitted GCS working-tree change is reported in this snapshot.")
         composer.line("Use [Fleet Ops](/fleet-ops) for node sync details and [Smart Swarm](/swarm-design) or the relevant editor page for the source workflow.")
-        composer.line("This is read-only repository inspection; no git commit, push, pull, node sync, config write, or drone command was executed.")
+        composer.line("No git commit, push, pull, node sync, configuration, or drone action was executed.")
         return self._answer(
             "git_status_summary",
             composer.render(),
@@ -2556,6 +2910,106 @@ class MdsReadOnlyTools:
             content,
             ("mds.docs.sitl.read", "mds.system.runtime_status.read"),
             response_mode="workflow",
+        )
+
+    def sitl_status(self, *, response_detail: str = "standard") -> MdsReadToolAnswer:
+        """Read the managed SITL inventory and policy without invoking a lifecycle action."""
+
+        try:
+            service = getattr(self.deps, "sitl_control_service", None)
+            if service is None:
+                params = getattr(self.deps, "Params", None)
+                if params is None:
+                    raise RuntimeError("SITL control service is not available")
+                from src.sitl_control_service import SitlControlService
+
+                service = SitlControlService(params, repo_root=str(REPO_ROOT))
+
+            inventory = _model_payload(service.list_instances())
+            policy = _model_payload(service.build_policy())
+            instances = inventory.get("instances")
+            if not isinstance(instances, list):
+                instances = []
+            total = inventory.get("total_instances")
+            if not isinstance(total, int) or isinstance(total, bool):
+                total = len(instances)
+            active = inventory.get("running_instance_count")
+            if not isinstance(active, int) or isinstance(active, bool):
+                active = sum(
+                    1
+                    for item in instances
+                    if isinstance(item, Mapping)
+                    and str(item.get("state") or item.get("status") or "").casefold() == "running"
+                )
+            docker = inventory.get("docker")
+            if not isinstance(docker, Mapping):
+                docker = policy.get("docker") if isinstance(policy.get("docker"), Mapping) else {}
+            docker_reachable = docker.get("daemon_reachable")
+            if docker_reachable is None:
+                docker_reachable = docker.get("available")
+
+            composer = AnswerComposer()
+            brief = _normalize_response_detail(response_detail) == "brief"
+            composer.line(
+                f"SITL instances: {total} total, {active} active; "
+                f"Docker reachable: {_fmt_bool_state(docker_reachable)}."
+            )
+            active_rows = [
+                item
+                for item in instances
+                if isinstance(item, Mapping)
+                and str(item.get("state") or item.get("status") or "").casefold() == "running"
+            ]
+            if active_rows:
+                rows: list[tuple[str, str, str, str]] = []
+                for item in active_rows[:8]:
+                    sync = []
+                    if item.get("git_sync_enabled") is not None:
+                        sync.append(f"git {'on' if item.get('git_sync_enabled') else 'off'}")
+                    if item.get("requirements_sync_enabled") is not None:
+                        sync.append(f"requirements {'on' if item.get('requirements_sync_enabled') else 'off'}")
+                    rows.append(
+                        (
+                            str(item.get("name") or "SITL instance"),
+                            str(item.get("state") or item.get("status") or "unknown"),
+                            str(item.get("image_ref") or "unknown"),
+                            ", ".join(sync) or "not reported",
+                        )
+                    )
+                if brief:
+                    composer.line(
+                        "Active: "
+                        + "; ".join(
+                            f"{name} {state}, image {image}, startup sync {sync}"
+                            for name, state, image, sync in rows
+                        )
+                        + "."
+                    )
+                else:
+                    composer.blank().table(("Instance", "State", "Image", "Startup sync"), rows)
+            elif total == 0:
+                composer.line("No simulator drone instance is currently running.")
+
+            sim_mode = policy.get("sim_mode")
+            read_only = policy.get("read_only")
+            if not brief and (sim_mode is not None or read_only is not None):
+                policy_values = []
+                if sim_mode is not None:
+                    policy_values.append(f"sim_mode={sim_mode}")
+                if read_only is not None:
+                    policy_values.append(f"read_only={read_only}")
+                composer.line("SITL policy: " + ", ".join(policy_values) + ".")
+            if not brief:
+                composer.line("No SITL or drone action was executed.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"SITL status is unavailable from the local control service: {exc}"
+
+        return self._answer(
+            "sitl_status",
+            content,
+            ("mds.sitl.instances.read", "mds.sitl.policy.read"),
+            response_mode="status",
         )
 
     def board_setup_help(self) -> MdsReadToolAnswer:
@@ -2665,127 +3119,359 @@ class MdsReadOnlyTools:
         )
         return self._answer("docs_help", content, ("mds.docs.index.read",), response_mode="workflow")
 
-    def drone_log_summary(self, message: str = "") -> MdsReadToolAnswer:
+    def drone_log_summary(
+        self,
+        message: str = "",
+        *,
+        target_drone_ids: Sequence[str] = (),
+        action_context: Mapping[str, Any] | None = None,
+        response_detail: str = "standard",
+        read_options: Mapping[str, object] | None = None,
+    ) -> MdsReadToolAnswer:
         config = self._fleet_config()
         normalized_message = _normalize_text(message)
-        scoped_config = self._drone_log_scope(config, normalized_message)
+        brief = _normalize_response_detail(response_detail) == "brief"
+        structured_options = (
+            DroneLogReadOptions.from_mapping(read_options)
+            if read_options is not None
+            else None
+        )
+        operation_verification = (
+            structured_options.verify_operation
+            if structured_options is not None
+            else _looks_like_operation_log_verification_question(normalized_message)
+        )
+        include_unified_logs = (
+            structured_options.include_unified_logs
+            if structured_options is not None
+            else operation_verification
+        )
+        parse_latest_ulog = (
+            structured_options.analyze_latest_ulog
+            if structured_options is not None
+            else _looks_like_ulog_parse_summary_request(normalized_message)
+        )
+        command_snapshot = (
+            _scope_command_snapshot_to_action(
+                self._command_tracker_snapshot(),
+                action_context,
+            )
+            if operation_verification
+            else None
+        )
+        scoped_config = self._drone_log_scope(
+            config,
+            normalized_message,
+            command_snapshot=command_snapshot,
+        )
+        requested_targets = {
+            _as_str(item)
+            for item in target_drone_ids
+            if _as_str(item)
+        }
+        if requested_targets:
+            scoped_config = [
+                drone
+                for drone in config
+                if _as_str(drone.get("hw_id")) in requested_targets
+            ]
         composer = AnswerComposer()
-        composer.line("Drone log evidence from the GCS log proxy:")
+        composer.line("Flight evidence summary:" if brief else "Drone log evidence from the GCS log proxy:")
+        unified_events: list[dict[str, Any]] = []
+        unified_sources: list[str] = []
+        tool_ids: tuple[str, ...] = (
+            "mds.logs.drone_sessions.read",
+            "mds.logs.drone_ulog_files.read",
+            "mds.logs.drone_ulog_summary.read",
+            "mds.logs.drone_session.read",
+        )
 
-        if _looks_like_operation_log_verification_question(normalized_message):
-            self._append_recent_command_evidence(composer)
+        if operation_verification:
+            if brief:
+                self._append_brief_recent_command_evidence(composer, snapshot=command_snapshot)
+            else:
+                self._append_recent_command_evidence(composer, snapshot=command_snapshot)
+            tool_ids = (
+                "mds.commands.active.read",
+                "mds.commands.recent.read",
+                "mds.commands.statistics.read",
+                *tool_ids,
+            )
+        if include_unified_logs:
+            if brief:
+                unified_events, unified_sources = (
+                    self._append_brief_unified_log_evidence(
+                        composer,
+                        message=message,
+                        action_context=action_context,
+                    )
+                )
+            else:
+                unified_events, unified_sources = self._append_unified_log_evidence(
+                    composer,
+                    message=message,
+                    action_context=action_context,
+                )
+            tool_ids = (
+                "mds.logs.sessions.read",
+                "mds.logs.sources.read",
+                *tool_ids,
+            )
 
         if not scoped_config:
             composer.blank().line(
                 "No configured drones are visible in the GCS fleet config, so there are no per-drone log endpoints to inspect."
             )
-            composer.line("This is read-only log inspection; no drone command, raw ULog export, or erase action was attempted.")
+            composer.line("No action was executed; raw ULog content was not exposed.")
             return self._answer(
                 "drone_log_summary",
                 composer.render(),
-                ("mds.logs.drone_sessions.read", "mds.logs.drone_ulog_files.read"),
+                tool_ids,
             )
 
         rows: list[tuple[str, str, str, str, str, str]] = []
         ulog_summary_rows: list[tuple[str, str, str, str, str, str]] = []
+        parsed_ulog_summaries: list[tuple[int, int, dict[str, Any]]] = []
         ulog_safety_lines: list[str] = []
+        warning_error_samples: list[str] = []
         total_sessions = 0
         total_ulogs = 0
         latest_warning_error_total = 0
+        session_inventory_available = 0
+        ulog_inventory_available = 0
+        warning_sample_available = 0
         unavailable: list[str] = []
-        parse_latest_ulog = _looks_like_ulog_parse_summary_request(normalized_message)
-        max_ulog_summaries = _env_int("MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES", 2)
+        cleanup_failures: list[str] = []
+        cleanup_unknown: list[str] = []
+        max_ulog_summaries = max(0, _env_int("MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES", 2))
+        eligible_ulog_summaries = 0
+        attempted_ulog_summaries = 0
         parsed_ulog_count = 0
+        scoped_count = len(scoped_config)
 
         scoped_ids = [str(drone.get("hw_id")) for drone in scoped_config if drone.get("hw_id") not in (None, "")]
         if scoped_ids and len(scoped_config) < len(config):
             composer.line("Scope: " + ", ".join(f"Drone {hw_id}" for hw_id in scoped_ids) + ".")
 
-        for drone in scoped_config:
-            hw_id = _as_int(drone.get("hw_id"))
-            if hw_id is None:
-                continue
-            ip = str(drone.get("ip") or "").strip()
-            session_payload, session_error = self._fetch_drone_json(
-                ip,
-                "/api/logs/sessions",
-                timeout=DRONE_LOG_PROXY_TIMEOUT_SECONDS,
-            )
-            sessions = _log_session_items(session_payload)
-            total_sessions += len(sessions)
-            latest_session = sessions[0] if sessions else {}
-            warning_error_label = "not checked"
-            if latest_session:
-                session_id = str(latest_session.get("session_id") or "").strip()
-                content_payload, content_error = self._fetch_drone_json(
-                    ip,
-                    f"/api/logs/sessions/{session_id}",
-                    params={"limit": 200},
-                    timeout=DRONE_LOG_PROXY_TIMEOUT_SECONDS,
-                )
-                warning_error_count = _warning_error_count_from_log_lines(content_payload)
-                latest_warning_error_total += warning_error_count
-                warning_error_label = f"{warning_error_count} in latest session"
-                if content_error:
-                    warning_error_label = f"unavailable ({content_error})"
-            elif session_error:
-                warning_error_label = f"unavailable ({session_error})"
-                unavailable.append(f"Drone {hw_id} sessions: {session_error}")
-
-            ulog_payload, ulog_error = self._fetch_drone_json(
-                ip,
-                "/api/v1/ulog/files",
-                timeout=drone_ulog_proxy_timeout_seconds(),
-            )
-            ulog_files = _ulog_file_items(ulog_payload)
-            total_ulogs += len(ulog_files)
-            if ulog_error:
-                unavailable.append(f"Drone {hw_id} ULog list: {ulog_error}")
-            elif parse_latest_ulog and ulog_files and parsed_ulog_count < max_ulog_summaries:
-                log_id = _ulog_log_id(ulog_files[0])
-                if log_id is not None:
-                    summary_payload, summary_error = self._fetch_drone_json(
-                        ip,
-                        f"/api/v1/ulog/files/{log_id}/summary",
-                        timeout=drone_ulog_summary_timeout_seconds(),
-                    )
-                    parsed_ulog_count += 1
-                    if summary_error:
-                        unavailable.append(f"Drone {hw_id} ULog summary id {log_id}: {summary_error}")
-                        ulog_summary_rows.append(
-                            (
-                                f"Drone {hw_id}",
-                                str(log_id),
-                                "unavailable",
-                                "-",
-                                "-",
-                                summary_error,
-                            )
-                        )
-                    else:
-                        ulog_summary_rows.append(_format_ulog_summary_row(hw_id, log_id, summary_payload))
-                        safety_line = _format_ulog_safety_evidence_line(hw_id, log_id, summary_payload)
-                        if safety_line:
-                            ulog_safety_lines.append(safety_line)
-
+        evidence_deadline = time.monotonic() + max(
+            0.1,
+            _env_float(
+                "MDS_SIMURGH_DRONE_LOG_EVIDENCE_DEADLINE_SEC",
+                DEFAULT_DRONE_LOG_EVIDENCE_DEADLINE_SECONDS,
+            ),
+        )
+        base_evidence = self._collect_drone_log_base_evidence(
+            scoped_config,
+            deadline=evidence_deadline,
+        )
+        for evidence in base_evidence:
+            hw_id = evidence.hw_id
+            sessions = list(evidence.sessions)
+            ulog_files = list(evidence.ulog_files)
+            if not evidence.session_error:
+                session_inventory_available += 1
+                total_sessions += len(sessions)
+            else:
+                unavailable.append(f"Drone {hw_id} sessions: {evidence.session_error}")
+            if evidence.warning_error_count is not None:
+                warning_sample_available += 1
+                latest_warning_error_total += evidence.warning_error_count
+            elif evidence.warning_error_detail:
+                unavailable.append(evidence.warning_error_detail)
+            if not evidence.ulog_error:
+                ulog_inventory_available += 1
+                total_ulogs += len(ulog_files)
+            else:
+                unavailable.append(f"Drone {hw_id} ULog list: {evidence.ulog_error}")
+            if not evidence.ulog_error and parse_latest_ulog and ulog_files:
+                eligible_ulog_summaries += 1
             rows.append(
                 (
                     f"Drone {hw_id}",
-                    ip or "unknown",
-                    str(len(sessions)) if not session_error else f"unavailable ({session_error})",
-                    str(len(ulog_files)) if not ulog_error else f"unavailable ({ulog_error})",
-                    _latest_ulog_label(ulog_files),
-                    warning_error_label,
+                    evidence.ip or "unknown",
+                    (
+                        str(len(sessions))
+                        if not evidence.session_error
+                        else f"unavailable ({evidence.session_error})"
+                    ),
+                    (
+                        str(len(ulog_files))
+                        if not evidence.ulog_error
+                        else f"unavailable ({evidence.ulog_error})"
+                    ),
+                    (
+                        _latest_ulog_label(ulog_files)
+                        if not evidence.ulog_error
+                        else "unavailable"
+                    ),
+                    evidence.warning_error_label,
                 )
+            )
+            for sample in evidence.warning_error_samples:
+                if len(warning_error_samples) >= DRONE_LOG_WARNING_SAMPLE_LIMIT:
+                    break
+                warning_error_samples.append(
+                    _format_drone_log_warning_sample(evidence.hw_id, sample)
+                )
+
+        summary_candidates = [
+            (
+                evidence,
+                _ulog_log_id(evidence.ulog_files[0]),
+            )
+            for evidence in base_evidence
+            if (
+                parse_latest_ulog
+                and not evidence.ulog_error
+                and evidence.ulog_files
+                and _ulog_log_id(evidence.ulog_files[0]) is not None
+            )
+        ][:max_ulog_summaries]
+        attempted_ulog_summaries = len(summary_candidates)
+        summary_results = self._collect_drone_ulog_summaries(
+            summary_candidates,
+            deadline=evidence_deadline,
+        )
+        for (evidence, log_id), (summary_payload, summary_error) in zip(
+            summary_candidates,
+            summary_results,
+        ):
+            if log_id is None:
+                continue
+            hw_id = evidence.hw_id
+            if summary_error:
+                unavailable.append(
+                    f"Drone {hw_id} ULog summary id {log_id}: {summary_error}"
+                )
+                ulog_summary_rows.append(
+                    (
+                        f"Drone {hw_id}",
+                        str(log_id),
+                        "unavailable",
+                        "-",
+                        "-",
+                        summary_error,
+                    )
+                )
+                continue
+            rendered_summary = _copy_mapping(summary_payload)
+            if _ulog_summary_parsed_successfully(rendered_summary):
+                parsed_ulog_count += 1
+            rendered_summary["correlation"] = _model_payload(
+                _build_ulog_action_correlation(
+                    hw_id=hw_id,
+                    log_entry=evidence.ulog_files[0],
+                    summary=rendered_summary,
+                    command_snapshot=command_snapshot,
+                    expected_action_reference=_action_context_reference(
+                        action_context
+                    ),
+                    expected_command_ids=_action_context_command_ids(
+                        action_context
+                    ),
+                )
+            )
+            parsed_ulog_summaries.append((hw_id, log_id, rendered_summary))
+            cleanup_status = _ulog_staged_cleanup_status(rendered_summary)
+            if cleanup_status is False:
+                cleanup_failures.append(
+                    f"Drone {hw_id} ULog summary id {log_id}: staged download cleanup failed"
+                )
+            elif cleanup_status is None:
+                cleanup_unknown.append(
+                    f"Drone {hw_id} ULog summary id {log_id}: staged download cleanup outcome unavailable"
+                )
+            ulog_summary_rows.append(
+                _format_ulog_summary_row(hw_id, log_id, rendered_summary)
+            )
+            safety_line = _format_ulog_safety_evidence_line(
+                hw_id,
+                log_id,
+                rendered_summary,
+            )
+            if safety_line:
+                ulog_safety_lines.append(safety_line)
+
+        verdict = self._brief_flight_evidence_verdict(
+            command_snapshot=command_snapshot,
+            unified_events=unified_events,
+            unified_sources=unified_sources,
+            parsed_ulog_summaries=parsed_ulog_summaries,
+            parse_latest_ulog=parse_latest_ulog,
+            eligible_ulog_summaries=eligible_ulog_summaries,
+            parsed_ulog_count=parsed_ulog_count,
+            total_ulogs=total_ulogs,
+            ulog_inventory_available=ulog_inventory_available,
+            latest_warning_error_total=latest_warning_error_total,
+            warning_sample_available=warning_sample_available,
+            scoped_count=scoped_count,
+            unavailable=unavailable,
+            cleanup_failures=cleanup_failures,
+        )
+        composer.lines.insert(1, verdict)
+
+        if brief:
+            for row in rows:
+                composer.line(
+                    f"- {row[0]}: {row[2]} log session(s); {row[3]} ULog(s); "
+                    f"latest {row[4]}; warnings/errors {row[5]}."
+                )
+            if warning_error_samples:
+                composer.line("Latest drone-log warning/error samples:")
+                composer.bullets(warning_error_samples)
+            for hw_id, log_id, summary in parsed_ulog_summaries:
+                composer.bullets(_format_ulog_brief_lines(hw_id, log_id, summary))
+            if parse_latest_ulog and total_ulogs == 0:
+                qualifier = (
+                    "in the checked scope"
+                    if ulog_inventory_available == scoped_count
+                    else "in the available inventories; unavailable sources remain unknown"
+                )
+                composer.line(f"- ULog analysis: no onboard ULog is listed {qualifier}.")
+            if cleanup_failures:
+                composer.line(f"- Warning: {len(cleanup_failures)} staged ULog cleanup failure(s).")
+            if unavailable:
+                composer.line(
+                    f"- Evidence gaps: {len(unavailable)} check(s) unavailable; "
+                    + "; ".join(unavailable[:2])
+                    + ("." if len(unavailable) <= 2 else f"; +{len(unavailable) - 2} more.")
+                )
+            return self._answer(
+                "drone_log_summary",
+                composer.render(),
+                tool_ids,
+                response_mode="status",
+                safety_notes=(
+                    "Answered from read-only GCS-proxied drone log endpoints.",
+                    "No command, erase action, raw ULog content fetch for the provider, or raw topic-array exposure was attempted.",
+                    "ULog parsing returns derived local metrics only; staged cleanup success, failure, or unknown state is reported from the API result.",
+                ),
             )
 
         composer.blank().table(
             ("Drone", "IP", "Log sessions", "ULogs", "Latest ULog", "Warnings/errors"),
             rows,
         )
+        if scoped_count < len(config):
+            composer.blank().line(
+                f"Request coverage: checked {scoped_count}/{len(config)} configured drone(s); "
+                "unchecked drones are not represented by the totals below."
+            )
         composer.blank().line(
-            f"Summary: {total_sessions} drone log session(s), {total_ulogs} onboard ULog file(s), "
-            f"{latest_warning_error_total} warning/error line(s) seen in the latest-session samples."
+            "Summary: "
+            f"drone log sessions {_covered_count_label(total_sessions, session_inventory_available, scoped_count)}; "
+            f"onboard ULogs {_covered_count_label(total_ulogs, ulog_inventory_available, scoped_count)}; "
+            "latest-session warning/error lines "
+            f"{_covered_count_label(latest_warning_error_total, warning_sample_available, scoped_count)}."
+        )
+        if warning_error_samples:
+            composer.blank().line("Latest drone-log warning/error samples:")
+            composer.bullets(warning_error_samples)
+        composer.line(
+            "Evidence coverage: "
+            f"session inventory {session_inventory_available}/{scoped_count}; "
+            f"ULog inventory {ulog_inventory_available}/{scoped_count}; "
+            f"latest-session samples {warning_sample_available}/{scoped_count}."
         )
         composer.line(
             "ULog inventory is metadata unless a parsed summary is shown below; raw `.ulg` content is not included in this answer."
@@ -2803,10 +3489,28 @@ class MdsReadOnlyTools:
             if ulog_safety_lines:
                 composer.blank().line("ULog safety evidence (derived metadata only):")
                 composer.bullets(ulog_safety_lines)
-        elif parse_latest_ulog and total_ulogs > 0 and max_ulog_summaries <= 0:
-            composer.line("ULog parsing was skipped because `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES=0`.")
-        elif parse_latest_ulog and total_ulogs == 0:
-            composer.line("No onboard ULog file is listed, so there is no ULog to parse from the current evidence.")
+        if parse_latest_ulog:
+            composer.line(
+                "ULog summary coverage: "
+                f"{parsed_ulog_count}/{eligible_ulog_summaries} known eligible drone(s) parsed successfully; "
+                f"{attempted_ulog_summaries} attempted; cap {max_ulog_summaries}."
+            )
+            if eligible_ulog_summaries > attempted_ulog_summaries:
+                composer.line(
+                    f"{eligible_ulog_summaries - attempted_ulog_summaries} eligible newest ULog(s) were left metadata-only by the parse cap."
+                )
+            if total_ulogs == 0 and ulog_inventory_available == scoped_count:
+                composer.line("No onboard ULog file is listed in the complete checked scope, so there is no ULog to parse.")
+            elif total_ulogs == 0 and ulog_inventory_available < scoped_count:
+                composer.line(
+                    "No ULog is listed by the available inventories; unavailable inventories remain unknown."
+                )
+        if cleanup_failures:
+            composer.blank().line("Staged ULog cleanup failures:")
+            composer.bullets(cleanup_failures)
+        if cleanup_unknown:
+            composer.blank().line("Staged ULog cleanup outcome unavailable:")
+            composer.bullets(cleanup_unknown)
         if unavailable:
             composer.blank().line("Unavailable checks:")
             composer.bullets(unavailable[:6])
@@ -2815,30 +3519,330 @@ class MdsReadOnlyTools:
         composer.blank().line(
             "Open [Logs](/logs) for GCS logs and per-drone log views. API refs: `GET /api/logs/drone/{drone_id}/sessions` and `GET /api/logs/drone/{drone_id}/ulog/files`."
         )
-        composer.line(
-            "This is read-only GCS-proxied log inspection; no drone command, raw ULog export, persistent download job, or erase action was attempted."
-        )
+        composer.line("No action was executed; raw ULog content was not exposed.")
         return self._answer(
             "drone_log_summary",
             composer.render(),
-            (
-                "mds.logs.drone_sessions.read",
-                "mds.logs.drone_ulog_files.read",
-                "mds.logs.drone_ulog_summary.read",
-                "mds.logs.drone_session.read",
-            ),
+            tool_ids,
             response_mode="status",
             safety_notes=(
                 "Answered from read-only GCS-proxied drone log endpoints.",
                 "No command, erase action, raw ULog content fetch for the provider, or raw topic-array exposure was attempted.",
-                "ULog parsing, when available, returns derived local metrics only and cleans up the staged job after parsing.",
+                "ULog parsing returns derived local metrics only; staged cleanup success, failure, or unknown state is reported from the API result.",
             ),
         )
+
+    def _collect_drone_log_base_evidence(
+        self,
+        config: Sequence[Mapping[str, Any]],
+        *,
+        deadline: float,
+    ) -> list[_DroneLogBaseEvidence]:
+        scoped = [
+            _copy_mapping(drone)
+            for drone in config
+            if _as_int(drone.get("hw_id")) is not None
+        ]
+        session_results = self._run_bounded_evidence_tasks(
+            scoped,
+            worker=lambda drone: self._fetch_drone_session_inventory(
+                drone,
+                deadline=deadline,
+            ),
+            deadline=deadline,
+        )
+        session_state: list[dict[str, Any]] = []
+        content_candidates: list[tuple[int, str, str]] = []
+        for index, (drone, (result, task_error)) in enumerate(
+            zip(scoped, session_results)
+        ):
+            hw_id = _as_int(drone.get("hw_id"))
+            if hw_id is None:
+                continue
+            ip = str(drone.get("ip") or "").strip()
+            sessions: tuple[dict[str, Any], ...] = ()
+            session_error = task_error or ""
+            if (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and isinstance(result[0], tuple)
+            ):
+                sessions = result[0]
+                session_error = str(result[1] or "")
+            state = {
+                "hw_id": hw_id,
+                "ip": ip,
+                "sessions": sessions,
+                "session_error": session_error,
+                "warning_error_count": None,
+                "warning_error_label": "not checked",
+                "warning_error_detail": "",
+                "warning_error_samples": (),
+            }
+            if sessions:
+                session_id = str(sessions[0].get("session_id") or "").strip()
+                if session_id:
+                    content_candidates.append((index, ip, session_id))
+                else:
+                    state["warning_error_label"] = (
+                        "unavailable (missing session id)"
+                    )
+                    state["warning_error_detail"] = (
+                        f"Drone {hw_id} latest session: missing session id"
+                    )
+            elif session_error:
+                state["warning_error_label"] = (
+                    f"unavailable ({session_error})"
+                )
+            else:
+                state["warning_error_count"] = 0
+                state["warning_error_label"] = "0 (no sessions)"
+            session_state.append(state)
+
+        content_results = self._run_bounded_evidence_tasks(
+            content_candidates,
+            worker=lambda candidate: self._fetch_latest_drone_session_sample(
+                candidate,
+                deadline=deadline,
+            ),
+            deadline=deadline,
+        )
+        for (state_index, _ip, _session_id), (
+            result,
+            task_error,
+        ) in zip(content_candidates, content_results):
+            if state_index >= len(session_state):
+                continue
+            state = session_state[state_index]
+            content_error = task_error or ""
+            content_payload: Mapping[str, Any] = {}
+            if (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and isinstance(result[0], Mapping)
+            ):
+                content_payload = result[0]
+                content_error = str(result[1] or "")
+            if content_error:
+                state["warning_error_label"] = (
+                    f"unavailable ({content_error})"
+                )
+                state["warning_error_detail"] = (
+                    f"Drone {state['hw_id']} latest session sample: "
+                    f"{content_error}"
+                )
+            else:
+                count = _warning_error_count_from_log_lines(content_payload)
+                state["warning_error_count"] = count
+                state["warning_error_label"] = (
+                    f"{count} in latest session"
+                )
+                state["warning_error_samples"] = (
+                    _warning_error_samples_from_log_lines(
+                        content_payload,
+                        limit=DRONE_LOG_WARNING_SAMPLE_LIMIT,
+                    )
+                )
+
+        ulog_results = self._run_bounded_evidence_tasks(
+            scoped,
+            worker=lambda drone: self._fetch_drone_ulog_inventory(
+                drone,
+                deadline=deadline,
+            ),
+            deadline=deadline,
+        )
+        evidence: list[_DroneLogBaseEvidence] = []
+        for state, (result, task_error) in zip(session_state, ulog_results):
+            ulog_files: tuple[dict[str, Any], ...] = ()
+            ulog_error = task_error or ""
+            if (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and isinstance(result[0], tuple)
+            ):
+                ulog_files = result[0]
+                ulog_error = str(result[1] or "")
+            evidence.append(
+                _DroneLogBaseEvidence(
+                    hw_id=int(state["hw_id"]),
+                    ip=str(state["ip"]),
+                    sessions=state["sessions"],
+                    session_error=str(state["session_error"]),
+                    warning_error_count=state["warning_error_count"],
+                    warning_error_label=str(state["warning_error_label"]),
+                    warning_error_detail=str(state["warning_error_detail"]),
+                    warning_error_samples=tuple(state["warning_error_samples"]),
+                    ulog_files=ulog_files,
+                    ulog_error=ulog_error,
+                )
+            )
+        return evidence
+
+    def _fetch_drone_session_inventory(
+        self,
+        drone: Mapping[str, Any],
+        *,
+        deadline: float,
+    ) -> tuple[tuple[dict[str, Any], ...], str]:
+        timeout = _remaining_evidence_timeout(
+            deadline,
+            DRONE_LOG_PROXY_TIMEOUT_SECONDS,
+        )
+        if timeout is None:
+            return (), "global evidence deadline exceeded"
+        payload, error = self._fetch_drone_json(
+            str(drone.get("ip") or "").strip(),
+            "/api/logs/sessions",
+            timeout=timeout,
+        )
+        return tuple(_log_session_items(payload)), error
+
+    def _fetch_latest_drone_session_sample(
+        self,
+        candidate: tuple[int, str, str],
+        *,
+        deadline: float,
+    ) -> tuple[dict[str, Any], str]:
+        _state_index, ip, session_id = candidate
+        timeout = _remaining_evidence_timeout(
+            deadline,
+            DRONE_LOG_PROXY_TIMEOUT_SECONDS,
+        )
+        if timeout is None:
+            return {}, "global evidence deadline exceeded"
+        return self._fetch_drone_json(
+            ip,
+            f"/api/logs/sessions/{session_id}",
+            params={"limit": 200},
+            timeout=timeout,
+        )
+
+    def _fetch_drone_ulog_inventory(
+        self,
+        drone: Mapping[str, Any],
+        *,
+        deadline: float,
+    ) -> tuple[tuple[dict[str, Any], ...], str]:
+        timeout = _remaining_evidence_timeout(
+            deadline,
+            drone_ulog_proxy_timeout_seconds(),
+        )
+        if timeout is None:
+            return (), "global evidence deadline exceeded"
+        payload, error = self._fetch_drone_json(
+            str(drone.get("ip") or "").strip(),
+            "/api/v1/ulog/files",
+            timeout=timeout,
+        )
+        return tuple(_ulog_file_items(payload)), error
+
+    def _collect_drone_ulog_summaries(
+        self,
+        candidates: Sequence[tuple[_DroneLogBaseEvidence, int | None]],
+        *,
+        deadline: float,
+    ) -> list[tuple[dict[str, Any], str]]:
+        def collect(
+            candidate: tuple[_DroneLogBaseEvidence, int | None],
+        ) -> tuple[dict[str, Any], str]:
+            evidence, log_id = candidate
+            if log_id is None:
+                return {}, "missing ULog id"
+            timeout = _remaining_evidence_timeout(
+                deadline,
+                drone_ulog_summary_timeout_seconds(),
+            )
+            if timeout is None:
+                return {}, "global evidence deadline exceeded"
+            return self._fetch_drone_json(
+                evidence.ip,
+                f"/api/v1/ulog/files/{log_id}/summary",
+                timeout=timeout,
+            )
+
+        raw_results = self._run_bounded_evidence_tasks(
+            candidates,
+            worker=collect,
+            deadline=deadline,
+        )
+        results: list[tuple[dict[str, Any], str]] = []
+        for result, error in raw_results:
+            if (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and isinstance(result[0], Mapping)
+            ):
+                results.append((_copy_mapping(result[0]), str(result[1] or "")))
+            else:
+                results.append(({}, error or "ULog summary unavailable"))
+        return results
+
+    @staticmethod
+    def _run_bounded_evidence_tasks(
+        items: Sequence[Any],
+        *,
+        worker: Any,
+        deadline: float,
+    ) -> list[tuple[Any | None, str]]:
+        """Run I/O fan-out concurrently and return results in input order."""
+
+        if not items:
+            return []
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return [
+                (None, "global evidence deadline exceeded")
+                for _item in items
+            ]
+        max_workers = min(
+            len(items),
+            DEFAULT_DRONE_LOG_MAX_WORKERS,
+            max(
+                1,
+                _env_int(
+                    "MDS_SIMURGH_DRONE_LOG_MAX_WORKERS",
+                    DEFAULT_DRONE_LOG_MAX_WORKERS,
+                ),
+            ),
+        )
+        request_slots = threading.BoundedSemaphore(max_workers)
+
+        def run_with_request_limit(item: Any) -> Any:
+            with request_slots:
+                return worker(item)
+
+        futures = [
+            _drone_log_evidence_executor().submit(run_with_request_limit, item)
+            for item in items
+        ]
+        concurrent.futures.wait(futures, timeout=remaining)
+        ordered: list[tuple[Any | None, str]] = []
+        for future in futures:
+            if not future.done():
+                future.cancel()
+                ordered.append(
+                    (None, "global evidence deadline exceeded")
+                )
+                continue
+            try:
+                ordered.append((future.result(), ""))
+            except Exception as exc:
+                ordered.append(
+                    (
+                        None,
+                        _truncate_text(str(exc), 80)
+                        or "evidence collection failed",
+                    )
+                )
+        return ordered
 
     def _drone_log_scope(
         self,
         config: list[dict[str, Any]],
         normalized_message: str,
+        *,
+        command_snapshot: Mapping[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Bound log review to explicit, recent-command, or live fleet targets."""
 
@@ -2855,7 +3859,7 @@ class MdsReadOnlyTools:
             return [config_by_id[explicit_hw_id]]
 
         if _looks_like_operation_log_verification_question(normalized_message):
-            snapshot = self._command_tracker_snapshot()
+            snapshot = command_snapshot or self._command_tracker_snapshot()
             for command in snapshot.get("recent") or ():
                 target_ids = [
                     target
@@ -2905,9 +3909,18 @@ class MdsReadOnlyTools:
         max_drones = max(1, _env_int("MDS_SIMURGH_DRONE_LOG_MAX_DRONES", 8))
         return config[:max_drones]
 
-    def _append_recent_command_evidence(self, composer: AnswerComposer) -> None:
-        snapshot = self._command_tracker_snapshot()
-        composer.blank().line("Recent command tracker evidence:")
+    def _append_recent_command_evidence(
+        self,
+        composer: AnswerComposer,
+        *,
+        snapshot: Mapping[str, Any] | None = None,
+    ) -> None:
+        snapshot = snapshot or self._command_tracker_snapshot()
+        composer.blank().line(
+            "Durable action-run command tracker evidence:"
+            if snapshot.get("action_scoped")
+            else "Recent command tracker evidence:"
+        )
         if not snapshot.get("available"):
             composer.line("The command tracker is not available from this Simurgh process.")
             return
@@ -2932,6 +3945,255 @@ class MdsReadOnlyTools:
         composer.line(
             "Use this as command-tracker evidence only; exact trajectory quality still requires live telemetry history or a parsed ULog."
         )
+        missing_command_ids = snapshot.get("missing_command_ids")
+        if isinstance(missing_command_ids, list) and missing_command_ids:
+            composer.line(
+                f"{len(missing_command_ids)} command ID(s) from the durable action run were not retained by the live tracker."
+            )
+
+    def _append_brief_recent_command_evidence(
+        self,
+        composer: AnswerComposer,
+        *,
+        snapshot: Mapping[str, Any] | None = None,
+    ) -> None:
+        snapshot = snapshot or self._command_tracker_snapshot()
+        if not snapshot.get("available"):
+            composer.line("- Commands: tracker unavailable.")
+            return
+        recent = snapshot.get("recent") if isinstance(snapshot.get("recent"), list) else []
+        active = snapshot.get("active") if isinstance(snapshot.get("active"), list) else []
+        stats = snapshot.get("stats") if isinstance(snapshot.get("stats"), Mapping) else {}
+        successful = _as_int(stats.get("successful_commands"))
+        failed = _as_int(stats.get("failed_commands"))
+        partial = _as_int(stats.get("partial_commands"))
+        if all(value is not None for value in (successful, failed, partial)):
+            scope_label = "action-run commands" if snapshot.get("action_scoped") else "commands"
+            composer.line(
+                f"- {scope_label.capitalize()}: {successful} successful, {failed} failed, {partial} partial; "
+                f"{len(active)} active."
+            )
+            return
+        completed = sum(
+            1
+            for item in recent
+            if str(item.get("outcome") or item.get("status") or "").strip().lower()
+            in {"completed", "success", "succeeded"}
+        )
+        composer.line(f"- Commands: {completed}/{len(recent)} recent completed; {len(active)} active.")
+
+    def _append_brief_unified_log_evidence(
+        self,
+        composer: AnswerComposer,
+        *,
+        message: str,
+        action_context: Mapping[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        window_seconds = _parse_recent_log_window_seconds(message)
+        window_started_ms, window_ended_ms = _action_context_time_window_ms(
+            action_context
+        )
+        events, scanned = self._recent_warning_events(
+            window_seconds=window_seconds,
+            started_at_ms=window_started_ms,
+            ended_at_ms=window_ended_ms,
+        )
+        if window_started_ms is not None and window_ended_ms is not None:
+            composer.line("- Unified logs: scoped to the durable action-run time window.")
+        if not scanned:
+            composer.line("- Unified logs: unavailable.")
+            return events, scanned
+        if not events:
+            composer.line("- Unified logs: no warning/error/critical entries in the checked window.")
+            return events, scanned
+        counts: dict[str, int] = {}
+        for event in events:
+            level = str(event.get("level") or "UNKNOWN").upper()
+            counts[level] = counts.get(level, 0) + 1
+        composer.line(
+            "- Unified logs: "
+            + ", ".join(f"{level}={count}" for level, count in sorted(counts.items()))
+            + f"; {self._brief_backend_log_classification(events)}."
+        )
+        return events, scanned
+
+    def _brief_backend_log_classification(self, events: Sequence[Mapping[str, Any]]) -> str:
+        status_counts, _ = _http_status_route_counts([dict(event) for event in events])
+        levels = {str(event.get("level") or "UNKNOWN").upper() for event in events}
+        if status_counts and set(status_counts) <= {"401"} and levels <= {"WARNING"}:
+            return "authentication/API noise, not direct flight-control evidence"
+        if "ERROR" in levels or "CRITICAL" in levels:
+            return "backend error evidence needs operator review"
+        if any(status.startswith("5") for status in status_counts):
+            return "server-side API failure evidence needs operator review"
+        return "warning-level evidence needs source/route review"
+
+    def _brief_flight_evidence_verdict(
+        self,
+        *,
+        command_snapshot: Mapping[str, Any] | None,
+        unified_events: Sequence[Mapping[str, Any]],
+        unified_sources: Sequence[str],
+        parsed_ulog_summaries: Sequence[tuple[int, int, Mapping[str, Any]]],
+        parse_latest_ulog: bool,
+        eligible_ulog_summaries: int,
+        parsed_ulog_count: int,
+        total_ulogs: int,
+        ulog_inventory_available: int,
+        latest_warning_error_total: int,
+        warning_sample_available: int,
+        scoped_count: int,
+        unavailable: Sequence[str],
+        cleanup_failures: Sequence[str],
+    ) -> str:
+        """Build one bounded verdict from typed evidence, never prompt wording."""
+
+        issues: list[str] = []
+        cautions: list[str] = []
+        gaps: list[str] = []
+
+        if command_snapshot is not None:
+            if not command_snapshot.get("available"):
+                gaps.append("command tracker unavailable")
+            else:
+                stats = (
+                    command_snapshot.get("stats")
+                    if isinstance(command_snapshot.get("stats"), Mapping)
+                    else {}
+                )
+                failed = _as_int(stats.get("failed_commands"))
+                partial = _as_int(stats.get("partial_commands"))
+                active = (
+                    command_snapshot.get("active")
+                    if isinstance(command_snapshot.get("active"), list)
+                    else []
+                )
+                if failed:
+                    issues.append(f"{failed} command failure(s)")
+                if partial:
+                    issues.append(f"{partial} partial command(s)")
+                if active:
+                    cautions.append(f"{len(active)} command(s) still active")
+
+        if unified_sources:
+            levels = {
+                str(event.get("level") or "UNKNOWN").upper()
+                for event in unified_events
+            }
+            critical_count = sum(
+                1
+                for event in unified_events
+                if str(event.get("level") or "").upper() in {"ERROR", "CRITICAL"}
+            )
+            if critical_count:
+                issues.append(f"{critical_count} unified-log error/critical event(s)")
+            elif unified_events and levels:
+                cautions.append(
+                    f"{len(unified_events)} unified-log warning event(s)"
+                )
+        elif command_snapshot is not None:
+            gaps.append("unified logs unavailable")
+
+        ulog_issues: list[str] = []
+        correlation_verified = False
+        for _hw_id, _log_id, summary in parsed_ulog_summaries:
+            if not _ulog_summary_parsed_successfully(summary):
+                continue
+            ulog_issues.extend(_ulog_anomaly_labels(summary))
+            correlation_verified = (
+                correlation_verified or _format_ulog_correlation(summary).startswith("verified for ")
+            )
+        issues.extend(dict.fromkeys(ulog_issues))
+
+        if parse_latest_ulog:
+            if total_ulogs == 0:
+                gaps.append(
+                    "no onboard ULog listed by available inventories; remaining sources unknown"
+                    if ulog_inventory_available < scoped_count
+                    else "no onboard ULog listed in the complete checked scope"
+                )
+            elif eligible_ulog_summaries > parsed_ulog_count:
+                gaps.append(
+                    f"{eligible_ulog_summaries - parsed_ulog_count} newest ULog(s) not parsed"
+                )
+            elif parsed_ulog_count and not correlation_verified:
+                gaps.append("newest parsed ULog not conclusively tied to this action")
+
+        if warning_sample_available < scoped_count:
+            gaps.append("some latest drone-log samples unavailable")
+        if latest_warning_error_total:
+            cautions.append(
+                f"{latest_warning_error_total} latest drone-log warning/error line(s)"
+            )
+        if unavailable:
+            gaps.append(f"{len(unavailable)} evidence check(s) unavailable")
+        if cleanup_failures:
+            issues.append(f"{len(cleanup_failures)} staged ULog cleanup failure(s)")
+
+        issues = list(dict.fromkeys(issues))
+        cautions = list(dict.fromkeys(cautions))
+        gaps = list(dict.fromkeys(gaps))
+        if issues:
+            return "Verdict: review required - " + "; ".join(issues[:4]) + "."
+        if cautions:
+            suffix = f" Evidence gaps: {'; '.join(gaps[:3])}." if gaps else ""
+            return (
+                "Verdict: no command or parsed-ULog failure is shown, but "
+                + "; ".join(cautions[:4])
+                + " need review."
+                + suffix
+            )
+        if gaps:
+            return (
+                "Verdict: no failure is shown in the available evidence, but verification "
+                "is incomplete - "
+                + "; ".join(gaps[:4])
+                + "."
+            )
+        return "Verdict: no command, log, or parsed-ULog failure signal was found in the checked evidence."
+
+    def _append_unified_log_evidence(
+        self,
+        composer: AnswerComposer,
+        *,
+        message: str,
+        action_context: Mapping[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Append a compact unified-GCS log verdict to operation evidence."""
+
+        window_seconds = _parse_recent_log_window_seconds(message)
+        window_started_ms, window_ended_ms = _action_context_time_window_ms(
+            action_context
+        )
+        events, scanned = self._recent_warning_events(
+            window_seconds=window_seconds,
+            started_at_ms=window_started_ms,
+            ended_at_ms=window_ended_ms,
+        )
+        composer.blank().line("Unified GCS log evidence:")
+        if window_started_ms is not None and window_ended_ms is not None:
+            composer.line("- Scope: durable action-run time window.")
+        if scanned:
+            composer.line(f"- Sources scanned: {len(scanned)}.")
+        else:
+            composer.line("- No local unified GCS log source was available.")
+            composer.line("- Warning/error count: unknown because no source was scanned.")
+            return events, scanned
+        if not events:
+            composer.line("- No WARNING/ERROR/CRITICAL entries were found in the scanned window.")
+            return events, scanned
+        counts: dict[str, int] = {}
+        for event in events:
+            level = str(event.get("level") or "UNKNOWN").upper()
+            counts[level] = counts.get(level, 0) + 1
+        composer.line(
+            "- Findings: "
+            + ", ".join(f"{level}={count}" for level, count in sorted(counts.items()))
+            + "."
+        )
+        for line in self._backend_log_operator_read_lines(events)[:3]:
+            composer.line(line if line.startswith("-") else f"- {line}")
+        return events, scanned
 
     def _fetch_drone_json(
         self,
@@ -3056,12 +4318,14 @@ class MdsReadOnlyTools:
                 composer.table(("Time", "Level", "Source", "Message"), rows)
                 composer.blank().line("Operational interpretation:")
                 composer.bullets(self._backend_log_operator_read_lines(events))
-            else:
+            elif scanned:
                 composer.bullets((f"No WARNING/ERROR/CRITICAL entries were found in the {window_phrase}.",))
+            else:
+                composer.bullets(("Warning/error count is unknown because no local GCS log source was scanned.",))
 
             composer.blank().line("Open [Logs](/logs) for the full live stream and filters.")
             composer.line("Docs/API: " + _doc_link("logging guide", "mds.logging_system") + ", `GET /api/logs/sources`, `GET /api/logs/sessions`, `GET /api/logs/sessions/{session_id}`.")
-            composer.line("This is read-only log inspection; no drone command was sent.")
+            composer.line("No drone command was sent.")
             content = composer.render()
         return self._answer(
             "backend_log_summary",
@@ -3084,7 +4348,10 @@ class MdsReadOnlyTools:
             lines.append(f"- Evidence scanned: {', '.join(scanned[:4])}{' ...' if len(scanned) > 4 else ''}.")
         if window_seconds:
             lines.append(f"- Requested time window: last {_format_duration_seconds(window_seconds)}.")
-        if not events:
+        if not scanned:
+            lines.append("- Short answer: backend warning/error status is unknown because no local GCS log source was available to scan.")
+            lines.append("- Open the Logs page or restore the unified-log source before drawing a clean/healthy conclusion.")
+        elif not events:
             lines.append("- Short answer: I do not see backend warning/error evidence in that window, so this log view does not point to a current GCS problem.")
             lines.append(f"- I do not see WARNING/ERROR/CRITICAL entries in the {window_phrase}.")
             lines.append("- Meaning: there is no backend-warning evidence here to explain; use the Logs page if the operator saw a different time window.")
@@ -3094,7 +4361,7 @@ class MdsReadOnlyTools:
             lines.append("- How to read this: treat the pattern and affected routes as the signal, not each repeated line independently. Repeated identical warnings usually mean one client is polling/failing the same protected endpoint.")
             lines.append("- Next operator check: open [Logs](/logs), filter the same time window, and verify whether the warning continues after refreshing/re-authenticating the dashboard client.")
         lines.append("Docs/API: " + _doc_link("logging guide", "mds.logging_system") + ", `GET /api/logs/sources`, `GET /api/logs/sessions`, `GET /api/logs/sessions/{session_id}`.")
-        lines.append("This is read-only log interpretation; no drone command was sent.")
+        lines.append("No drone command was sent.")
         return lines
 
     def _backend_log_direct_verdict_lines(self, events: list[dict[str, Any]]) -> list[str]:
@@ -3152,7 +4419,11 @@ class MdsReadOnlyTools:
             from .tool_executor import list_policy_available_guarded_tools
 
             policy = load_default_policy()
-            tools = list_policy_available_guarded_tools(channel="agent", policy=policy)
+            tools = list_policy_available_guarded_tools(
+                channel="agent",
+                actor_role=self.actor_role,
+                policy=policy,
+            )
             composer = AnswerComposer()
             if tools:
                 composer.line(
@@ -3210,7 +4481,13 @@ class MdsReadOnlyTools:
             ),
         )
 
-    def _recent_warning_events(self, *, window_seconds: int | None = None) -> tuple[list[dict[str, Any]], list[str]]:
+    def _recent_warning_events(
+        self,
+        *,
+        window_seconds: int | None = None,
+        started_at_ms: int | None = None,
+        ended_at_ms: int | None = None,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         events: list[dict[str, Any]] = []
         scanned: list[str] = []
         candidates = _log_file_candidates()
@@ -3226,7 +4503,19 @@ class MdsReadOnlyTools:
             else:
                 events.extend(_warning_events_from_text_log(candidate, source=label))
         events = [event for event in events if not _is_routine_auth_noise_event(event)]
-        if window_seconds:
+        if started_at_ms is not None and ended_at_ms is not None:
+            tolerance_seconds = 2.0
+            started_at = started_at_ms / 1000.0 - tolerance_seconds
+            ended_at = ended_at_ms / 1000.0 + tolerance_seconds
+            events = [
+                event
+                for event in events
+                if (
+                    (event_timestamp := _event_timestamp_seconds(event)) is not None
+                    and started_at <= event_timestamp <= ended_at
+                )
+            ]
+        elif window_seconds:
             cutoff = time.time() - window_seconds
             events = [event for event in events if (_event_timestamp_seconds(event) or 0.0) >= cutoff]
         events.sort(key=lambda event: (_event_timestamp_seconds(event) or 0.0, str(event.get("ts") or "")))
@@ -3444,16 +4733,46 @@ class MdsReadOnlyTools:
                 from command_tracker import get_command_tracker
 
                 tracker = get_command_tracker()
-            commands = list(getattr(tracker, "_commands", {}).values())
-            stats = dict(getattr(tracker, "_stats", {}) or {})
+            get_recent = getattr(tracker, "get_recent", None)
+            get_active = getattr(tracker, "get_active_commands", None)
+            get_statistics = getattr(tracker, "get_statistics", None)
+            if not all(callable(method) for method in (get_recent, get_active, get_statistics)):
+                return {
+                    "available": False,
+                    "error": "command tracker does not expose the public snapshot APIs",
+                }
+
+            async def _read_public_snapshot() -> tuple[Any, Any, Any]:
+                return (
+                    await get_recent(limit=20),
+                    await get_active(),
+                    await get_statistics(),
+                )
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                recent_payload, active_payload, stats_payload = asyncio.run(_read_public_snapshot())
+            else:
+                return {
+                    "available": False,
+                    "error": "public command snapshot must run outside the active event loop",
+                }
         except Exception as exc:
             return {"available": False, "error": str(exc)}
 
-        recent = [_command_record_public_summary(command) for command in commands[-20:]][::-1]
-        active = [item for item in recent if str(item.get("phase") or "").lower() != "terminal"]
+        if not isinstance(recent_payload, Sequence) or isinstance(recent_payload, (str, bytes, bytearray)):
+            return {"available": False, "error": "unexpected recent-command payload"}
+        if not isinstance(active_payload, Sequence) or isinstance(active_payload, (str, bytes, bytearray)):
+            return {"available": False, "error": "unexpected active-command payload"}
+        if not isinstance(stats_payload, Mapping):
+            return {"available": False, "error": "unexpected command-statistics payload"}
+
+        recent = [_command_record_public_summary(command) for command in recent_payload]
+        active = [_command_record_public_summary(command) for command in active_payload]
         return {
             "available": True,
-            "stats": stats,
+            "stats": dict(stats_payload),
             "active": active,
             "recent": recent,
         }
@@ -3550,11 +4869,12 @@ class MdsReadOnlyTools:
             processed_dir = getattr(self.deps, "processed_dir", None) or dirs["processed_dir"]
             loader = getattr(self.deps, "_load_saved_metrics_if_current", None)
             if not callable(loader):
-                loader = lambda: load_saved_metrics_if_current(
-                    shapes_dir=shapes_dir,
-                    processed_dir=processed_dir,
-                    log_warning=lambda *_args, **_kwargs: None,
-                )
+                def loader():
+                    return load_saved_metrics_if_current(
+                        shapes_dir=shapes_dir,
+                        processed_dir=processed_dir,
+                        log_warning=lambda *_args, **_kwargs: None,
+                    )
             return build_metrics_snapshot_payload(
                 metrics_available=True,
                 load_saved_metrics_if_current_func=loader,
@@ -3622,6 +4942,11 @@ class MdsReadOnlyTools:
         safety_notes: tuple[str, ...] | None = None,
     ) -> MdsReadToolAnswer:
         normalized_mode = response_mode if response_mode in READ_RESPONSE_MODES else "status"
+        operator_content = (
+            _compact_operator_status(content)
+            if normalized_mode == "status"
+            else str(content or "").strip()
+        )
         normalized_safety_notes = safety_notes or (
             "Answered by local read-only MDS/GCS context tools.",
             "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
@@ -3630,14 +4955,14 @@ class MdsReadOnlyTools:
         )
         evidence = ReadOnlyEvidenceBundle.from_answer(
             intent=intent,
-            content=content,
+            content=operator_content,
             tool_ids=tool_ids,
             response_mode=normalized_mode,
             safety_notes=normalized_safety_notes,
         )
         return MdsReadToolAnswer(
             intent=intent,
-            content=content,
+            content=operator_content,
             tool_ids=tool_ids,
             safety_notes=normalized_safety_notes,
             response_mode=normalized_mode,
@@ -4152,12 +5477,10 @@ def _looks_like_ulog_parse_summary_request(normalized: str) -> bool:
             "analyze",
             "analysis",
             "correct",
-            "currect",
             "did it",
             "duration",
             "flight time",
             "happen",
-            "happend",
             "happened",
             "parse",
             "preflight",
@@ -4172,10 +5495,525 @@ def _looks_like_ulog_parse_summary_request(normalized: str) -> bool:
     )
 
 
+def _covered_count_label(count: int, available_sources: int, scoped_sources: int) -> str:
+    if scoped_sources <= 0 or available_sources <= 0:
+        return "unknown"
+    if available_sources >= scoped_sources:
+        return str(count)
+    if count == 0:
+        return f"0 in available sources ({available_sources}/{scoped_sources} sources available; total unknown)"
+    return f"at least {count} ({available_sources}/{scoped_sources} sources available; total unknown)"
+
+
+def _known_metric(values: Mapping[str, Any], key: str) -> str:
+    value = values.get(key)
+    return str(value) if value not in (None, "") else "unknown"
+
+
+def _timestamp_epoch_ms(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        if not math.isfinite(float(value)) or float(value) <= 0:
+            return None
+        numeric = float(value)
+        return int(numeric if numeric >= 100_000_000_000 else numeric * 1000.0)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        numeric = float(text)
+    except ValueError:
+        normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return int(parsed.timestamp() * 1000.0)
+    return _timestamp_epoch_ms(numeric)
+
+
+def _iso_from_epoch_ms(value: int | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return datetime.fromtimestamp(value / 1000.0, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _first_timestamp_ms(values: Mapping[str, Any], keys: Sequence[str]) -> int | None:
+    for key in keys:
+        parsed = _timestamp_epoch_ms(values.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+_SIMURGH_COMMAND_LABEL_PATTERN = re.compile(
+    r"simurgh:(?P<action_reference>act-[A-Za-z0-9_-]{1,128}):"
+    r"(?:step:(?P<step_index>[1-9][0-9]{0,5})|(?P<action_name>[A-Za-z][A-Za-z0-9_-]{0,63}))"
+)
+
+
+def _action_context_command_ids(
+    action_context: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    if not isinstance(action_context, Mapping):
+        return ()
+    result = (
+        action_context.get("action_run_result")
+        if isinstance(action_context.get("action_run_result"), Mapping)
+        else {}
+    )
+    candidates: list[Any] = [action_context.get("command_id")]
+    for container in (action_context, result):
+        action_response = (
+            container.get("action_response")
+            if isinstance(container.get("action_response"), Mapping)
+            else {}
+        )
+        monitor_result = (
+            container.get("monitor_result")
+            if isinstance(container.get("monitor_result"), Mapping)
+            else {}
+        )
+        command_status = (
+            monitor_result.get("command_status")
+            if isinstance(monitor_result.get("command_status"), Mapping)
+            else {}
+        )
+        candidates.extend(
+            (
+                action_response.get("command_id"),
+                command_status.get("command_id"),
+            )
+        )
+        post_actions = container.get("post_action_results")
+        if isinstance(post_actions, Sequence) and not isinstance(
+            post_actions, (str, bytes, bytearray)
+        ):
+            candidates.extend(
+                item.get("command_id")
+                for item in post_actions
+                if isinstance(item, Mapping)
+            )
+    return tuple(
+        dict.fromkeys(
+            str(item).strip()
+            for item in candidates
+            if str(item or "").strip()
+        )
+    )
+
+
+def _action_context_reference(action_context: Mapping[str, Any] | None) -> str:
+    if not isinstance(action_context, Mapping):
+        return ""
+    return str(
+        action_context.get("draft_id")
+        or action_context.get("action_reference")
+        or ""
+    ).strip()
+
+
+def _action_context_command_records(
+    action_context: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], ...]:
+    if not isinstance(action_context, Mapping):
+        return ()
+    result = (
+        action_context.get("action_run_result")
+        if isinstance(action_context.get("action_run_result"), Mapping)
+        else action_context
+    )
+    candidates: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
+    primary_monitor = (
+        result.get("monitor_result")
+        if isinstance(result.get("monitor_result"), Mapping)
+        else {}
+    )
+    if primary_monitor:
+        candidates.append((primary_monitor, result))
+    post_actions = result.get("post_action_results")
+    if isinstance(post_actions, Sequence) and not isinstance(
+        post_actions, (str, bytes, bytearray)
+    ):
+        for item in post_actions:
+            if not isinstance(item, Mapping):
+                continue
+            monitor = (
+                item.get("monitor_result")
+                if isinstance(item.get("monitor_result"), Mapping)
+                else {}
+            )
+            if monitor:
+                candidates.append((monitor, item))
+
+    records: list[dict[str, Any]] = []
+    for monitor, container in candidates:
+        command_status = (
+            monitor.get("command_status")
+            if isinstance(monitor.get("command_status"), Mapping)
+            else {}
+        )
+        if not command_status:
+            continue
+        record = dict(command_status)
+        record.setdefault("command_id", container.get("command_id"))
+        if not record.get("target_drones"):
+            record["target_drones"] = list(
+                container.get("resolved_target_drone_ids")
+                or action_context.get("target_drone_ids")
+                or ()
+            )
+        record["_durable_action_run"] = True
+        records.append(record)
+    return tuple(records)
+
+
+def _action_context_time_window_ms(
+    action_context: Mapping[str, Any] | None,
+) -> tuple[int | None, int | None]:
+    if not isinstance(action_context, Mapping):
+        return None, None
+    started_ms = _timestamp_epoch_ms(
+        action_context.get("action_run_created_at")
+        or action_context.get("created_at")
+    )
+    ended_ms = _timestamp_epoch_ms(
+        action_context.get("action_run_completed_at")
+        or action_context.get("completed_at")
+        or action_context.get("action_run_updated_at")
+        or action_context.get("updated_at")
+    )
+    if started_ms is None or ended_ms is None or ended_ms < started_ms:
+        return None, None
+    return started_ms, ended_ms
+
+
+def _scope_command_snapshot_to_action(
+    snapshot: Mapping[str, Any],
+    action_context: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    scoped = dict(snapshot or {})
+    expected_ids = _action_context_command_ids(action_context)
+    if not expected_ids:
+        return scoped
+    scoped["action_scoped"] = True
+    scoped["expected_command_ids"] = list(expected_ids)
+    if scoped.get("available") is not True:
+        scoped["missing_command_ids"] = list(expected_ids)
+        return scoped
+
+    expected = set(expected_ids)
+    durable_records = {
+        str(item.get("command_id") or "").strip(): dict(item)
+        for item in _action_context_command_records(action_context)
+        if str(item.get("command_id") or "").strip() in expected
+    }
+    active = [
+        dict(item)
+        for item in scoped.get("active") or ()
+        if isinstance(item, Mapping)
+        and str(item.get("command_id") or "").strip() in expected
+    ]
+    recent_by_id = dict(durable_records)
+    for item in scoped.get("recent") or ():
+        if not isinstance(item, Mapping):
+            continue
+        command_id = str(item.get("command_id") or "").strip()
+        if command_id in expected:
+            recent_by_id[command_id] = dict(item)
+    recent = [
+        recent_by_id[command_id]
+        for command_id in expected_ids
+        if command_id in recent_by_id
+    ]
+    retained_ids = {
+        str(item.get("command_id") or "").strip()
+        for item in (*active, *recent)
+        if str(item.get("command_id") or "").strip()
+    }
+    terminal_rows = {
+        str(item.get("command_id") or "").strip(): item
+        for item in recent
+        if str(item.get("command_id") or "").strip()
+    }
+    successful = 0
+    failed = 0
+    partial = 0
+    for item in terminal_rows.values():
+        outcome = str(item.get("outcome") or item.get("status") or "").strip().casefold()
+        if outcome in {"completed", "success", "succeeded"}:
+            successful += 1
+        elif outcome in {"partial", "partially_completed"}:
+            partial += 1
+        elif outcome in {
+            "failed",
+            "error",
+            "rejected",
+            "timed_out",
+            "timeout",
+            "cancelled",
+            "canceled",
+        }:
+            failed += 1
+    scoped.update(
+        {
+            "active": active,
+            "recent": recent,
+            "stats": {
+                "total_commands": len(expected_ids),
+                "successful_commands": successful,
+                "failed_commands": failed,
+                "partial_commands": partial,
+            },
+            "missing_command_ids": [
+                command_id for command_id in expected_ids if command_id not in retained_ids
+            ],
+            "durable_command_ids": [
+                command_id for command_id in expected_ids if command_id in durable_records
+            ],
+        }
+    )
+    return scoped
+
+
+def _command_action_reference(command: Mapping[str, Any]) -> str:
+    label = str(command.get("operator_label") or "").strip()
+    if not label or len(label) > 256:
+        return ""
+    match = _SIMURGH_COMMAND_LABEL_PATTERN.fullmatch(label)
+    return match.group("action_reference") if match else ""
+
+
+def _build_ulog_action_correlation(
+    *,
+    hw_id: int,
+    log_entry: Mapping[str, Any],
+    summary: Mapping[str, Any],
+    command_snapshot: Mapping[str, Any] | None,
+    expected_action_reference: str = "",
+    expected_command_ids: Sequence[str] = (),
+) -> UlogActionCorrelation:
+    """Associate a ULog only when explicit GCS target/time/action/command evidence agrees."""
+
+    source = summary.get("source") if isinstance(summary.get("source"), Mapping) else {}
+    log_id = _ulog_log_id(log_entry)
+    started_raw = log_entry.get("date_utc") or source.get("date_utc")
+    started_ms = _timestamp_epoch_ms(started_raw)
+    duration_sec = _finite_or_none(summary.get("duration_sec"))
+    ended_ms = (
+        started_ms + int(duration_sec * 1000.0)
+        if started_ms is not None and duration_sec is not None and duration_sec >= 0.0
+        else None
+    )
+    evidence = UlogCorrelationEvidence(
+        target_drone_id=str(hw_id),
+        ulog_log_id=log_id,
+        ulog_started_at=_iso_from_epoch_ms(started_ms),
+        ulog_ended_at=_iso_from_epoch_ms(ended_ms),
+    )
+    limitations: list[str] = []
+    if started_ms is None or ended_ms is None:
+        limitations.append("ULog recording start/end metadata is incomplete.")
+    if not command_snapshot or command_snapshot.get("available") is not True:
+        limitations.append("A synchronized GCS command snapshot was unavailable.")
+    if limitations:
+        return UlogActionCorrelation(
+            status="unverified",
+            verified=False,
+            method="source_metadata_only" if started_ms is not None else "none",
+            evidence=evidence,
+            limitations=limitations,
+        )
+
+    recent = command_snapshot.get("recent")
+    commands = recent if isinstance(recent, list) else []
+    expected_ids = {
+        str(item).strip()
+        for item in expected_command_ids
+        if str(item).strip()
+    }
+    if expected_ids:
+        commands = [
+            command
+            for command in commands
+            if str(command.get("command_id") or "").strip() in expected_ids
+        ]
+    tolerance_ms = int(ULOG_COMMAND_CORRELATION_TOLERANCE_SECONDS * 1000.0)
+    overlapping: list[dict[str, Any]] = []
+    for raw_command in commands:
+        command = _copy_mapping(raw_command)
+        targets = {str(item).strip() for item in command.get("target_drones") or () if str(item).strip()}
+        if str(hw_id) not in targets:
+            continue
+        command_start = _first_timestamp_ms(
+            command,
+            ("execution_started_at", "submitted_at", "created_at"),
+        )
+        command_end = _first_timestamp_ms(
+            command,
+            ("completed_at", "updated_at", "execution_started_at", "submitted_at", "created_at"),
+        )
+        if command_start is None or command_end is None:
+            continue
+        if command_end < started_ms - tolerance_ms or command_start > ended_ms + tolerance_ms:
+            continue
+        command["_correlation_start_ms"] = command_start
+        command["_correlation_end_ms"] = command_end
+        command["_action_reference"] = _command_action_reference(command)
+        overlapping.append(command)
+
+    if not overlapping:
+        return UlogActionCorrelation(
+            status="unverified",
+            verified=False,
+            method="source_metadata_only",
+            evidence=evidence,
+            limitations=(
+                "No retained GCS command record matched both the target drone and ULog recording window.",
+            ),
+        )
+
+    action_references = {
+        str(item.get("_action_reference") or "").strip()
+        for item in overlapping
+        if str(item.get("_action_reference") or "").strip()
+    }
+    unmatched_action_commands = [item for item in overlapping if not item.get("_action_reference")]
+    if len(action_references) != 1 or unmatched_action_commands:
+        command_ids = [str(item.get("command_id") or "").strip() for item in overlapping]
+        command_ids = [item for item in command_ids if item]
+        matched_dimensions = ["target", "time"]
+        if len(command_ids) == len(overlapping):
+            matched_dimensions.append("command_id")
+        evidence = UlogCorrelationEvidence(
+            **{
+                **_model_payload(evidence),
+                "command_ids": command_ids,
+                "command_window_started_at": _iso_from_epoch_ms(
+                    min(int(item["_correlation_start_ms"]) for item in overlapping)
+                ),
+                "command_window_ended_at": _iso_from_epoch_ms(
+                    max(int(item["_correlation_end_ms"]) for item in overlapping)
+                ),
+                "matched_dimensions": matched_dimensions,
+            }
+        )
+        if len(action_references) > 1:
+            reason = "Multiple guarded-action references overlap this recording."
+        elif unmatched_action_commands:
+            reason = (
+                "At least one matching command lacks a valid guarded-action label, so the full "
+                "overlapping sequence cannot be correlated."
+            )
+        else:
+            reason = "Matching commands do not carry a guarded-action reference."
+        return UlogActionCorrelation(
+            status="ambiguous" if len(action_references) > 1 else "candidate",
+            verified=False,
+            method="gcs_target_time_command_overlap",
+            evidence=evidence,
+            limitations=(reason,),
+        )
+
+    action_reference = next(iter(action_references))
+    if expected_action_reference and action_reference != expected_action_reference:
+        return UlogActionCorrelation(
+            status="unverified",
+            verified=False,
+            method="gcs_target_time_action_command_overlap",
+            evidence=evidence,
+            limitations=(
+                "The overlapping command sequence belongs to a different guarded action run.",
+            ),
+        )
+    action_commands = [item for item in overlapping if item.get("_action_reference") == action_reference]
+    raw_command_ids = [str(item.get("command_id") or "").strip() for item in action_commands]
+    command_ids = [item for item in raw_command_ids if item]
+    if len(command_ids) != len(action_commands):
+        evidence = UlogCorrelationEvidence(
+            **{
+                **_model_payload(evidence),
+                "action_reference": action_reference,
+                "command_ids": command_ids,
+                "command_window_started_at": _iso_from_epoch_ms(
+                    min(int(item["_correlation_start_ms"]) for item in action_commands)
+                ),
+                "command_window_ended_at": _iso_from_epoch_ms(
+                    max(int(item["_correlation_end_ms"]) for item in action_commands)
+                ),
+                "matched_dimensions": ["target", "time", "action_reference"],
+            }
+        )
+        return UlogActionCorrelation(
+            status="candidate",
+            verified=False,
+            method="gcs_target_time_action_command_overlap",
+            evidence=evidence,
+            limitations=(
+                "At least one matching sequence command does not expose a command ID, so the full "
+                "sequence cannot be correlated.",
+            ),
+        )
+
+    if expected_ids and set(command_ids) != expected_ids:
+        evidence = UlogCorrelationEvidence(
+            **{
+                **_model_payload(evidence),
+                "action_reference": action_reference,
+                "command_ids": command_ids,
+                "command_window_started_at": _iso_from_epoch_ms(
+                    min(int(item["_correlation_start_ms"]) for item in action_commands)
+                ),
+                "command_window_ended_at": _iso_from_epoch_ms(
+                    max(int(item["_correlation_end_ms"]) for item in action_commands)
+                ),
+                "matched_dimensions": ["target", "time", "action_reference", "command_id"],
+            }
+        )
+        return UlogActionCorrelation(
+            status="candidate",
+            verified=False,
+            method="gcs_target_time_action_command_overlap",
+            evidence=evidence,
+            limitations=(
+                "The ULog window did not cover every command ID in the requested durable action run.",
+            ),
+        )
+
+    evidence = UlogCorrelationEvidence(
+        **{
+            **_model_payload(evidence),
+            "action_reference": action_reference,
+            "command_ids": command_ids,
+            "command_window_started_at": _iso_from_epoch_ms(
+                min(int(item["_correlation_start_ms"]) for item in action_commands)
+            ),
+            "command_window_ended_at": _iso_from_epoch_ms(
+                max(int(item["_correlation_end_ms"]) for item in action_commands)
+            ),
+            "matched_dimensions": ["target", "time", "action_reference", "command_id"],
+        }
+    )
+    return UlogActionCorrelation(
+        status="verified",
+        verified=True,
+        method="gcs_target_time_action_command_overlap",
+        evidence=evidence,
+        limitations=(
+            "This verifies evidence association, not trajectory accuracy or mission success by itself.",
+        ),
+    )
+
+
 def _format_ulog_summary_row(hw_id: int, log_id: int, summary: Mapping[str, Any]) -> tuple[str, str, str, str, str, str]:
     parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
-    parsed = bool(summary.get("parsed")) and str(parser.get("status") or "").lower() == "ok"
-    if not parsed:
+    if not _ulog_summary_parsed_successfully(summary):
         error = str(parser.get("error") or parser.get("status") or "parser unavailable")
         return (f"Drone {hw_id}", str(log_id), "not parsed", "-", "-", _truncate_text(error, 80))
 
@@ -4190,11 +6028,118 @@ def _format_ulog_summary_row(hw_id: int, log_id: int, summary: Mapping[str, Any]
     return (f"Drone {hw_id}", str(log_id), duration_label, movement_label, battery_label, command_label)
 
 
+def _format_ulog_brief_lines(hw_id: int, log_id: int, summary: Mapping[str, Any]) -> tuple[str, ...]:
+    """Render a compact operator summary from derived ULog metrics only."""
+
+    parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
+    if not _ulog_summary_parsed_successfully(summary):
+        error = str(parser.get("error") or parser.get("status") or "parser unavailable")
+        return (f"Drone {hw_id} ULog {log_id}: analysis unavailable ({_truncate_text(error, 100)}).",)
+
+    duration = _as_float(summary.get("duration_sec"), -1.0)
+    duration_label = f"{duration:.1f}s" if duration >= 0 else "duration unknown"
+    local_position = summary.get("local_position") if isinstance(summary.get("local_position"), Mapping) else {}
+    battery = summary.get("battery") if isinstance(summary.get("battery"), Mapping) else {}
+    commands = summary.get("commands") if isinstance(summary.get("commands"), Mapping) else {}
+    dropouts = summary.get("dropouts") if isinstance(summary.get("dropouts"), Mapping) else {}
+    vehicle_status = (
+        summary.get("vehicle_status") if isinstance(summary.get("vehicle_status"), Mapping) else {}
+    )
+
+    return (
+        f"Drone {hw_id} ULog {log_id}: {duration_label}; "
+        f"{_format_ulog_local_movement(local_position)}; "
+        f"{_format_ulog_battery(battery)}; "
+        f"{_format_ulog_command_summary(commands)}.",
+        "Safety: "
+        f"{_format_ulog_dropouts(dropouts)}; "
+        f"{_format_ulog_failsafe(vehicle_status)}; "
+        f"{_format_ulog_final_displacement(local_position)}; "
+        f"correlation {_format_ulog_correlation(summary)}; "
+        f"{_format_ulog_staged_cleanup(summary)}.",
+    )
+
+
+def _ulog_anomaly_labels(summary: Mapping[str, Any]) -> list[str]:
+    """Return bounded typed anomaly labels from a successfully parsed ULog."""
+
+    labels: list[str] = []
+    dropouts = summary.get("dropouts") if isinstance(summary.get("dropouts"), Mapping) else {}
+    dropout_count = _as_int(dropouts.get("count"))
+    if dropout_count and dropout_count > 0:
+        labels.append(f"{dropout_count} ULog dropout(s)")
+
+    vehicle_status = (
+        summary.get("vehicle_status") if isinstance(summary.get("vehicle_status"), Mapping) else {}
+    )
+    failsafe = (
+        vehicle_status.get("failsafe")
+        if isinstance(vehicle_status.get("failsafe"), Mapping)
+        else {}
+    )
+    failsafe_samples = _active_boolean_sample_count(failsafe)
+    if failsafe_samples:
+        labels.append(f"{failsafe_samples} ULog failsafe-active sample(s)")
+
+    land_detected = (
+        summary.get("land_detected") if isinstance(summary.get("land_detected"), Mapping) else {}
+    )
+    freefall = (
+        land_detected.get("freefall")
+        if isinstance(land_detected.get("freefall"), Mapping)
+        else {}
+    )
+    freefall_samples = _active_boolean_sample_count(freefall)
+    if freefall_samples:
+        labels.append(f"{freefall_samples} ULog freefall sample(s)")
+
+    commands = summary.get("commands") if isinstance(summary.get("commands"), Mapping) else {}
+    acknowledgements = (
+        commands.get("vehicle_command_ack")
+        if isinstance(commands.get("vehicle_command_ack"), Mapping)
+        else {}
+    )
+    results = (
+        acknowledgements.get("result_counts")
+        if isinstance(acknowledgements.get("result_counts"), Mapping)
+        else {}
+    )
+    nonaccepted_samples = 0
+    for raw_result, raw_count in results.items():
+        result = _as_int(raw_result)
+        count = _as_int(raw_count)
+        if (
+            result is not None
+            and result not in MAV_RESULT_NON_FAILURE_CODES
+            and count
+            and count > 0
+        ):
+            nonaccepted_samples += count
+    if nonaccepted_samples:
+        labels.append(
+            f"{nonaccepted_samples} non-accepted command acknowledgement sample(s)"
+        )
+    return labels
+
+
+def _active_boolean_sample_count(counts: Mapping[str, Any]) -> int:
+    """Count samples in an explicitly active boolean state."""
+
+    total = 0
+    for raw_state, raw_count in counts.items():
+        state = str(raw_state or "").strip().casefold()
+        numeric_state = _as_int(raw_state)
+        active = state in {"true", "yes", "on", "active"} or numeric_state == 1
+        count = _as_int(raw_count)
+        if active and count and count > 0:
+            total += count
+    return total
+
+
 def _format_ulog_safety_evidence_line(hw_id: int, log_id: int, summary: Mapping[str, Any]) -> str:
     """Render bounded safety metrics without raw ULog samples or message text."""
 
-    parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
-    if not bool(summary.get("parsed")) or str(parser.get("status") or "").lower() != "ok":
+    if not _ulog_summary_parsed_successfully(summary):
         return ""
 
     dropouts = summary.get("dropouts") if isinstance(summary.get("dropouts"), Mapping) else {}
@@ -4222,18 +6167,65 @@ def _format_ulog_safety_evidence_line(hw_id: int, log_id: int, summary: Mapping[
         _format_ulog_final_displacement(local_position),
         _format_ulog_command_summary(commands),
         "correlation " + _format_ulog_correlation(summary),
+        _format_ulog_staged_cleanup(summary),
     )
     return f"Drone {hw_id}, log {log_id}: " + "; ".join(evidence) + "."
+
+
+def _ulog_summary_parsed_successfully(summary: Mapping[str, Any]) -> bool:
+    """Return true only for the typed successful-parser state."""
+
+    parser = summary.get("parser") if isinstance(summary.get("parser"), Mapping) else {}
+    return summary.get("parsed") is True and str(parser.get("status") or "").strip().lower() == "ok"
 
 
 def _format_ulog_correlation(summary: Mapping[str, Any]) -> str:
     """Report action correlation only when local evidence explicitly verifies it."""
 
-    correlation = summary.get("correlation") if isinstance(summary.get("correlation"), Mapping) else {}
-    evidence = correlation.get("evidence") if isinstance(correlation.get("evidence"), Mapping) else {}
-    if correlation.get("verified") is True and evidence:
-        return "verified by source correlation metadata"
-    return "unproven; newest available ULog may belong to another flight"
+    raw = summary.get("correlation") if isinstance(summary.get("correlation"), Mapping) else {}
+    try:
+        correlation = UlogActionCorrelation.model_validate(raw)
+    except (AttributeError, TypeError, ValueError):
+        try:
+            correlation = UlogActionCorrelation.parse_obj(raw)
+        except (TypeError, ValueError):
+            correlation = UlogActionCorrelation()
+    evidence = correlation.evidence
+    required_dimensions = {"target", "time", "action_reference", "command_id"}
+    if (
+        correlation.status == "verified"
+        and correlation.verified is True
+        and correlation.method == "gcs_target_time_action_command_overlap"
+        and required_dimensions.issubset(set(evidence.matched_dimensions))
+        and evidence.target_drone_id
+        and evidence.ulog_started_at
+        and evidence.ulog_ended_at
+        and evidence.action_reference
+        and evidence.command_ids
+    ):
+        return (
+            f"verified for {evidence.action_reference} by target/time overlap and "
+            f"{len(evidence.command_ids)} GCS command id(s); association only, not mission-success proof"
+        )
+    if correlation.status == "ambiguous":
+        return "ambiguous; more than one guarded action overlaps the ULog recording"
+    if correlation.status == "candidate":
+        return "candidate only; target/time command evidence lacks one guarded-action reference"
+    return "unverified; newest available ULog may belong to another flight"
+
+
+def _format_ulog_staged_cleanup(summary: Mapping[str, Any]) -> str:
+    status = _ulog_staged_cleanup_status(summary)
+    if status is True:
+        return "staged download cleanup completed"
+    if status is False:
+        return "STAGED DOWNLOAD CLEANUP FAILED"
+    return "staged download cleanup outcome unavailable"
+
+
+def _ulog_staged_cleanup_status(summary: Mapping[str, Any]) -> bool | None:
+    value = summary.get("staged_job_deleted")
+    return value if isinstance(value, bool) else None
 
 
 def _format_ulog_dropouts(dropouts: Mapping[str, Any]) -> str:
@@ -4365,6 +6357,51 @@ def _warning_error_count_from_log_lines(payload: Mapping[str, Any]) -> int:
         if level in {"WARNING", "WARN", "ERROR", "CRITICAL"} or _log_level_from_text(message):
             count += 1
     return count
+
+
+def _warning_error_samples_from_log_lines(
+    payload: Mapping[str, Any],
+    *,
+    limit: int,
+) -> tuple[dict[str, str], ...]:
+    """Return bounded, sanitized operator evidence without exposing raw logs."""
+
+    samples: list[dict[str, str]] = []
+    lines = payload.get("lines") if isinstance(payload, Mapping) else None
+    for line in lines or []:
+        if not isinstance(line, Mapping):
+            continue
+        explicit_level = str(line.get("level") or "").upper()
+        message = _sanitize_log_text(str(line.get("message") or line.get("msg") or ""))
+        embedded_level = _log_level_from_text(message)
+        if explicit_level not in {"WARNING", "WARN", "ERROR", "CRITICAL"} and not embedded_level:
+            continue
+        level = (
+            explicit_level
+            if explicit_level in {"WARNING", "WARN", "ERROR", "CRITICAL"}
+            else str(embedded_level or "WARNING")
+        )
+        if level == "WARN":
+            level = "WARNING"
+        samples.append(
+            {
+                "timestamp": str(line.get("ts") or line.get("timestamp") or "").strip(),
+                "level": level,
+                "component": str(line.get("component") or line.get("source") or "").strip(),
+                "message": _truncate_text(message, 220),
+            }
+        )
+        if len(samples) >= max(0, limit):
+            break
+    return tuple(samples)
+
+
+def _format_drone_log_warning_sample(hw_id: int, sample: Mapping[str, str]) -> str:
+    timestamp = str(sample.get("timestamp") or "time unavailable")
+    level = str(sample.get("level") or "WARNING")
+    component = str(sample.get("component") or "source unavailable")
+    message = str(sample.get("message") or "message unavailable")
+    return f"Drone {hw_id} | {timestamp} | {level} | {component}: {message}"
 
 
 def _format_bytes(value: float) -> str:
@@ -4634,7 +6671,7 @@ def _registry_domains_for_query(normalized: str, *, plan_domain: str | None = No
 
     add_many(QUERY_DOMAIN_TO_REGISTRY_DOMAINS.get(str(plan_domain or ""), ()))
     keyword_domains = (
-        (("quickscout", "quick scout", "quick scoute", "sar", "search and rescue", "finding", "findings", "search area", "coverage", "handoff"), ("sar",)),
+        (("quickscout", "quick scout", "sar", "search and rescue", "finding", "findings", "search area", "coverage", "handoff"), ("sar",)),
         (("sitl", "simulation", "simulator"), ("sitl",)),
         (("drone show", "skybrush", "show package", "show design", "custom show"), ("shows", "origin")),
         (("swarm trajectory", "trajectory", "formation", "cluster", "offset", "leader", "follower"), ("swarm_trajectories", "config", "origin")),
@@ -5199,11 +7236,9 @@ def _looks_like_operation_log_verification_question(normalized: str) -> bool:
             "commands",
             "completed",
             "correct",
-            "currect",
             "done",
             "flight",
             "happen",
-            "happend",
             "happened",
             "mission",
             "sequence",
@@ -5217,10 +7252,8 @@ def _looks_like_operation_log_verification_question(normalized: str) -> bool:
             "check",
             "confirm",
             "correct",
-            "currect",
             "did",
             "happen",
-            "happend",
             "happened",
             "report",
             "verify",
@@ -5343,7 +7376,6 @@ def _looks_like_sitl_vehicle_readiness_question(
             "px4",
             "mavlink",
             "telemetry",
-            "telemtery",
         ),
     )
     if not has_sitl_context:
@@ -5357,12 +7389,7 @@ def _looks_like_sitl_vehicle_readiness_question(
             "vehicles",
             "instance",
             "instances",
-            "instace",
-            "instaces",
-            "isntance",
-            "isntances",
             "created",
-            "createda",
             "running",
             "live",
             "one",
@@ -5374,7 +7401,6 @@ def _looks_like_sitl_vehicle_readiness_question(
             "px4",
             "mavlink",
             "telemetry",
-            "telemtery",
         ),
     )
     if not has_target_context:
@@ -5395,7 +7421,6 @@ def _looks_like_sitl_vehicle_readiness_question(
             "status",
             "summary",
             "report",
-            "reprot",
             "do it",
             "why not",
             "test",
@@ -5438,7 +7463,7 @@ def _looks_like_mds_fleet_evidence_request(normalized: str) -> bool:
 
     if _has_any(normalized, ("log", "logs", "warning", "warnings", "error", "errors")) and not _has_any(
         normalized,
-        ("telemetry", "telemtery", "telemtry", "fleet", "drone", "drones", "vehicle", "vehicles", "ready", "preflight"),
+        ("telemetry", "fleet", "drone", "drones", "vehicle", "vehicles", "ready", "preflight"),
     ):
         return False
 
@@ -5446,13 +7471,9 @@ def _looks_like_mds_fleet_evidence_request(normalized: str) -> bool:
         normalized,
         (
             "mds telemetry",
-            "mds telemtery",
-            "mds telemtry",
             "gcs telemetry",
-            "gcs telemtery",
             "dashboard telemetry",
             "telemetry you have",
-            "telemtery you have",
             "what you already have",
             "you already have",
             "you have all",
@@ -5586,7 +7607,6 @@ def _looks_like_add_drone_enrollment_workflow_question(normalized: str) -> bool:
         normalized,
         (
             "raspberry",
-            "raspbeery",
             "raspberry pi",
             "cm4",
             "companion",
@@ -5644,8 +7664,6 @@ def _looks_like_sar_status_question(normalized: str) -> bool:
         (
             "quickscout",
             "quick scout",
-            "quick scoute",
-            "quickscoute",
             "sar",
             "search and rescue",
             "search mission",
@@ -5755,10 +7773,31 @@ def _fleet_health_summary(telemetry_row: Mapping[str, Any]) -> dict[str, str]:
     ready = _first_present(telemetry_row, ("is_ready_to_arm", "ready_to_arm", "armable"))
     mode = _first_present(telemetry_row, ("flight_mode_name", "mode_name", "mode", "flight_mode"))
     system = _first_present(telemetry_row, ("system_status_name", "system_state", "system_status"))
-    _lat, _lon, _alt, gps = _fleet_position_summary(telemetry_row)
+    _lat, _lon, _absolute_or_display_altitude, gps = _fleet_position_summary(telemetry_row)
+    relative_altitude = _finite_or_none(
+        _first_present(telemetry_row, ("relative_altitude_m", "relative_home_m"))
+    )
+    landed_label = _fleet_landed_state_label(telemetry_row)
+    vertical_speed = _finite_or_none(
+        _first_present(telemetry_row, ("velocity_down", "local_velocity_down", "vertical_velocity_mps"))
+    )
+    home_distance = _finite_or_none(
+        _first_present(telemetry_row, ("distance_to_home_m", "home_distance_m"))
+    )
+    final_state_parts = [f"Landed state: {landed_label}"]
+    if relative_altitude is not None:
+        final_state_parts.append(f"relative alt {relative_altitude:.1f} m")
+    else:
+        final_state_parts.append("relative alt unavailable")
+    if vertical_speed is not None:
+        final_state_parts.append(f"V-down {vertical_speed:.1f} m/s")
+    if home_distance is not None:
+        final_state_parts.append(f"home {home_distance:.1f} m")
     return {
         "battery": _fmt_battery(voltage, remaining),
         "armed": _fmt_bool_state(armed),
+        "landed": landed_label,
+        "final_state": "; ".join(final_state_parts),
         "ready": _fmt_bool_state(ready),
         "mode": _fmt_optional_value(mode),
         "system": _fmt_optional_value(system),
@@ -5773,9 +7812,18 @@ def _fleet_health_verdict_line(rows: Sequence[Mapping[str, Any]]) -> str:
     ready_rows = [row for row in live_rows if str(row.get("ready") or "").casefold() == "yes"]
     if len(live_rows) == 1:
         row = live_rows[0]
+        readiness = str(row.get("ready") or "unknown")
+        prefix = (
+            f"MDS preflight verdict: {row.get('drone', 'the drone')} is live and reports ready"
+            if readiness.casefold() == "yes"
+            else f"MDS preflight verdict: {row.get('drone', 'the drone')} is live but does not report ready"
+            if readiness.casefold() == "no"
+            else f"MDS preflight verdict: {row.get('drone', 'the drone')} is live; readiness is unknown"
+        )
         return (
-            f"Telemetry verdict: {row.get('drone', 'the drone')} is live, "
-            f"Ready={row.get('ready', 'unknown')}, Armed={row.get('armed', 'unknown')}, GPS={row.get('gps', 'unknown')}."
+            f"{prefix}. "
+            f"Ready={readiness}, Armed={row.get('armed', 'unknown')}, "
+            f"{row.get('final_state', 'final state unavailable')}, GPS={row.get('gps', 'unknown')}."
         )
     if not live_rows:
         return "Telemetry verdict: no live drone telemetry is visible, so MDS cannot call any vehicle ready."
@@ -5790,6 +7838,71 @@ def _fmt_battery(voltage: float | None, remaining: float | None = None) -> str:
         display_remaining = remaining * 100.0 if 0.0 <= remaining <= 1.0 else remaining
         parts.append(f"{display_remaining:.0f}%")
     return " / ".join(parts) if parts else "unavailable"
+
+
+def _fleet_landed_state_label(telemetry_row: Mapping[str, Any]) -> str:
+    for key in ("is_landed", "landed"):
+        value = telemetry_row.get(key)
+        if isinstance(value, bool):
+            return "On ground" if value else "In air"
+        if value in (None, ""):
+            continue
+        normalized = str(value).strip().casefold()
+        if normalized in {"true", "yes", "on", "on_ground", "ground"}:
+            return "On ground"
+        if normalized in {"false", "no", "off", "in_air", "airborne"}:
+            return "In air"
+
+    enum_labels = {
+        "0": "Unknown",
+        "unknown": "Unknown",
+        "1": "On ground",
+        "on_ground": "On ground",
+        "landed": "On ground",
+        "2": "In air",
+        "in_air": "In air",
+        "airborne": "In air",
+        "3": "Taking off",
+        "taking_off": "Taking off",
+        "4": "Landing",
+        "landing": "Landing",
+    }
+    for key in ("landed_state", "land_state"):
+        value = telemetry_row.get(key)
+        if value in (None, ""):
+            continue
+        normalized = str(value).strip().casefold()
+        return enum_labels.get(normalized, f"Unknown ({_truncate_text(str(value), 24)})")
+    armed = _first_present(telemetry_row, ("is_armed", "armed"))
+    vertical_speed = _finite_or_none(
+        _first_present(telemetry_row, ("velocity_down", "local_velocity_down", "vertical_velocity_mps"))
+    )
+    if (
+        _fmt_bool_state(armed) == "No"
+        and _telemetry_enum_matches(telemetry_row, ("state", "state_name"), State.IDLE)
+        and _telemetry_enum_matches(telemetry_row, ("mission", "mission_name"), Mission.NONE)
+        and (vertical_speed is None or abs(vertical_speed) <= 0.75)
+    ):
+        return "On ground (inferred)"
+    return "Unavailable"
+
+
+def _telemetry_enum_matches(
+    telemetry_row: Mapping[str, Any],
+    keys: Sequence[str],
+    expected: Mission | State,
+) -> bool:
+    expected_name = expected.name.casefold()
+    expected_value = str(expected.value)
+    enum_label = f"{type(expected).__name__}.{expected.name}".casefold()
+    for key in keys:
+        value = telemetry_row.get(key)
+        if value in (None, ""):
+            continue
+        normalized = str(value).strip().casefold()
+        if normalized in {expected_name, expected_value, enum_label}:
+            return True
+    return False
 
 
 def _fmt_bool_state(value: Any) -> str:
@@ -5898,7 +8011,7 @@ def _mentions_other_domain(normalized: str, topic: str) -> bool:
         "logs": ("log", "logs", "warning", "error", "backend", "trace"),
         "runtime": ("runtime", "provider", "model", "circuit breaker", "always confirm", "gcs mode"),
         "capabilities": ("capability", "capabilities", "tool", "tools", "api", "apis", "mcp", "n8n", "claude"),
-        "sar": ("sar", "quickscout", "quick scout", "quick scoute", "search and rescue", "finding", "findings", "coverage", "handoff"),
+        "sar": ("sar", "quickscout", "quick scout", "search and rescue", "finding", "findings", "coverage", "handoff"),
         "sitl": ("sitl", "simulation", "simulator"),
     }
     for domain, terms in domain_terms.items():
@@ -6378,7 +8491,6 @@ def _looks_like_add_drone_workflow_question(normalized: str) -> bool:
         "add",
         "workflow",
         "what should",
-        "what shuld",
         "what must",
         "steps",
         "setup",
@@ -6394,15 +8506,12 @@ def _looks_like_companion_setup_question(normalized: str) -> bool:
         "companion",
         "companion computer",
         "raspberry",
-        "raspbeery",
         "raspberry pi",
         " rpi",
         " pi ",
         "cm4",
         "compute module",
         "new drone",
-        "new doren",
-        "new droen",
         "drone 3",
         "board 3",
         "install",
@@ -6430,7 +8539,7 @@ def _looks_like_companion_setup_question(normalized: str) -> bool:
 
 
 def _looks_like_mission_mode_question(normalized: str) -> bool:
-    quickscout_terms = ("quickscout", "quick scout", "quick scoute", "quickscoute")
+    quickscout_terms = ("quickscout", "quick scout")
     swarm_trajectory_terms = ("swarm trajectory", "trajectory mode", "mission type 4")
     concept_terms = (
         "difference",
@@ -6839,39 +8948,42 @@ def _normalize_text(value: str) -> str:
     return normalize_operator_query_text(value)
 
 
+def _normalize_identity_text(value: str) -> str:
+    """Normalize configured identities without semantic query rewrites."""
+
+    normalized = normalize_matching_text(value)
+    normalized = re.sub(r"[\W_]+", " ", normalized, flags=re.UNICODE)
+    return " ".join(normalized.split())
+
+
 def _has_any(value: str, terms: tuple[str, ...]) -> bool:
     return any(term in value for term in terms)
 
 
 def _extract_configured_drone_label(message: str, config: list[dict[str, Any]]) -> str:
-    normalized = _normalize_text(message)
-    if not _has_any(normalized, ("ip", "drone", "vehicle", "fleet", "configured", "callsign")):
-        return ""
-    if re.search(r"\bscout\b", normalized):
-        return "scout"
-    aliases: list[str] = []
+    normalized = _normalize_identity_text(message)
+    aliases: set[str] = set()
     for drone in config:
         for field in ("callsign", "role", "name", "label"):
-            alias = _normalize_text(str(drone.get(field) or ""))
+            alias = _normalize_identity_text(str(drone.get(field) or ""))
             if alias:
-                aliases.append(alias)
-                aliases.extend(part for part in re.split(r"[^a-z0-9]+", alias) if len(part) >= 3)
-    for alias in sorted(set(aliases), key=len, reverse=True):
-        if alias and re.search(rf"\b{re.escape(alias)}\b", normalized):
+                aliases.add(alias)
+    for alias in sorted(aliases, key=len, reverse=True):
+        compact_length = len(re.sub(r"\W+", "", alias, flags=re.UNICODE))
+        if compact_length < 3 and normalized != alias:
+            continue
+        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", normalized, flags=re.UNICODE):
             return alias
     return ""
 
 
 def _drone_matches_label(drone: Mapping[str, Any], label: str) -> bool:
-    normalized_label = _normalize_text(label)
+    normalized_label = _normalize_identity_text(label)
     if not normalized_label:
         return False
     for field in ("callsign", "role", "name", "label"):
-        value = _normalize_text(str(drone.get(field) or ""))
+        value = _normalize_identity_text(str(drone.get(field) or ""))
         if value == normalized_label:
-            return True
-        parts = {part for part in re.split(r"[^a-z0-9]+", value) if part}
-        if normalized_label in parts:
             return True
     return False
 
@@ -6942,7 +9054,7 @@ def _format_show_readiness_line(
         missing.append("PASS validation")
     if not safety_ready:
         missing.append("SAFE safety report")
-    return "- Readiness: not proven fly-ready from read-only checks; missing or non-green signal(s): " + ", ".join(missing) + "."
+    return "- Readiness: not proven fly-ready; missing or non-green signal(s): " + ", ".join(missing) + "."
 
 
 def _extract_hw_id(message: str) -> int | None:
@@ -7419,16 +9531,27 @@ def _sidecar_runtime_status(payload: Mapping[str, Any]) -> str:
 
 
 def _command_record_public_summary(command: Any) -> dict[str, Any]:
+    if isinstance(command, Mapping):
+        get_value = command.get
+    else:
+        def get_value(key, default=None):
+            return getattr(command, key, default)
+    params = get_value("params", {})
+    params = params if isinstance(params, Mapping) else {}
     return {
-        "command_id": _enum_or_value(getattr(command, "command_id", "")),
-        "mission_type": _enum_or_value(getattr(command, "mission_type", "")),
-        "mission_name": _enum_or_value(getattr(command, "mission_name", "")),
-        "phase": _enum_or_value(getattr(command, "phase", "")),
-        "status": _enum_or_value(getattr(command, "status", "")),
-        "outcome": _enum_or_value(getattr(command, "outcome", "")),
-        "target_drones": list(getattr(command, "target_drones", []) or []),
-        "created_at": getattr(command, "created_at", None),
-        "updated_at": getattr(command, "updated_at", None),
+        "command_id": _enum_or_value(get_value("command_id", "")),
+        "mission_type": _enum_or_value(get_value("mission_type", "")),
+        "mission_name": _enum_or_value(get_value("mission_name", "")),
+        "phase": _enum_or_value(get_value("phase", "")),
+        "status": _enum_or_value(get_value("status", "")),
+        "outcome": _enum_or_value(get_value("outcome", "")),
+        "target_drones": list(get_value("target_drones", []) or []),
+        "created_at": get_value("created_at"),
+        "submitted_at": get_value("submitted_at"),
+        "execution_started_at": get_value("execution_started_at"),
+        "completed_at": get_value("completed_at"),
+        "updated_at": get_value("updated_at"),
+        "operator_label": str(params.get("operator_label") or "").strip(),
     }
 
 
@@ -7464,6 +9587,23 @@ def _as_float(value: Any, default: float = 0.0) -> float:
 def _env_int(name: str, default: int) -> int:
     parsed = _as_int(os.getenv(name))
     return default if parsed is None else parsed
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, ""))
+    except (TypeError, ValueError):
+        return default
+
+
+def _remaining_evidence_timeout(
+    deadline: float,
+    requested_timeout: float,
+) -> float | None:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return None
+    return max(0.05, min(float(requested_timeout), remaining))
 
 
 def _fmt_m(value: Any) -> str:

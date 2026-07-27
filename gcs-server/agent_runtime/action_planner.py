@@ -9,13 +9,20 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 try:  # pragma: no cover - import path differs in direct script/tests
+    from .action_preconditions import ActionPrecondition
     from .query_adaptation import normalize_operator_query_text
+    from .target_grounding import extract_explicit_target_ids
+    from .tool_registry import load_default_tool_registry
 except ImportError:  # pragma: no cover
+    from action_preconditions import ActionPrecondition
     from query_adaptation import normalize_operator_query_text
+    from target_grounding import extract_explicit_target_ids
+    from tool_registry import load_default_tool_registry
 
 
 ACTION_TOOL_ID = "mds.flight.command.execute"
@@ -33,6 +40,7 @@ _MISSION_TYPES = {
     "RETURN_RTL": 104,
     "PRECISION_MOVE": 112,
 }
+_TERMINAL_LANDING_MISSIONS = frozenset({"LAND", "RETURN_RTL"})
 
 
 @dataclass(frozen=True)
@@ -49,10 +57,13 @@ class FlightActionDraft:
     target_inferred_from: str = ""
     wait_condition: str = ""
     post_actions: tuple[Mapping[str, Any], ...] = ()
+    preconditions: tuple[ActionPrecondition, ...] = ()
+    approval_created_at: str = ""
+    approval_expires_at: str = ""
 
     @property
     def ready(self) -> bool:
-        return not self.missing_arguments
+        return bool(self.target_drone_ids) and not self.missing_arguments
 
     def public_payload(self) -> dict[str, Any]:
         return {
@@ -68,6 +79,9 @@ class FlightActionDraft:
             "target_inferred_from": self.target_inferred_from,
             "wait_condition": self.wait_condition,
             "post_actions": [dict(item) for item in self.post_actions],
+            "preconditions": [item.public_payload() for item in self.preconditions],
+            "approval_created_at": self.approval_created_at,
+            "approval_expires_at": self.approval_expires_at,
         }
 
     def to_context_json(self) -> str:
@@ -96,12 +110,19 @@ class FlightActionDraft:
             post_actions=tuple(
                 dict(item) for item in (payload.get("post_actions") or []) if isinstance(item, Mapping)
             ),
+            preconditions=tuple(
+                ActionPrecondition.from_payload(item)
+                for item in (payload.get("preconditions") or [])
+                if isinstance(item, Mapping)
+            ),
+            approval_created_at=str(payload.get("approval_created_at") or "").strip(),
+            approval_expires_at=str(payload.get("approval_expires_at") or "").strip(),
         )
 
 
 @dataclass(frozen=True)
 class RegistryActionDraft:
-    """Operator-visible draft for one guarded registry-backed GCS action."""
+    """Operator-visible draft for a registry-backed action or ordered sequence."""
 
     draft_id: str
     tool_id: str
@@ -111,6 +132,11 @@ class RegistryActionDraft:
     arguments: Mapping[str, Any]
     missing_arguments: tuple[str, ...] = ()
     monitor_requested: bool = False
+    wait_condition: str = ""
+    post_actions: tuple[Mapping[str, Any], ...] = ()
+    preconditions: tuple[ActionPrecondition, ...] = ()
+    approval_created_at: str = ""
+    approval_expires_at: str = ""
 
     @property
     def ready(self) -> bool:
@@ -126,6 +152,11 @@ class RegistryActionDraft:
             "arguments": dict(self.arguments),
             "missing_arguments": list(self.missing_arguments),
             "monitor_requested": self.monitor_requested,
+            "wait_condition": self.wait_condition,
+            "post_actions": [dict(item) for item in self.post_actions],
+            "preconditions": [item.public_payload() for item in self.preconditions],
+            "approval_created_at": self.approval_created_at,
+            "approval_expires_at": self.approval_expires_at,
         }
 
     def to_context_json(self) -> str:
@@ -148,10 +179,88 @@ class RegistryActionDraft:
                 str(item).strip() for item in (payload.get("missing_arguments") or []) if str(item).strip()
             ),
             monitor_requested=bool(payload.get("monitor_requested")),
+            wait_condition=str(payload.get("wait_condition") or "").strip(),
+            post_actions=tuple(
+                dict(item) for item in (payload.get("post_actions") or []) if isinstance(item, Mapping)
+            ),
+            preconditions=tuple(
+                ActionPrecondition.from_payload(item)
+                for item in (payload.get("preconditions") or [])
+                if isinstance(item, Mapping)
+            ),
+            approval_created_at=str(payload.get("approval_created_at") or "").strip(),
+            approval_expires_at=str(payload.get("approval_expires_at") or "").strip(),
         )
 
 
 ActionDraft = FlightActionDraft | RegistryActionDraft
+
+
+def with_approval_window(
+    draft: ActionDraft,
+    ttl_seconds: int,
+    *,
+    now: datetime | None = None,
+) -> ActionDraft:
+    """Attach a policy-derived approval window to a newly prepared draft.
+
+    Drafts are immutable session evidence. Existing complete timestamps are
+    retained so a confirmation cannot silently extend an operator's approval.
+    A legacy draft with only a creation timestamp gets its expiry derived from
+    the current policy; a legacy draft with no timestamp is intentionally
+    stamped only while it is being newly prepared, never during confirmation.
+    """
+
+    created_at = str(getattr(draft, "approval_created_at", "") or "").strip()
+    expires_at = str(getattr(draft, "approval_expires_at", "") or "").strip()
+    current = now or datetime.now(timezone.utc)
+    if not created_at:
+        created_at = current.isoformat()
+    if not expires_at:
+        try:
+            created = datetime.fromisoformat(created_at)
+        except ValueError:
+            created = current
+        expires_at = (created + timedelta(seconds=max(1, int(ttl_seconds)))).isoformat()
+    return _replace_approval_window(draft, created_at=created_at, expires_at=expires_at)
+
+
+def approval_window_status(
+    draft: ActionDraft,
+    *,
+    now: datetime | None = None,
+) -> tuple[str, str]:
+    """Return ``(status, detail)`` without extending or repairing a draft."""
+
+    created_at = str(getattr(draft, "approval_created_at", "") or "").strip()
+    expires_at = str(getattr(draft, "approval_expires_at", "") or "").strip()
+    if not created_at or not expires_at:
+        return "missing", "This draft has no persisted approval expiry."
+    try:
+        expires = datetime.fromisoformat(expires_at)
+    except ValueError:
+        return "invalid", "This draft has an invalid approval expiry."
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if expires <= current:
+        return "expired", f"Approval expired at {expires.isoformat()}."
+    return "valid", expires.isoformat()
+
+
+def _replace_approval_window(
+    draft: ActionDraft,
+    *,
+    created_at: str,
+    expires_at: str,
+) -> ActionDraft:
+    return dataclass_replace(
+        draft,
+        approval_created_at=created_at,
+        approval_expires_at=expires_at,
+    )
 
 
 def action_draft_from_context_json(value: str) -> ActionDraft:
@@ -164,6 +273,14 @@ def action_draft_from_context_json(value: str) -> ActionDraft:
 
 def normalize_action_text(message: str) -> str:
     return re.sub(r"\s+", " ", normalize_operator_query_text(message).strip().lower())
+
+
+def _sitl_tool_requires_terminal_monitoring(tool_id: str) -> bool:
+    """Return whether a curated SITL tool requires operation monitoring."""
+
+    tool = load_default_tool_registry().require(tool_id)
+    monitor_kind = str(tool.assistant_action.get("monitor_kind") or "none").strip()
+    return monitor_kind == "sitl_operation"
 
 
 def is_action_confirmation_message(message: str, *, draft_id: str | None = None) -> bool:
@@ -277,7 +394,7 @@ def _looks_like_sitl_context_term(normalized: str, *, conversation_topic: str | 
 
 def _looks_like_sitl_lifecycle_target(normalized: str) -> bool:
     if re.search(
-        r"\b(drone|drones|droen|droens|instance|instances|instace|instaces|isntance|isntances|container|containers)\b",
+        r"\b(drone|drones|instance|instances|container|containers)\b",
         normalized,
     ):
         return True
@@ -340,6 +457,7 @@ def build_flight_action_draft(
     if target_drone_ids:
         payload["target_drone_ids"] = list(target_drone_ids)
 
+    precision_sequence_actions: list[Mapping[str, Any]] = []
     if mission_name == "TAKE_OFF":
         altitude = _extract_takeoff_altitude_m(normalized)
         if altitude is None:
@@ -347,15 +465,37 @@ def build_flight_action_draft(
         else:
             payload["takeoff_altitude"] = altitude
     elif mission_name == "PRECISION_MOVE":
-        precision_move = _extract_precision_move_payload(normalized)
+        precision_sequence_actions = _build_ordered_flight_sequence_post_actions(
+            normalized,
+            target_drone_ids,
+            draft_id=draft_id,
+        ) if target_drone_ids else []
+        first_sequence_action = precision_sequence_actions[0] if precision_sequence_actions else {}
+        first_arguments = (
+            first_sequence_action.get("arguments")
+            if isinstance(first_sequence_action, Mapping)
+            and first_sequence_action.get("type") == "flight_command"
+            else {}
+        )
+        precision_move = (
+            first_arguments.get("precision_move")
+            if isinstance(first_arguments, Mapping)
+            and int(first_arguments.get("mission_type") or 0) == _MISSION_TYPES["PRECISION_MOVE"]
+            else None
+        )
+        if precision_move is None:
+            precision_sequence_actions = []
+            precision_move = _extract_precision_move_payload(normalized)
         if precision_move is None:
             missing.append("precision_move")
         else:
-            payload["precision_move"] = precision_move
+            payload["precision_move"] = dict(precision_move)
 
     monitor_requested = _flight_monitor_requested(normalized)
     post_actions = tuple(
-        _build_post_actions(
+        precision_sequence_actions[1:]
+        if precision_sequence_actions
+        else _build_post_actions(
             normalized,
             target_drone_ids,
             mission_name=mission_name,
@@ -451,17 +591,18 @@ def _build_post_actions(
     elif mission_name == "PRECISION_MOVE" and target_drone_ids:
         if _looks_like_rtl(normalized) and re.search(r"\b(?:then|after|and then|return|rtl)\b", normalized):
             actions.append(_flight_command_post_action(draft_id, target_drone_ids, "RETURN_RTL"))
-    if mission_name != "LAND":
+    if mission_name not in _TERMINAL_LANDING_MISSIONS:
         return actions
     if not target_drone_ids:
         return actions
     if not re.search(r"\b(clean\s*up|cleanup|remove|delete|destroy|stop)\b", normalized):
         return actions
-    if not re.search(r"\b(sitl|sim|simulation|instance|instances|instace|instaces|container|containers)\b", normalized):
+    if not re.search(r"\b(sitl|sim|simulation|instance|instances|container|containers)\b", normalized):
         return actions
     instance_names = [f"drone-{target}" for target in target_drone_ids if str(target).strip().isdigit()]
     if not instance_names:
         return actions
+    monitor_requested = _sitl_tool_requires_terminal_monitoring(SITL_BATCH_ACTION_TOOL_ID)
     actions.append(
         {
             "type": "registry_action",
@@ -473,6 +614,8 @@ def _build_post_actions(
                 "action": "remove",
                 "instance_names": instance_names,
             },
+            "monitor_requested": monitor_requested,
+            "wait_condition": "operation_terminal_success" if monitor_requested else "",
         }
     )
     return actions
@@ -691,13 +834,12 @@ def _flight_command_post_action(
         "TAKE_OFF": "takeoff",
         "PRECISION_MOVE": "precision move",
     }.get(mission_name, mission_name.lower())
-    terminal_recovery = mission_name in {"LAND", "RETURN_RTL"}
     return {
         "type": "flight_command",
         "tool_id": ACTION_TOOL_ID,
         "tool_title": "Execute curated flight command",
         "action_label": label,
-        "condition": "after_command_terminal" if terminal_recovery else "after_command_terminal_success",
+        "condition": "after_command_terminal_success",
         "arguments": {
             "mission_type": _MISSION_TYPES[mission_name],
             "trigger_time": 0,
@@ -705,7 +847,7 @@ def _flight_command_post_action(
             "operator_label": f"simurgh:{draft_id}:{mission_name.lower()}",
         },
         "monitor_requested": True,
-        "wait_condition": "command_terminal" if terminal_recovery else "command_terminal_success",
+        "wait_condition": "command_terminal_success",
     }
 
 
@@ -736,17 +878,14 @@ def build_sitl_reconcile_action_draft(
                 "instance_names": instance_names,
             },
             missing_arguments=tuple(missing),
-            monitor_requested=_sitl_monitor_requested(normalized),
+            monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_BATCH_ACTION_TOOL_ID),
         )
 
     target_count = _extract_sitl_target_count(normalized)
     missing: list[str] = []
     if _looks_like_single_sitl_create(normalized, target_count):
         instance_id = _extract_explicit_sitl_instance_id(normalized)
-        arguments = {
-            "git_sync_enabled": True,
-            "requirements_sync_enabled": True,
-        }
+        arguments = {}
         if instance_id is not None:
             arguments["instance_id"] = instance_id
             arguments["ip_last_octet"] = instance_id + 1
@@ -758,15 +897,10 @@ def build_sitl_reconcile_action_draft(
             action_label="create SITL instance",
             arguments=arguments,
             missing_arguments=(),
-            monitor_requested=_sitl_monitor_requested(normalized),
+            monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_CREATE_TOOL_ID),
         )
 
-    arguments = {
-        "start_id": 1,
-        "start_ip": 2,
-        "git_sync_enabled": True,
-        "requirements_sync_enabled": True,
-    }
+    arguments = {}
     if target_count is None:
         missing.append("target_count")
     else:
@@ -780,7 +914,7 @@ def build_sitl_reconcile_action_draft(
         action_label="reconcile SITL fleet",
         arguments=arguments,
         missing_arguments=tuple(missing),
-        monitor_requested=_sitl_monitor_requested(normalized),
+        monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_RECONCILE_TOOL_ID),
     )
 
 
@@ -792,10 +926,6 @@ def _extract_sitl_batch_action(normalized: str) -> str | None:
     return None
 
 
-def _sitl_monitor_requested(normalized: str) -> bool:
-    return bool(re.search(r"\b(report|monitor|tell me|when done|until done|status|progress|ready|created|finished|done)\b", normalized))
-
-
 def _looks_like_single_sitl_create(normalized: str, target_count: int | None) -> bool:
     if not re.search(r"\b(create|build|start|spawn|launch|prepare|make|set\s*up|setup)\b", normalized):
         return False
@@ -804,14 +934,14 @@ def _looks_like_single_sitl_create(normalized: str, target_count: int | None) ->
     if target_count not in (None, 1):
         return False
     if (
-        re.search(r"\b(?:drones|droens|instances|instaces|isntances|containers)\b", normalized)
+        re.search(r"\b(?:drones|instances|containers)\b", normalized)
         and target_count != 1
         and not _implies_single_sitl_instance(normalized)
     ):
         return False
     if _implies_single_sitl_instance(normalized):
         return True
-    return bool(re.search(r"\b(?:drone|droen|instance|instace|isntance|container)\b", normalized))
+    return bool(re.search(r"\b(?:drone|instance|container)\b", normalized))
 
 
 def _implies_single_sitl_instance(normalized: str) -> bool:
@@ -828,7 +958,7 @@ def _implies_single_sitl_instance(normalized: str) -> bool:
 
 def _extract_explicit_sitl_instance_id(normalized: str) -> int | None:
     for pattern in (
-        r"\b(?:drone|droen|instance|instace|isntance|container)\s*[-#]?\s*(?P<id>\d{1,3})\b",
+        r"\b(?:drone|instance|container)\s*[-#]?\s*(?P<id>\d{1,3})\b",
         r"\b(?:id|hw|hardware)\s*[-#:=]?\s*(?P<id>\d{1,3})\b",
     ):
         match = re.search(pattern, normalized)
@@ -1059,6 +1189,12 @@ def _extract_precision_move_payload(normalized: str) -> dict[str, Any] | None:
 
 
 def _extract_ned_translation(normalized: str) -> dict[str, float]:
+    return extract_ned_translation(normalized)
+
+
+def extract_ned_translation(normalized: str) -> dict[str, float]:
+    """Extract the canonical NED translation understood by the local fallback."""
+
     values = {"north": 0.0, "east": 0.0, "up": 0.0}
     matched = False
     for _start, _end, axis, value in _iter_ned_translation_components(normalized):
@@ -1117,8 +1253,8 @@ def _yaw_payload_from_match(match: re.Match[str]) -> dict[str, Any]:
 def _extract_sitl_target_count(normalized: str) -> int | None:
     for pattern in (
         r"\b(?P<count>\d{1,2})\s+sitl\b",
-        r"\b(?P<count>\d{1,2})\s+(?:sitl\s+)?(?:drone|drones|droen|droens|instance|instances|instace|instaces|isntance|isntances|container|containers)\b",
-        r"\b(?:drone|drones|droen|droens|instance|instances|instace|instaces|isntance|isntances|container|containers)\s+(?P<count>\d{1,2})\b",
+        r"\b(?P<count>\d{1,2})\s+(?:sitl\s+)?(?:drone|drones|instance|instances|container|containers)\b",
+        r"\b(?:drone|drones|instance|instances|container|containers)\s+(?P<count>\d{1,2})\b",
         r"\b(?:target|count|fleet)\s+(?:to|of|=)?\s*(?P<count>\d{1,2})\b",
     ):
         match = re.search(pattern, normalized)
@@ -1141,7 +1277,7 @@ def _extract_sitl_target_count(normalized: str) -> int | None:
         if re.search(rf"\b{word}\s+sitl\b", normalized):
             return value
         if re.search(
-            rf"\b{word}\s+(?:sitl\s+)?(?:drone|drones|droen|droens|instance|instances|instace|instaces|isntance|isntances|container|containers)\b",
+            rf"\b{word}\s+(?:sitl\s+)?(?:drone|drones|instance|instances|container|containers)\b",
             normalized,
         ):
             return value
@@ -1161,15 +1297,7 @@ def _extract_sitl_target_count(normalized: str) -> int | None:
 
 
 def _extract_target_ids(normalized: str) -> list[str]:
-    values: list[str] = []
-    for match in re.finditer(
-        r"\b(?:drone|drones|hw|vehicle|vehicles)\s+(?P<ids>\d+(?:\s*(?:,|and|&|\+|\s)\s*\d+)*)",
-        normalized,
-    ):
-        for item in re.findall(r"\d+", match.group("ids")):
-            if item not in values:
-                values.append(item)
-    return values
+    return list(extract_explicit_target_ids((normalized,)))
 
 
 def _extract_takeoff_altitude_m(normalized: str) -> float | None:

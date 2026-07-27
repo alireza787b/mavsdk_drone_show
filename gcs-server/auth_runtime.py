@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import WebSocket
+from fastapi import HTTPException, WebSocket
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -156,6 +156,20 @@ def _role_allows_request(role: str, method: str, path: str) -> tuple[bool, str |
     if normalized_role == "viewer" and method.upper() not in SAFE_METHODS:
         return False, "Viewer role is read-only."
     return True, None
+
+
+def require_admin_request(request: Request) -> dict[str, Any]:
+    """Enforce an admin role at a destructive route boundary."""
+
+    context = getattr(request.state, "mds_auth_context", None)
+    if not isinstance(context, dict):
+        context = {}
+    if str(context.get("role") or "viewer").strip().lower() != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin role required for destructive log operations.",
+        )
+    return dict(context)
 
 
 class MDSAuthMiddleware(BaseHTTPMiddleware):

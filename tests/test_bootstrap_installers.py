@@ -3041,6 +3041,16 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     assert '-e "MDS_REPO_ROOT=/root/mavsdk_drone_show"' in create_text
     assert '-e "MDS_DEPLOYMENT_PROFILE_FILE=/root/mavsdk_drone_show/deployment/defaults.env"' in create_text
     assert "MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID" in create_text
+    assert "MDS_GCS_API_TOKEN_FILE|MDS_SITL_GCS_API_TOKEN_FILE" in create_text
+    assert (
+        'local host_secret_file="${MDS_SITL_GCS_API_TOKEN_FILE:-${MDS_GCS_API_TOKEN_FILE:-}}"'
+        in create_text
+    )
+    assert 'local container_secret_file="/run/secrets/mds_gcs_api_token"' in create_text
+    assert (
+        'DOCKER_ENV_ARGS+=(-e "MDS_GCS_API_TOKEN_FILE=${container_secret_file}")'
+        in create_text
+    )
     assert "resolve_host_startup_script_mode()" in create_text
     assert 'DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")' in create_text
     assert 'USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"' in create_text

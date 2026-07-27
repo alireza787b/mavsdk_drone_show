@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -41,6 +42,9 @@ class PolicyDecisionStatus(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
     REQUIRE_APPROVAL = "require_approval"
+
+
+VALID_ACTOR_ROLES = frozenset({"viewer", "operator", "admin"})
 
 
 class ApprovalStatus(str, Enum):
@@ -103,8 +107,12 @@ class ToolDefinition:
     tags: tuple[str, ...] = ()
     docs: tuple[str, ...] = ()
     safety_notes: tuple[str, ...] = ()
+    assistant_action: Mapping[str, Any] = field(default_factory=dict)
+    assistant_facts: Mapping[str, Any] = field(default_factory=dict)
     input_schema: Mapping[str, Any] = field(default_factory=dict)
     output_schema: Mapping[str, Any] = field(default_factory=dict)
+    execution_timeout_env: str | None = None
+    execution_timeout_default_seconds: float | None = None
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ToolDefinition":
@@ -114,6 +122,10 @@ class ToolDefinition:
             raise AgentRuntimeError(f"tool is missing required field(s): {', '.join(missing)}")
 
         route = _mapping(payload.get("route"), field_name=f"{payload.get('id', '<unknown>')}.route")
+        execution = _mapping(
+            payload.get("execution"),
+            field_name=f"{payload.get('id', '<unknown>')}.execution",
+        )
         tool_id = str(payload["id"]).strip()
         try:
             exposure = ToolExposure(str(payload["exposure"]).strip())
@@ -140,8 +152,20 @@ class ToolDefinition:
             tags=_string_tuple(payload.get("tags"), field_name="tags"),
             docs=_string_tuple(payload.get("docs"), field_name="docs"),
             safety_notes=_string_tuple(payload.get("safety_notes"), field_name="safety_notes"),
+            assistant_action=_mapping(payload.get("assistant_action"), field_name="assistant_action"),
+            assistant_facts=_mapping(payload.get("assistant_facts"), field_name="assistant_facts"),
             input_schema=_mapping(payload.get("input_schema"), field_name="input_schema"),
             output_schema=_mapping(payload.get("output_schema"), field_name="output_schema"),
+            execution_timeout_env=(
+                str(execution.get("timeout_env")).strip()
+                if execution.get("timeout_env")
+                else None
+            ),
+            execution_timeout_default_seconds=(
+                float(execution["default_timeout_seconds"])
+                if execution.get("default_timeout_seconds") is not None
+                else None
+            ),
         )
         tool.validate()
         return tool
@@ -155,6 +179,10 @@ class ToolDefinition:
             raise AgentRuntimeError(f"{self.id}: description is required")
         if self.boundary not in {"gcs", "drone", "external"}:
             raise AgentRuntimeError(f"{self.id}: unsupported boundary {self.boundary!r}")
+        if self.required_role not in VALID_ACTOR_ROLES:
+            raise AgentRuntimeError(
+                f"{self.id}: unsupported required_role {self.required_role!r}"
+            )
         if self.route_method and self.route_method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
             raise AgentRuntimeError(f"{self.id}: unsupported route method {self.route_method!r}")
         if self.route_path and not self.route_path.startswith("/"):
@@ -167,6 +195,84 @@ class ToolDefinition:
             raise AgentRuntimeError(f"{self.id}: approval-required tools must be guarded, not allow")
         if self.boundary != "gcs" and self.exposure is not ToolExposure.EXCLUDE:
             raise AgentRuntimeError(f"{self.id}: non-GCS tools must be excluded in this phase")
+        if self.execution_timeout_env and not re.fullmatch(
+            r"[A-Z][A-Z0-9_]*",
+            self.execution_timeout_env,
+        ):
+            raise AgentRuntimeError(
+                f"{self.id}: execution.timeout_env must be an uppercase environment name"
+            )
+        if (
+            self.execution_timeout_default_seconds is not None
+            and self.execution_timeout_default_seconds <= 0
+        ):
+            raise AgentRuntimeError(
+                f"{self.id}: execution.default_timeout_seconds must be positive"
+            )
+        if self.assistant_action:
+            if self.exposure is not ToolExposure.GUARDED or self.boundary != "gcs" or self.destructive:
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_action requires a non-destructive guarded GCS tool"
+                )
+            intent = str(self.assistant_action.get("intent") or "").strip()
+            monitor_kind = str(self.assistant_action.get("monitor_kind") or "").strip()
+            if not intent:
+                raise AgentRuntimeError(f"{self.id}: assistant_action.intent is required")
+            if monitor_kind not in {"command", "none", "sitl_operation"}:
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_action.monitor_kind is unsupported"
+                )
+            fixed_cardinality = self.assistant_action.get("fixed_cardinality")
+            if fixed_cardinality is not None and (
+                isinstance(fixed_cardinality, bool)
+                or not isinstance(fixed_cardinality, int)
+                or fixed_cardinality < 1
+            ):
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_action.fixed_cardinality must be a positive integer"
+                )
+            result_target_source = str(
+                self.assistant_action.get("result_target_source") or ""
+            ).strip()
+            if result_target_source and result_target_source != "affected_instances":
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_action.result_target_source is unsupported"
+                )
+            if result_target_source and monitor_kind != "sitl_operation":
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_action.result_target_source requires SITL operation monitoring"
+                )
+            if monitor_kind == "sitl_operation":
+                monitor_tool_id = str(self.assistant_action.get("monitor_tool_id") or "").strip()
+                if not monitor_tool_id:
+                    raise AgentRuntimeError(
+                        f"{self.id}: assistant_action.monitor_tool_id is required for SITL operation monitoring"
+                    )
+                completion = self.assistant_action.get("completion_evidence")
+                if not isinstance(completion, Mapping):
+                    raise AgentRuntimeError(
+                        f"{self.id}: assistant_action.completion_evidence must be a mapping"
+                    )
+                strategy = str(completion.get("strategy") or "").strip()
+                if strategy != "sitl_lifecycle":
+                    raise AgentRuntimeError(
+                        f"{self.id}: assistant_action.completion_evidence.strategy is unsupported"
+                    )
+                for field_name in ("instances_tool_id", "heartbeats_tool_id", "telemetry_tool_id"):
+                    if not str(completion.get(field_name) or "").strip():
+                        raise AgentRuntimeError(
+                            f"{self.id}: assistant_action.completion_evidence.{field_name} is required"
+                        )
+        if self.assistant_facts:
+            if (
+                not self.read_only
+                or self.destructive
+                or self.boundary != "gcs"
+                or self.exposure is not ToolExposure.ALLOW
+            ):
+                raise AgentRuntimeError(
+                    f"{self.id}: assistant_facts require an allowed, non-destructive read-only GCS tool"
+                )
         if self.risk_class in {ToolRiskClass.OPERATE, ToolRiskClass.ADMIN, ToolRiskClass.DESTRUCTIVE}:
             if self.exposure is ToolExposure.ALLOW:
                 raise AgentRuntimeError(f"{self.id}: high-risk tools cannot be directly allowed")

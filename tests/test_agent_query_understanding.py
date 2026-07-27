@@ -17,7 +17,7 @@ from agent_runtime.query_understanding import build_assistant_query_plan, normal
     ),
     (
         (
-            "waht is the scoute droen IP?",
+            "what is the scout drone IP?",
             None,
             "fleet",
             "status",
@@ -98,7 +98,7 @@ from agent_runtime.query_understanding import build_assistant_query_plan, normal
             False,
         ),
         (
-            "can you report any warnign if exist last 30 minutes in gcs?",
+            "can you report any warning from the last 30 minutes in GCS?",
             "fleet",
             "logs",
             "status",
@@ -185,7 +185,7 @@ def test_public_upstream_lookup_takes_precedence_over_online_connectivity_wordin
 @pytest.mark.parametrize("conversation_topic", ("sitl", "simulation", "concept.sitl"))
 def test_query_planner_preserves_sitl_conversation_topic(conversation_topic):
     plan = build_assistant_query_plan(
-        "first chrekcnget lsit",
+        "check the current state",
         conversation_topic=conversation_topic,
     )
 
@@ -193,8 +193,6 @@ def test_query_planner_preserves_sitl_conversation_topic(conversation_topic):
     assert plan.tags == ("sitl",)
 
 
-def test_query_normalization_covers_field_typo_shapes():
-    assert normalize_query_text("waht is the scoute droen IP?") == "what is the scout drone ip"
-    assert normalize_query_text("circuit brake") == "circuit breaker"
-    assert normalize_query_text("cehck latest gxs logs") == "check latest gcs logs"
-    assert normalize_query_text("whay are the differnt launch modes?") == "what are the different launch modes"
+def test_query_normalization_is_lexical_and_does_not_guess_semantics():
+    assert normalize_query_text("waht is the scoute droen IP?") == "waht is the scoute droen ip"
+    assert normalize_query_text("  Circuit BREAKER?!  ") == "circuit breaker"

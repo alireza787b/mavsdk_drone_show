@@ -63,8 +63,8 @@ USE_HTTPS="false"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
-# Optional dashboard/API auth. Auth is disabled by default so public demo and
-# local development setups stay frictionless until explicitly locked down.
+# Optional dashboard/API auth. Auth is disabled by default so trusted lab/SITL
+# and local development setups stay frictionless until explicitly locked down.
 AUTH_ENABLED="${MDS_AUTH_ENABLED:-false}"
 API_AUTH_ENABLED="${MDS_API_AUTH_ENABLED:-false}"
 AUTH_ADMIN_USER="${MDS_AUTH_ADMIN_USER:-admin}"

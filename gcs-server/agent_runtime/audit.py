@@ -3,19 +3,32 @@
 from __future__ import annotations
 
 import json
+import threading
 import uuid
+from functools import wraps
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Callable, Mapping
 
 from .models import AuditEvent, stable_payload_hash, utc_now
+
+
+def _with_sink_lock(method: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(method)
+    def locked(self, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return locked
 
 
 class InMemoryAuditSink:
     """Append-only audit sink for tests and future adapters."""
 
     def __init__(self):
+        self._lock = threading.RLock()
         self._events: list[AuditEvent] = []
 
+    @_with_sink_lock
     def record(
         self,
         event_type: str,
@@ -41,6 +54,7 @@ class InMemoryAuditSink:
         self._events.append(event)
         return event
 
+    @_with_sink_lock
     def list_events(self, *, session_id: str | None = None) -> list[AuditEvent]:
         values = self._events
         if session_id is not None:
@@ -56,6 +70,7 @@ class JsonlAuditSink(InMemoryAuditSink):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
+    @_with_sink_lock
     def record(self, event_type: str, **kwargs) -> AuditEvent:  # type: ignore[override]
         event = super().record(event_type, **kwargs)
         with self.path.open("a", encoding="utf-8") as handle:

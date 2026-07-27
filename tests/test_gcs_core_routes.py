@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
+import time
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -70,6 +71,7 @@ def test_core_router_registers_expected_routes():
 
     assert "/api/v1/system/health" in routes
     assert "/api/v1/fleet/telemetry" in routes
+    assert "/api/v1/fleet/action-readiness" in routes
     assert "/api/v1/fleet/heartbeats" in routes
     assert "/api/v1/fleet/network-status" in routes
     assert "/ws/telemetry" in routes
@@ -115,6 +117,65 @@ def test_core_router_typed_telemetry_sets_server_time_header():
     assert response.status_code == 200
     assert response.headers["X-MDS-Server-Time"].isdigit()
     assert response.json()["total_drones"] == 1
+
+
+def test_core_router_action_readiness_is_target_scoped_and_fresh():
+    deps = _make_deps()
+    now = time.time()
+    deps.last_telemetry_time = {"1": now}
+    deps.get_all_heartbeats = lambda: {
+        "1": {
+            "hw_id": "1",
+            "timestamp": int(now * 1000),
+        }
+    }
+    app = FastAPI()
+    app.include_router(create_core_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/fleet/action-readiness",
+            params=[("target_drone_ids", "1")],
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["target_drone_ids"] == ["1"]
+    assert payload["all_targets_ready"] is True
+    assert payload["ready_target_count"] == 1
+    assert payload["unavailable_target_ids"] == []
+    assert payload["targets"][0]["live"] is True
+    assert payload["targets"][0]["ready_to_arm"] is True
+
+
+def test_core_router_action_readiness_rejects_stale_telemetry_with_fresh_heartbeat():
+    deps = _make_deps()
+    now = time.time()
+    deps.last_telemetry_time = {"1": now - 300}
+    deps.get_all_heartbeats = lambda: {
+        "1": {
+            "hw_id": "1",
+            "timestamp": int(now * 1000),
+        }
+    }
+    app = FastAPI()
+    app.include_router(create_core_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/fleet/action-readiness",
+            params=[("target_drone_ids", "1")],
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["all_targets_ready"] is False
+    assert payload["ready_target_count"] == 0
+    assert payload["unavailable_target_ids"] == ["1"]
+    assert payload["targets"][0]["live"] is False
+    assert payload["targets"][0]["telemetry_available"] is True
+    assert payload["targets"][0]["ready_to_arm"] is True
+    assert payload["targets"][0]["ready"] is False
 
 
 def test_core_router_heartbeats_include_configured_never_seen_nodes():
