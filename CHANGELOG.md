@@ -10,6 +10,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- The drone-side typed `/api/v1/drone/state` response now preserves the
+  communicator's altitude-policy and local-NED fields so GCS can receive
+  relative/local evidence instead of only the MSL position fallback.
 - Fleet status now follows the shared altitude policy and labels relative,
   local, barometric, and MSL frames explicitly instead of showing an MSL
   fallback as an unlabeled relative altitude. Current telemetry now uses

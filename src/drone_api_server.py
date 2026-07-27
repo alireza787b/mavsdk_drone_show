@@ -228,6 +228,22 @@ class DroneStateResponse(BaseModel):
     gps_raw_timestamp_ms: int = 0
     gps_raw_age_ms: Optional[int] = None
     gps_raw_altitude_m: Optional[float] = None
+    # Keep the shared altitude-policy fields in the typed response model.
+    # Pydantic otherwise drops the communicator's relative/local evidence,
+    # leaving GCS with only the MSL ``position_alt`` fallback.
+    altitude_report: Dict[str, Any] = Field(default_factory=dict)
+    altitude_display_m: Optional[float] = None
+    altitude_source: Optional[str] = None
+    relative_altitude_m: Optional[float] = None
+    baro_altitude_m: Optional[float] = None
+    baro_timestamp_ms: int = 0
+    baro_age_ms: Optional[int] = None
+    local_position_ok: bool = False
+    local_position_north: float = 0.0
+    local_position_east: float = 0.0
+    local_position_down: float = 0.0
+    local_position_time_boot_ms: int = 0
+    local_position_timestamp_ms: int = 0
     position_source: str = "unavailable"
     position_unavailable_reason: Optional[str] = None
     readiness_status: str = "unknown"

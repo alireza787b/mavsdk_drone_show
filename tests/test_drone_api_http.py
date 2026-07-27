@@ -86,6 +86,52 @@ class TestHealthCheck:
         assert data["ulog_capability"]["missing_dependency"] == "ulog_capability_probe_failed"
 
 
+class TestDroneStateTelemetryFields:
+    def test_state_preserves_altitude_policy_evidence(self, api_server):
+        payload = api_server._serialize_drone_state_payload(
+            {
+                "pos_id": 1,
+                "detected_pos_id": 1,
+                "state": 0,
+                "mission": 0,
+                "last_mission": 0,
+                "position_lat": 35.7,
+                "position_long": 51.2,
+                "position_alt": 1298.2,
+                "velocity_north": 0.0,
+                "velocity_east": 0.0,
+                "velocity_down": 0.0,
+                "yaw": 0.0,
+                "battery_voltage": 16.2,
+                "flight_mode": 0,
+                "base_mode": 0,
+                "system_status": 3,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "hdop": 0.7,
+                "vdop": 1.1,
+                "gps_fix_type": 3,
+                "satellites_visible": 10,
+                "ip": "172.18.0.2",
+                "update_time": 1732270245,
+                "altitude_report": {
+                    "display_m": 20.2,
+                    "source": "local_ned",
+                    "label": "LCL",
+                    "local_up_m": 20.2,
+                },
+                "altitude_display_m": 20.2,
+                "altitude_source": "local_ned",
+                "relative_altitude_m": None,
+                "local_position_down": -20.2,
+            }
+        )
+
+        assert payload["altitude_report"]["display_m"] == 20.2
+        assert payload["altitude_source"] == "local_ned"
+        assert payload["local_position_down"] == -20.2
+
+
 class TestNodeEnvironment:
     """Test node-local env inspection and mutation endpoints."""
 

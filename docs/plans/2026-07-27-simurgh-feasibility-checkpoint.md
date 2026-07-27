@@ -44,6 +44,8 @@ Fleet status now:
 
 - follows the telemetry altitude policy order (relative/home, local NED, baro,
   then absolute MSL);
+- receives the communicator's altitude-policy and local-NED fields through the
+  typed drone-state API instead of losing them during response serialization;
 - never presents an MSL fallback as an unlabeled relative altitude;
 - labels the displayed frame (`REL`, `LCL`, `BARO`, or `MSL`);
 - calls the current bundle `Flight state` instead of `Final state`;
