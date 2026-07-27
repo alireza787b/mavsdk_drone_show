@@ -728,10 +728,14 @@ class TestDroneState:
         test_client,
         api_server,
         monkeypatch,
+        tmp_path,
     ):
+        import src.drone_api_server as drone_api_server
+
         async def fake_with_local_system(operation):
             raise FileNotFoundError("mavsdk_server binary not found")
 
+        monkeypatch.setattr(drone_api_server, "BASE_DIR", str(tmp_path))
         monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
 
         response = test_client.post("/api/v1/px4-params/snapshots/refresh", json={})
@@ -749,11 +753,14 @@ class TestDroneState:
         monkeypatch,
         tmp_path,
     ):
+        import src.drone_api_server as drone_api_server
+
         async def fake_with_local_system(operation):
             raise FileNotFoundError("mavsdk_server binary not found")
 
         fallback_dir = tmp_path / "ulog"
         fallback_dir.mkdir()
+        monkeypatch.setattr(drone_api_server, "BASE_DIR", str(tmp_path))
         monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
         monkeypatch.setattr(api_server._ulog_service, "filesystem_fallback_dirs", lambda: [fallback_dir])
 
@@ -890,12 +897,17 @@ class TestDroneState:
         test_client,
         api_server,
         monkeypatch,
+        tmp_path,
         ulog_machine_headers,
     ):
+        import src.drone_api_server as drone_api_server
+
         async def fake_with_local_system(operation):
             raise FileNotFoundError("mavsdk_server binary not found")
 
+        monkeypatch.setattr(drone_api_server, "BASE_DIR", str(tmp_path))
         monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
+        monkeypatch.setattr(api_server._ulog_service, "filesystem_fallback_dirs", lambda: [])
 
         response = test_client.get(
             "/api/v1/ulog/files",
