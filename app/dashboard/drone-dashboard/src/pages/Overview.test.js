@@ -90,6 +90,8 @@ describe('Overview', () => {
     expect(await screen.findByText('Drone 1')).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Fleet overview' })).toBeInTheDocument();
     expect(screen.getByText('1/1 card visible')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /currently visible commandable fleet/i })).toHaveTextContent('Visible in dispatch');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /currently visible commandable fleet/i })).toHaveTextContent('Visible in dispatch');
+    });
   });
 });
