@@ -192,6 +192,32 @@ describe('SidebarMenu', () => {
     expect(within(dialog).getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
   });
 
+  it('shows the signed-in user profile when only API auth is enabled', () => {
+    renderSidebar(
+      <SidebarMenu
+        collapsed={false}
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+        authStatus={{
+          dashboard_auth_enabled: false,
+          api_auth_enabled: true,
+          session_ttl_hours: 12,
+        }}
+        currentUser={{
+          username: 'operator',
+          role: 'operator',
+        }}
+        onLogout={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /open profile for operator/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /signed-in user profile/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('operator', { selector: 'strong' })).toBeInTheDocument();
+  });
+
   it('shows compact project footer links in expanded mode', () => {
     renderSidebar(
       <SidebarMenu

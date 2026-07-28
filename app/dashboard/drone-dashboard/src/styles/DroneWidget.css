@@ -94,6 +94,13 @@
     opacity: 0.58;
 }
 
+.drone-widget.runtime-initializing {
+    --widget-left-accent: var(--color-warning);
+    border-color: var(--color-warning-border);
+    filter: none;
+    opacity: 1;
+}
+
 .drone-widget.runtime-lost {
     --widget-left-accent: var(--color-warning);
     border-color: var(--color-warning-border);
@@ -123,6 +130,14 @@
 .drone-widget__link-overlay svg {
     color: var(--color-text-muted);
     font-size: 1.35rem;
+}
+
+.drone-widget.runtime-initializing .drone-widget__link-overlay {
+    background:
+        radial-gradient(circle at center, rgba(var(--color-warning-rgb, 245, 158, 11), 0.18), transparent 74%),
+        rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.48);
+    border-color: var(--color-warning-border);
+    color: var(--color-text-primary);
 }
 
 .drone-widget__scope-ribbon {
@@ -513,6 +528,12 @@
     min-width: 0;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.status-badge.boot-status {
+    cursor: help;
+    flex: 1 1 auto;
+    max-width: 8.75rem;
 }
 
 .status-badge::before {

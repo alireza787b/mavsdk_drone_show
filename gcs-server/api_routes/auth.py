@@ -112,10 +112,11 @@ def create_auth_router(deps: Any) -> APIRouter:
     @router.post("/api/v1/auth/login")
     async def login(payload: LoginRequest, response: Response):
         service = build_auth_service()
-        if not service.settings.dashboard_auth_enabled:
+        if not service.settings.any_auth_enabled:
             return {
                 "authenticated": False,
                 "dashboard_auth_enabled": False,
+                "api_auth_enabled": False,
                 "message": "Dashboard auth is disabled.",
                 "docs_url": AUTH_DOCS_URL,
             }

@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import useFetch from '../hooks/useFetch';
 import {
+  GCS_ROUTE_KEYS,
   getFleetConfigResponse,
   getFleetTelemetryResponse,
   unwrapFleetTelemetryPayload,
@@ -19,6 +20,7 @@ jest.mock('../hooks/useFetch', () => ({
 jest.mock('../services/gcsApiService', () => ({
   GCS_ROUTE_KEYS: {
     swarmConfig: '/api/v1/swarm/config',
+    fleetNodeBootStatus: '/api/v1/fleet/node-boot-status',
   },
   getFleetConfigResponse: jest.fn(),
   getFleetTelemetryResponse: jest.fn(),
@@ -36,7 +38,14 @@ jest.mock('../components/ClusterScopeBar', () => jest.fn(() => null));
 jest.mock('../components/DroneWidget', () => {
   const React = require('react');
   return function MockDroneWidget({ drone }) {
-    return React.createElement('article', null, `Drone ${drone.hw_ID}`);
+    return React.createElement(
+      'article',
+      null,
+      `Drone ${drone.hw_ID}`,
+      drone.node_boot_status?.message
+        ? React.createElement('span', null, drone.node_boot_status.message)
+        : null,
+    );
   };
 });
 jest.mock('../components/ExpandedDronePortal', () => jest.fn(() => null));
@@ -93,5 +102,36 @@ describe('Overview', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /currently visible commandable fleet/i })).toHaveTextContent('Visible in dispatch');
     });
+  });
+
+  test('renders booting configured nodes in active view before telemetry arrives', async () => {
+    useFetch.mockImplementation((key) => {
+      if (key === GCS_ROUTE_KEYS.fleetNodeBootStatus) {
+        return {
+          data: {
+            timestamp: Date.now(),
+            nodes: {
+              '3': {
+                hw_id: '3',
+                pos_id: 3,
+                phase: 'fetch',
+                status: 'running',
+                message: 'Fetching latest repository state',
+                timestamp: Date.now(),
+              },
+            },
+          },
+        };
+      }
+      return { data: [] };
+    });
+    getFleetConfigResponse.mockResolvedValue({ data: [] });
+    getFleetTelemetryResponse.mockResolvedValue({ data: {}, headers: {} });
+
+    renderOverview();
+
+    expect(await screen.findByText('Drone 3')).toBeInTheDocument();
+    expect(screen.getByText('Fetching latest repository state')).toBeInTheDocument();
+    expect(screen.getByText('1/1 card visible')).toBeInTheDocument();
   });
 });

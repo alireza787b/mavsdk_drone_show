@@ -253,6 +253,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   for Axios, Markdown-It/Linkify-It, and PostCSS, alongside the earlier
   `shell-quote` fix, without forcing npm's invalid Create React App remediation
   or an unverified React Router major-version change.
+- Generic Catch-A-Drone improvements were reconciled into official MDS without
+  importing customer configuration or weaker private security behavior:
+  command failures retain concise per-drone reasons, Smart Swarm distinguishes
+  local save from failed Git write-back, Fleet Ops guides drift review, booting
+  nodes stay visible without fake telemetry, API-only authentication can create
+  dashboard sessions, and signed swarm offsets work on mobile keyboards.
 
 ### Fixed
 - Simurgh ULog plus unified-log mission review wording now remains on the

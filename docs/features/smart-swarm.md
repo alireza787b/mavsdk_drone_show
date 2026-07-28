@@ -66,6 +66,21 @@ Validator note:
 
 ## Operator Model
 
+### Design save workflow
+
+The `Swarm Design` page separates local assignment saves from fleet-wide Git
+write-back during the current compatibility phase:
+
+- `Save` writes the current `swarm.json` assignment set on the GCS only.
+- `Commit & Push` saves, commits, and pushes the change so nodes can receive it
+  through the current sync path.
+- A failed commit or push is reported as local-save success plus Git write-back
+  failure, never as complete success.
+- Progress distinguishes the local save, commit, and remote push.
+
+Offset fields accept signed meter values. On mobile, use the normal text
+keyboard if the numeric keyboard does not expose a minus key.
+
 Smart Swarm now has two clean command scopes:
 
 ### 1. Single-drone commands

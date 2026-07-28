@@ -33,6 +33,7 @@ import {
   applyFleetGitSyncResponse,
   dryRunFleetGitSyncResponse,
 } from '../services/gcsApiService';
+import { extractApiErrorMessage } from '../services/apiError';
 import { buildFleetOpsViewModel, compactHash } from '../utilities/fleetOpsViewModel';
 import '../styles/FleetOpsPage.css';
 
@@ -609,6 +610,10 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
   const connectivityProfile = connectivityProfileFetch.data;
   const loading = !gitStatusOverride && gitStatusFetch.loading && !gitStatus;
   const error = gitStatusFetch.error || heartbeatFetch.error || nodeBootStatusFetch.error;
+  const syncEligibilityLoading = (
+    (!heartbeatOverride && heartbeatFetch.loading && !heartbeatStatus)
+    || (!nodeBootStatusOverride && nodeBootStatusFetch.loading && !nodeBootStatus)
+  );
 
   const viewModel = useMemo(
     () => buildFleetOpsViewModel(gitStatus, heartbeatStatus, nodeBootStatus),
@@ -625,6 +630,10 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
   const selectedPosIds = useMemo(
     () => selectedRows.map((row) => Number(row.posId)).filter((value) => Number.isFinite(value) && value > 0),
     [selectedRows],
+  );
+  const eligibleDriftRows = useMemo(
+    () => viewModel.rows.filter((row) => row.online && row.hasDrift),
+    [viewModel.rows],
   );
   const targetLabel = selectedPosIds.length ? `${selectedPosIds.length} selected` : 'all eligible';
 
@@ -648,14 +657,15 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
     if (params.get('scope') !== 'needs-sync' || !viewModel.rows.length) {
       return;
     }
-    const syncKeys = viewModel.rows
-      .filter((row) => row.online && row.hasDrift)
-      .map((row) => row.key);
+    if (syncEligibilityLoading && !eligibleDriftRows.length) {
+      return;
+    }
+    const syncKeys = eligibleDriftRows.map((row) => row.key);
     if (syncKeys.length) {
       setSelectedKeys(new Set(syncKeys));
     }
     urlScopeAppliedRef.current = location.search;
-  }, [location.search, viewModel.rows]);
+  }, [eligibleDriftRows, location.search, syncEligibilityLoading, viewModel.rows.length]);
 
   const toggleSelected = useCallback((key) => {
     setSelectedKeys((previous) => {
@@ -712,16 +722,17 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         steps: syncSteps({ preview: 'done', review: okCount > 0 ? 'active' : 'blocked' }),
       });
     } catch (error) {
+      const message = await extractApiErrorMessage(error, 'Fleet sync preview failed.');
       setActionState({
         running: false,
         tone: 'danger',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync preview failed.',
+        message,
       });
       setSyncProgress({
         phase: 'failed',
         tone: 'danger',
         title: 'Sync preview failed',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync preview failed.',
+        message,
         steps: syncSteps({ preview: 'blocked' }),
       });
     }
@@ -735,15 +746,52 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
     if (urlAutoPlanAppliedRef.current === location.search) {
       return;
     }
-    if (!selectedPosIds.length || actionState.running || pendingGitSync) {
+    if (actionState.running || pendingGitSync) {
+      return;
+    }
+    if (!viewModel.rows.length) {
+      return;
+    }
+    if (syncEligibilityLoading && !eligibleDriftRows.length) {
+      return;
+    }
+    if (!eligibleDriftRows.length) {
+      urlAutoPlanAppliedRef.current = location.search;
+      setActionState({
+        running: false,
+        tone: 'warning',
+        message: 'No online out-of-sync drone is eligible for remote sync yet. Wait for node heartbeat/boot status, then retry from this page.',
+      });
+      setSyncProgress({
+        phase: 'blocked',
+        tone: 'warning',
+        title: 'No eligible sync target',
+        message: 'The banner found drift, but Fleet Ops cannot apply updates until at least one drifted node is online and heartbeat-fresh.',
+        steps: syncSteps({ preview: 'blocked' }),
+      });
+      return;
+    }
+    if (!selectedPosIds.length) {
       return;
     }
     urlAutoPlanAppliedRef.current = location.search;
     runGitSync();
-  }, [actionState.running, location.search, pendingGitSync, runGitSync, selectedPosIds.length]);
+  }, [actionState.running, eligibleDriftRows.length, location.search, pendingGitSync, runGitSync, selectedPosIds.length, syncEligibilityLoading, viewModel.rows.length]);
 
   const applyGitSync = useCallback(async () => {
     if (!pendingGitSync?.job_id || !pendingGitSync?.confirmation_token) {
+      setActionState({
+        running: false,
+        tone: 'warning',
+        message: 'Run Sync now first and review the generated preview before applying updates.',
+      });
+      setSyncProgress({
+        phase: 'blocked',
+        tone: 'warning',
+        title: 'No sync preview',
+        message: 'Fleet Ops applies only a current preview job. Plan sync again, review the ready targets, then apply.',
+        steps: syncSteps({ preview: 'blocked' }),
+      });
       return;
     }
     if (!gitSyncAck) {
@@ -789,16 +837,17 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         steps: syncSteps({ preview: 'done', review: 'done', apply: 'done', verify: data.success ? 'done' : 'blocked' }),
       });
     } catch (error) {
+      const message = await extractApiErrorMessage(error, 'Fleet sync apply failed.');
       setActionState({
         running: false,
         tone: 'danger',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync apply failed.',
+        message,
       });
       setSyncProgress({
         phase: 'failed',
         tone: 'danger',
         title: 'Sync apply failed',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync apply failed.',
+        message,
         steps: syncSteps({ preview: 'done', review: 'done', apply: 'blocked' }),
       });
     }

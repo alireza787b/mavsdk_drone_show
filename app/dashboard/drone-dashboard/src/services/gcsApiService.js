@@ -16,6 +16,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   authTokens: 'authTokens',
   fleetTelemetry: 'fleetTelemetry',
   fleetHeartbeats: 'fleetHeartbeats',
+  fleetNodeBootStatus: 'fleetNodeBootStatus',
   fleetCandidates: 'fleetCandidates',
   fleetNetworkStatus: 'fleetNetworkStatus',
   fleetConfig: 'fleetConfig',
@@ -116,6 +117,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.authTokens]: '/api/v1/auth/tokens',
   [GCS_ROUTE_KEYS.fleetTelemetry]: '/api/v1/fleet/telemetry',
   [GCS_ROUTE_KEYS.fleetHeartbeats]: '/api/v1/fleet/heartbeats',
+  [GCS_ROUTE_KEYS.fleetNodeBootStatus]: '/api/v1/fleet/node-boot-status',
   [GCS_ROUTE_KEYS.fleetCandidates]: '/api/v1/fleet/candidates',
   [GCS_ROUTE_KEYS.fleetNetworkStatus]: '/api/v1/fleet/network-status',
   [GCS_ROUTE_KEYS.fleetConfig]: '/api/v1/config/fleet',
@@ -224,6 +226,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/auth/tokens': GCS_ROUTE_KEYS.authTokens,
   '/api/v1/fleet/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
   '/api/v1/fleet/heartbeats': GCS_ROUTE_KEYS.fleetHeartbeats,
+  '/api/v1/fleet/node-boot-status': GCS_ROUTE_KEYS.fleetNodeBootStatus,
   '/api/v1/fleet/candidates': GCS_ROUTE_KEYS.fleetCandidates,
   '/api/v1/fleet/network-status': GCS_ROUTE_KEYS.fleetNetworkStatus,
   '/api/v1/config/fleet': GCS_ROUTE_KEYS.fleetConfig,
@@ -703,6 +706,10 @@ export async function getFleetConfigResponse(config = {}) {
 
 export async function getFleetHeartbeatsResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.fleetHeartbeats, config);
+}
+
+export async function getFleetNodeBootStatusResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.fleetNodeBootStatus, config);
 }
 
 export async function saveFleetConfigResponse(payload, config = {}) {

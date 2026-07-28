@@ -109,6 +109,38 @@ def _validate_swarm_cycle_constraints(payload: Any) -> None:
             raise HTTPException(status_code=400, detail=f"Follow update would create a cycle for hw_id={hw_id}")
 
 
+def _swarm_git_result_failed(git_result: Any) -> bool:
+    return isinstance(git_result, dict) and git_result.get("success") is False
+
+
+def _swarm_git_result_not_pushed(git_result: Any) -> bool:
+    if not isinstance(git_result, dict) or git_result.get("success") is False:
+        return False
+    return git_result.get("pushed") is False or git_result.get("auto_push_enabled") is False
+
+
+def _build_swarm_save_message(should_commit: bool, git_result: Any) -> tuple[str, str, str]:
+    if not should_commit:
+        return "success", "Swarm configuration saved locally", "INFO"
+
+    if _swarm_git_result_failed(git_result):
+        message = "Swarm configuration saved locally, but git commit/push failed"
+        if git_result.get("message"):
+            message = f"{message}: {git_result['message']}"
+        return "git_failed", message, "WARNING"
+
+    if _swarm_git_result_not_pushed(git_result):
+        message = "Swarm configuration saved and committed locally, but it was not pushed to remote"
+        if isinstance(git_result, dict) and git_result.get("message"):
+            message = git_result["message"]
+        return "git_not_pushed", message, "WARNING"
+
+    if isinstance(git_result, dict) and git_result.get("message"):
+        return "success", git_result["message"], "INFO"
+
+    return "success", "Swarm configuration saved and committed successfully", "INFO"
+
+
 def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -> dict[str, Any]:
     try:
         follow = int(data.get("follow", 0))
@@ -202,10 +234,16 @@ def create_swarm_router(deps: Any) -> APIRouter:
                 git_result = await loop.run_in_executor(
                     None, deps.git_operations, deps.BASE_DIR, "config: update swarm.json via dashboard"
                 )
+            status, message, log_level = _build_swarm_save_message(should_commit, git_result)
+            deps.log_system_event(
+                f"Smart Swarm save completed: status={status} commit_requested={should_commit} message={message}",
+                log_level,
+                "swarm",
+            )
 
             return SwarmConfigSaveResponse(
-                status="success",
-                message="Swarm configuration saved successfully",
+                status=status,
+                message=message,
                 config=SwarmConfig(version=int(payload.version), assignments=payload.assignments),
                 git_result=git_result,
             )

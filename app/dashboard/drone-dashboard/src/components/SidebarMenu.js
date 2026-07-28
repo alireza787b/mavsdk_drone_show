@@ -88,7 +88,7 @@ const SidebarMenu = ({
   const runtimeAdminTitle = runtimeStatus.restartRequired
     ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open GCS Runtime.`
     : `Running ${runningModeLabel}. Open GCS Runtime.`;
-  const authEnabled = Boolean(authStatus?.dashboard_auth_enabled);
+  const authEnabled = Boolean(authStatus?.dashboard_auth_enabled || authStatus?.api_auth_enabled);
   const currentUserLabel = currentUser?.username || 'operator';
   const currentUserRole = currentUser?.role || authStatus?.role || 'operator';
 

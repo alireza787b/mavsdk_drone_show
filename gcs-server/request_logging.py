@@ -12,6 +12,7 @@ _ROUTINE_SUCCESS_PATHS = {
     "/api/v1/command-reports/execution-result",
     "/api/v1/command-reports/execution-start",
     "/api/v1/fleet/heartbeats",
+    "/api/v1/fleet/node-boot-status",
     "/api/v1/config/fleet",
     "/api/v1/system/runtime-status",
     "/api/v1/simurgh/policy",
@@ -27,6 +28,10 @@ _ROUTINE_AUTH_ONLY_PATHS = {
 }
 
 _ROUTINE_AUTH_NOISE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+_EXPECTED_MISSING_RESOURCE_PATHS = {
+    "/api/v1/origin/bootstrap",
+}
 
 
 def is_routine_success_path(path: str) -> bool:
@@ -66,6 +71,14 @@ def get_request_log_level(path: str, status_code: int, method: str | None = None
         return "ERROR"
 
     if status_code in {401, 403} and is_routine_auth_noise_path(path, method):
+        return "DEBUG"
+
+    if (
+        status_code == 404
+        and method is not None
+        and method.upper() == "GET"
+        and path in _EXPECTED_MISSING_RESOURCE_PATHS
+    ):
         return "DEBUG"
 
     if status_code >= 400:

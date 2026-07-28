@@ -4,6 +4,7 @@ import {
   FaChevronRight,
   FaExclamationTriangle,
   FaExchangeAlt,
+  FaInfoCircle,
   FaLink,
   FaSatelliteDish,
 } from 'react-icons/fa';
@@ -178,6 +179,13 @@ const DroneCard = forwardRef(function DroneCard(
               <span className="swarm-drone-card__field-label">
                 <FaLink />
                 Leader link
+                <span
+                  className="swarm-drone-card__field-help"
+                  data-help="Follow chains reference drone hardware IDs, not show slots."
+                  aria-label="Follow chains reference drone hardware IDs, not show slots."
+                >
+                  <FaInfoCircle aria-hidden="true" />
+                </span>
               </span>
               <select value={followValue} onChange={handleFollowChange}>
                 <option value="0">Independent leader</option>
@@ -189,13 +197,19 @@ const DroneCard = forwardRef(function DroneCard(
                     </option>
                   ))}
               </select>
-              <small>Follow chains always reference drone hardware IDs, not show slots.</small>
             </label>
 
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">
                 <FaSatelliteDish />
                 Offset frame
+                <span
+                  className="swarm-drone-card__field-help"
+                  data-help={drone.frameDescription}
+                  aria-label={drone.frameDescription}
+                >
+                  <FaInfoCircle aria-hidden="true" />
+                </span>
               </span>
               <select
                 value={frameValue}
@@ -205,7 +219,6 @@ const DroneCard = forwardRef(function DroneCard(
                 <option value="ned">Geographic (North / East / Up)</option>
                 <option value="body">Leader body (Forward / Right / Up)</option>
               </select>
-              <small>{drone.frameDescription}</small>
             </label>
           </div>
 
@@ -213,33 +226,39 @@ const DroneCard = forwardRef(function DroneCard(
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">{drone.axisLabels.x}</span>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
+                pattern="-?[0-9]*[.]?[0-9]*"
                 value={draft.offset_x ?? drone.offset_x}
                 onChange={handleOffsetChange('offset_x')}
                 disabled={isIndependentLeader}
+                aria-label={`${drone.axisLabels.x} offset in meters`}
               />
             </label>
 
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">{drone.axisLabels.y}</span>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
+                pattern="-?[0-9]*[.]?[0-9]*"
                 value={draft.offset_y ?? drone.offset_y}
                 onChange={handleOffsetChange('offset_y')}
                 disabled={isIndependentLeader}
+                aria-label={`${drone.axisLabels.y} offset in meters`}
               />
             </label>
 
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">{drone.axisLabels.z}</span>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
+                pattern="-?[0-9]*[.]?[0-9]*"
                 value={draft.offset_z ?? drone.offset_z}
                 onChange={handleOffsetChange('offset_z')}
                 disabled={isIndependentLeader}
+                aria-label={`${drone.axisLabels.z} offset in meters`}
               />
             </label>
           </div>

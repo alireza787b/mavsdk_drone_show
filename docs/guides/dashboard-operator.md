@@ -87,6 +87,8 @@ Mission-specific reminders:
 - Swarm Trajectory is prepared on the Swarm Trajectory page, but final Mission
   Type 4 dispatch still happens from Dashboard Mission Trigger after validation
   and readiness are clear.
+- Hold is an in-flight PX4 hold action. It is intentionally rejected while the
+  drone is grounded or not armed so it cannot be mistaken for a takeoff command.
 - Local-position, VIO, or baro-only altitude can be useful for awareness, but
   global waypoint missions still require map-trusted position truth.
 

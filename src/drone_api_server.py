@@ -157,7 +157,7 @@ from src.px4_params.service import Px4ParamService
 from src.ulog_service import OnboardUlogService, UlogServiceError
 from functions.git_manager import get_local_git_report
 from functions.data_utils import safe_float, safe_get, safe_int
-from functions.file_utils import load_csv, get_trajectory_first_position
+from functions.file_utils import load_csv, load_json, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
 from src.params import Params
 from src.enums import Mission, State, CommandErrorCode
@@ -995,11 +995,13 @@ class DroneAPIServer:
             str(path)
             for path in self._ulog_service.filesystem_fallback_dirs()
         ]
-        existing_fallback_paths = [
-            path
-            for path in fallback_paths
-            if Path(path).exists()
-        ]
+        existing_fallback_paths = []
+        for path in fallback_paths:
+            try:
+                if Path(path).exists():
+                    existing_fallback_paths.append(path)
+            except OSError as exc:
+                logger.debug("Skipping inaccessible ULog fallback path %s: %s", path, exc)
         filesystem_fallback_configured = bool(fallback_paths)
         available = mavsdk_server_executable or bool(existing_fallback_paths)
 
@@ -2013,7 +2015,7 @@ class DroneAPIServer:
                 logger.error(f"Error in network-info endpoint: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @self.app.get(DRONE_SWARM_CONFIG_ROUTE, response_model=List[Dict[str, Any]])
+        @self.app.get(DRONE_SWARM_CONFIG_ROUTE, response_model=Dict[str, Any])
         async def get_swarm():
             """Get swarm configuration data"""
             logger.info("Swarm data requested")
@@ -2688,10 +2690,11 @@ class DroneAPIServer:
                     'detail': detail
                 }
 
-        if mission_type == Mission.PRECISION_MOVE.value and not self.drone_config.is_armed:
+        if mission_type in {Mission.HOLD.value, Mission.PRECISION_MOVE.value} and not self.drone_config.is_armed:
+            mission_name = Mission(mission_type).name
             return {
                 'valid': False,
-                'message': 'PRECISION_MOVE requires an armed airborne drone',
+                'message': f'{mission_name} requires an armed airborne drone',
                 'error_code': CommandErrorCode.NOT_ARMED.value,
             }
 
@@ -2854,8 +2857,30 @@ class DroneAPIServer:
     # ========================================================================
 
     def load_swarm(self, file_path):
-        """Load swarm data from CSV file"""
-        return load_csv(file_path)
+        """Load swarm data using the canonical object envelope.
+
+        Current MDS writes swarm.json as {"version": int, "assignments": [...]},
+        while older drone-local paths may still have a legacy raw list or CSV.
+        Keep the route envelope stable so GCS/UI/API consumers see one shape.
+        """
+        path = Path(file_path)
+        if path.suffix.lower() == ".json":
+            payload = load_json(str(path))
+            if not payload:
+                return {"version": 1, "assignments": []}
+            if isinstance(payload, dict):
+                assignments = payload.get("assignments")
+                if isinstance(assignments, list):
+                    return {
+                        "version": int(payload.get("version") or 1),
+                        "assignments": assignments,
+                    }
+                raise ValueError("Swarm JSON must contain an assignments array")
+            if isinstance(payload, list):
+                return {"version": 1, "assignments": payload}
+            raise ValueError("Swarm JSON must be an object or list")
+
+        return {"version": 1, "assignments": load_csv(file_path)}
 
     def _get_origin_from_gcs(self):
         """Fetches the origin coordinates from the GCS."""

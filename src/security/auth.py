@@ -840,7 +840,7 @@ class AuthService:
         return credential
 
     def setup_required(self) -> bool:
-        return self.settings.dashboard_auth_enabled and not self.store.has_users()
+        return self.settings.any_auth_enabled and not self.store.has_users()
 
     def create_session(self, user: dict[str, Any]) -> tuple[str, str]:
         csrf = secrets.token_urlsafe(32)

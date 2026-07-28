@@ -13,6 +13,7 @@ def test_routine_success_paths_are_classified_as_debug():
     assert is_routine_success_path("/api/v1/git/status") is True
     assert is_routine_success_path("/api/v1/origin") is True
     assert is_routine_success_path("/api/v1/fleet/heartbeats") is True
+    assert is_routine_success_path("/api/v1/fleet/node-boot-status") is True
     assert is_routine_success_path("/api/v1/commands/recent") is True
     assert is_routine_success_path("/api/v1/system/runtime-status") is True
     assert is_routine_success_path("/api/v1/simurgh/status") is True
@@ -41,21 +42,26 @@ def test_routine_dashboard_auth_noise_is_debug_without_weakening_auth():
     assert is_routine_auth_noise_path("/api/health", method="GET") is True
     assert is_routine_auth_noise_path("/", method="GET") is True
     assert is_routine_auth_noise_path("/api/v1/system/runtime-status", method="GET") is True
+    assert is_routine_auth_noise_path("/api/v1/fleet/node-boot-status", method="GET") is True
     assert get_request_log_level("/api/v1/git/status", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/commands/active", 403, method="GET") == "DEBUG"
     assert get_request_log_level("/api/health", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/system/runtime-status", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/simurgh/status", 401, method="GET") == "DEBUG"
+    assert get_request_log_level("/api/v1/fleet/node-boot-status", 401, method="GET") == "DEBUG"
 
 
 def test_mutating_or_non_routine_auth_failures_remain_warning():
     assert is_routine_auth_noise_path("/api/v1/simurgh/assistant/turns", method="POST") is False
+    assert is_routine_auth_noise_path("/api/v1/fleet/node-boot-status", method="POST") is False
     assert get_request_log_level("/api/v1/simurgh/assistant/turns", 401, method="POST") == "WARNING"
+    assert get_request_log_level("/api/v1/fleet/node-boot-status", 401, method="POST") == "WARNING"
     assert get_request_log_level("/api/v1/system/env/gcs", 401, method="GET") == "WARNING"
     assert get_request_log_level("/api/v1/commands", 403, method="POST") == "WARNING"
 
 
 def test_failures_override_routine_classification_except_auth_noise():
     assert get_request_log_level("/api/v1/origin", 404, method="GET") == "WARNING"
+    assert get_request_log_level("/api/v1/origin/bootstrap", 404, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/fleet/heartbeats", 500) == "ERROR"

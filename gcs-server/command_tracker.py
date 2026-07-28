@@ -215,6 +215,34 @@ class CommandTracker:
         return command.phase == CommandPhase.TERMINAL
 
     @staticmethod
+    def _compact_execution_reason(value: Optional[str], max_length: int = 180) -> str:
+        """Return a single-line operator-facing execution failure reason."""
+        if not value:
+            return ""
+
+        compacted = " ".join(str(value).split())
+        if len(compacted) <= max_length:
+            return compacted
+        return f"{compacted[: max_length - 1].rstrip()}..."
+
+    def _build_execution_failure_detail(self, command: TrackedCommand) -> str:
+        """Summarize concrete per-drone failure details for operator feedback."""
+        details: List[str] = []
+        for hw_id in sorted(command.executions.keys(), key=lambda value: str(value)):
+            execution = command.executions[hw_id]
+            if execution.success:
+                continue
+
+            reason = self._compact_execution_reason(execution.error_message)
+            if not reason and execution.exit_code is not None:
+                reason = f"exit code {execution.exit_code}"
+            if not reason:
+                reason = "no failure detail reported"
+            details.append(f"drone {hw_id}: {reason}")
+
+        return "; ".join(details[:3])
+
+    @staticmethod
     def _can_recover_from_offline_terminal(command: TrackedCommand, hw_id: str) -> bool:
         """Return True when execution evidence should reopen an all-offline terminal result.
 
@@ -893,8 +921,11 @@ class CommandTracker:
                             command.status = CommandStatus.FAILED
                             command.phase = CommandPhase.TERMINAL
                             command.outcome = CommandOutcome.FAILED
+                            failure_detail = self._build_execution_failure_detail(command)
                             command.error_summary = (
-                                f"All {command.executions_failed} executions failed"
+                                f"All {command.executions_failed} execution(s) failed ({failure_detail})"
+                                if failure_detail
+                                else f"All {command.executions_failed} execution(s) failed"
                             )
                             self._stats['failed_commands'] += 1
                     else:
@@ -902,6 +933,9 @@ class CommandTracker:
                         command.phase = CommandPhase.TERMINAL
                         command.outcome = CommandOutcome.PARTIAL
                         error_parts = [f"{command.executions_failed}/{expected_executions} executions failed"]
+                        failure_detail = self._build_execution_failure_detail(command)
+                        if failure_detail:
+                            error_parts.append(failure_detail)
                         if ack_shortfall > 0:
                             error_parts.append(f"{ack_shortfall} targets never accepted")
                         command.error_summary = ", ".join(error_parts)
@@ -919,6 +953,14 @@ class CommandTracker:
                 f"Execution recorded: {hw_id} -> {'success' if success else 'failed'} "
                 f"for {command_id[:8]}... ({command.executions_received}/{command.acks_accepted})"
             )
+            if not success:
+                reason = self._compact_execution_reason(error_message)
+                if not reason and exit_code is not None:
+                    reason = f"exit code {exit_code}"
+                logger.warning(
+                    f"Execution failure detail: drone {hw_id} for {command_id[:8]}... "
+                    f"{reason or 'no failure detail reported'}"
+                )
 
         return True
 

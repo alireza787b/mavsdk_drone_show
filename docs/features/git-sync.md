@@ -158,6 +158,7 @@ The node-local sync runtime summary now reports enough detail for operators and
 automation to tell what really happened after a pull:
 
 - `updated_units`
+- `phase` and `phase_message`
 - `service_reload_status`
 - `service_reload_message`
 - `deferred_unit_actions`
@@ -169,6 +170,15 @@ That summary is exposed:
 
 - on the node via `GET /api/v1/git/status`
 - on the GCS via aggregated fleet git status
+- during boot/update progress via GCS `POST /api/v1/fleet/node-boot-status`
+  and operator readback from `GET /api/v1/fleet/node-boot-status`
+
+Boot/init status is intentionally separate from normal heartbeats. A node may
+report `starting`, `fetch`, `runtime_reconcile`, `restart`, `success`, or
+`error` while it is visible on the management network but not yet accepted as
+online by MDS. Fleet Ops and Overview can show that as `Initializing` or
+`Attention`, but it must not make the node commandable; only accepted,
+runtime-matched heartbeats prove that the coordinator is ready.
 
 Use it to distinguish:
 
@@ -388,6 +398,8 @@ This is parsed by `actions.py` for logging and status tracking.
 | `/api/v1/fleet/git-sync` | GET | Fleet Ops sync posture |
 | `/api/v1/fleet/git-sync/dry-run` | POST | Preview selected sync targets without mutation |
 | `/api/v1/fleet/git-sync/apply` | POST | Confirm a dry-run and dispatch UPDATE_CODE to eligible drones |
+| `/api/v1/fleet/node-boot-status` | POST | Machine endpoint for boot/update phase reports; observability only |
+| `/api/v1/fleet/node-boot-status` | GET | Latest boot/update reports for Fleet Ops/Overview; does not affect commandability |
 | `/api/v1/git/sync-operations` | POST | Deprecated compatibility route; returns failure guidance and does not dispatch UPDATE_CODE |
 | `/ws/git-status` | WebSocket | Real-time git status stream |
 

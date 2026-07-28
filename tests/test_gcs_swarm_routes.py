@@ -74,6 +74,58 @@ def test_swarm_router_save_swarm_commit_false_skips_git_operations():
     assert response.json()["config"]["assignments"][1]["follow"] == 1
 
 
+def test_swarm_router_commit_true_reports_git_failure_after_local_save():
+    deps = _make_deps()
+    deps.git_operations = Mock(return_value={
+        "success": False,
+        "message": "Git push failed: authenticated write access is required",
+    })
+    app = FastAPI()
+    app.include_router(create_swarm_router(deps))
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/api/v1/config/swarm?commit=true",
+            json={"version": 1, "assignments": [{"hw_id": 1, "follow": 0}, {"hw_id": 2, "follow": 1}]},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "git_failed"
+    assert "saved locally" in body["message"]
+    assert "authenticated write access" in body["message"]
+    assert body["git_result"]["success"] is False
+    deps.save_swarm.assert_called_once()
+    deps.git_operations.assert_called_once()
+
+
+def test_swarm_router_commit_true_reports_local_commit_when_remote_push_is_disabled():
+    deps = _make_deps()
+    deps.git_operations = Mock(return_value={
+        "success": True,
+        "message": "Changes committed locally. Auto-push is disabled on this GCS.",
+        "commit_hash": "abc12345",
+        "auto_push_enabled": False,
+        "pushed": False,
+    })
+    app = FastAPI()
+    app.include_router(create_swarm_router(deps))
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/api/v1/config/swarm?commit=true",
+            json={"version": 1, "assignments": [{"hw_id": 1, "follow": 0}, {"hw_id": 2, "follow": 1}]},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "git_not_pushed"
+    assert body["git_result"]["pushed"] is False
+    assert body["git_result"]["commit_hash"] == "abc12345"
+    deps.save_swarm.assert_called_once()
+    deps.git_operations.assert_called_once()
+
+
 def test_swarm_router_canonical_get_returns_enveloped_assignments():
     deps = _make_deps()
     app = FastAPI()

@@ -160,6 +160,36 @@ def test_dashboard_auth_requires_login_and_csrf(monkeypatch, tmp_path):
     assert client.post("/api/protected", headers={"X-MDS-CSRF-Token": csrf}).status_code == 200
 
 
+def test_api_auth_only_allows_dashboard_session_login(monkeypatch, tmp_path):
+    _set_auth_env(monkeypatch, tmp_path, dashboard=False, api=True)
+    service = AuthService(AuthSettings.from_env())
+    service.store.upsert_user("admin", password="test-password", role="admin")
+    client = TestClient(_make_app())
+
+    assert client.get("/api/protected").status_code == 401
+
+    login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "test-password"})
+    assert login.status_code == 200
+    csrf = login.json()["csrf_token"]
+
+    assert client.get("/api/protected").status_code == 200
+    assert client.post("/api/protected").status_code == 403
+    assert client.post("/api/protected", headers={"X-MDS-CSRF-Token": csrf}).status_code == 200
+
+
+def test_api_auth_only_reports_setup_required_without_users(monkeypatch, tmp_path):
+    _set_auth_env(monkeypatch, tmp_path, dashboard=False, api=True)
+    client = TestClient(_make_app())
+
+    status = client.get("/api/v1/auth/status")
+    assert status.status_code == 200
+    assert status.json()["setup_required"] is True
+
+    login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "test-password"})
+    assert login.status_code == 503
+    assert login.json()["detail"]["error"] == "setup_required"
+
+
 def test_logout_remains_available_to_clear_stale_sessions(monkeypatch, tmp_path):
     _set_auth_env(monkeypatch, tmp_path, dashboard=True, api=False)
     client = TestClient(_make_app())

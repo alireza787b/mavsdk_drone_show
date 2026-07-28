@@ -17,6 +17,7 @@ import {
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
+import { classifyNodeBootStatus } from '../utilities/fleetOpsViewModel';
 import {
   DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
@@ -34,6 +35,26 @@ import {
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import '../styles/Overview.css';
+
+function normalizeNodeBootStatusMap(nodeBootPayload) {
+  const nodes = nodeBootPayload?.nodes && typeof nodeBootPayload.nodes === 'object' ? nodeBootPayload.nodes : {};
+  const byKey = new Map();
+  Object.entries(nodes).forEach(([key, node]) => {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+    [node.hw_id, node.pos_id, key]
+      .filter((value) => value !== undefined && value !== null && String(value).trim())
+      .forEach((value) => {
+        byKey.set(String(value), node);
+        const normalized = normalizeComparableId(value);
+        if (normalized) {
+          byKey.set(normalized, node);
+        }
+      });
+  });
+  return { nodes, byKey };
+}
 
 const Overview = ({ setSelectedDrone }) => {
   const [drones, setDrones] = useState([]);
@@ -54,6 +75,11 @@ const Overview = ({ setSelectedDrone }) => {
   const commandScopeAutoTracksVisibleRef = useRef(true);
   const lastAutoCommandScopeSignatureRef = useRef('');
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
+  const { data: nodeBootStatusFetched } = useFetch(GCS_ROUTE_KEYS.fleetNodeBootStatus, 3000);
+  const nodeBootStatus = React.useMemo(
+    () => normalizeNodeBootStatusMap(nodeBootStatusFetched),
+    [nodeBootStatusFetched]
+  );
 
   useEffect(() => {
     let active = true;
@@ -103,14 +129,23 @@ const Overview = ({ setSelectedDrone }) => {
         const droneIds = Array.from(new Set([
           ...Object.keys(configByHwId || {}),
           ...Object.keys(normalizedTelemetry || {}).map((hwId) => normalizeComparableId(hwId)).filter(Boolean),
+          ...Object.values(nodeBootStatus.nodes || {})
+            .map((node) => normalizeComparableId(node?.hw_id) || normalizeComparableId(node?.pos_id))
+            .filter(Boolean),
         ]));
         const dronesArray = droneIds.map((hw_ID) => {
           const normalizedHwId = normalizeComparableId(hw_ID);
           const telemetry = normalizedTelemetry[hw_ID] || normalizedTelemetry[normalizedHwId] || {};
+          const configEntry = configByHwId[normalizedHwId] || {};
+          const bootStatus = nodeBootStatus.byKey.get(String(normalizedHwId || ''))
+            || nodeBootStatus.byKey.get(String(configEntry?.pos_id || ''))
+            || nodeBootStatus.byKey.get(String(telemetry?.pos_id || ''))
+            || null;
           const mergedDrone = {
-            ...(configByHwId[normalizedHwId] || {}),
+            ...configEntry,
             hw_ID: normalizedHwId || hw_ID,
             [FIELD_NAMES.HW_ID]: normalizedHwId || hw_ID,
+            node_boot_status: bootStatus,
             ...telemetry,
           };
           const runtimeClock = telemetry?.[DRONE_RUNTIME_CLOCK_PROP];
@@ -156,7 +191,7 @@ const Overview = ({ setSelectedDrone }) => {
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [configByHwId]);
+  }, [configByHwId, nodeBootStatus.byKey, nodeBootStatus.nodes]);
 
   const toggleDroneDetails = (drone) => {
     if (expandedDrone && expandedDrone.hw_ID === drone.hw_ID) {
@@ -254,14 +289,16 @@ const Overview = ({ setSelectedDrone }) => {
 
       const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
       const readiness = getDroneReadinessModel(drone, runtimeStatus);
+      const bootStatus = classifyNodeBootStatus(drone.node_boot_status, nowMs);
 
       switch (cardFilter) {
         case 'active':
           return runtimeStatus.level === 'online'
             || runtimeStatus.level === 'degraded'
-            || runtimeStatus.indicatorClass === 'lost';
+            || runtimeStatus.indicatorClass === 'lost'
+            || bootStatus.active;
         case 'attention':
-          return runtimeStatus.level !== 'online' || !readiness.isReady;
+          return runtimeStatus.level !== 'online' || !readiness.isReady || bootStatus.tone === 'danger' || bootStatus.tone === 'warning';
         case 'ready':
           return readiness.isReady;
         case 'armed':

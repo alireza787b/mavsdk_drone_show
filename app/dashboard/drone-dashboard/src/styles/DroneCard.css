@@ -263,9 +263,18 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.swarm-drone-card__field small {
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-relaxed);
+.swarm-drone-card__field-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  cursor: help;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.swarm-drone-card__field-help:hover {
+  color: var(--color-primary);
 }
 
 .swarm-drone-card__field input,

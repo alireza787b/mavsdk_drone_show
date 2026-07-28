@@ -445,4 +445,89 @@ describe('FleetOpsPage', () => {
     expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
     expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
   });
+
+  test('sync warning autoplan waits for heartbeat evidence before blocking', async () => {
+    const onlineHeartbeats = clonePayload(heartbeatPayload);
+    onlineHeartbeats.heartbeats[1].online = true;
+    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
+    let heartbeatState = { data: null, loading: true, error: null };
+    useFetch.mockImplementation((endpoint) => {
+      if (endpoint === GCS_ROUTE_KEYS.gitStatus) {
+        return { data: gitPayload, loading: false, error: null };
+      }
+      if (endpoint === GCS_ROUTE_KEYS.fleetHeartbeats) {
+        return heartbeatState;
+      }
+      if (endpoint === GCS_ROUTE_KEYS.fleetNodeBootStatus) {
+        return { data: nodeBootPayload, loading: false, error: null };
+      }
+      return { data: null, loading: false, error: null };
+    });
+    dryRunFleetGitSyncResponse.mockResolvedValue({
+      data: {
+        job_id: 'git-sync-auto-after-heartbeat',
+        confirmation_token: 'confirm-auto-after-heartbeat',
+        target_branch: 'main',
+        target_commit: 'abcdef1234567890',
+        results: {
+          2: { ok: true, pos_id: 2 },
+        },
+      },
+    });
+
+    const route = '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1';
+    const renderUi = () => (
+      <MemoryRouter
+        initialEntries={[route]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <FleetOpsPage />
+      </MemoryRouter>
+    );
+    const { rerender } = render(renderUi());
+
+    expect(screen.queryByText(/no online out-of-sync drone is eligible/i)).not.toBeInTheDocument();
+    expect(dryRunFleetGitSyncResponse).not.toHaveBeenCalled();
+
+    heartbeatState = { data: onlineHeartbeats, loading: false, error: null };
+    rerender(renderUi());
+
+    await waitFor(() => {
+      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
+    });
+    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
+    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+  });
+
+  test('sync warning route shows a blocked state when no drifted node is online yet', async () => {
+    renderFleetOps(
+      {},
+      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1',
+    );
+
+    expect(await screen.findByText(/no online out-of-sync drone is eligible/i)).toBeInTheDocument();
+    expect(screen.getByText(/banner found drift/i)).toBeInTheDocument();
+    expect(dryRunFleetGitSyncResponse).not.toHaveBeenCalled();
+    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+  });
+
+  test('sync preview surfaces server auth and mutation errors clearly', async () => {
+    dryRunFleetGitSyncResponse.mockRejectedValue({
+      response: {
+        data: {
+          error: 'authentication_required',
+          message: 'Login session or bearer token required.',
+        },
+      },
+    });
+
+    renderFleetOps();
+
+    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
+
+    expect((await screen.findAllByText(/login session or bearer token required/i)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/sync preview failed/i)).toBeInTheDocument();
+    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExternalLinkAlt, FaTimes } from 'react-icons/fa';
+import { FaExclamationTriangle, FaExternalLinkAlt, FaSyncAlt, FaTimes } from 'react-icons/fa';
 import '../styles/SyncWarningBanner.css';
 import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
 
@@ -53,9 +53,13 @@ const SyncWarningBanner = () => {
         <span className="sync-warning-text">
           {syncData.needs_sync_count} of {syncData.total_drones} drone{syncData.total_drones !== 1 ? 's' : ''} out of sync with GCS
         </span>
-        <Link className="sync-warning-action" to="/fleet-ops">
+        <Link className="sync-warning-action is-primary" to="/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1">
+          <FaSyncAlt aria-hidden="true" />
+          <span>Review sync</span>
+        </Link>
+        <Link className="sync-warning-action" to="/fleet-ops?tab=sync&filter=drift">
           <FaExternalLinkAlt aria-hidden="true" />
-          <span>Review in Fleet Ops</span>
+          <span>Details</span>
         </Link>
         <button
           className="sync-warning-dismiss"

@@ -379,6 +379,30 @@ class TestCommandTracker:
         assert status['status'] == 'partial'
         assert status['phase'] == 'terminal'
         assert status['outcome'] == 'partial'
+        assert 'drone 3: Script crashed' in status['error_summary']
+
+    @pytest.mark.asyncio
+    async def test_all_execution_failures_include_first_drone_reason(self, tracker):
+        """All-failed outcomes should preserve the concrete execution failure reason."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1']
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_execution(
+            command_id,
+            hw_id='1',
+            success=False,
+            error_message='precision_move requires fresh local telemetry',
+            exit_code=1,
+        )
+
+        status = await tracker.get_status(command_id)
+        assert status['status'] == 'failed'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'failed'
+        assert 'drone 1: precision_move requires fresh local telemetry' in status['error_summary']
 
     @pytest.mark.asyncio
     async def test_partial_success_when_some_targets_never_accept(self, tracker):
@@ -1027,8 +1051,20 @@ class TestCommandValidation:
         from src.enums import Mission
 
         api_server.drone_config.state = 2  # MISSION_EXECUTING
+        api_server.drone_config.is_armed = True
         result = api_server._check_state_preconditions(mission_type=Mission.PRECISION_MOVE.value)
         assert result['valid']
+
+    def test_check_state_hold_requires_armed_airborne(self, api_server):
+        from src.enums import Mission, CommandErrorCode
+
+        api_server.drone_config.is_armed = False
+
+        result = api_server._check_state_preconditions(mission_type=Mission.HOLD.value)
+
+        assert not result['valid']
+        assert result['error_code'] == CommandErrorCode.NOT_ARMED.value
+        assert 'HOLD requires an armed airborne drone' in result['message']
 
     def test_check_state_swarm_trajectory_allowed_as_override(self, api_server):
         from src.enums import Mission

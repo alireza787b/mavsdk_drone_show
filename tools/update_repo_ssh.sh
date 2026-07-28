@@ -163,6 +163,7 @@ exit_with_failure_result() {
     log_error "$component" "$message"
     set_led_status "$led_state"
     report_git_sync_phase "error" "${component}: ${message}" "error"
+    persist_git_sync_state "error" "${component}: ${message}"
     emit_structured_failure_result "$component" "$message"
     cleanup_on_exit
     exit "$exit_code"
@@ -2038,6 +2039,7 @@ main() {
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
             set_led_status "GIT_FAILED_CONTINUING"  # Yellow - indicates cached code being used
             report_git_sync_phase "fetch_failed_cached" "Fetch failed; continuing with cached repository state" "warning"
+            persist_git_sync_state "warning" "Fetch failed, continuing with cached repository state"
             echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$BRANCH_NAME\",\"error\":\"fetch_failed_graceful\",\"message\":\"Fetch failed, using cached code\"}"
             exit 0
         else
@@ -2092,14 +2094,16 @@ main() {
         fi
         log_error_and_exit "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and rollback did not succeed"
     fi
+    report_git_sync_phase "service_reconcile" "Reconciling systemd service templates" "running"
     if ! check_service_updates; then
         exit_with_failure_result "SERVICE-UPDATE" "Post-sync systemd unit reconcile failed and requires manual recovery" 1 "GIT_FAILED_CONTINUING"
     fi
-    report_git_sync_phase "runtime_reconcile" "Reconciling managed node runtimes" "running"
+    report_git_sync_phase "runtime_reconcile" "Reconciling MAVSDK, connectivity, MAVLink, and Python runtime" "running"
     ensure_mavsdk_runtime_artifact
     check_connectivity_updates
     check_mavlink_runtime_updates
     check_requirements_update
+    report_git_sync_phase "restart" "Applying post-sync service actions" "running"
     apply_post_sync_service_actions
 
     # Get commit information for logging

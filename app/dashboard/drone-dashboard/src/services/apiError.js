@@ -4,10 +4,6 @@ export async function extractApiErrorMessage(error, fallbackMessage = 'Request f
       return null;
     }
 
-    if (typeof payload.error === 'string' && payload.error.trim()) {
-      return payload.error;
-    }
-
     if (typeof payload.detail === 'string' && payload.detail.trim()) {
       return payload.detail;
     }
@@ -24,6 +20,10 @@ export async function extractApiErrorMessage(error, fallbackMessage = 'Request f
 
     if (typeof payload.message === 'string' && payload.message.trim()) {
       return payload.message;
+    }
+
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error;
     }
 
     return null;

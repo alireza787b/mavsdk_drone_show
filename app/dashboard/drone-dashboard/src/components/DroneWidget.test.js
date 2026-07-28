@@ -137,6 +137,37 @@ describe('DroneWidget command scope state', () => {
     expect(screen.getByText(/map pending/i)).toBeInTheDocument();
   });
 
+  test('keeps booting nodes visible with compact init status instead of fake telemetry', () => {
+    const { container } = renderWidget({
+      drone: {
+        ...baseDrone,
+        telemetry_available: false,
+        update_time: null,
+        timestamp: null,
+        position_lat: undefined,
+        position_long: undefined,
+        position_alt: undefined,
+        battery_voltage: undefined,
+        node_boot_status: {
+          hw_id: '1',
+          phase: 'fetch',
+          status: 'running',
+          message: 'Fetching latest repository state',
+          timestamp: Date.now(),
+        },
+      },
+    });
+
+    const widget = container.querySelector('.drone-widget');
+    expect(widget).toHaveClass('runtime-initializing');
+    expect(widget).toHaveAttribute('data-boot-state', 'initializing');
+    expect(screen.getAllByText('Initializing').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/boot status: initializing/i)).toHaveAttribute(
+      'data-help',
+      'Fetching latest repository state',
+    );
+  });
+
   test('shows source-aware MSL altitude while map position is still pending', () => {
     renderWidget({
       drone: {

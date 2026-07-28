@@ -27,6 +27,7 @@ import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
+import { classifyNodeBootStatus } from '../utilities/fleetOpsViewModel';
 import '../styles/DroneWidget.css';
 
 /**
@@ -44,6 +45,15 @@ const DroneWidget = ({
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
+  const rawNodeBootStatus = drone.node_boot_status || drone.nodeBootStatus || null;
+  const nodeBootStatus = classifyNodeBootStatus(rawNodeBootStatus, currentTimeInMs);
+  const bootBadgeClass = (() => {
+    if (nodeBootStatus.tone === 'danger') return 'blocked';
+    if (nodeBootStatus.tone === 'warning') return 'warning';
+    if (nodeBootStatus.tone === 'good') return 'ready';
+    return 'unknown';
+  })();
+  const showBootBadge = ['initializing', 'stale_running', 'warning', 'error'].includes(nodeBootStatus.state);
   const telemetryAvailable = drone[FIELD_NAMES.TELEMETRY_AVAILABLE] !== false;
   const telemetryTrusted = telemetryAvailable && runtimeStatus.level === 'online';
   const runtimeTooltipId = `runtime-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
@@ -215,6 +225,9 @@ const DroneWidget = ({
           : 'Altitude above mean sea level from PX4 global position.'
     : positionUnavailableReason;
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
+  const showBootOverlay = showLinkOverlay && nodeBootStatus.active;
+  const linkOverlayLabel = showBootOverlay ? nodeBootStatus.label : runtimeStatus.label;
+  const linkOverlayHelp = showBootOverlay ? nodeBootStatus.detail : runtimeStatus.tooltip;
   const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
   const primaryLink = networkInfo?.primary_link && typeof networkInfo.primary_link === 'object'
     ? networkInfo.primary_link
@@ -280,9 +293,10 @@ const DroneWidget = ({
         missionReady ? 'mission-ready' : ''
       } ${missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
-      } ${scopeClass} command-scope-${commandScopeState} runtime-${runtimeStatus.indicatorClass}`}
+      } ${nodeBootStatus.active ? 'runtime-initializing' : ''} boot-${nodeBootStatus.state} ${scopeClass} command-scope-${commandScopeState} runtime-${runtimeStatus.indicatorClass}`}
       data-command-scope={commandScopeState}
       data-runtime-state={runtimeStatus.indicatorClass}
+      data-boot-state={nodeBootStatus.state}
     >
       {commandScopeState === 'out' && (
         <div className="drone-widget__scope-ribbon" aria-hidden="true">
@@ -290,9 +304,9 @@ const DroneWidget = ({
         </div>
       )}
       {showLinkOverlay && (
-        <div className="drone-widget__link-overlay" aria-hidden="true" data-help={runtimeStatus.tooltip}>
+        <div className="drone-widget__link-overlay" aria-hidden="true" data-help={linkOverlayHelp}>
           <FaBroadcastTower />
-          <span>{runtimeStatus.label}</span>
+          <span>{linkOverlayLabel}</span>
         </div>
       )}
       {/* Header */}
@@ -387,6 +401,15 @@ const DroneWidget = ({
         <span className={`status-badge ${readinessBadgeClass}`}>
           {isReadyToArm ? 'READY' : readiness.statusLabel.toUpperCase()}
         </span>
+        {showBootBadge && (
+          <span
+            className={`status-badge boot-status ${bootBadgeClass}`}
+            data-help={nodeBootStatus.detail}
+            aria-label={`Boot status: ${nodeBootStatus.label}. ${nodeBootStatus.detail}`}
+          >
+            {nodeBootStatus.label}
+          </span>
+        )}
       </div>
 
       <DroneReadinessReport
