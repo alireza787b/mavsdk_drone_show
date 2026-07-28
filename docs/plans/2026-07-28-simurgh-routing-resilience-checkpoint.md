@@ -73,6 +73,15 @@ The slice is covered by:
 - static Python compilation, YAML/tool-registry validation, and `git diff
   --check`.
 
+Validation completed on both source trees:
+
+- Official tree: 153 route tests passed; 226 assistant/planner/intent tests
+  passed; dashboard prompt evals 33/33; advisory evals 14/14; foundation tests
+  35/35; docs-index check passed.
+- Private Catch-A-Drone tree: the synchronized route/runtime suite passed
+  322/322; Python compilation, docs-index validation, and staged diff checks
+  passed.
+
 ## Deferred items
 
 - Simurgh remains demo-only; no real-aircraft, unattended, regulatory, or
@@ -87,6 +96,23 @@ The slice is covered by:
 
 ## Handoff
 
-Before release, record the final official branch commit/tag, the private clone
-commit, runtime health checks, and whether the final PM test is ready. Keep this
-checkpoint linked from the Simurgh operator guide and `docs/README.md`.
+Release and runtime handoff:
+
+- Official source: `main`, routing-resilience code commit
+  `3b4448f992b295df389bbbc493ec81aad8554d59`.
+- Official release tag: `v5.5.114-simurgh-routing-resilience` will point to
+  the final checkpoint commit containing this document.
+- Private Catch-A-Drone source: `main` synchronized at
+  `452aaec700030c2ee25e2b2fa63206b673ee7a22`, pushed to its private `origin`.
+- Private runtime: GCS/dashboard restarted from that clone at
+  `2026-07-28T04:18:44Z`; `/api/v1/system/health` returned HTTP 200, the
+  application reached startup-complete, and the configured auth gate correctly
+  protected Simurgh endpoints.
+- The public SITL image was intentionally not rebuilt. The private virtualenv
+  now contains the pinned `geo-intel-offline==1.5.0` dependency required by
+  this source revision.
+- PM handoff is ready for a fresh operator test. Keep the action circuit
+  breaker and confirmation policy visible; do not treat this demo slice as
+  production or safety-certified autonomy.
+
+Keep this checkpoint linked from the Simurgh operator guide and `docs/README.md`.
