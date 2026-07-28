@@ -3922,14 +3922,14 @@ def test_simurgh_provider_failure_does_not_execute_local_flight_parse(monkeypatc
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["content"] == (
-        "I could not safely map that request to a complete action plan. "
-        "Please retry, or clarify the target and ordered steps."
-    )
-    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
+    assert "Review the guarded action plan below." in payload["content"]
+    assert "Take off to 10 m for drone 1." in payload["content"]
+    assert "Precision move: 10 m east for drone 1." in payload["content"]
+    assert "No action was executed." in payload["content"]
+    assert payload["trace"]["intent"]["route"] == "action_draft"
     assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == provider_error
-    assert payload["trace"]["tool"]["ids"] == []
-    assert payload["trace"]["safety"]["action_execution"] == "none"
+    assert payload["trace"]["tool"]["ids"] == ["mds.flight.command.execute"]
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
 
 
 def test_simurgh_provider_failure_does_not_execute_local_sitl_parse(monkeypatch):
@@ -3954,16 +3954,15 @@ def test_simurgh_provider_failure_does_not_execute_local_sitl_parse(monkeypatch)
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["content"] == (
-        "I could not safely map that request to a complete action plan. "
-        "Please retry, or clarify the target and ordered steps."
-    )
+    assert "Review the guarded action plan below." in payload["content"]
+    assert "create SITL instance" in payload["content"]
+    assert "No action was executed." in payload["content"]
     assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == (
         "semantic provider unavailable"
     )
-    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
-    assert payload["trace"]["tool"]["ids"] == []
-    assert payload["trace"]["safety"]["action_execution"] == "none"
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["safety"]["action_execution"] == "awaiting_confirmation"
 
 
 def test_simurgh_provider_failure_does_not_use_local_missing_detail_gate(monkeypatch):
@@ -3988,16 +3987,57 @@ def test_simurgh_provider_failure_does_not_use_local_missing_detail_gate(monkeyp
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["content"] == (
-        "I could not safely map that request to a complete action plan. "
-        "Please retry, or clarify the target and ordered steps."
-    )
+    assert "I understood the mission, but I need the target drone" in payload["content"]
+    assert "Which drone should I use?" in payload["content"]
+    assert "No action was executed." in payload["content"]
     assert payload["trace"]["intent"]["provider_semantic_rewrite_error"] == (
         "semantic provider unavailable"
     )
-    assert payload["trace"]["intent"]["route"] == "semantic_clarification"
-    assert payload["trace"]["tool"]["ids"] == []
-    assert payload["trace"]["safety"]["action_execution"] == "none"
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["tool"]["ids"] == ["mds.flight.command.execute"]
+    assert payload["trace"]["safety"]["action_execution"] == "missing_arguments"
+
+
+def test_simurgh_exact_conditional_sitl_create_keeps_guarded_precondition_on_provider_outage(
+    monkeypatch,
+):
+    monkeypatch.setenv("MDS_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+
+    def fail_semantic_rewrite(**_kwargs):
+        raise AgentRuntimeError("OpenAI assistant request failed with HTTP 429")
+
+    monkeypatch.setattr(
+        "api_routes.simurgh._has_external_assistant_provider_auth",
+        lambda _request: True,
+    )
+    monkeypatch.setattr(
+        "api_routes.simurgh.rewrite_operator_message_with_provider",
+        fail_semantic_rewrite,
+    )
+
+    response = _client().post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "message": "If no SITL instance is running, create one and report when ready.",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trace"]["intent"]["route"] == "action_draft"
+    assert payload["trace"]["tool"]["id"] == "mds.sitl.instances.create"
+    assert payload["trace"]["safety"]["action_execution"] == "precondition_unavailable"
+    preconditions = payload["trace"]["safety"]["action_draft"]["preconditions"]
+    assert preconditions[0]["fact_id"] == "sitl.running_instance_count"
+    assert preconditions[0]["operator"] == "eq"
+    assert preconditions[0]["expected"] == 0
+    assert "No SITL instance is running" in payload["content"]
+    assert "No action was executed." in payload["content"]
 
 
 def test_simurgh_readiness_question_with_action_word_stays_local_read_only(monkeypatch):
@@ -4042,29 +4082,13 @@ def test_simurgh_provider_cannot_promote_typed_readiness_to_action(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
     monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
     message = "Drone 1 i mena is it ready to takeoff?"
-    provider_plan = ProviderActionPlan(
-        summary="Take off drone 1",
-        steps=(
-            _provider_step(
-                message,
-                "takeoff",
-                tool_id="mds.flight.command.execute",
-                arguments={
-                    "target_drone_ids": ["1"],
-                    "mission_type": 10,
-                    "takeoff_altitude": 10.0,
-                },
-                label="Take off drone 1",
-            ),
-        ),
-    )
+
+    def unexpected_provider_call(**_kwargs):
+        raise AssertionError("authoritative local readiness read must not call the provider")
+
     monkeypatch.setattr(
         "api_routes.simurgh.rewrite_operator_message_with_provider",
-        lambda **_kwargs: _provider_rewrite(
-            normalized_message="Take off drone 1",
-            route_hint="draft_flight_action",
-            action_plan=provider_plan,
-        ),
+        unexpected_provider_call,
     )
 
     response = _client().post(
@@ -4076,9 +4100,14 @@ def test_simurgh_provider_cannot_promote_typed_readiness_to_action(monkeypatch):
     payload = response.json()
     assert payload["trace"]["intent"]["route"] == "read_only"
     assert payload["trace"]["tool"]["intent"] == "fleet_connectivity"
-    assert payload["trace"]["intent"]["provider_action_plan_error"] == (
-        "provider_action_plan_conflicts_with_local_read_only"
-    )
+    assert payload["trace"]["intent"]["route_commitment"] == {
+        "kind": "read",
+        "authoritative": True,
+        "provider_refinement_needed": False,
+        "fallback_allowed": True,
+        "reason": "typed-local-read-complete",
+    }
+    assert "provider_action_plan_error" not in payload["trace"]["intent"]
     assert payload["trace"]["safety"].get("action_draft") is None
     assert payload["trace"]["safety"]["action_execution"] == "none"
 
@@ -4128,8 +4157,8 @@ def test_simurgh_semantic_only_request_provider_failure_asks_concise_clarificati
     assert response.status_code == 200
     payload = response.json()
     assert payload["content"] == (
-        "I could not safely map that request to a complete action plan. "
-        "Please retry, or clarify the target and ordered steps."
+        "The semantic planning service is temporarily unavailable, and the local "
+        "typed route is incomplete. Please retry, or state the target and ordered steps."
     )
     assert payload["trace"]["intent"]["route"] == "semantic_clarification"
     assert payload["trace"]["tool"]["ids"] == []
@@ -4654,7 +4683,7 @@ def test_simurgh_provider_structured_reads_override_false_action_followups(monke
     )
     assert status_check.status_code == 200
     status_payload = status_check.json()
-    assert status_payload["trace"]["tool"]["intent"] == "fleet_status"
+    assert status_payload["trace"]["tool"]["intent"] == "fleet_connectivity"
     assert "mds.fleet.telemetry.read" in status_payload["trace"]["tool"]["ids"]
     assert "Scope: Drone 1." in status_payload["content"]
     assert "Drone 1" in status_payload["content"]

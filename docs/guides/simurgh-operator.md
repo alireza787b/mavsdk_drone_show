@@ -53,7 +53,9 @@ review environments, and treat missing or ambiguous telemetry as unknown. Real
 aircraft hardening, broader flight-stack validation, richer flight-log
 correlation, and production operational controls are deferred to a later
 phase. The dated evidence, accepted scope, and deferred backlog are recorded
-in [the feasibility checkpoint](../plans/2026-07-27-simurgh-feasibility-checkpoint.md).
+in [the feasibility checkpoint](../plans/2026-07-27-simurgh-feasibility-checkpoint.md);
+the latest provider/routing handoff is in the
+[routing-resilience checkpoint](../plans/2026-07-28-simurgh-routing-resilience-checkpoint.md).
 
 ## Semantic Understanding Boundary
 
@@ -120,6 +122,35 @@ generic interpretation clarification only when neither layer produced a typed
 draft, and provider failure details remain in trace/audit metadata rather than
 operator-facing prose.
 
+The route arbitration contract is exposed in `trace.intent.route_commitment`:
+
+- `typed-guarded-action-complete` permits a bounded local draft to continue
+  through confirmation, precondition, circuit-breaker, and monitoring gates
+  when the provider is unavailable.
+- `typed-local-read-complete` keeps an authoritative current-state read local.
+  This includes live fleet position/readiness and explicit coordinate-to-country
+  lookup; a provider cannot replace live telemetry with configured origin data
+  or promote a readiness question into a flight command.
+- `typed-read-provider-refinement` leaves ambiguous, multilingual, typo-heavy,
+  composite, or documentation-oriented reads eligible for provider
+  normalization. If that call fails, Simurgh uses the local result when it is
+  complete or asks one concise clarification when it is not.
+
+Provider HTTP service failures, including rate limiting (`429`) and transient
+gateway/server responses, are recoverable chat failures. They remain in
+trace/audit metadata, never appear as raw transport errors, and never authorize
+a command. Schema, policy, grounding, and safety failures remain real
+interpretation failures and are not silently converted into actions.
+
+Current fleet latitude/longitude/altitude answers come from the newest accepted
+GCS telemetry sample. Altitude is always labeled with its frame (`REL`, `LCL`,
+`BARO`, or `MSL`); the configured mission/global origin is a separate
+`origin_status` read. When country is requested, Simurgh uses the packaged
+offline boundary resolver and labels the result as approximate informational
+context, not navigation, legal, airspace, or flight-authorization evidence.
+Explicit numeric coordinate questions use that local resolver and do not
+require provider or web access.
+
 ## Dashboard Chat UX Contract
 
 The `/simurgh` dashboard surface should stay chat-first and low-noise:
@@ -135,6 +166,9 @@ The `/simurgh` dashboard surface should stay chat-first and low-noise:
 - progress and streamed answer deltas stay inside the active assistant message;
 - assistant answers render compact Markdown tables, lists, code, bold text, and
   only safe clickable dashboard/doc/HTTPS links.
+- short status/readiness/location questions use a brief deterministic answer
+  with explicit `Ready`, `Armed`, `Flight state`, and altitude-frame labels;
+  detailed evidence remains available when the operator asks for it.
 - guarded action drafts show a backend-generated, ordered operator plan first;
   raw action JSON stays available from a dashboard disclosure and the sanitized
   response trace, but it is not the default conversation view.
@@ -337,7 +371,10 @@ Operator-facing controls should stay small:
 - **Web search** maps to `MDS_AGENT_WEB_SEARCH_ENABLED`. It is only used for
   public/general prompts after local MDS tools decline the request; fleet state,
   logs, private network details, credentials, and operational actions stay out
-  of the web-search lane.
+  of the web-search lane. Reviewed public-place answers and explicit numeric
+  coordinate-country lookups are answered locally first; an unknown public
+  place may use web search only when the provider lane is enabled and returned
+  sources are available.
 
 The dashboard Simurgh settings panel hot-applies these operator-facing keys to
 the running GCS process and persists them to `/etc/mds/gcs.env`; a full GCS

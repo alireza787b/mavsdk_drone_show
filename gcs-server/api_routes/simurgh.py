@@ -116,15 +116,19 @@ from agent_runtime.mds_read_tools import (
     is_safe_blocked_term_read_only_intent,
     provider_read_intent_contracts,
     provider_read_intent_tool_ids,
+    reconcile_mds_response_detail,
     update_provider_credentials,
 )
 from agent_runtime.language import detect_language_profile
 from agent_runtime.evidence import ReadOnlyEvidenceBundle
+from agent_runtime.intent_arbitration import analyze_route_commitment
 from agent_runtime.models import AgentSession, AuditEvent, ContextResource, ToolDefinition, stable_payload_hash, utc_now
 from agent_runtime.query_adaptation import adapt_operator_query, normalize_operator_query_text
 from agent_runtime.target_grounding import (
+    extract_explicit_target_ids,
     extract_numeric_tokens,
     materialize_target_binding,
+    refers_to_contextual_target,
     structured_target_ids,
 )
 from agent_runtime.sitl_lifecycle import (
@@ -519,15 +523,6 @@ SEMANTIC_REWRITE_HELP_INTENTS = {
     "board_setup_help",
     "companion_setup_help",
 }
-AUTHORITATIVE_TYPED_ACTION_TERM_READ_INTENTS = frozenset(
-    {
-        # The local fleet-connectivity contract owns ready/armed/live status
-        # questions even when the question names a possible next action.
-        "fleet_connectivity",
-    }
-)
-
-
 class SimurghRouteRef(BaseModel):
     method: str | None = None
     path: str | None = None
@@ -2434,41 +2429,124 @@ def _semantic_rewrite_is_safe_to_try(
         return False
     if route not in {"read_only", "action_draft", "provider_or_registry"}:
         return False
+    if analyze_route_commitment(turn_intent).authoritative and route == "read_only":
+        # A complete typed local read already identifies its evidence contract,
+        # target scope, and response lane. Avoid spending a provider call on a
+        # rewrite that can only add latency or route disagreement.
+        return False
     if not _has_external_assistant_provider_auth(request):
         return False
     return True
 
 
 def _is_authoritative_typed_read_only_intent(turn_intent: Any) -> bool:
-    """Return whether the local parser owns this action-term read route.
+    """Return whether a complete local read speech act owns this turn."""
 
-    A status/readiness question may contain a configured action word (for
-    example, "is drone 1 ready to takeoff?").  The action-word safety block is
-    still correct for direct execution requests, but it must not suppress a
-    typed local read route.  Keeping this predicate on the typed frame avoids
-    adding language-specific aliases to the blocked-term policy.
+    commitment = analyze_route_commitment(turn_intent)
+    return commitment.kind == "read" and commitment.authoritative
+
+
+def _read_intent_covers(required_intent: str, candidate_intent: str) -> bool:
+    required = str(required_intent or "").strip()
+    candidate = str(candidate_intent or "").strip()
+    return bool(
+        required
+        and candidate
+        and (
+            candidate == required
+            or required in LOCAL_READ_INTENT_SUBSUMPTIONS.get(candidate, ())
+        )
+    )
+
+
+def _reconcile_provider_read_intents(
+    turn_intent: Any,
+    provider_intents: Sequence[str],
+) -> tuple[tuple[str, ...], bool]:
+    """Keep authoritative local evidence when provider routing disagrees.
+
+    A compatible provider intent may enrich the local contract (for example,
+    ``fleet_status`` covers ``fleet_connectivity``). If none of the provider
+    intents covers the grounded local contract, the least-privilege response is
+    to execute the local contract only instead of mixing unrelated state such
+    as mission origin into a live vehicle-position answer.
     """
 
-    if str(getattr(turn_intent, "route", "") or "") != "read_only":
-        return False
-    action = getattr(turn_intent, "action", None)
-    read_only_plan = getattr(turn_intent, "read_only_plan", None)
-    if action is None or read_only_plan is None:
-        return False
-    if bool(getattr(action, "has_action_request", False)):
-        return False
-    read_intent = str(getattr(read_only_plan, "intent", "") or "").strip()
-    query_domain = str(
-        getattr(read_only_plan, "query_domain", "") or ""
-    ).strip()
-    return bool(
-        read_intent in AUTHORITATIVE_TYPED_ACTION_TERM_READ_INTENTS
-        and query_domain == "fleet"
-        and not bool(getattr(read_only_plan, "unclear", True))
-        and is_safe_blocked_term_read_only_intent(
-            str(getattr(turn_intent, "routing_message", "") or ""),
-            read_intent,
+    requested = tuple(
+        dict.fromkeys(str(intent or "").strip() for intent in provider_intents if str(intent or "").strip())
+    )
+    if not _is_authoritative_typed_read_only_intent(turn_intent):
+        return requested, False
+    required = str(getattr(turn_intent.read_only_plan, "intent", "") or "").strip()
+    if any(_read_intent_covers(required, candidate) for candidate in requested):
+        return requested, False
+    return ((required,) if required else requested), True
+
+
+def _private_context_target_ids(raw_value: object) -> tuple[str, ...]:
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return ()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, Mapping):
+        return ()
+    return structured_target_ids(parsed)
+
+
+def _grounded_local_read_target_ids(
+    *,
+    message: str,
+    turn_intent: Any,
+    previous_context: Mapping[str, str],
+    previous_action: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    """Resolve local read scope from explicit or structured conversation state."""
+
+    read_intent = str(getattr(turn_intent.read_only_plan, "intent", "") or "").strip()
+    if read_intent not in {"fleet_connectivity", "fleet_status"}:
+        return ()
+    explicit = extract_explicit_target_ids((message,))
+    if explicit:
+        return explicit
+    if not refers_to_contextual_target(message):
+        return ()
+    previous_read_targets = _private_context_target_ids(
+        previous_context.get("last_read_target_drone_ids")
+    )
+    if previous_read_targets:
+        return previous_read_targets
+    return structured_target_ids(previous_action)
+
+
+def _semantic_action_failure_question(
+    *,
+    route_commitment: Any,
+    provider_error: str,
+) -> str:
+    """Return one concise, operator-facing recovery prompt."""
+
+    reason = str(getattr(route_commitment, "reason", "") or "")
+    if reason == "local-action-condition-unmodeled":
+        return (
+            "I understood the action, but I could not safely preserve its condition. "
+            "Please retry the guarded plan, or restate the condition and action in one sentence."
         )
+    if reason == "local-action-sequence-unmodeled":
+        return (
+            "I understood an ordered action, but I could not safely preserve every step. "
+            "Please retry, or restate the target and steps in order."
+        )
+    if provider_error:
+        return (
+            "The semantic planning service is temporarily unavailable, and the local "
+            "typed route is incomplete. Please retry, or state the target and ordered steps."
+        )
+    return (
+        "I could not safely resolve the complete action. Which target and ordered "
+        "steps should the guarded plan contain?"
     )
 
 
@@ -8836,6 +8914,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "last_user_message": turn_request.message,
                 "last_routing_message": normalize_operator_query_text(turn_request.message),
                 "last_tool_intent": answer_intent,
+                "last_read_target_drone_ids": json.dumps(
+                    {"target_drone_ids": list(previous_action_targets)},
+                    separators=(",", ":"),
+                ),
                 "last_read_only_evidence": json.dumps(
                     evidence or {},
                     sort_keys=True,
@@ -8989,15 +9071,27 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     action=replace(turn_intent.action, draft=resolved_initial_draft),
                 )
             initial_typed_intent = turn_intent
+            initial_route_commitment = analyze_route_commitment(
+                initial_typed_intent
+            )
+            grounded_local_read_target_ids = _grounded_local_read_target_ids(
+                message=turn_request.message,
+                turn_intent=initial_typed_intent,
+                previous_context=previous_context,
+                previous_action=previous_action_for_routing,
+            )
             semantic_rewrite = None
             semantic_rewrite_error = ""
             semantic_action_plan_error = ""
             semantic_interpretation_failed = False
             semantic_read_intents: tuple[str, ...] = ()
             semantic_read_options: Mapping[str, Mapping[str, object]] = {}
-            semantic_read_target_drone_ids: tuple[str, ...] = ()
+            semantic_read_target_drone_ids: tuple[str, ...] = (
+                grounded_local_read_target_ids
+            )
             semantic_read_target_resolution: dict[str, list[str]] = {}
             semantic_read_plan_resolution: dict[str, Any] = {}
+            semantic_read_intent_conflict = False
             grounded_read_registry_plan: RegistryReadPlan | None = None
             semantic_registry_plan_execution = ""
             semantic_previous_action_read = False
@@ -9261,13 +9355,40 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                                 if str(intent).strip()
                             )
                         )
+                        provider_requested_read_intents = requested_read_intents
+                        (
+                            requested_read_intents,
+                            semantic_read_intent_conflict,
+                        ) = _reconcile_provider_read_intents(
+                            initial_typed_intent,
+                            requested_read_intents,
+                        )
+                        if semantic_read_intent_conflict:
+                            semantic_rewrite = replace(
+                                semantic_rewrite,
+                                read_intents=requested_read_intents,
+                            )
                         local_action_draft = turn_intent.action.draft
                         unknown_read_intents = tuple(
                             intent
                             for intent in requested_read_intents
                             if provider_read_intent_tool_ids(intent) is None
                         )
-                        if local_action_draft is not None and local_action_draft.ready:
+                        if (
+                            local_action_draft is not None
+                            and local_action_draft.ready
+                            and initial_route_commitment.kind == "action"
+                            and initial_route_commitment.fallback_allowed
+                            and bool(semantic_rewrite_error)
+                        ):
+                            semantic_action_plan_error = "provider_read_status_conflicted_with_local_action"
+                            semantic_rewrite = replace(
+                                semantic_rewrite,
+                                needs_clarification=False,
+                                clarification_reason="none",
+                                clarification_question="",
+                            )
+                        elif local_action_draft is not None and local_action_draft.ready:
                             semantic_action_plan_error = "provider_read_status_conflicted_with_local_action"
                             semantic_rewrite = replace(
                                 semantic_rewrite,
@@ -9329,13 +9450,26 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                                     for intent, options in semantic_rewrite.read_options.items()
                                     if isinstance(options, Mapping)
                                 }
-                                semantic_read_target_drone_ids = accepted_read_targets
+                                semantic_read_target_drone_ids = (
+                                    accepted_read_targets
+                                    or grounded_local_read_target_ids
+                                )
                                 semantic_previous_action_read = "previous_action_summary" in requested_read_intents
                                 local_read_intents = tuple(
                                     intent for intent in requested_read_intents if intent != "previous_action_summary"
                                 )
                                 primary_read_intent = (
                                     local_read_intents[0] if local_read_intents else "command_summary"
+                                )
+                                provider_requested_tool_ids = tuple(
+                                    dict.fromkeys(
+                                        tool_id
+                                        for intent in provider_requested_read_intents
+                                        for tool_id in (
+                                            provider_read_intent_tool_ids(intent)
+                                            or ()
+                                        )
+                                    )
                                 )
                                 requested_tool_ids = tuple(
                                     dict.fromkeys(
@@ -9410,7 +9544,18 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                                     else reconciled_read_coverage.effective_tool_ids
                                 )
                                 semantic_read_plan_resolution = {
-                                    "provider_tool_ids": list(requested_tool_ids),
+                                    "provider_read_intents": list(
+                                        provider_requested_read_intents
+                                    ),
+                                    "effective_read_intents": list(
+                                        requested_read_intents
+                                    ),
+                                    "provider_intent_conflict": (
+                                        semantic_read_intent_conflict
+                                    ),
+                                    "provider_tool_ids": list(
+                                        provider_requested_tool_ids
+                                    ),
                                     "grounded_tool_ids": list(
                                         reconciled_read_coverage.required_tool_ids
                                     ),
@@ -9805,11 +9950,17 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     semantic_rewrite is not None
                     and getattr(semantic_rewrite, "needs_clarification", False)
                 )
+                and not (
+                    initial_route_commitment.kind == "action"
+                    and initial_route_commitment.fallback_allowed
+                    and bool(semantic_rewrite_error)
+                )
             ):
-                # The deterministic parser is useful for intent detection and
-                # tests, but it is not authoritative for natural-language
-                # execution. Only a source-grounded semantic plan may become a
-                # reviewable action draft.
+                # An incomplete local action may have dropped a condition or
+                # ordered step, so only a source-grounded semantic plan may
+                # become reviewable. Complete bounded local action contracts
+                # remain safe provider-outage fallbacks because confirmation,
+                # policy, registry schemas, and runtime guards still apply.
                 semantic_interpretation_failed = True
                 if not semantic_rewrite_error:
                     semantic_rewrite_error = (
@@ -9840,6 +9991,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 route_override: str | None = None,
             ) -> dict[str, Any]:
                 metadata = turn_intent.public_metadata()
+                metadata["route_commitment"] = (
+                    initial_route_commitment.public_metadata()
+                )
                 if route_override:
                     metadata["route"] = route_override
                 if action_draft_override is not None:
@@ -9860,6 +10014,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     metadata["provider_read_target_resolution"] = dict(semantic_read_target_resolution)
                 if semantic_read_plan_resolution:
                     metadata["provider_read_plan_resolution"] = dict(semantic_read_plan_resolution)
+                if semantic_read_intent_conflict:
+                    metadata["provider_read_intent_conflict"] = (
+                        "provider_read_intents_replaced_by_grounded_local_read"
+                    )
                 if structured_action_intent == "amend":
                     metadata["amends_action_draft_id"] = structured_action_draft_id
                 return metadata
@@ -9886,9 +10044,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     http_request,
                     turn_request,
                     actor=actor,
-                    question=(
-                        "I could not safely map that request to a complete action plan. "
-                        "Please retry, or clarify the target and ordered steps."
+                    question=_semantic_action_failure_question(
+                        route_commitment=initial_route_commitment,
+                        provider_error=semantic_rewrite_error,
                     ),
                     semantic_rewrite=semantic_rewrite,
                     turn_intent_metadata=turn_intent_metadata(
@@ -10389,10 +10547,18 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         read_intent_overrides=semantic_read_intents,
                         read_target_drone_ids=semantic_read_target_drone_ids,
                         read_options=semantic_read_options,
-                        response_detail=(
-                            semantic_rewrite.response_detail
-                            if semantic_rewrite is not None
-                            else "standard"
+                        response_detail=reconcile_mds_response_detail(
+                            turn_request.message,
+                            intent=(
+                                semantic_read_intents[0]
+                                if semantic_read_intents
+                                else local_intent
+                            ),
+                            provider_detail=(
+                                semantic_rewrite.response_detail
+                                if semantic_rewrite is not None
+                                else None
+                            ),
                         ),
                         turn_intent_metadata=turn_intent_metadata(),
                         progress_callback=progress_callback,

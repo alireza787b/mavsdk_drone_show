@@ -37,9 +37,17 @@ from request_logging import is_routine_auth_noise_path
 
 from .answer_composer import AnswerComposer
 from .evidence import ReadOnlyEvidenceBundle
+from .geography import (
+    COUNTRY_LOOKUP_DISCLAIMER,
+    COUNTRY_LOOKUP_TOOL_ID,
+    extract_latitude_longitude,
+    format_country_resolution,
+    resolve_country,
+)
 from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_matching_text, normalize_operator_query_text
 from .query_understanding import build_assistant_query_plan, looks_like_public_upstream_reference_query
+from .target_grounding import refers_to_contextual_target
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -114,6 +122,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "capability_catalog": ("mds.simurgh.tools.read", "mds.simurgh.policy.read"),
     "command_summary": ("mds.commands.active.read", "mds.commands.recent.read", "mds.commands.statistics.read"),
     "companion_setup_help": ("mds.docs.search", "mds.docs.chunk.read"),
+    "coordinate_geography": (COUNTRY_LOOKUP_TOOL_ID,),
     "docs_help": ("mds.docs.search", "mds.docs.chunk.read"),
     "drone_log_summary": (
         "mds.logs.drone_sessions.read",
@@ -195,8 +204,10 @@ PROVIDER_READ_INTENT_DESCRIPTIONS: Mapping[str, str] = {
     "sitl_status": "Read current SITL instance inventory, active count, Docker availability, and SITL policy.",
     "system_status": "Read GCS service and host health.",
     "command_summary": "Read active and recent command tracker state.",
+    "coordinate_geography": "Resolve an explicit WGS84 latitude/longitude pair to an approximate country using local offline boundary data.",
     "drone_log_summary": "Read per-drone log sessions, onboard ULog inventory, and derived newest-ULog summaries.",
     "backend_log_summary": "Read warning and error evidence from unified GCS logs.",
+    "origin_status": "Read the configured mission/global origin and launch-position state. This is not live vehicle telemetry and must only be selected when the operator asks about origin or launch configuration.",
 }
 
 DRONE_LOG_READ_OPTIONS_SCHEMA: Mapping[str, Any] = {
@@ -259,6 +270,73 @@ class _DroneLogBaseEvidence:
 def _normalize_response_detail(value: str) -> str:
     normalized = str(value or "").strip().lower()
     return normalized if normalized in {"brief", "standard", "detailed"} else "standard"
+
+
+_BRIEF_STATUS_INTENTS = frozenset(
+    {
+        "command_summary",
+        "coordinate_geography",
+        "fleet_connectivity",
+        "fleet_status",
+        "origin_status",
+        "runtime_summary",
+        "sitl_status",
+        "system_status",
+    }
+)
+
+
+def infer_mds_response_detail(message: str, *, intent: str | None = None) -> str:
+    """Infer a bounded operator-facing detail level from the requested result."""
+
+    normalized = _normalize_text(message)
+    if _has_any(
+        normalized,
+        (
+            "full detail",
+            "full details",
+            "detailed",
+            "all fields",
+            "all evidence",
+            "raw evidence",
+            "deep analysis",
+            "comprehensive",
+        ),
+    ):
+        return "detailed"
+    if _has_any(
+        normalized,
+        (
+            "brief",
+            "briefly",
+            "short",
+            "shorter",
+            "concise",
+            "summary only",
+            "just the answer",
+        ),
+    ):
+        return "brief"
+    return "brief" if str(intent or "").strip() in _BRIEF_STATUS_INTENTS else "standard"
+
+
+def reconcile_mds_response_detail(
+    message: str,
+    *,
+    intent: str | None = None,
+    provider_detail: str | None = None,
+) -> str:
+    """Combine local operator intent with an optional provider detail hint."""
+
+    local_detail = infer_mds_response_detail(message, intent=intent)
+    provider_value = _normalize_response_detail(provider_detail or "")
+    if local_detail == "detailed":
+        return "detailed"
+    if local_detail == "brief" or provider_value == "brief":
+        return "brief"
+    # A provider cannot expand a simple operator request to detailed output
+    # unless the operator asked for that detail in the original turn.
+    return "standard"
 
 
 _REDUNDANT_STATUS_LINES = frozenset(
@@ -528,12 +606,26 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "general_knowledge"
     if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
         return "general_knowledge"
+    if _looks_like_coordinate_country_question(normalized):
+        return "coordinate_geography"
     if _looks_like_public_geography_question(normalized):
         return "public_geography"
     if _looks_like_px4_params_question(normalized):
         return "px4_params_summary"
     if _looks_like_autopilot_support_question(normalized):
         return "autopilot_support"
+    # Resolve anaphoric live-state questions against the typed session topic
+    # before treating latitude/longitude vocabulary as unrelated public
+    # geography. The provider may enrich a result, but it must not replace a
+    # current vehicle position with configured origin state.
+    # Explicit boot/init and git-sync language is a stronger domain signal than
+    # the previous setup topic. Keep it on the node-status contract instead of
+    # letting contextual enrollment help reinterpret the question as guidance.
+    if _looks_like_node_boot_status_question(normalized):
+        return "node_boot_status"
+    contextual_intent = _intent_from_contextual_followup(normalized, topic)
+    if contextual_intent:
+        return contextual_intent
     if _looks_like_non_mds_general_question(normalized):
         return None
 
@@ -546,8 +638,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if _looks_like_mds_fleet_evidence_request(normalized):
         return "fleet_connectivity"
 
-    if _looks_like_node_boot_status_question(normalized):
-        return "node_boot_status"
     if _looks_like_add_drone_enrollment_workflow_question(normalized):
         return "add_drone_workflow"
     if _looks_like_fleet_enrollment_workflow_question(normalized):
@@ -559,10 +649,6 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "backend_log_summary"
     if topic == "drone_show" and _looks_like_contextual_show_followup(normalized):
         return "show_summary"
-    contextual_intent = _intent_from_contextual_followup(normalized, topic)
-    if contextual_intent:
-        return contextual_intent
-
     if _looks_like_compound_fleet_sitl_state_question(normalized):
         return "fleet_sitl_summary"
     if _looks_like_sitl_vehicle_readiness_question(normalized, conversation_topic=topic):
@@ -805,6 +891,8 @@ def answer_mds_read_only_question(
         return tools.git_status_summary(message=message)
     if intent == "general_knowledge":
         return tools.general_knowledge(message)
+    if intent == "coordinate_geography":
+        return tools.coordinate_geography(message)
     if intent == "public_geography":
         return tools.public_geography(message)
     if intent == "autopilot_support":
@@ -818,7 +906,7 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
     normalized_intent = str(intent or classify_mds_read_intent(message) or "").strip()
     if normalized_intent in {"show_summary", "show_modes_help", "show_upload_help"}:
         return "drone_show"
-    if normalized_intent in {"fleet_summary", "fleet_connectivity", "fleet_sitl_summary"}:
+    if normalized_intent in {"fleet_summary", "fleet_connectivity", "fleet_status", "fleet_sitl_summary"}:
         return "fleet"
     if normalized_intent == "fleet_enrollment_summary":
         return "setup"
@@ -850,7 +938,7 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "capabilities"
     if normalized_intent == "registry_domain_tool_summary":
         return "capabilities"
-    if normalized_intent == "public_geography":
+    if normalized_intent in {"coordinate_geography", "public_geography"}:
         return "public_geography"
     if normalized_intent in {"general_knowledge", "autopilot_support"}:
         return "general"
@@ -935,7 +1023,11 @@ def build_mds_read_only_plan(message: str, *, conversation_topic: str | None = N
         intent=intent,
         response_mode=response_mode if response_mode in READ_RESPONSE_MODES else "status",
         topic=topic,
-        query_domain=query_plan.domain,
+        # A complete typed local intent owns its evidence domain. The broader
+        # query planner may classify an anaphoric coordinate phrase as
+        # "general" before session target binding; retaining that disagreement
+        # allowed providers to substitute origin/public data for live telemetry.
+        query_domain=topic or query_plan.domain,
         confidence=query_plan.confidence,
         unclear=query_plan.unclear,
         reason=query_plan.reason,
@@ -1079,6 +1171,36 @@ class MdsReadOnlyTools:
             safety_notes=(
                 "No deterministic curated answer matched this general prompt.",
                 "No live GCS state, external data source, drone API, or command path was used.",
+            ),
+        )
+
+    def coordinate_geography(self, message: str) -> MdsReadToolAnswer:
+        pair = extract_latitude_longitude(message)
+        if pair is None:
+            return self._answer(
+                "coordinate_geography",
+                (
+                    "I need one valid WGS84 latitude/longitude pair to identify "
+                    "an approximate country. Use `latitude, longitude` order or "
+                    "label both values. No external service or drone command was used."
+                ),
+                (COUNTRY_LOOKUP_TOOL_ID,),
+                response_mode="clarify",
+                safety_notes=(
+                    "No valid coordinate pair was available for offline country lookup.",
+                    "No external provider, geocoding request, GCS mutation, or drone command was used.",
+                ),
+            )
+        result = resolve_country(*pair)
+        return self._answer(
+            "coordinate_geography",
+            format_country_resolution(result),
+            (COUNTRY_LOOKUP_TOOL_ID,),
+            response_mode="interpret",
+            safety_notes=(
+                "Country was resolved from local offline boundary data.",
+                COUNTRY_LOOKUP_DISCLAIMER,
+                "No external provider, geocoding request, GCS mutation, or drone command was used.",
             ),
         )
 
@@ -1328,6 +1450,8 @@ class MdsReadOnlyTools:
         rows: list[tuple[str, ...]] = []
         health_verdict_rows: list[dict[str, Any]] = []
         compact_health_rows: list[dict[str, str]] = []
+        compact_position_rows: list[dict[str, str]] = []
+        country_lookup_attempted = False
         now = time.time()
         for hw_id in all_hw_ids:
             heartbeat = _copy_mapping(heartbeats.get(hw_id) or heartbeats.get(_maybe_int_key(hw_id)))
@@ -1379,7 +1503,13 @@ class MdsReadOnlyTools:
                         "gps": gps_label,
                     }
                 )
-                country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
+                country_resolution = (
+                    resolve_country(lat, lon)
+                    if lat is not None and lon is not None
+                    else None
+                )
+                country_lookup_attempted = country_lookup_attempted or country_resolution is not None
+                country = country_resolution.label if country_resolution is not None else "unavailable"
                 altitude = _fleet_altitude_summary(telemetry_row)
                 altitude_text = (
                     f"{altitude['value']:.1f} m {altitude['label']}"
@@ -1387,6 +1517,22 @@ class MdsReadOnlyTools:
                     else "unknown"
                 )
                 position = f"lat {_fmt_coordinate(lat)}, lon {_fmt_coordinate(lon)}, alt {altitude_text}, {country}"
+                compact_position_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "presence": str(state),
+                        "gps": gps_label,
+                        "latitude": _fmt_coordinate(lat),
+                        "longitude": _fmt_coordinate(lon),
+                        "altitude": altitude_text,
+                        "country": country,
+                        "ready": health["ready"],
+                        "armed": health["armed"],
+                        "flight_state": health["flight_state"],
+                        "battery": health["battery"],
+                        "evidence": str(detail),
+                    }
+                )
                 rows.append(
                     (
                         f"Drone {hw_id}",
@@ -1405,7 +1551,33 @@ class MdsReadOnlyTools:
             elif wants_position:
                 lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
                 altitude = _fleet_altitude_summary(telemetry_row)
-                country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
+                country_resolution = (
+                    resolve_country(lat, lon)
+                    if lat is not None and lon is not None
+                    else None
+                )
+                country_lookup_attempted = country_lookup_attempted or country_resolution is not None
+                country = country_resolution.label if country_resolution is not None else "unavailable"
+                compact_position_rows.append(
+                    {
+                        "drone": f"Drone {hw_id}",
+                        "presence": str(state),
+                        "gps": gps_label,
+                        "latitude": _fmt_coordinate(lat),
+                        "longitude": _fmt_coordinate(lon),
+                        "altitude": (
+                            f"{altitude['value']:.1f} m {altitude['label']}"
+                            if altitude["value"] is not None
+                            else "unknown"
+                        ),
+                        "country": country,
+                        "ready": "",
+                        "armed": "",
+                        "flight_state": "",
+                        "battery": "",
+                        "evidence": str(detail),
+                    }
+                )
                 rows.append(
                     (
                         f"Drone {hw_id}",
@@ -1465,7 +1637,8 @@ class MdsReadOnlyTools:
 
         composer = AnswerComposer()
         brief = _normalize_response_detail(response_detail) == "brief"
-        if requested_targets:
+        compact_position = brief and wants_position and bool(compact_position_rows)
+        if requested_targets and not compact_position:
             composer.line("Scope: " + ", ".join(f"Drone {target}" for target in requested_targets) + ".")
         if not all_hw_ids:
             composer.line("Connectivity from GCS state: no configured drone IDs, heartbeats, or telemetry rows are visible to this GCS runtime right now.")
@@ -1475,17 +1648,39 @@ class MdsReadOnlyTools:
                 )
             composer.line("No action was executed.")
         else:
-            composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
-            if wants_health:
+            if compact_position:
+                for item in compact_position_rows:
+                    health_suffix = ""
+                    if item["ready"]:
+                        health_suffix = (
+                            f"; Ready: {item['ready']}; Armed: {item['armed']}; "
+                            f"{item['flight_state']}; Battery: {item['battery']}"
+                        )
+                    composer.line(
+                        f"{item['drone']}: {item['presence']}; GPS {item['gps']}; "
+                        f"lat {item['latitude']}; lon {item['longitude']}; "
+                        f"alt {item['altitude']}; country {item['country']}"
+                        f"{health_suffix}. {item['evidence']}"
+                    )
+                if country_lookup_attempted:
+                    composer.line(
+                        "Country is an approximate offline boundary lookup, not flight-authorization evidence."
+                    )
+            else:
+                composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
+            if wants_health and not compact_position:
                 composer.line(_fleet_health_verdict_line(health_verdict_rows))
-            if brief and wants_health:
+            if brief and wants_health and not compact_position:
                 composer.bullets(
                     (
-                        f"{item['drone']}: {item['presence']}; ready {item['ready']}; armed {item['armed']}; "
-                        f"{item['flight_state']}; GPS {item['gps']}; battery {item['battery']}; {item['evidence']}"
+                        f"{item['drone']}: {item['presence']}; Ready: {item['ready']}; "
+                        f"Armed: {item['armed']}; {item['flight_state']}; GPS {item['gps']}; "
+                        f"Battery: {item['battery']}; {item['evidence']}"
                     )
                     for item in compact_health_rows
                 )
+            elif compact_position:
+                pass
             elif wants_position and wants_health:
                 composer.blank().table(
                     (
@@ -1497,6 +1692,8 @@ class MdsReadOnlyTools:
                 composer.blank().line(
                     "Coordinates, GPS, battery, arming, mode, and system status come from the latest GCS telemetry snapshot. `unavailable` means this runtime has no current value for that field."
                 )
+                if country_lookup_attempted:
+                    composer.line(COUNTRY_LOOKUP_DISCLAIMER)
             elif wants_position:
                 composer.blank().table(
                     ("Drone", "Presence", "GPS", "Latitude", "Longitude", "Altitude", "Country", "Evidence"),
@@ -1505,6 +1702,8 @@ class MdsReadOnlyTools:
                 composer.blank().line(
                     "Coordinates and GPS status come from the latest GCS telemetry snapshot. `unavailable` means this runtime does not currently have a valid global-position sample for that drone."
                 )
+                if country_lookup_attempted:
+                    composer.line(COUNTRY_LOOKUP_DISCLAIMER)
             elif wants_health:
                 composer.blank().table(
                     (
@@ -1526,10 +1725,17 @@ class MdsReadOnlyTools:
                 composer.blank().line("This is the current MDS presence snapshot.")
             if not brief:
                 composer.line("No drone command was sent.")
+        tool_ids = (
+            "mds.fleet.heartbeats.read",
+            "mds.fleet.telemetry.read",
+            "mds.fleet.network_status.read",
+        )
+        if country_lookup_attempted:
+            tool_ids = (*tool_ids, COUNTRY_LOOKUP_TOOL_ID)
         return self._answer(
             "fleet_status" if normalized_profile in {"health", "full"} else "fleet_connectivity",
             composer.render(),
-            ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+            tool_ids,
         )
 
     def fleet_enrollment_summary(self, message: str = "") -> MdsReadToolAnswer:
@@ -6551,7 +6757,7 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
     if not topic or _mentions_other_domain(normalized, topic):
         return None
     if topic == "fleet":
-        if _looks_like_live_fleet_state_question(normalized):
+        if _looks_like_contextual_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         if _has_any(
             normalized,
@@ -6607,14 +6813,14 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
         if _has_any(normalized, ("mcp", "tool", "tools", "api", "apis", "menu", "client", "n8n", "claude", "vscode")) or _looks_like_generic_contextual_followup(normalized):
             return "capability_catalog"
     if topic == "sitl":
-        if _looks_like_sitl_vehicle_readiness_question(normalized) or _looks_like_live_fleet_state_question(normalized):
+        if _looks_like_sitl_vehicle_readiness_question(normalized) or _looks_like_contextual_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         if _has_any(normalized, ("how", "where", "switch", "change", "setup", "demo", "doc", "docs", "link")) or _looks_like_generic_contextual_followup(normalized):
             return "sitl_help"
     if topic == "flight":
         if _looks_like_action_history_summary_question(normalized):
             return "command_summary"
-        if _looks_like_live_fleet_state_question(normalized) or _looks_like_generic_status_followup(normalized):
+        if _looks_like_contextual_live_fleet_state_question(normalized) or _looks_like_generic_status_followup(normalized):
             return "fleet_connectivity"
     if topic == "public_geography":
         if _looks_like_public_geography_slot_followup(normalized) or _looks_like_public_geography_question(normalized):
@@ -7364,6 +7570,36 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
     )
 
 
+def _looks_like_contextual_live_fleet_state_question(normalized: str) -> bool:
+    """Return whether an active fleet/flight frame owns this state follow-up.
+
+    Health vocabulary naturally stays in the active vehicle frame. Position
+    vocabulary is more ambiguous with public geography, so it additionally
+    requires an explicit vehicle/fleet noun or a contextual target reference.
+    """
+
+    if not _looks_like_live_fleet_state_question(normalized):
+        return False
+    if not _wants_fleet_position_details(normalized):
+        return True
+    return bool(
+        refers_to_contextual_target(normalized)
+        or _has_domain_signal(
+            normalized,
+            (
+                "fleet",
+                "drone",
+                "drones",
+                "vehicle",
+                "vehicles",
+                "aircraft",
+                "telemetry",
+                "gps",
+            ),
+        )
+    )
+
+
 def _looks_like_sitl_vehicle_readiness_question(
     normalized: str,
     *,
@@ -8031,22 +8267,6 @@ def _fmt_altitude_m(value: float | None) -> str:
     return "unavailable" if value is None else f"{value:.1f} m"
 
 
-def _country_from_coordinates(lat: float, lon: float) -> str:
-    # Lightweight operator hint only. It avoids external geocoding and returns
-    # unknown instead of inventing precision outside the common MDS test regions.
-    regions = (
-        ("France", 41.0, 51.5, -5.5, 10.0),
-        ("Taiwan", 21.8, 25.5, 119.0, 122.5),
-        ("Iran", 24.0, 40.5, 44.0, 64.5),
-        ("United States", 24.0, 49.5, -125.0, -66.0),
-        ("Switzerland", 45.6, 47.9, 5.8, 10.6),
-    )
-    for label, min_lat, max_lat, min_lon, max_lon in regions:
-        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
-            return label
-    return "unknown"
-
-
 def _looks_like_generic_contextual_followup(normalized: str) -> bool:
     return _has_any(
         normalized,
@@ -8313,6 +8533,33 @@ def _looks_like_public_geography_question(normalized: str) -> bool:
             "radius",
             "orbit",
             "flight around",
+        ),
+    )
+
+
+def _looks_like_coordinate_country_question(normalized: str) -> bool:
+    """Detect an explicit coordinate-to-country lookup.
+
+    Parsing and validation live in the geography component; this predicate only
+    decides whether the local offline capability owns the question.
+    """
+
+    if not normalized or extract_latitude_longitude(normalized) is None:
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "country",
+            "which country",
+            "what country",
+            "location",
+            "coordinate",
+            "coordinates",
+            "latitude",
+            "longitude",
+            "lat",
+            "lon",
+            "lng",
         ),
     )
 

@@ -16,12 +16,20 @@ from typing import Any, Mapping
 try:  # pragma: no cover - import path differs in direct script/tests
     from .action_preconditions import ActionPrecondition
     from .query_adaptation import normalize_operator_query_text
-    from .target_grounding import extract_explicit_target_ids
+    from .target_grounding import (
+        explicitly_requests_all_targets,
+        extract_explicit_target_ids,
+        refers_to_contextual_target,
+    )
     from .tool_registry import load_default_tool_registry
 except ImportError:  # pragma: no cover
     from action_preconditions import ActionPrecondition
     from query_adaptation import normalize_operator_query_text
-    from target_grounding import extract_explicit_target_ids
+    from target_grounding import (
+        explicitly_requests_all_targets,
+        extract_explicit_target_ids,
+        refers_to_contextual_target,
+    )
     from tool_registry import load_default_tool_registry
 
 
@@ -538,15 +546,16 @@ def _flight_monitor_requested(normalized: str) -> bool:
 
 def _allows_previous_target_inference(normalized: str) -> bool:
     return bool(
-        re.search(
-            r"\b(the\s+drone|this\s+drone|that\s+drone|same\s+drone|only\s+(?:one\s+)?drone|it|them|just\s+took\s*off|tooked\s*off|previous|last)\b",
+        refers_to_contextual_target(normalized)
+        or re.search(
+            r"\b(?:only\s+(?:one\s+)?drone|just\s+took\s*off|tooked\s*off|previous|last)\b",
             normalized,
         )
     )
 
 
 def _allows_single_previous_target_inference(normalized: str) -> bool:
-    if re.search(r"\b(all|every|both|multiple|several)\s+(?:drone|drones|vehicle|vehicles)\b", normalized):
+    if explicitly_requests_all_targets(normalized):
         return False
     if _extract_target_ids(normalized):
         return False
@@ -860,6 +869,7 @@ def build_sitl_reconcile_action_draft(
     normalized = normalize_action_text(message)
     if not looks_like_direct_sitl_lifecycle_request(normalized, conversation_topic=conversation_topic):
         return None
+    preconditions = _local_sitl_running_count_preconditions(normalized)
 
     batch_action = _extract_sitl_batch_action(normalized)
     if batch_action:
@@ -879,6 +889,7 @@ def build_sitl_reconcile_action_draft(
             },
             missing_arguments=tuple(missing),
             monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_BATCH_ACTION_TOOL_ID),
+            preconditions=preconditions,
         )
 
     target_count = _extract_sitl_target_count(normalized)
@@ -898,6 +909,7 @@ def build_sitl_reconcile_action_draft(
             arguments=arguments,
             missing_arguments=(),
             monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_CREATE_TOOL_ID),
+            preconditions=preconditions,
         )
 
     arguments = {}
@@ -915,6 +927,64 @@ def build_sitl_reconcile_action_draft(
         arguments=arguments,
         missing_arguments=tuple(missing),
         monitor_requested=_sitl_tool_requires_terminal_monitoring(SITL_RECONCILE_TOOL_ID),
+        preconditions=preconditions,
+    )
+
+
+def _local_sitl_running_count_preconditions(
+    normalized: str,
+) -> tuple[ActionPrecondition, ...]:
+    """Ground a bounded SITL-count condition without an external provider.
+
+    This parser intentionally owns one registered fact contract rather than a
+    phrase list: the number of currently running SITL instances. Unsupported
+    conditions remain unmodeled and therefore cannot qualify for the local
+    provider-outage action fallback.
+    """
+
+    if not re.search(r"\b(?:if|when|provided(?:\s+that)?|only\s+if)\b", normalized):
+        return ()
+    if not (
+        re.search(r"\b(?:sitl|simulator|simulation)\b", normalized)
+        and re.search(r"\b(?:running|active|up)\b", normalized)
+    ):
+        return ()
+
+    operator = ""
+    expected: int | None = None
+    label = ""
+    if re.search(
+        r"\b(?:no|zero)\s+(?:sitl|simulator|simulation)?\s*"
+        r"(?:instance|instances|container|containers|drone|drones)?\s*"
+        r"(?:is|are|currently|now|\s)*\s*(?:running|active|up)\b",
+        normalized,
+    ):
+        operator, expected, label = "eq", 0, "No SITL instance is running"
+    else:
+        comparisons = (
+            (r"\b(?:fewer|less)\s+than\s+(?P<count>\d+)\b", "lt", "Fewer than {count} SITL instances are running"),
+            (r"\b(?:at\s+most|no\s+more\s+than)\s+(?P<count>\d+)\b", "lte", "At most {count} SITL instances are running"),
+            (r"\b(?:more|greater)\s+than\s+(?P<count>\d+)\b", "gt", "More than {count} SITL instances are running"),
+            (r"\b(?:at\s+least|no\s+fewer\s+than)\s+(?P<count>\d+)\b", "gte", "At least {count} SITL instances are running"),
+            (r"\b(?:exactly|equal\s+to)\s+(?P<count>\d+)\b", "eq", "Exactly {count} SITL instances are running"),
+        )
+        for pattern, candidate_operator, candidate_label in comparisons:
+            match = re.search(pattern, normalized)
+            if match:
+                expected = int(match.group("count"))
+                operator = candidate_operator
+                label = candidate_label.format(count=expected)
+                break
+    if expected is None:
+        return ()
+    return (
+        ActionPrecondition(
+            fact_id="sitl.running_instance_count",
+            arguments={},
+            operator=operator,
+            expected=expected,
+            label=label,
+        ),
     )
 
 

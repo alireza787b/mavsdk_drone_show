@@ -184,6 +184,52 @@ tools:
         minLength: 1
         maxLength: 4000
         description: Public distance/geodesy question using reviewed place names.
+- id: simurgh.country_from_coordinates.read
+  title: Resolve country from coordinates
+  description: Resolve one WGS84 latitude/longitude pair to an approximate country
+    using packaged offline country-boundary data. This performs no provider or
+    network geocoding request.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - location
+  tags:
+  - assistant
+  - geography
+  - mcp
+  - offline
+  docs:
+  - docs/guides/simurgh-operator.md
+  safety_notes:
+  - Country boundaries are approximate informational context and are not navigation,
+    airspace, legal, or flight-authorization evidence.
+  - Coordinates remain inside the GCS process; this tool does not call an external
+    provider or geocoding service.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - latitude
+    - longitude
+    properties:
+      latitude:
+        type: number
+        minimum: -90
+        maximum: 90
+        description: WGS84 latitude in decimal degrees.
+      longitude:
+        type: number
+        minimum: -180
+        maximum: 180
+        description: WGS84 longitude in decimal degrees.
 - id: mds.docs.search
   title: Search public MDS docs
   description: Search the generated public Simurgh/MDS documentation index and return

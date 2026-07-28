@@ -27,6 +27,7 @@ PRIVATE_CONTEXT_KEYS = {
     "last_routing_message",
     "last_tool_intent",
     "last_read_only_evidence",
+    "last_read_target_drone_ids",
     "last_action_draft",
     "last_action_draft_id",
     "last_action_draft_hash",
@@ -40,6 +41,7 @@ STRUCTURED_PRIVATE_CONTEXT_KEYS = {
     "last_action_draft",
     "last_submitted_action",
     "last_read_only_evidence",
+    "last_read_target_drone_ids",
 }
 MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
 # Covers 32 supported action steps with 12,000-character argument payloads,
@@ -79,9 +81,11 @@ SAFE_SESSION_METADATA_VALUES = {
         "board_setup_help",
         "capability_catalog",
         "companion_setup_help",
+        "coordinate_geography",
         "clarify",
         "docs_help",
         "fleet_connectivity",
+        "fleet_status",
         "fleet_summary",
         "flight_action",
         "mission_mode_comparison",

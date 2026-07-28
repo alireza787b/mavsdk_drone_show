@@ -10,6 +10,22 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Simurgh now uses an explicit route-commitment contract: complete bounded
+  local actions survive transient provider outages through the normal guarded
+  confirmation/precondition path, while incomplete or ordered/conditional
+  routes still ask for semantic clarification instead of guessing.
+- HTTP `429` and transient provider gateway/server failures now become concise
+  recoverable chat fallbacks rather than the misleading generic route failure.
+  Provider error details remain in trace/audit metadata and never authorize a
+  command.
+- Current vehicle position answers now stay on live telemetry, preserve the
+  scoped target across read follow-ups, label altitude frames, and use an
+  offline approximate country resolver. Configured mission origin is no longer
+  substituted for live vehicle coordinates.
+- Simple readiness/status/location answers are brief by default with explicit
+  `Ready`, `Armed`, `Flight state`, and altitude labels. Ambiguous or
+  typo-heavy requests remain eligible for semantic refinement and receive one
+  concise clarifying question when needed.
 - Readiness questions that mention a possible action (for example, asking
   whether a drone is ready to take off) now stay on the typed local
   fleet-status path instead of being stopped by the action-word block or

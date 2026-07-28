@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -456,7 +457,31 @@ class ToolRegistry:
         return sorted(values, key=lambda tool: tool.id)
 
 
-def load_default_tool_registry() -> ToolRegistry:
-    """Load the repository default Simurgh tool registry."""
+@lru_cache(maxsize=8)
+def _load_registry_cached(path_text: str, mtime_ns: int, size: int) -> ToolRegistry:
+    """Parse and validate one immutable registry file snapshot.
 
-    return ToolRegistry.from_file(_env_path("MDS_AGENT_TOOL_REGISTRY_FILE", DEFAULT_TOOL_REGISTRY_PATH))
+    The registry is consulted by several layers during one assistant turn and
+    by the action runner in a background task. Re-reading and validating the
+    YAML for every tool call adds avoidable latency and can make a healthy
+    local route appear stuck. The file fingerprint keeps development overrides
+    and hot-swapped deployments safe: a changed file naturally gets a new
+    cache entry.
+    """
+
+    del mtime_ns, size  # The fingerprint is part of the cache key by design.
+    return ToolRegistry.from_file(Path(path_text))
+
+
+def load_default_tool_registry() -> ToolRegistry:
+    """Load the validated default Simurgh tool registry for this file version."""
+
+    registry_path = _env_path("MDS_AGENT_TOOL_REGISTRY_FILE", DEFAULT_TOOL_REGISTRY_PATH)
+    try:
+        stat = registry_path.stat()
+        fingerprint = (int(stat.st_mtime_ns), int(stat.st_size))
+    except FileNotFoundError:
+        # Preserve the existing, actionable ``tool registry not found`` error
+        # from ``ToolRegistry.from_file`` for a missing configured override.
+        fingerprint = (0, 0)
+    return _load_registry_cached(str(registry_path), *fingerprint)

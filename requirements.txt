@@ -47,6 +47,7 @@ pyulog>=1.2.2,<2
 # Geospatial
 geographiclib==2.0
 pyproj==3.6.1
+geo-intel-offline==1.5.0  # Offline country-boundary lookup for GCS/Simurgh
 pymap3d>=2.9.0
 NavPy==1.0
 shapely>=2.0.0  # Coverage planning (GCS server only, graceful fallback on drones)

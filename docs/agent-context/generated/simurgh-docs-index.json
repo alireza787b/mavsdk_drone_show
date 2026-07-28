@@ -1,5 +1,5 @@
 {
-  "chunk_count": 866,
+  "chunk_count": 868,
   "chunks": [
     {
       "audience": "operator",
@@ -330,7 +330,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "1c1b308d52e941ceb045d4da3fd75331c029613aeeae00473985cebde1deea6c",
+      "content_hash": "f36a573b0b6d4e9b5ce089af773334a0ae49e5aaf4834a12946be1e4eb866637",
       "heading": "Maturity boundary: demo and proof of feasibility",
       "id": "simurgh.operator_guide:002-01-maturity-boundary-demo-and-proof-of-feasibility",
       "links": [],
@@ -344,7 +344,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Maturity boundary: demo and proof of feasibility\n\nSimurgh is an **early demo / proof-of-feasibility beta**, not a\nproduction-ready, safety-certified, or autonomous flight product. The current\ncheckpoint demonstrates a useful end-to-end SITL workflow: typed intent,\nhuman-gated actions, monitored progress, telemetry reporting, return/land\nhandling, and bounded ULog evidence. That evidence is encouraging, but it is\nnot approval for real-aircraft, commercial, regulatory, or unattended use.\n\nKeep the circuit breaker and human confirmation enabled, use trusted SITL or\nreview environments, and treat missing or ambiguous telemetry as unknown. Real\naircraft hardening, broader flight-stack validation, richer flight-log\ncorrelation, and production operational controls are deferred to a later\nphase. The dated evidence, accepted scope, and deferred backlog are recorded\nin [the feasibility checkpoint](../plans/2026-07-27-simurgh-feasibility-checkpoint.md).",
+      "text": "## Maturity boundary: demo and proof of feasibility\n\nSimurgh is an **early demo / proof-of-feasibility beta**, not a\nproduction-ready, safety-certified, or autonomous flight product. The current\ncheckpoint demonstrates a useful end-to-end SITL workflow: typed intent,\nhuman-gated actions, monitored progress, telemetry reporting, return/land\nhandling, and bounded ULog evidence. That evidence is encouraging, but it is\nnot approval for real-aircraft, commercial, regulatory, or unattended use.\n\nKeep the circuit breaker and human confirmation enabled, use trusted SITL or\nreview environments, and treat missing or ambiguous telemetry as unknown. Real\naircraft hardening, broader flight-stack validation, richer flight-log\ncorrelation, and production operational controls are deferred to a later\nphase. The dated evidence, accepted scope, and deferred backlog are recorded\nin [the feasibility checkpoint](../plans/2026-07-27-simurgh-feasibility-checkpoint.md);\nthe latest provider/routing handoff is in the\n[routing-resilience checkpoint](../plans/2026-07-28-simurgh-routing-resilience-checkpoint.md).",
       "title": "Simurgh operator guide"
     },
     {
@@ -390,7 +390,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "b733d058e95bce8a28d3aa5e354114621f5697748851f7c85707f8316a7a6c91",
+      "content_hash": "bb777a5620bfb496fceab5fa98eddff6f448d7edb4e3e4fce2aa6dc2baa4e498",
       "heading": "Semantic Understanding Boundary",
       "id": "simurgh.operator_guide:003-03-semantic-understanding-boundary",
       "links": [],
@@ -404,13 +404,33 @@
         "operator",
         "dashboard"
       ],
-      "text": "tion, or translation is discarded;\nthe provider cannot silently turn a typed 10 m request into 100 m. When Simurgh\nasks a clarification, the next semantic turn also receives the bounded prior\nrequest and clarification question so the answer does not lose the mission\nbeing clarified.\n\nProvider normalization is a best-effort interpretation aid, not an availability\ndependency. Invalid provider output, timeouts, and provider HTTP failures must\nnot discard a typed draft already built by the local planner. A complete local\ndraft continues to the normal confirmation gate; an incomplete local draft\ncontinues to the normal conversational missing-detail gate. Simurgh asks a\ngeneric interpretation clarification only when neither layer produced a typed\ndraft, and provider failure details remain in trace/audit metadata rather than\noperator-facing prose.",
+      "text": "tion, or translation is discarded;\nthe provider cannot silently turn a typed 10 m request into 100 m. When Simurgh\nasks a clarification, the next semantic turn also receives the bounded prior\nrequest and clarification question so the answer does not lose the mission\nbeing clarified.\n\nProvider normalization is a best-effort interpretation aid, not an availability\ndependency. Invalid provider output, timeouts, and provider HTTP failures must\nnot discard a typed draft already built by the local planner. A complete local\ndraft continues to the normal confirmation gate; an incomplete local draft\ncontinues to the normal conversational missing-detail gate. Simurgh asks a\ngeneric interpretation clarification only when neither layer produced a typed\ndraft, and provider failure details remain in trace/audit metadata rather than\noperator-facing prose.\n\nThe route arbitration contract is exposed in `trace.intent.route_commitment`:\n\n- `typed-guarded-action-complete` permits a bounded local draft to continue\n through confirmation, precondition, circuit-breaker, and monitoring gates\n when the provider is unavailable.\n- `typed-local-read-complete` keeps an authoritative current-state read local.\n This includes live fleet position/readiness and explicit coordinate-to-country\n lookup; a provider cannot replace live telemetry with configured origin data\n or promote a readiness question into a flight command.\n- `typed-read-provider-refinement` leaves ambiguous, multilingual, typo-heavy,\n composite, or documentation-oriented reads eligible for provider\n normalization. If that call fails, Simurgh uses the local result when it is\n complete or asks one concise clarification when it is not.\n\nProvider HTTP service failures, including rate limiting (`429`) and transient\ngateway/server responses, are recoverable chat failures. They remain in\ntrace/audit metadata, never appear as raw transport errors, and never authorize\na command. Schema, policy, grounding, and safety failures remain real\ninterpretation failures and are not silently converted into actions.",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "ad308814c27e89d29ed4aa19e0bcbebdb7a951ca1f479be455b357705e2644a3",
+      "content_hash": "d3452a825e9e53598553e2f52a9df45b69290550b6f3c6b242c059dea1db5611",
+      "heading": "Semantic Understanding Boundary",
+      "id": "simurgh.operator_guide:003-04-semantic-understanding-boundary",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "Current fleet latitude/longitude/altitude answers come from the newest accepted\nGCS telemetry sample. Altitude is always labeled with its frame (`REL`, `LCL`,\n`BARO`, or `MSL`); the configured mission/global origin is a separate\n`origin_status` read. When country is requested, Simurgh uses the packaged\noffline boundary resolver and labels the result as approximate informational\ncontext, not navigation, legal, airspace, or flight-authorization evidence.\nExplicit numeric coordinate questions use that local resolver and do not\nrequire provider or web access.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "06cc007ddf7ec10d39d94ffffe389f1711571ebdf4040f6f8f132ef4a725df2d",
       "heading": "Dashboard Chat UX Contract",
       "id": "simurgh.operator_guide:004-01-dashboard-chat-ux-contract",
       "links": [],
@@ -424,13 +444,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Dashboard Chat UX Contract\n\nThe `/simurgh` dashboard surface should stay chat-first and low-noise:\n\n- local browser history is a convenience cache under `mds.simurgh.chat.v2`, not\n the authoritative backend session store;\n- each chat row has a quiet hover/focus overflow menu for deleting only that\n conversation;\n- the destructive clear-all action stays behind the history header overflow\n menu, not as an always-visible primary action;\n- assistant copy controls and code-snippet copy controls stay hidden until\n hover/focus or touch interaction;\n- progress and streamed answer deltas stay inside the active assistant message;\n- assistant answers render compact Markdown tables, lists, code, bold text, and\n only safe clickable dashboard/doc/HTTPS links.\n- guarded action drafts show a backend-generated, ordered operator plan first;\n raw action JSON stays available from a dashboard disclosure and the sanitized\n response trace, but it is not the default conversation view.\n- command and SITL progress stays in one live action item: the current sequence\n step remains prominent, the most recent steps remain visible, and the complete\n trace is available on demand.\n- the cross-chat operation strip shows only currently active durable runs.\n Terminal success/failure evidence remains in its originating conversation and\n backend action journal, but opening a new chat does not restore old terminal\n cards into the composer workspace.\n- SITL lifecycle prompts that ask to inspect a stale/current instance before a\n guarded remove/restart draft must check local SITL inventory first. Simurgh may\n infer `instance_names` from runtime inventory only after a typed lifecycle\n draft exists and exactly one SITL instance is listed; zero or multiple listed\n instances must keep the draft incomplete and ask the operator to identify the\n target. This inference does not depend on a list of user phrases or typos.\n- SITL instance list/count/status follow-ups stay on local registry tools, even\n when a text provider is configured and authenticated. Provider semantic\n rewrite and provider composition must not replace local SITL runtime evidence\n for these checks.",
+      "text": "## Dashboard Chat UX Contract\n\nThe `/simurgh` dashboard surface should stay chat-first and low-noise:",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "804b0b8135633b2125bcc27fe26bca70f807c73df71a1ada88db4bbf4f64ad05",
+      "content_hash": "d0a0a21e3e68bcd680437b2c43b3a38c83b49d0c28ba7e9064c3a234631b361d",
       "heading": "Dashboard Chat UX Contract",
       "id": "simurgh.operator_guide:004-02-dashboard-chat-ux-contract",
       "links": [],
@@ -444,7 +464,27 @@
         "operator",
         "dashboard"
       ],
-      "text": "Changing this UX should include a focused Jest test for history actions,\nMarkdown rendering, and copy controls. Browser-level visual regression is still\nrecommended before conference or field-demo handoff.",
+      "text": "- local browser history is a convenience cache under `mds.simurgh.chat.v2`, not\n the authoritative backend session store;\n- each chat row has a quiet hover/focus overflow menu for deleting only that\n conversation;\n- the destructive clear-all action stays behind the history header overflow\n menu, not as an always-visible primary action;\n- assistant copy controls and code-snippet copy controls stay hidden until\n hover/focus or touch interaction;\n- progress and streamed answer deltas stay inside the active assistant message;\n- assistant answers render compact Markdown tables, lists, code, bold text, and\n only safe clickable dashboard/doc/HTTPS links.\n- short status/readiness/location questions use a brief deterministic answer\n with explicit `Ready`, `Armed`, `Flight state`, and altitude-frame labels;\n detailed evidence remains available when the operator asks for it.\n- guarded action drafts show a backend-generated, ordered operator plan first;\n raw action JSON stays available from a dashboard disclosure and the sanitized\n response trace, but it is not the default conversation view.\n- command and SITL progress stays in one live action item: the current sequence\n step remains prominent, the most recent steps remain visible, and the complete\n trace is available on demand.\n- the cross-chat operation strip shows only currently active durable runs.\n Terminal success/failure evidence remains in its originating conversation and\n backend action journal, but opening a new chat does not restore old terminal\n cards into the composer workspace.\n- SITL lifecycle prompts that ask to inspect a stale/current instance before a\n guarded remove/restart draft must check local SITL inventory first. Simurgh may\n infer `instance_names` from runtime inventory only after a typed lifecycle\n draft exists and exactly one SITL instance is listed; zero or multiple listed\n instances must keep the draft incomplete and ask the operator to identify the\n target. This inference does not depend on a list of user phrases or typos.\n- SITL instance list/count/status follow-ups stay on local registry tools, even\n when a text provider is configured and authenticated. Provider semantic\n rewrite and",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "d6a59cecbbc54a6b5ef565941c19b93df936566524ff1ec5c52cde1bb67ddaac",
+      "heading": "Dashboard Chat UX Contract",
+      "id": "simurgh.operator_guide:004-03-dashboard-chat-ux-contract",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "target. This inference does not depend on a list of user phrases or typos.\n- SITL instance list/count/status follow-ups stay on local registry tools, even\n when a text provider is configured and authenticated. Provider semantic\n rewrite and provider composition must not replace local SITL runtime evidence\n for these checks.\n\nChanging this UX should include a focused Jest test for history actions,\nMarkdown rendering, and copy controls. Browser-level visual regression is still\nrecommended before conference or field-demo handoff.",
       "title": "Simurgh operator guide"
     },
     {
@@ -592,7 +632,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "59cc3d1822b7995ebaa1e3380ba3c307579b2c3731dd2ac7fbbff2bf586313ba",
+      "content_hash": "3916b033757ec71dd7a1121b85ec4df443917d0c65c0d1da76ac92792c2be0f5",
       "heading": "Environment Variables",
       "id": "simurgh.operator_guide:011-01-environment-variables",
       "links": [],
@@ -606,7 +646,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Environment Variables\n\nDefault installs enable the local assistant orchestrator with deterministic mock\ntext composition. Guarded actions remain subject to the registry, confirmation,\nand circuit breaker; MCP remains off:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=false\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\nMDS_AGENT_PROVIDER=mock\nMDS_MCP_ALLOWED_ORIGINS=\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\n```\n\nOperator-facing controls should stay small:\n\n- **Agent enabled** maps to `MDS_AGENT_ENABLED`.\n- **MCP enabled** maps to `MDS_MCP_ENABLED`; keep\n `MDS_MCP_REQUIRE_AUTH=true` outside isolated local development.\n- **Circuit breaker** maps to `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`.\n It is the final execution stop: upstream planning and approval can still explain\n what would be called, but the executor must not run non-read-only tools while\n this is enabled.\n- **Always confirm actions** maps to\n `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. It is the approval gate\n immediately before the final executor layer.\n- **OpenAI provider/model/key file** map to `MDS_AGENT_PROVIDER`,\n `MDS_AGENT_OPENAI_MODEL`, and `MDS_AGENT_OPENAI_API_KEY_FILE`.\n- **Web search** maps to `MDS_AGENT_WEB_SEARCH_ENABLED`. It is only used for\n public/general prompts after local MDS tools decline the request; fleet state,\n logs, private network details, credentials, and operational actions stay out\n of the web-search lane.\n\nThe dashboard Simurgh settings panel hot-applies these operator-facing keys to\nthe running GCS process and persists them to `/etc/mds/gcs.env`; a full GCS\nrestart is not required for provider/model, MCP enablement, or the safety\ncheckboxes to affect new Simurgh turns. Advanced keys remain editable from the\nEnvironment page.",
+      "text": "## Environment Variables\n\nDefault installs enable the local assistant orchestrator with deterministic mock\ntext composition. Guarded actions remain subject to the registry, confirmation,\nand circuit breaker; MCP remains off:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=false\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\nMDS_AGENT_PROVIDER=mock\nMDS_MCP_ALLOWED_ORIGINS=\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\n```\n\nOperator-facing controls should stay small:\n\n- **Agent enabled** maps to `MDS_AGENT_ENABLED`.\n- **MCP enabled** maps to `MDS_MCP_ENABLED`; keep\n `MDS_MCP_REQUIRE_AUTH=true` outside isolated local development.\n- **Circuit breaker** maps to `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`.\n It is the final execution stop: upstream planning and approval can still explain\n what would be called, but the executor must not run non-read-only tools while\n this is enabled.\n- **Always confirm actions** maps to\n `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`. It is the approval gate\n immediately before the final executor layer.\n- **OpenAI provider/model/key file** map to `MDS_AGENT_PROVIDER`,\n `MDS_AGENT_OPENAI_MODEL`, and `MDS_AGENT_OPENAI_API_KEY_FILE`.\n- **Web search** maps to `MDS_AGENT_WEB_SEARCH_ENABLED`. It is only used for\n public/general prompts after local MDS tools decline the request; fleet state,\n logs, private network details, credentials, and operational actions stay out\n of the web-search lane. Reviewed public-place answers and explicit numeric\n coordinate-country lookups are answered locally first; an unknown public\n place may use web search only when the provider lane is enabled and returned\n sources are available.\n\nThe dashboard Simurgh settings panel hot-applies these operator-facing keys to\nthe running GCS process and persists them to `/etc/mds/gcs.env`; a full GCS\nrestart is not required for provider/model, MCP enablement, or the safety\ncheckboxes to affect new Simurgh turns. Advanced keys remain editable from the\nEnvironment page.",
       "title": "Simurgh operator guide"
     },
     {
@@ -17282,8 +17322,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 51,
-      "content_hash": "60082cf10fa28f005197f7428e7add526df39c5cf5bcd0141303d9080ea43f6a",
+      "chunk_count": 53,
+      "content_hash": "da5dec8f162cee41f293f6b3fa27981e8169a15b81e42867769b6331e4757da0",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

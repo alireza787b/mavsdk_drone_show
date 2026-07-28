@@ -3027,9 +3027,9 @@ def _provider_failure_turn(
             ),
         )
     content = (
-        "I could not reach the external assistant provider/search service for that turn. "
-        "The chat state was kept and no action was executed. "
-        "Retry, or tell me whether you want a status check, a guarded action plan, a log/ULog review, or setup guidance."
+        "The external assistant/search service is temporarily unavailable, so I "
+        "could not complete this provider-dependent request. Your chat context "
+        "was kept; retry shortly. No action was executed."
     )
     return AssistantTurnResult(
         id=f"turn-{uuid.uuid4().hex}",
@@ -3111,6 +3111,9 @@ def _is_provider_runtime_recoverable(exc: Exception) -> bool:
     """
 
     message = str(exc or "").casefold()
+    status_match = re.search(r"\bhttp\s+(\d{3})\b", message)
+    if status_match and int(status_match.group(1)) in {408, 409, 425, 429, 500, 502, 503, 504}:
+        return True
     return any(
         marker in message
         for marker in (

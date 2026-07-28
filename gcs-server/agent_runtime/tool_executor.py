@@ -30,12 +30,14 @@ DOCS_CHUNK_READ_TOOL_ID = "mds.docs.chunk.read"
 GENERAL_KNOWLEDGE_TOOL_ID = "simurgh.general_knowledge.read"
 PUBLIC_PLACES_TOOL_ID = "simurgh.public_places.read"
 GEODESY_TOOL_ID = "simurgh.geodesy.calculate"
+COUNTRY_LOOKUP_TOOL_ID = "simurgh.country_from_coordinates.read"
 ADVISORY_TOOL_IDS = frozenset(
     {
         ADVISORY_ANSWER_TOOL_ID,
         GENERAL_KNOWLEDGE_TOOL_ID,
         PUBLIC_PLACES_TOOL_ID,
         GEODESY_TOOL_ID,
+        COUNTRY_LOOKUP_TOOL_ID,
     }
 )
 LOCAL_TOOL_IDS = frozenset(
@@ -46,12 +48,14 @@ LOCAL_TOOL_IDS = frozenset(
         GENERAL_KNOWLEDGE_TOOL_ID,
         PUBLIC_PLACES_TOOL_ID,
         GEODESY_TOOL_ID,
+        COUNTRY_LOOKUP_TOOL_ID,
     }
 )
 LOCAL_TOOL_INTENT_FILTERS = {
     GENERAL_KNOWLEDGE_TOOL_ID: frozenset({"general_knowledge", "autopilot_support"}),
     PUBLIC_PLACES_TOOL_ID: frozenset({"public_geography"}),
     GEODESY_TOOL_ID: frozenset({"public_geography"}),
+    COUNTRY_LOOKUP_TOOL_ID: frozenset({"coordinate_geography"}),
 }
 
 
@@ -820,6 +824,33 @@ def _execute_advisory_tool(
             structured_content=payload,
             truncated=bool(payload.get("truncated")),
             evidence=evidence,
+        )
+
+    if tool.id == COUNTRY_LOOKUP_TOOL_ID:
+        from .geography import format_country_resolution, resolve_country
+
+        result = resolve_country(
+            arguments.get("latitude"),
+            arguments.get("longitude"),
+        )
+        payload = result.public_payload()
+        text = format_country_resolution(result)
+        evidence = ReadOnlyEvidenceBundle.from_answer(
+            intent="coordinate_geography",
+            response_mode="interpret",
+            tool_ids=(tool.id,),
+            content=text,
+            safety_notes=tool.safety_notes,
+            summary=(
+                f"{tool.title}: {result.country or result.status} "
+                f"for a validated WGS84 coordinate"
+            ),
+        )
+        return ReadOnlyToolCallResult(
+            text=text,
+            is_error=result.status == "invalid",
+            structured_content=payload if result.status != "invalid" else None,
+            evidence=evidence if result.status != "invalid" else None,
         )
 
     raw_question = arguments.get("question")

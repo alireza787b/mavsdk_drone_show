@@ -27,6 +27,7 @@ from agent_runtime import (
 from agent_runtime.evidence import ReadOnlyEvidenceBundle
 from agent_runtime.assistant import (
     _previous_evidence_followup_fallback_turn,
+    _is_provider_runtime_recoverable,
     _semantic_rewrite_from_payload,
     redact_sensitive_input_for_provider,
     rewrite_operator_message_with_provider,
@@ -108,6 +109,19 @@ def test_previous_evidence_provider_fallback_uses_operator_language():
 
     assert "evidence already checked" in turn.content.casefold()
     assert "read-only simurgh answer" not in turn.content.casefold()
+
+
+@pytest.mark.parametrize("status", (408, 409, 425, 429, 500, 502, 503, 504))
+def test_provider_http_service_failures_are_recoverable_chat_errors(status):
+    assert _is_provider_runtime_recoverable(
+        AgentRuntimeError(f"OpenAI assistant request failed with HTTP {status}")
+    )
+
+
+def test_provider_schema_failure_is_not_treated_as_transient():
+    assert not _is_provider_runtime_recoverable(
+        AgentRuntimeError("OpenAI semantic rewrite did not return valid JSON")
+    )
 
 
 def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, tmp_path):
@@ -1583,6 +1597,32 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
     assert "47.3977420" in answer.content
     assert "8.4 m" in answer.content
     assert "Fleet status from GCS configuration" not in answer.content
+
+
+def test_explicit_coordinate_country_lookup_is_local_and_provider_independent(monkeypatch):
+    from agent_runtime.mds_read_tools import classify_mds_read_intent
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setattr(
+        "agent_runtime.assistant.rewrite_operator_message_with_provider",
+        lambda **_kwargs: pytest.fail("explicit coordinate lookup must stay local"),
+    )
+
+    assert classify_mds_read_intent(
+        "What country is at latitude 35.7243907, longitude 51.2756087?"
+    ) == "coordinate_geography"
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="What country is at latitude 35.7243907, longitude 51.2756087?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "coordinate_geography"
+    assert "Iran" in record.turn.content
+    assert "offline boundary" in record.turn.content
 
 
 def test_fleet_identity_matching_does_not_treat_domain_words_as_callsigns():

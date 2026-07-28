@@ -24,6 +24,24 @@ _PLURAL_TARGET_RE = re.compile(
 )
 _NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_])[-+]?\d+(?:\.\d+)?")
 _TARGET_ID_PLACEHOLDER = "{id}"
+_CONTEXTUAL_TARGET_RE = re.compile(
+    r"\b(?:"
+    r"it|its|them|their|"
+    r"this|that|these|those|"
+    r"the\s+(?:drone|vehicle|aircraft)|"
+    r"this\s+(?:drone|vehicle|aircraft)|"
+    r"that\s+(?:drone|vehicle|aircraft)|"
+    r"same\s+(?:drone|vehicle|aircraft)|"
+    r"previous\s+(?:drone|vehicle|aircraft|target)|"
+    r"last\s+(?:drone|vehicle|aircraft|target)"
+    r")\b",
+    re.IGNORECASE,
+)
+_ALL_TARGETS_RE = re.compile(
+    r"\b(?:all|every|both|multiple|several)\s+"
+    r"(?:drone|drones|vehicle|vehicles|aircraft|targets)\b",
+    re.IGNORECASE,
+)
 
 
 def canonical_target_id(value: object) -> str:
@@ -76,6 +94,28 @@ def extract_explicit_target_ids(messages: Iterable[str]) -> tuple[str, ...]:
                 if target and target not in values:
                     values.append(target)
     return tuple(values)
+
+
+def refers_to_contextual_target(message: str) -> bool:
+    """Return whether a read/action prompt refers back to an existing target.
+
+    This is the small deterministic English fallback. Provider-backed semantic
+    routing handles multilingual references, while local routing uses this only
+    with already-grounded structured target IDs.
+    """
+
+    text = str(message or "")
+    return bool(_CONTEXTUAL_TARGET_RE.search(text)) and not explicitly_requests_all_targets(text)
+
+
+def explicitly_requests_all_targets(message: str) -> bool:
+    """Return whether a prompt explicitly broadens scope beyond prior targets."""
+
+    text = str(message or "")
+    return bool(
+        _ALL_TARGETS_RE.search(text)
+        or re.search(r"\b(?:whole|entire)\s+fleet\b", text, flags=re.IGNORECASE)
+    )
 
 
 def structured_target_ids(payload: Mapping[str, Any] | None) -> tuple[str, ...]:
