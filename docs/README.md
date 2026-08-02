@@ -74,6 +74,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[MDS vNext Architecture Consultation](plans/2026-07-28-mds-next-major-architecture-consultation.md)** - data ownership, migration boundaries, rollout phases, and architecture decisions for the next major version
 - **[MDS vNext Plain-Language and Private-Drift Review](plans/2026-07-28-mds-vnext-plain-language-and-private-drift-review.md)** - beginner-friendly lifecycle examples, official/private drift analysis, and operator workflows
 - **[MDS vNext Connectivity, Recovery, and Operations Review](plans/2026-07-28-mds-vnext-connectivity-recovery-and-operations-review.md)** - NetBird/Tailscale/LAN connectivity, MAVLink Anywhere, Smart WiFi, GCS loss, recovery, and scale scenarios
+- **[Field Launch Readiness Incident Checkpoint](plans/2026-08-02-field-launch-readiness-incident.md)** - sanitized field timeline, safety boundary, proven launch/readiness/control-plane defects, reconnect evidence plan, and systematic cross-repo fix boundary
 - **[Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md)** - historical checkpoint retained for project history; not indexed as live agent context
 - **[Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md)** - n8n, Claude, VS Code, and custom-agent connection guidance
 
