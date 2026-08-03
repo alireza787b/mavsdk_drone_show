@@ -63,7 +63,7 @@ def _health_stream(samples):
     return _stream
 
 
-def _battery(*, remaining_percent=0.80, voltage_v=16.0):
+def _battery(*, remaining_percent=80.0, voltage_v=16.0):
     return SimpleNamespace(
         remaining_percent=remaining_percent,
         voltage_v=voltage_v,
@@ -92,7 +92,7 @@ def _connected_drone():
 async def test_wait_until_offboard_armable_returns_when_armable():
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
-    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.82, voltage_v=15.7)])
+    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=82.0, voltage_v=15.7)])
 
     result = await mission_startup.wait_until_offboard_armable(
         drone,
@@ -227,22 +227,22 @@ async def test_probe_offboard_armability_marks_missing_health_observation_expire
 
 @pytest.mark.parametrize(
     ("raw_remaining", "expected_percent"),
-    [(0.0, 0.0), (0.76, 76.0), (1.0, 100.0)],
+    [(0.0, 0.0), (0.76, 0.76), (1.0, 1.0), (76.0, 76.0), (100.0, 100.0)],
 )
-def test_battery_remaining_converts_mavsdk_fraction_to_percentage_points(raw_remaining, expected_percent):
+def test_battery_remaining_preserves_mavsdk_percentage_points(raw_remaining, expected_percent):
     assert mission_startup._normalize_remaining_percent(raw_remaining) == pytest.approx(expected_percent)
 
 
-@pytest.mark.parametrize("raw_remaining", [-1.0, 1.01, 24.0, 100.0, float("nan"), float("inf"), None])
+@pytest.mark.parametrize("raw_remaining", [-1.0, 100.01, float("nan"), float("inf"), None])
 def test_battery_remaining_rejects_values_outside_mavsdk_contract(raw_remaining):
     assert mission_startup._normalize_remaining_percent(raw_remaining) is None
 
 
 @pytest.mark.asyncio
-async def test_mavsdk_fraction_is_converted_once_at_the_contract_boundary(monkeypatch):
+async def test_mavsdk_percentage_points_are_preserved_at_the_contract_boundary(monkeypatch):
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
-    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.8)])
+    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=80.0)])
     monkeypatch.setattr(mission_startup.Params, "LAUNCH_BATTERY_MIN_REMAINING_PERCENT", 30.0)
 
     result = await mission_startup.probe_offboard_armability(
@@ -259,7 +259,7 @@ async def test_mavsdk_fraction_is_converted_once_at_the_contract_boundary(monkey
 async def test_launch_readiness_blocks_below_configured_battery_reserve(monkeypatch):
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
-    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.24, voltage_v=15.1)])
+    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=24.0, voltage_v=15.1)])
     monkeypatch.setattr(mission_startup.Params, "LAUNCH_BATTERY_MIN_REMAINING_PERCENT", 35.0)
 
     result = await mission_startup.probe_offboard_armability(
@@ -276,7 +276,7 @@ async def test_launch_readiness_blocks_below_configured_battery_reserve(monkeypa
 
     with pytest.raises(mission_startup.LaunchReadinessError) as exc_info:
         drone.telemetry.health = _health_stream([_health()])
-        drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.24, voltage_v=15.1)])
+        drone.telemetry.battery = _battery_stream([_battery(remaining_percent=24.0, voltage_v=15.1)])
         await mission_startup.wait_until_offboard_armable(
             drone,
             require_global_position=True,
@@ -314,7 +314,7 @@ async def test_real_launch_readiness_fails_closed_without_battery_remaining(monk
 async def test_stock_sitl_launch_uses_actual_battery_telemetry_without_bypass(monkeypatch):
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
-    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.80, voltage_v=16.0)])
+    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=80.0, voltage_v=16.0)])
     monkeypatch.setattr(mission_startup.Params, "sim_mode", True)
 
     result = await mission_startup.probe_offboard_armability(
@@ -332,7 +332,7 @@ async def test_stock_sitl_launch_uses_actual_battery_telemetry_without_bypass(mo
 async def test_launch_readiness_does_not_use_pack_voltage_threshold(monkeypatch):
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
-    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=0.90, voltage_v=3.7)])
+    drone.telemetry.battery = _battery_stream([_battery(remaining_percent=90.0, voltage_v=3.7)])
     monkeypatch.setattr(mission_startup.Params, "LAUNCH_BATTERY_MIN_REMAINING_PERCENT", 30.0)
 
     result = await mission_startup.probe_offboard_armability(

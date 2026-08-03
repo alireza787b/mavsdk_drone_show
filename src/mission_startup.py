@@ -105,16 +105,17 @@ def _launch_battery_minimum_percent(logger: logging.Logger) -> float:
 
 
 def _normalize_remaining_percent(value) -> float | None:
-    """Convert MAVSDK Telemetry.Battery's documented 0..1 fraction to percent.
+    """Validate MAVSDK Telemetry.Battery percentage points at the SDK boundary.
 
-    This boundary is intentionally strict: values outside 0..1 are malformed
-    for the MAVSDK Telemetry plugin and are never guessed to be percentage
-    points. Internal policy and operator evidence use 0..100 percentage points.
+    MAVSDK 3.x documents and emits ``remaining_percent`` in the 0..100 range.
+    This boundary is intentionally strict: values outside that range are
+    malformed and fraction-looking values are not guessed or rescaled. Internal
+    policy and operator evidence use the same 0..100 percentage-point unit.
     """
-    remaining_fraction = _finite_float(value)
-    if remaining_fraction is None or not 0.0 <= remaining_fraction <= 1.0:
+    remaining_percent = _finite_float(value)
+    if remaining_percent is None or not 0.0 <= remaining_percent <= 100.0:
         return None
-    return remaining_fraction * 100.0
+    return remaining_percent
 
 
 def _battery_from_evidence(
