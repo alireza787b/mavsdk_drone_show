@@ -6,9 +6,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MDS_REPO_ROOT="$REPO_ROOT"
 DEPLOYMENT_PROFILE_LOADER="$SCRIPT_DIR/load_deployment_profile.sh"
+RUNTIME_PATH_HELPER="$SCRIPT_DIR/shell_runtime_paths.sh"
 if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
     # shellcheck disable=SC1090
     source "$DEPLOYMENT_PROFILE_LOADER"
+fi
+if [[ -f "$RUNTIME_PATH_HELPER" ]]; then
+    # shellcheck disable=SC1090
+    source "$RUNTIME_PATH_HELPER"
+else
+    printf 'ERROR: runtime path helper is missing: %s\n' "$RUNTIME_PATH_HELPER" >&2
+    exit 1
 fi
 
 DEFAULT_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
@@ -110,6 +118,10 @@ github_https_repo_url() {
 
 require_cmd git
 
+if ! MDS_RESOLVED_USER_HOME="$(mds_resolve_user_home)"; then
+    fail "Cannot resolve the current account home; set MDS_USER_HOME explicitly for this supervisor."
+fi
+
 [[ -n "$REPO_URL" ]] || fail "MDS_REPO_URL is empty"
 [[ -n "$BRANCH" ]] || fail "MDS_BRANCH is empty"
 
@@ -128,7 +140,7 @@ TMP_DIR=""
 
 runtime_tmp_dir() {
     local candidate
-    for candidate in "${XDG_RUNTIME_DIR:-}" "${HOME:-}/.cache/mds-runtime" "/var/tmp/mds-runtime"; do
+    for candidate in "${XDG_RUNTIME_DIR:-}" "${MDS_RESOLVED_USER_HOME}/.cache/mds-runtime" "/var/tmp/mds-runtime"; do
         [[ -n "$candidate" ]] || continue
         mkdir -p "$candidate" 2>/dev/null || continue
         chmod 700 "$candidate" 2>/dev/null || true
@@ -148,9 +160,9 @@ trap cleanup EXIT
 
 if should_use_ssh; then
     [[ -r "$MDS_GIT_SSH_KEY_FILE" ]] || fail "MDS_GIT_SSH_KEY_FILE is not readable: $MDS_GIT_SSH_KEY_FILE"
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
-    export GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${MDS_GIT_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
+    mkdir -p "$MDS_RESOLVED_USER_HOME/.ssh"
+    chmod 700 "$MDS_RESOLVED_USER_HOME/.ssh"
+    export GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${MDS_GIT_KNOWN_HOSTS_FILE:-$MDS_RESOLVED_USER_HOME/.ssh/known_hosts}"
     export GIT_TERMINAL_PROMPT=0
     AUTH_MODE="ssh-key-file"
 elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
