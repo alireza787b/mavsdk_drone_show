@@ -400,7 +400,6 @@ This is parsed by `actions.py` for logging and status tracking.
 | `/api/v1/fleet/git-sync/apply` | POST | Confirm a dry-run and dispatch UPDATE_CODE to eligible drones |
 | `/api/v1/fleet/node-boot-status` | POST | Machine endpoint for boot/update phase reports; observability only |
 | `/api/v1/fleet/node-boot-status` | GET | Latest boot/update reports for Fleet Ops/Overview; does not affect commandability |
-| `/api/v1/git/sync-operations` | POST | Deprecated compatibility route; returns failure guidance and does not dispatch UPDATE_CODE |
 | `/ws/git-status` | WebSocket | Real-time git status stream |
 
 ## Files
@@ -415,7 +414,7 @@ This is parsed by `actions.py` for logging and status tracking.
 
 ### Drone Side
 - `src/drone_api_server.py` - `GET /api/v1/git/status` endpoint
-- `src/drone_communicator.py` - preserves runtime mission fields like `update_branch` and `reboot_after_params` so operator-triggered sync/param actions execute with the intended payload
+- `src/drone_communicator.py` - validates and preserves the typed `update_branch` command field for the tracked update workflow
 - `actions.py` - `update_code()` action handler
 - `tools/update_repo_ssh.sh` - SSH-based git sync script (production)
 

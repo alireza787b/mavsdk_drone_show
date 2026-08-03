@@ -4,7 +4,22 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import MissionActionBar from './MissionActionBar';
 
 describe('MissionActionBar', () => {
-  it('prioritizes replan instead of fake resume when holding', () => {
+  it('fails closed when backend control authority is unavailable', () => {
+    render(
+      <MissionActionBar
+        missionState="executing"
+        onReplan={jest.fn()}
+        onPause={jest.fn()}
+        onAbort={jest.fn()}
+      />
+    );
+
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeDisabled();
+    });
+  });
+
+  it('offers a follow-up replan when the mission is holding', () => {
     const onReplan = jest.fn();
     const onPause = jest.fn();
     const onAbort = jest.fn();

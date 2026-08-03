@@ -165,15 +165,14 @@ scenarios:
     provider_response_fixture:
       output_text: >
         Start read-only: verify the selected QGC vehicle, confirm each drone has
-        a unique PX4 SYS_ID, use the dashboard Init Sys ID workflow or manual
-        PX4 parameter view only under human control, and compare telemetry labels
-        before any flight action.
+        a unique PX4 SYS_ID, use the dashboard PX4 Parameters workspace under
+        human control, and compare telemetry labels before any flight action.
     expected:
       provider: openai
       must_include:
         - selected QGC vehicle
         - unique PX4 SYS_ID
-        - Init Sys ID
+        - PX4 Parameters
         - human control
       must_not_include:
         - command drones

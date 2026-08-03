@@ -20,12 +20,15 @@ reordering cannot create duplicate or misleading TODO identifiers.
 **Solution:** Add `mav_sys_id` field to config.json. `hw_id` becomes a pure software identity (any positive integer). `mav_sys_id` is the MAVLink address (1-254), independently assigned. Consider Skybrush's `SHOW_GROUP` parameter approach for >250 drones.
 
 **Files to modify:**
-- `actions.py` — `init_sysid()` function (currently sets `MAV_SYS_ID = HW_ID`)
 - `multiple_sitl/startup_sitl.sh` — `MAV_SYS_ID` env variable
 - `gcs-server/config.py` — add `mav_sys_id` to drone schema
 - `src/drone_config/config_loader.py` — load mav_sys_id from config.json
 - `tools/mds_init_lib/common.sh` — `validate_drone_id()` upper bound (currently 999)
 - Frontend config editor — add mav_sys_id field
+
+PX4 identity changes already belong to the typed PX4 Parameters workspace and
+service. There is no separate identity-specific action or direct
+parameter-writing CLI to migrate.
 
 **Reference:** Skybrush Sidekick 1.8.0+ `SHOW_GROUP` extension
 
@@ -83,20 +86,19 @@ reordering cannot create duplicate or misleading TODO identifiers.
 
 ---
 
-## QuickScout: Mission-batch launch identity and optional continue/resume adapter
+## QuickScout: Optional continue/resume adapter
 
 **Status:** Deferred — wait until the new QuickScout mission workspace and operator workflow settle
 
-**Problem:** QuickScout now uses the shared tracked command lifecycle for launch, hold, and abort, and monitor mode no longer pretends paused coverage packages can directly resume in V1. Two deliberate follow-up design questions still remain:
-
-- launch creates one tracked command per drone because each QuickScout plan payload is unique
-- a true FC-backed continue/resume adapter does not exist; the current product doctrine is to hold, then plan a follow-up package from current state
-
-These are acceptable for the current subsystem maturity, but they should stay visible as follow-up design decisions rather than getting forgotten as accidental permanent behavior.
+**Problem:** QuickScout now uses one shared tracked command batch with exact
+per-target payloads for launch, plus the shared tracked lifecycle for hold and
+abort. Monitor mode no longer pretends paused coverage packages can directly
+resume in V1. A true FC-backed continue/resume adapter does not exist; the
+current product doctrine is to hold, then plan a follow-up package from current
+state.
 
 **Solution:** Revisit both after the next QuickScout workflow/UI slices:
 
-- decide whether operators need a mission-batch launch identity that groups the per-drone launch commands under one mission-level launch record
 - design a true continue/resume adapter only if the mission executor and operator workflow can support it cleanly without weakening the current honest hold-and-replan doctrine
 
 **Likely touch points:**
@@ -131,32 +133,22 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ---
 
-## PX4 Parameters: Converge maintenance identity and firmware reporting
+## PX4 Parameters: Add authoritative firmware reporting
 
 **Priority:** Medium
 **Status:** Deferred — do not duplicate or hardcode before there is one clean shared contract
 
-**Problem:** The product now has a proper `PX4 Parameters` workspace, but two related maintenance concerns still sit outside that finished operator model:
-
-- `INIT_SYSID` is still a legacy maintenance action that writes `MAV_SYS_ID`
-  directly in the action pipeline instead of going through the newer shared
-  PX4 parameter service surface
-- operators may want PX4 firmware/build identity beside parameter operations,
-  but MDS should not guess or hardcode that from mixed sources
+**Problem:** Operators may want PX4 firmware/build identity beside parameter
+operations, but MDS should not guess or hardcode that from mixed sources.
 
 **Solution:**
 
-- migrate `INIT_SYSID` onto the shared PX4 parameter write path when the action
-  pipeline audit is active, but keep it as a maintenance workflow, not a second
-  overlapping runtime control surface inside the main parameter table
 - only add firmware/build identity to the PX4 Parameters page after there is a
   clean vehicle-served source, ideally PX4 component metadata / autopilot
   version semantics cached by vehicle identity
 
 **Likely touch points:**
 
-- `actions.py`
-- `src/drone_setup.py`
 - `src/px4_params/service.py`
 - `app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js`
 - future hardware-grade metadata cache / vehicle identity services
@@ -186,20 +178,100 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ---
 
-## Command Runtime: Audit DroneSetup, actions.py, and runner ownership
+## Fleet Transport: Validate deterministic large-fleet command distribution
+
+**Priority:** High before claiming hundreds/thousands-of-drones timing
+**Status:** Deferred — the bounded direct fan-out is valid for the current
+field-test fleet, but it is not a thousand-node performance claim
+
+**Problem:** The GCS now uses bounded asynchronous preparation and dispatch
+with a separate recovery lane. That prevents one slow node from serializing the
+entire request or starving LAND/RTL, but fixed local concurrency and deadlines
+alone do not prove synchronized launch timing, fault isolation, or control-plane
+health for hundreds or thousands of nodes.
+
+**Acceptance criteria:** Build a reproducible load/fault harness that measures
+preparation, dispatch, heartbeat/callback responsiveness, recovery-lane
+availability, deadline behavior, and operator aggregation at increasing fleet
+sizes. Use its evidence to choose direct, staged, or hierarchical distribution;
+do not encode a fleet-size threshold in production code before that evidence.
+
+**Likely touch points:**
+
+- `gcs-server/fleet_rpc.py`
+- `gcs-server/command_submission_coordinator.py`
+- `gcs-server/command_submission_pipeline.py`
+- a new deterministic load/fault harness and documented benchmark profile
+
+---
+
+## Command Runtime: Persist the node replay ledger across process restart
+
+**Priority:** High before claiming replay safety across companion restarts
+**Status:** Deferred — current field boundary is explicit and safe
+
+**Problem:** The durable GCS journal never automatically redispatches uncertain
+post-delivery work after a GCS restart. An exact lost-HTTP-response retry is
+also idempotent while the node API process remains alive. The node's bounded
+command replay ledger is currently process-local, however, so a companion
+process/host restart is outside that replay guarantee.
+
+**Acceptance criteria:** Persist the node ledger atomically outside the repo,
+bind it to exact command/target/payload identity, protect active and recent
+terminal records from unsafe eviction, define corruption/startup behavior, and
+prove through real process-restart tests that replay never executes twice.
+Keep the GCS rule that uncertain commands are reconciled, not automatically
+redispatched.
+
+**Likely touch points:**
+
+- `src/drone_api_server.py`
+- a focused node journal module and runtime state-dir registry entry
+- launch/idempotency HTTP tests with process restart
+
+---
+
+## Deployment: Retire the mixed-version command compatibility envelope
 
 **Priority:** Medium
-**Status:** Deferred — wait until Precision Move stabilizes under broader operator/SITL use
+**Status:** Deferred until nodes-first rollout and rollback are proven
 
-**Problem:** Precision Move landed on the new typed action-runner seam, but the wider action pipeline still needs one deliberate audit so older immediate actions, subprocess launch rules, runtime payload handling, and future MCP/manual/CLI entrypoints all converge cleanly on the same execution model.
+**Problem:** The field-hardening release temporarily allows the GCS to include
+new command metadata only when node capability/version evidence supports it.
+This prevents an all-at-once rollout dependency but becomes unnecessary legacy
+surface after every managed node supports the typed preparation and callback
+contracts.
 
-**Solution:** Review the full action pipeline and normalize:
+**Acceptance criteria:** Fleet Ops proves version/capability convergence,
+nodes-first promotion, and rollback on the real deployment. Then remove the
+compatibility branch, its tests, and its docs in one change so there is again
+one command envelope.
 
-- `DroneSetup` mission handler responsibilities
-- `actions.py` CLI/runtime adapter responsibilities
-- runner lifecycle hooks and payload loading
-- progress/error reporting seams
-- future MCP / manual-CLI entrypoint ergonomics
+---
+
+## Command Runtime: Decompose the stabilized action transaction adapter
+
+**Priority:** Medium
+**Status:** Deferred — correctness and safety ownership were completed in the
+field-launch hardening checkpoint; further extraction is maintainability work
+
+**Problem:** `actions.py` remains a large adapter because it owns shared MAVSDK
+connection setup plus the now-unified takeoff, ground-test, recovery, signal,
+cleanup, and terminal-result transactions. `DroneSetup`, typed request payloads,
+subprocess ownership, callback reporting, and the action runners now have tested
+boundaries; splitting the adapter during the incident release would add risk
+without changing operator behavior.
+
+**Solution:** After field validation, perform behavior-preserving extraction in
+small slices:
+
+- extract shared vehicle-state observation and cleanup transactions without
+  duplicating policy
+- retain one typed terminal-result protocol and one signal/cancellation owner
+- keep `DroneSetup` as process/lifecycle owner and action runners as typed
+  mission implementations
+- rerun the real signal, stale-telemetry, recovery, and SITL gates after each
+  extraction
 
 **Files to revisit:**
 - `src/drone_setup.py`

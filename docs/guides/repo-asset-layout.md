@@ -27,8 +27,7 @@ Current asset classes:
 
 - `resources/px4_param_profiles/`
   - approved PX4 parameter profiles for the dashboard `PX4 Parameters` page
-- `resources/common_params.csv`
-  - legacy compatibility bundle for the older `APPLY_COMMON_PARAMS` action path
+  - includes the reviewed `mds_multidrone_field_baseline` profile
 - `resources/config_*.json` / `resources/swarm_*.json`
   - sample or preset fleet layouts for setup workflows
 
@@ -80,8 +79,8 @@ Keep these ephemeral or gitignored unless a workflow explicitly promotes them.
   - review profile
   - compare against a selected drone snapshot
   - apply in `Batch`
-- the older `APPLY_COMMON_PARAMS` action remains compatibility-only and reads
-  `resources/common_params.csv` by default
+- use the typed profile/patch workflow for every normal parameter mutation;
+  the old action/CSV mutation path no longer exists
 
 ## Quick Rule Of Thumb
 

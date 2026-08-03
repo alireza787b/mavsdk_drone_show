@@ -1,6 +1,6 @@
 # Field Launch Readiness Incident Checkpoint
 
-**Status:** Evidence-preservation and root-cause investigation; no runtime fix or field release yet  
+**Status:** Systemic fixes and consolidated automated validation complete; fresh-SITL release validation pending
 **Incident window:** 2026-08-01 16:00-16:30 UTC  
 **Checkpoint date:** 2026-08-02  
 **Official baseline:** `b00a0599`  
@@ -11,8 +11,11 @@ the field report in which Take Off repeatedly failed, Bench Test armed both
 vehicles, another action lifted both vehicles, Land worked, and a later Take
 Off operated only one vehicle.
 
-The investigation was read-only. No drone command, process restart, repository
-sync, container change, or live configuration mutation was performed.
+The initial investigation was read-only. No drone command, process restart,
+repository sync, container change, or live configuration mutation was performed
+while preserving the field evidence. The subsequent official-repository fix is
+tracked by the finite
+[field launch readiness release gate](2026-08-03-field-launch-readiness-release-gate.md).
 
 ## Immediate Safety Boundary
 
@@ -281,7 +284,49 @@ is not a proven incident cause. Before the next field test, preserve evidence,
 then move production to a supervised single-owner service and remove stale SITL
 runtime only through the documented cleanup path.
 
-No runtime patch should be deployed until the node logs and ULogs above are
-preserved. Once captured, the first implementation slice should be validated in
-SITL and with injected readiness, latency, LED, cancellation, and link faults
-before any props-on test.
+The incident ULogs were not available from the GCS or validation VPS while the
+nodes were offline, so the exact PX4 arming blocker remains an explicit evidence
+gap rather than a guessed root cause. That gap did not justify leaving the
+independently proven MDS defects in place. The official fix now has focused
+coverage for readiness freshness, latency, LED failure, process signals,
+idempotent delivery, restart reconciliation, concurrency, and link ambiguity.
+It must still pass the consolidated suite and a new SITL operator run before
+promotion. The physical retest starts on one props-off vehicle and does not
+become a two-vehicle props-on test until the operator verifies version
+convergence, current readiness, QGC arming checks, and unambiguous command
+history.
+
+## Implemented Resolution Checkpoint
+
+The fix replaces the conflicting and process-local incident paths with shared,
+typed boundaries:
+
+- a connection-bound safety snapshot is now the sole action-time authority for
+  Take Off, Hold, and Arm/Disarm Ground Test; disconnect/reconnect, stale source
+  data, boot-clock rollback, mixed-age fields, and unknown evidence fail closed
+- launch preparation is command/target/payload-bound, one-use, time-bounded,
+  and revalidated at commit; exact lost-response replay cannot execute twice
+  inside the current node process
+- command preparation and fleet RPC are bounded asynchronous work with a
+  separate recovery lane; the HTTP receipt exposes a durable tracking identity
+  before slow work rather than hiding a later side effect behind a browser
+  timeout
+- the GCS SQLite/WAL journal preserves command identity, idempotency,
+  per-target evidence, deadlines, and callback authority across a restart;
+  uncertain post-dispatch work is reported as `delivery_unknown` and is never
+  automatically redispatched
+- Take Off and Ground Test handle SIGTERM/SIGINT cooperatively through bounded
+  cleanup; forced termination reports cleanup as unconfirmed instead of
+  inventing a safe final state
+- optional LED/SPI feedback cannot prevent or redefine recovery/emergency
+  command success, and Hold requires fresh armed-and-airborne evidence
+- QuickScout target identity and mission updates are transactional, mixed
+  delivery retains the active slot, and late callbacks remain audit evidence
+- the dashboard preserves the correct mission identity after refresh, keeps
+  terminal history out of the live primary card, and keeps dismissed failures
+  dismissed for the provider session
+
+Focused consolidation at this checkpoint passed 150 command/QuickScout tests
+and 179 action/safety tests. This is implementation evidence, not field-flight
+approval; the remaining release gates are deliberately bounded to one complete
+automated pass and one new SITL pass.

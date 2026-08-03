@@ -18,6 +18,7 @@ Author: MAVSDK Drone Show Test Team
 Last Updated: 2025-12-27
 """
 
+import asyncio
 import pytest
 import json
 import time
@@ -47,6 +48,7 @@ signal.signal = _safe_signal
 # Path configuration is handled by conftest.py
 
 from tests.conftest import SyncASGITestClient
+from tests.helpers.command_submission import DeferredSubmissionCoordinator
 
 
 # Mock the background services before importing the app
@@ -1950,63 +1952,6 @@ class TestGitStatusEndpoints:
         assert data['needs_sync_count'] == 0
         assert data['git_status']['1']['in_sync_with_gcs'] is False
 
-    @patch('app_fastapi._verify_sync_targets')
-    @patch('app_fastapi.send_commands_to_all')
-    @patch('app_fastapi.get_gcs_git_report')
-    @patch('app_fastapi.load_config')
-    def test_sync_repos_verifies_actual_convergence(
-        self,
-        mock_load_config,
-        mock_gcs_git_report,
-        mock_send_commands,
-        mock_verify_targets,
-        test_client,
-    ):
-        """Deprecated direct sync route should not bypass Fleet Ops dry-run/apply."""
-
-        response = test_client.post('/api/v1/git/sync-operations', json={})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['success'] is False
-        assert data['synced_drones'] == []
-        assert data['failed_drones'] == []
-        assert data['total_attempted'] == 0
-        assert data['target_branch'] is None
-        assert data['target_commit'] is None
-        assert 'Direct sync is disabled' in data['message']
-        mock_send_commands.assert_not_called()
-        mock_verify_targets.assert_not_called()
-
-    @patch('app_fastapi._verify_sync_targets')
-    @patch('app_fastapi.send_commands_to_all')
-    @patch('app_fastapi.get_gcs_git_report')
-    @patch('app_fastapi.load_config')
-    def test_sync_repos_v1_verifies_actual_convergence(
-        self,
-        mock_load_config,
-        mock_gcs_git_report,
-        mock_send_commands,
-        mock_verify_targets,
-        test_client,
-    ):
-        """Canonical sync route is disabled unless using Fleet Ops dry-run/apply."""
-
-        response = test_client.post('/api/v1/git/sync-operations', json={})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['success'] is False
-        assert data['synced_drones'] == []
-        assert data['failed_drones'] == []
-        assert data['total_attempted'] == 0
-        assert data['target_branch'] is None
-        assert data['target_commit'] is None
-        assert 'Direct sync is disabled' in data['message']
-        mock_send_commands.assert_not_called()
-        mock_verify_targets.assert_not_called()
-
-
 # ============================================================================
 # Swarm Management Tests
 # ============================================================================
@@ -2301,8 +2246,39 @@ class TestSwarmTrajectoryEndpoints:
 # Command Tests
 # ============================================================================
 
+def _prepared_launch_result(config):
+    target_ids = [str(drone["hw_id"]) for drone in config]
+    return {
+        "all_prepared": True,
+        "blocked_ids": [],
+        "unavailable_ids": [],
+        "preparation_tokens": {
+            target_id: f"prepare-{target_id}-" + ("x" * 48)
+            for target_id in target_ids
+        },
+        "results": {
+            target_id: {
+                "success": True,
+                "ready": True,
+                "summary": "Ready for launch",
+                "category": "ready",
+                "prepare_state": "ready",
+            }
+            for target_id in target_ids
+        },
+    }
+
 class TestCommandEndpoints:
     """Test command submission endpoints"""
+
+    @pytest.fixture(autouse=True)
+    def command_submission_runtime(self, monkeypatch):
+        """Capture background submission work for explicit route-test advancement."""
+        import app_fastapi
+
+        coordinator = DeferredSubmissionCoordinator()
+        monkeypatch.setattr(app_fastapi, "command_submission_coordinator", coordinator)
+        return coordinator
 
     def test_submit_command_rejects_malformed_json(self, test_client):
         response = test_client.post(
@@ -2314,24 +2290,28 @@ class TestCommandEndpoints:
         assert response.status_code == 422
         assert response.json()["detail"][0]["type"] == "json_invalid"
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.fleet_rpc_service.prepare_launch', new_callable=AsyncMock)
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
-    def test_submit_command(self, mock_load, mock_get_tracker, mock_send, mock_probe, test_client, mock_config):
-        """Test POST /api/v1/commands - new SubmitCommandResponse format"""
+    def test_submit_command(
+        self,
+        mock_load,
+        mock_get_tracker,
+        mock_dispatch,
+        mock_prepare,
+        test_client,
+        mock_config,
+        command_submission_runtime,
+    ):
+        """POST returns only a stable receipt for asynchronously tracked work."""
         from command_tracker import CommandTracker
 
         mock_load.return_value = mock_config
-        mock_get_tracker.return_value = CommandTracker(max_commands=20)
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        # Mock needs all expected fields from the updated command.py
-        mock_send.return_value = {
+        tracker = CommandTracker(max_commands=20)
+        mock_get_tracker.return_value = tracker
+        mock_prepare.return_value = _prepared_launch_result(mock_config)
+        mock_dispatch.return_value = {
             'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'result_summary': '2 accepted', 'results': {
                 '1': {'success': True, 'category': 'accepted'},
@@ -2343,33 +2323,43 @@ class TestCommandEndpoints:
         command_data = {
             'mission_type': 10,  # TAKE_OFF
             'trigger_time': 0,
+            'target_scope': 'all',
         }
 
         response = test_client.post("/api/v1/commands", json=command_data)
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
 
-        # New response format
-        assert 'command_id' in data
-        assert data['status'] == 'submitted'
+        assert data['accepted_for_tracking'] is True
+        assert data['command_id']
         assert data['mission_type'] == 10
-        assert 'mission_name' in data
-        assert 'target_drones' in data
-        assert 'submitted_count' in data
+        assert data['target_drones'] == ['1', '2']
         assert data['replayed'] is False
-        assert data['tracking_phase'] == 'pending_execution'
-        assert data['tracking_timeout_ms'] > 0
+        assert data['tracking_url'] == f"/api/v1/commands/{data['command_id']}"
+        assert set(data) == {
+            'accepted_for_tracking',
+            'command_id',
+            'idempotency_key',
+            'replayed',
+            'mission_type',
+            'mission_name',
+            'target_drones',
+            'tracking_url',
+            'message',
+            'timestamp',
+        }
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_selected')
+        asyncio.run(command_submission_runtime.run_all())
+        status = asyncio.run(tracker.get_status(data['command_id']))
+        assert status['phase'] == 'pending_execution'
+        assert status['acks']['accepted'] == 2
+
     @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
-    def test_submit_command_accepts_snake_case_aliases(
+    def test_submit_command_accepts_canonical_snake_case_envelope(
         self,
         mock_load,
         mock_get_tracker,
-        mock_send_selected,
-        mock_probe,
         test_client,
         mock_config,
     ):
@@ -2377,56 +2367,40 @@ class TestCommandEndpoints:
 
         mock_load.return_value = mock_config
         mock_get_tracker.return_value = CommandTracker(max_commands=20)
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        mock_send_selected.return_value = {
-            'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
-            'result_summary': '1 accepted', 'results': {
-                '1': {'success': True, 'category': 'accepted'}
-            }
-        }
-
         response = test_client.post("/api/v1/commands", json={
             'mission_type': 'TAKE_OFF',
             'trigger_time': 0,
             'target_drone_ids': ['1'],
-            'operator_label': 'Takeoff alias',
+            'operator_label': 'Takeoff',
         })
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
+        assert data['accepted_for_tracking'] is True
         assert data['mission_type'] == 10
         assert data['target_drones'] == ['1']
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.fleet_rpc_service.prepare_launch', new_callable=AsyncMock)
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
     def test_submit_command_replays_existing_idempotent_submission(
         self,
         mock_load,
         mock_get_tracker,
-        mock_send,
-        mock_probe,
+        mock_dispatch,
+        mock_prepare,
         test_client,
         mock_config,
+        command_submission_runtime,
     ):
         from command_tracker import CommandTracker
 
         tracker = CommandTracker(max_commands=20)
         mock_get_tracker.return_value = tracker
         mock_load.return_value = mock_config
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        mock_send.return_value = {
+        mock_prepare.return_value = _prepared_launch_result(mock_config)
+        mock_dispatch.return_value = {
             'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'result_summary': '2 accepted', 'results': {
                 '1': {'success': True, 'category': 'accepted'},
@@ -2437,32 +2411,32 @@ class TestCommandEndpoints:
         payload = {
             'mission_type': 10,
             'trigger_time': 0,
+            'target_scope': 'all',
             'idempotency_key': 'retry-123',
         }
 
         first = test_client.post("/api/v1/commands", json=payload)
         second = test_client.post("/api/v1/commands", json=payload)
 
-        assert first.status_code == 200
-        assert second.status_code == 200
+        assert first.status_code == 202
+        assert second.status_code == 202
         first_body = first.json()
         second_body = second.json()
         assert first_body['replayed'] is False
         assert second_body['replayed'] is True
         assert second_body['command_id'] == first_body['command_id']
         assert second_body['idempotency_key'] == 'retry-123'
-        assert mock_send.call_count == 1
+        assert mock_dispatch.await_count == 0
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_all')
+        asyncio.run(command_submission_runtime.run_all())
+        assert mock_dispatch.await_count == 1
+
     @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
     def test_submit_command_rejects_conflicting_idempotency_key_reuse(
         self,
         mock_load,
         mock_get_tracker,
-        mock_send,
-        mock_probe,
         test_client,
         mock_config,
     ):
@@ -2471,25 +2445,12 @@ class TestCommandEndpoints:
         tracker = CommandTracker(max_commands=20)
         mock_get_tracker.return_value = tracker
         mock_load.return_value = mock_config
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        mock_send.return_value = {
-            'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
-            'result_summary': '2 accepted', 'results': {
-                '1': {'success': True, 'category': 'accepted'},
-                '2': {'success': True, 'category': 'accepted'}
-            }
-        }
-
         first = test_client.post(
             "/api/v1/commands",
             json={
                 'mission_type': 10,
                 'trigger_time': 0,
+                'target_scope': 'all',
                 'idempotency_key': 'retry-123',
             },
         )
@@ -2498,26 +2459,28 @@ class TestCommandEndpoints:
             json={
                 'mission_type': 101,
                 'trigger_time': 0,
+                'target_scope': 'all',
                 'idempotency_key': 'retry-123',
             },
         )
 
-        assert first.status_code == 200
+        assert first.status_code == 202
         assert second.status_code == 409
         assert 'idempotency_key' in second.json()['detail']
 
     @patch('app_fastapi.load_origin')
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.fleet_rpc_service.prepare_launch', new_callable=AsyncMock)
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.load_config')
     def test_submit_command_preserves_valid_zero_origin_coordinates(
         self,
         mock_load,
-        mock_send,
-        mock_probe,
+        mock_dispatch,
+        mock_prepare,
         mock_load_origin,
         test_client,
         mock_config,
+        command_submission_runtime,
     ):
         mock_load.return_value = mock_config
         mock_load_origin.return_value = {
@@ -2527,13 +2490,8 @@ class TestCommandEndpoints:
             'timestamp': '2026-04-03T00:00:00',
             'alt_source': 'manual',
         }
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        mock_send.return_value = {
+        mock_prepare.return_value = _prepared_launch_result(mock_config)
+        mock_dispatch.return_value = {
             'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'result_summary': '2 accepted', 'results': {
                 '1': {'success': True, 'category': 'accepted'},
@@ -2544,17 +2502,19 @@ class TestCommandEndpoints:
         response = test_client.post("/api/v1/commands", json={
             'mission_type': 10,
             'trigger_time': 0,
+            'target_scope': 'all',
             'auto_global_origin': True,
         })
 
-        assert response.status_code == 200
-        sent_payload = mock_send.call_args[0][1]
+        assert response.status_code == 202
+        asyncio.run(command_submission_runtime.run_all())
+        sent_payload = mock_dispatch.await_args.args[1]
         assert sent_payload['origin']['lat'] == 0.0
         assert sent_payload['origin']['lon'] == 0.0
         assert sent_payload['origin']['alt'] == 4.5
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
-    @patch('app_fastapi.send_commands_to_selected')
+    @patch('app_fastapi.fleet_rpc_service.prepare_launch', new_callable=AsyncMock)
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.load_config')
     @patch('app_fastapi.get_swarm_trajectory_folders')
     @patch('app_fastapi.swarm_trajectory_service.get_processing_status_payload')
@@ -2563,20 +2523,16 @@ class TestCommandEndpoints:
         mock_status,
         mock_folders,
         mock_load,
-        mock_send_selected,
-        mock_probe,
+        mock_dispatch,
+        mock_prepare,
         test_client,
         mock_config,
         tmp_path,
+        command_submission_runtime,
     ):
         mock_load.return_value = mock_config
-        mock_probe.return_value = {
-            'all_ready': True,
-            'blocked_ids': [],
-            'unavailable_ids': [],
-            'results': {},
-        }
-        mock_send_selected.return_value = {
+        mock_prepare.return_value = _prepared_launch_result(mock_config)
+        mock_dispatch.return_value = {
             'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'result_summary': '1 accepted', 'results': {
                 '1': {'success': True, 'category': 'accepted'}
@@ -2609,29 +2565,53 @@ class TestCommandEndpoints:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
-        assert data['tracking_timeout_ms'] == 540000
-        assert data['tracking_phase'] == 'pending_execution'
-        mock_send_selected.assert_called_once()
+        assert data['accepted_for_tracking'] is True
 
-    @patch('app_fastapi.probe_live_armability_for_drones')
+        asyncio.run(command_submission_runtime.run_all())
+        import app_fastapi
+
+        status = asyncio.run(app_fastapi.get_command_tracker().get_status(data['command_id']))
+        # The authoritative budget starts after asynchronous preparation and
+        # includes the shared future trigger chosen for strict-sync missions.
+        # Remove that scheduled wait using one GCS status snapshot; the
+        # remaining mission budget must come from selected Drone 1's 100 s CSV,
+        # not unselected Drone 2's 500 s CSV.
+        remaining_budget_ms = status['timeout_at'] - status['observed_at']
+        scheduled_wait_ms = max(
+            0,
+            (status['params']['trigger_time'] * 1000) - status['observed_at'],
+        )
+        mission_budget_ms = remaining_budget_ms - scheduled_wait_ms
+        assert 539000 <= mission_budget_ms <= 540100
+        assert status['phase'] == 'pending_execution'
+        mock_dispatch.assert_awaited_once()
+
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
+    @patch('app_fastapi.fleet_rpc_service.prepare_launch', new_callable=AsyncMock)
     @patch('app_fastapi.load_config')
     def test_submit_command_rejects_takeoff_when_live_probe_fails(
         self,
         mock_load,
-        mock_probe,
+        mock_prepare,
+        mock_dispatch,
         test_client,
         mock_config,
+        command_submission_runtime,
     ):
         mock_load.return_value = mock_config
-        mock_probe.return_value = {
-            'all_ready': False,
+        mock_prepare.return_value = {
+            'all_prepared': False,
             'blocked_ids': ['1'],
             'unavailable_ids': [],
+            'preparation_tokens': {},
             'results': {
                 '1': {
                     'summary': 'waiting for PX4 armability',
+                    'ready': False,
+                    'category': 'blocked',
+                    'prepare_state': 'blocked',
                 },
             },
         }
@@ -2641,24 +2621,43 @@ class TestCommandEndpoints:
             json={
                 'mission_type': 10,
                 'trigger_time': 0,
+                'target_drone_ids': ['1'],
             },
         )
 
-        assert response.status_code == 400
-        assert 'Live launch readiness probe failed' in response.json()['detail']
+        assert response.status_code == 202
+        body = response.json()
+        assert body['accepted_for_tracking'] is True
 
-    @patch('app_fastapi.send_commands_to_selected')
+        asyncio.run(command_submission_runtime.run_all())
+        import app_fastapi
+
+        status = asyncio.run(app_fastapi.get_command_tracker().get_status(body['command_id']))
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'failed'
+        assert status['preparations']['blocked'] == 1
+        mock_dispatch.assert_not_awaited()
+
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.load_config')
     @patch('app_fastapi.swarm_trajectory_service.get_processing_status_payload')
     def test_submit_command_rejects_invalid_swarm_trajectory_subset(
         self,
         mock_status,
         mock_load,
-        mock_send_selected,
+        mock_dispatch,
         test_client,
         mock_config,
     ):
-        mock_load.return_value = mock_config
+        mock_load.return_value = [
+            *mock_config,
+            {
+                'pos_id': 3,
+                'hw_id': '3',
+                'ip': '192.168.1.103',
+                'mavlink_port': 14542,
+            },
+        ]
         mock_status.return_value = {
             'status': {
                 'processed_drones': [1, 2, 3],
@@ -2677,7 +2676,7 @@ class TestCommandEndpoints:
 
         assert response.status_code == 400
         assert 'Unsafe Swarm Trajectory target set' in response.json()['detail']
-        mock_send_selected.assert_not_called()
+        mock_dispatch.assert_not_awaited()
 
     @patch('app_fastapi.load_config')
     def test_submit_command_rejects_unmatched_target_drones(
@@ -2698,7 +2697,81 @@ class TestCommandEndpoints:
         )
 
         assert response.status_code == 400
-        assert response.json()['detail'] == 'No configured drones matched target_drone_ids'
+        assert response.json()['detail'] == (
+            'Unknown target hardware ID(s): 999. No command was dispatched.'
+        )
+
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
+    @patch('app_fastapi.load_config')
+    def test_submit_command_targets_hardware_id_not_ambiguous_position_id(
+        self,
+        mock_load,
+        mock_dispatch,
+        test_client,
+        command_submission_runtime,
+    ):
+        mock_load.return_value = [
+            {'hw_id': 1, 'pos_id': 2, 'ip': '10.0.0.1'},
+            {'hw_id': 2, 'pos_id': 1, 'ip': '10.0.0.2'},
+        ]
+        mock_dispatch.return_value = {
+            'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '1 accepted',
+            'results': {'1': {'success': True, 'category': 'accepted'}},
+        }
+
+        response = test_client.post(
+            '/api/v1/commands',
+            json={'mission_type': 101, 'trigger_time': 0, 'target_drone_ids': ['1']},
+        )
+
+        assert response.status_code == 202
+        asyncio.run(command_submission_runtime.run_all())
+        dispatched_targets = mock_dispatch.await_args.args[0]
+        assert [drone['hw_id'] for drone in dispatched_targets] == [1]
+
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
+    @patch('app_fastapi.load_config')
+    def test_submit_command_rejects_partial_unknown_target_set_without_dispatch(
+        self,
+        mock_load,
+        mock_dispatch,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+
+        response = test_client.post(
+            '/api/v1/commands',
+            json={'mission_type': 101, 'trigger_time': 0, 'target_drone_ids': ['1', '999']},
+        )
+
+        assert response.status_code == 400
+        assert 'Unknown target hardware ID(s): 999' in response.json()['detail']
+        mock_dispatch.assert_not_awaited()
+
+    @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
+    @patch('app_fastapi.load_config')
+    def test_submit_command_rejects_duplicate_configured_hardware_identity(
+        self,
+        mock_load,
+        mock_dispatch,
+        test_client,
+    ):
+        mock_load.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': 1, 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+
+        response = test_client.post(
+            '/api/v1/commands',
+            json={'mission_type': 101, 'trigger_time': 0, 'target_scope': 'all'},
+        )
+
+        assert response.status_code == 409
+        assert 'duplicate hardware IDs: 1' in response.json()['detail']
+        assert 'No command was dispatched' in response.json()['detail']
+        mock_dispatch.assert_not_awaited()
 
 
 # ============================================================================
@@ -2763,7 +2836,6 @@ class TestAPIV1Aliases:
             "/api/v1/origin/compute",
             "/api/v1/origin/launch-positions",
             "/api/v1/git/status",
-            "/api/v1/git/sync-operations",
             "/api/v1/shows/skybrush",
             "/api/v1/shows/custom",
             "/api/v1/shows/skybrush/import",
@@ -2828,7 +2900,6 @@ class TestAPIV1Aliases:
             "/api/sar/mission/{mission_id}/status",
             "/api/sar/mission/{mission_id}/handoff",
             "/api/sar/mission/{mission_id}/pause",
-            "/api/sar/mission/{mission_id}/resume",
             "/api/sar/mission/{mission_id}/abort",
             "/api/sar/mission/{mission_id}/progress",
             "/api/sar/findings",

@@ -48,13 +48,13 @@ except ModuleNotFoundError:
     sys.modules["aiogrpc"] = MagicMock(name="aiogrpc")
 
 from src.drone_api_server import DroneAPIServer
+from src.command_installation import CommandInstallationResult
+from src.enums import Mission, State
 from src.params import Params
 from src.drone_config import DroneConfig
 
 # Import test fixtures
 from tests.fixtures.drone_configs import (
-    DroneConfigData,
-    ZURICH_ORIGIN,
     single_drone_sitl,
     single_drone_real,
     single_drone_armed,
@@ -73,20 +73,6 @@ from tests.fixtures.drone_configs import (
     drones_to_telemetry_response,
 )
 
-from tests.fixtures.command_samples import (
-    MissionType,
-    cmd_takeoff,
-    cmd_land,
-    cmd_hold,
-    cmd_rtl,
-    cmd_kill_terminate,
-    cmd_drone_show,
-    cmd_smart_swarm,
-    cmd_hover_test,
-    all_valid_commands,
-    all_invalid_commands,
-)
-
 from tests.fixtures.telemetry_samples import (
     PX4FlightMode,
     MAVState,
@@ -96,15 +82,6 @@ from tests.fixtures.telemetry_samples import (
     multi_drone_telemetry,
     fifty_drone_telemetry,
     heartbeat_response,
-)
-
-from tests.fixtures.mission_samples import (
-    Mission,
-    MissionState,
-    MissionConfig,
-    sample_trajectory_csv,
-    origin_zurich,
-    swarm_config_single_leader,
 )
 
 from tests.mocks.mavlink_simulator import (
@@ -222,6 +199,7 @@ def mock_params():
     params.max_takeoff_alt = 100
     params.heartbeat_interval = 10
     params.SMART_SWARM_STATE_STREAM_RATE_HZ = 15
+    params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC = 15
     return params
 
 
@@ -271,18 +249,20 @@ def mock_drone_config():
 
     config.hw_id = '1'
     config.pos_id = 0  # Add explicit pos_id for validation
-    config.state = MissionState.IDLE
-    config.mission = Mission.NONE
-    config.last_mission = Mission.NONE
+    config.state = State.IDLE.value
+    config.mission = Mission.NONE.value
+    config.last_mission = Mission.NONE.value
     config.trigger_time = 0
     config.is_armed = False
     config.is_ready_to_arm = True
     config.current_command_id = None  # For command tracking
     config.telemetry_timestamp_ms = 1732270245000
     config.telemetry_sequence = 7
+    config.heartbeat_timestamp_ms = 0
     config.gps_raw_timestamp_ms = 1732270245000
     config.global_position_timestamp_ms = 1732270245000
     config.global_position_valid = True
+    config.relative_altitude_m = None
     config.position_source = "global_position_int"
     config.yaw_rate_deg_s = 0.0
 
@@ -290,7 +270,7 @@ def mock_drone_config():
 
 
 @pytest.fixture
-def mock_drone_communicator():
+def mock_drone_communicator(mock_drone_config):
     """Mock DroneCommunicator with test drone state"""
     communicator = Mock()
 
@@ -325,8 +305,26 @@ def mock_drone_communicator():
         "emitted_at_ms": 1732270245123,
     }
 
-    # Mock command processing
-    communicator.process_command = Mock()
+    # Model the canonical communicator contract: ownership is bound inside the
+    # same successful transaction and the caller receives typed commit proof.
+    def process_command(command_data):
+        mission_type = int(command_data["mission_type"])
+        trigger_time = int(command_data["trigger_time"])
+        command_id = command_data.get("command_id")
+        mock_drone_config.mission = mission_type
+        mock_drone_config.trigger_time = trigger_time
+        mock_drone_config.current_command_id = command_id
+        mock_drone_config.state = 1
+        return CommandInstallationResult(
+            committed=True,
+            mission=mission_type,
+            trigger_time=trigger_time,
+            state=1,
+            command_id=command_id,
+            artifact_paths=(),
+        )
+
+    communicator.process_command = Mock(side_effect=process_command)
 
     return communicator
 
@@ -343,12 +341,6 @@ def api_server(mock_params, mock_drone_config, mock_drone_communicator):
 def test_client(api_server):
     """Create TestClient for HTTP requests"""
     return SyncASGITestClient(api_server.app)
-
-
-@pytest.fixture
-def sample_command():
-    """Sample command data for testing"""
-    return cmd_takeoff()
 
 
 # ============================================================================
@@ -450,77 +442,6 @@ def heartbeat_five_drones():
 
 
 # ============================================================================
-# Command Fixtures
-# ============================================================================
-
-@pytest.fixture
-def cmd_takeoff_10m():
-    """Takeoff command to 10m"""
-    return cmd_takeoff(altitude=10.0)
-
-
-@pytest.fixture
-def cmd_drone_show_zurich():
-    """Drone show command with Zurich origin"""
-    return cmd_drone_show(auto_origin=True, origin=ZURICH_ORIGIN)
-
-
-@pytest.fixture
-def valid_commands():
-    """All valid command samples"""
-    return all_valid_commands()
-
-
-@pytest.fixture
-def invalid_commands():
-    """All invalid command samples"""
-    return all_invalid_commands()
-
-
-# ============================================================================
-# Mission Fixtures
-# ============================================================================
-
-@pytest.fixture
-def mission_config_takeoff():
-    """Mission config for takeoff"""
-    return MissionConfig(
-        mission_type=Mission.TAKE_OFF,
-        trigger_time=0,  # Immediate
-        takeoff_altitude=10.0
-    )
-
-
-@pytest.fixture
-def mission_config_drone_show():
-    """Mission config for drone show"""
-    return MissionConfig(
-        mission_type=Mission.DRONE_SHOW_FROM_CSV,
-        trigger_time=0,
-        auto_global_origin=True,
-        origin={'lat': 47.397742, 'lon': 8.545594, 'alt': 488.0}
-    )
-
-
-@pytest.fixture
-def trajectory_csv():
-    """Sample trajectory CSV data"""
-    return sample_trajectory_csv()
-
-
-@pytest.fixture
-def swarm_config():
-    """Sample swarm configuration"""
-    return swarm_config_single_leader()
-
-
-@pytest.fixture
-def origin_data():
-    """Sample origin data"""
-    return origin_zurich()
-
-
-# ============================================================================
 # MAVLink Mock Fixtures
 # ============================================================================
 
@@ -605,8 +526,8 @@ def mock_drone_setup():
     setup = Mock()
     setup.schedule_mission = AsyncMock()
     setup.cancel_mission = Mock()
-    setup.get_current_mission = Mock(return_value=Mission.NONE)
-    setup.get_state = Mock(return_value=MissionState.IDLE)
+    setup.get_current_mission = Mock(return_value=Mission.NONE.value)
+    setup.get_state = Mock(return_value=State.IDLE.value)
     return setup
 
 

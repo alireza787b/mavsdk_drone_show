@@ -67,7 +67,7 @@ describe('SwarmRuntimeControls', () => {
 
   it('publishes Smart Swarm runtime commands into the shared command activity stream', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (_commandData, options = {}) => {
-      options.onCommandAccepted?.({
+      options.onSubmissionTracked?.({
         commandId: 'cmd-smart-swarm-1',
         commandLabel: 'Start Smart Swarm',
         missionType: 2,
@@ -104,7 +104,7 @@ describe('SwarmRuntimeControls', () => {
         updatedAtMs: 1000,
       });
 
-      return { success: true, command_id: 'cmd-smart-swarm-1' };
+      return { accepted_for_tracking: true, command_id: 'cmd-smart-swarm-1' };
     });
 
     render(

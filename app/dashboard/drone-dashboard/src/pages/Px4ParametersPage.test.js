@@ -563,9 +563,9 @@ describe('Px4ParametersPage', () => {
 
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith({
-        missionType: '6',
-        target_drones: ['1'],
-        triggerTime: '0',
+        mission_type: 6,
+        target_drone_ids: ['1'],
+        trigger_time: 0,
         uiMeta: {
           operatorLabel: 'Reboot PX4',
         },

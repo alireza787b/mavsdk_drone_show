@@ -40,100 +40,37 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import fetch_and_require_sitl_runtime
-
-USING_FALLBACK_TIMEOUT_PARAMS = False
-
-try:
-    from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
-    from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_STATE_ROUTE
-    from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
-    from src.gcs_api_routes import (
-        GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
-        GCS_COMMANDS_ROUTE,
-        GCS_FLEET_TELEMETRY_ROUTE,
-        GCS_SYSTEM_HEALTH_ROUTE,
-    )
-    from src.live_armability_utils import calculate_live_armability_request_timeout
-    from src.params import Params
-    from tools.runtime_validation_support import (
-        normalize_drone_ids,
-        parse_csv_drone_ids,
-        write_json_report,
-    )
-except Exception:  # pragma: no cover - fallback only
-    USING_FALLBACK_TIMEOUT_PARAMS = True
-
-    class _FallbackParams:
-        TELEMETRY_POLLING_TIMEOUT = 10
-        heartbeat_interval = 10
-        LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
-        LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 2.5
-        LAND_ACTION_DISARM_BUFFER_SEC = 30
-        LAND_ACTION_MAX_DISARM_WAIT_SEC = 900
-        RTL_ACTION_COMPLETION_TIMEOUT = 300
-        RTL_ACTION_COMPLETION_BUFFER_SEC = 120
-        RTL_ACTION_COMPLETION_MAX_TIMEOUT = 1200
-        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
-        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
-        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
-
-    Params = _FallbackParams()
-    DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
-    DRONE_LOCAL_POSITION_ROUTE = "/api/v1/telemetry/local-position"
-    DRONE_STATE_ROUTE = "/api/v1/drone/state"
-    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
-    GCS_COMMANDS_ROUTE = "/api/v1/commands"
-    GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
-
-    def normalize_drone_ids(ids):
-        normalized = sorted({int(drone_id) for drone_id in ids})
-        if not normalized:
-            raise RuntimeError("No drone IDs supplied.")
-        return normalized
-
-    def parse_csv_drone_ids(raw):
-        ids = [int(part.strip()) for part in str(raw).split(",") if part.strip()]
-        return normalize_drone_ids(ids)
-
-    def write_json_report(path, payload):
-        if path is None:
-            return
-        report_path = Path(path)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    def calculate_land_disarm_timeout(relative_altitude_m, *, params=Params):
-        minimum_wait = int(getattr(params, "LAND_ACTION_MIN_DISARM_WAIT_SEC", 45))
-        if relative_altitude_m is None:
-            return minimum_wait
-        altitude_m = max(0.0, float(relative_altitude_m))
-        descent_rate = max(0.1, float(getattr(params, "LAND_ACTION_ASSUMED_DESCENT_RATE_MPS", 2.5)))
-        buffer_sec = max(0, int(getattr(params, "LAND_ACTION_DISARM_BUFFER_SEC", 30)))
-        maximum_wait = max(minimum_wait, int(getattr(params, "LAND_ACTION_MAX_DISARM_WAIT_SEC", 900)))
-        return max(minimum_wait, min(maximum_wait, int(math.ceil(minimum_wait + (altitude_m / descent_rate) + buffer_sec))))
-
-    def calculate_rtl_completion_timeout(relative_altitude_m, *, params=Params):
-        base_timeout = int(getattr(params, "RTL_ACTION_COMPLETION_TIMEOUT", 300))
-        rtl_buffer_sec = max(0, int(getattr(params, "RTL_ACTION_COMPLETION_BUFFER_SEC", 120)))
-        maximum_timeout = max(base_timeout, int(getattr(params, "RTL_ACTION_COMPLETION_MAX_TIMEOUT", 1200)))
-        landing_timeout = calculate_land_disarm_timeout(relative_altitude_m, params=params)
-        estimated_wait = landing_timeout + rtl_buffer_sec
-        return max(base_timeout, min(maximum_timeout, estimated_wait))
-
-    def calculate_live_armability_request_timeout(*, params=Params):
-        connect_timeout = max(0.1, float(getattr(params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)))
-        probe_timeout = max(0.1, float(getattr(params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0)))
-        http_buffer_sec = max(0.5, float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)))
-        return connect_timeout + probe_timeout + http_buffer_sec
+from src.drone_api_routes import (
+    DRONE_LIVE_ARMABILITY_ROUTE,
+    DRONE_LOCAL_POSITION_ROUTE,
+    DRONE_STATE_ROUTE,
+)
+from src.enums import Mission
+from src.flight_timeout_utils import (
+    calculate_land_disarm_timeout,
+    calculate_rtl_completion_timeout,
+)
+from src.gcs_api_routes import (
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+    GCS_COMMANDS_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+)
+from src.live_armability_utils import calculate_live_armability_request_timeout
+from src.params import Params
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    normalize_drone_ids,
+    parse_csv_drone_ids,
+    write_json_report,
+)
 
 
-TAKEOFF = 10
-LAND = 101
-HOLD = 102
-RETURN_RTL = 104
-PRECISION_MOVE = 112
+TAKEOFF = Mission.TAKE_OFF.value
+LAND = Mission.LAND.value
+HOLD = Mission.HOLD.value
+RETURN_RTL = Mission.RETURN_RTL.value
+PRECISION_MOVE = Mission.PRECISION_MOVE.value
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout", "superseded"}
 COMMAND_HEARTBEAT_GRACE_SECONDS = max(
     getattr(Params, "TELEMETRY_POLLING_TIMEOUT", 10),

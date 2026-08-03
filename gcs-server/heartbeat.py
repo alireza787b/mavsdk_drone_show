@@ -114,7 +114,10 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
             "current_mode": current_runtime_mode,
         }
 
-    # We can do further validation if needed
+    received_at_gcs_ms = int(time.time() * 1000)
+
+    # GCS receipt time is authoritative for liveness. The node timestamp is
+    # retained separately for clock-skew, delay, and replay diagnostics only.
     with last_heartbeats_lock:
         # Professional heartbeat logging: Only log first heartbeat and periodic confirmations
         is_first_heartbeat = hw_id not in last_heartbeats
@@ -126,9 +129,11 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "detected_pos_id": detected_pos_id,
                 "ip": ip,
                 "timestamp": timestamp,
+                "sent_at_node_ms": timestamp,
+                "received_at_gcs_ms": received_at_gcs_ms,
                 "network_info": network_info,
                 "runtime_mode": declared_runtime_mode,
-                "first_seen": int(time.time() * 1000),
+                "first_seen": received_at_gcs_ms,
                 "last_logged": time.time()
             }
             logger.info(f"💓 Heartbeat established from drone {hw_id} (IP: {ip}, Pos: {pos_id})")
@@ -139,6 +144,8 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "detected_pos_id": detected_pos_id,
                 "ip": ip,
                 "timestamp": timestamp,
+                "sent_at_node_ms": timestamp,
+                "received_at_gcs_ms": received_at_gcs_ms,
                 "network_info": network_info,
                 "runtime_mode": declared_runtime_mode,
             })

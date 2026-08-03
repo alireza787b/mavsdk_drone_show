@@ -42,6 +42,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 
 const CommandSender = ({
   drones,
+  runtimeMode = 'unknown',
   swarmData = null,
   targetMode: controlledTargetMode = null,
   onTargetModeChange = null,
@@ -188,8 +189,8 @@ const CommandSender = ({
   };
 
   const buildTargetContext = (commandData = {}) => {
-    const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
-      ? commandData.target_drones.map((value) => String(value))
+    const explicitTargets = Array.isArray(commandData.target_drone_ids) && commandData.target_drone_ids.length > 0
+      ? commandData.target_drone_ids.map((value) => String(value))
       : null;
     const scopedTargets = targetMode === 'selected'
       ? selectedDrones.map((value) => String(value))
@@ -230,17 +231,19 @@ const CommandSender = ({
 
   const prepareCommandForDispatch = (commandData = {}) => {
     const targetContext = buildTargetContext(commandData);
-    const hasExplicitTargets = Array.isArray(commandData?.target_drones) && commandData.target_drones.length > 0;
+    const hasExplicitTargets = Array.isArray(commandData?.target_drone_ids) && commandData.target_drone_ids.length > 0;
 
     if (!hasExplicitTargets && !ensureTargetScopeReady(targetContext)) {
       return null;
     }
 
-    const missionName = getCommandName(commandData.missionType);
+    const missionName = getCommandName(commandData.mission_type);
 
     return {
       ...commandData,
-      ...(targetContext.effectiveTargets.length > 0 ? { target_drones: targetContext.effectiveTargets } : {}),
+      ...(targetContext.effectiveTargets.length > 0
+        ? { target_drone_ids: targetContext.effectiveTargets }
+        : { target_scope: 'all' }),
       uiMeta: {
         ...(commandData.uiMeta || {}),
         operatorLabel: commandData?.uiMeta?.operatorLabel || missionName,
@@ -395,7 +398,7 @@ const CommandSender = ({
       ...(showExecution
         ? [{
           label: 'Execution',
-          value: uiMeta.triggerSummary || formatCommandAbsoluteTime(currentCommandData.triggerTime),
+          value: uiMeta.triggerSummary || formatCommandAbsoluteTime(currentCommandData.trigger_time),
         }]
         : []),
       ...((clockOffsetLabel && showExecution)
@@ -443,7 +446,7 @@ const CommandSender = ({
       return;
     }
 
-    const missionName = getCommandName(preparedCommand.missionType);
+    const missionName = getCommandName(preparedCommand.mission_type);
     setCurrentCommandData(preparedCommand);
     setConfirmationMessage(
       preparedCommand.uiMeta?.confirmationMessage
@@ -472,9 +475,9 @@ const CommandSender = ({
     }
 
     handleSendCommand({
-      missionType: String(DRONE_ACTION_TYPES.TAKE_OFF),
-      triggerTime: '0',
-      target_drones: normalizedTargets,
+      mission_type: DRONE_ACTION_TYPES.TAKE_OFF,
+      trigger_time: 0,
+      target_drone_ids: normalizedTargets,
       takeoff_altitude: takeoffAltitude,
       uiMeta: {
         operatorLabel: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.TAKE_OFF],
@@ -579,9 +582,9 @@ const CommandSender = ({
     }
 
     handleSendCommand({
-      missionType: String(DRONE_MISSION_TYPES.NONE),
-      triggerTime: '0',
-      target_drones: commandMonitor.targetDrones,
+      mission_type: DRONE_MISSION_TYPES.NONE,
+      trigger_time: 0,
+      target_drone_ids: commandMonitor.targetDrones,
       uiMeta: {
         operatorLabel: getCommandName(DRONE_MISSION_TYPES.NONE),
         confirmationMessage: `Cancel ${commandMonitor.commandLabel} for ${commandMonitor.targetLabel}?`,
@@ -944,6 +947,7 @@ const CommandSender = ({
             onTakeoffAltitudeChange={setTakeoffAltitude}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
+            runtimeMode={runtimeMode}
           />
         )}
       </div>
@@ -965,7 +969,11 @@ const CommandSender = ({
         open={modalOpen}
         title="Confirm Command"
         message={renderConfirmationMessage()}
-        confirmLabel="Yes"
+        confirmLabel={
+          Number(currentCommandData?.mission_type) === DRONE_ACTION_TYPES.TEST
+            ? 'Acknowledge & Dispatch'
+            : 'Yes'
+        }
         cancelLabel="No"
         busy={loading}
         onConfirm={handleConfirmSendCommand}
@@ -984,6 +992,7 @@ const CommandSender = ({
 
 CommandSender.propTypes = {
   drones: PropTypes.array.isRequired,
+  runtimeMode: PropTypes.oneOf(['real', 'sitl', 'unknown']),
   swarmData: PropTypes.array,
   targetMode: PropTypes.oneOf(['all', 'cluster', 'selected']),
   onTargetModeChange: PropTypes.func,

@@ -8,6 +8,7 @@ Uses canonical `/api/v1/...` HTTP routes plus a dedicated WebSocket stream.
 HTTP REST Endpoints:
 - GET  /api/v1/drone/state                    - Get current drone state (snapshot)
 - GET  /api/v1/preflight/armability           - Probe live launch readiness
+- POST /api/v1/preflight/launch-preparations  - Prepare one command-bound launch
 - POST /api/v1/drone/commands                 - Receive command from GCS
 - GET  /api/v1/navigation/home                - Get home position
 - GET  /api/v1/navigation/global-origin       - Get GPS global origin
@@ -34,12 +35,15 @@ import subprocess
 import socket
 import shutil
 import hashlib
+import threading
+from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set, Tuple
 from urllib.parse import quote
 
 # FastAPI imports
-from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
@@ -55,6 +59,18 @@ from mds_logging.api_schemas import (
     OnboardUlogDownloadRequest,
     OnboardUlogJobDeleteResponse,
     OnboardUlogSummaryResponse,
+)
+from src.live_armability_contract import LiveArmabilityTrustEnvelope
+from src.command_execution_contract import mission_requires_launch_armability_probe
+from src.launch_preparation_protocol import (
+    LAUNCH_PREPARATION_TOKEN_HEADER,
+    LaunchPreparationBinding,
+    LaunchPreparationConsumeStatus,
+    LaunchPreparationRequest,
+    LaunchPreparationResponse,
+    LaunchPreparationStore,
+    calculate_launch_preparation_token_ttl_sec,
+    immutable_command_payload_sha256,
 )
 
 logger = get_logger("drone_api")
@@ -80,9 +96,18 @@ from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 from src.command_contract import DroneCommandRequest
+from src.command_admission import (
+    AirborneAdmissionStatus,
+    evaluate_cached_airborne_admission,
+)
+from src.command_installation import (
+    CommandInstallationRejected,
+    CommandInstallationResult,
+)
 from src.drone_api_routes import (
     DRONE_COMMANDS_ROUTE,
     DRONE_GIT_STATUS_ROUTE,
+    DRONE_LAUNCH_PREPARATION_ROUTE,
     DRONE_LIVE_ARMABILITY_ROUTE,
     DRONE_LOCAL_POSITION_ROUTE,
     DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
@@ -210,6 +235,11 @@ class DroneStateResponse(BaseModel):
     velocity_down: float
     yaw: float
     battery_voltage: float
+    battery_remaining_percent: Optional[float] = None
+    battery_charge_state: Optional[int] = None
+    battery_fault_bitmask: Optional[int] = None
+    battery_timestamp_ms: int = 0
+    battery_age_ms: Optional[int] = None
     follow_mode: Any = None
     update_time: Any = None
     timestamp: int
@@ -218,6 +248,8 @@ class DroneStateResponse(BaseModel):
     base_mode: Any
     system_status: Any
     is_armed: bool
+    heartbeat_timestamp_ms: int = 0
+    heartbeat_age_ms: Optional[int] = None
     is_ready_to_arm: bool
     home_position_set: bool = False
     distance_to_home_m: Optional[float] = None
@@ -307,13 +339,74 @@ class CommandAckResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     error_code: Optional[str] = Field(None, description="Error code (e.g., E100, E201)")
     error_detail: Optional[str] = Field(None, description="Detailed error information")
+    replayed: bool = Field(False, description="Whether this is a replay of an earlier command delivery")
+    command_phase: Optional[str] = Field(
+        None,
+        description="Known lifecycle phase of the original command delivery",
+    )
+    command_outcome: Optional[str] = Field(
+        None,
+        description="Known terminal outcome of the original command delivery",
+    )
     timestamp: int = Field(..., description="Response timestamp in milliseconds")
 
 
-class LiveArmabilityResponse(BaseModel):
-    success: bool = True
-    ready: bool
-    summary: str
+@dataclass(frozen=True)
+class _CommandSemanticIdentity:
+    """Bounded canonical identity for one execution-affecting command payload."""
+
+    fingerprint: str
+    field_fingerprints: Dict[str, str]
+
+
+@dataclass
+class _NodeCommandRecord:
+    """In-process idempotency record retained across the command lifecycle."""
+
+    command_id: str
+    semantic_identity: _CommandSemanticIdentity
+    mission_type: int
+    trigger_time: int
+    phase: str
+    outcome: Optional[str]
+    response: Optional[Dict[str, Any]]
+    created_at_monotonic: float
+    last_seen_monotonic: float
+    legacy_runtime_bound: bool = False
+
+
+@dataclass(frozen=True)
+class _CommandStateSnapshot:
+    """Minimum scheduler-visible state captured before a command can mutate it."""
+
+    command_id: Optional[str]
+    mission_type: int
+    trigger_time: int
+    state: int
+
+
+@dataclass(frozen=True)
+class _LaunchCommitAdmission:
+    """Pre-transaction result for one node command request.
+
+    Live launch probing deliberately happens before the command/scheduler lock
+    so a slow readiness path cannot block LAND/RTL/HOLD recovery admission.
+    Exact idempotent replays skip token/probe work and are reconciled by the
+    authoritative in-lock command record without executing again.
+    """
+
+    command: DroneCommandRequest
+    launch_required: bool
+    authorized: bool
+    existing_record_seen: bool = False
+    error_code: Optional[str] = None
+    error_detail: Optional[str] = None
+    readiness_valid_until_monotonic: Optional[float] = None
+
+
+class LiveArmabilityResponse(LiveArmabilityTrustEnvelope):
+    """Full node response extending the shared trust-bearing envelope."""
+
     blockers: List[str] = Field(default_factory=list)
     armable: bool = False
     global_position_ok: bool = False
@@ -322,6 +415,9 @@ class LiveArmabilityResponse(BaseModel):
     gyro_ok: bool = False
     accel_ok: bool = False
     mag_ok: bool = False
+    health_ready: bool = False
+    health_age_ms: Optional[int] = None
+    battery: Dict[str, Any] = Field(default_factory=dict)
     timed_out: bool = False
     elapsed_sec: float = 0.0
     require_global_position: bool = True
@@ -845,11 +941,11 @@ class DroneAPIServer:
     """
     Drone API Server using FastAPI.
 
-    Drop-in replacement for the Flask-based FlaskHandler with:
+    Provides:
     - Async/await for better performance
     - Automatic OpenAPI documentation
     - Type validation with Pydantic
-    - Same routes and behavior as Flask version
+    - Canonical typed drone routes
     - WebSocket support for real-time telemetry streaming
     """
     # Class-level flags to prevent log spam for expected SITL failures
@@ -894,6 +990,52 @@ class DroneAPIServer:
         self._live_probe_lock = asyncio.Lock()
         self._px4_param_lock = asyncio.Lock()
         self._ulog_lock = asyncio.Lock()
+        # Uvicorn serves this node with one event loop. Keep the complete
+        # command acceptance transaction serialized so an awaited cancel or
+        # supersede cannot interleave with a second POST and clobber state.
+        # Mission execution itself happens outside this request-scoped lock.
+        self._command_transaction_lock = asyncio.Lock()
+        shared_state_lock = getattr(drone_config, "command_state_transaction_lock", None)
+        if not (
+            callable(getattr(shared_state_lock, "acquire", None))
+            and callable(getattr(shared_state_lock, "release", None))
+        ):
+            shared_state_lock = threading.Lock()
+            setattr(drone_config, "command_state_transaction_lock", shared_state_lock)
+        self._command_state_transaction_lock = shared_state_lock
+        self._command_idempotency_lock = threading.RLock()
+        self._command_idempotency_records: OrderedDict[str, _NodeCommandRecord] = OrderedDict()
+        self._command_idempotency_ttl_sec = self._bounded_numeric_param(
+            "COMMAND_IDEMPOTENCY_HISTORY_SEC",
+            default=1800.0,
+            minimum=60.0,
+            integer=False,
+        )
+        self._command_idempotency_max_records = self._bounded_numeric_param(
+            "COMMAND_IDEMPOTENCY_MAX_HISTORY",
+            default=256,
+            minimum=32,
+            integer=True,
+        )
+        # Launch authority is deliberately process-local and short-lived. A
+        # node restart invalidates every uncommitted preparation; the existing
+        # command-history bound also caps token memory without a second knob.
+        def typed_nonnegative_setting(name: str, default: float) -> float:
+            raw = getattr(params, name, default)
+            if type(raw) not in {int, float} or not math.isfinite(float(raw)):
+                return default
+            return max(0.0, float(raw))
+
+        self._launch_preparation_store = LaunchPreparationStore(
+            ttl_sec=calculate_launch_preparation_token_ttl_sec(params=params),
+            max_records=int(self._command_idempotency_max_records),
+            minimum_post_barrier_lead_sec=(
+                typed_nonnegative_setting("trigger_sooner_seconds", 0.0)
+                + typed_nonnegative_setting("COMMAND_SYNC_DISPATCH_GUARD_SEC", 1.0)
+            ),
+        )
+        self._command_followup_tasks: Set[asyncio.Task] = set()
+        self._command_followup_max_tasks = 32
         self._ulog_download_tasks: Set[asyncio.Task] = set()
         self._px4_param_snapshot_cache: Optional[Px4ParamSnapshotResponse] = None
         self._px4_param_service = Px4ParamService(
@@ -907,11 +1049,129 @@ class DroneAPIServer:
         )
 
         self.app.add_event_handler("shutdown", self._shutdown_ulog_download_tasks)
+        self.app.add_event_handler("shutdown", self._shutdown_command_followup_tasks)
         self.setup_routes()
+
+    def _bounded_numeric_param(
+        self,
+        name: str,
+        *,
+        default: float,
+        minimum: float,
+        integer: bool,
+    ) -> float | int:
+        """Read an optional numeric setting without treating Mock-like values as configuration."""
+        raw_value = getattr(self.params, name, default)
+        try:
+            parsed = int(raw_value) if integer else float(raw_value)
+        except (TypeError, ValueError):
+            parsed = int(default) if integer else float(default)
+        bounded = max(int(minimum), parsed) if integer else max(float(minimum), parsed)
+        return bounded
+
+    async def _command_transaction_guard(self):
+        """Serialize HTTP commands with both other POSTs and scheduler claims."""
+        async with self._command_transaction_lock:
+            # The mission scheduler runs in another OS thread. Acquire its
+            # lock in a worker so Uvicorn remains responsive. Cancellation is
+            # handled explicitly: asyncio cannot stop a thread that is waiting
+            # in Lock.acquire(), so we wait for that worker to finish and
+            # release any lock it obtained before propagating cancellation.
+            acquire_task = asyncio.create_task(
+                asyncio.to_thread(self._command_state_transaction_lock.acquire)
+            )
+            try:
+                acquired = await asyncio.shield(acquire_task)
+            except BaseException:
+                acquired = await acquire_task
+                if acquired:
+                    self._command_state_transaction_lock.release()
+                raise
+            try:
+                yield
+            finally:
+                if acquired:
+                    self._command_state_transaction_lock.release()
 
     def set_drone_communicator(self, drone_communicator):
         """Setter for injecting the DroneCommunicator dependency after initialization."""
         self.drone_communicator = drone_communicator
+
+    def _register_command_report_capability(
+        self,
+        *,
+        command_id: Optional[str],
+        capability: Optional[str],
+    ) -> None:
+        """Bind callback authority before the scheduler can claim the command."""
+        if capability is None:
+            return
+        drone_setup = getattr(self.drone_config, "drone_setup", None)
+        register = getattr(drone_setup, "register_command_report_capability", None)
+        if not callable(register):
+            raise RuntimeError(
+                "DroneSetup cannot register the command report capability"
+            )
+        register(command_id, capability)
+
+    async def _shutdown_command_followup_tasks(self) -> None:
+        """Cancel bounded best-effort callbacks during API shutdown."""
+        tasks = tuple(self._command_followup_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._command_followup_tasks.clear()
+
+    def _schedule_pending_command_superseded(
+        self,
+        *,
+        command_id: Optional[str],
+        override_mission_type: int,
+    ) -> None:
+        """Report prior-command retirement without delaying ACK or recovery.
+
+        The mission transaction is already committed before this is called.
+        GCS callback delivery is retryable bookkeeping, so a slow/unavailable
+        GCS must not hold the node's scheduler lock or delay LAND/RTL/NONE.
+        """
+        if not command_id:
+            return
+        self._command_followup_tasks = {
+            task for task in self._command_followup_tasks if not task.done()
+        }
+        if len(self._command_followup_tasks) >= self._command_followup_max_tasks:
+            logger.error(
+                "Supersede callback queue is full; GCS must reconcile command_id=%s by timeout/state evidence.",
+                command_id,
+            )
+            return
+
+        task = asyncio.create_task(
+            self._report_pending_command_superseded(
+                command_id=command_id,
+                override_mission_type=override_mission_type,
+            )
+        )
+        self._command_followup_tasks.add(task)
+
+        def _retire_followup(completed_task: asyncio.Task) -> None:
+            self._command_followup_tasks.discard(completed_task)
+            if completed_task.cancelled():
+                return
+            try:
+                exc = completed_task.exception()
+            except asyncio.CancelledError:
+                return
+            if exc is not None:
+                logger.error(
+                    "Unhandled supersede callback failure for command_id=%s: %s",
+                    command_id,
+                    exc,
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+
+        task.add_done_callback(_retire_followup)
 
     def _resolve_live_probe_connection(self) -> Tuple[int, str]:
         """Mirror the runtime MAVSDK wiring used by mission/action execution."""
@@ -1227,6 +1487,7 @@ class DroneAPIServer:
                 return
 
     async def _probe_live_armability(self, require_global_position: bool = True) -> Dict[str, Any]:
+        probe_started_monotonic = time.monotonic()
         probe_timeout = safe_float(
             getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0),
             6.0,
@@ -1259,16 +1520,35 @@ class DroneAPIServer:
                     )
                 finally:
                     if started_server:
-                        self._stop_live_probe_server(mavsdk_server)
+                        await asyncio.to_thread(
+                            self._stop_live_probe_server,
+                            mavsdk_server,
+                        )
+            response_generated_at_ms = int(time.time() * 1000)
+            observation = result.get("observation") if isinstance(result.get("observation"), dict) else {}
+            try:
+                valid_until_ms = int(observation.get("valid_until_ms"))
+            except (TypeError, ValueError):
+                valid_until_ms = 0
             return {
+                "hw_id": str(self.drone_config.hw_id),
                 "success": True,
                 **result,
-                "timestamp": int(time.time() * 1000),
+                # Freshness crosses hosts as durations, never as comparable
+                # wall-clock instants. The GCS subtracts transport time from
+                # this node-computed remaining lease.
+                "remaining_valid_ms": max(0, valid_until_ms - response_generated_at_ms),
+                "server_processing_ms": max(
+                    0,
+                    int((time.monotonic() - probe_started_monotonic) * 1000),
+                ),
+                "timestamp": response_generated_at_ms,
                 "probe_error": None,
             }
         except Exception as exc:
             timed_out = isinstance(exc, (TimeoutError, asyncio.TimeoutError))
             return {
+                "hw_id": str(self.drone_config.hw_id),
                 "success": False,
                 "ready": False,
                 "summary": (
@@ -1291,6 +1571,11 @@ class DroneAPIServer:
                 "timed_out": timed_out,
                 "elapsed_sec": 0.0,
                 "require_global_position": require_global_position,
+                "remaining_valid_ms": 0,
+                "server_processing_ms": max(
+                    0,
+                    int((time.monotonic() - probe_started_monotonic) * 1000),
+                ),
                 "timestamp": int(time.time() * 1000),
                 "probe_error": str(exc),
             }
@@ -1318,7 +1603,10 @@ class DroneAPIServer:
                 return await operation(drone)
             finally:
                 if started_server:
-                    self._stop_live_probe_server(mavsdk_server)
+                    await asyncio.to_thread(
+                        self._stop_live_probe_server,
+                        mavsdk_server,
+                    )
 
     async def _with_local_ulog_system(self, operation):
         """Run a ULog operation against the local PX4 instance over MAVSDK."""
@@ -1343,7 +1631,10 @@ class DroneAPIServer:
                 return await operation(drone)
             finally:
                 if started_server:
-                    self._stop_live_probe_server(mavsdk_server)
+                    await asyncio.to_thread(
+                        self._stop_live_probe_server,
+                        mavsdk_server,
+                    )
 
     async def _run_ulog_download_job(self, job_id: str) -> None:
         """Complete a queued onboard ULog download in the background."""
@@ -1446,6 +1737,146 @@ class DroneAPIServer:
         if not await self._ulog_service.authorize_job(job_id, access_token):
             raise HTTPException(status_code=404, detail=f"ULog download job {job_id} not found")
 
+    async def _evaluate_launch_commit_admission(
+        self,
+        command: DroneCommandRequest,
+        launch_preparation_token: Optional[str],
+    ) -> _LaunchCommitAdmission:
+        """Consume launch authority and revalidate readiness before locking.
+
+        The command transaction remains short, so recovery commands retain a
+        responsive path. The returned monotonic lease is checked again after
+        the lock is acquired to prevent queued launch installation from using
+        an observation that expired while another command committed.
+        """
+        mission_type = int(command.mission_type)
+        launch_required = mission_requires_launch_armability_probe(mission_type)
+        if not launch_required:
+            if launch_preparation_token is not None:
+                return _LaunchCommitAdmission(
+                    command=command,
+                    launch_required=False,
+                    authorized=False,
+                    error_code=CommandErrorCode.INVALID_FORMAT.value,
+                    error_detail=(
+                        "Launch preparation tokens are valid only for launch missions"
+                    ),
+                )
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=False,
+                authorized=True,
+            )
+
+        command_data = command.model_dump(mode="json", exclude_none=True)
+        command_id = command_data.get("command_id")
+        if type(command_id) is str and command_id:
+            semantic_identity = self._command_semantic_identity(command_data)
+            with self._command_idempotency_lock:
+                existing_record = self._command_idempotency_records.get(command_id)
+                if existing_record is not None:
+                    # The in-lock route path will return either the exact
+                    # authoritative replay or a semantic conflict. Never
+                    # consume a second token or re-run launch admission for a
+                    # command whose execution decision already exists.
+                    return _LaunchCommitAdmission(
+                        command=command,
+                        launch_required=True,
+                        authorized=False,
+                        existing_record_seen=True,
+                        error_code=(
+                            None
+                            if existing_record.semantic_identity.fingerprint
+                            == semantic_identity.fingerprint
+                            else CommandErrorCode.INVALID_FORMAT.value
+                        ),
+                        error_detail=(
+                            None
+                            if existing_record.semantic_identity.fingerprint
+                            == semantic_identity.fingerprint
+                            else "Command ID already exists with a different canonical payload"
+                        ),
+                    )
+
+        preparation_result = self._launch_preparation_store.consume(
+            launch_preparation_token,
+            command,
+        )
+        if not preparation_result.consumed:
+            error_code = (
+                CommandErrorCode.PREFLIGHT_FAILED.value
+                if preparation_result.status
+                in {
+                    LaunchPreparationConsumeStatus.EXPIRED,
+                    LaunchPreparationConsumeStatus.REPLAYED,
+                }
+                else CommandErrorCode.INVALID_FORMAT.value
+            )
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=False,
+                error_code=error_code,
+                error_detail=preparation_result.detail,
+            )
+
+        try:
+            probe = await self._probe_live_armability(require_global_position=True)
+            envelope = LiveArmabilityResponse(**probe)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "Commit-time launch readiness unavailable for command_id=%s: %s",
+                command_id,
+                exc,
+            )
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=False,
+                error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                error_detail="Commit-time live launch readiness could not be established",
+            )
+
+        local_hw_id = str(self.drone_config.hw_id)
+        if envelope.hw_id != local_hw_id:
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=False,
+                error_code=CommandErrorCode.TARGET_IDENTITY_MISMATCH.value,
+                error_detail=(
+                    "Commit-time readiness came from a different hardware identity"
+                ),
+            )
+        if not envelope.ready:
+            blockers = (
+                envelope.observation.blockers
+                if envelope.observation is not None
+                else []
+            )
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=False,
+                error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                error_detail=(
+                    "; ".join(blockers)
+                    or envelope.summary
+                    or "Commit-time launch readiness conditions were not met"
+                ),
+            )
+
+        return _LaunchCommitAdmission(
+            command=command,
+            launch_required=True,
+            authorized=True,
+            readiness_valid_until_monotonic=(
+                time.monotonic() + (envelope.remaining_valid_ms / 1_000.0)
+            ),
+        )
+
     @staticmethod
     def _serialize_drone_state_payload(drone_state: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize raw communicator state into the canonical HTTP/WebSocket payload shape."""
@@ -1511,67 +1942,272 @@ class DroneAPIServer:
             result = await self._probe_live_armability(require_global_position=require_global_position)
             return LiveArmabilityResponse(**result)
 
+        @self.app.post(
+            DRONE_LAUNCH_PREPARATION_ROUTE,
+            response_model=LaunchPreparationResponse,
+        )
+        async def prepare_launch(
+            request: LaunchPreparationRequest,
+        ) -> LaunchPreparationResponse:
+            """Issue one command-bound launch token after a live node probe."""
+            started = time.monotonic()
+            command = request.command
+            command_id = command.command_id
+            target_hw_id = command.target_hw_id
+            local_hw_id = str(self.drone_config.hw_id)
+            payload_digest = immutable_command_payload_sha256(command)
+
+            if target_hw_id != local_hw_id:
+                return LaunchPreparationResponse(
+                    status="rejected",
+                    command_id=command_id,
+                    target_hw_id=local_hw_id,
+                    mission_type=command.mission_type,
+                    immutable_payload_sha256=payload_digest,
+                    ready=False,
+                    summary="Launch preparation reached a different drone than the selected target",
+                    preparation_token=None,
+                    token_ttl_ms=0,
+                    server_processing_ms=max(
+                        0,
+                        int((time.monotonic() - started) * 1_000),
+                    ),
+                    error_code=CommandErrorCode.TARGET_IDENTITY_MISMATCH.value,
+                    error_detail=(
+                        f"Intended hardware ID={target_hw_id}; receiving hardware ID={local_hw_id}"
+                    ),
+                )
+
+            try:
+                probe = await self._probe_live_armability(
+                    require_global_position=request.require_global_position,
+                )
+                envelope = LiveArmabilityResponse(**probe)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(
+                    "Command-bound launch preparation unavailable for command_id=%s: %s",
+                    command_id,
+                    exc,
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error_code": CommandErrorCode.PREFLIGHT_FAILED.value,
+                        "message": "Live launch readiness could not be established",
+                        "error_detail": "No launch token was issued",
+                    },
+                ) from exc
+
+            if not envelope.ready:
+                return LaunchPreparationResponse(
+                    status="rejected",
+                    command_id=command_id,
+                    target_hw_id=local_hw_id,
+                    mission_type=command.mission_type,
+                    immutable_payload_sha256=payload_digest,
+                    ready=False,
+                    summary=envelope.summary,
+                    observation=envelope.observation,
+                    preparation_token=None,
+                    token_ttl_ms=0,
+                    server_processing_ms=max(
+                        0,
+                        int((time.monotonic() - started) * 1_000),
+                    ),
+                    error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                    error_detail=(
+                        "; ".join(envelope.observation.blockers)
+                        or "Current PX4 launch readiness conditions were not met"
+                    ),
+                )
+
+            try:
+                binding = LaunchPreparationBinding.from_command(command)
+                token, token_ttl_ms = self._launch_preparation_store.issue(binding)
+            except (RuntimeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Launch preparation token could not be issued for command_id=%s: %s",
+                    command_id,
+                    exc,
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error_code": CommandErrorCode.PREFLIGHT_FAILED.value,
+                        "message": "Launch preparation authority is temporarily unavailable",
+                        "error_detail": "No launch token was issued",
+                    },
+                ) from exc
+
+            return LaunchPreparationResponse(
+                status="prepared",
+                command_id=command_id,
+                target_hw_id=local_hw_id,
+                mission_type=command.mission_type,
+                immutable_payload_sha256=payload_digest,
+                ready=True,
+                summary=envelope.summary,
+                observation=envelope.observation,
+                preparation_token=token,
+                token_ttl_ms=token_ttl_ms,
+                server_processing_ms=max(
+                    0,
+                    int((time.monotonic() - started) * 1_000),
+                ),
+            )
+
+        async def evaluate_command_admission(
+            command: DroneCommandRequest,
+            launch_preparation_token: Optional[str] = Header(
+                None,
+                alias=LAUNCH_PREPARATION_TOKEN_HEADER,
+            ),
+        ) -> _LaunchCommitAdmission:
+            return await self._evaluate_launch_commit_admission(
+                command,
+                launch_preparation_token,
+            )
+
+        async def admitted_command_transaction(
+            admission: _LaunchCommitAdmission = Depends(evaluate_command_admission),
+        ):
+            # The launch probe above never owns the scheduler transaction lock;
+            # recovery admission therefore cannot queue behind network I/O.
+            async for _ in self._command_transaction_guard():
+                yield admission
+
         @self.app.post(DRONE_COMMANDS_ROUTE, response_model=CommandAckResponse)
-        async def send_drone_command(command: DroneCommandRequest) -> CommandAckResponse:
+        async def send_drone_command(
+            admission: _LaunchCommitAdmission = Depends(admitted_command_transaction),
+        ) -> CommandAckResponse:
             """
             Endpoint to send a command to the drone.
 
             Returns detailed acknowledgment with status and error codes.
             No longer returns generic HTTP 500 - all errors return structured response.
             """
+            command = admission.command
             timestamp = int(time.time() * 1000)
             hw_id = str(self.drone_config.hw_id)
             pos_id = int(self.drone_config.pos_id)
             current_state = int(self.drone_config.state)
+            command_data: Dict[str, Any] = {}
+            command_id: Optional[str] = None
+            mission_type: Optional[int] = None
+            trigger_time: Optional[int] = None
+            command_report_capability: Optional[str] = None
+            idempotency_record: Optional[_NodeCommandRecord] = None
+            mutation_started = False
+            command_committed = False
+            state_snapshot = _CommandStateSnapshot(
+                command_id=getattr(self.drone_config, "current_command_id", None),
+                mission_type=int(self.drone_config.mission),
+                trigger_time=int(getattr(self.drone_config, "trigger_time", 0) or 0),
+                state=current_state,
+            )
 
             try:
-                command_data = command.model_dump(exclude_none=True)
+                command_data = command.model_dump(mode="json", exclude_none=True)
+                command_report_capability = command_data.get("command_report_capability")
                 command_id = command_data.get('command_id')
+                if command_id is not None:
+                    command_id = str(command_id).strip()
+                    if not command_id or len(command_id) > 200:
+                        return CommandAckResponse(
+                            status="rejected",
+                            command_id=command_id or None,
+                            hw_id=hw_id,
+                            pos_id=pos_id,
+                            current_state=current_state,
+                            message="command_id must contain between 1 and 200 characters",
+                            error_code=CommandErrorCode.INVALID_FORMAT.value,
+                            command_phase="terminal",
+                            command_outcome="rejected",
+                            timestamp=timestamp,
+                        )
+                    command_data['command_id'] = command_id
 
-                # Validate command structure
-                validation_result = self._validate_command(command_data)
-                if not validation_result['valid']:
-                    logger.warning(f"Command rejected: {validation_result['message']}")
+                # Bind the selected fleet target to the node that received the
+                # request. A stale IP mapping must not command the wrong drone.
+                target_hw_id = command_data.get('target_hw_id')
+                if target_hw_id is not None and str(target_hw_id).strip() != hw_id:
+                    logger.error(
+                        "Command target identity mismatch: intended hw_id=%s, receiving hw_id=%s, command_id=%s",
+                        target_hw_id,
+                        hw_id,
+                        command_id,
+                    )
                     return CommandAckResponse(
                         status="rejected",
                         command_id=command_id,
                         hw_id=hw_id,
                         pos_id=pos_id,
                         current_state=current_state,
-                        message=validation_result['message'],
-                        error_code=validation_result['error_code'],
-                        error_detail=validation_result.get('detail'),
-                        timestamp=timestamp
+                        message="Command reached a different drone than the selected target",
+                        error_code=CommandErrorCode.TARGET_IDENTITY_MISMATCH.value,
+                        error_detail=(
+                            f"Intended hardware ID={str(target_hw_id).strip()}; "
+                            f"receiving hardware ID={hw_id}"
+                        ),
+                        timestamp=timestamp,
                     )
 
-                # Parse mission type for response
                 mission_type = int(command_data["mission_type"])
                 trigger_time = int(command_data.get("trigger_time", 0))
-                known_command = self._find_active_command_by_id(command_id)
-                if known_command is not None:
-                    known_mission_type = int(known_command['mission_type'])
-                    if known_mission_type == mission_type:
-                        try:
-                            mission_name = Mission(mission_type).name
-                        except ValueError:
-                            mission_name = f"MISSION_{mission_type}"
-
+                if mission_type == Mission.TEST.value:
+                    try:
+                        command.ground_test_safety.validate_for_runtime(
+                            sim_mode=bool(getattr(self.params, "sim_mode", False))
+                        )
+                    except (AttributeError, ValueError) as exc:
+                        logger.warning(
+                            "Ground-test safety acknowledgement rejected before command installation: %s",
+                            exc,
+                        )
                         return CommandAckResponse(
-                            status="accepted",
+                            status="rejected",
                             command_id=command_id,
                             hw_id=hw_id,
                             pos_id=pos_id,
                             current_state=current_state,
-                            new_state=int(known_command['state']),
                             mission_type=mission_type,
-                            trigger_time=int(known_command.get('trigger_time', trigger_time)),
-                            message=self._build_idempotent_acceptance_message(
-                                mission_name=mission_name,
-                                phase=str(known_command.get('phase', 'active')),
-                            ),
+                            trigger_time=trigger_time,
+                            message="Arm/Disarm Ground Test safety acknowledgement does not match this runtime",
+                            error_code=CommandErrorCode.INVALID_FORMAT.value,
+                            error_detail=str(exc),
+                            command_phase="terminal",
+                            command_outcome="rejected",
                             timestamp=timestamp,
                         )
-
+                semantic_identity = self._command_semantic_identity(command_data)
+                known_command = self._find_active_command_by_id(command_id)
+                idempotency_classification, idempotency_record, conflict_detail = (
+                    self._begin_command_idempotency(
+                        command_id=command_id,
+                        semantic_identity=semantic_identity,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        known_command=known_command,
+                    )
+                )
+                if idempotency_classification == "conflict":
+                    return self._command_idempotency_conflict_response(
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        detail=conflict_detail or "Canonical command payload differs.",
+                        timestamp=timestamp,
+                    )
+                if idempotency_classification == "capacity":
+                    logger.error(
+                        "Command idempotency registry is at protected capacity; rejecting command_id=%s",
+                        command_id,
+                    )
                     return CommandAckResponse(
                         status="rejected",
                         command_id=command_id,
@@ -1580,15 +2216,114 @@ class DroneAPIServer:
                         current_state=current_state,
                         mission_type=mission_type,
                         trigger_time=trigger_time,
-                        message="Command ID is already active for a different mission on this drone",
-                        error_code=CommandErrorCode.INVALID_FORMAT.value,
+                        message="Node command history is temporarily at protected capacity",
+                        error_code=CommandErrorCode.INTERNAL_ERROR.value,
                         error_detail=(
-                            f"Existing mission type={known_mission_type}, requested mission type={mission_type}"
+                            "No terminal idempotency record can be evicted safely; retry this same "
+                            "command ID after an active command reaches a terminal state."
                         ),
+                        command_phase="terminal",
+                        command_outcome="rejected",
+                        timestamp=timestamp,
+                    )
+                if idempotency_classification == "replay" and idempotency_record is not None:
+                    return self._build_idempotent_replay_response(
+                        record=idempotency_record,
+                        known_command=known_command,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
                         timestamp=timestamp,
                     )
 
-                previous_command_id = getattr(self.drone_config, 'current_command_id', None)
+                if not admission.authorized:
+                    logger.warning(
+                        "Command admission rejected before mutation: command_id=%s launch_required=%s detail=%s",
+                        command_id,
+                        admission.launch_required,
+                        admission.error_detail,
+                    )
+                    response = CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        message=(
+                            "Launch commit did not present current prepared authority"
+                            if admission.launch_required
+                            else "Command carried launch authority outside a launch mission"
+                        ),
+                        error_code=(
+                            admission.error_code
+                            or CommandErrorCode.PREFLIGHT_FAILED.value
+                        ),
+                        error_detail=(
+                            admission.error_detail
+                            or "No command was installed"
+                        ),
+                        timestamp=timestamp,
+                    )
+                    return self._finalize_command_idempotency(
+                        idempotency_record,
+                        response,
+                        phase="rejected",
+                        outcome="rejected",
+                    )
+
+                if (
+                    admission.launch_required
+                    and (
+                        admission.readiness_valid_until_monotonic is None
+                        or time.monotonic()
+                        >= admission.readiness_valid_until_monotonic
+                    )
+                ):
+                    response = CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        message="Commit-time launch readiness expired before command installation",
+                        error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                        error_detail="Prepare and validate the launch again; no command was installed",
+                        timestamp=timestamp,
+                    )
+                    return self._finalize_command_idempotency(
+                        idempotency_record,
+                        response,
+                        phase="rejected",
+                        outcome="rejected",
+                    )
+
+                # Validate command structure
+                validation_result = self._validate_command(command_data)
+                if not validation_result['valid']:
+                    logger.warning(f"Command rejected: {validation_result['message']}")
+                    response = CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        message=validation_result['message'],
+                        error_code=validation_result['error_code'],
+                        error_detail=validation_result.get('detail'),
+                        timestamp=timestamp,
+                    )
+                    return self._finalize_command_idempotency(
+                        idempotency_record,
+                        response,
+                        phase="rejected",
+                        outcome="rejected",
+                    )
+
+                previous_command_id = state_snapshot.command_id
                 superseded_pending_command = (
                     current_state == State.MISSION_READY.value
                     and previous_command_id
@@ -1600,7 +2335,7 @@ class DroneAPIServer:
                 state_check = self._check_state_preconditions(mission_type)
                 if not state_check['valid']:
                     logger.warning(f"Command rejected due to state: {state_check['message']}")
-                    return CommandAckResponse(
+                    response = CommandAckResponse(
                         status="rejected",
                         command_id=command_id,
                         hw_id=hw_id,
@@ -1611,7 +2346,13 @@ class DroneAPIServer:
                         message=state_check['message'],
                         error_code=state_check['error_code'],
                         error_detail=state_check.get('detail'),
-                        timestamp=timestamp
+                        timestamp=timestamp,
+                    )
+                    return self._finalize_command_idempotency(
+                        idempotency_record,
+                        response,
+                        phase="rejected",
+                        outcome="rejected",
                     )
 
                 if mission_type == Mission.NONE.value:
@@ -1619,18 +2360,29 @@ class DroneAPIServer:
                         State.MISSION_READY.value,
                         State.MISSION_EXECUTING.value,
                     }
-                    if current_state == State.MISSION_READY.value and previous_command_id and previous_command_id != command_id:
-                        await self._report_pending_command_superseded(
-                            command_id=previous_command_id,
-                            override_mission_type=mission_type,
-                        )
+                    superseded_pending_cancel = (
+                        current_state == State.MISSION_READY.value
+                        and previous_command_id
+                        and previous_command_id != command_id
+                    )
 
+                    mutation_started = True
                     self.drone_config.current_command_id = command_id
+                    self._register_command_report_capability(
+                        command_id=command_id,
+                        capability=command_report_capability,
+                    )
                     new_state, cancel_message = await self._cancel_active_or_pending_command(
                         had_active_command=had_active_command,
                     )
+                    command_committed = True
+                    if superseded_pending_cancel:
+                        self._schedule_pending_command_superseded(
+                            command_id=previous_command_id,
+                            override_mission_type=mission_type,
+                        )
                     logger.info(f"Command accepted: CANCEL (trigger: {trigger_time})")
-                    return CommandAckResponse(
+                    response = CommandAckResponse(
                         status="accepted",
                         command_id=command_id,
                         hw_id=hw_id,
@@ -1642,24 +2394,43 @@ class DroneAPIServer:
                         message=cancel_message,
                         timestamp=timestamp,
                     )
+                    return self._finalize_command_idempotency(
+                        idempotency_record,
+                        response,
+                        phase="completed",
+                        outcome="completed",
+                    )
 
-                # Stage the command id before the mission becomes visible to the
-                # scheduler. Otherwise a fast scheduler tick can launch the
-                # mission script before current_command_id is stored, which
-                # drops execution tracking callbacks for that run.
-                self.drone_config.current_command_id = command_id
+                # DroneCommunicator owns the one prepare -> artifact/config
+                # commit-or-rollback contract. The API deliberately does not
+                # duplicate mission-field writers or a legacy install path.
+                installation_payload = {
+                    key: value
+                    for key, value in command_data.items()
+                    if key != "command_report_capability"
+                }
+                mutation_started = True
+                installation_result = self.drone_communicator.process_command(
+                    installation_payload
+                )
+                if not (
+                    isinstance(installation_result, CommandInstallationResult)
+                    and installation_result.committed
+                    and installation_result.command_id == command_id
+                    and getattr(self.drone_config, "current_command_id", None) == command_id
+                ):
+                    raise RuntimeError(
+                        "Communicator returned without verifiable command ownership commit"
+                    )
 
-                try:
-                    self.drone_communicator.process_command(command_data)
-                except Exception:
-                    # Restore the previous pending command on install failure so
-                    # an override attempt does not orphan the older staged
-                    # mission's tracking identity.
-                    self.drone_config.current_command_id = previous_command_id
-                    raise
+                command_committed = True
+                self._register_command_report_capability(
+                    command_id=command_id,
+                    capability=command_report_capability,
+                )
 
                 if superseded_pending_command:
-                    await self._report_pending_command_superseded(
+                    self._schedule_pending_command_superseded(
                         command_id=previous_command_id,
                         override_mission_type=mission_type,
                     )
@@ -1671,7 +2442,7 @@ class DroneAPIServer:
                     mission_name = f"MISSION_{mission_type}"
 
                 logger.info(f"Command accepted: {mission_name} (trigger: {trigger_time})")
-                return CommandAckResponse(
+                response = CommandAckResponse(
                     status="accepted",
                     command_id=command_id,
                     hw_id=hw_id,
@@ -1685,60 +2456,137 @@ class DroneAPIServer:
                         trigger_time=trigger_time,
                         superseded_pending_command=superseded_pending_command,
                     ),
-                    timestamp=timestamp
+                    timestamp=timestamp,
+                )
+                return self._finalize_command_idempotency(
+                    idempotency_record,
+                    response,
+                    phase="pending",
                 )
 
-            except KeyError as e:
-                logger.error(f"Missing field in command: {e}")
-                return CommandAckResponse(
-                    status="rejected",
-                    command_id=command_data.get('command_id') if command_data else None,
+            except asyncio.CancelledError as exc:
+                if mutation_started:
+                    self._record_post_mutation_command_uncertainty(
+                        record=idempotency_record,
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        state_snapshot=state_snapshot,
+                        exc=exc,
+                        timestamp=timestamp,
+                    )
+                raise
+            except HTTPException:
+                # Lifecycle replay deliberately uses HTTP 503 for an
+                # unresolved post-mutation outcome. Preserve that transport
+                # classification instead of flattening it into a fresh
+                # pre-commit rejection in the generic exception handler.
+                raise
+            except CommandInstallationRejected as e:
+                # The communicator raises this only after proving that every
+                # published artifact/config field was restored.  It is a
+                # definite rejection even when its reversible commit phase had
+                # started, so do not mislabel it as delivery_unknown.
+                logger.error(
+                    "Command installation rejected during %s: %s",
+                    e.phase,
+                    e,
+                )
+                return self._handle_command_processing_exception(
+                    record=idempotency_record,
+                    command_id=command_id,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
-                    message=f"Missing required field: {str(e)}",
-                    error_code=CommandErrorCode.MISSING_MISSION_TYPE.value,
-                    error_detail=str(e),
-                    timestamp=timestamp
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    mutation_started=False,
+                    command_committed=False,
+                    state_snapshot=state_snapshot,
+                    exc=e,
+                    precommit_message="Command was not installed",
+                    precommit_error_code=CommandErrorCode.INTERNAL_ERROR.value,
+                    precommit_error_detail=f"{e.phase}: {str(e)}",
+                    timestamp=timestamp,
+                )
+            except KeyError as e:
+                logger.error(f"Missing field in command: {e}")
+                return self._handle_command_processing_exception(
+                    record=idempotency_record,
+                    command_id=command_id,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    mutation_started=mutation_started,
+                    command_committed=command_committed,
+                    state_snapshot=state_snapshot,
+                    exc=e,
+                    precommit_message=f"Missing required field: {str(e)}",
+                    precommit_error_code=CommandErrorCode.MISSING_MISSION_TYPE.value,
+                    precommit_error_detail=str(e),
+                    timestamp=timestamp,
                 )
             except ValueError as e:
                 logger.error(f"Invalid value in command: {e}")
-                return CommandAckResponse(
-                    status="rejected",
-                    command_id=command_data.get('command_id') if command_data else None,
+                return self._handle_command_processing_exception(
+                    record=idempotency_record,
+                    command_id=command_id,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
-                    message=f"Invalid value: {str(e)}",
-                    error_code=CommandErrorCode.INVALID_FORMAT.value,
-                    error_detail=str(e),
-                    timestamp=timestamp
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    mutation_started=mutation_started,
+                    command_committed=command_committed,
+                    state_snapshot=state_snapshot,
+                    exc=e,
+                    precommit_message=f"Invalid value: {str(e)}",
+                    precommit_error_code=CommandErrorCode.INVALID_FORMAT.value,
+                    precommit_error_detail=str(e),
+                    timestamp=timestamp,
                 )
             except AttributeError as e:
                 logger.error(f"Configuration attribute error: {e}")
-                return CommandAckResponse(
-                    status="rejected",
-                    command_id=command_data.get('command_id') if command_data else None,
+                return self._handle_command_processing_exception(
+                    record=idempotency_record,
+                    command_id=command_id,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
-                    message=f"Configuration error: {str(e)}",
-                    error_code=CommandErrorCode.INTERNAL_ERROR.value,
-                    error_detail=f"AttributeError: {str(e)} - Check drone configuration",
-                    timestamp=timestamp
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    mutation_started=mutation_started,
+                    command_committed=command_committed,
+                    state_snapshot=state_snapshot,
+                    exc=e,
+                    precommit_message=f"Configuration error: {str(e)}",
+                    precommit_error_code=CommandErrorCode.INTERNAL_ERROR.value,
+                    precommit_error_detail=f"AttributeError: {str(e)} - Check drone configuration",
+                    timestamp=timestamp,
                 )
             except Exception as e:
                 logger.exception(f"Unexpected error processing command: {e}")
-                return CommandAckResponse(
-                    status="rejected",
-                    command_id=command_data.get('command_id') if command_data else None,
+                return self._handle_command_processing_exception(
+                    record=idempotency_record,
+                    command_id=command_id,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
-                    message=f"Internal error: {str(e)}",
-                    error_code=CommandErrorCode.INTERNAL_ERROR.value,
-                    error_detail=str(e),
-                    timestamp=timestamp
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    mutation_started=mutation_started,
+                    command_committed=command_committed,
+                    state_snapshot=state_snapshot,
+                    exc=e,
+                    precommit_message=f"Internal error: {str(e)}",
+                    precommit_error_code=CommandErrorCode.INTERNAL_ERROR.value,
+                    precommit_error_detail=str(e),
+                    timestamp=timestamp,
                 )
 
         @self.app.get(DRONE_NAVIGATION_HOME_ROUTE, response_model=HomePositionResponse)
@@ -2541,14 +3389,699 @@ class DroneAPIServer:
     # Command Validation Methods
     # ========================================================================
 
+    @staticmethod
+    def _command_semantic_identity(command_data: Dict[str, Any]) -> _CommandSemanticIdentity:
+        """Return a canonical digest of every execution-affecting request field.
+
+        ``command_id`` is the idempotency key itself; ``target_hw_id`` and the
+        callback capability are transport/security metadata already bound at
+        their respective boundaries. All execution-affecting typed fields are
+        conservatively included so future mission fields cannot silently
+        weaken replay safety.
+        """
+        semantic_payload = {
+            key: value
+            for key, value in command_data.items()
+            if key not in {
+                "command_id",
+                "target_hw_id",
+                "command_report_capability",
+            }
+        }
+        canonical = json.dumps(
+            semantic_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        field_fingerprints = {
+            key: hashlib.sha256(
+                json.dumps(
+                    value,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            for key, value in semantic_payload.items()
+        }
+        return _CommandSemanticIdentity(
+            fingerprint=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            field_fingerprints=field_fingerprints,
+        )
+
+    def _protected_command_ids(self) -> Set[str]:
+        """Return command IDs still represented by live node execution state."""
+        protected: Set[str] = set()
+        current_command_id = getattr(self.drone_config, "current_command_id", None)
+        if current_command_id:
+            protected.add(str(current_command_id))
+
+        drone_setup = getattr(self.drone_config, "drone_setup", None)
+        active_mission_command_id = (
+            getattr(drone_setup, "_active_mission_command_id", None)
+            if drone_setup
+            else None
+        )
+        if active_mission_command_id:
+            protected.add(str(active_mission_command_id))
+        running_processes = getattr(drone_setup, "running_processes", None) if drone_setup else None
+        if isinstance(running_processes, dict):
+            try:
+                process_records = tuple(running_processes.values())
+            except RuntimeError:
+                # A monitor may retire a process on the scheduler loop while
+                # this API thread snapshots it. Protecting every current
+                # registry key is conservative and prevents unsafe eviction.
+                logger.warning(
+                    "Running-process ownership changed during idempotency pruning; "
+                    "deferring history eviction for this command transaction."
+                )
+                protected.update(self._command_idempotency_records.keys())
+                return protected
+            for process_record in process_records:
+                command_id = getattr(process_record, "command_id", None)
+                if command_id:
+                    protected.add(str(command_id))
+        return protected
+
+    def _prune_command_idempotency_records_locked(self, now_monotonic: float) -> Set[str]:
+        """Expire terminal history and return IDs that must never be evicted."""
+        protected_ids = self._protected_command_ids()
+        expired_ids = [
+            command_id
+            for command_id, record in self._command_idempotency_records.items()
+            if command_id not in protected_ids
+            and (now_monotonic - record.created_at_monotonic) > self._command_idempotency_ttl_sec
+        ]
+        for command_id in expired_ids:
+            self._command_idempotency_records.pop(command_id, None)
+
+        while len(self._command_idempotency_records) > self._command_idempotency_max_records:
+            removable_id = next(
+                (
+                    command_id
+                    for command_id in self._command_idempotency_records
+                    if command_id not in protected_ids
+                ),
+                None,
+            )
+            if removable_id is None:
+                break
+            self._command_idempotency_records.pop(removable_id, None)
+        return protected_ids
+
+    def _make_command_idempotency_room_locked(self, protected_ids: Set[str]) -> bool:
+        """Evict one terminal LRU record, never an active command record."""
+        if len(self._command_idempotency_records) < self._command_idempotency_max_records:
+            return True
+        removable_id = next(
+            (
+                command_id
+                for command_id in self._command_idempotency_records
+                if command_id not in protected_ids
+            ),
+            None,
+        )
+        if removable_id is None:
+            return False
+        self._command_idempotency_records.pop(removable_id, None)
+        return True
+
+    @staticmethod
+    def _semantic_conflict_detail(
+        existing: _CommandSemanticIdentity,
+        requested: _CommandSemanticIdentity,
+    ) -> str:
+        all_fields = set(existing.field_fingerprints) | set(requested.field_fingerprints)
+        changed_fields = sorted(
+            field
+            for field in all_fields
+            if existing.field_fingerprints.get(field) != requested.field_fingerprints.get(field)
+        )
+        changed_summary = ", ".join(changed_fields) if changed_fields else "canonical payload"
+        return (
+            f"Changed semantic field(s): {changed_summary}. "
+            f"Existing fingerprint={existing.fingerprint[:16]}; "
+            f"requested fingerprint={requested.fingerprint[:16]}."
+        )
+
+    def _begin_command_idempotency(
+        self,
+        *,
+        command_id: Optional[str],
+        semantic_identity: _CommandSemanticIdentity,
+        mission_type: int,
+        trigger_time: int,
+        known_command: Optional[Dict[str, Any]],
+    ) -> Tuple[str, Optional[_NodeCommandRecord], Optional[str]]:
+        """Reserve a new command ID or classify an existing delivery.
+
+        Returns ``(classification, record, detail)`` where classification is
+        ``new``, ``replay``, ``conflict``, or ``capacity``. The reservation is
+        created before any command-state mutation, closing the scheduler
+        detach/running-record visibility gap for duplicate HTTP delivery.
+        """
+        if not command_id:
+            return "new", None, None
+
+        normalized_command_id = str(command_id).strip()
+        now_monotonic = time.monotonic()
+        with self._command_idempotency_lock:
+            protected_ids = self._prune_command_idempotency_records_locked(now_monotonic)
+            record = self._command_idempotency_records.get(normalized_command_id)
+            if record is not None:
+                record.last_seen_monotonic = now_monotonic
+                self._command_idempotency_records.move_to_end(normalized_command_id)
+                if record.semantic_identity.fingerprint != semantic_identity.fingerprint:
+                    return (
+                        "conflict",
+                        record,
+                        self._semantic_conflict_detail(record.semantic_identity, semantic_identity),
+                    )
+                return "replay", record, None
+
+            # Rolling-upgrade compatibility: a command accepted before this
+            # API registry existed may still be visible in current/running/
+            # recent state. Bind the first matching delivery to its full
+            # semantic fingerprint and never execute it again. The warning is
+            # auditable because historical optional fields cannot be recovered.
+            if known_command is not None:
+                known_mission_type = int(known_command.get("mission_type", Mission.NONE.value))
+                trigger_time_authoritative = bool(
+                    known_command.get("trigger_time_authoritative", True)
+                )
+                known_trigger_time = int(known_command.get("trigger_time", 0) or 0)
+                if (
+                    known_mission_type != mission_type
+                    or (
+                        trigger_time_authoritative
+                        and known_trigger_time != trigger_time
+                    )
+                ):
+                    return (
+                        "conflict",
+                        None,
+                        (
+                            "Existing legacy command metadata differs: "
+                            f"mission_type={known_mission_type}, trigger_time={known_trigger_time}; "
+                            f"requested mission_type={mission_type}, trigger_time={trigger_time}."
+                        ),
+                    )
+                record = _NodeCommandRecord(
+                    command_id=normalized_command_id,
+                    semantic_identity=semantic_identity,
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    phase=str(known_command.get("phase", "pending")),
+                    outcome=None,
+                    response=None,
+                    created_at_monotonic=now_monotonic,
+                    last_seen_monotonic=now_monotonic,
+                    legacy_runtime_bound=True,
+                )
+                if self._make_command_idempotency_room_locked(protected_ids):
+                    self._command_idempotency_records[normalized_command_id] = record
+                logger.warning(
+                    "Bound legacy in-process command_id=%s to its first full semantic replay fingerprint; "
+                    "the command will not be re-executed.",
+                    normalized_command_id,
+                )
+                return "replay", record, None
+
+            if not self._make_command_idempotency_room_locked(protected_ids):
+                return "capacity", None, None
+
+            record = _NodeCommandRecord(
+                command_id=normalized_command_id,
+                semantic_identity=semantic_identity,
+                mission_type=mission_type,
+                trigger_time=trigger_time,
+                phase="processing",
+                outcome=None,
+                response=None,
+                created_at_monotonic=now_monotonic,
+                last_seen_monotonic=now_monotonic,
+            )
+            self._command_idempotency_records[normalized_command_id] = record
+            return "new", record, None
+
+    @staticmethod
+    def _public_command_lifecycle(phase: str, outcome: Optional[str] = None) -> Tuple[str, Optional[str]]:
+        normalized_phase = str(phase or "pending").strip().lower()
+        if normalized_phase == "processing":
+            return "preparing", outcome
+        if normalized_phase == "launching":
+            return "preparing", outcome
+        if normalized_phase == "pending":
+            return "pending_execution", outcome
+        if normalized_phase == "executing":
+            return "in_progress", outcome
+        if normalized_phase in {"completed", "failed", "superseded", "rejected"}:
+            return "terminal", outcome or normalized_phase
+        if normalized_phase == "outcome_unknown":
+            return "outcome_unknown", outcome or "unknown"
+        return normalized_phase, outcome
+
+    def _finalize_command_idempotency(
+        self,
+        record: Optional[_NodeCommandRecord],
+        response: CommandAckResponse,
+        *,
+        phase: str,
+        outcome: Optional[str] = None,
+    ) -> CommandAckResponse:
+        public_phase, public_outcome = self._public_command_lifecycle(phase, outcome)
+        response.command_phase = public_phase
+        response.command_outcome = public_outcome
+        if record is None:
+            return response
+
+        with self._command_idempotency_lock:
+            record.phase = phase
+            record.outcome = public_outcome
+            record.response = response.model_dump(mode="json")
+            record.last_seen_monotonic = time.monotonic()
+            if record.command_id in self._command_idempotency_records:
+                self._command_idempotency_records.move_to_end(record.command_id)
+        return response
+
+    def _build_idempotent_replay_response(
+        self,
+        *,
+        record: _NodeCommandRecord,
+        known_command: Optional[Dict[str, Any]],
+        hw_id: str,
+        pos_id: int,
+        current_state: int,
+        timestamp: int,
+    ) -> CommandAckResponse:
+        """Replay prior acceptance/rejection with explicit lifecycle evidence."""
+        phase = record.phase
+        outcome = record.outcome
+        mission_type = record.mission_type
+        trigger_time = record.trigger_time
+        state = current_state
+        uncertainty_resolved = False
+
+        if known_command is not None:
+            known_mission_type = int(known_command.get("mission_type", mission_type))
+            trigger_time_authoritative = bool(
+                known_command.get("trigger_time_authoritative", True)
+            )
+            known_trigger_time = (
+                int(known_command.get("trigger_time", trigger_time) or 0)
+                if trigger_time_authoritative
+                else trigger_time
+            )
+            if (
+                known_mission_type != mission_type
+                or known_trigger_time != trigger_time
+            ):
+                logger.critical(
+                    "Command lifecycle metadata conflicts with its idempotency record: "
+                    "command_id=%s registry=(%s,%s) runtime=(%s,%s)",
+                    record.command_id,
+                    mission_type,
+                    trigger_time,
+                    known_mission_type,
+                    known_trigger_time,
+                )
+                record.phase = "outcome_unknown"
+                record.outcome = "unknown"
+                detail = {
+                    "status": "delivery_unknown",
+                    "command_id": record.command_id,
+                    "hw_id": hw_id,
+                    "pos_id": pos_id,
+                    "current_state": current_state,
+                    "mission_type": mission_type,
+                    "trigger_time": trigger_time,
+                    "message": "Node command lifecycle metadata is inconsistent; delivery outcome is unknown",
+                    "error_code": CommandErrorCode.INTERNAL_ERROR.value,
+                    "error_detail": "Runtime mission/trigger metadata conflicts with the idempotency record.",
+                    "replayed": True,
+                    "command_phase": "outcome_unknown",
+                    "command_outcome": "unknown",
+                    "timestamp": timestamp,
+                }
+                record.response = detail
+                raise HTTPException(status_code=503, detail=detail)
+
+            if phase == "outcome_unknown":
+                uncertainty_resolved = bool(
+                    known_command.get("runtime_acceptance_authoritative", False)
+                )
+                if not uncertainty_resolved:
+                    detail = dict(record.response or {})
+                    detail.update(
+                        {
+                            "replayed": True,
+                            "command_phase": "outcome_unknown",
+                            "command_outcome": "unknown",
+                            "timestamp": timestamp,
+                        }
+                    )
+                    raise HTTPException(status_code=503, detail=detail)
+                logger.warning(
+                    "Resolved uncertain command delivery from authoritative scheduler lifecycle evidence: "
+                    "command_id=%s phase=%s",
+                    record.command_id,
+                    known_command.get("phase"),
+                )
+
+            phase = str(known_command.get("phase", phase))
+            outcome = phase if phase in {"completed", "failed", "superseded"} else None
+            mission_type = known_mission_type
+            trigger_time = known_trigger_time
+            state = int(known_command.get("state", state))
+
+        elif phase == "outcome_unknown":
+            # Mutable config alone cannot prove acceptance after a fault. Keep
+            # returning ambiguity until DroneSetup records launch/execution or
+            # terminal lifecycle evidence for this exact command identity.
+            detail = dict(record.response or {})
+            detail.update(
+                {
+                    "replayed": True,
+                    "command_phase": "outcome_unknown",
+                    "command_outcome": "unknown",
+                    "timestamp": timestamp,
+                }
+            )
+            raise HTTPException(status_code=503, detail=detail)
+
+        public_phase, public_outcome = self._public_command_lifecycle(phase, outcome)
+
+        if record.response is not None and not uncertainty_resolved:
+            response_data = dict(record.response)
+            response_data.update(
+                {
+                    "hw_id": hw_id,
+                    "pos_id": pos_id,
+                    "current_state": current_state,
+                    "mission_type": mission_type,
+                    "trigger_time": trigger_time,
+                    "replayed": True,
+                    "command_phase": public_phase,
+                    "command_outcome": public_outcome,
+                    "timestamp": timestamp,
+                }
+            )
+            if response_data.get("status") == "accepted":
+                response_data["new_state"] = state
+                try:
+                    mission_name = Mission(mission_type).name
+                except ValueError:
+                    mission_name = f"MISSION_{mission_type}"
+                response_data["message"] = self._build_idempotent_acceptance_message(
+                    mission_name=mission_name,
+                    phase=phase,
+                )
+            else:
+                original_message = str(response_data.get("message") or "Command was rejected")
+                response_data["message"] = f"Previous identical delivery was rejected: {original_message}"
+            response = CommandAckResponse(**response_data)
+        else:
+            try:
+                mission_name = Mission(mission_type).name
+            except ValueError:
+                mission_name = f"MISSION_{mission_type}"
+            response = CommandAckResponse(
+                status="accepted",
+                command_id=record.command_id,
+                hw_id=hw_id,
+                pos_id=pos_id,
+                current_state=current_state,
+                new_state=state,
+                mission_type=mission_type,
+                trigger_time=trigger_time,
+                message=self._build_idempotent_acceptance_message(
+                    mission_name=mission_name,
+                    phase=phase,
+                ),
+                replayed=True,
+                command_phase=public_phase,
+                command_outcome=public_outcome,
+                timestamp=timestamp,
+            )
+
+        if record.legacy_runtime_bound:
+            response.message = (
+                f"{response.message}; exact optional payload fields are unavailable for this "
+                "legacy in-process command, so the node will not execute the retry"
+            )
+
+        with self._command_idempotency_lock:
+            record.phase = phase
+            record.outcome = public_outcome
+            record.response = response.model_dump(mode="json")
+            record.last_seen_monotonic = time.monotonic()
+        return response
+
+    def _command_idempotency_conflict_response(
+        self,
+        *,
+        command_id: Optional[str],
+        hw_id: str,
+        pos_id: int,
+        current_state: int,
+        mission_type: int,
+        trigger_time: int,
+        detail: str,
+        timestamp: int,
+    ) -> CommandAckResponse:
+        logger.error("Rejected conflicting reuse of command_id=%s: %s", command_id, detail)
+        return CommandAckResponse(
+            status="rejected",
+            command_id=command_id,
+            hw_id=hw_id,
+            pos_id=pos_id,
+            current_state=current_state,
+            mission_type=mission_type,
+            trigger_time=trigger_time,
+            message="Command ID is already bound to a different semantic payload",
+            error_code=CommandErrorCode.IDEMPOTENCY_CONFLICT.value,
+            error_detail=detail,
+            replayed=True,
+            command_phase="terminal",
+            command_outcome="conflict",
+            timestamp=timestamp,
+        )
+
+    def _reconcile_uncertain_command_ownership(
+        self,
+        *,
+        command_id: Optional[str],
+        state_snapshot: _CommandStateSnapshot,
+    ) -> None:
+        """Keep command ownership aligned with the scheduler-visible state.
+
+        The canonical communicator returns a typed definite rejection only
+        after verified rollback. An unexpected exception or an explicitly
+        uncertain rollback can still cross the mutation boundary. A changed
+        core state is then evidence that the new command may have installed;
+        unchanged core state means the prior command still owns it. Neither
+        proves the external outcome, so this helper only repairs local
+        ownership while the idempotency record remains ``outcome_unknown``.
+        """
+        current_core = (
+            int(self.drone_config.mission),
+            int(getattr(self.drone_config, "trigger_time", 0) or 0),
+            int(self.drone_config.state),
+        )
+        previous_core = (
+            state_snapshot.mission_type,
+            state_snapshot.trigger_time,
+            state_snapshot.state,
+        )
+        reconciled_command_id = command_id if current_core != previous_core else state_snapshot.command_id
+        self.drone_config.current_command_id = reconciled_command_id
+        logger.warning(
+            "Reconciled scheduler ownership after uncertain command mutation: "
+            "core_state_changed=%s owner_command_id=%s",
+            current_core != previous_core,
+            reconciled_command_id,
+        )
+
+    def _record_post_mutation_command_uncertainty(
+        self,
+        *,
+        record: Optional[_NodeCommandRecord],
+        command_id: Optional[str],
+        hw_id: str,
+        pos_id: int,
+        current_state: int,
+        mission_type: Optional[int],
+        trigger_time: Optional[int],
+        state_snapshot: _CommandStateSnapshot,
+        exc: Exception,
+        timestamp: int,
+    ) -> CommandAckResponse:
+        """Persist an ambiguous outcome once command-state mutation may have begun."""
+        self._reconcile_uncertain_command_ownership(
+            command_id=command_id,
+            state_snapshot=state_snapshot,
+        )
+        error_detail = str(exc).strip() or type(exc).__name__
+        logger.critical(
+            "Command processing failed after the mutation boundary; delivery outcome is unknown: "
+            "command_id=%s mission_type=%s error=%s",
+            command_id,
+            mission_type,
+            exc,
+            exc_info=True,
+        )
+        response = CommandAckResponse(
+            status="delivery_unknown",
+            command_id=command_id,
+            hw_id=hw_id,
+            pos_id=pos_id,
+            current_state=current_state,
+            new_state=int(getattr(self.drone_config, "state", current_state)),
+            mission_type=mission_type,
+            trigger_time=trigger_time,
+            message=(
+                "Command processing crossed the node mutation boundary, but the final local "
+                "acceptance outcome could not be confirmed; do not submit a new command ID."
+            ),
+            error_code=CommandErrorCode.INTERNAL_ERROR.value,
+            error_detail=error_detail[:500],
+            command_phase="outcome_unknown",
+            command_outcome="unknown",
+            timestamp=timestamp,
+        )
+        self._finalize_command_idempotency(
+            record,
+            response,
+            phase="outcome_unknown",
+            outcome="unknown",
+        )
+        return response
+
+    def _raise_post_mutation_command_uncertainty(
+        self,
+        *,
+        record: Optional[_NodeCommandRecord],
+        command_id: Optional[str],
+        hw_id: str,
+        pos_id: int,
+        current_state: int,
+        mission_type: Optional[int],
+        trigger_time: Optional[int],
+        state_snapshot: _CommandStateSnapshot,
+        exc: Exception,
+        timestamp: int,
+    ) -> None:
+        """Return an ambiguous HTTP response once local mutation may have begun."""
+        response = self._record_post_mutation_command_uncertainty(
+            record=record,
+            command_id=command_id,
+            hw_id=hw_id,
+            pos_id=pos_id,
+            current_state=current_state,
+            mission_type=mission_type,
+            trigger_time=trigger_time,
+            state_snapshot=state_snapshot,
+            exc=exc,
+            timestamp=timestamp,
+        )
+        raise HTTPException(status_code=503, detail=response.model_dump(mode="json"))
+
+    def _handle_command_processing_exception(
+        self,
+        *,
+        record: Optional[_NodeCommandRecord],
+        command_id: Optional[str],
+        hw_id: str,
+        pos_id: int,
+        current_state: int,
+        mission_type: Optional[int],
+        trigger_time: Optional[int],
+        mutation_started: bool,
+        command_committed: bool,
+        state_snapshot: _CommandStateSnapshot,
+        exc: Exception,
+        precommit_message: str,
+        precommit_error_code: str,
+        precommit_error_detail: str,
+        timestamp: int,
+    ) -> CommandAckResponse:
+        """Preserve the acceptance boundary when exception handling a command."""
+        if mutation_started and not command_committed:
+            self._raise_post_mutation_command_uncertainty(
+                record=record,
+                command_id=command_id,
+                hw_id=hw_id,
+                pos_id=pos_id,
+                current_state=current_state,
+                mission_type=mission_type,
+                trigger_time=trigger_time,
+                state_snapshot=state_snapshot,
+                exc=exc,
+                timestamp=timestamp,
+            )
+
+        if command_committed:
+            logger.error(
+                "Command was installed before response finalization failed; preserving accepted state: "
+                "command_id=%s error=%s",
+                command_id,
+                exc,
+                exc_info=True,
+            )
+            response = CommandAckResponse(
+                status="accepted",
+                command_id=command_id,
+                hw_id=hw_id,
+                pos_id=pos_id,
+                current_state=current_state,
+                new_state=int(getattr(self.drone_config, "state", State.MISSION_READY.value)),
+                mission_type=mission_type,
+                trigger_time=trigger_time,
+                message=(
+                    "Command was installed on this node, but post-commit response/reporting "
+                    "encountered an error; execution tracking remains authoritative."
+                ),
+                error_detail=str(exc)[:500],
+                timestamp=timestamp,
+            )
+            return self._finalize_command_idempotency(
+                record,
+                response,
+                phase="pending",
+            )
+
+        response = CommandAckResponse(
+            status="rejected",
+            command_id=command_id,
+            hw_id=hw_id,
+            pos_id=pos_id,
+            current_state=current_state,
+            mission_type=mission_type,
+            trigger_time=trigger_time,
+            message=precommit_message,
+            error_code=precommit_error_code,
+            error_detail=precommit_error_detail,
+            timestamp=timestamp,
+        )
+        return self._finalize_command_idempotency(
+            record,
+            response,
+            phase="rejected",
+            outcome="rejected",
+        )
+
     def _validate_command(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate command structure and values.
 
         Returns dict with 'valid', 'message', 'error_code', and optionally 'detail'.
         """
-        mission_key = 'mission_type' if 'mission_type' in command_data else 'missionType'
-        trigger_key = 'trigger_time' if 'trigger_time' in command_data else 'triggerTime'
+        mission_key = 'mission_type'
+        trigger_key = 'trigger_time'
 
         # Check required field: mission_type
         if mission_key not in command_data:
@@ -2569,7 +4102,10 @@ class DroneAPIServer:
         # Validate mission_type format and value
         try:
             mission_type = int(command_data[mission_key])
-            if mission_type not in Mission._value2member_map_:
+            if (
+                mission_type not in Mission._value2member_map_
+                or mission_type == Mission.UNKNOWN.value
+            ):
                 return {
                     'valid': False,
                     'message': f'Unknown mission type: {mission_type}',
@@ -2666,37 +4202,30 @@ class DroneAPIServer:
                     'detail': f'Current state: {state_name}, mission: {self.drone_config.mission} ({detail_suffix})'
                 }
 
-        # For takeoff, check if ready to arm
-        if mission_type == Mission.TAKE_OFF.value:
-            if not self.drone_config.is_ready_to_arm:
-                raw_summary = getattr(self.drone_config, 'readiness_summary', '')
-                readiness_summary = raw_summary.strip() if isinstance(raw_summary, str) else ''
-                raw_blockers = getattr(self.drone_config, 'preflight_blockers', [])
-                blockers = raw_blockers if isinstance(raw_blockers, list) else []
-                if blockers:
-                    detail = " | ".join(
-                        str(blocker.get('message', '')).strip()
-                        for blocker in blockers[:3]
-                        if str(blocker.get('message', '')).strip()
-                    )
-                else:
-                    detail = readiness_summary
-                if not detail:
-                    detail = 'Check live readiness report for current PX4 preflight blockers.'
+        if mission_type in {Mission.HOLD.value, Mission.PRECISION_MOVE.value}:
+            mission_name = Mission(mission_type).name
+            cached_admission = evaluate_cached_airborne_admission(
+                self.drone_config,
+                max_age_sec=getattr(self.params, "LOCAL_MAVLINK_STALE_TIMEOUT_SEC", 0),
+            )
+            if not cached_admission.accepted:
+                error_code = (
+                    CommandErrorCode.NOT_ARMED.value
+                    if cached_admission.status
+                    in {
+                        AirborneAdmissionStatus.HEARTBEAT_UNAVAILABLE,
+                        AirborneAdmissionStatus.HEARTBEAT_STALE,
+                        AirborneAdmissionStatus.ARMED_UNAVAILABLE,
+                        AirborneAdmissionStatus.DISARMED,
+                    }
+                    else CommandErrorCode.INVALID_STATE.value
+                )
                 return {
                     'valid': False,
-                    'message': 'Drone is not ready to arm (pre-flight checks not passed)',
-                    'error_code': CommandErrorCode.NOT_READY_TO_ARM.value,
-                    'detail': detail
+                    'message': f'{mission_name} requires fresh evidence of an armed airborne drone',
+                    'error_code': error_code,
+                    'detail': cached_admission.detail,
                 }
-
-        if mission_type in {Mission.HOLD.value, Mission.PRECISION_MOVE.value} and not self.drone_config.is_armed:
-            mission_name = Mission(mission_type).name
-            return {
-                'valid': False,
-                'message': f'{mission_name} requires an armed airborne drone',
-                'error_code': CommandErrorCode.NOT_ARMED.value,
-            }
 
         return {'valid': True, 'message': 'State preconditions met'}
 
@@ -2727,6 +4256,10 @@ class DroneAPIServer:
                 'trigger_time': int(getattr(self.drone_config, 'trigger_time', 0) or 0),
                 'state': int(self.drone_config.state),
                 'phase': 'pending',
+                'trigger_time_authoritative': True,
+                # This mutable pending slot is the same state reconciled after
+                # an uncertain fault, so it cannot independently prove ACK.
+                'runtime_acceptance_authoritative': False,
             }
 
         drone_setup = getattr(self.drone_config, 'drone_setup', None)
@@ -2734,19 +4267,35 @@ class DroneAPIServer:
         if not isinstance(running_processes, dict):
             running_processes = {}
 
-        for record in running_processes.values():
+        try:
+            process_records = tuple(running_processes.values())
+        except RuntimeError:
+            logger.warning(
+                "Running-process registry changed while resolving command_id=%s; "
+                "using node idempotency history only for this request.",
+                command_id,
+            )
+            process_records = ()
+
+        for record in process_records:
             if getattr(record, 'command_id', None) == command_id:
                 return {
-                    'mission_type': int(self.drone_config.mission),
-                    'trigger_time': 0,
+                    'mission_type': int(
+                        getattr(record, 'mission_type', self.drone_config.mission)
+                    ),
+                    'trigger_time': int(getattr(record, 'trigger_time', 0) or 0),
                     'state': int(self.drone_config.state),
                     'phase': 'executing',
+                    'trigger_time_authoritative': True,
+                    'runtime_acceptance_authoritative': True,
                 }
 
         get_recent_command_record = getattr(drone_setup, 'get_recent_command_record', None) if drone_setup else None
         if callable(get_recent_command_record):
             recent_record = get_recent_command_record(command_id)
             if isinstance(recent_record, dict):
+                recent_record.setdefault('trigger_time_authoritative', True)
+                recent_record.setdefault('runtime_acceptance_authoritative', True)
                 return recent_record
 
         return None
@@ -2790,6 +4339,8 @@ class DroneAPIServer:
 
     @staticmethod
     def _build_idempotent_acceptance_message(mission_name: str, phase: str) -> str:
+        if phase == "launching":
+            return f"Command {mission_name} launch preparation is already in progress; returning idempotent ACK"
         if phase == "executing":
             return f"Command {mission_name} was already active on this drone; returning idempotent ACK while execution continues"
         if phase == "completed":
@@ -2994,7 +4545,3 @@ class DroneAPIServer:
 
         server = uvicorn.Server(config)
         server.run()
-
-
-# Backward compatibility: alias for old name
-FlaskHandler = DroneAPIServer

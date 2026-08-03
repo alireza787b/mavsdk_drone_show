@@ -39,6 +39,10 @@ class DroneState:
         velocity: Velocity dict {north, east, down}
         yaw: Yaw angle in degrees
         battery: Battery voltage in volts
+        battery_remaining_percent: Autopilot state-of-charge estimate, in percentage points
+        battery_charge_state: MAVLink battery charge-state enum value when available
+        battery_fault_bitmask: MAVLink battery fault flags when available
+        battery_timestamp_ms: Local receipt time of the latest BATTERY_STATUS sample
         last_update_timestamp: Timestamp of last telemetry update
         home_position: Home position from autopilot
         gps_global_origin: GPS global origin data
@@ -77,7 +81,7 @@ class DroneState:
         self.current_command_id: Optional[str] = None  # For command tracking
         self.runtime_takeoff_altitude: Optional[float] = None  # Runtime override for takeoff command
         self.update_branch: Optional[str] = None
-        self.reboot_after_params: Optional[bool] = None
+        self.ground_test_request_file: Optional[str] = None
         self.quickscout_mission_id: Optional[str] = None
         self.quickscout_waypoints_file: Optional[str] = None
         self.quickscout_return_behavior: Optional[str] = None
@@ -94,6 +98,7 @@ class DroneState:
         self.yaw_rate_deg_s: float = 0.0
         self.telemetry_timestamp_ms: int = 0
         self.telemetry_sequence: int = 0
+        self.heartbeat_timestamp_ms: int = 0
         self.gps_raw_timestamp_ms: int = 0
         self.global_position_timestamp_ms: int = 0
         self.global_position_valid: bool = False
@@ -104,6 +109,10 @@ class DroneState:
 
         # Battery
         self.battery: float = 0
+        self.battery_remaining_percent: Optional[float] = None
+        self.battery_charge_state: Optional[int] = None
+        self.battery_fault_bitmask: Optional[int] = None
+        self.battery_timestamp_ms: int = 0
         self.last_update_timestamp: float = 0
 
         # Home and origin positions

@@ -5,9 +5,20 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from api_routes.commands import _estimate_max_target_relative_altitude_m, create_command_router
-from command_submission import _ensure_sitl_callback_endpoint_matches
+from api_routes.commands import create_command_router
+from command_submission import (
+    _ensure_sitl_callback_endpoint_matches,
+    estimate_max_target_relative_altitude_m,
+)
+from command_execution_policy import (
+    mission_requires_launch_armability_probe,
+    resolve_mission_type,
+)
+from command_submission_pipeline import SITLCallbackEndpointMismatchError
 from command_tracker import CommandIdempotencyConflictError, CommandCreationResult
+from src.enums import Mission
+from tests.helpers.command_submission import DeferredSubmissionCoordinator
+from tests.helpers.fake_fleet_rpc import FakeFleetRPC
 
 
 class _DummyTracker:
@@ -26,6 +37,7 @@ class _DummyTracker:
         self.replay_command = replay_command
         self.replay_conflict = replay_conflict
         self.create_calls = []
+        self.created_commands = {}
 
     async def get_statistics(self):
         return self.statistics
@@ -33,8 +45,7 @@ class _DummyTracker:
     async def get_status(self, command_id):
         if self.replay_command and self.replay_command.get("command_id") == command_id:
             return self.replay_command
-        del command_id
-        return None
+        return self.created_commands.get(command_id)
 
     async def get_recent(self, **kwargs):
         del kwargs
@@ -57,6 +68,25 @@ class _DummyTracker:
         self.create_calls.append(kwargs)
         if self.replay_conflict:
             raise CommandIdempotencyConflictError("replay conflict")
+        self.created_commands["cmd-1"] = {
+            "command_id": "cmd-1",
+            "idempotency_key": kwargs.get("idempotency_key"),
+            "mission_type": kwargs["mission_type"],
+            "mission_name": f"MISSION_{kwargs['mission_type']}",
+            "target_drones": list(kwargs["target_drones"]),
+            "status": "created",
+            "phase": "preparing",
+            "outcome": None,
+            "acks": {
+                "expected": len(kwargs["target_drones"]),
+                "received": 0,
+                "accepted": 0,
+                "offline": 0,
+                "rejected": 0,
+                "errors": 0,
+                "details": {},
+            },
+        }
         return CommandCreationResult(command_id="cmd-1", replayed=False)
 
     async def create_command(self, **kwargs):
@@ -65,7 +95,11 @@ class _DummyTracker:
 
     async def mark_submitted(self, command_id):
         del command_id
-        return None
+        return True
+
+    async def get_callback_capabilities(self, command_id):
+        del command_id
+        return {"1": "c" * 43}
 
     async def record_ack(self, *args, **kwargs):
         del args, kwargs
@@ -79,77 +113,30 @@ class _DummyTracker:
         del kwargs
         return True
 
-
-class _MissionMember:
-    def __init__(self, value, name):
-        self.value = value
-        self.name = name
-
-    def __eq__(self, other):
-        if isinstance(other, _MissionMember):
-            return self.value == other.value
-        return self.value == other
-
-    def __hash__(self):
-        return hash(self.value)
-
-
-class _MissionShim:
-    TAKE_OFF = _MissionMember(10, "TAKE_OFF")
-    SWARM_TRAJECTORY = _MissionMember(4, "SWARM_TRAJECTORY")
-    LAND = _MissionMember(101, "LAND")
-    RETURN_RTL = _MissionMember(102, "RETURN_RTL")
-
-    _by_value = {
-        4: SWARM_TRAJECTORY,
-        10: TAKE_OFF,
-        101: LAND,
-        102: RETURN_RTL,
-    }
-    _by_name = {
-        "SWARM_TRAJECTORY": SWARM_TRAJECTORY,
-        "TAKE_OFF": TAKE_OFF,
-        "LAND": LAND,
-        "RETURN_RTL": RETURN_RTL,
-    }
-
-    def __call__(self, value):
-        return self._by_value[int(value)]
+    async def fail_command_before_dispatch(self, command_id, reason):
+        del command_id, reason
+        return True
 
 
 def _make_deps():
     deps = SimpleNamespace()
     deps.current_tracker = _DummyTracker()
     deps.get_command_tracker = lambda: deps.current_tracker
-    deps.Mission = _MissionShim()
+    deps.command_submission_coordinator = DeferredSubmissionCoordinator()
+    deps.get_command_submission_coordinator = lambda: deps.command_submission_coordinator
+    deps.fleet_rpc = FakeFleetRPC()
+    deps.get_fleet_rpc_service = lambda: deps.fleet_rpc
+    deps.Mission = Mission
     deps.Params = SimpleNamespace(
+        sim_mode=False,
         GCS_TELEMETRY_REQUEST_TIMEOUT_SEC=1.0,
         drone_api_port=5001,
         get_drone_home_URI="get-home-pos",
     )
     deps.telemetry_lock = nullcontext()
     deps.telemetry_data_all_drones = {}
-    deps.resolve_mission_type = lambda mission_type: (
-        deps.Mission._by_name.get(str(mission_type).upper())
-        if str(mission_type).upper() in deps.Mission._by_name
-        else deps.Mission._by_value.get(int(mission_type))
-    )
-    deps.mission_requires_launch_armability_probe = lambda mission: False
-    deps.probe_live_armability_for_drones = lambda *args, **kwargs: {
-        "all_ready": True,
-        "blocked_ids": [],
-        "unavailable_ids": [],
-        "results": {},
-    }
-    deps.send_commands_to_all = lambda *args, **kwargs: {
-        "success": 1,
-        "offline": 0,
-        "rejected": 0,
-        "errors": 0,
-        "result_summary": "1 accepted",
-        "results": {"1": {"success": True, "category": "accepted"}},
-    }
-    deps.send_commands_to_selected = deps.send_commands_to_all
+    deps.resolve_mission_type = resolve_mission_type
+    deps.mission_requires_launch_armability_probe = mission_requires_launch_armability_probe
     deps.load_config = lambda: [{"hw_id": 1, "pos_id": 1, "ip": "127.0.0.1"}]
     deps.load_origin = lambda: None
     deps.skybrush_dir = "/tmp/skybrush"
@@ -185,11 +172,10 @@ def test_sitl_command_guard_rejects_callback_endpoint_split():
     warnings = []
     deps.log_system_warning = lambda *args: warnings.append(args)
 
-    with pytest.raises(HTTPException) as raised:
+    with pytest.raises(SITLCallbackEndpointMismatchError) as raised:
         _ensure_sitl_callback_endpoint_matches(deps, ["1"])
 
-    assert raised.value.status_code == 409
-    assert "callbacks are routed to a different GCS process" in str(raised.value.detail)
+    assert "callbacks are routed to a different GCS process" in str(raised.value)
     assert warnings
 
 
@@ -330,7 +316,41 @@ def test_command_router_submit_rejects_invalid_target_drones_shape():
         )
 
     assert response.status_code == 422
-    assert "target_drone_ids must be an array of drone identifiers" in response.text
+    assert "target_drone_ids must be a JSON array of hardware ID strings" in response.text
+
+
+@pytest.mark.parametrize(
+    "payload,error_text",
+    [
+        (
+            {"mission_type": 10, "trigger_time": 0},
+            "Command target is required; use target_scope='all' for the whole fleet",
+        ),
+        (
+            {"mission_type": 10, "trigger_time": 0, "target_drone_ids": []},
+            "target_drone_ids must contain at least one hardware ID",
+        ),
+        (
+            {
+                "mission_type": 10,
+                "trigger_time": 0,
+                "target_drone_ids": ["1"],
+                "target_scope": "all",
+            },
+            "Use target_drone_ids or target_scope, not both",
+        ),
+    ],
+)
+def test_command_router_submit_requires_one_unambiguous_target_selection(payload, error_text):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/commands", json=payload)
+
+    assert response.status_code == 422
+    assert error_text in response.text
 
 
 def test_command_router_submit_accepts_snake_case_aliases():
@@ -344,13 +364,92 @@ def test_command_router_submit_accepts_snake_case_aliases():
             json={"mission_type": "TAKE_OFF", "trigger_time": 0, "target_drone_ids": ["1"]},
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
+    assert body["accepted_for_tracking"] is True
     assert body["mission_type"] == 10
     assert body["target_drones"] == ["1"]
 
 
-def test_command_router_submit_rejects_unmatched_target_drones():
+def test_command_router_ground_test_requires_safety_acknowledgement():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/commands",
+            json={"mission_type": 100, "trigger_time": 0, "target_drone_ids": ["1"]},
+        )
+
+    assert response.status_code == 422
+    assert "ground_test_safety acknowledgement is required" in response.text
+
+
+def test_command_router_real_mode_rejects_sitl_ground_test_exemption_before_tracking():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/commands",
+            json={
+                "mission_type": 100,
+                "trigger_time": 0,
+                "target_drone_ids": ["1"],
+                "ground_test_safety": {"mode": "sitl_not_applicable"},
+            },
+        )
+
+    assert response.status_code == 409
+    assert "Real-aircraft Arm/Disarm Ground Test" in response.json()["detail"]
+    assert deps.current_tracker.create_calls == []
+
+
+def test_command_router_sitl_mode_requires_explicit_sitl_ground_test_exemption():
+    deps = _make_deps()
+    deps.Params.sim_mode = True
+    # This test exercises the acknowledgement boundary, not Docker callback
+    # endpoint discovery.
+    deps.sitl_control_service = SimpleNamespace(callback_endpoint_mismatches=lambda _targets: [])
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        wrong_mode = client.post(
+            "/api/v1/commands",
+            json={
+                "mission_type": 100,
+                "trigger_time": 0,
+                "target_drone_ids": ["1"],
+                "ground_test_safety": {
+                    "mode": "operator_acknowledged",
+                    "props_removed": True,
+                    "airframe_secured": True,
+                    "area_clear": True,
+                },
+            },
+        )
+        accepted = client.post(
+            "/api/v1/commands",
+            json={
+                "mission_type": 100,
+                "trigger_time": 0,
+                "target_drone_ids": ["1"],
+                "ground_test_safety": {"mode": "sitl_not_applicable"},
+            },
+        )
+
+    assert wrong_mode.status_code == 409
+    assert "SITL Arm/Disarm Ground Test" in wrong_mode.json()["detail"]
+    assert accepted.status_code == 202
+    assert deps.current_tracker.create_calls[0]["params"]["ground_test_safety"] == {
+        "mode": "sitl_not_applicable",
+    }
+
+
+def test_command_router_submit_rejects_legacy_envelope_fields():
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_command_router(deps))
@@ -361,8 +460,9 @@ def test_command_router_submit_rejects_unmatched_target_drones():
             json={"missionType": 10, "triggerTime": 0, "target_drones": ["99"]},
         )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "No configured drones matched target_drone_ids"
+    assert response.status_code == 422
+    assert "Unsupported command-submit field(s)" in response.text
+    assert "canonical snake_case contract" in response.text
 
 
 def test_command_router_submit_replays_existing_idempotent_command_without_redispatch():
@@ -421,7 +521,6 @@ def test_command_router_submit_replays_existing_idempotent_command_without_redis
     }
     deps = _make_deps()
     deps.current_tracker = _DummyTracker(replay_command=replay_command)
-    deps.send_commands_to_all = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("dispatch should not run"))
     app = FastAPI()
     app.include_router(create_command_router(deps))
 
@@ -431,16 +530,20 @@ def test_command_router_submit_replays_existing_idempotent_command_without_redis
             json={
                 "mission_type": 10,
                 "trigger_time": 0,
+                "target_scope": "all",
                 "idempotency_key": "retry-123",
             },
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
+    assert body["accepted_for_tracking"] is True
     assert body["command_id"] == "cmd-existing"
     assert body["idempotency_key"] == "retry-123"
     assert body["replayed"] is True
-    assert body["status"] == "submitted"
+    assert body["tracking_url"] == "/api/v1/commands/cmd-existing"
+    assert "status" not in body
+    assert deps.fleet_rpc.dispatch_calls == []
 
 
 def test_command_router_submit_rejects_conflicting_idempotency_key_reuse():
@@ -455,6 +558,7 @@ def test_command_router_submit_rejects_conflicting_idempotency_key_reuse():
             json={
                 "mission_type": 10,
                 "trigger_time": 0,
+                "target_scope": "all",
                 "idempotency_key": "retry-123",
             },
         )
@@ -463,28 +567,136 @@ def test_command_router_submit_rejects_conflicting_idempotency_key_reuse():
     assert "idempotency_key" in response.json()["detail"]
 
 
-def test_estimate_max_target_relative_altitude_uses_home_altitude_field(monkeypatch):
+def test_execution_callback_routes_require_exact_command_target_capability():
+    import asyncio
+
+    from command_tracker import CommandTracker
+    from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
+
+    tracker = CommandTracker(max_commands=10)
+    command_id = asyncio.run(
+        tracker.create_command(mission_type=10, target_drones=["1"])
+    )
+    capability = asyncio.run(tracker.get_callback_capabilities(command_id))["1"]
+    deps = _make_deps()
+    deps.current_tracker = tracker
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+    start_payload = {"command_id": command_id, "hw_id": "1"}
+
+    with TestClient(app) as client:
+        missing = client.post(
+            "/api/v1/command-reports/execution-start",
+            json=start_payload,
+        )
+        wrong = client.post(
+            "/api/v1/command-reports/execution-start",
+            json=start_payload,
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: "x" * 43},
+        )
+        spoofed_hw = client.post(
+            "/api/v1/command-reports/execution-start",
+            json={"command_id": command_id, "hw_id": "2"},
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: capability},
+        )
+        accepted_start = client.post(
+            "/api/v1/command-reports/execution-start",
+            json=start_payload,
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: capability},
+        )
+        result_payload = {
+            "command_id": command_id,
+            "hw_id": "1",
+            "success": True,
+            "duration_ms": 25,
+        }
+        accepted_result = client.post(
+            "/api/v1/command-reports/execution-result",
+            json=result_payload,
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: capability},
+        )
+        replayed_result = client.post(
+            "/api/v1/command-reports/execution-result",
+            json=result_payload,
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: capability},
+        )
+
+    assert missing.status_code == 403
+    assert wrong.status_code == 403
+    assert spoofed_hw.status_code == 403
+    assert missing.json()["detail"] == wrong.json()["detail"] == spoofed_hw.json()["detail"] == (
+        "Command callback authentication failed"
+    )
+    assert accepted_start.status_code == 200
+    assert accepted_result.status_code == 200
+    assert replayed_result.status_code == 200
+    status = asyncio.run(tracker.get_status(command_id))
+    assert status["outcome"] == "completed"
+    assert status["executions"]["received"] == 1
+
+
+def test_terminal_command_keeps_authenticated_late_execution_as_evidence_only():
+    import asyncio
+
+    from command_tracker import CommandTracker
+    from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
+
+    tracker = CommandTracker(max_commands=10)
+    command_id = asyncio.run(
+        tracker.create_command(mission_type=10, target_drones=["1"])
+    )
+    capability = asyncio.run(tracker.get_callback_capabilities(command_id))["1"]
+    asyncio.run(
+        tracker.record_ack(
+            command_id,
+            "1",
+            category="rejected",
+            error_code="E202",
+        )
+    )
+    deps = _make_deps()
+    deps.current_tracker = tracker
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/command-reports/execution-result",
+            json={
+                "command_id": command_id,
+                "hw_id": "1",
+                "success": True,
+                "duration_ms": 25,
+            },
+            headers={GCS_COMMAND_REPORT_CAPABILITY_HEADER: capability},
+        )
+
+    assert response.status_code == 200
+    status = asyncio.run(tracker.get_status(command_id))
+    assert status["phase"] == "terminal"
+    assert status["outcome"] == "failed"
+    assert status["acks"]["accepted"] == 0
+    assert status["executions"]["received"] == 0
+    assert status["late_reports"]["executions"]["received"] == 1
+
+
+def test_estimate_max_target_relative_altitude_uses_cached_relative_altitude_without_rpc(monkeypatch):
     deps = _make_deps()
     deps.telemetry_data_all_drones = {
         "1": {
             "position_alt": 512.0,
+            "relative_altitude_m": 12.0,
         }
     }
 
-    class _Response:
-        def raise_for_status(self):
-            return None
+    monkeypatch.setattr(
+        "requests.get",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("timeout sizing must not issue a per-node HTTP request")
+        ),
+    )
 
-        def json(self):
-            return {"altitude": 500.0}
-
-    def _fake_get(url, timeout):
-        del url, timeout
-        return _Response()
-
-    monkeypatch.setattr("requests.get", _fake_get)
-
-    value = _estimate_max_target_relative_altitude_m(
+    value = estimate_max_target_relative_altitude_m(
         deps,
         [{"hw_id": 1, "ip": "127.0.0.1"}],
         ["1"],

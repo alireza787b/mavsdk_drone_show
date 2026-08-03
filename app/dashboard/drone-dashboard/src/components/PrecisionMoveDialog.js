@@ -499,8 +499,8 @@ const PrecisionMoveDialog = ({
   };
 
   const dispatchPrecisionMove = async (payload, detailPayload, options = {}) => onSubmit({
-    missionType: String(DRONE_ACTION_TYPES.PRECISION_MOVE),
-    triggerTime: '0',
+    mission_type: DRONE_ACTION_TYPES.PRECISION_MOVE,
+    trigger_time: 0,
     precision_move: payload,
     uiMeta: {
       operatorLabel: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.PRECISION_MOVE],
@@ -556,8 +556,8 @@ const PrecisionMoveDialog = ({
 
   const handleSubmitHold = async () => {
     await onSubmitHold({
-      missionType: String(DRONE_ACTION_TYPES.HOLD),
-      triggerTime: '0',
+      mission_type: DRONE_ACTION_TYPES.HOLD,
+      trigger_time: 0,
       uiMeta: {
         operatorLabel: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.HOLD],
         confirmationMessage: `Hold → ${targetLabel}. Dispatch now?`,

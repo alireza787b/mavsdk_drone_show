@@ -63,6 +63,7 @@ jobs:
       - name: Validate generated contracts
         run: |
           python3 tools/generate_mds_env_reference.py --check
+          python3 tools/generate_mission_identity_catalog.py --check
           python3 tools/generate_simurgh_tool_candidates.py --check
           python3 tools/generate_simurgh_docs_index.py --check
           python3 tools/audit_mds_env_registry.py

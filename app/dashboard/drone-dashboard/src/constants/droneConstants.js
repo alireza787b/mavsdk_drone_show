@@ -4,96 +4,51 @@ import {
     buildShowPlotUrl,
     GCS_ROUTE_KEYS,
 } from '../services/gcsApiService';
+import {
+    COMMAND_CATALOG,
+    COMMAND_METADATA_BY_VALUE,
+    getCommandMetadata,
+} from './missionCatalog';
 
-export const DRONE_MISSION_TYPES = {
-    NONE: 0,
-    DRONE_SHOW_FROM_CSV: 1,
-    SMART_SWARM: 2,
-    CUSTOM_CSV_DRONE_SHOW: 3,
-    SWARM_TRAJECTORY: 4,
-};
+const buildTypeMap = (kind) => Object.freeze(COMMAND_CATALOG.reduce((result, command) => {
+    if (command.kind === kind) {
+        result[command.key] = command.value;
+    }
+    return result;
+}, {}));
+
+const buildNameMap = (kind) => Object.freeze(COMMAND_CATALOG.reduce((result, command) => {
+    if (command.kind === kind) {
+        result[command.value] = command.commandLabel;
+    }
+    return result;
+}, {}));
+
+export const DRONE_MISSION_TYPES = buildTypeMap('mission');
 
 // Define mission display order for better UX (Cancel last as requested)
-export const DRONE_MISSION_DISPLAY_ORDER = [
-    { key: 'DRONE_SHOW_FROM_CSV', value: DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV },
-    { key: 'CUSTOM_CSV_DRONE_SHOW', value: DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW },
-    { key: 'SMART_SWARM', value: DRONE_MISSION_TYPES.SMART_SWARM },
-    { key: 'SWARM_TRAJECTORY', value: DRONE_MISSION_TYPES.SWARM_TRAJECTORY },
-    { key: 'NONE', value: DRONE_MISSION_TYPES.NONE }, // Cancel last for safety
-];
+export const DRONE_MISSION_DISPLAY_ORDER = Object.freeze(COMMAND_CATALOG
+    .filter((command) => Number.isFinite(command.missionPickerOrder))
+    .sort((left, right) => left.missionPickerOrder - right.missionPickerOrder)
+    .map((command) => Object.freeze({ key: command.key, value: command.value })));
 
-export const DRONE_ACTION_TYPES = {
-    TAKE_OFF: 10,
-    LAND: 101,
-    HOLD: 102,
-    TEST: 100,
-    UPDATE_CODE: 103,
-    RETURN_RTL: 104,
-    KILL_TERMINATE: 105,
-    HOVER_TEST: 106,
-    REBOOT_FC: 6,
-    REBOOT_SYS: 7,
-    TEST_LED: 8,
-    DISARM: 9,
-    INIT_SYSID: 110,
-    APPLY_COMMON_PARAMS: 111,
-    PRECISION_MOVE: 112,
-};
+export const DRONE_ACTION_TYPES = buildTypeMap('action');
 
 export const DRONE_MISSION_IMAGES = {
     [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: buildShowPlotUrl('combined_drone_paths.jpg'),
     [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: buildGcsUrl(GCS_ROUTE_KEYS.customShowImage),
 };
 
-export const DRONE_MISSION_NAMES = {
-    0: 'Cancel Mission',
-    1: 'Drone Show from CSV',
-    2: 'Smart Swarm',
-    3: 'Custom CSV Drone Show',
-    4: 'Swarm Trajectory',
-};
+export const DRONE_MISSION_NAMES = buildNameMap('mission');
 
-export const DRONE_ACTION_NAMES = {
-    6: 'Reboot Flight Controls',
-    7: 'Reboot Companion Computer',
-    8: 'Test Light Show',
-    9: 'Disarm Drones',
-    10: 'Take Off',
-    100: 'Test',
-    101: 'Land',
-    102: 'Hold',
-    103: 'Update Code',
-    104: 'Return to Launch',
-    105: 'Emergency Kill',
-    106: 'Hover Test',
-    110: 'Init System ID',
-    111: 'Apply Common Params',
-    112: 'Precision Move',
-};
+export const DRONE_ACTION_NAMES = buildNameMap('action');
 
 export const getMissionDescription = (missionType) => {
-    switch (missionType) {
-        case DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV:
-            return 'Launch the active SkyBrush package with synchronized timing and optional launch correction.';
-        case DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW:
-            return 'Replay the active custom protocol CSV relative to each launch point.';
-        case DRONE_MISSION_TYPES.SMART_SWARM:
-            return 'Start the published leader-follower topology for live formation flight.';
-        case DRONE_MISSION_TYPES.SWARM_TRAJECTORY:
-            return 'Dispatch the processed leader-route package across the selected cluster.';
-        case DRONE_MISSION_TYPES.NONE:
-            return 'Cancel the active mission for the current target scope immediately.';
-        default:
-            return '';
-    }
+    return getCommandMetadata(missionType)?.description || '';
 };
 
 export const getCommandName = (missionType) => {
-    return (
-        DRONE_MISSION_NAMES[missionType] ||
-        DRONE_ACTION_NAMES[missionType] ||
-        'Unknown Command'
-    );
+    return COMMAND_METADATA_BY_VALUE[missionType]?.commandLabel || 'Unknown Command';
 };
 
 export const defaultTriggerTimeDelay = 10;

@@ -186,9 +186,6 @@ class Params:
     SMART_SWARM_MAX_ACCELERATION = 2.0
     SMART_SWARM_MAX_JERK = 4.0
     
-    reboot_after_params = True
-    
-
     # how many failed polls before we elect
     MAX_LEADER_UNREACHABLE_ATTEMPTS = 15
 
@@ -322,7 +319,6 @@ class Params:
     PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC", "2.5"), 2.5)
     PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES = _safe_int(os.environ.get("MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES", "4"), 4)
     PX4_PARAMETER_PROFILE_DIR = os.environ.get("MDS_PX4_PARAMETER_PROFILE_DIR", "resources/px4_param_profiles")
-    COMMON_PARAMS_FILE = os.environ.get("MDS_COMMON_PARAMS_FILE", "resources/common_params.csv")
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm
@@ -333,7 +329,63 @@ class Params:
     RTL_ACTION_COMPLETION_TIMEOUT = 300        # Minimum wait budget for standalone RTL to return home, land, and disarm
     RTL_ACTION_COMPLETION_BUFFER_SEC = 120     # Extra travel-home buffer above the estimated landing/disarm time
     RTL_ACTION_COMPLETION_MAX_TIMEOUT = 1200   # Hard cap for very long standalone RTL recoveries
+    # Local mission-controller preemption policy. These are safety bounds, not
+    # deployment toggles: routine replacements may shut down gracefully,
+    # recovery commands wait at most a brief grace period, and Emergency Stop
+    # signals the old controller immediately.
+    MISSION_PROCESS_STOP_GRACE_SEC = 5.0
+    RECOVERY_PROCESS_STOP_GRACE_SEC = 0.20
+    EMERGENCY_PROCESS_STOP_GRACE_SEC = 0.0
     COMMAND_TRACKING_DEFAULT_TIMEOUT_MS = 60000  # Fallback tracker timeout when no mission-specific estimate is available
+    # Bounded asynchronous GCS-to-node transport. Routine and recovery pools
+    # remain separate so a slow launch/polling fan-out cannot starve LAND/RTL/
+    # HOLD/KILL delivery. Fleet-level deadlines bound degraded 1,000-node
+    # operations instead of accumulating unbounded tasks or threads.
+    GCS_FLEET_RPC_CONCURRENCY = _safe_int(os.environ.get("MDS_GCS_FLEET_RPC_CONCURRENCY", "48"), 48)
+    GCS_FLEET_RECOVERY_CONCURRENCY = _safe_int(os.environ.get("MDS_GCS_FLEET_RECOVERY_CONCURRENCY", "16"), 16)
+    GCS_FLEET_PREPARE_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_PREPARE_DEADLINE_SEC", "30"), 30.0)
+    GCS_FLEET_DISPATCH_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_DISPATCH_DEADLINE_SEC", "15"), 15.0)
+    GCS_FLEET_RECOVERY_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_RECOVERY_DEADLINE_SEC", "20"), 20.0)
+    GCS_COMMAND_HTTP_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_GCS_COMMAND_HTTP_TIMEOUT_SEC", "5"), 5.0)
+    # Bounded lifespan-owned submission lanes return a tracker ID before slow
+    # readiness/dispatch I/O. Recovery work has independent admission so a
+    # burst of routine submissions cannot starve LAND/RTL/HOLD/KILL.
+    GCS_COMMAND_SUBMISSION_CONCURRENCY = _safe_int(
+        os.environ.get("MDS_GCS_COMMAND_SUBMISSION_CONCURRENCY", "32"),
+        32,
+    )
+    GCS_COMMAND_RECOVERY_SUBMISSION_CONCURRENCY = _safe_int(
+        os.environ.get("MDS_GCS_COMMAND_RECOVERY_SUBMISSION_CONCURRENCY", "8"),
+        8,
+    )
+    GCS_COMMAND_SUBMISSION_SHUTDOWN_GRACE_SEC = _safe_float(
+        os.environ.get("MDS_GCS_COMMAND_SUBMISSION_SHUTDOWN_GRACE_SEC", "5"),
+        5.0,
+    )
+    GCS_COMMAND_PREPARATION_PROVISIONAL_TIMEOUT_MS = _safe_int(
+        os.environ.get("MDS_GCS_COMMAND_PREPARATION_PROVISIONAL_TIMEOUT_MS", "300000"),
+        300000,
+    )
+    _xdg_state_home = os.environ.get("XDG_STATE_HOME", "").strip()
+    _gcs_command_state_root_candidate = Path(
+        _xdg_state_home or (Path.home() / ".local" / "state")
+    ).expanduser()
+    _gcs_command_state_root = (
+        _gcs_command_state_root_candidate
+        if _gcs_command_state_root_candidate.is_absolute()
+        else Path.home() / ".local" / "state"
+    )
+    GCS_COMMAND_STATE_DIR = os.environ.get(
+        "MDS_GCS_COMMAND_STATE_DIR",
+        str(
+            (
+                _gcs_command_state_root
+                / "mds"
+                / "gcs-commands"
+                / f"{runtime_mode}-{gcs_api_port}"
+            ).resolve()
+        ),
+    )
     COMMAND_TRACKING_ACTION_BUFFER_SEC = 30      # Extra tracker slack for short actions after expected completion
     COMMAND_TRACKING_MISSION_BUFFER_SEC = 120    # Extra tracker slack for show/trajectory mission playback
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
@@ -458,6 +510,13 @@ class Params:
     OFFBOARD_ARM_HEALTH_TIMEOUT_SEC = 15.0   # Wait budget for PX4 armability after preflight already passed
     OFFBOARD_ARM_HEALTH_POLL_SEC = 0.5       # Max wait between MAVSDK health samples during mission startup
     OFFBOARD_ARM_HEALTH_STABLE_SAMPLES = 1   # Consecutive healthy samples required before arming
+    # Minimum PX4/MAVSDK state-of-charge estimate required before any canonical
+    # launch path may arm. This is percentage points (30 = 30%), never a pack-
+    # voltage threshold, so it remains valid across battery chemistries/cell counts.
+    LAUNCH_BATTERY_MIN_REMAINING_PERCENT = _safe_float(
+        os.environ.get("MDS_LAUNCH_BATTERY_MIN_REMAINING_PERCENT", "30"),
+        30.0,
+    )
     OFFBOARD_ARM_MAX_ATTEMPTS = 3            # Bounded arm retries for transient PX4 pre-arm denials
     OFFBOARD_ARM_ACTION_TIMEOUT_SEC = 15.0   # Timeout for each MAVSDK arm RPC so missions cannot hang forever behind a stuck arm call
     OFFBOARD_ARM_RETRY_DELAY_SEC = 2.0       # Delay between arm retries after COMMAND_DENIED

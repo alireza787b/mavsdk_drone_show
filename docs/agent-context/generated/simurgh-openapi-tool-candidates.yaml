@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 208
+candidate_count: 206
 candidates:
 - callable: false
   classification:
@@ -5317,8 +5317,7 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/QuickScoutMissionControlResponse'
+  response_schema: {}
   review_status: needs_review
   source:
     method: POST
@@ -5368,8 +5367,7 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/QuickScoutMissionControlResponse'
+  response_schema: {}
   review_status: needs_review
   source:
     method: POST
@@ -5409,64 +5407,14 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema: {}
+  response_schema:
+    $ref: '#/components/schemas/QuickScoutProgressReceipt'
   review_status: needs_review
   source:
     method: POST
     operation_id: report_progress_api_sar_mission__mission_id__progress_post
     path: /api/sar/mission/{mission_id}/progress
     summary: Report Progress
-    tags:
-    - QuickScout SAR
-- callable: false
-  classification:
-    default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: false
-    inferred_risk_class: operate
-    inferred_sensitivity:
-    - mission_state
-    recommended_registry_exposure: candidate_exclude_or_guard_after_review
-    review_reasons:
-    - non_get_method
-  has_request_body: false
-  id: candidate.gcs.post.api.sar.mission.by.mission.id.resume
-  parameters:
-  - description: ''
-    in: path
-    name: mission_id
-    required: true
-    schema:
-      title: Mission Id
-      type: string
-  - description: ''
-    in: query
-    name: pos_ids
-    required: false
-    schema:
-      anyOf:
-      - items:
-          type: integer
-        type: array
-      - type: 'null'
-      title: Pos Ids
-  promotion_contract:
-    loaded_by_default_registry: false
-    requires_docs: true
-    requires_human_review: true
-    requires_policy_review: true
-    requires_tests: true
-  registry_candidate:
-    default_callable: false
-    default_exposure: exclude
-    reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/QuickScoutMissionControlResponse'
-  review_status: needs_review
-  source:
-    method: POST
-    operation_id: resume_mission_api_sar_mission__mission_id__resume_post
-    path: /api/sar/mission/{mission_id}/resume
-    summary: Resume Mission
     tags:
     - QuickScout SAR
 - callable: false
@@ -5544,8 +5492,7 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/QuickScoutMissionLaunchResponse'
+  response_schema: {}
   review_status: needs_review
   source:
     method: POST
@@ -5851,7 +5798,16 @@ candidates:
     - request_body_present
   has_request_body: true
   id: candidate.gcs.post.api.v1.command.reports.execution.result
-  parameters: []
+  parameters:
+  - description: ''
+    in: header
+    name: X-MDS-Command-Report-Capability
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: X-Mds-Command-Report-Capability
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -5884,7 +5840,16 @@ candidates:
     - request_body_present
   has_request_body: true
   id: candidate.gcs.post.api.v1.command.reports.execution.start
-  parameters: []
+  parameters:
+  - description: ''
+    in: header
+    name: X-MDS-Command-Report-Capability
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: X-Mds-Command-Report-Capability
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -5929,8 +5894,7 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/SubmitCommandResponse'
+  response_schema: {}
   review_status: needs_review
   source:
     method: POST
@@ -6276,7 +6240,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/SyncReposResponse'
+    $ref: '#/components/schemas/FleetGitSyncApplyResponse'
   review_status: needs_review
   source:
     method: POST
@@ -6601,41 +6565,6 @@ candidates:
     summary: Dry Run Reconcile
     tags:
     - Fleet Ops Sidecars
-- callable: false
-  classification:
-    default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: false
-    inferred_risk_class: operate
-    inferred_sensitivity:
-    - repository
-    recommended_registry_exposure: candidate_exclude_or_guard_after_review
-    review_reasons:
-    - keyword:sync
-    - non_get_method
-    - request_body_present
-  has_request_body: true
-  id: candidate.gcs.post.api.v1.git.sync.operations
-  parameters: []
-  promotion_contract:
-    loaded_by_default_registry: false
-    requires_docs: true
-    requires_human_review: true
-    requires_policy_review: true
-    requires_tests: true
-  registry_candidate:
-    default_callable: false
-    default_exposure: exclude
-    reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/SyncReposResponse'
-  review_status: needs_review
-  source:
-    method: POST
-    operation_id: sync_repos_api_v1_git_sync_operations_post
-    path: /api/v1/git/sync-operations
-    summary: Sync Repos
-    tags:
-    - Git
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -8128,7 +8057,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: dd86094bdb9aa4c50a9fb469db5e725669151420b8a15149952fa0417d0e0db1
+  openapi_sha256: f44ce87ceb0bad5720360465cade62678b6419d5a12e31f976f36f7829d5ac1e
   title: GCS Server API
   version: '5.5'
 summary:

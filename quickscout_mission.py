@@ -32,6 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in lightweight envs 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
+from gcs_auth_client import gcs_auth_headers
 from params import Params
 from led_controller import LEDController
 from mds_logging import get_logger
@@ -403,14 +404,14 @@ async def _monitor_active_mission(
 
         status_signature = (last_progress_current, last_progress_total, int(distance_covered_m))
         if status_signature != last_reported_signature:
-            report_progress(
+            await asyncio.to_thread(
+                report_progress,
                 gcs_url,
                 mission_id,
                 hw_id,
                 last_progress_current,
                 max(1, last_progress_total),
                 distance_covered_m,
-                state="executing",
             )
             last_reported_signature = status_signature
 
@@ -459,10 +460,10 @@ def coerce_optional_float(value, default):
     return float(value)
 
 
-def report_progress(gcs_url, mission_id, hw_id, waypoint_index, total_waypoints, distance_m=0, state=None):
-    """Report progress to GCS server (best-effort, non-blocking)."""
+def report_progress(gcs_url, mission_id, hw_id, waypoint_index, total_waypoints, distance_m=0):
+    """Report progress to GCS server from a worker thread (best effort)."""
     if not gcs_url:
-        return
+        return False
     try:
         data = {
             'hw_id': hw_id,
@@ -470,14 +471,22 @@ def report_progress(gcs_url, mission_id, hw_id, waypoint_index, total_waypoints,
             'total_waypoints': total_waypoints,
             'distance_covered_m': distance_m,
         }
-        if state:
-            data['state'] = state
-        requests.post(
+        response = requests.post(
             f"{gcs_url}/api/sar/mission/{mission_id}/progress",
-            json=data, timeout=2
+            json=data,
+            headers=gcs_auth_headers(),
+            timeout=2,
         )
-    except Exception:
-        pass
+        response.raise_for_status()
+        return True
+    except Exception as exc:
+        logger.warning(
+            "QuickScout progress report was not accepted for mission=%s hw_id=%s: %s",
+            mission_id,
+            hw_id,
+            exc,
+        )
+        return False
 
 
 async def run_mission(args):
@@ -641,7 +650,14 @@ async def run_mission(args):
             timeout_sec=mission_airborne_timeout,
         )
 
-        report_progress(gcs_url, args.mission_id, args.hw_id, 0, total_waypoints, state='executing')
+        await asyncio.to_thread(
+            report_progress,
+            gcs_url,
+            args.mission_id,
+            args.hw_id,
+            0,
+            total_waypoints,
+        )
 
         if led:
             led.set_color(0, 255, 0)  # Green: surveying
@@ -659,14 +675,14 @@ async def run_mission(args):
         completed_total = int(mission_result["total"])
 
         logger.info(f"Mission complete. Total distance: {distance_covered:.0f}m")
-        report_progress(
+        await asyncio.to_thread(
+            report_progress,
             gcs_url,
             args.mission_id,
             args.hw_id,
             completed_current,
             completed_total,
             distance_covered,
-            state='completed',
         )
 
         if args.return_behavior == 'return_home':

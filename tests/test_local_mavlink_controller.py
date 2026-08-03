@@ -42,6 +42,7 @@ def build_controller(mock_drone_config):
     mock_drone_config.home_position_source = "px4"
     mock_drone_config.telemetry_timestamp_ms = 0
     mock_drone_config.telemetry_sequence = 0
+    mock_drone_config.heartbeat_timestamp_ms = 0
     mock_drone_config.gps_raw_timestamp_ms = 0
     mock_drone_config.gps_raw_altitude_m = None
     mock_drone_config.global_position_timestamp_ms = 0
@@ -53,6 +54,23 @@ def build_controller(mock_drone_config):
     mock_drone_config.yaw_rate_deg_s = 0.0
 
     return controller
+
+
+def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    monkeypatch.setattr(controller, "_now_ms", lambda: 1_765_000_000_123)
+    msg = SimpleNamespace(
+        base_mode=128,
+        custom_mode=262147,
+        system_status=4,
+    )
+
+    controller.process_heartbeat(msg)
+
+    assert mock_drone_config.is_armed is True
+    assert mock_drone_config.heartbeat_timestamp_ms == 1_765_000_000_123
+    assert mock_drone_config.telemetry_timestamp_ms == 1_765_000_000_123
+    assert mock_drone_config.telemetry_sequence == 1
 
 
 def test_update_pre_arm_status_reports_ready(mock_drone_config):
@@ -296,6 +314,39 @@ def test_process_scaled_pressure_records_baro_altitude(mock_drone_config):
     assert abs(mock_drone_config.baro_altitude_m) < 0.01
     assert mock_drone_config.baro_timestamp_ms > 0
     assert mock_drone_config.telemetry_sequence == 1
+
+
+def test_process_battery_status_preserves_operator_safety_evidence(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(
+        voltages=[15300, 65535, 65535],
+        battery_remaining=42,
+        charge_state=1,
+        fault_bitmask=4,
+    )
+
+    controller.process_battery_status(msg)
+
+    assert mock_drone_config.battery == 15.3
+    assert mock_drone_config.battery_remaining_percent == 42.0
+    assert mock_drone_config.battery_charge_state == 1
+    assert mock_drone_config.battery_fault_bitmask == 4
+    assert mock_drone_config.battery_timestamp_ms > 0
+
+
+def test_process_battery_status_marks_unknown_optional_values_unavailable(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(
+        voltages=[16000],
+        battery_remaining=-1,
+    )
+
+    controller.process_battery_status(msg)
+
+    assert mock_drone_config.battery_remaining_percent is None
+    assert mock_drone_config.battery_charge_state is None
+    assert mock_drone_config.battery_fault_bitmask is None
+    assert mock_drone_config.battery_timestamp_ms > 0
 
 
 def test_process_attitude_tracks_yaw_rate(mock_drone_config):

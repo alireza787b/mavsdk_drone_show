@@ -58,9 +58,11 @@ from tools.runtime_validation_support import (
 )
 
 
-SHOW_MISSION = 1
-CUSTOM_SHOW_MISSION = 3
-LAND = 101
+from src.enums import Mission
+
+SHOW_MISSION = Mission.DRONE_SHOW_FROM_CSV.value
+CUSTOM_SHOW_MISSION = Mission.CUSTOM_CSV_DRONE_SHOW.value
+LAND = Mission.LAND.value
 DRONE_API_PORT = int(os.getenv("MDS_DRONE_API_PORT", "7070"))
 RETRYABLE_LAUNCH_PROBE_PREFIX = "Live launch readiness probe failed."
 

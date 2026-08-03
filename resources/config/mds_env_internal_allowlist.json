@@ -41,6 +41,18 @@
   ],
   "keys": [
     {
+      "name": "MDS_ACTION_RESULT",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Fixed stdout compatibility sentinel for the bounded action-result protocol; this is not an environment setting."
+    },
+    {
+      "name": "MDS_ACTION_RESULT_FD",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited child-process file descriptor for one bounded action result; never persist or edit through operator configuration."
+    },
+    {
       "name": "MDS_ULOG_SUMMARY_RESULT",
       "domain": "logging",
       "scope": "process",
@@ -81,12 +93,6 @@
       "domain": "system",
       "scope": "process",
       "reason": "Build/version metadata override."
-    },
-    {
-      "name": "MDS_COMMON_PARAMS_FILE",
-      "domain": "px4",
-      "scope": "process",
-      "reason": "PX4 parameter helper input path; managed by parameter workflow docs."
     },
     {
       "name": "MDS_CONFIG_DIR",

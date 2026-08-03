@@ -47,34 +47,20 @@ from tools.runtime_validation_support import (
     write_json_report,
 )
 
-try:
-    from src.gcs_api_routes import (
-        GCS_CONFIG_FLEET_ROUTE,
-        GCS_CONFIG_FLEET_VALIDATION_ROUTE,
-        GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE,
-        GCS_CONFIG_SWARM_ROUTE,
-        GCS_FLEET_TELEMETRY_ROUTE,
-        GCS_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
-        GCS_ORIGIN_BOOTSTRAP_ROUTE,
-        GCS_ORIGIN_COMPUTE_ROUTE,
-        GCS_ORIGIN_DEVIATIONS_ROUTE,
-        GCS_ORIGIN_ROUTE,
-        GCS_SYSTEM_GCS_CONFIG_ROUTE,
-        GCS_SYSTEM_HEALTH_ROUTE,
-    )
-except Exception:  # pragma: no cover - fallback only
-    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_SYSTEM_GCS_CONFIG_ROUTE = "/api/v1/system/gcs-config"
-    GCS_CONFIG_FLEET_ROUTE = "/api/v1/config/fleet"
-    GCS_CONFIG_FLEET_VALIDATION_ROUTE = "/api/v1/config/fleet/validation"
-    GCS_CONFIG_SWARM_ROUTE = "/api/v1/config/swarm"
-    GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE = "/api/v1/config/swarm/assignments/{hw_id}"
-    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
-    GCS_ORIGIN_ROUTE = "/api/v1/origin"
-    GCS_ORIGIN_BOOTSTRAP_ROUTE = "/api/v1/origin/bootstrap"
-    GCS_ORIGIN_COMPUTE_ROUTE = "/api/v1/origin/compute"
-    GCS_ORIGIN_DEVIATIONS_ROUTE = "/api/v1/origin/deviations"
-    GCS_NAVIGATION_GLOBAL_ORIGIN_ROUTE = "/api/v1/navigation/global-origin"
+from src.gcs_api_routes import (
+    GCS_CONFIG_FLEET_ROUTE,
+    GCS_CONFIG_FLEET_VALIDATION_ROUTE,
+    GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE,
+    GCS_CONFIG_SWARM_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
+    GCS_ORIGIN_BOOTSTRAP_ROUTE,
+    GCS_ORIGIN_COMPUTE_ROUTE,
+    GCS_ORIGIN_DEVIATIONS_ROUTE,
+    GCS_ORIGIN_ROUTE,
+    GCS_SYSTEM_GCS_CONFIG_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+)
 
 
 def log(message: str) -> None:

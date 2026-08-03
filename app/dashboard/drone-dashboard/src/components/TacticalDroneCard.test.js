@@ -58,7 +58,7 @@ describe('TacticalDroneCard', () => {
 
     expect(screen.getByRole('region', { name: /P4\|H1 tactical summary/i })).toBeInTheDocument();
     expect(screen.getAllByText('Smart Swarm')).toHaveLength(2);
-    expect(screen.getByText('16.25 V')).toBeInTheDocument();
+    expect(screen.getByText('16.3V')).toBeInTheDocument();
     expect(screen.getByText('18 m')).toBeInTheDocument();
     expect(screen.queryByText('XYZ')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Return to Launch P4\|H1/i })).toBeInTheDocument();

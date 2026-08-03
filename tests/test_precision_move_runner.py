@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import types
 from unittest.mock import MagicMock
@@ -24,6 +25,7 @@ from src.action_runners.base import ActionExecutionContext, ActionInvocation
 from src.action_runners.precision_move import (
     LocalMoveSnapshot,
     _body_to_ned_translation,
+    _wait_until_hold_mode,
     precision_move,
 )
 
@@ -75,11 +77,38 @@ class _DummyDrone:
         self.telemetry = _DummyTelemetry()
 
 
+class _NeverYieldingFlightModeStream:
+    def __init__(self):
+        self.closed = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await asyncio.Event().wait()
+
+    async def aclose(self):
+        self.closed = True
+
+
 def test_body_to_ned_translation_respects_heading():
     north_m, east_m = _body_to_ned_translation(2.0, 4.0, 90.0)
 
     assert north_m == pytest.approx(-4.0)
     assert east_m == pytest.approx(2.0)
+
+
+@pytest.mark.asyncio
+async def test_precision_move_hold_wait_times_out_and_closes_silent_stream():
+    stream = _NeverYieldingFlightModeStream()
+    drone = types.SimpleNamespace(
+        telemetry=types.SimpleNamespace(flight_mode=lambda: stream),
+    )
+
+    with pytest.raises(TimeoutError, match="PX4 Hold mode"):
+        await _wait_until_hold_mode(drone, timeout_sec=0.02)
+
+    assert stream.closed is True
 
 
 @pytest.mark.asyncio

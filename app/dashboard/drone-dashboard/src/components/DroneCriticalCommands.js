@@ -184,9 +184,9 @@ const DroneCriticalCommands = ({
 
     const commandData = pendingAction.kind === 'mission-cancel'
       ? {
-        missionType: String(DRONE_MISSION_TYPES.NONE),
-        triggerTime: '0',
-        target_drones: [droneId],
+        mission_type: DRONE_MISSION_TYPES.NONE,
+        trigger_time: 0,
+        target_drone_ids: [droneId],
         uiMeta: {
           operatorLabel: 'Cancel Mission',
           targetLabel: resolvedTargetLabel,
@@ -230,7 +230,7 @@ const DroneCriticalCommands = ({
       setSubmitting(true);
       const response = await submitCommandWithLifecycleFeedback({
         ...commandData,
-        target_drones: [droneId],
+        target_drone_ids: [droneId],
         uiMeta: {
           ...(commandData.uiMeta || {}),
           targetLabel: resolvedTargetLabel,
@@ -239,7 +239,7 @@ const DroneCriticalCommands = ({
       }, {
         ...commandLifecycleCallbacks,
       });
-      const didSend = response?.success !== false;
+      const didSend = response?.accepted_for_tracking === true;
       if (didSend && options.closeOnSuccess !== false) {
         setPrecisionMoveDialogOpen(false);
       }
@@ -258,7 +258,7 @@ const DroneCriticalCommands = ({
       setSubmitting(true);
       const response = await submitCommandWithLifecycleFeedback({
         ...commandData,
-        target_drones: [droneId],
+        target_drone_ids: [droneId],
         uiMeta: {
           ...(commandData.uiMeta || {}),
           targetLabel: resolvedTargetLabel,
@@ -267,7 +267,7 @@ const DroneCriticalCommands = ({
       }, {
         ...commandLifecycleCallbacks,
       });
-      const didSend = response?.success !== false;
+      const didSend = response?.accepted_for_tracking === true;
       if (didSend && options.closeOnSuccess !== false) {
         setPrecisionMoveDialogOpen(false);
       }

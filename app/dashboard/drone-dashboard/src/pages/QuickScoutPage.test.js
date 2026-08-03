@@ -51,7 +51,6 @@ jest.mock('../services/sarApiService', () => ({
   getMissionStatus: jest.fn(),
   getMissionHandoff: jest.fn(),
   pauseMission: jest.fn(),
-  resumeMission: jest.fn(),
   abortMission: jest.fn(),
   createFinding: jest.fn(),
   getFindings: jest.fn(),
@@ -285,7 +284,7 @@ const buildMissionSummary = (overrides = {}) => ({
   return_behavior: 'return_home',
   total_coverage_percent: 0,
   finding_count: 0,
-  last_command_summary: null,
+  latest_command_batch: null,
   ...overrides,
 });
 
@@ -431,8 +430,13 @@ describe('QuickScoutPage', () => {
       warnings: [],
     });
     sarApi.launchMission.mockResolvedValue({
-      success: true,
-      message: 'Mission launched',
+      mission_id: 'mission-ready',
+      latest_command_batch: {
+        action: 'launch',
+        state: 'queued',
+        receipt: { command_id: 'command-launch-1' },
+      },
+      message: 'Mission launch queued',
     });
     sarApi.revalidateLaunch.mockResolvedValue({
       mission_id: 'mission-ready',

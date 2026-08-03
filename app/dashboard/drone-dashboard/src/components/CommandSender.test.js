@@ -29,9 +29,9 @@ jest.mock('./MissionTrigger', () => (props) => (
   <button
     type="button"
     onClick={() => props.onSendCommand({
-      missionType: '4',
-      triggerTime: '1761955200',
-      target_drones: ['1', '2'],
+      mission_type: 4,
+      trigger_time: 1761955200,
+      target_drone_ids: ['1', '2'],
       uiMeta: {
         triggerSummary: 'Executes at 2025-11-01 00:00:00 UTC',
         details: [
@@ -143,7 +143,7 @@ describe('CommandSender', () => {
 
   it('renders a persistent command monitor after command acceptance', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (_commandData, options = {}) => {
-      options.onCommandAccepted?.({
+      options.onSubmissionTracked?.({
         commandId: 'cmd-1',
         commandLabel: 'Swarm Trajectory',
         missionType: 4,
@@ -180,7 +180,7 @@ describe('CommandSender', () => {
         canCancelMission: true,
       });
 
-      return { success: true, command_id: 'cmd-1' };
+      return { accepted_for_tracking: true, command_id: 'cmd-1' };
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
@@ -203,7 +203,7 @@ describe('CommandSender', () => {
   });
 
   it('submits precision move directly from the dedicated dialog without opening the generic confirm modal', async () => {
-    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-precision' });
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'cmd-precision' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
     openCommandControl();
@@ -223,8 +223,9 @@ describe('CommandSender', () => {
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
         expect.objectContaining({
-          missionType: '112',
-          triggerTime: '0',
+          mission_type: 112,
+          trigger_time: 0,
+          target_scope: 'all',
           precision_move: {
             frame: 'body',
             translation_m: {
@@ -250,7 +251,7 @@ describe('CommandSender', () => {
   });
 
   it('keeps the precision move dialog open while dispatching live jog steps', async () => {
-    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-jog' });
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'cmd-jog' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
     openCommandControl();
@@ -266,8 +267,9 @@ describe('CommandSender', () => {
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
         expect.objectContaining({
-          missionType: '112',
-          triggerTime: '0',
+          mission_type: 112,
+          trigger_time: 0,
+          target_scope: 'all',
           precision_move: {
             frame: 'body',
             translation_m: {
@@ -289,7 +291,7 @@ describe('CommandSender', () => {
   });
 
   it('offers a direct hold override from the precision move dialog', async () => {
-    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-hold' });
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'cmd-hold' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
     openCommandControl();
@@ -302,10 +304,11 @@ describe('CommandSender', () => {
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
         expect.objectContaining({
-          missionType: '102',
-          triggerTime: '0',
+          mission_type: 102,
+          trigger_time: 0,
+          target_scope: 'all',
           uiMeta: expect.objectContaining({
-            operatorLabel: 'Hold',
+            operatorLabel: 'Hold Position',
             targetLabel: 'all 3 drones',
           }),
         }),
@@ -348,8 +351,8 @@ describe('CommandSender', () => {
 
   it('dispatches Cancel Mission to the same targets from the monitor', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (commandData, options = {}) => {
-      if (commandData.missionType === '0') {
-        options.onCommandAccepted?.({
+      if (commandData.mission_type === 0) {
+        options.onSubmissionTracked?.({
           commandId: 'cmd-cancel',
           commandLabel: 'Cancel Mission',
           missionType: 0,
@@ -385,7 +388,7 @@ describe('CommandSender', () => {
           canCancelMission: false,
         });
       } else {
-        options.onCommandAccepted?.({
+        options.onSubmissionTracked?.({
           commandId: 'cmd-1',
           commandLabel: 'Swarm Trajectory',
           missionType: 4,
@@ -423,7 +426,10 @@ describe('CommandSender', () => {
         });
       }
 
-      return { success: true, command_id: commandData.missionType === '0' ? 'cmd-cancel' : 'cmd-1' };
+      return {
+        accepted_for_tracking: true,
+        command_id: commandData.mission_type === 0 ? 'cmd-cancel' : 'cmd-1',
+      };
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
@@ -449,9 +455,9 @@ describe('CommandSender', () => {
     });
 
     expect(submitCommandWithLifecycleFeedback.mock.calls[1][0]).toMatchObject({
-      missionType: '0',
-      target_drones: ['1', '2'],
-      triggerTime: '0',
+      mission_type: 0,
+      target_drone_ids: ['1', '2'],
+      trigger_time: 0,
     });
   });
 
@@ -535,8 +541,8 @@ describe('CommandSender', () => {
           updatedAtMs: 2000,
         };
 
-      options.onCommandAccepted?.(snapshot);
-      return { success: true, command_id: snapshot.commandId };
+      options.onSubmissionTracked?.(snapshot);
+      return { accepted_for_tracking: true, command_id: snapshot.commandId };
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);

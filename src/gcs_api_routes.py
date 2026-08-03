@@ -18,7 +18,6 @@ GCS_FLEET_CANDIDATE_IGNORE_ROUTE_TEMPLATE = "/api/v1/fleet/candidates/{candidate
 GCS_FLEET_NETWORK_STATUS_ROUTE = "/api/v1/fleet/network-status"
 GCS_FLEET_NETWORK_DETAILS_ROUTE = "/api/v1/fleet/network-details"
 GCS_GIT_STATUS_ROUTE = "/api/v1/git/status"
-GCS_GIT_SYNC_OPERATIONS_ROUTE = "/api/v1/git/sync-operations"
 GCS_SYSTEM_GCS_CONFIG_ROUTE = "/api/v1/system/gcs-config"
 GCS_SITL_CONTROL_POLICY_ROUTE = "/api/v1/system/sitl/policy"
 GCS_SITL_CONTROL_HOST_ROUTE = "/api/v1/system/sitl/host"
@@ -46,6 +45,10 @@ GCS_ACTIVE_COMMANDS_ROUTE = "/api/v1/commands/active"
 GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
 GCS_COMMAND_REPORT_EXECUTION_START_ROUTE = "/api/v1/command-reports/execution-start"
 GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE = "/api/v1/command-reports/execution-result"
+# Per-command, per-target callback authority.  This is deliberately separate
+# from the optional deployment-wide bearer token: possession of one node's
+# machine credential must not authorize claims on behalf of another target.
+GCS_COMMAND_REPORT_CAPABILITY_HEADER = "X-MDS-Command-Report-Capability"
 GCS_ORIGIN_BOOTSTRAP_ROUTE = "/api/v1/origin/bootstrap"
 GCS_SHOW_IMPORT_ROUTE = "/api/v1/shows/skybrush/import"
 GCS_SHOW_INFO_ROUTE = "/api/v1/shows/skybrush"

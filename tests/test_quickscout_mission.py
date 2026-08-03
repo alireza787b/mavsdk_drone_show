@@ -140,6 +140,10 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
     monkeypatch.setattr(qsm, "MissionItem", _FakeMissionItem)
     monkeypatch.setattr(qsm, "MissionPlan", _FakeMissionPlan)
     monkeypatch.setattr(qsm, "report_progress", MagicMock())
+    async def arm_after_test_readiness(_drone, **_kwargs):
+        await _drone.action.arm()
+
+    monkeypatch.setattr(qsm, "arm_with_preflight_gate", arm_after_test_readiness)
     monkeypatch.setattr(qsm.LEDController, "get_instance", MagicMock(return_value=fake_led))
     monkeypatch.setattr(qsm, "wait_for_local_startup_ready", AsyncMock(return_value={"readiness_status": "ready"}))
     monkeypatch.setattr(qsm.Params, "QUICKSCOUT_PROGRESS_REPORT_INTERVAL_SEC", 0.01, raising=False)
@@ -260,3 +264,36 @@ async def test_monitor_active_mission_finishes_without_progress_callbacks(monkey
     assert result["distance_covered_m"] > 0
     fake_drone.mission.is_mission_finished.assert_awaited()
     assert report_progress.call_count >= 1
+
+
+def test_progress_report_contains_metrics_only_and_checks_http_acceptance(monkeypatch):
+    response = MagicMock()
+    post = MagicMock(return_value=response)
+    monkeypatch.setattr(qsm.requests, "post", post)
+    monkeypatch.setattr(
+        qsm,
+        "gcs_auth_headers",
+        MagicMock(return_value={"Authorization": "Bearer configured-token"}),
+    )
+
+    assert qsm.report_progress(
+        "http://127.0.0.1:5030",
+        "mission-4",
+        "1",
+        2,
+        8,
+        12.5,
+    ) is True
+
+    post.assert_called_once_with(
+        "http://127.0.0.1:5030/api/sar/mission/mission-4/progress",
+        json={
+            "hw_id": "1",
+            "current_waypoint_index": 2,
+            "total_waypoints": 8,
+            "distance_covered_m": 12.5,
+        },
+        headers={"Authorization": "Bearer configured-token"},
+        timeout=2,
+    )
+    response.raise_for_status.assert_called_once_with()

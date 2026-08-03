@@ -49,6 +49,29 @@ from api_routes.simurgh import (
 _BaseTestClient = TestClient
 
 
+def _fake_submission_receipt(
+    command,
+    *,
+    command_id: str,
+    mission_name: str | None = None,
+    replayed: bool = False,
+):
+    """Build the same stable receipt shape returned by command submission."""
+    target_drones = list(command.target_drone_ids or [])
+    return {
+        "accepted_for_tracking": True,
+        "command_id": command_id,
+        "idempotency_key": command.idempotency_key,
+        "replayed": replayed,
+        "mission_type": command.mission_type,
+        "mission_name": mission_name or str(command.mission_type),
+        "target_drones": target_drones,
+        "tracking_url": f"/api/v1/commands/{command_id}",
+        "message": "Command accepted for tracked preparation.",
+        "timestamp": int(time.time() * 1000),
+    }
+
+
 @pytest.mark.asyncio
 async def test_action_runner_keepalive_renews_during_quiet_work():
     ownership = SimpleNamespace(run_id="run-quiet")
@@ -1195,15 +1218,11 @@ def test_command_monitor_emits_changed_tracker_activity(monkeypatch):
             return FakeTracker()
 
     async def fake_submit(_deps, command):
-        return {
-            "success": True,
-            "command_id": "cmd-progress",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": "TAKE_OFF",
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id="cmd-progress",
+            mission_name="TAKE_OFF",
+        )
 
     monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
@@ -1476,15 +1495,10 @@ async def test_simurgh_pause_during_delay_applies_before_following_step(monkeypa
 
     async def fake_submit(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": str(command.mission_type),
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+        )
 
     async def controlled_wait(_delay_seconds):
         wait_started.set()
@@ -1629,15 +1643,10 @@ async def test_simurgh_conversational_cancel_targets_the_single_active_action_ru
 
     async def fake_submit(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": str(command.mission_type),
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+        )
 
     async def controlled_wait(_delay_seconds):
         wait_started.set()
@@ -1837,20 +1846,10 @@ async def test_cancel_remaining_drains_active_flight_command_before_terminal(mon
 
     async def fake_submit(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": str(command.mission_type),
-            "target_drones": command.target_drone_ids,
-            "results_summary": {
-                "accepted": 1,
-                "offline": 0,
-                "rejected": 0,
-                "errors": 0,
-            },
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+        )
 
     monkeypatch.setattr(
         "api_routes.simurgh._request_scoped_deps",
@@ -2082,20 +2081,11 @@ def test_simurgh_confirmed_action_submits_when_circuit_breaker_off(monkeypatch):
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": "cmd-simurgh-1",
-            "idempotency_key": command.idempotency_key,
-            "replayed": False,
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": "TAKE_OFF",
-            "target_drones": command.target_drone_ids,
-            "submitted_count": 1,
-            "message": "fake command accepted",
-            "timestamp": 1,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id="cmd-simurgh-1",
+            mission_name="TAKE_OFF",
+        )
 
     class FakeTracker:
         async def get_status(self, command_id):
@@ -2224,15 +2214,11 @@ def test_simurgh_sequence_post_actions_are_regated_before_dispatch(monkeypatch):
 
     async def fake_submit(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": "TAKE_OFF",
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+            mission_name="TAKE_OFF",
+        )
 
     monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
@@ -2283,15 +2269,11 @@ def test_simurgh_sequence_post_action_idempotency_is_draft_stable(monkeypatch):
 
     async def fake_submit(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": "TAKE_OFF" if command.mission_type == 10 else "PRECISION_MOVE",
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+            mission_name="TAKE_OFF" if command.mission_type == 10 else "PRECISION_MOVE",
+        )
 
     monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit)
@@ -2359,20 +2341,11 @@ def test_simurgh_bare_control_represents_cross_session_pending_action_without_ex
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": "cmd-recovered-confirm",
-            "idempotency_key": command.idempotency_key,
-            "replayed": False,
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": "TAKE_OFF",
-            "target_drones": command.target_drone_ids,
-            "submitted_count": 1,
-            "message": "fake command accepted",
-            "timestamp": 1,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id="cmd-recovered-confirm",
+            mission_name="TAKE_OFF",
+        )
 
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
     client = _client()
@@ -2407,14 +2380,7 @@ def test_simurgh_task_with_go_ahead_does_not_confirm_pending_action(monkeypatch)
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": "cmd-should-not-run",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "target_drones": command.target_drone_ids,
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(command, command_id="cmd-should-not-run")
 
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
     client = _client()
@@ -2468,7 +2434,7 @@ def test_simurgh_motion_status_question_does_not_create_action_draft(monkeypatch
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+        return _fake_submission_receipt(command, command_id="cmd-should-not-run")
 
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
     client = _client()
@@ -2522,7 +2488,7 @@ def test_simurgh_bare_confirm_refuses_ambiguous_recent_pending_actions(monkeypat
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+        return _fake_submission_receipt(command, command_id="cmd-should-not-run")
 
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
     client = _client()
@@ -2559,7 +2525,7 @@ def test_simurgh_rejects_pending_action_without_execution(monkeypatch):
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {"command_id": "cmd-should-not-run", "status": "submitted", "results_summary": {}}
+        return _fake_submission_receipt(command, command_id="cmd-should-not-run")
 
     monkeypatch.setattr("api_routes.simurgh.submit_tracked_command", fake_submit_tracked_command)
     client = _client()
@@ -2774,20 +2740,11 @@ def test_simurgh_followup_landing_command_monitors_previous_drone_and_removes_si
             if command.mission_type == 10
             else completion_mission_name
         )
-        return {
-            "success": True,
-            "command_id": f"cmd-{mission_name.lower()}-{len(submitted)}",
-            "idempotency_key": command.idempotency_key,
-            "replayed": False,
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": mission_name,
-            "target_drones": command.target_drone_ids,
-            "submitted_count": len(command.target_drone_ids),
-            "message": "fake command accepted",
-            "timestamp": 1,
-            "results_summary": {"accepted": len(command.target_drone_ids), "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{mission_name.lower()}-{len(submitted)}",
+            mission_name=mission_name,
+        )
 
     async def fake_guarded_route_tool(
         _request, *, name, arguments, channel, approved, registry, policy, **_kwargs
@@ -3049,17 +3006,11 @@ def test_simurgh_compound_takeoff_wait_move_uses_previous_single_sitl_target(mon
             104: "RETURN_RTL",
             112: "PRECISION_MOVE",
         }.get(command.mission_type, "UNKNOWN")
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted_commands)}",
-            "idempotency_key": command.idempotency_key,
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": mission_name,
-            "target_drones": command.target_drone_ids,
-            "submitted_count": len(command.target_drone_ids),
-            "results_summary": {"accepted": len(command.target_drone_ids), "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted_commands)}",
+            mission_name=mission_name,
+        )
 
     monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
     monkeypatch.setattr("api_routes.simurgh.execute_policy_allowed_guarded_route_tool", fake_guarded_route_tool)
@@ -4552,17 +4503,13 @@ def test_simurgh_provider_structured_reads_override_false_action_followups(monke
 
     async def fake_submit_tracked_command(_deps, command):
         submitted.append(command)
-        return {
-            "success": True,
-            "command_id": f"cmd-{len(submitted)}",
-            "idempotency_key": command.idempotency_key,
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "mission_name": {10: "TAKE_OFF", 104: "RETURN_RTL", 112: "PRECISION_MOVE"}[command.mission_type],
-            "target_drones": command.target_drone_ids,
-            "submitted_count": len(command.target_drone_ids),
-            "results_summary": {"accepted": 1, "offline": 0, "rejected": 0, "errors": 0},
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id=f"cmd-{len(submitted)}",
+            mission_name={10: "TAKE_OFF", 104: "RETURN_RTL", 112: "PRECISION_MOVE"}[
+                command.mission_type
+            ],
+        )
 
     monkeypatch.setattr("api_routes.simurgh._sleep_action_sequence_delay", fake_sleep)
     monkeypatch.setattr("api_routes.simurgh._request_scoped_deps", lambda _base, _request: FakeDeps())
@@ -5439,18 +5386,11 @@ def test_provider_sequence_can_create_ready_sitl_then_fly_the_created_target(mon
 
     async def fake_submit_tracked_command(_deps, command):
         submitted_commands.append(command)
-        return {
-            "command_id": "cmd-created-drone-takeoff",
-            "status": "submitted",
-            "mission_type": command.mission_type,
-            "target_drones": command.target_drone_ids,
-            "results_summary": {
-                "accepted": len(command.target_drone_ids),
-                "offline": 0,
-                "rejected": 0,
-                "errors": 0,
-            },
-        }
+        return _fake_submission_receipt(
+            command,
+            command_id="cmd-created-drone-takeoff",
+            mission_name="TAKE_OFF",
+        )
 
     monkeypatch.setattr("api_routes.simurgh._has_external_assistant_provider_auth", lambda _request: True)
     monkeypatch.setattr(

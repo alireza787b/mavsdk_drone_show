@@ -128,6 +128,24 @@ class UlogParserSummary(_StrictUlogSummaryModel):
     topics_requested: list[BoundedUlogName] = Field(default_factory=list, max_length=32)
     topics_present: list[BoundedUlogName] = Field(default_factory=list, max_length=32)
     topic_sample_counts: UlogCountMap = Field(default_factory=dict, max_length=32)
+    logged_topics: list[BoundedUlogName] = Field(default_factory=list, max_length=32)
+    logged_topic_count: int = Field(default=0, ge=0)
+    logged_topics_truncated: bool = False
+    observability_warnings: list[
+        Annotated[str, Field(min_length=1, max_length=512)]
+    ] = Field(default_factory=list, max_length=16)
+
+
+class UlogDurationEvidence(_StrictUlogSummaryModel):
+    source: Literal[
+        "overall_data_timestamps",
+        "requested_topic_timestamps",
+        "logged_event_timestamps",
+        "unavailable",
+    ] = "unavailable"
+    lower_bound: bool = True
+    data_messages_scanned: int = Field(default=0, ge=0)
+    timestamp_scan_complete: bool = False
 
 
 class UlogMetricRange(_StrictUlogSummaryModel):
@@ -254,7 +272,10 @@ class UlogDerivedSummary(_StrictUlogSummaryModel):
     source: UlogSourceSummary = Field(default_factory=UlogSourceSummary)
     parser: UlogParserSummary = Field(default_factory=UlogParserSummary)
     parsed: bool = False
-    duration_sec: float | None = None
+    duration_sec: float | None = Field(default=None, ge=0)
+    duration_evidence: UlogDurationEvidence = Field(
+        default_factory=UlogDurationEvidence
+    )
     dropouts: UlogDropoutSummary = Field(default_factory=UlogDropoutSummary)
     logged_messages: UlogLoggedMessagesSummary = Field(
         default_factory=UlogLoggedMessagesSummary

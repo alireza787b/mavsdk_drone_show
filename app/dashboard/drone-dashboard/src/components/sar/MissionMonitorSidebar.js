@@ -12,12 +12,14 @@ import {
   buildQuickScoutGeometrySummary,
   formatQuickScoutArea,
   formatQuickScoutDuration,
+  getQuickScoutCommandLifecycleMessage,
   getQuickScoutMissionPhaseLabel,
   getQuickScoutMissionTemplateLabel,
 } from '../../utilities/quickScoutMissionPresentation';
 
 const MissionMonitorSidebar = ({
   missionStatus,
+  statusError,
   findings,
   onDroneClick,
   onFindingClick,
@@ -61,7 +63,12 @@ const MissionMonitorSidebar = ({
   const operationPhase = missionStatus?.operation_phase || 'planning';
   const statusSummary = missionStatus?.status_summary || '';
   const operatorGuidance = missionStatus?.recommended_operator_action || '';
-  const lastCommandSummary = missionStatus?.last_command_summary || null;
+  const latestCommandBatch = missionStatus?.latest_command_batch || null;
+  const commandTargetCounts = Object.values(latestCommandBatch?.targets || {}).reduce((counts, target) => {
+    const state = target?.state || 'tracking_unavailable';
+    counts[state] = (counts[state] || 0) + 1;
+    return counts;
+  }, {});
   const geometrySummary = buildQuickScoutGeometrySummary({
     missionTemplate,
     totalAreaSqM,
@@ -83,6 +90,12 @@ const MissionMonitorSidebar = ({
           loading={loadingMissionCatalog}
           onRecoverMission={onRecoverMission}
         />
+
+        {statusError ? (
+          <div className="qs-empty-copy qs-gap-bottom" role="alert">
+            Mission status refresh failed: {statusError}. Last displayed state may be stale.
+          </div>
+        ) : null}
 
         {currentMissionId && (
           <div className="qs-config-section">
@@ -144,24 +157,36 @@ const MissionMonitorSidebar = ({
               </div>
             ) : null}
 
-            {lastCommandSummary?.message ? (
+            {latestCommandBatch ? (
               <div className="qs-launch-review__brief qs-stack-offset-lg">
-                <span className="qs-launch-review__brief-label">Last Control Outcome</span>
+                <span className="qs-launch-review__brief-label">Latest Tracked Command</span>
                 <div className="qs-launch-review__chip-row">
-                  {lastCommandSummary?.action ? (
+                  {latestCommandBatch.action ? (
                     <span className="qs-inline-chip">
-                      {String(lastCommandSummary.action).replace(/_/g, ' ')}
+                      {String(latestCommandBatch.action).replace(/_/g, ' ')}
                     </span>
                   ) : null}
-                  {lastCommandSummary?.effect ? (
+                  {latestCommandBatch.state ? (
                     <span className="qs-inline-chip">
-                      {String(lastCommandSummary.effect).replace(/_/g, ' ')}
+                      {String(latestCommandBatch.state).replace(/_/g, ' ')}
                     </span>
                   ) : null}
+                  {Object.entries(commandTargetCounts).map(([state, count]) => (
+                    <span className="qs-inline-chip" key={state}>
+                      {count} {String(state).replace(/_/g, ' ')}
+                    </span>
+                  ))}
                 </div>
-                <p>{lastCommandSummary.message}</p>
-                {lastCommandSummary.operator_guidance ? (
-                  <p className="qs-stack-tight">{lastCommandSummary.operator_guidance}</p>
+                <p>{getQuickScoutCommandLifecycleMessage(latestCommandBatch)}</p>
+                {latestCommandBatch.trigger_time ? (
+                  <p className="qs-stack-tight">
+                    Shared trigger: {new Date(latestCommandBatch.trigger_time * 1000).toLocaleString()}
+                  </p>
+                ) : null}
+                {latestCommandBatch.receipt?.tracking_url ? (
+                  <a href={latestCommandBatch.receipt.tracking_url} target="_blank" rel="noreferrer">
+                    Open command tracker
+                  </a>
                 ) : null}
               </div>
             ) : null}

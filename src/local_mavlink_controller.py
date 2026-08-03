@@ -361,6 +361,7 @@ class LocalMavlinkController:
         Follows MAVLink/PX4 standards for proper flight mode handling.
         """
         # Store previous values for change detection
+        now_ms = self._now_ms()
         prev_custom_mode = self.drone_config.custom_mode
         prev_armed = self.drone_config.is_armed
 
@@ -381,13 +382,19 @@ class LocalMavlinkController:
                 # Special case: SITL shows armed flag but custom_mode=0 (Initializing)
                 # This typically means the system is ready but not actually armed for flight
                 self.drone_config.is_armed = False
-                self.log_debug(f"⚠️ SITL Armed flag detected but flight mode is Initializing - treating as disarmed")
+                self.log_debug("⚠️ SITL Armed flag detected but flight mode is Initializing - treating as disarmed")
             else:
                 # Normal case: armed flag set and flight mode is valid
                 self.drone_config.is_armed = True
         else:
             # MAVLink says disarmed
             self.drone_config.is_armed = False
+
+        # Keep the arming bit bound to the exact local receipt time of the
+        # HEARTBEAT that carried it. Other position/pressure traffic must not
+        # make an old armed value appear fresh.
+        self.drone_config.heartbeat_timestamp_ms = now_ms
+        self._mark_telemetry_update(now_ms)
 
         # Update pre-arm readiness based on system status and sensor health
         self._update_pre_arm_status()
@@ -413,7 +420,7 @@ class LocalMavlinkController:
         elif self.drone_config.custom_mode in [33816576, 100925440]:
             self.log_info(f"🚁 Custom mode active: {mode_name} ({self.drone_config.custom_mode})")
         elif self.drone_config.custom_mode == 0:
-            self.log_warning(f"⚠️ Flight mode is 0 - possible issue with HEARTBEAT or mode initialization")
+            self.log_warning("⚠️ Flight mode is 0 - possible issue with HEARTBEAT or mode initialization")
         elif mode_name.startswith('Unknown'):
             main_mode = self.drone_config.custom_mode >> 16
             sub_mode = self.drone_config.custom_mode & 0xFFFF
@@ -876,13 +883,46 @@ class LocalMavlinkController:
 
     def process_battery_status(self, msg):
         """
-        Process the BATTERY_STATUS message and update the battery voltage.
+        Process BATTERY_STATUS without inferring chemistry or cell count.
+
+        Voltage remains the legacy display value. The additive fields preserve
+        PX4's state-of-charge estimate and safety metadata as timestamped
+        operator evidence; mission launch authority uses a fresh MAVSDK sample.
         """
-        if msg.voltages and len(msg.voltages) > 0:
-            self.drone_config.battery = msg.voltages[0] / 1E3  # Convert from mV to V
+        voltages = getattr(msg, 'voltages', None)
+        first_voltage_mv = voltages[0] if voltages else None
+        if first_voltage_mv not in (None, 0, 65535):
+            self.drone_config.battery = first_voltage_mv / 1E3  # Convert from mV to V
             self.log_debug(f"Updated battery voltage to: {self.drone_config.battery}V")
         else:
-            logging.error('Received BATTERY_STATUS message with invalid data')
+            logging.warning('BATTERY_STATUS voltage is unavailable; preserving the previous voltage evidence')
+
+        remaining = getattr(msg, 'battery_remaining', None)
+        try:
+            remaining = int(remaining)
+        except (TypeError, ValueError):
+            remaining = -1
+        self.drone_config.battery_remaining_percent = (
+            float(remaining) if 0 <= remaining <= 100 else None
+        )
+
+        charge_state = getattr(msg, 'charge_state', None)
+        try:
+            self.drone_config.battery_charge_state = (
+                int(charge_state) if charge_state is not None else None
+            )
+        except (TypeError, ValueError):
+            self.drone_config.battery_charge_state = None
+
+        fault_bitmask = getattr(msg, 'fault_bitmask', None)
+        try:
+            self.drone_config.battery_fault_bitmask = (
+                int(fault_bitmask) if fault_bitmask is not None else None
+            )
+        except (TypeError, ValueError):
+            self.drone_config.battery_fault_bitmask = None
+
+        self.drone_config.battery_timestamp_ms = self._now_ms()
 
     def process_scaled_pressure(self, msg):
         """

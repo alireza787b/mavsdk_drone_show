@@ -68,6 +68,11 @@ export const FIELD_NAMES = {
 
   // Battery & Power
   BATTERY_VOLTAGE: 'battery_voltage',
+  BATTERY_REMAINING_PERCENT: 'battery_remaining_percent',
+  BATTERY_CHARGE_STATE: 'battery_charge_state',
+  BATTERY_FAULT_BITMASK: 'battery_fault_bitmask',
+  BATTERY_TIMESTAMP_MS: 'battery_timestamp_ms',
+  BATTERY_AGE_MS: 'battery_age_ms',
 
   // GPS & Positioning Accuracy
   GPS_FIX_TYPE: 'gps_fix_type',
@@ -259,6 +264,11 @@ export function normalizeDroneData(droneData) {
 
     // Battery
     Battery_Voltage: 'battery_voltage',
+    Battery_Remaining_Percent: 'battery_remaining_percent',
+    Battery_Charge_State: 'battery_charge_state',
+    Battery_Fault_Bitmask: 'battery_fault_bitmask',
+    Battery_Timestamp_Ms: 'battery_timestamp_ms',
+    Battery_Age_Ms: 'battery_age_ms',
 
     // GPS
     Gps_Fix_Type: 'gps_fix_type',
@@ -353,6 +363,11 @@ export function getField(drone, fieldKey, defaultValue = undefined) {
     'position_source': ['Position_Source'],
     'position_unavailable_reason': ['Position_Unavailable_Reason'],
     'battery_voltage': ['Battery_Voltage'],
+    'battery_remaining_percent': ['Battery_Remaining_Percent'],
+    'battery_charge_state': ['Battery_Charge_State'],
+    'battery_fault_bitmask': ['Battery_Fault_Bitmask'],
+    'battery_timestamp_ms': ['Battery_Timestamp_Ms'],
+    'battery_age_ms': ['Battery_Age_Ms'],
     'flight_mode': ['Flight_Mode'],
     'base_mode': ['Base_Mode'],
     'system_status': ['System_Status'],

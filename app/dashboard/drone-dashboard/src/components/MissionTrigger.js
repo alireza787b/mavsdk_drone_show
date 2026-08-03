@@ -108,8 +108,8 @@ const MissionTrigger = ({
     if (missionType === DRONE_MISSION_TYPES.NONE) {
       // Directly send the command for 'Cancel Mission'
       const commandData = {
-        missionType: String(missionType),
-        triggerTime: "0", // Immediate action (string for API compatibility)
+        mission_type: missionType,
+        trigger_time: 0,
         uiMeta: {
           triggerSummary: 'Immediate cancel on acceptance',
           details: [
@@ -142,8 +142,8 @@ const MissionTrigger = ({
       isImmediate: schedule.isImmediate,
     });
     const commandData = {
-      missionType: String(selectedMission),
-      triggerTime: String(schedule.triggerTimeSec ?? 0),
+      mission_type: selectedMission,
+      trigger_time: schedule.triggerTimeSec ?? 0,
       auto_global_origin: isCustomCsvMission ? false : autoGlobalOrigin,
       use_global_setpoints: isCustomCsvMission ? false : useGlobalSetpoints,
       uiMeta: {

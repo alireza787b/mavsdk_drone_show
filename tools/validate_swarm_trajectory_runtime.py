@@ -35,100 +35,30 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import fetch_and_require_sitl_runtime
+from src.enums import Mission
+from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
+from src.flight_timeout_utils import (
+    calculate_land_disarm_timeout,
+    calculate_swarm_rtl_completion_timeout,
+)
+from src.gcs_api_routes import (
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+    GCS_COMMANDS_ROUTE,
+    GCS_CONFIG_SWARM_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+    GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
+    GCS_SWARM_TRAJECTORY_STATUS_ROUTE,
+)
+from src.live_armability_utils import calculate_live_armability_request_timeout
+from src.params import Params
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    write_json_report,
+)
 
-USING_FALLBACK_TIMEOUT_PARAMS = False
-
-try:
-    from src.flight_timeout_utils import (
-        calculate_land_disarm_timeout,
-        calculate_swarm_rtl_completion_timeout,
-    )
-    from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
-    from src.gcs_api_routes import (
-        GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
-        GCS_COMMANDS_ROUTE,
-        GCS_CONFIG_SWARM_ROUTE,
-        GCS_FLEET_TELEMETRY_ROUTE,
-        GCS_SYSTEM_HEALTH_ROUTE,
-        GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
-        GCS_SWARM_TRAJECTORY_STATUS_ROUTE,
-    )
-    from src.live_armability_utils import calculate_live_armability_request_timeout
-    from src.params import Params
-    from tools.runtime_validation_support import write_json_report
-except Exception:  # pragma: no cover - validator fallback only
-    USING_FALLBACK_TIMEOUT_PARAMS = True
-    DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
-
-    class _FallbackParams:
-        SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
-        SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600
-        SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC = 180
-        SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT = 1800
-        LANDING_TIMEOUT = 10
-        LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
-        LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 2.5
-        LAND_ACTION_DISARM_BUFFER_SEC = 30
-        LAND_ACTION_MAX_DISARM_WAIT_SEC = 900
-        CONTROLLED_LANDING_TIMEOUT = 7
-        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
-        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
-        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
-        drone_api_port = 7070
-
-    Params = _FallbackParams()
-
-    def calculate_land_disarm_timeout(relative_altitude_m, *, params=Params):
-        minimum_wait = int(getattr(params, "LAND_ACTION_MIN_DISARM_WAIT_SEC", 45))
-        if relative_altitude_m is None:
-            return minimum_wait
-        altitude_m = max(0.0, float(relative_altitude_m))
-        descent_rate = max(0.1, float(getattr(params, "LAND_ACTION_ASSUMED_DESCENT_RATE_MPS", 2.5)))
-        buffer_sec = max(0, int(getattr(params, "LAND_ACTION_DISARM_BUFFER_SEC", 30)))
-        maximum_wait = max(minimum_wait, int(getattr(params, "LAND_ACTION_MAX_DISARM_WAIT_SEC", 900)))
-        return max(minimum_wait, min(maximum_wait, int(math.ceil(minimum_wait + (altitude_m / descent_rate) + buffer_sec))))
-
-    def calculate_swarm_rtl_completion_timeout(relative_altitude_m, *, params=Params):
-        base_timeout = int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600))
-        rtl_buffer_sec = max(0, int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC", 180)))
-        maximum_timeout = max(
-            base_timeout,
-            int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT", 1800)),
-        )
-        landing_timeout = calculate_land_disarm_timeout(relative_altitude_m, params=params)
-        estimated_wait = landing_timeout + rtl_buffer_sec
-        return max(base_timeout, min(maximum_timeout, estimated_wait))
-
-    def calculate_live_armability_request_timeout(*, params=Params):
-        connect_timeout = max(
-            0.1,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)),
-        )
-        probe_timeout = max(
-            0.1,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0)),
-        )
-        http_buffer_sec = max(
-            0.5,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)),
-        )
-        return connect_timeout + probe_timeout + http_buffer_sec
-
-    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
-    GCS_CONFIG_SWARM_ROUTE = "/api/v1/config/swarm"
-    GCS_COMMANDS_ROUTE = "/api/v1/commands"
-    GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
-    GCS_SWARM_TRAJECTORY_STATUS_ROUTE = "/api/v1/swarm-trajectories/status"
-    GCS_SWARM_TRAJECTORY_PROCESS_ROUTE = "/api/v1/swarm-trajectories/process"
-
-    def write_json_report(path, payload):  # pragma: no cover - fallback only
-        return None
-
-
-SWARM_TRAJECTORY = 4
-LAND = 101
+SWARM_TRAJECTORY = Mission.SWARM_TRAJECTORY.value
+LAND = Mission.LAND.value
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout", "superseded"}
 
 

@@ -17,9 +17,7 @@ class ActionInvocation:
 
     action: str
     altitude: Optional[float] = None
-    parameters: Optional[dict[str, str]] = None
     branch: Optional[str] = None
-    reboot_after: bool = False
     request_payload: Optional[dict[str, Any]] = None
 
 

@@ -11,6 +11,11 @@ from typing import Any
 import requests
 
 from src.action_runners.base import ActionExecutionContext, ActionInvocation
+from src.async_stream_utils import (
+    managed_async_stream,
+    monotonic_deadline,
+    next_stream_sample,
+)
 from src.command_contract import (
     PrecisionMoveFrame,
     PrecisionMoveHoldMode,
@@ -217,13 +222,17 @@ async def _start_offboard_with_retry(
 
 
 async def _wait_until_hold_mode(drone: Any, timeout_sec: float = 10.0) -> None:
-    deadline = time.monotonic() + timeout_sec
-    async for mode in drone.telemetry.flight_mode():
-        mode_name = getattr(mode, "name", str(mode))
-        if str(mode_name).upper() == "HOLD":
-            return
-        if time.monotonic() >= deadline:
-            raise TimeoutError("Timed out waiting for PX4 Hold mode after precision move completion")
+    deadline = monotonic_deadline(timeout_sec)
+    async with managed_async_stream(drone.telemetry.flight_mode) as stream:
+        while True:
+            mode = await next_stream_sample(
+                stream,
+                deadline=deadline,
+                description="PX4 Hold mode after precision move completion",
+            )
+            mode_name = getattr(mode, "name", str(mode))
+            if str(mode_name).upper() == "HOLD":
+                return
 
 
 async def _safe_stop_offboard(drone: Any, logger: Any) -> None:
@@ -241,13 +250,13 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
     if drone is None:
         raise ValueError("precision_move requires an active MAVSDK drone connection")
 
-    start_snapshot = _read_local_move_snapshot()
+    start_snapshot = await asyncio.to_thread(_read_local_move_snapshot)
     if not start_snapshot.telemetry_available:
         raise ValueError("precision_move requires fresh local telemetry")
     if not start_snapshot.is_armed:
         raise ValueError("precision_move requires the drone to be armed and airborne")
 
-    relative_altitude_m = _read_local_relative_altitude()
+    relative_altitude_m = await asyncio.to_thread(_read_local_relative_altitude)
     if relative_altitude_m is not None and relative_altitude_m <= AIRBORNE_MIN_RELATIVE_ALTITUDE_M:
         raise ValueError(
             f"precision_move requires the drone to be airborne (relative altitude={relative_altitude_m:.2f}m)"
@@ -320,7 +329,7 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
 
         _, position_cls, velocity_cls = _load_offboard_types()
         while time.monotonic() < deadline:
-            snapshot = _read_local_move_snapshot()
+            snapshot = await asyncio.to_thread(_read_local_move_snapshot)
             north_error_m = target.north_m - snapshot.north_m
             east_error_m = target.east_m - snapshot.east_m
             down_error_m = target.down_m - snapshot.down_m

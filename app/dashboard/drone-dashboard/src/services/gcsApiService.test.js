@@ -5,7 +5,6 @@ import {
   buildGcsWebSocketUrl,
   buildHeartbeatWebSocketUrl,
   buildLogsUrl,
-  normalizeCommandSubmitPayload,
   buildShowDownloadUrl,
   buildShowPlotUrl,
   buildStaticPlotUrl,
@@ -390,38 +389,22 @@ describe('gcsApiService', () => {
     );
   });
 
-  it('normalizes command submit payloads onto the canonical snake_case request contract', async () => {
+  it('posts an already canonical command payload without transport-layer rewriting', async () => {
     axios.post.mockResolvedValue({ data: { success: true } });
 
-    const payload = normalizeCommandSubmitPayload({
-      missionType: '10',
-      triggerTime: '0',
-      target_drones: ['1', '2'],
-      operatorLabel: 'launch-now',
-      takeoff_altitude: 15,
-    });
-
-    expect(payload).toEqual({
-      mission_type: '10',
-      trigger_time: '0',
+    await submitCommandResponse({
+      mission_type: 10,
+      trigger_time: 0,
       target_drone_ids: ['1', '2'],
       operator_label: 'launch-now',
-      takeoff_altitude: 15,
-    });
-
-    await submitCommandResponse({
-      missionType: '10',
-      triggerTime: '0',
-      target_drones: ['1', '2'],
-      operatorLabel: 'launch-now',
       takeoff_altitude: 15,
     });
 
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/commands',
       {
-        mission_type: '10',
-        trigger_time: '0',
+        mission_type: 10,
+        trigger_time: 0,
         target_drone_ids: ['1', '2'],
         operator_label: 'launch-now',
         takeoff_altitude: 15,
@@ -434,10 +417,10 @@ describe('gcsApiService', () => {
     axios.post.mockResolvedValue({ data: { success: true } });
 
     await submitCommandResponse({
-      missionType: '112',
-      triggerTime: '0',
-      operatorLabel: 'Precision Move',
-      target_drones: ['1'],
+      mission_type: 112,
+      trigger_time: 0,
+      operator_label: 'Precision Move',
+      target_drone_ids: ['1'],
       precision_move: {
         frame: 'body',
         translation_m: {
@@ -454,8 +437,8 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/commands',
       {
-        mission_type: '112',
-        trigger_time: '0',
+        mission_type: 112,
+        trigger_time: 0,
         operator_label: 'Precision Move',
         target_drone_ids: ['1'],
         precision_move: {

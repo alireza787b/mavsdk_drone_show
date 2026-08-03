@@ -9,18 +9,16 @@ import {
   FaPlaneArrival,
   FaVial,
   FaLightbulb,
-  FaBatteryFull,
   FaSyncAlt,
   FaPowerOff,
   FaHome,
   FaRocket,
   FaSkull,
-  FaToolbox,
-  FaWrench,
   FaClock,
   FaCrosshairs,
 } from 'react-icons/fa';
 import { DRONE_ACTION_NAMES } from '../constants/droneConstants';
+import { COMMAND_METADATA_BY_KEY } from '../constants/missionCatalog';
 import {
   buildCommandSchedule,
   COMMAND_DELAY_PRESETS,
@@ -42,47 +40,29 @@ const ACTION_SECTIONS = [
   },
   {
     key: 'test',
-    title: 'Checks',
-    description: 'Bench and rehearsal checks.',
+    title: 'Ground Checks',
+    description: 'Physical aircraft checks; follow the displayed safety conditions.',
     actions: ['TEST', 'TEST_LED'],
   },
   {
     key: 'maintenance',
     title: 'Service',
-    description: 'Identity and restart.',
-    actions: ['INIT_SYSID', 'REBOOT_FC', 'REBOOT_SYS'],
+    description: 'Restart flight-control or companion services.',
+    actions: ['REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',
     title: 'Emergency',
     description: 'Last-resort stop.',
-    actions: ['DISARM', 'KILL_TERMINATE'],
+    actions: ['KILL_TERMINATE'],
   },
 ];
-
-const ACTION_SHORT_LABELS = {
-  TAKE_OFF: 'Take Off',
-  LAND: 'Land',
-  HOLD: 'Hold',
-  RETURN_RTL: 'RTL',
-  DISARM: 'Disarm',
-  KILL_TERMINATE: 'Kill',
-  TEST: 'Bench Test',
-  TEST_LED: 'LED Test',
-  HOVER_TEST: 'Hover',
-  PRECISION_MOVE: 'Precision Move',
-  REBOOT_FC: 'Reboot PX4',
-  REBOOT_SYS: 'Reboot System',
-  INIT_SYSID: 'Init SysID',
-  APPLY_COMMON_PARAMS: 'Apply Params',
-};
 
 const ACTION_ICONS = {
   TAKE_OFF: FaPlaneDeparture,
   LAND: FaPlaneArrival,
   HOLD: FaHandHolding,
   RETURN_RTL: FaHome,
-  DISARM: FaBatteryFull,
   KILL_TERMINATE: FaSkull,
   TEST: FaVial,
   TEST_LED: FaLightbulb,
@@ -90,25 +70,6 @@ const ACTION_ICONS = {
   PRECISION_MOVE: FaCrosshairs,
   REBOOT_FC: FaPowerOff,
   REBOOT_SYS: FaSyncAlt,
-  INIT_SYSID: FaToolbox,
-  APPLY_COMMON_PARAMS: FaWrench,
-};
-
-const ACTION_DESCRIPTIONS = {
-  TAKE_OFF: 'Climb to the configured takeoff altitude.',
-  LAND: 'Land the selected aircraft now.',
-  HOLD: 'Freeze current motion and hold position.',
-  RETURN_RTL: 'Return the selected aircraft to launch.',
-  DISARM: 'Disarm motors when the airframe is safe.',
-  KILL_TERMINATE: 'Emergency motor stop.',
-  TEST: 'Run the generic bench test.',
-  TEST_LED: 'Run the light-pattern test.',
-  HOVER_TEST: 'Lift, hover briefly, then land.',
-  PRECISION_MOVE: 'Move a local offset from the current state, then hold.',
-  REBOOT_FC: 'Restart PX4 and flight-control services.',
-  REBOOT_SYS: 'Restart the companion computer or container.',
-  INIT_SYSID: 'Reapply system identity.',
-  APPLY_COMMON_PARAMS: 'Apply the common PX4 params.',
 };
 
 const DroneActions = ({
@@ -120,11 +81,14 @@ const DroneActions = ({
   onTakeoffAltitudeChange = () => {},
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
+  runtimeMode = 'unknown',
 }) => {
   const [scheduleMode, setScheduleMode] = useState(COMMAND_SCHEDULE_MODES.NOW);
   const [timeDelay, setTimeDelay] = useState(30);
   const [selectedDateTime, setSelectedDateTime] = useState(() => formatDateTimeLocalInput(referenceNowMs + 60_000));
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const normalizedRuntimeMode = String(runtimeMode || '').trim().toLowerCase();
+  const groundTestRuntimeKnown = ['real', 'sitl'].includes(normalizedRuntimeMode);
 
   const actionSchedule = useMemo(() => buildCommandSchedule({
     scheduleMode,
@@ -134,6 +98,11 @@ const DroneActions = ({
   }), [referenceNowMs, scheduleMode, selectedDateTime, timeDelay]);
 
   const handleActionClick = (actionKey, extraData = {}) => {
+    if (actionKey === 'TEST' && !groundTestRuntimeKnown) {
+      toast.error('Arm/Disarm Ground Test is unavailable until the active runtime mode is known.');
+      return;
+    }
+
     const supportsScheduling = isSchedulableActionKey(actionKey);
     if (supportsScheduling && actionSchedule.error) {
       toast.error(actionSchedule.error);
@@ -142,19 +111,35 @@ const DroneActions = ({
 
     const actionTypeValue = actionTypes[actionKey];
     const commandData = {
-      missionType: String(actionTypeValue),
-      triggerTime: String(supportsScheduling ? (actionSchedule.triggerTimeSec ?? 0) : 0),
+      mission_type: actionTypeValue,
+      trigger_time: supportsScheduling ? (actionSchedule.triggerTimeSec ?? 0) : 0,
       ...extraData,
     };
 
     if (actionKey === 'TAKE_OFF') {
       commandData.takeoff_altitude = takeoffAltitude;
     }
+    if (actionKey === 'TEST') {
+      commandData.ground_test_safety = normalizedRuntimeMode === 'sitl'
+        ? { mode: 'sitl_not_applicable' }
+        : {
+          mode: 'operator_acknowledged',
+          props_removed: true,
+          airframe_secured: true,
+          area_clear: true,
+        };
+    }
 
     commandData.uiMeta = {
       operatorLabel: DRONE_ACTION_NAMES[actionTypeValue],
       triggerSummary: supportsScheduling ? actionSchedule.summary : 'Immediate on acceptance',
-      confirmationMessage: `${DRONE_ACTION_NAMES[actionTypeValue]} → ${targetCount} targeted drone${targetCount === 1 ? '' : 's'}. Confirm dispatch.`,
+      confirmationMessage: actionKey === 'TEST'
+        ? (
+          normalizedRuntimeMode === 'sitl'
+            ? `${DRONE_ACTION_NAMES[actionTypeValue]} → ${targetCount} SITL drone${targetCount === 1 ? '' : 's'}. Confirm the simulation-only motor-arm test.`
+            : `${DRONE_ACTION_NAMES[actionTypeValue]} → ${targetCount} targeted drone${targetCount === 1 ? '' : 's'}. Confirm only after all propellers are removed, every airframe is secured, and the test area is clear.`
+        )
+        : `${DRONE_ACTION_NAMES[actionTypeValue]} → ${targetCount} targeted drone${targetCount === 1 ? '' : 's'}. Confirm dispatch.`,
       details: [
         ...(supportsScheduling && !actionSchedule.isImmediate
           ? [{
@@ -166,6 +151,20 @@ const DroneActions = ({
           ? [{
             label: 'Takeoff altitude',
             value: `${takeoffAltitude} m`,
+          }]
+          : []),
+        ...(actionKey === 'TEST'
+          ? [{
+            label: 'Ground-test safety',
+            value: normalizedRuntimeMode === 'sitl'
+              ? 'SITL-only acknowledgement: physical propeller, restraint, and area-clear conditions are not applicable.'
+              : 'Motors will arm. Dispatch acknowledges that propellers are removed, every airframe is secured, and the area is clear.',
+          }]
+          : []),
+        ...(actionKey === 'HOVER_TEST'
+          ? [{
+            label: 'Flight behavior',
+            value: 'This action launches, flies the configured hover-test trajectory, and lands; it is not a Hold command.',
           }]
           : []),
         {
@@ -184,11 +183,16 @@ const DroneActions = ({
   const renderActionButton = (actionKey, sectionKey) => {
     const Icon = ACTION_ICONS[actionKey];
     const actionTypeValue = actionTypes[actionKey];
-    const label = ACTION_SHORT_LABELS[actionKey] || DRONE_ACTION_NAMES[actionTypeValue];
+    const metadata = COMMAND_METADATA_BY_KEY[actionKey];
+    const label = metadata?.shortLabel || DRONE_ACTION_NAMES[actionTypeValue];
     const fullLabel = DRONE_ACTION_NAMES[actionTypeValue];
-    const isDanger = actionKey === 'KILL_TERMINATE' || actionKey === 'DISARM';
+    const description = metadata?.description || '';
+    const isDanger = actionKey === 'KILL_TERMINATE';
     const isCritical = actionKey === 'KILL_TERMINATE';
     const isPrecisionMove = actionKey === 'PRECISION_MOVE';
+    const disabledReason = actionKey === 'TEST' && !groundTestRuntimeKnown
+      ? 'Active runtime mode is unavailable; the motor-arm test is blocked.'
+      : null;
 
     return (
       <button
@@ -200,15 +204,16 @@ const DroneActions = ({
             return;
           }
 
-          handleActionClick(actionKey, actionKey === 'APPLY_COMMON_PARAMS' ? { reboot_after: true } : {});
+          handleActionClick(actionKey);
         }}
-        title={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
-        aria-label={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
+        disabled={Boolean(disabledReason)}
+        title={disabledReason || `${fullLabel}. ${description}`}
+        aria-label={`${fullLabel}. ${description}`}
       >
         <span className="action-button__icon"><Icon className="action-icon" /></span>
         <span className="action-button__content">
           <span className="action-button__title">{label}</span>
-          <small className="action-button__summary">{ACTION_DESCRIPTIONS[actionKey]}</small>
+          <small className="action-button__summary">{description}</small>
         </span>
       </button>
     );
@@ -352,6 +357,7 @@ DroneActions.propTypes = {
   onTakeoffAltitudeChange: PropTypes.func,
   referenceNowMs: PropTypes.number,
   clockOffsetLabel: PropTypes.string,
+  runtimeMode: PropTypes.oneOf(['real', 'sitl', 'unknown']),
 };
 
 export default DroneActions;

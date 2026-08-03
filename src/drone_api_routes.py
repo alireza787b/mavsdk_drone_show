@@ -2,6 +2,7 @@
 
 DRONE_STATE_ROUTE = "/api/v1/drone/state"
 DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
+DRONE_LAUNCH_PREPARATION_ROUTE = "/api/v1/preflight/launch-preparations"
 DRONE_COMMANDS_ROUTE = "/api/v1/drone/commands"
 DRONE_NAVIGATION_HOME_ROUTE = "/api/v1/navigation/home"
 DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE = "/api/v1/navigation/global-origin"

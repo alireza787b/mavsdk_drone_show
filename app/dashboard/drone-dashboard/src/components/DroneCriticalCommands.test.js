@@ -73,7 +73,7 @@ describe('DroneCriticalCommands', () => {
 
   it('publishes per-drone overrides into the shared command activity stream', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (_commandData, options = {}) => {
-      options.onCommandAccepted?.({
+      options.onSubmissionTracked?.({
         commandId: 'cmd-hold-1',
         commandLabel: 'Hold',
         missionType: 102,
@@ -110,7 +110,7 @@ describe('DroneCriticalCommands', () => {
         updatedAtMs: 1000,
       });
 
-      return { success: true, command_id: 'cmd-hold-1' };
+      return { accepted_for_tracking: true, command_id: 'cmd-hold-1' };
     });
 
     render(

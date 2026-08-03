@@ -1,0 +1,31 @@
+{
+  "profile_id": "mds_multidrone_field_baseline",
+  "name": "MDS Multidrone Field Baseline",
+  "description": "Reviewed multidrone field baseline. Apply only after diff review against the connected PX4 firmware.",
+  "recommended_scope": "fleet",
+  "tags": ["field", "multidrone", "safety", "estimator"],
+  "entries": [
+    {"component_id": 1, "name": "COM_RCL_EXCEPT", "value_type": "int", "value": 7},
+    {"component_id": 1, "name": "GF_ACTION", "value_type": "int", "value": 3},
+    {"component_id": 1, "name": "GF_MAX_HOR_DIST", "value_type": "float", "value": 1500.0},
+    {"component_id": 1, "name": "GF_MAX_VER_DIST", "value_type": "float", "value": 200.0},
+    {"component_id": 1, "name": "UAVCAN_PUB_RTCM", "value_type": "int", "value": 1},
+    {"component_id": 1, "name": "MAV_PROTO_VER", "value_type": "int", "value": 2},
+    {"component_id": 1, "name": "COM_OBL_RC_ACT", "value_type": "int", "value": 3},
+    {"component_id": 1, "name": "COM_OF_LOSS_T", "value_type": "float", "value": 20.0},
+    {"component_id": 1, "name": "COM_FLT_TIME_MAX", "value_type": "int", "value": 900},
+    {"component_id": 1, "name": "COM_FLTT_LOW_ACT", "value_type": "int", "value": 3},
+    {"component_id": 1, "name": "IMU_GYRO_NF0_FRQ", "value_type": "float", "value": 90.0},
+    {"component_id": 1, "name": "IMU_GYRO_NF0_BW", "value_type": "float", "value": 15.0},
+    {"component_id": 1, "name": "EKF2_GPS_P_NOISE", "value_type": "float", "value": 0.5},
+    {"component_id": 1, "name": "EKF2_GPS_V_NOISE", "value_type": "float", "value": 0.3},
+    {"component_id": 1, "name": "EKF2_GPS_P_GATE", "value_type": "float", "value": 5.0},
+    {"component_id": 1, "name": "EKF2_GPS_V_GATE", "value_type": "float", "value": 5.0},
+    {"component_id": 1, "name": "EKF2_DRAG_CTRL", "value_type": "int", "value": 0},
+    {"component_id": 1, "name": "EKF2_BCOEF_X", "value_type": "float", "value": 100.0},
+    {"component_id": 1, "name": "EKF2_BCOEF_Y", "value_type": "float", "value": 100.0},
+    {"component_id": 1, "name": "EKF2_BARO_CTRL", "value_type": "int", "value": 1},
+    {"component_id": 1, "name": "EKF2_MULTI_IMU", "value_type": "int", "value": 3},
+    {"component_id": 1, "name": "SENS_IMU_MODE", "value_type": "int", "value": 0}
+  ]
+}

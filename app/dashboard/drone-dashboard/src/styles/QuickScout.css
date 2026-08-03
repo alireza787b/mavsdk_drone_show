@@ -797,7 +797,7 @@
     transform: scale(1.1);
 }
 
-.qs-action-btn.resume { border-color: var(--color-success); color: var(--color-success); }
+.qs-action-btn.replan { border-color: var(--color-success); color: var(--color-success); }
 .qs-action-btn.pause { border-color: var(--color-warning); color: var(--color-warning); }
 .qs-action-btn.end { border-color: var(--color-warning); color: var(--color-warning); }
 

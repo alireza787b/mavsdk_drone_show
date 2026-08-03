@@ -71,7 +71,7 @@ cd gcs-server
 Notes:
 - `--sitl` starts FastAPI plus the dashboard in development mode.
 - `--prod --sitl` builds/serves the React dashboard and runs FastAPI in production mode.
-- Production currently stays single-worker on purpose because command tracking, heartbeat state, and background services still rely on in-process memory.
+- Production stays single-worker on purpose: the command journal has one owning writer, while heartbeat state and background services remain process-local. Tracked command identity/evidence is durable across a restart, but this is not a multi-worker distributed command queue.
 
 ### Interactive API Documentation
 
@@ -1411,7 +1411,10 @@ Explicitly clear all processed data and plots.
 ### Command Execution
 
 #### `POST /api/v1/commands`
-Submit a command to drones and immediately return ACK tracking information.
+Create tracked command work and return an immutable HTTP `202` receipt. The
+receipt proves only that GCS tracking exists; readiness, delivery, ACK,
+execution, and terminal outcome remain authoritative at the returned
+`tracking_url`.
 
 **Request:**
 ```json
@@ -1428,46 +1431,38 @@ Submit a command to drones and immediately return ACK tracking information.
 **Response:**
 ```json
 {
-  "success": true,
+  "accepted_for_tracking": true,
   "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
   "idempotency_key": "launch-wave-001",
   "replayed": false,
-  "status": "submitted",
   "mission_type": 10,
   "mission_name": "TAKE_OFF",
   "target_drones": ["1", "2"],
-  "submitted_count": 2,
-  "results_summary": {
-    "accepted": 2,
-    "offline": 0,
-    "rejected": 0,
-    "errors": 0
-  },
-  "tracking_status": "submitted",
-  "tracking_phase": "pending_execution",
-  "tracking_outcome": null,
-  "tracking_timeout_ms": 420000,
-  "message": "2 accepted",
+  "tracking_url": "/api/v1/commands/5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "message": "Command accepted for tracked preparation. Monitor the tracking URL for readiness, dispatch, execution, and terminal outcome.",
   "timestamp": 1700000000000
 }
 ```
 
 Important semantics:
-- `success=true` means at least one drone accepted the command.
-- canonical request fields are `mission_type`, `trigger_time`, `idempotency_key`, `target_drone_ids`, and `operator_label`.
+- `accepted_for_tracking=true` does **not** mean a drone accepted or executed the command.
+- canonical request fields are `mission_type`, `trigger_time`, `idempotency_key`, `operator_label`, and either non-empty `target_drone_ids` or explicit `target_scope="all"`.
 - `idempotency_key` is the canonical replay-safe client key. Repeating the same submission with the same `idempotency_key` and the same normalized payload returns the existing `command_id` with `replayed=true` instead of creating or dispatching a second command.
+- the HTTP `202` identity, idempotency binding, deadline, and per-target evidence are committed to the host-local command journal before they are exposed as authoritative state.
 - reusing the same `idempotency_key` with a different normalized payload fails with `409 Conflict`.
-- legacy request aliases (`missionType`, `triggerTime`, `target_drones`, `targetDrones`, `operatorLabel`, `idempotencyKey`, `client_command_id`, `clientCommandId`) are still accepted at the HTTP edge, but first-party callers and docs now use the canonical snake_case contract.
-- `target_drone_ids` may contain hardware IDs or position IDs. The response still normalizes `target_drones` to hardware IDs after the target set is resolved.
-- malformed JSON, non-object JSON bodies, invalid `target_drone_ids` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
-- `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
+- legacy aliases are rejected at this executable boundary; first-party callers and integrations use only canonical snake_case fields.
+- `target_drone_ids` contains hardware identities only. Position/trajectory slots are not command addresses.
+- omitted/empty targets never broaden to the fleet. Use `target_scope="all"` deliberately for whole-fleet dispatch.
+- malformed JSON, non-object bodies, invalid/duplicate target arrays, unknown hardware IDs, and ambiguous target selection fail before any drone dispatch.
+- launch-from-ground missions enter a tracked preparation phase. Every selected node must return current command-bound readiness before dispatch begins; monitor per-target preparation evidence at the tracking resource.
 - Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /api/v1/commands/{command_id}` rather than treated as finished at submission time.
-- `tracking_timeout_ms` is the mission-aware lifecycle timeout selected by the backend for this command. It already includes any future trigger delay plus the expected execution/cleanup window, and frontend/background polling should reuse it instead of guessing with a flat client-side timeout.
+- `timeout_at` in the tracking resource is authoritative and already includes any future trigger delay plus the expected execution/cleanup window; clients must not guess a separate flat timeout.
 - tracker timeout budgets are mission-aware instead of one flat timeout: short actions use action-specific budgets, while Drone Show, Custom CSV, and Swarm Trajectory derive longer tracking windows from the active mission assets plus cleanup buffers.
-- if `trigger_time` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
+- if `trigger_time` schedules the command in the future, that waiting period is reflected in authoritative `timeout_at`; delayed-command clients continue monitoring that resource instead of imposing a shorter local timeout.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `mission_type=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
 - there is currently no separate command-specific cancel resource. Live cancellation goes through `POST /api/v1/commands` with `mission_type=0` so the cancel action is actually dispatched to drones.
+- a GCS restart never automatically replays a command fan-out. If durable state proves dispatch had not begun, the command becomes a terminal interrupted failure. If dispatch may have begun, targets without persisted evidence become `delivery_unknown`; retry the original request with the same `idempotency_key` to recover its original `command_id`, not to create a replacement.
 
 #### `GET /api/v1/commands/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.
@@ -1549,6 +1544,7 @@ Important semantics:
 - `progress.stage=executing` means at least one drone has started and none have reported completion yet.
 - `progress.stage=finishing` means some drones already reported terminal execution results while other accepted drones are still active; this is the normal state during long end behaviors such as RTL / land / disarm cleanup.
 - command timeout promotion runs continuously in the FastAPI background services, so a command that never reaches terminal execution reporting will still move to a terminal timeout state instead of remaining stuck forever in `submitted` or `executing`.
+- command status, deadlines, idempotency bindings, target evidence, and callback authority survive a normal GCS process restart through the configured host-local SQLite/WAL journal. A restored `delivery_unknown` target remains open for its capability-authenticated callback until the original tracker deadline.
 - drone-side execution-start and execution-result callbacks are now retried through a bounded in-memory queue with backoff and per-command coalescing when GCS is temporarily unreachable; duplicate callback delivery is idempotent, so brief network loss should degrade into delayed tracker updates rather than permanently missing terminal state.
 - in `SITL` mode, tracked-command submission performs a read-only callback-endpoint preflight for the selected running containers. If a container's `MDS_GCS_IP`/`MDS_GCS_API_PORT` points at a different GCS process, the request fails with HTTP `409` before delivery, instead of accepting a command whose execution callbacks cannot update this tracker. The endpoint observed per instance is available from `GET /api/v1/system/sitl/instances` as `callback_gcs_ip` and `callback_gcs_api_port`.
 - execution-start and execution-result callbacks also count as authoritative acceptance evidence. If the original GCS->drone HTTP ACK was lost or temporarily marked offline, the tracker upgrades that target to accepted once execution is confirmed.
@@ -1662,29 +1658,6 @@ Get git status from all drones.
   },
   "sync_in_progress": false,
   "timestamp": 1700000000000
-}
-```
-
-#### `POST /api/v1/git/sync-operations`
-Deprecated compatibility route. It no longer dispatches `UPDATE_CODE`.
-Use Fleet Ops dry-run/apply instead.
-
-**Request:**
-```json
-{
-  "pos_ids": [0, 1, 2],
-  "force_pull": false
-}
-```
-
-**Response:**
-```json
-{
-  "success": false,
-  "message": "Direct git sync is disabled. Use Fleet Ops /api/v1/fleet/git-sync/dry-run followed by /api/v1/fleet/git-sync/apply.",
-  "synced_drones": [],
-  "failed_drones": [],
-  "total_attempted": 0
 }
 ```
 
@@ -1990,7 +1963,6 @@ Request cancellation for a planning job.
 - `GET /api/sar/mission/{mission_id}/status`
 - `GET /api/sar/mission/{mission_id}/handoff`
 - `POST /api/sar/mission/{mission_id}/pause`
-- `POST /api/sar/mission/{mission_id}/resume`
 - `POST /api/sar/mission/{mission_id}/abort`
 - `POST /api/sar/mission/{mission_id}/progress`
 - `POST /api/sar/findings`
@@ -2001,6 +1973,8 @@ Request cancellation for a planning job.
 
 QuickScout planning job state is in memory. Persisted mission packages,
 findings, and handoff data remain in the QuickScout store.
+Paused coverage is not directly resumable: hold the active package, then create
+a follow-up plan from the current aircraft state.
 
 ---
 

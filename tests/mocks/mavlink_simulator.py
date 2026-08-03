@@ -258,7 +258,7 @@ class MockTelemetryPlugin:
         """Get battery status"""
         return type('Battery', (), {
             'voltage_v': self._conn._battery,
-            'remaining_percent': 0.8
+            'remaining_percent': 80.0
         })()
 
     async def gps_info(self):

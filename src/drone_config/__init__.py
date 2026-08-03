@@ -198,12 +198,12 @@ class DroneConfig:
         self._state.update_branch = value
 
     @property
-    def reboot_after_params(self) -> Optional[bool]:
-        return self._state.reboot_after_params
+    def ground_test_request_file(self) -> Optional[str]:
+        return self._state.ground_test_request_file
 
-    @reboot_after_params.setter
-    def reboot_after_params(self, value: Optional[bool]):
-        self._state.reboot_after_params = value
+    @ground_test_request_file.setter
+    def ground_test_request_file(self, value: Optional[str]):
+        self._state.ground_test_request_file = value
 
     @property
     def quickscout_mission_id(self) -> Optional[str]:
@@ -302,6 +302,14 @@ class DroneConfig:
         self._state.telemetry_sequence = value
 
     @property
+    def heartbeat_timestamp_ms(self) -> int:
+        return self._state.heartbeat_timestamp_ms
+
+    @heartbeat_timestamp_ms.setter
+    def heartbeat_timestamp_ms(self, value: int):
+        self._state.heartbeat_timestamp_ms = value
+
+    @property
     def gps_raw_timestamp_ms(self) -> int:
         return self._state.gps_raw_timestamp_ms
 
@@ -364,6 +372,38 @@ class DroneConfig:
     @battery.setter
     def battery(self, value: float):
         self._state.battery = value
+
+    @property
+    def battery_remaining_percent(self) -> Optional[float]:
+        return self._state.battery_remaining_percent
+
+    @battery_remaining_percent.setter
+    def battery_remaining_percent(self, value: Optional[float]):
+        self._state.battery_remaining_percent = value
+
+    @property
+    def battery_charge_state(self) -> Optional[int]:
+        return self._state.battery_charge_state
+
+    @battery_charge_state.setter
+    def battery_charge_state(self, value: Optional[int]):
+        self._state.battery_charge_state = value
+
+    @property
+    def battery_fault_bitmask(self) -> Optional[int]:
+        return self._state.battery_fault_bitmask
+
+    @battery_fault_bitmask.setter
+    def battery_fault_bitmask(self, value: Optional[int]):
+        self._state.battery_fault_bitmask = value
+
+    @property
+    def battery_timestamp_ms(self) -> int:
+        return self._state.battery_timestamp_ms
+
+    @battery_timestamp_ms.setter
+    def battery_timestamp_ms(self, value: int):
+        self._state.battery_timestamp_ms = value
 
     @property
     def last_update_timestamp(self) -> float:

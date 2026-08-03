@@ -33,23 +33,118 @@ import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
  * @param {number} triggerTime - Optional trigger time for scheduling (default immediate).
  */
 export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) => {
-  // Note: If droneIds is empty, backend might interpret as "All Drones"
-  // or you can handle that in your caller.
+  const normalizedTargets = droneIds.map((value) => String(value));
   return {
-    missionType: String(actionType), // Convert to string for drone API compatibility
-    target_drones: droneIds,
-    triggerTime: String(triggerTime), // ensure it's a string
+    mission_type: Number(actionType),
+    trigger_time: Number(triggerTime),
+    ...(normalizedTargets.length > 0
+      ? { target_drone_ids: normalizedTargets }
+      : { target_scope: 'all' }),
   };
 };
 
+const createCommandIdempotencyKey = () => {
+  if (typeof globalThis?.crypto?.randomUUID === 'function') {
+    return `dashboard-${globalThis.crypto.randomUUID()}`;
+  }
+  const randomPart = Math.random().toString(36).slice(2, 12);
+  return `dashboard-${Date.now().toString(36)}-${randomPart}`;
+};
+
+const LEGACY_COMMAND_ENVELOPE_KEYS = Object.freeze([
+  'missionType',
+  'triggerTime',
+  'target_drones',
+  'targetDrones',
+  'operatorLabel',
+  'idempotencyKey',
+]);
+
+export const serializeCommandSubmission = (commandData = {}) => {
+  if (!commandData || typeof commandData !== 'object' || Array.isArray(commandData)) {
+    throw new TypeError('Command submission must be an object');
+  }
+
+  const legacyKey = LEGACY_COMMAND_ENVELOPE_KEYS.find((key) => (
+    Object.prototype.hasOwnProperty.call(commandData, key)
+  ));
+  if (legacyKey) {
+    throw new TypeError(`Dashboard command uses obsolete envelope key: ${legacyKey}`);
+  }
+
+  const { uiMeta, ...payload } = commandData;
+  const missionType = Number(payload.mission_type);
+  const triggerTime = Number(payload.trigger_time ?? 0);
+  if (!Number.isInteger(missionType)) {
+    throw new TypeError('mission_type must be an integer');
+  }
+  if (!Number.isInteger(triggerTime) || triggerTime < 0) {
+    throw new TypeError('trigger_time must be a non-negative integer');
+  }
+
+  const hasTargetIds = Object.prototype.hasOwnProperty.call(payload, 'target_drone_ids');
+  const hasAllScope = Object.prototype.hasOwnProperty.call(payload, 'target_scope');
+  if (hasTargetIds && hasAllScope) {
+    throw new TypeError('Use target_drone_ids or target_scope, not both');
+  }
+  if (hasTargetIds && (!Array.isArray(payload.target_drone_ids) || payload.target_drone_ids.length === 0)) {
+    throw new TypeError('target_drone_ids must be a non-empty array');
+  }
+  if (hasAllScope && payload.target_scope !== 'all') {
+    throw new TypeError("target_scope must be 'all'");
+  }
+  if (!hasTargetIds && !hasAllScope) {
+    throw new TypeError("Command target is required; use target_scope: 'all' for the whole fleet");
+  }
+
+  const serialized = {
+    ...payload,
+    mission_type: missionType,
+    trigger_time: triggerTime,
+    idempotency_key: payload.idempotency_key || createCommandIdempotencyKey(),
+  };
+  if (hasTargetIds) {
+    serialized.target_drone_ids = payload.target_drone_ids.map((value) => String(value));
+  }
+  if (!serialized.operator_label && uiMeta?.operatorLabel) {
+    serialized.operator_label = String(uiMeta.operatorLabel);
+  }
+  return serialized;
+};
+
+const isAmbiguousSubmissionTransportFailure = (error) => {
+  if (!error || error.response || error.code === 'ERR_CANCELED') {
+    return false;
+  }
+  return Boolean(
+    error.request
+    || ['ECONNABORTED', 'ETIMEDOUT', 'ERR_NETWORK'].includes(error.code)
+    || /timeout|network error/i.test(String(error.message || ''))
+  );
+};
+
 export const sendDroneCommand = async (commandData, config = {}) => {
-  try {
-    const response = await submitCommandResponse(commandData, {
+  const payload = serializeCommandSubmission(commandData);
+  const {
+    recoverAmbiguousSubmission = true,
+    ...requestConfig
+  } = config;
+  const submit = () => submitCommandResponse(payload, {
       timeout: COMMAND_SUBMIT_TIMEOUT_MS,
-      ...config,
+      ...requestConfig,
     });
+
+  try {
+    const response = await submit();
     return response.data;
   } catch (error) {
+    if (recoverAmbiguousSubmission && isAmbiguousSubmissionTransportFailure(error)) {
+      // The server binds this key before slow launch preparation. Replaying the
+      // exact payload recovers the tracked command without creating a second
+      // flight action when the first HTTP response was lost or timed out.
+      const replay = await submit();
+      return replay.data;
+    }
     throw error;
   }
 };

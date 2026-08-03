@@ -136,7 +136,7 @@ Smart Swarm interaction:
 
 ## Trigger Timing and Synchronization
 
-Drone Show missions are scheduled by `triggerTime` and start through the coordinator:
+Drone Show missions are scheduled by canonical `trigger_time` and start through the coordinator:
 
 - the operator can launch with a relative delay or specific time-of-day trigger
 - the drone-side scheduler starts preparing slightly early via `trigger_sooner_seconds`

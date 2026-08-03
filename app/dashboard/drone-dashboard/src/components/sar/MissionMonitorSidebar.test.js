@@ -17,16 +17,23 @@ describe('MissionMonitorSidebar', () => {
           operation_phase: 'holding',
           status_summary: 'Assigned drones are holding on operator command.',
           recommended_operator_action: 'Generate a follow-up package from current state.',
-          last_command_summary: {
-            action: 'resume',
-            effect: 'replan_required',
-            message: 'QuickScout coverage missions do not support direct resume in V1.',
-            operator_guidance: 'Open plan mode and generate a follow-up package from the current aircraft state.',
+          latest_command_batch: {
+            action: 'pause',
+            state: 'completed',
+            receipt: {
+              command_id: 'command-pause-1',
+              tracking_url: '/api/v1/commands/command-pause-1',
+              message: 'Tracked pause command queued.',
+            },
+            targets: {
+              '1': { hw_id: '1', state: 'completed' },
+            },
           },
           drone_states: {
             '1': { hw_id: '1', state: 'paused', status_note: 'Holding on operator command' },
           },
         }}
+        statusError="GCS unavailable"
         findings={[]}
         missionCatalog={[]}
         currentMissionId="mission-corridor"
@@ -69,6 +76,9 @@ describe('MissionMonitorSidebar', () => {
     );
 
     expect(screen.getByText('Mission Package')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Mission status refresh failed: GCS unavailable. Last displayed state may be stale.'
+    );
     expect(screen.getByText('Corridor Search')).toBeInTheDocument();
     expect(screen.getByText('Holding')).toBeInTheDocument();
     expect(screen.getByText('Route-centered corridor package')).toBeInTheDocument();
@@ -76,7 +86,13 @@ describe('MissionMonitorSidebar', () => {
     expect(screen.getByText('Width 110 m')).toBeInTheDocument();
     expect(screen.getByText('Sweep the channel approach')).toBeInTheDocument();
     expect(screen.getByText('Assigned drones are holding on operator command.')).toBeInTheDocument();
-    expect(screen.getByText('QuickScout coverage missions do not support direct resume in V1.')).toBeInTheDocument();
+    expect(screen.getByText('Latest Tracked Command')).toBeInTheDocument();
+    expect(screen.getByText('Execution completed successfully for 1 target.')).toBeInTheDocument();
+    expect(screen.getByText('1 completed')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open command tracker' })).toHaveAttribute(
+      'href',
+      '/api/v1/commands/command-pause-1'
+    );
     expect(screen.getByText('Handoff')).toBeInTheDocument();
     expect(screen.getByText('Harbor corridor is paused in holding phase.')).toBeInTheDocument();
     expect(screen.getByText('Mark findings from the map to capture observations, triage them, and keep the mission handoff clean.')).toBeInTheDocument();

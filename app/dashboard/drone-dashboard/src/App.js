@@ -248,10 +248,10 @@ const AppShell = () => {
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 
                       {/* Backward-compatible alias used by workflow guidance */}
-                      <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />
+                      <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} runtimeMode={runtimeStatus.mode} />} />
 
                       {/* Default route */}
-                      <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
+                      <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} runtimeMode={runtimeStatus.mode} />} />
                     </Routes>
                   </Suspense>
                 </div>

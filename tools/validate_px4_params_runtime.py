@@ -19,49 +19,22 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import fetch_and_require_sitl_runtime
-
-try:
-    from src.drone_api_routes import DRONE_SYSTEM_HEALTH_ROUTE
-    from src.gcs_api_routes import (
-        GCS_PX4_PARAMS_DIFF_ROUTE,
-        GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
-        GCS_PX4_PARAMS_POLICY_ROUTE,
-        GCS_PX4_PARAMS_QGC_IMPORT_ROUTE,
-        GCS_PX4_PARAMS_SNAPSHOTS_ROUTE,
-        GCS_FLEET_TELEMETRY_ROUTE,
-        GCS_SYSTEM_HEALTH_ROUTE,
-    )
-    from tools.runtime_validation_support import (
-        normalize_drone_ids,
-        parse_csv_drone_ids,
-        write_json_report,
-    )
-except Exception:  # pragma: no cover - fallback only
-    DRONE_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
-    GCS_PX4_PARAMS_POLICY_ROUTE = "/api/v1/px4-params/policy"
-    GCS_PX4_PARAMS_SNAPSHOTS_ROUTE = "/api/v1/px4-params/snapshots"
-    GCS_PX4_PARAMS_QGC_IMPORT_ROUTE = "/api/v1/px4-params/imports/qgc"
-    GCS_PX4_PARAMS_DIFF_ROUTE = "/api/v1/px4-params/diff"
-    GCS_PX4_PARAMS_PATCH_JOBS_ROUTE = "/api/v1/px4-params/patch-jobs"
-
-    def normalize_drone_ids(ids):
-        values = sorted({int(drone_id) for drone_id in ids})
-        if not values:
-            raise RuntimeError("No drone IDs supplied.")
-        return values
-
-    def parse_csv_drone_ids(raw):
-        return normalize_drone_ids(int(part.strip()) for part in str(raw).split(",") if part.strip())
-
-    def write_json_report(path, payload):
-        if path is None:
-            return
-        report_path = Path(path)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+from src.drone_api_routes import DRONE_SYSTEM_HEALTH_ROUTE
+from src.gcs_api_routes import (
+    GCS_PX4_PARAMS_DIFF_ROUTE,
+    GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
+    GCS_PX4_PARAMS_POLICY_ROUTE,
+    GCS_PX4_PARAMS_QGC_IMPORT_ROUTE,
+    GCS_PX4_PARAMS_SNAPSHOTS_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+)
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    normalize_drone_ids,
+    parse_csv_drone_ids,
+    write_json_report,
+)
 
 
 DEFAULT_PARAM_NAME = "MPC_XY_VEL_MAX"

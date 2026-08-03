@@ -4,23 +4,37 @@ import threading
 import struct
 import select
 import time
+import os
 import re
-import json
 import math
-from typing import Dict, Any, List, Optional
+import tempfile
+from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
 from mds_logging import get_logger
-from src.command_contract import PrecisionMoveRequest
+from src.command_contract import GroundTestSafetyAcknowledgement, PrecisionMoveRequest
+from src.command_installation import (
+    CommandInstallationRejected,
+    CommandInstallationResult,
+    CommandInstallationUncertain,
+    PreparedCommandInstallation,
+    ensure_private_directory,
+    semantic_payload_digest,
+    stage_json_artifact,
+    stage_json_target_removal,
+)
 from src.enums import Mission, State
 from src.telemetry_display import build_altitude_report, build_gps_report
-
-logger = get_logger("drone_comm")
 from src.drone_config import DroneConfig
 from src.params import Params
 from src.swarm_runtime_state import read_runtime_swarm_assignment
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
+
+
+logger = get_logger("drone_comm")
+
+_MISSING_COMMAND_FIELD = object()
 
 class DroneCommunicator:
     """
@@ -55,6 +69,7 @@ class DroneCommunicator:
 
         # Initialize api_server as None; it will be injected later
         self.api_server = None
+        self._command_install_lock = threading.RLock()
 
     def set_api_server(self, api_server):
         """Setter for injecting DroneAPIServer dependency after initialization."""
@@ -318,197 +333,384 @@ class DroneCommunicator:
         else:
             logger.warning(f"Attempted to update non-existent drone: {hw_id}")
 
-    def process_command(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process incoming command data and update drone configuration.
+    def process_command(self, command_data: Dict[str, Any]) -> CommandInstallationResult:
+        """Prepare and atomically install one command under one local lock."""
+        with self._command_install_lock:
+            prepared = self._prepare_command(command_data)
+            return self._commit_prepared_command(prepared)
 
-        Args:
-            command_data (Dict[str, Any]): A dictionary containing command information.
+    def _runtime_payload_directory(self) -> Path:
+        configured_root = getattr(self.params, "command_runtime_dir", None)
+        runtime_root = (
+            Path(configured_root)
+            if configured_root
+            else Path(tempfile.gettempdir()) / f"mds-command-runtime-{os.geteuid()}"
+        )
+        safe_hw_id = re.sub(r"[^a-zA-Z0-9_-]", "", str(self.drone_config.hw_id)) or "unknown"
+        runtime_directory = runtime_root / f"drone-{safe_hw_id[:64]}"
+        ensure_private_directory(runtime_directory)
+        return runtime_directory
 
-        Required fields:
-            - mission_type (int): The mission code.
-            - trigger_time (int): The time to trigger the mission.
+    @staticmethod
+    def _safe_artifact_identifier(value: Any) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9_-]", "", str(value or ""))
+        return normalized[:48] or "pending"
 
-        Optional fields:
-            - hw_id (str): Hardware ID.
-            - pos_id (str): Position ID.
-            - state (str): Drone state.
-            - origin (dict): Phase 2 origin data (lat, lon, alt)
-            - auto_global_origin (bool): Phase 2 mode flag
-        """
-        logger.info(f"Received command data: {command_data}")
+    def _runtime_artifact_target(self, prefix: str, payload: Any, identifier: Any) -> Path:
+        digest = semantic_payload_digest(payload)
+        return self._runtime_payload_directory() / (
+            f"{prefix}_{self._safe_artifact_identifier(identifier)}_{digest}.json"
+        )
 
+    @staticmethod
+    def _normalize_origin(origin_data: Any) -> Dict[str, Any]:
+        if not isinstance(origin_data, dict):
+            raise ValueError("origin must be a JSON object")
         try:
-            mission_value = (
-                command_data["mission_type"]
-                if "mission_type" in command_data
-                else command_data["missionType"]
-            )
-            trigger_time_value = (
-                command_data["trigger_time"]
-                if "trigger_time" in command_data
-                else command_data["triggerTime"]
-            )
-            mission = int(mission_value)
-            trigger_time = int(trigger_time_value)
+            latitude = float(origin_data["lat"])
+            longitude = float(origin_data["lon"])
+            altitude = float(origin_data.get("alt", 0.0))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("origin requires numeric lat, lon, and alt values") from exc
+        if not all(math.isfinite(value) for value in (latitude, longitude, altitude)):
+            raise ValueError("origin values must be finite")
+        if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+            raise ValueError("origin latitude/longitude is outside the valid range")
+        normalized = dict(origin_data)
+        normalized.update({"lat": latitude, "lon": longitude, "alt": altitude})
+        return normalized
 
-        except KeyError as e:
-            logger.error(f"Missing required field in command data: {e}")
-            raise ValueError(f"Missing required field in command data: {e}") from e
-
-        # Phase 2: Save origin from command if present
-        if command_data.get('auto_global_origin') and 'origin' in command_data:
-            try:
-                from pathlib import Path
-                import json
-
-                origin_data = command_data['origin']
-                cache_dir = Path.home() / '.mavsdk_drone_show'
-                cache_dir.mkdir(parents=True, exist_ok=True)
-
-                origin_file = cache_dir / 'command_origin.json'
-                with open(origin_file, 'w') as f:
-                    json.dump(origin_data, f, indent=2)
-
-                logger.info(f"🌍 Phase 2: Saved origin from command to {origin_file}")
-                logger.info(f"   Origin: lat={origin_data.get('lat', 'N/A'):.6f}, "
-                           f"lon={origin_data.get('lon', 'N/A'):.6f}, "
-                           f"alt={origin_data.get('alt', 'N/A'):.1f}m")
-            except Exception as e:
-                logger.error(f"Failed to save command origin: {e}")
-
-        # hw_id and pos_id are immutable - use the drone's configured values
-        hw_id = self.drone_config.hw_id
-
-        # Phase 2: Store flags in drone_config (safe - just storing references)
-        self.drone_config.auto_global_origin = command_data.get('auto_global_origin', None)
-        self.drone_config.use_global_setpoints = command_data.get('use_global_setpoints', None)
-
-        if self.drone_config.auto_global_origin is not None:
-            logger.info(f"🌍 Phase 2: auto_global_origin={self.drone_config.auto_global_origin}")
-        if self.drone_config.use_global_setpoints is not None:
-            logger.info(f"🌍 Phase 2: use_global_setpoints={self.drone_config.use_global_setpoints}")
-
-        # ATOMIC: Process mission-specific data FIRST (may fail)
-        # State is only updated if mission processing succeeds
+    @staticmethod
+    def _parse_command_header(command_data: Dict[str, Any]) -> Tuple[int, int]:
         try:
-            self._process_mission_command(mission, command_data)
-        except Exception as e:
-            logger.error(f"Mission processing failed: {e}. State unchanged.")
-            raise ValueError(f"Mission processing failed: {e}") from e
+            mission_value = command_data["mission_type"]
+            trigger_time_value = command_data["trigger_time"]
+        except KeyError as exc:
+            raise ValueError(f"Missing required field in command data: {exc}") from exc
 
-        # Only update state AFTER successful mission processing
-        self._update_drone_state(State.MISSION_READY.value, trigger_time)
-
-        self._log_updated_configuration()
-        self.drones[hw_id] = self.drone_config
-        return {
-            "mission": mission,
-            "trigger_time": trigger_time,
-            "state": self.drone_config.state,
-        }
-
-    def _update_drone_state(self, state: int, trigger_time: int) -> None:
-        """Update mutable drone state values.
-
-        Note: hw_id and pos_id are immutable configuration values loaded from
-        the canonical node identity + fleet config model.
-        Only state and trigger_time are mutable runtime values.
-        """
-        self.drone_config.state = state
-        self.drone_config.trigger_time = trigger_time
-
-    def _process_mission_command(self, mission: int, command_data: Dict[str, Any]) -> None:
-        """Process the mission command based on its type."""
-        # Log the incoming mission command and data
-        logger.info(f"Processing mission command: {mission}, with data: {command_data}")
-
-        if mission == Mission.TAKE_OFF.value:
-            self._handle_takeoff_command(command_data)
-        elif mission == Mission.QUICKSCOUT.value:
-            self._handle_quickscout_command(command_data)
-        elif mission == Mission.PRECISION_MOVE.value:
-            self._handle_precision_move_command(command_data)
-        elif mission in Mission._value2member_map_:
-            self._handle_standard_mission(mission, command_data)
-        else:
-            # Log the error before raising an exception
-            logger.error(f"Unknown mission command: {mission}")
+        mission = int(mission_value)
+        if mission not in Mission._value2member_map_:
             raise ValueError(f"Unknown mission command: {mission}")
-    
+        trigger_time = int(trigger_time_value)
+        if trigger_time < 0:
+            raise ValueError("trigger_time must be non-negative")
+        return mission, trigger_time
 
-    def _handle_takeoff_command(self, command_data: Dict[str, Any]) -> None:
-        """Handle the takeoff command, setting altitude and mission."""
-        default_altitude = self.params.default_takeoff_alt
-        assigned_altitude = command_data.get("takeoff_altitude", default_altitude)
-        self.drone_config.takeoff_altitude = min(float(assigned_altitude), self.params.max_takeoff_alt)
-        logger.info(f"Takeoff command received. Assigned altitude: {self.drone_config.takeoff_altitude}m")
-        self.drone_config.mission = Mission.TAKE_OFF.value
-        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
-
-    def _handle_standard_mission(self, mission: int, command_data: Dict[str, Any]) -> None:
-        """Handle standard (non-takeoff) mission commands."""
-        mission_enum = Mission(mission)
-        logger.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
-
-        if mission == Mission.UPDATE_CODE.value:
-            self.drone_config.update_branch = command_data.get('update_branch')
-        elif mission == Mission.APPLY_COMMON_PARAMS.value:
-            self.drone_config.reboot_after_params = bool(
-                command_data.get('reboot_after_params', getattr(self.params, 'reboot_after_params', False))
+    def _prepare_command(self, command_data: Dict[str, Any]) -> PreparedCommandInstallation:
+        """Validate a command and stage all files without publishing mutation."""
+        if not isinstance(command_data, dict):
+            raise CommandInstallationRejected(
+                "Command data must be a JSON object",
+                phase="preparation",
             )
 
-        self.drone_config.mission = mission
-        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
+        artifacts = []
+        try:
+            mission, trigger_time = self._parse_command_header(command_data)
+            command_id = command_data.get("command_id")
+            normalized_command_id = str(command_id).strip() if command_id is not None else None
+            if normalized_command_id == "":
+                normalized_command_id = None
 
-    def _write_runtime_payload_file(self, prefix: str, payload: Any, *identifiers: Any) -> str:
-        safe_parts = [re.sub(r'[^a-zA-Z0-9_-]', '', str(part)) for part in identifiers if part not in (None, "")]
-        suffix = "_".join(part for part in safe_parts if part)
-        file_name = f"{prefix}_{suffix}.json" if suffix else f"{prefix}.json"
-        payload_path = Path("/tmp") / file_name
-        with payload_path.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-        return str(payload_path)
+            # Clear every mission-specific value first.  A newly accepted
+            # command therefore cannot accidentally inherit options from the
+            # previous command family.
+            updates: List[Tuple[str, Any]] = [
+                ("runtime_takeoff_altitude", None),
+                ("update_branch", None),
+                ("ground_test_request_file", None),
+                ("quickscout_mission_id", None),
+                ("quickscout_waypoints_file", None),
+                ("quickscout_return_behavior", None),
+                ("precision_move_request_file", None),
+                ("auto_global_origin", command_data.get("auto_global_origin")),
+                ("use_global_setpoints", command_data.get("use_global_setpoints")),
+            ]
 
-    def _handle_quickscout_command(self, command_data: Dict[str, Any]) -> None:
-        """Handle QuickScout SAR mission command - extract waypoints and store."""
-        waypoints = command_data.get('waypoints', [])
-        mission_id = command_data.get('mission_id', 'unknown')
-        return_behavior = command_data.get('return_behavior', 'return_home')
-        hw_id = self.drone_config.hw_id
+            if (
+                mission == Mission.DRONE_SHOW_FROM_CSV.value
+                and command_data.get("auto_global_origin")
+            ):
+                origin_directory = Path.home() / ".mavsdk_drone_show"
+                ensure_private_directory(origin_directory)
+                origin_target = origin_directory / "command_origin.json"
+                if "origin" in command_data:
+                    origin_data = self._normalize_origin(command_data["origin"])
+                    artifacts.append(
+                        stage_json_artifact(
+                            target=origin_target,
+                            payload=origin_data,
+                            purpose="command origin",
+                        )
+                    )
+                else:
+                    # command_origin.json is single-use. A new command that
+                    # deliberately falls back to GCS/cache must not inherit an
+                    # older pending command's attached origin.
+                    artifacts.append(
+                        stage_json_target_removal(
+                            target=origin_target,
+                            purpose="stale command origin",
+                        )
+                    )
 
-        if not waypoints:
-            raise ValueError("QuickScout command missing waypoints")
+            if mission == Mission.TAKE_OFF.value:
+                assigned_altitude = float(
+                    command_data.get("takeoff_altitude", self.params.default_takeoff_alt)
+                )
+                max_altitude = float(self.params.max_takeoff_alt)
+                if not math.isfinite(assigned_altitude) or assigned_altitude <= 0:
+                    raise ValueError("takeoff_altitude must be a positive finite number")
+                if not math.isfinite(max_altitude) or max_altitude <= 0:
+                    raise ValueError("Configured maximum takeoff altitude is invalid")
+                updates.append(("takeoff_altitude", min(assigned_altitude, max_altitude)))
+            elif mission == Mission.QUICKSCOUT.value:
+                waypoints = command_data.get("waypoints")
+                if not isinstance(waypoints, list) or not waypoints:
+                    raise ValueError("QuickScout command missing waypoints")
+                mission_id = str(command_data.get("mission_id", "unknown"))
+                return_behavior = str(command_data.get("return_behavior", "return_home"))
+                target = self._runtime_artifact_target(
+                    "quickscout",
+                    waypoints,
+                    normalized_command_id or mission_id,
+                )
+                artifacts.append(
+                    stage_json_artifact(
+                        target=target,
+                        payload=waypoints,
+                        purpose="QuickScout waypoints",
+                    )
+                )
+                updates.extend(
+                    [
+                        ("quickscout_mission_id", mission_id),
+                        ("quickscout_waypoints_file", str(target)),
+                        ("quickscout_return_behavior", return_behavior),
+                    ]
+                )
+            elif mission == Mission.PRECISION_MOVE.value:
+                precision_move = PrecisionMoveRequest.from_action_payload(command_data)
+                precision_payload = precision_move.model_dump(mode="json")
+                target = self._runtime_artifact_target(
+                    "precision_move",
+                    precision_payload,
+                    normalized_command_id,
+                )
+                artifacts.append(
+                    stage_json_artifact(
+                        target=target,
+                        payload=precision_payload,
+                        purpose="Precision Move request",
+                    )
+                )
+                updates.append(("precision_move_request_file", str(target)))
+            elif mission == Mission.UPDATE_CODE.value:
+                updates.append(("update_branch", command_data.get("update_branch")))
+            elif mission == Mission.TEST.value:
+                acknowledgement = GroundTestSafetyAcknowledgement.model_validate(
+                    command_data.get("ground_test_safety")
+                )
+                acknowledgement.validate_for_runtime(
+                    sim_mode=bool(getattr(self.params, "sim_mode", False))
+                )
+                request_payload = {
+                    "ground_test_safety": acknowledgement.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                }
+                target = self._runtime_artifact_target(
+                    "ground_test",
+                    request_payload,
+                    normalized_command_id,
+                )
+                artifacts.append(
+                    stage_json_artifact(
+                        target=target,
+                        payload=request_payload,
+                        purpose="Arm/Disarm Ground Test safety acknowledgement",
+                    )
+                )
+                updates.append(
+                    (
+                        "ground_test_request_file",
+                        str(target),
+                    )
+                )
 
-        waypoints_file = self._write_runtime_payload_file("quickscout", waypoints, hw_id, mission_id)
-        logger.info(f"QuickScout waypoints written to {waypoints_file} ({len(waypoints)} waypoints)")
+            # State is intentionally published last.  current_command_id is
+            # part of this same transaction, not an API-side follow-up write.
+            updates.extend(
+                [
+                    ("mission", mission),
+                    ("trigger_time", trigger_time),
+                    ("current_command_id", normalized_command_id),
+                    ("state", State.MISSION_READY.value),
+                ]
+            )
 
-        # Store mission parameters on drone_config
-        self.drone_config.quickscout_mission_id = mission_id
-        self.drone_config.quickscout_waypoints_file = waypoints_file
-        self.drone_config.quickscout_return_behavior = return_behavior
-        self.drone_config.mission = Mission.QUICKSCOUT.value
-        self.drone_config.state = State.MISSION_READY.value
+            logger.info(
+                "Prepared command installation: mission=%s trigger_time=%s command_id=%s artifacts=%s",
+                Mission(mission).name,
+                trigger_time,
+                normalized_command_id,
+                len(artifacts),
+            )
+            return PreparedCommandInstallation(
+                mission=mission,
+                trigger_time=trigger_time,
+                hw_id=self.drone_config.hw_id,
+                command_id=normalized_command_id,
+                config_updates=tuple(updates),
+                artifacts=tuple(artifacts),
+            )
+        except CommandInstallationRejected:
+            raise
+        except BaseException as exc:
+            cleanup_errors = []
+            for artifact in reversed(artifacts):
+                try:
+                    artifact.discard()
+                except BaseException as cleanup_exc:
+                    cleanup_errors.append(cleanup_exc)
+            if cleanup_errors:
+                logger.error(
+                    "Command preparation cleanup left staging debris: %s",
+                    "; ".join(str(error) for error in cleanup_errors),
+                )
+            detail = str(exc).strip() or type(exc).__name__
+            raise CommandInstallationRejected(
+                f"Command preparation failed: {detail}",
+                phase="preparation",
+                cause=exc,
+            ) from exc
 
-    def _handle_precision_move_command(self, command_data: Dict[str, Any]) -> None:
-        """Handle precision-move command payload installation."""
-        precision_move = PrecisionMoveRequest.from_action_payload(command_data)
-        command_id = command_data.get("command_id", "pending")
-        request_file = self._write_runtime_payload_file(
-            "precision_move",
-            precision_move.model_dump(mode="json"),
-            self.drone_config.hw_id,
-            command_id,
+    @staticmethod
+    def _restore_config_field(config: Any, field_name: str, previous_value: Any) -> None:
+        if previous_value is _MISSING_COMMAND_FIELD:
+            try:
+                delattr(config, field_name)
+            except AttributeError:
+                pass
+            return
+        setattr(config, field_name, previous_value)
+
+    def _commit_prepared_command(
+        self,
+        prepared: PreparedCommandInstallation,
+    ) -> CommandInstallationResult:
+        """Commit staged artifacts and config, or restore the exact prior command."""
+        if prepared.committed:
+            raise CommandInstallationRejected(
+                "Prepared command was already committed",
+                phase="precondition",
+            )
+        if prepared.hw_id != self.drone_config.hw_id:
+            try:
+                prepared.discard()
+            except Exception:
+                logger.exception("Failed to discard a prepared command for the wrong node")
+            raise CommandInstallationRejected(
+                "Prepared command target no longer matches this node",
+                phase="precondition",
+            )
+
+        # The prepared update plan is the only config-field authority. Deriving
+        # the snapshot/rollback order from it prevents new mission fields from
+        # being added to commit logic but forgotten in a duplicate rollback
+        # list. Reversing the exact update order also handles facade aliases
+        # such as takeoff_altitude/runtime_takeoff_altitude correctly.
+        config_field_order = tuple(
+            dict.fromkeys(field_name for field_name, _value in prepared.config_updates)
         )
+        config_snapshot = {
+            field_name: getattr(self.drone_config, field_name, _MISSING_COMMAND_FIELD)
+            for field_name in config_field_order
+        }
+        mapping_key = prepared.hw_id
+        mapping_existed = mapping_key in self.drones
+        prior_mapping_value = self.drones.get(mapping_key)
+        phase = "artifact_commit"
 
-        self.drone_config.precision_move_request_file = request_file
-        self.drone_config.mission = Mission.PRECISION_MOVE.value
-        self.drone_config.state = State.MISSION_READY.value
-        logger.info(
-            "Precision Move command installed: frame=%s request_file=%s",
-            precision_move.frame.value,
-            request_file,
+        try:
+            for artifact in prepared.artifacts:
+                artifact.commit()
+
+            phase = "config_commit"
+            for field_name, value in prepared.config_updates:
+                setattr(self.drone_config, field_name, value)
+
+            phase = "registry_commit"
+            self.drones[mapping_key] = self.drone_config
+            prepared.committed = True
+        except BaseException as exc:
+            rollback_errors: List[BaseException] = []
+
+            for field_name in reversed(config_field_order):
+                try:
+                    self._restore_config_field(
+                        self.drone_config,
+                        field_name,
+                        config_snapshot[field_name],
+                    )
+                except BaseException as rollback_exc:
+                    rollback_errors.append(rollback_exc)
+
+            try:
+                if mapping_existed:
+                    self.drones[mapping_key] = prior_mapping_value
+                else:
+                    self.drones.pop(mapping_key, None)
+            except BaseException as rollback_exc:
+                rollback_errors.append(rollback_exc)
+
+            for artifact in reversed(prepared.artifacts):
+                try:
+                    artifact.rollback()
+                except BaseException as rollback_exc:
+                    rollback_errors.append(rollback_exc)
+
+            detail = str(exc).strip() or type(exc).__name__
+            if rollback_errors:
+                rollback_detail = "; ".join(
+                    str(error).strip() or type(error).__name__
+                    for error in rollback_errors
+                )
+                raise CommandInstallationUncertain(
+                    f"Command installation failed during {phase}; rollback was incomplete: "
+                    f"{rollback_detail}",
+                    phase=phase,
+                    rollback_errors=rollback_errors,
+                    cause=exc,
+                ) from exc
+
+            raise CommandInstallationRejected(
+                f"Command installation failed during {phase}: {detail}",
+                phase=phase,
+                cause=exc,
+            ) from exc
+
+        for artifact in prepared.artifacts:
+            try:
+                artifact.finalize()
+            except BaseException:
+                # Cleanup debris does not reverse a fully committed command.
+                logger.exception(
+                    "Committed command but could not retire artifact backup for %s",
+                    artifact.purpose,
+                )
+
+        result = CommandInstallationResult(
+            committed=True,
+            mission=prepared.mission,
+            trigger_time=prepared.trigger_time,
+            state=int(self.drone_config.state),
+            command_id=prepared.command_id,
+            artifact_paths=prepared.artifact_paths,
         )
+        self._log_updated_configuration()
+        return result
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""
@@ -633,12 +835,33 @@ class DroneCommunicator:
             "velocity_down": safe_float(safe_get(self.drone_config.velocity, 'down')),  # Velocity downwards
             "yaw": safe_float(self.drone_config.yaw),  # Yaw angle of the drone
             "battery_voltage": safe_float(self.drone_config.battery),  # Current battery voltage
+            "battery_remaining_percent": getattr(
+                self.drone_config,
+                "battery_remaining_percent",
+                None,
+            ),
+            "battery_charge_state": getattr(self.drone_config, "battery_charge_state", None),
+            "battery_fault_bitmask": getattr(self.drone_config, "battery_fault_bitmask", None),
+            "battery_timestamp_ms": safe_int(
+                getattr(self.drone_config, "battery_timestamp_ms", 0)
+            ),
+            "battery_age_ms": self._age_ms(
+                now_ms,
+                getattr(self.drone_config, "battery_timestamp_ms", 0),
+            ),
             "follow_mode": safe_int(safe_get(live_swarm, 'follow')),  # Follow mode in swarm operation
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
             "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
+            "heartbeat_timestamp_ms": safe_int(
+                getattr(self.drone_config, "heartbeat_timestamp_ms", 0)
+            ),
+            "heartbeat_age_ms": self._age_ms(
+                now_ms,
+                getattr(self.drone_config, "heartbeat_timestamp_ms", 0),
+            ),
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
             "home_position_set": bool(getattr(self.drone_config, 'px4_home_position_set', False)),
             "home_position_source": str(getattr(self.drone_config, 'home_position_source', 'unknown')),

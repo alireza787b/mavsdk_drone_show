@@ -1,0 +1,78 @@
+[
+  {
+    "key": "NONE",
+    "value": 0
+  },
+  {
+    "key": "DRONE_SHOW_FROM_CSV",
+    "value": 1
+  },
+  {
+    "key": "SMART_SWARM",
+    "value": 2
+  },
+  {
+    "key": "CUSTOM_CSV_DRONE_SHOW",
+    "value": 3
+  },
+  {
+    "key": "SWARM_TRAJECTORY",
+    "value": 4
+  },
+  {
+    "key": "QUICKSCOUT",
+    "value": 5
+  },
+  {
+    "key": "HOVER_TEST",
+    "value": 106
+  },
+  {
+    "key": "TAKE_OFF",
+    "value": 10
+  },
+  {
+    "key": "LAND",
+    "value": 101
+  },
+  {
+    "key": "HOLD",
+    "value": 102
+  },
+  {
+    "key": "TEST",
+    "value": 100
+  },
+  {
+    "key": "REBOOT_FC",
+    "value": 6
+  },
+  {
+    "key": "REBOOT_SYS",
+    "value": 7
+  },
+  {
+    "key": "TEST_LED",
+    "value": 8
+  },
+  {
+    "key": "UPDATE_CODE",
+    "value": 103
+  },
+  {
+    "key": "RETURN_RTL",
+    "value": 104
+  },
+  {
+    "key": "KILL_TERMINATE",
+    "value": 105
+  },
+  {
+    "key": "UNKNOWN",
+    "value": 999
+  },
+  {
+    "key": "PRECISION_MOVE",
+    "value": 112
+  }
+]

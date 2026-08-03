@@ -1,3 +1,4 @@
+import struct
 import threading
 import time
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from mds_logging.ulog_analysis import (
     _summarize_local_position,
     _summarize_setpoint,
     _worker_environment,
+    summarize_ulog_file,
     summarize_ulog_file_async,
     summarize_ulog_file_with_timeout,
 )
@@ -22,6 +24,43 @@ from mds_logging.ulog_analysis import (
 
 def _dataset(**data):
     return SimpleNamespace(data=data)
+
+
+def _write_sparse_ulog(path, *, start_timestamp: int, end_timestamp: int) -> None:
+    """Write a valid ULog whose only topic is outside the summary filter."""
+
+    from pyulog import ULog
+
+    def record(message_type: int, payload: bytes) -> bytes:
+        return struct.pack("<HB", len(payload), message_type) + payload
+
+    topic_name = b"actuator_motors"
+    file_bytes = bytearray(ULog.HEADER_BYTES)
+    file_bytes.extend(struct.pack("<BQ", 0, start_timestamp))
+    file_bytes.extend(record(ULog.MSG_TYPE_FLAG_BITS, bytes(40)))
+    file_bytes.extend(
+        record(
+            ULog.MSG_TYPE_FORMAT,
+            topic_name + b":uint64_t timestamp;float output;",
+        )
+    )
+    file_bytes.extend(
+        record(
+            ULog.MSG_TYPE_ADD_LOGGED_MSG,
+            struct.pack("<BH", 0, 7) + topic_name,
+        )
+    )
+    for timestamp, output in (
+        (start_timestamp + 50_000, 0.0),
+        (end_timestamp, 1.0),
+    ):
+        file_bytes.extend(
+            record(
+                ULog.MSG_TYPE_DATA,
+                struct.pack("<HQf", 7, timestamp, output),
+            )
+        )
+    path.write_bytes(file_bytes)
 
 
 def test_local_position_uses_one_validity_mask_for_coordinates_and_timestamp():
@@ -83,6 +122,101 @@ def test_joint_sample_arrays_keep_timestamp_correlated_with_coordinates():
     assert samples["x"].tolist() == [0.0, 3.0]
     assert samples["y"].tolist() == [0.0, 3.0]
     assert samples["z"].tolist() == [0.0, 3.0]
+
+
+def test_sparse_logging_profile_uses_all_topic_timestamp_envelope(tmp_path):
+    path = tmp_path / "sparse-profile.ulg"
+    _write_sparse_ulog(
+        path,
+        start_timestamp=10_000_000,
+        end_timestamp=22_345_678,
+    )
+
+    summary = summarize_ulog_file(path)
+    validated = UlogDerivedSummary.model_validate(summary)
+
+    assert validated.parsed is True
+    assert validated.duration_sec == 12.346
+    assert validated.duration_evidence.source == "overall_data_timestamps"
+    assert validated.duration_evidence.lower_bound is False
+    assert validated.duration_evidence.data_messages_scanned == 2
+    assert validated.duration_evidence.timestamp_scan_complete is True
+    assert validated.parser.topics_present == []
+    assert validated.parser.logged_topics == ["actuator_motors"]
+    assert validated.parser.logged_topic_count == 1
+    assert any(
+        "none of the requested summary metric topics" in warning
+        for warning in validated.parser.observability_warnings
+    )
+    assert validated.local_position is None
+    assert validated.battery is None
+    assert validated.land_detected is None
+
+
+def test_sparse_summary_reports_unknown_duration_when_no_timestamp_span(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "metadata-only.ulg"
+    path.write_bytes(b"placeholder")
+    sparse_ulog = SimpleNamespace(
+        start_timestamp=4_000_000,
+        last_timestamp=4_000_000,
+        data_list=[],
+        dropouts=[],
+        logged_messages=[],
+        logged_messages_tagged={},
+        msg_info_dict={},
+        message_formats={"actuator_motors": object()},
+        file_corruption=False,
+    )
+
+    monkeypatch.setattr("pyulog.ULog", lambda *_args, **_kwargs: sparse_ulog)
+
+    summary = summarize_ulog_file(path)
+    validated = UlogDerivedSummary.model_validate(summary)
+
+    assert validated.parsed is True
+    assert validated.duration_sec is None
+    assert validated.duration_evidence.source == "unavailable"
+    assert validated.duration_evidence.lower_bound is True
+    assert any(
+        "duration is unknown rather than zero" in warning
+        for warning in validated.parser.observability_warnings
+    )
+    assert validated.battery is None
+    assert validated.land_detected is None
+
+
+def test_sparse_summary_falls_back_to_logged_event_span_as_lower_bound(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "event-evidence.ulg"
+    path.write_bytes(b"placeholder")
+    sparse_ulog = SimpleNamespace(
+        start_timestamp=4_000_000,
+        last_timestamp=4_000_000,
+        data_list=[],
+        dropouts=[],
+        logged_messages=[SimpleNamespace(timestamp=9_500_000, log_level=4)],
+        logged_messages_tagged={},
+        msg_info_dict={},
+        message_formats={"actuator_motors": object()},
+        file_corruption=False,
+    )
+
+    monkeypatch.setattr("pyulog.ULog", lambda *_args, **_kwargs: sparse_ulog)
+
+    validated = UlogDerivedSummary.model_validate(summarize_ulog_file(path))
+
+    assert validated.duration_sec == 5.5
+    assert validated.duration_evidence.source == "logged_event_timestamps"
+    assert validated.duration_evidence.lower_bound is True
+    assert any(
+        "may understate the full log span" in warning
+        for warning in validated.parser.observability_warnings
+    )
 
 
 @pytest.mark.asyncio

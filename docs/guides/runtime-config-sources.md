@@ -29,6 +29,7 @@ handled separately from normal desired state, see
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
 | SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
+| GCS command lifecycle state | `MDS_GCS_COMMAND_STATE_DIR` | Host-local SQLite/WAL journal and callback key; persistent and never git-tracked |
 | GCS dashboard/API auth | `/etc/mds/gcs.env` + `/etc/mds/auth/*` | Config flags in env; user/token/session secrets in root-owned local files |
 | Dashboard build/runtime hints | `app/dashboard/drone-dashboard/.env` | Mapbox token, React dev port, and optional `REACT_APP_MDS_SERVER_URL` for split-host deployments |
 | Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, `MDS_MODE`, GCS routing, repo/branch/auth/connectivity overrides for that node |
@@ -167,6 +168,40 @@ GCS bootstrap now also installs/reconciles `git_sync_mds.service` after
 writing `/etc/mds/gcs.env`, so the service inherits the same precedence model
 on a fresh host instead of depending on a later manual install step.
 
+### GCS command lifecycle state
+
+`MDS_GCS_COMMAND_STATE_DIR` is the single host-local source of truth for
+tracked-command restart recovery. It must be an absolute path on persistent
+storage outside the repository. When unset, MDS uses
+`${XDG_STATE_HOME:-~/.local/state}/mds/gcs-commands/<mode>-<port>` for the
+account that owns the GCS process. The mode/port suffix prevents a co-located
+SITL GCS and real GCS from sharing one journal accidentally.
+
+The directory contains:
+
+- `commands.sqlite3` plus its SQLite WAL files: command identities,
+  idempotency bindings, deadlines, per-target lifecycle evidence, and events
+- `callback-capability-key.json`: the versioned mode-`0600` HMAC key that lets
+  an already-dispatched node callback remain authentic after a GCS restart
+
+Operational rules:
+
+- keep one GCS process as the journal writer; this is restart durability, not
+  a multi-writer/distributed queue
+- never place the directory or callback key in git, an image, or a shared
+  fleet configuration package
+- back up or migrate the complete directory while the GCS is stopped; do not
+  copy only the database or only the key
+- preserve ownership and mode `0700` on the directory and `0600` on the key
+- if the directory/key is missing or corrupt, startup fails closed rather than
+  silently rotating callback authority and losing command correlation
+
+At startup, commands durably known to be before the dispatch boundary become
+terminal interrupted failures. Commands at or after that boundary are never
+replayed automatically; targets without persisted delivery evidence become
+`delivery_unknown` and retain their original command ID, deadline, and callback
+authority for reconciliation.
+
 ### GCS auth runtime
 
 Dashboard/API auth flags are host-local and belong in `/etc/mds/gcs.env`:
@@ -201,6 +236,7 @@ Do not use `src/params.py` as the normal place to store:
 - the default repo URL or default branch for a customer fleet
 - a fleet connectivity backend or Wi-Fi profile source
 - customer-specific host secrets or token file paths
+- command journals or callback capability keys
 - day-2 operational runtime changes
 
 The following retired markers are no longer read by the active runtime path:

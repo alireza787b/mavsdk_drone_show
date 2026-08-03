@@ -12,14 +12,13 @@ Last Updated: 2025-11-22
 import os
 import sys
 
-from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, List, Dict, Any, Union, Literal
-from datetime import datetime
 from enum import Enum
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from enums import CommandOutcome, CommandPhase, CommandStatus
+from src.enums import CommandOutcome, CommandPhase, CommandStatus
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
 
 
@@ -453,6 +452,11 @@ class DroneTelemetry(BaseModel):
     yaw: float = Field(..., description="Heading in degrees")
 
     battery_voltage: float = Field(..., ge=0, description="Battery voltage (V)")
+    battery_remaining_percent: Optional[float] = Field(None, ge=0, le=100, description="Autopilot state-of-charge estimate in percentage points")
+    battery_charge_state: Optional[int] = Field(None, ge=0, description="MAVLink battery charge-state enum value when available")
+    battery_fault_bitmask: Optional[int] = Field(None, ge=0, description="MAVLink battery fault flags when available")
+    battery_timestamp_ms: int = Field(0, ge=0, description="Battery sample timestamp (Unix ms)")
+    battery_age_ms: Optional[int] = Field(None, ge=0, description="Battery sample age at the drone API")
     follow_mode: Any = Field(..., description="Current follow mode value")
 
     update_time: Any = Field(..., description="Legacy update time field from the drone API")
@@ -880,13 +884,7 @@ class GitStatusResponse(BaseModel):
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
 
 
-class SyncReposRequest(BaseModel):
-    """Request for triggering a GCS-managed git sync operation."""
-    pos_ids: Optional[List[int]] = Field(None, description="Specific drone IDs to sync (all if empty)")
-    force_pull: bool = Field(False, description="Force pull from origin")
-
-
-class SyncReposResponse(BaseModel):
+class FleetGitSyncApplyResponse(BaseModel):
     """Response for a GCS-managed git sync operation."""
     success: bool = Field(..., description="Sync operation status")
     message: str = Field(..., description="Status message")
@@ -2051,6 +2049,11 @@ class DroneAckDetail(BaseModel):
     message: Optional[str] = Field(None, max_length=500, description="Status message")
     error_code: Optional[str] = Field(None, pattern="^E[0-9]{3}$", description="Error code if rejected/error (e.g., E202)")
     error_detail: Optional[str] = Field(None, max_length=500, description="Detailed error information")
+    delivery_state: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="Transport certainty: accepted, rejected, dispatch_unreachable, delivery_unknown, or related state",
+    )
     timestamp: int = Field(..., ge=0, description="ACK timestamp (Unix ms)")
 
 
@@ -2079,7 +2082,15 @@ class ExecutionSummary(BaseModel):
     """Summary of executions for a command"""
     expected: int = Field(..., ge=0, description="Number of executions expected")
     started: int = Field(0, ge=0, description="Number of drones that reported execution start")
+    started_hw_ids: List[str] = Field(
+        default_factory=list,
+        description="Exact hardware IDs that reported execution start",
+    )
     active: int = Field(0, ge=0, description="Number of drones currently executing without a terminal result yet")
+    active_hw_ids: List[str] = Field(
+        default_factory=list,
+        description="Exact hardware IDs executing without a terminal result",
+    )
     received: int = Field(..., ge=0, description="Number of executions received")
     succeeded: int = Field(..., ge=0, description="Number succeeded")
     failed: int = Field(..., ge=0, description="Number failed")
@@ -2122,6 +2133,10 @@ class CommandProgressSummary(BaseModel):
     stage: str = Field(..., description="Normalized progress stage (awaiting_ack, scheduled, pending_execution, executing, finishing, completed, partial, failed, cancelled, timeout, superseded)")
     label: str = Field(..., description="Short operator-facing progress label")
     message: str = Field(..., description="Human-readable progress detail for dashboards and notifications")
+    preparation_pending: int = Field(0, ge=0, description="Launch targets still awaiting a current readiness result")
+    preparation_ready: int = Field(0, ge=0, description="Launch targets with a current ready result")
+    preparation_blocked: int = Field(0, ge=0, description="Launch targets explicitly not ready")
+    preparation_unavailable: int = Field(0, ge=0, description="Launch targets whose readiness path was unavailable")
     ack_pending: int = Field(0, ge=0, description="Number of target drones still missing ACKs")
     accepted: int = Field(0, ge=0, description="Number of drones that accepted the command")
     execution_pending: int = Field(0, ge=0, description="Accepted drones that have not yet reported execution start")
@@ -2129,6 +2144,29 @@ class CommandProgressSummary(BaseModel):
     completed: int = Field(0, ge=0, description="Accepted drones that have reported a terminal execution result")
     remaining: int = Field(0, ge=0, description="Accepted drones still missing a terminal execution result")
     scheduled_trigger_time: Optional[int] = Field(None, description="Scheduled trigger time in Unix ms when the command is waiting for a future trigger")
+
+
+class DronePreparationDetail(BaseModel):
+    """Per-target current-operation launch-readiness evidence."""
+
+    state: str = Field(..., description="ready, blocked, or unavailable")
+    message: Optional[str] = None
+    error_code: Optional[str] = None
+    error_detail: Optional[str] = None
+    observation: Optional[Dict[str, Any]] = None
+    timestamp: int = Field(..., description="GCS receipt timestamp (Unix ms)")
+
+
+class PreparationSummary(BaseModel):
+    """All-required launch preparation results, separate from delivery ACKs."""
+
+    expected: int = Field(0, ge=0)
+    received: int = Field(0, ge=0)
+    ready: int = Field(0, ge=0)
+    blocked: int = Field(0, ge=0)
+    unavailable: int = Field(0, ge=0)
+    policy: Optional[str] = None
+    details: Dict[str, DronePreparationDetail] = Field(default_factory=dict)
 
 
 class CommandStatusResponse(BaseModel):
@@ -2148,9 +2186,12 @@ class CommandStatusResponse(BaseModel):
     submitted_at: Optional[int] = Field(None, description="Submission timestamp (Unix ms)")
     execution_started_at: Optional[int] = Field(None, description="Timestamp when execution was first confirmed (Unix ms)")
     completed_at: Optional[int] = Field(None, description="Completion timestamp (Unix ms)")
+    timeout_at: Optional[int] = Field(None, description="Current authoritative tracker deadline (Unix ms)")
     updated_at: int = Field(..., description="Last update timestamp (Unix ms)")
+    observed_at: int = Field(..., description="GCS time when this status snapshot was serialized (Unix ms)")
 
     # Summaries
+    preparations: PreparationSummary = Field(default_factory=PreparationSummary, description="Launch preparation evidence; empty for commands that do not require it")
     acks: AckSummary = Field(..., description="Acknowledgment summary")
     executions: ExecutionSummary = Field(..., description="Execution summary")
     late_reports: LateReportSummary = Field(default_factory=LateReportSummary, description="Late post-terminal ACK/execution evidence that did not change the final outcome")
@@ -2221,57 +2262,86 @@ class SubmitCommandRequest(SharedSubmitCommandRequest):
     """Request body for POST /api/v1/commands."""
 
 
-class SubmitCommandResponse(BaseModel):
-    """Response for command submission"""
-    success: bool = Field(..., description="Whether command was successfully sent to at least one drone")
+class CommandSubmissionReceipt(BaseModel):
+    """Receipt proving that the GCS created or recovered tracked command work.
+
+    This response deliberately contains no transport, ACK, execution, or
+    terminal-status snapshot. Those facts can change immediately after the
+    receipt is returned and have a single authoritative representation at
+    ``tracking_url``.
+    """
+
+    accepted_for_tracking: Literal[True] = Field(
+        True,
+        description="The GCS created or recovered the command's tracker record",
+    )
     command_id: str = Field(..., description="Command tracking UUID")
     idempotency_key: Optional[str] = Field(None, description="Client-supplied idempotency key when present on submission")
-    replayed: bool = Field(False, description="Whether this response replayed an existing command submission instead of creating a new command")
-    status: str = Field(..., description="Submission status ('submitted', 'partial', 'offline', or 'failed')")
+    replayed: bool = Field(False, description="Whether this receipt recovered an existing idempotent submission")
     mission_type: int = Field(..., description="Mission type code")
     mission_name: str = Field(..., description="Human-readable mission name")
     target_drones: List[str] = Field(..., description="Target drone hardware IDs")
-    submitted_count: int = Field(..., ge=0, description="Number of drones command was sent to")
-
-    # Immediate categorized results (always populated)
-    results_summary: Optional[Dict[str, int]] = Field(
-        None,
-        description="Categorized results: {'accepted': N, 'offline': N, 'rejected': N, 'errors': N}"
+    tracking_url: str = Field(
+        ...,
+        min_length=1,
+        description="Relative URL of the authoritative command lifecycle resource",
     )
-
-    ack_summary: Optional[AckSummary] = Field(
-        None,
-        description="Immediate ACK summary recorded during synchronous dispatch/tracker submission",
-    )
-    tracking_status: Optional[CommandStatus] = Field(None, description="Legacy tracker status for this command")
-    tracking_phase: Optional[CommandPhase] = Field(None, description="Operational phase of command tracking")
-    tracking_outcome: Optional[CommandOutcome] = Field(None, description="Terminal tracking outcome once known")
-    tracking_timeout_ms: Optional[int] = Field(
-        None,
-        gt=0,
-        description="Mission-aware lifecycle tracking timeout the frontend should reuse for status polling",
-    )
-
-    message: str = Field(..., description="Human-readable status message")
+    message: str = Field(..., description="Human-readable receipt message")
     timestamp: int = Field(..., description="Response timestamp (Unix ms)")
 
 
 class ExecutionReportRequest(BaseModel):
     """Request from drone reporting execution result"""
-    command_id: str = Field(..., description="Command UUID from GCS")
-    hw_id: str = Field(..., description="Reporting drone's hardware ID")
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Command UUID from GCS",
+    )
+    hw_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="Reporting drone's hardware ID",
+    )
     success: bool = Field(..., description="Whether execution succeeded")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Bounded operator-facing error message if failed",
+    )
     exit_code: Optional[int] = Field(None, description="Script exit code")
-    script_output: Optional[str] = Field(None, description="Script output/logs (truncated)")
+    script_output: Optional[str] = Field(
+        None,
+        max_length=65536,
+        description="Bounded diagnostic script output; never callback authority",
+    )
     duration_ms: Optional[int] = Field(None, ge=0, description="Execution duration (ms)")
 
 
 class ExecutionStartRequest(BaseModel):
     """Request from drone reporting that command execution has actually started."""
-    command_id: str = Field(..., description="Command UUID from GCS")
-    hw_id: str = Field(..., description="Reporting drone's hardware ID")
-    script_name: Optional[str] = Field(None, description="Mission/action script responsible for execution")
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Command UUID from GCS",
+    )
+    hw_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="Reporting drone's hardware ID",
+    )
+    script_name: Optional[str] = Field(
+        None,
+        max_length=256,
+        description="Mission/action script responsible for execution",
+    )
 
 
 class ExecutionStartResponse(BaseModel):

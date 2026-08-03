@@ -1,5 +1,6 @@
 #src/enums.py
 from enum import Enum
+from typing import Any
 
 class Mission(Enum):
     NONE = 0
@@ -21,10 +22,43 @@ class Mission(Enum):
     KILL_TERMINATE = 105
     UNKNOWN = 999
 
-    # New Missions:
-    INIT_SYSID = 110
-    APPLY_COMMON_PARAMS = 111
     PRECISION_MOVE = 112
+
+
+EXECUTABLE_MISSIONS = frozenset(
+    mission for mission in Mission if mission is not Mission.UNKNOWN
+)
+EXECUTABLE_MISSION_VALUES = frozenset(
+    mission.value for mission in EXECUTABLE_MISSIONS
+)
+
+
+def resolve_executable_mission(value: Any) -> Mission | None:
+    """Resolve a typed command identity and reject status-only/unknown values.
+
+    This is the shared GCS/node authority for which ``Mission`` members may be
+    submitted. It intentionally accepts only integer wire values and canonical
+    enum names; booleans, floats, spelling aliases, and ``UNKNOWN`` fail closed.
+    """
+
+    if isinstance(value, Mission):
+        mission = value
+    elif type(value) is int:
+        mission = Mission._value2member_map_.get(value)
+    elif isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+        try:
+            numeric_value = int(normalized)
+        except ValueError:
+            mission = Mission.__members__.get(normalized.upper())
+        else:
+            mission = Mission._value2member_map_.get(numeric_value)
+    else:
+        return None
+
+    return mission if mission in EXECUTABLE_MISSIONS else None
 
 class State(Enum):
     IDLE = 0
@@ -77,6 +111,7 @@ class CommandPhase(str, Enum):
     This separates transport/acknowledgment from actual execution so operator
     interfaces do not have to infer lifecycle state from legacy status values.
     """
+    PREPARING = "preparing"
     AWAITING_ACK = "awaiting_ack"
     PENDING_EXECUTION = "pending_execution"
     IN_PROGRESS = "in_progress"
@@ -115,6 +150,8 @@ class CommandErrorCode(str, Enum):
     MISSING_ORIGIN = "E105"
     INVALID_ORIGIN = "E106"
     INVALID_FORMAT = "E107"
+    TARGET_IDENTITY_MISMATCH = "E108"
+    IDEMPOTENCY_CONFLICT = "E109"
 
     # State errors (2xx)
     INVALID_STATE = "E200"

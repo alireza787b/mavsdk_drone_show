@@ -117,7 +117,15 @@ def build_presence_snapshot(
     now_ms = int((now if now is not None else time.time()) * 1000)
     thresholds = thresholds or resolve_presence_thresholds()
 
-    heartbeat_timestamp_ms = _normalize_timestamp_ms((heartbeat or {}).get("timestamp"))
+    heartbeat_sent_at_node_ms = _normalize_timestamp_ms(
+        (heartbeat or {}).get("sent_at_node_ms", (heartbeat or {}).get("timestamp"))
+    )
+    heartbeat_received_at_gcs_ms = _normalize_timestamp_ms(
+        (heartbeat or {}).get("received_at_gcs_ms")
+    )
+    # Legacy in-memory snapshots may predate received_at_gcs_ms. New accepted
+    # heartbeats always use trusted GCS receipt time for freshness.
+    heartbeat_timestamp_ms = heartbeat_received_at_gcs_ms or heartbeat_sent_at_node_ms
     telemetry_timestamp_ms = _normalize_timestamp_ms(telemetry_success_time)
     telemetry_available = bool((telemetry or {}).get("telemetry_available"))
     if not telemetry_timestamp_ms and telemetry_available:
@@ -176,6 +184,8 @@ def build_presence_snapshot(
         "long_offline": long_offline,
         "heartbeat_recent": heartbeat_recent,
         "heartbeat_age_sec": heartbeat_age_sec,
+        "heartbeat_received_at_gcs_ms": heartbeat_received_at_gcs_ms,
+        "heartbeat_sent_at_node_ms": heartbeat_sent_at_node_ms,
         "telemetry_recent": telemetry_recent,
         "telemetry_age_sec": telemetry_age_sec,
         "telemetry_available": telemetry_available,

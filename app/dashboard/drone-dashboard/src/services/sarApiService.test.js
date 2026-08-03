@@ -100,7 +100,9 @@ describe('sarApiService', () => {
   });
 
   it('encodes mission ids and repeated drone filters for abort requests', async () => {
-    postGcsResource.mockResolvedValue({ data: { success: true } });
+    postGcsResource.mockResolvedValue({
+      data: { mission_id: 'mission/alpha', latest_command_batch: { action: 'abort', state: 'queued' } },
+    });
 
     await abortMission('mission/alpha', ['1', '2'], 'hold_position');
 

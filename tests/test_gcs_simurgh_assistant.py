@@ -198,7 +198,7 @@ def test_simurgh_assistant_turn_requires_enabled_agent(monkeypatch):
     assert "disabled" in response.json()["detail"]
 
 
-def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
+def test_simurgh_assistant_turn_creates_local_read_session_and_audit(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()
 
@@ -209,12 +209,16 @@ def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["provider"] == "mock"
+    assert payload["provider"] == "mds-tools"
+    assert payload["model"] == "local-read-only"
+    assert payload["adapter_version"] == "mds-read-tools-v1"
     assert payload["session"]["id"].startswith("session-")
-    assert "arm" in payload["blocked_intents"]
+    assert payload["blocked_intents"] == []
     assert payload["context_resources"]
     assert all("content_hash" in resource for resource in payload["context_resources"])
-    assert "No provider SDK was called." in payload["safety_notes"]
+    assert "Answered by local read-only MDS/GCS context tools." in payload["safety_notes"]
+    assert payload["trace"]["intent"]["route"] == "read_only"
+    assert payload["trace"]["safety"]["action_execution"] == "none"
 
     sessions = client.get("/api/v1/simurgh/sessions").json()["sessions"]
     assert [session["id"] for session in sessions] == [payload["session"]["id"]]
@@ -222,7 +226,7 @@ def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
     audit_events = client.get("/api/v1/simurgh/audit").json()["events"]
     assert [event["event_type"] for event in audit_events] == ["assistant_turn_created"]
     assert audit_events[0]["payload_hash"]
-    assert audit_events[0]["metadata"]["provider"] == "mock"
+    assert audit_events[0]["metadata"]["provider"] == "mds-tools"
     assert "drone 1" not in str(audit_events[0])
 
     history = client.get("/api/v1/simurgh/assistant/turns", params={"actor": "operator"}).json()["turns"]
@@ -230,8 +234,8 @@ def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
     assert history[0]["message"] == ""
     assert history[0]["content"] == ""
     assert history[0]["message_hash"]
-    assert history[0]["model"] == "mock-local"
-    assert history[0]["adapter_version"] == "mock-v1"
+    assert history[0]["model"] == "local-read-only"
+    assert history[0]["adapter_version"] == "mds-read-tools-v1"
 
 
 def test_simurgh_assistant_turn_trace_exposes_read_only_plan(monkeypatch):
@@ -1329,8 +1333,9 @@ def test_simurgh_mock_provider_does_not_promote_followup_text_to_sitl_action(mon
     assert action_response.status_code == 200
     payload = action_response.json()
     content = payload["content"]
-    assert "could not safely map" in content
-    assert "complete action plan" in content
+    assert "could not safely preserve" in content
+    assert "condition" in content
+    assert "retry" in content.lower()
     assert payload["trace"]["intent"]["route"] == "semantic_clarification"
     assert payload["trace"]["tool"]["ids"] == []
     assert payload["trace"]["safety"]["action_execution"] == "none"
@@ -1355,8 +1360,9 @@ def test_simurgh_mock_provider_does_not_promote_mixed_status_action_text(monkeyp
     assert response.status_code == 200
     payload = response.json()
     content = payload["content"]
-    assert "could not safely map" in content
-    assert "complete action plan" in content
+    assert "could not safely preserve" in content
+    assert "ordered action" in content
+    assert "steps in order" in content
     assert payload["trace"]["intent"]["route"] == "semantic_clarification"
     assert payload["trace"]["tool"]["ids"] == []
     assert payload["trace"]["safety"]["action_execution"] == "none"
@@ -2067,7 +2073,11 @@ def test_simurgh_assistant_turn_returns_safe_openai_failure(monkeypatch, tmp_pat
     assert response.status_code == 200
     payload = response.json()
     assert payload["provider"] == "openai"
-    assert "could not reach the external assistant provider" in payload["content"].lower()
+    content = payload["content"].lower()
+    assert "temporarily unavailable" in content
+    assert "chat context was kept" in content
+    assert "retry" in content
+    assert "no action was executed" in content
     assert "HTTP 500" not in payload["content"]
     assert "test-secret" not in str(response.json())
 

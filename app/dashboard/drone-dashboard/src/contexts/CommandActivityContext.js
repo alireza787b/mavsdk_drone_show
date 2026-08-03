@@ -14,6 +14,7 @@ import { buildLifecycleSnapshotFromStatus } from '../utilities/commandLifecycleF
 
 const CommandActivityContext = createContext(null);
 const MAX_COMMAND_MONITORS = 8;
+const MAX_DISMISSED_COMMAND_IDS = 64;
 const ACTIVE_COMMAND_REFRESH_MS = 2000;
 const RECENT_COMMAND_REFRESH_MS = 15000;
 
@@ -67,9 +68,18 @@ export const useCommandActivity = () => {
 export const CommandActivityProvider = ({ children }) => {
   const [commandMonitors, setCommandMonitors] = useState([]);
   const commandMonitorsRef = useRef(commandMonitors);
+  const dismissedCommandIdsRef = useRef(new Set());
 
   const mergeCommandMonitors = useCallback((snapshots) => {
-    setCommandMonitors((previous) => mergeSnapshots(previous, snapshots));
+    const incoming = (Array.isArray(snapshots) ? snapshots : [snapshots])
+      .filter((snapshot) => (
+        snapshot?.commandId
+        && !dismissedCommandIdsRef.current.has(snapshot.commandId)
+      ));
+    if (incoming.length === 0) {
+      return;
+    }
+    setCommandMonitors((previous) => mergeSnapshots(previous, incoming));
   }, []);
 
   useEffect(() => {
@@ -81,6 +91,12 @@ export const CommandActivityProvider = ({ children }) => {
       return;
     }
 
+    const dismissed = dismissedCommandIdsRef.current;
+    dismissed.delete(commandId);
+    dismissed.add(commandId);
+    while (dismissed.size > MAX_DISMISSED_COMMAND_IDS) {
+      dismissed.delete(dismissed.values().next().value);
+    }
     setCommandMonitors((previous) => previous.filter((item) => item.commandId !== commandId));
   }, []);
 
@@ -184,11 +200,13 @@ export const CommandActivityProvider = ({ children }) => {
     () => sortCommandMonitors(commandMonitors),
     [commandMonitors],
   );
-  const primaryMonitor = sortedCommandMonitors[0] || null;
-  const recentCommandMonitors = sortedCommandMonitors.slice(1, 5);
+  const primaryMonitor = sortedCommandMonitors.find((monitor) => !monitor?.isTerminal) || null;
+  const recentCommandMonitors = sortedCommandMonitors
+    .filter((monitor) => monitor?.commandId !== primaryMonitor?.commandId)
+    .slice(0, 4);
 
   const commandLifecycleCallbacks = useMemo(() => ({
-    onCommandAccepted: mergeCommandMonitors,
+    onSubmissionTracked: mergeCommandMonitors,
     onStatusUpdate: mergeCommandMonitors,
     onTrackingComplete: mergeCommandMonitors,
     onTrackingUnavailable: mergeCommandMonitors,

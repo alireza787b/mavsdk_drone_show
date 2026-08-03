@@ -2,10 +2,8 @@
 """
 Test Fixtures Package
 =====================
-Provides pre-built test data for drone configurations, commands, telemetry, and missions.
+Provides reusable drone-configuration and telemetry test data.
 """
 
 from .drone_configs import *
-from .command_samples import *
 from .telemetry_samples import *
-from .mission_samples import *

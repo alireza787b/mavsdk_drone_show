@@ -38,7 +38,6 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   px4ParamsSnapshots: 'px4ParamsSnapshots',
   px4ParamsPatchJobs: 'px4ParamsPatchJobs',
   gitStatus: 'gitStatus',
-  syncRepos: 'syncRepos',
   fleetGitSync: 'fleetGitSync',
   fleetGitSyncDryRun: 'fleetGitSyncDryRun',
   fleetGitSyncApply: 'fleetGitSyncApply',
@@ -139,7 +138,6 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.px4ParamsSnapshots]: '/api/v1/px4-params/snapshots',
   [GCS_ROUTE_KEYS.px4ParamsPatchJobs]: '/api/v1/px4-params/patch-jobs',
   [GCS_ROUTE_KEYS.gitStatus]: '/api/v1/git/status',
-  [GCS_ROUTE_KEYS.syncRepos]: '/api/v1/git/sync-operations',
   [GCS_ROUTE_KEYS.fleetGitSync]: '/api/v1/fleet/git-sync',
   [GCS_ROUTE_KEYS.fleetGitSyncDryRun]: '/api/v1/fleet/git-sync/dry-run',
   [GCS_ROUTE_KEYS.fleetGitSyncApply]: '/api/v1/fleet/git-sync/apply',
@@ -244,7 +242,6 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/commands/active': GCS_ROUTE_KEYS.activeCommands,
   '/api/v1/commands/statistics': GCS_ROUTE_KEYS.commandStatistics,
   '/api/v1/git/status': GCS_ROUTE_KEYS.gitStatus,
-  '/api/v1/git/sync-operations': GCS_ROUTE_KEYS.syncRepos,
   '/api/v1/fleet/git-sync': GCS_ROUTE_KEYS.fleetGitSync,
   '/api/v1/fleet/git-sync/dry-run': GCS_ROUTE_KEYS.fleetGitSyncDryRun,
   '/api/v1/fleet/git-sync/apply': GCS_ROUTE_KEYS.fleetGitSyncApply,
@@ -741,36 +738,8 @@ export async function getUnifiedGitStatusResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.gitStatus, config);
 }
 
-export function normalizeCommandSubmitPayload(payload = {}) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return payload;
-  }
-
-  const normalized = { ...payload };
-
-  if (!Object.prototype.hasOwnProperty.call(normalized, 'mission_type') && Object.prototype.hasOwnProperty.call(normalized, 'missionType')) {
-    normalized.mission_type = normalized.missionType;
-  }
-  if (!Object.prototype.hasOwnProperty.call(normalized, 'trigger_time') && Object.prototype.hasOwnProperty.call(normalized, 'triggerTime')) {
-    normalized.trigger_time = normalized.triggerTime;
-  }
-  if (!Object.prototype.hasOwnProperty.call(normalized, 'target_drone_ids') && Object.prototype.hasOwnProperty.call(normalized, 'target_drones')) {
-    normalized.target_drone_ids = normalized.target_drones;
-  }
-  if (!Object.prototype.hasOwnProperty.call(normalized, 'operator_label') && Object.prototype.hasOwnProperty.call(normalized, 'operatorLabel')) {
-    normalized.operator_label = normalized.operatorLabel;
-  }
-
-  delete normalized.missionType;
-  delete normalized.triggerTime;
-  delete normalized.target_drones;
-  delete normalized.operatorLabel;
-
-  return normalized;
-}
-
 export async function submitCommandResponse(payload, config = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.commandSubmit, normalizeCommandSubmitPayload(payload), config);
+  return postGcsResource(GCS_ROUTE_KEYS.commandSubmit, payload, config);
 }
 
 export async function getCommandStatusResponse(commandId, config = {}) {

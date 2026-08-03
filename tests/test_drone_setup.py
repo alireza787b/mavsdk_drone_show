@@ -9,9 +9,9 @@ These are critical tests for the drone's mission control system.
 import os
 import pytest
 import asyncio
+import threading
 import time
-from unittest.mock import Mock, MagicMock, patch, AsyncMock, PropertyMock
-from typing import Dict, Any
+from unittest.mock import AsyncMock, Mock, patch
 
 # Path configuration is handled by conftest.py
 
@@ -115,6 +115,7 @@ def create_mock_drone_config():
     drone_config.is_armed = False
     drone_config.is_ready_to_arm = True
     drone_config.current_command_id = None
+    drone_config.ground_test_request_file = None
     drone_config.auto_global_origin = None
     drone_config.use_global_setpoints = None
     return drone_config
@@ -226,6 +227,102 @@ class TestScheduleMission:
         earlier_trigger = trigger_time - trigger_sooner
 
         assert earlier_trigger == trigger_time - 4
+
+    @pytest.mark.asyncio
+    async def test_scheduler_holds_shared_state_transaction_through_handler(self):
+        """An HTTP override cannot interleave after handler selection."""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.mission = Mission.TAKE_OFF.value
+        drone_config.current_command_id = "takeoff-old"
+        drone_config.trigger_time = int(time.time())
+        setup = DroneSetup(params, drone_config)
+
+        handler_started = asyncio.Event()
+        release_handler = asyncio.Event()
+        override_attempted = threading.Event()
+        override_acquired = threading.Event()
+
+        async def controlled_handler(*_args):
+            handler_started.set()
+            await release_handler.wait()
+            return True, "handler completed"
+
+        def attempt_override():
+            override_attempted.set()
+            setup.command_state_transaction_lock.acquire()
+            try:
+                override_acquired.set()
+                drone_config.current_command_id = "land-new"
+                drone_config.mission = Mission.LAND.value
+                drone_config.state = State.MISSION_READY.value
+            finally:
+                setup.command_state_transaction_lock.release()
+
+        setup.mission_handlers[Mission.TAKE_OFF.value] = controlled_handler
+        scheduler_task = asyncio.create_task(setup.schedule_mission())
+        await asyncio.wait_for(handler_started.wait(), timeout=1)
+        override_task = asyncio.create_task(asyncio.to_thread(attempt_override))
+        await asyncio.to_thread(override_attempted.wait, 1)
+        await asyncio.sleep(0.02)
+
+        assert not override_acquired.is_set()
+        assert drone_config.current_command_id == "takeoff-old"
+
+        release_handler.set()
+        await asyncio.wait_for(scheduler_task, timeout=1)
+        await asyncio.wait_for(override_task, timeout=1)
+        assert override_acquired.is_set()
+        assert drone_config.current_command_id == "land-new"
+
+    @pytest.mark.asyncio
+    async def test_scheduler_releases_state_lock_before_slow_gcs_start_callback(self):
+        """GCS callback latency cannot block a later safety-command transaction."""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800
+        params.COMMAND_IDEMPOTENCY_MAX_HISTORY = 256
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.mission = Mission.DRONE_SHOW_FROM_CSV.value
+        drone_config.current_command_id = "show-old"
+        drone_config.trigger_time = int(time.time())
+        setup = DroneSetup(params, drone_config)
+        process = Mock(pid=8765, returncode=None)
+        report_started = asyncio.Event()
+        release_report = asyncio.Event()
+
+        async def slow_start_report(**_kwargs):
+            report_started.set()
+            await release_report.wait()
+
+        async def launch_handler(*_args):
+            setup._prepare_mission_start("test show")
+            return await setup.execute_mission_script("drone_show.py", "")
+
+        setup._report_execution_start_to_gcs = slow_start_report
+        setup._monitor_script_process = AsyncMock(return_value=None)
+        setup.mission_handlers[Mission.DRONE_SHOW_FROM_CSV.value] = launch_handler
+
+        with patch("src.drone_setup.os.path.isfile", return_value=True), patch(
+            "src.drone_setup.asyncio.create_subprocess_exec",
+            AsyncMock(return_value=process),
+        ):
+            await asyncio.wait_for(setup.schedule_mission(), timeout=1)
+            await asyncio.wait_for(report_started.wait(), timeout=1)
+
+            # The callback is still blocked, but command acceptance can take
+            # the shared lock immediately.
+            assert setup.command_state_transaction_lock.acquire(blocking=False)
+            setup.command_state_transaction_lock.release()
+            release_report.set()
+            await asyncio.sleep(0)
 
 
 # ============================================================================
@@ -409,6 +506,107 @@ class TestProcessManagement:
         assert len(setup.running_processes) == 0
 
     @pytest.mark.asyncio
+    async def test_recovery_preemption_force_stops_stuck_controller_within_budget(self):
+        """LAND/RTL/HOLD do not inherit the routine five-second shutdown grace."""
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.RECOVERY_PROCESS_STOP_GRACE_SEC = 0.02
+        drone_config = create_mock_drone_config()
+        setup = DroneSetup(params, drone_config)
+
+        process = Mock(pid=4321, returncode=None)
+        process.terminate = Mock()
+        process.kill = Mock()
+
+        async def wait_forever():
+            await asyncio.Event().wait()
+
+        process.wait = wait_forever
+        record = RunningMissionProcess(
+            process_key="show.py:old",
+            script_name="show.py",
+            process=process,
+            command_id="old",
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+
+        started = time.monotonic()
+        summary = await setup.terminate_all_running_processes(
+            reset_state=False,
+            mode=ProcessStopMode.RECOVERY,
+        )
+        elapsed = time.monotonic() - started
+
+        assert elapsed < 0.2
+        process.terminate.assert_called_once_with()
+        process.kill.assert_called_once_with()
+        assert summary.killed == 1
+        assert summary.unresolved == 0
+        assert record.superseded is True
+        assert not setup.running_processes
+
+    @pytest.mark.asyncio
+    async def test_emergency_preemption_skips_grace_period(self):
+        """Emergency Stop signals the old controller immediately."""
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        setup = DroneSetup(params, drone_config)
+        process = Mock(pid=4321, returncode=None)
+        process.terminate = Mock()
+        process.kill = Mock()
+        record = RunningMissionProcess(
+            process_key="show.py:old",
+            script_name="actions.py",
+            process=process,
+            mission_type=Mission.TAKE_OFF.value,
+        )
+        setup.running_processes[record.process_key] = record
+
+        summary = await setup.terminate_all_running_processes(
+            reset_state=False,
+            mode=ProcessStopMode.EMERGENCY,
+        )
+
+        process.terminate.assert_not_called()
+        process.kill.assert_called_once_with()
+        assert summary.killed == 1
+        assert summary.unresolved == 0
+        assert summary.cleanup_unconfirmed == 1
+        assert record.forced_kill_cleanup_unconfirmed is True
+        assert record.forced_stop_mode == "emergency"
+
+    def test_takeoff_and_ground_test_receive_canonical_cleanup_grace(self):
+        from src.action_safety import ACTION_PROCESS_CLEANUP_GRACE_SEC
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.RECOVERY_PROCESS_STOP_GRACE_SEC = 0.02
+        setup = DroneSetup(params, create_mock_drone_config())
+
+        for mission_type in (Mission.TAKE_OFF.value, Mission.TEST.value):
+            record = RunningMissionProcess(
+                process_key=f"actions.py:{mission_type}",
+                script_name="actions.py",
+                process=Mock(),
+                mission_type=mission_type,
+            )
+            assert setup._process_stop_grace_seconds(
+                ProcessStopMode.RECOVERY,
+                record,
+            ) == ACTION_PROCESS_CLEANUP_GRACE_SEC
+            assert setup._process_stop_grace_seconds(
+                ProcessStopMode.EMERGENCY,
+                record,
+            ) == 0.0
+
+    @pytest.mark.asyncio
     async def test_monitor_reports_superseded_process_without_reset(self):
         """Superseded mission processes should skip state reset but still close the command tracker."""
         from src.drone_setup import DroneSetup, RunningMissionProcess
@@ -448,8 +646,55 @@ class TestProcessManagement:
         assert report_kwargs["success"] is False
         assert report_kwargs["error_message"] == "Superseded by a newer command before completion"
         assert report_kwargs["exit_code"] == 0
-        assert report_kwargs["script_output"] == "ok"
+        assert report_kwargs["script_output"] == "Legacy stdout (diagnostic only): ok"
         assert record.process_key not in setup.running_processes
+
+    @pytest.mark.asyncio
+    async def test_monitor_reports_override_that_wins_terminal_retirement_race(self):
+        """Supersede classification is decided inside the state transaction."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        class FakeProcess:
+            returncode = 0
+
+            async def communicate(self):
+                return b"old process completed", b""
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.HOLD.value
+        drone_config.state = State.MISSION_EXECUTING.value
+        setup = DroneSetup(params, drone_config)
+        record = RunningMissionProcess(
+            process_key="actions.py:old-race",
+            script_name="actions.py",
+            process=FakeProcess(),
+            command_id="old-race",
+            mission_type=Mission.HOLD.value,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        setup.command_state_transaction_lock.acquire()
+        try:
+            monitor_task = asyncio.create_task(setup._monitor_script_process(record))
+            await asyncio.sleep(0.02)
+            record.superseded = True
+            drone_config.current_command_id = "replacement"
+            drone_config.mission = Mission.LAND.value
+            drone_config.state = State.MISSION_READY.value
+        finally:
+            setup.command_state_transaction_lock.release()
+
+        await asyncio.wait_for(monitor_task, timeout=1)
+
+        setup._reset_mission_state.assert_not_called()
+        report = setup._report_execution_to_gcs.await_args.kwargs
+        assert report["success"] is False
+        assert report["error_message"] == "Superseded by a newer command before completion"
 
 
 # ============================================================================
@@ -572,7 +817,9 @@ class TestScriptExecution:
         process_record = next(iter(setup.running_processes.values()))
         assert process_record.script_name == 'actions.py'
         assert process_record.process is fallback_process
+        assert process_record.process_group_owned is True
         mock_popen.assert_called_once()
+        assert mock_popen.call_args.kwargs["start_new_session"] is True
         mock_logger.warning.assert_any_call(
             "Async subprocess execution is unavailable. Falling back to subprocess.Popen for 'actions.py'."
         )
@@ -598,7 +845,7 @@ class TestScriptExecution:
             return Mock()
 
         with patch('src.drone_setup.os.path.isfile', return_value=True), \
-             patch('src.drone_setup.asyncio.create_subprocess_exec', AsyncMock(return_value=process)), \
+             patch('src.drone_setup.asyncio.create_subprocess_exec', AsyncMock(return_value=process)) as mock_spawn, \
              patch('src.drone_setup.asyncio.create_task', side_effect=fake_create_task):
             result = await setup.execute_mission_script('actions.py', '--action=hold')
 
@@ -609,6 +856,79 @@ class TestScriptExecution:
         assert process_record.command_id == "cmd-123"
         assert process_record.process_key.endswith("cmd-123")
         assert process_record.script_name == "actions.py"
+        assert process_record.process_group_owned is True
+        assert mock_spawn.await_args.kwargs["start_new_session"] is True
+        lifecycle = setup.get_recent_command_record("cmd-123")
+        assert lifecycle is not None
+        assert lifecycle["phase"] == "executing"
+        assert lifecycle["state"] == State.MISSION_EXECUTING.value
+
+    @pytest.mark.asyncio
+    async def test_execute_reserves_launching_lifecycle_before_subprocess_creation(self):
+        """Duplicate lookup sees accepted ownership during the detach/spawn gap."""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800
+        params.COMMAND_IDEMPOTENCY_MAX_HISTORY = 256
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "cmd-launch-gap"
+        drone_config.mission = Mission.TAKE_OFF.value
+        drone_config.state = State.MISSION_EXECUTING.value
+        drone_config.trigger_time = 12345
+        setup = DroneSetup(params, drone_config)
+        process = Mock(pid=4567, returncode=None)
+
+        async def inspect_lifecycle_before_spawn(*_args, **_kwargs):
+            lifecycle = setup.get_recent_command_record("cmd-launch-gap")
+            assert lifecycle is not None
+            assert lifecycle["phase"] == "launching"
+            assert lifecycle["mission_type"] == Mission.TAKE_OFF.value
+            assert lifecycle["trigger_time"] == 12345
+            return process
+
+        def discard_monitor(coro):
+            coro.close()
+            return Mock()
+
+        with patch("src.drone_setup.os.path.isfile", return_value=True), patch(
+            "src.drone_setup.asyncio.create_subprocess_exec",
+            side_effect=inspect_lifecycle_before_spawn,
+        ), patch("src.drone_setup.asyncio.create_task", side_effect=discard_monitor):
+            result = await setup.execute_mission_script("drone_show.py", "")
+
+        assert result[0] is True
+
+    @pytest.mark.asyncio
+    async def test_stale_scheduler_claim_cannot_detach_replacement_command(self):
+        """A delayed old handler cannot launch under a newer command identity."""
+        from src.drone_setup import AcceptedCommandClaim, DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "land-new"
+        drone_config.mission = Mission.LAND.value
+        drone_config.state = State.MISSION_READY.value
+        setup = DroneSetup(params, drone_config)
+        setup._active_scheduler_claim = AcceptedCommandClaim(
+            command_id="takeoff-old",
+            mission_type=Mission.TAKE_OFF.value,
+        )
+
+        with patch("src.drone_setup.asyncio.create_subprocess_exec", AsyncMock()) as spawn:
+            success, message = await setup.execute_mission_script(
+                "actions.py",
+                "--action=takeoff",
+            )
+
+        assert success is False
+        assert "ownership changed" in message.lower()
+        assert drone_config.current_command_id == "land-new"
+        assert drone_config.mission == Mission.LAND.value
+        assert drone_config.state == State.MISSION_READY.value
+        spawn.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_execute_mission_script_coerces_list_args_to_strings(self):
@@ -647,29 +967,36 @@ class TestActionMissionHandlerRouting:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("handler_name", "expected_mission", "expected_script", "expected_action", "interrupts_running"),
+        ("handler_name", "expected_mission", "expected_script", "expected_action", "interrupt_mode"),
         [
-            ("_execute_land", "Land Mission", "actions.py", "--action=land", True),
-            ("_execute_return_rtl", "Return RTL Mission", "actions.py", "--action=return_rtl", True),
-            ("_execute_hold", "Hold Position Mission", "actions.py", "--action=hold", True),
-            ("_execute_kill_terminate", "Kill and Terminate Mission", "actions.py", "--action=kill_terminate", True),
-            ("_execute_test", "Test Mission", "actions.py", "--action=test", False),
-            ("_execute_reboot_fc", "Flight Control Reboot Mission", "actions.py", "--action=reboot_fc", False),
-            ("_execute_reboot_sys", "System Reboot Mission", "actions.py", "--action=reboot_sys", False),
-            ("_execute_init_sysid", "Init SysID Mission", "actions.py", "--action=init_sysid", False),
-            ("_execute_precision_move", "Precision Move Mission", "actions.py", "--action=precision_move --request-file=/tmp/precision_move_1_cmd-xyz.json", True),
-            ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", False),
-            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", True),
+            ("_execute_land", "Land Mission", "actions.py", "--action=land", "recovery"),
+            ("_execute_return_rtl", "Return RTL Mission", "actions.py", "--action=return_rtl", "recovery"),
+            ("_execute_hold", "Hold Position Mission", "actions.py", "--action=hold", "recovery"),
+            ("_execute_kill_terminate", "Kill and Terminate Mission", "actions.py", "--action=kill_terminate", "emergency"),
+            (
+                "_execute_test",
+                "Arm/Disarm Ground Test",
+                "actions.py",
+                ["--action=test", "--request-file=/tmp/ground_test_cmd-xyz.json"],
+                None,
+            ),
+            ("_execute_reboot_fc", "Flight Control Reboot Mission", "actions.py", "--action=reboot_fc", None),
+            ("_execute_reboot_sys", "System Reboot Mission", "actions.py", "--action=reboot_sys", None),
+            ("_execute_precision_move", "Precision Move Mission", "actions.py", "--action=precision_move --request-file=/tmp/precision_move_1_cmd-xyz.json", "recovery"),
+            ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", None),
+            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", "normal"),
         ],
     )
     async def test_handlers_use_execute_immediate_launcher(
-        self, handler_name, expected_mission, expected_script, expected_action, interrupts_running
+        self, handler_name, expected_mission, expected_script, expected_action, interrupt_mode
     ):
-        from src.drone_setup import DroneSetup
+        from src.drone_setup import DroneSetup, ProcessStopMode
 
         params = Mock()
         params.trigger_sooner_seconds = 4
         drone_config = create_mock_drone_config()
+        if handler_name == "_execute_test":
+            drone_config.ground_test_request_file = "/tmp/ground_test_cmd-xyz.json"
         if handler_name == "_execute_precision_move":
             drone_config.precision_move_request_file = "/tmp/precision_move_1_cmd-xyz.json"
 
@@ -683,8 +1010,11 @@ class TestActionMissionHandlerRouting:
 
         assert result == (True, "started")
         expected_args = (expected_mission, expected_script, expected_action, None, None)
-        if interrupts_running:
-            mock_execute.assert_awaited_once_with(*expected_args, interrupt_running=True)
+        if interrupt_mode:
+            mock_execute.assert_awaited_once_with(
+                *expected_args,
+                interrupt_mode=ProcessStopMode(interrupt_mode),
+            )
         else:
             mock_execute.assert_awaited_once_with(*expected_args)
 
@@ -735,37 +1065,6 @@ class TestActionMissionHandlerRouting:
         mock_execute.assert_awaited_once_with("smart_swarm.py", "")
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("reboot_after", "expected_action"),
-        [
-            (False, "--action=apply_common_params"),
-            (True, "--action=apply_common_params --reboot_after"),
-        ],
-    )
-    async def test_apply_common_params_handler_uses_execute_mission_script(self, reboot_after, expected_action):
-        from src.drone_setup import DroneSetup
-
-        params = Mock()
-        params.trigger_sooner_seconds = 4
-        drone_config = create_mock_drone_config()
-        drone_config.reboot_after_params = reboot_after
-
-        setup = DroneSetup(params, drone_config)
-
-        with patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute:
-            result = await setup._execute_apply_common_params()
-
-        assert result == (True, "started")
-        expected_mission = "Apply Common Params Mission with reboot" if reboot_after else "Apply Common Params Mission"
-        mock_execute.assert_awaited_once_with(
-            expected_mission,
-            "actions.py",
-            expected_action,
-            None,
-            None,
-        )
-
-    @pytest.mark.asyncio
     async def test_precision_move_handler_requires_payload_file(self):
         from src.drone_setup import DroneSetup
 
@@ -782,6 +1081,30 @@ class TestActionMissionHandlerRouting:
         mock_fail.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_ground_test_handler_requires_bound_safety_payload_file(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "ground-test-missing"
+        drone_config.mission = Mission.TEST.value
+        drone_config.ground_test_request_file = None
+
+        setup = DroneSetup(params, drone_config)
+        with patch.object(
+            setup,
+            "_fail_pending_command",
+            AsyncMock(return_value=(False, "missing")),
+        ) as mock_fail:
+            result = await setup._execute_test()
+
+        assert result == (False, "missing")
+        mock_fail.assert_awaited_once_with(
+            "Arm/Disarm Ground Test safety acknowledgement file not found. No arm command was sent."
+        )
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("handler_name", "interrupts_running"),
         [
@@ -794,7 +1117,6 @@ class TestActionMissionHandlerRouting:
             ("_execute_reboot_sys", False),
             ("_execute_test_led", False),
             ("_execute_swarm_trajectory", True),
-            ("_execute_init_sysid", False),
         ],
     )
     async def test_immediate_handlers_transition_to_executing_once(self, handler_name, interrupts_running):
@@ -805,11 +1127,17 @@ class TestActionMissionHandlerRouting:
         drone_config = create_mock_drone_config()
         drone_config.state = State.MISSION_READY.value
         drone_config.trigger_time = 25
+        if handler_name == "_execute_test":
+            drone_config.ground_test_request_file = "/tmp/ground_test_cmd-xyz.json"
 
         setup = DroneSetup(params, drone_config)
         setup.terminate_all_running_processes = AsyncMock()
 
-        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+        with patch.object(
+            setup,
+            'execute_mission_script',
+            AsyncMock(return_value=(True, "started")),
+        ) as mock_execute, patch("src.drone_setup.os.path.isfile", return_value=True):
             result = await getattr(setup, handler_name)(current_time=100, earlier_trigger_time=0)
 
         assert result == (True, "started")
@@ -823,7 +1151,7 @@ class TestActionMissionHandlerRouting:
 
     @pytest.mark.asyncio
     async def test_override_actions_interrupt_running_processes(self):
-        from src.drone_setup import DroneSetup
+        from src.drone_setup import DroneSetup, ProcessStopMode, ProcessStopSummary
 
         params = Mock()
         params.trigger_sooner_seconds = 4
@@ -833,12 +1161,60 @@ class TestActionMissionHandlerRouting:
 
         setup = DroneSetup(params, drone_config)
         setup.running_processes["mission.py:cmd-1"] = Mock()
-        setup.terminate_all_running_processes = AsyncMock()
+        setup.terminate_all_running_processes = AsyncMock(return_value=ProcessStopSummary())
 
         with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))):
             await setup._execute_land(current_time=100, earlier_trigger_time=0)
 
-        setup.terminate_all_running_processes.assert_awaited_once_with(reset_state=False)
+        setup.terminate_all_running_processes.assert_awaited_once_with(
+            reset_state=False,
+            mode=ProcessStopMode.RECOVERY,
+        )
+
+    @pytest.mark.asyncio
+    async def test_recovery_does_not_start_competing_controller_when_preemption_fails(self):
+        from src.drone_setup import DroneSetup, ProcessStopSummary
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["show.py:old"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock(
+            return_value=ProcessStopSummary(attempted=1, unresolved=1)
+        )
+        setup._fail_pending_command = AsyncMock(return_value=(False, "blocked"))
+        setup.execute_mission_script = AsyncMock()
+
+        result = await setup._execute_land(current_time=100, earlier_trigger_time=0)
+
+        assert result == (False, "blocked")
+        setup.execute_mission_script.assert_not_awaited()
+        setup._fail_pending_command.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_emergency_stop_proceeds_when_local_preemption_is_uncertain(self):
+        from src.drone_setup import DroneSetup, ProcessStopSummary
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["show.py:old"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock(
+            return_value=ProcessStopSummary(attempted=1, unresolved=1)
+        )
+        setup.execute_mission_script = AsyncMock(return_value=(True, "started"))
+
+        result = await setup._execute_kill_terminate(current_time=100, earlier_trigger_time=0)
+
+        assert result == (True, "started")
+        setup.execute_mission_script.assert_awaited_once_with(
+            "actions.py",
+            "--action=kill_terminate",
+        )
 
     @pytest.mark.asyncio
     async def test_standard_show_interrupts_smart_swarm_leader_runtime(self):
@@ -1172,8 +1548,51 @@ class TestMissionProcessMonitoring:
     """Test mission subprocess monitoring and diagnostics"""
 
     @pytest.mark.asyncio
-    async def test_monitor_script_process_uses_stdout_when_stderr_empty(self):
-        """Test child stdout is surfaced when a mission script fails without stderr"""
+    async def test_terminal_callback_waits_for_start_callback_attempt(self):
+        """Very short actions still report start before their terminal result."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.QUICKSCOUT.value
+        drone_config.state = State.MISSION_EXECUTING.value
+        setup = DroneSetup(params, drone_config)
+        process = Mock(returncode=0)
+        process.communicate = AsyncMock(return_value=(b"done\n", b""))
+        record = RunningMissionProcess(
+            process_key="quickscout.py:ordered",
+            script_name="quickscout.py",
+            process=process,
+            command_id="ordered",
+            mission_type=Mission.QUICKSCOUT.value,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+        allow_start_completion = asyncio.Event()
+
+        async def pending_start_report():
+            await allow_start_completion.wait()
+
+        start_task = asyncio.create_task(pending_start_report())
+        monitor_task = asyncio.create_task(
+            setup._monitor_script_process(
+                record,
+                execution_start_task=start_task,
+            )
+        )
+        await asyncio.sleep(0.02)
+        setup._report_execution_to_gcs.assert_not_awaited()
+
+        allow_start_completion.set()
+        await asyncio.wait_for(monitor_task, timeout=1)
+        setup._report_execution_to_gcs.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_monitor_script_process_labels_legacy_output_without_inferring_root_cause(self):
+        """Legacy stdout remains diagnostic, not an inferred action root cause."""
         from src.drone_setup import DroneSetup, RunningMissionProcess
 
         params = Mock()
@@ -1191,6 +1610,7 @@ class TestMissionProcessMonitoring:
             command_id="cmd-123",
         )
         setup.running_processes[process_record.process_key] = process_record
+        setup._active_mission_owner_token = process_record.ownership_token
         setup._reset_mission_state = Mock()
         setup._report_execution_to_gcs = AsyncMock()
 
@@ -1202,11 +1622,101 @@ class TestMissionProcessMonitoring:
         report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
 
         assert report_kwargs["command_id"] == "cmd-123"
-        assert report_kwargs["error_message"] == "mavsdk_server executable not found."
-        assert report_kwargs["script_output"] == "mavsdk_server executable not found."
-        mock_logger.error.assert_any_call(
-            "Mission script 'actions.py' failed with return code 1. Output: mavsdk_server executable not found."
+        assert report_kwargs["error_message"] == (
+            "Mission script exited with code 1 without a valid structured terminal result."
         )
+        assert report_kwargs["script_output"] == (
+            "Legacy stdout (diagnostic only): mavsdk_server executable not found."
+        )
+        assert mock_logger.error.called
+
+    @pytest.mark.asyncio
+    async def test_monitor_prefers_structured_action_failure_over_spi_stderr(self):
+        """Native LED diagnostics must not mask the PX4 action result."""
+        from src.action_result_protocol import encode_terminal_result, make_terminal_result
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        setup = DroneSetup(params, drone_config)
+        process = Mock()
+        process.communicate = AsyncMock(
+            return_value=(
+                b"Action test failed with ActionError\n",
+                b"Unable to open SPI device /dev/spidev0.0\n",
+            )
+        )
+        process.returncode = 1
+        result = make_terminal_result(
+            success=False,
+            code="PX4_COMMAND_DENIED",
+            phase="vehicle_command",
+            operator_message=(
+                "PX4 rejected the 'test' vehicle command: Resolve system health failures first."
+            ),
+            retryable=False,
+            evidence={"mavsdk_result": "COMMAND_DENIED"},
+            final_vehicle_state={"armed": False},
+        )
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, encode_terminal_result(result))
+        os.close(write_fd)
+        process_record = RunningMissionProcess(
+            process_key="actions.py:cmd-structured",
+            script_name="actions.py",
+            process=process,
+            command_id="cmd-structured",
+            action_result_read_fd=read_fd,
+        )
+        setup.running_processes[process_record.process_key] = process_record
+        setup._active_mission_owner_token = process_record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(process_record)
+
+        report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
+        assert report_kwargs["success"] is False
+        assert report_kwargs["error_message"] == result.operator_message
+        assert "PX4_COMMAND_DENIED" in report_kwargs["script_output"]
+        assert "SPI" not in report_kwargs["script_output"]
+
+    @pytest.mark.asyncio
+    async def test_monitor_preserves_legacy_mission_failure_as_operator_reason(self):
+        """Non-actions runners keep their concrete bounded failure diagnostics."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        setup = DroneSetup(params, create_mock_drone_config())
+        process = Mock()
+        process.communicate = AsyncMock(
+            return_value=(b"", b"Trajectory file failed integrity validation\n")
+        )
+        process.returncode = 2
+        process_record = RunningMissionProcess(
+            process_key="drone_show.py:cmd-show",
+            script_name="drone_show.py",
+            process=process,
+            command_id="cmd-show",
+        )
+        setup.running_processes[process_record.process_key] = process_record
+        setup._active_mission_owner_token = process_record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(process_record)
+
+        report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
+        expected = (
+            "Legacy stderr (diagnostic only): "
+            "Trajectory file failed integrity validation"
+        )
+        assert report_kwargs["success"] is False
+        assert report_kwargs["error_message"] == expected
+        assert report_kwargs["script_output"] == expected
+        assert "structured terminal result" not in report_kwargs["error_message"]
 
     @pytest.mark.asyncio
     async def test_monitor_preserves_newer_staged_command_state(self):
@@ -1246,6 +1756,92 @@ class TestMissionProcessMonitoring:
         setup._report_execution_to_gcs.assert_awaited_once()
         assert setup._report_execution_to_gcs.await_args.kwargs["success"] is True
 
+    @pytest.mark.asyncio
+    async def test_monitor_cas_preserves_newer_pending_same_mission(self):
+        """Old completion cannot reset after a same-type replacement is accepted."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.TAKE_OFF.value
+        drone_config.state = State.MISSION_EXECUTING.value
+        setup = DroneSetup(params, drone_config)
+        process = Mock(returncode=0)
+        process.communicate = AsyncMock(return_value=(b"old takeoff complete\n", b""))
+        old_record = RunningMissionProcess(
+            process_key="actions.py:old",
+            script_name="actions.py",
+            process=process,
+            command_id="old",
+            mission_type=Mission.TAKE_OFF.value,
+        )
+        setup.running_processes[old_record.process_key] = old_record
+        setup._active_mission_owner_token = old_record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        # Hold the same lock used by command acceptance. The monitor may finish
+        # child I/O, but cannot perform a check-then-reset across this update.
+        setup.command_state_transaction_lock.acquire()
+        try:
+            monitor_task = asyncio.create_task(setup._monitor_script_process(old_record))
+            await asyncio.sleep(0.02)
+            drone_config.current_command_id = "replacement"
+            drone_config.mission = Mission.TAKE_OFF.value
+            drone_config.state = State.MISSION_READY.value
+        finally:
+            setup.command_state_transaction_lock.release()
+
+        await asyncio.wait_for(monitor_task, timeout=1)
+
+        setup._reset_mission_state.assert_not_called()
+        assert drone_config.current_command_id == "replacement"
+        assert drone_config.mission == Mission.TAKE_OFF.value
+        assert drone_config.state == State.MISSION_READY.value
+        assert old_record.process_key not in setup.running_processes
+
+    @pytest.mark.asyncio
+    async def test_old_monitor_cannot_detach_replacement_with_reused_process_key(self):
+        """Object identity and owner tokens protect against key reuse."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.HOLD.value
+        drone_config.state = State.MISSION_EXECUTING.value
+        setup = DroneSetup(params, drone_config)
+
+        old_process = Mock(returncode=0)
+        old_process.communicate = AsyncMock(return_value=(b"old done\n", b""))
+        replacement_process = Mock(returncode=None)
+        old_record = RunningMissionProcess(
+            process_key="actions.py:reused",
+            script_name="actions.py",
+            process=old_process,
+            command_id="old",
+            mission_type=Mission.HOLD.value,
+        )
+        replacement_record = RunningMissionProcess(
+            process_key=old_record.process_key,
+            script_name="actions.py",
+            process=replacement_process,
+            command_id="replacement",
+            mission_type=Mission.HOLD.value,
+        )
+        setup.running_processes[replacement_record.process_key] = replacement_record
+        setup._active_mission_owner_token = replacement_record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(old_record)
+
+        setup._reset_mission_state.assert_not_called()
+        assert setup.running_processes[replacement_record.process_key] is replacement_record
+        assert setup._active_mission_owner_token == replacement_record.ownership_token
+        assert drone_config.state == State.MISSION_EXECUTING.value
+
 
 @pytest.mark.unit
 @pytest.mark.mission
@@ -1271,6 +1867,8 @@ class TestCommandReportRetry:
         setup = DroneSetup(self._build_params(), create_mock_drone_config())
         setup._post_command_report = AsyncMock(return_value=False)
         setup._ensure_command_report_retry_worker = AsyncMock()
+        capability = "c" * 43
+        setup.register_command_report_capability("cmd-123", capability)
 
         await setup._report_execution_to_gcs(
             command_id="cmd-123",
@@ -1283,8 +1881,79 @@ class TestCommandReportRetry:
         assert report.endpoint == "/api/v1/command-reports/execution-result"
         assert report.payload["command_id"] == "cmd-123"
         assert report.payload["success"] is True
+        assert "capability" not in report.payload
+        assert report.capability == capability
+        assert capability not in repr(report)
         assert report.next_attempt_monotonic >= report.first_queued_monotonic + 2.0
+        setup._post_command_report.assert_awaited_once_with(
+            "/api/v1/command-reports/execution-result",
+            report.payload,
+            capability,
+        )
         setup._ensure_command_report_retry_worker.assert_awaited_once()
+
+    def test_long_running_command_keeps_capability_for_terminal_report(self):
+        from src.drone_setup import DroneSetup
+
+        params = self._build_params()
+        setup = DroneSetup(params, create_mock_drone_config())
+        capability = "c" * 43
+        setup.register_command_report_capability("cmd-long", capability)
+        setup._command_report_capabilities["cmd-long"] = (
+            capability,
+            time.monotonic() - params.COMMAND_REPORT_RETRY_MAX_AGE_SEC - 1,
+        )
+
+        assert setup._get_command_report_capability("cmd-long") == capability
+        assert "cmd-long" in setup._command_report_capabilities
+
+    @pytest.mark.asyncio
+    async def test_permanent_callback_rejection_is_not_retried(self):
+        from src.drone_setup import DroneSetup, PermanentCommandReportRejection
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup._post_command_report = AsyncMock(
+            side_effect=PermanentCommandReportRejection(403)
+        )
+        setup._queue_command_report_retry = AsyncMock()
+        setup.register_command_report_capability("cmd-rejected", "c" * 43)
+
+        await setup._report_execution_to_gcs(
+            command_id="cmd-rejected",
+            success=True,
+        )
+
+        setup._queue_command_report_retry.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_retry_worker_drops_permanently_rejected_callback(self):
+        from src.drone_setup import (
+            DroneSetup,
+            PendingCommandReport,
+            PermanentCommandReportRejection,
+        )
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup.pending_command_reports = [
+            PendingCommandReport(
+                endpoint="/api/v1/command-reports/execution-result",
+                payload={"command_id": "cmd-rejected", "hw_id": "1"},
+                capability="c" * 43,
+                description="execution-result for command cmd-rejected",
+                first_queued_monotonic=10.0,
+                next_attempt_monotonic=10.0,
+            )
+        ]
+        setup._post_command_report = AsyncMock(
+            side_effect=PermanentCommandReportRejection(403)
+        )
+
+        delivered = await setup._retry_pending_command_reports_once(
+            now_monotonic=10.0
+        )
+
+        assert delivered == 0
+        assert setup.pending_command_reports == []
 
     @pytest.mark.asyncio
     async def test_retry_pending_command_reports_once_clears_successful_report(self):

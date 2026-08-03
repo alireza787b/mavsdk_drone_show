@@ -21,7 +21,6 @@ def _load_validator_module():
 def test_validator_uses_repo_timeout_model():
     validator = _load_validator_module()
 
-    assert validator.USING_FALLBACK_TIMEOUT_PARAMS is False
     assert validator.Params.LAND_ACTION_ASSUMED_DESCENT_RATE_MPS == RepoParams.LAND_ACTION_ASSUMED_DESCENT_RATE_MPS
 
     timeout = validator.estimate_command_completion_timeout(

@@ -3,13 +3,23 @@
 Date: 2026-04-07
 Repo baseline: `195ea86e`
 Scope: research, audit, and implementation planning only
-Status: no QuickScout code changes proposed or applied yet
+Status: historical baseline; the implementation has since moved to the durable SAR service and tracked-command lifecycle
+
+> Current ownership: `gcs-server/sar/service.py` owns QuickScout application
+> behavior, `gcs-server/sar/store.py` owns durable state, and
+> `gcs-server/sar/command_lifecycle.py` projects authoritative command-tracker
+> evidence. The former mission/POI manager facades and fake resume endpoint have
+> been removed. The findings below describe the April 2026 baseline, not the
+> current runtime contract. Current mission writes use serialized SQLite
+> mutations, command submission is serialized per mission, mixed per-target
+> outcomes retain their command slot until every possibly accepted target is
+> terminal, and tracker `late_reports` are audit-only.
 
 ## Executive Summary
 
-The current QuickScout subsystem is a useful proof of concept, but it is not ready to be treated as a production mission mode.
+At the audited baseline, the QuickScout subsystem was a useful proof of concept, but it was not ready to be treated as a production mission mode.
 
-It currently behaves like:
+At that time, it behaved like:
 
 - one page
 - one planner family
@@ -27,18 +37,19 @@ The main recommendation is:
 
 The most important product decision is that QuickScout should not be framed as "a SAR page that draws a polygon and launches a lawn-mower path." It should become a broader rapid-search mission system with multiple search templates and a durable mission record.
 
-## What QuickScout Is Today
+## What QuickScout Was At The Audited Baseline
 
-The current implementation already has a real vertical slice:
+The audited implementation already had a real vertical slice:
 
 - frontend page: `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.js`
 - SAR router: `gcs-server/sar/routes.py`
 - schemas: `gcs-server/sar/schemas.py`
 - planner: `gcs-server/sar/coverage_planner.py`
-- mission/POI managers: `gcs-server/sar/mission_manager.py`, `gcs-server/sar/poi_manager.py`
+- application and durable state (current owners): `gcs-server/sar/service.py`, `gcs-server/sar/store.py`
+- tracked-command projection (current owner): `gcs-server/sar/command_lifecycle.py`
 - drone executor: `quickscout_mission.py`
 
-What it currently does:
+What that baseline did:
 
 - operator draws a polygon
 - operator selects drones
@@ -51,7 +62,7 @@ What it currently does:
 
 That proves the concept, but the architecture is still PoC-grade.
 
-## Current Implementation Assessment
+## Audited-Baseline Implementation Assessment
 
 ### What Is Good Enough To Keep
 

@@ -13,6 +13,8 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 from pydantic import BaseModel, Field
 
 from auth_runtime import authorize_websocket
+from command_execution_policy import CommandSubmissionAuthority
+from command_submission import submit_tracked_command
 from git_status import commits_match
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
@@ -24,10 +26,11 @@ from schemas import (
     GitStatus,
     GitStatusResponse,
     GitStatusStreamMessage,
-    SyncReposRequest,
-    SyncReposResponse,
+    FleetGitSyncApplyResponse,
+    SubmitCommandRequest,
 )
 from src.managed_runtime_status import resolve_dashboard_access
+from src.enums import Mission
 
 FLEET_OPS_MUTATION_TOKEN_ENV = "MDS_FLEET_OPS_MUTATION_TOKEN"
 GIT_SYNC_SCHEMA = "mds.fleet_git_sync.v1"
@@ -522,6 +525,35 @@ def _validate_git_sync_job(job: dict[str, Any], confirmation: GitSyncActionConfi
         raise HTTPException(status_code=400, detail="dry-run confirmation token is required")
 
 
+async def _wait_for_tracked_dispatch(deps: Any, command_id: str) -> dict[str, Any] | None:
+    """Wait only for bounded dispatch classification, never mission completion."""
+
+    timeout_sec = max(
+        1.0,
+        min(
+            60.0,
+            float(getattr(deps.Params, "GCS_FLEET_DISPATCH_DEADLINE_SEC", 15.0))
+            + float(getattr(deps.Params, "GCS_COMMAND_HTTP_TIMEOUT_SEC", 5.0))
+            + 2.0,
+        ),
+    )
+    deadline = time.monotonic() + timeout_sec
+    tracker = deps.get_command_tracker()
+    last_status = None
+    while time.monotonic() < deadline:
+        last_status = await tracker.get_status(command_id)
+        if last_status is None:
+            return None
+        phase = str(last_status.get("phase") or "")
+        acks = last_status.get("acks") or {}
+        if phase == "terminal" or int(acks.get("received", 0)) >= int(
+            acks.get("expected", 0)
+        ):
+            return last_status
+        await asyncio.sleep(0.1)
+    return last_status
+
+
 def create_git_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
@@ -541,7 +573,7 @@ def create_git_router(deps: Any) -> APIRouter:
         _require_mutation_authority(http_request)
         return _build_git_sync_dry_run(deps, sync_request)
 
-    @router.post("/api/v1/fleet/git-sync/apply", response_model=SyncReposResponse, tags=["Git"])
+    @router.post("/api/v1/fleet/git-sync/apply", response_model=FleetGitSyncApplyResponse, tags=["Git"])
     async def apply_fleet_git_sync(sync_request: FleetGitSyncApplyRequest, http_request: Request):
         """Apply a previously accepted Fleet Ops git-sync dry-run."""
         _require_mutation_authority(http_request)
@@ -552,7 +584,7 @@ def create_git_router(deps: Any) -> APIRouter:
 
         async with deps._sync_lock:
             if deps._sync_state["active"]:
-                return SyncReposResponse(
+                return FleetGitSyncApplyResponse(
                     success=False,
                     message="A sync operation is already in progress",
                     synced_drones=[],
@@ -579,7 +611,7 @@ def create_git_router(deps: Any) -> APIRouter:
             if stale_targets:
                 raise HTTPException(status_code=409, detail="one or more dry-run targets are no longer online; rerun dry-run")
             if not live_targets:
-                return SyncReposResponse(
+                return FleetGitSyncApplyResponse(
                     success=False,
                     message="No eligible dry-run targets remain online",
                     synced_drones=[],
@@ -589,36 +621,29 @@ def create_git_router(deps: Any) -> APIRouter:
                     target_commit=job.get("target_commit"),
                 )
 
-            command_data = {
-                "mission_type": 103,
-                "trigger_time": 0,
-                "update_branch": job.get("target_branch"),
-            }
             target_hw_ids = [str(target["hw_id"]) for target in live_targets]
-            results = deps.send_commands_to_selected(deps.load_config(), command_data, target_hw_ids)
-            accepted_hw_ids = []
-            failed_hw_ids = []
-            per_drone_results = results.get("results", {}) if isinstance(results, dict) else {}
-            for hw_id, drone_result in per_drone_results.items():
-                category = drone_result.get("category", "error") if isinstance(drone_result, dict) else "error"
-                if category == "accepted":
-                    accepted_hw_ids.append(str(hw_id))
-                else:
-                    failed_hw_ids.append(str(hw_id))
+            tracked_submission = await submit_tracked_command(
+                deps,
+                SubmitCommandRequest(
+                    mission_type=Mission.UPDATE_CODE.value,
+                    trigger_time=0,
+                    update_branch=job.get("target_branch"),
+                    target_drone_ids=target_hw_ids,
+                    idempotency_key=f"fleet-git-sync:{job['job_id']}",
+                ),
+                authority=CommandSubmissionAuthority.FLEET_OPS_GIT_SYNC,
+            )
+            await _wait_for_tracked_dispatch(deps, tracked_submission.command_id)
 
-            accepted_targets = [target for target in live_targets if str(target["hw_id"]) in set(accepted_hw_ids)]
+            # Git/runtime verification is the operation's source of truth. It
+            # checks every planned live target even when an UPDATE_CODE ACK is
+            # lost during the node service restart.
             verified_synced, verification_failed = await deps._verify_sync_targets(
-                accepted_targets,
+                live_targets,
                 expected_branch=str(job.get("target_branch") or ""),
                 expected_commit=str(job.get("target_commit") or ""),
             )
-            hw_to_pos = {str(target["hw_id"]): int(target.get("pos_id", 0) or 0) for target in live_targets}
-            immediate_failed = {
-                hw_to_pos.get(str(hw_id), 0)
-                for hw_id in failed_hw_ids
-                if hw_to_pos.get(str(hw_id), 0)
-            }
-            failed = sorted(immediate_failed.union(set(verification_failed)))
+            failed = sorted(set(verification_failed))
             synced = verified_synced
             job["applied"] = True
             job["applied_at"] = int(time.time() * 1000)
@@ -630,7 +655,7 @@ def create_git_router(deps: Any) -> APIRouter:
                 if success
                 else f"Sync partially verified: {len(synced)} of {total_attempted} drones updated; {len(failed)} failed or timed out"
             )
-            return SyncReposResponse(
+            return FleetGitSyncApplyResponse(
                 success=success,
                 message=message,
                 synced_drones=synced,
@@ -643,7 +668,7 @@ def create_git_router(deps: Any) -> APIRouter:
             raise
         except Exception as exc:
             deps.log_system_error(f"Fleet git sync apply failed: {exc}", "git")
-            return SyncReposResponse(
+            return FleetGitSyncApplyResponse(
                 success=False,
                 message=f"Sync operation failed: {exc}",
                 synced_drones=[],
@@ -654,19 +679,6 @@ def create_git_router(deps: Any) -> APIRouter:
             )
         finally:
             deps._sync_state["active"] = False
-
-    @router.post("/api/v1/git/sync-operations", response_model=SyncReposResponse, tags=["Git"])
-    async def sync_repos(sync_request: SyncReposRequest):
-        """Deprecated direct sync endpoint. Use Fleet Ops dry-run/apply."""
-        return SyncReposResponse(
-            success=False,
-            message="Direct sync is disabled. Use Fleet Ops Git Sync dry-run and explicit apply.",
-            synced_drones=[],
-            failed_drones=[],
-            total_attempted=0,
-            target_branch=None,
-            target_commit=None,
-        )
 
     @router.websocket("/ws/git-status")
     async def websocket_git_status(websocket: WebSocket):

@@ -12,6 +12,7 @@ import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
+import { getBatteryPresentation } from '../utilities/batteryPresentation';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -89,13 +90,6 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   );
   const hasCurrentMission = missionDisplay.hasCurrentMission && missionDisplay.currentMissionName !== 'No Mission';
 
-  const getBatteryStatus = (voltage) => {
-    if (voltage === undefined) return { class: '', text: 'N/A' };
-    if (voltage >= 15.5) return { class: 'good', text: `${voltage.toFixed(1)}V` };
-    if (voltage >= 14.5) return { class: 'warning', text: `${voltage.toFixed(1)}V` };
-    return { class: 'critical', text: `${voltage.toFixed(1)}V` };
-  };
-
   const altitudeReading = resolveMslAltitude(drone);
   const altitudeAvailable = altitudeReading.value !== null;
   const altitudeDisplay = altitudeAvailable
@@ -112,7 +106,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   const altitudeHelp = altitudeAvailable
     ? (altitudeHelpBySource[altitudeReading.source] || 'Source-aware altitude from telemetry policy.')
     : 'No valid relative, local, barometric, or MSL altitude source is available.';
-  const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
+  const batteryStatus = getBatteryPresentation(drone);
   const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
 
   const portalRoot = document.getElementById('expanded-drone-portal-root');
@@ -220,7 +214,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
               {/* Battery */}
               <div className="data-item">
                 <span className="data-label">Battery</span>
-                <span className={`battery-value ${batteryStatus.class}`}>
+                <span className={`battery-value ${batteryStatus.class}`} data-help={batteryStatus.help} title={batteryStatus.help}>
                   {batteryStatus.text}
                 </span>
               </div>

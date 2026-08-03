@@ -16,11 +16,11 @@ from .schemas import (
     QuickScoutElevationPoint,
     QuickScoutMissionHandoff,
     QuickScoutMissionCatalogResponse,
-    QuickScoutMissionControlResponse,
+    QuickScoutCommandQueuedResponse,
     QuickScoutMissionLaunchRequest,
-    QuickScoutMissionLaunchResponse,
     QuickScoutLaunchRevalidationResponse,
     QuickScoutPlanningJobResponse,
+    QuickScoutProgressReceipt,
     QuickScoutMissionWorkspaceResponse,
     SurveyState,
     ReturnBehavior,
@@ -73,7 +73,7 @@ def create_sar_router(deps: Any) -> APIRouter:
     ):
         return get_quickscout_service().list_operation_summaries(limit=limit, state=state)
 
-    @router.post("/mission/launch", response_model=QuickScoutMissionLaunchResponse)
+    @router.post("/mission/launch", response_model=QuickScoutCommandQueuedResponse, status_code=202)
     async def launch_mission(
         mission_id: str = Query(..., description="Mission ID to launch"),
         request: Optional[QuickScoutMissionLaunchRequest] = Body(default=None),
@@ -92,34 +92,42 @@ def create_sar_router(deps: Any) -> APIRouter:
 
     @router.get("/mission/{mission_id}/workspace", response_model=QuickScoutMissionWorkspaceResponse)
     async def get_mission_workspace(mission_id: str):
-        workspace = get_quickscout_service().get_workspace(mission_id)
+        service = get_quickscout_service()
+        await service.reconcile_latest_command(deps, mission_id)
+        workspace = service.get_workspace(mission_id)
         if not workspace:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
         return workspace
 
     @router.get("/mission/{mission_id}/status", response_model=MissionStatus)
     async def get_mission_status(mission_id: str):
-        status = get_quickscout_service().get_status(mission_id)
+        status = await get_quickscout_service().reconcile_latest_command(deps, mission_id)
         if not status:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
         return status
 
     @router.get("/mission/{mission_id}/handoff", response_model=QuickScoutMissionHandoff)
     async def get_mission_handoff(mission_id: str):
-        handoff = get_quickscout_service().get_mission_handoff(mission_id)
+        service = get_quickscout_service()
+        await service.reconcile_latest_command(deps, mission_id)
+        handoff = service.get_mission_handoff(mission_id)
         if not handoff:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
         return handoff
 
-    @router.post("/mission/{mission_id}/pause", response_model=QuickScoutMissionControlResponse)
+    @router.post(
+        "/mission/{mission_id}/pause",
+        response_model=QuickScoutCommandQueuedResponse,
+        status_code=202,
+    )
     async def pause_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
         return await get_quickscout_service().pause_and_command(deps, mission_id, pos_ids)
 
-    @router.post("/mission/{mission_id}/resume", response_model=QuickScoutMissionControlResponse)
-    async def resume_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
-        return get_quickscout_service().resume_and_record(deps, mission_id, pos_ids)
-
-    @router.post("/mission/{mission_id}/abort", response_model=QuickScoutMissionControlResponse)
+    @router.post(
+        "/mission/{mission_id}/abort",
+        response_model=QuickScoutCommandQueuedResponse,
+        status_code=202,
+    )
     async def abort_mission(
         mission_id: str,
         pos_ids: Optional[List[int]] = Query(None),
@@ -127,9 +135,11 @@ def create_sar_router(deps: Any) -> APIRouter:
     ):
         return await get_quickscout_service().abort_and_command(deps, mission_id, pos_ids, return_behavior.value)
 
-    @router.post("/mission/{mission_id}/progress")
+    @router.post("/mission/{mission_id}/progress", response_model=QuickScoutProgressReceipt)
     async def report_progress(mission_id: str, report: DroneProgressReport):
-        return get_quickscout_service().report_progress(mission_id, report)
+        service = get_quickscout_service()
+        await service.reconcile_latest_command(deps, mission_id)
+        return service.report_progress(mission_id, report)
 
     async def _create_finding(
         finding: QuickScoutFindingCreate,

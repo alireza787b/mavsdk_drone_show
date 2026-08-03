@@ -336,6 +336,7 @@ const QuickScoutPage = () => {
   // Monitor state
   const [missionId, setMissionId] = useState(null);
   const [missionStatus, setMissionStatus] = useState(null);
+  const [missionStatusError, setMissionStatusError] = useState(null);
   const [findings, setFindings] = useState([]);
   const [markingFinding, setMarkingFinding] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -453,6 +454,7 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
     setMissionId(null);
     setMissionStatus(null);
+    setMissionStatusError(null);
     setFindings([]);
     setMarkingFinding(false);
     setSelectedFinding(null);
@@ -504,6 +506,7 @@ const QuickScoutPage = () => {
     const recoveredFindings = status.findings || [];
     setMissionId(operation.mission_id);
     setMissionStatus(status);
+    setMissionStatusError(null);
     setFindings(recoveredFindings);
     setMissionHandoff(null);
     setSelectedFinding(recoveredFindings[0] || null);
@@ -741,12 +744,18 @@ const QuickScoutPage = () => {
   // Mission status polling
   useEffect(() => {
     if (!missionId) return;
+    let active = true;
+    let requestInFlight = false;
 
     const pollStatus = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       try {
         const status = await sarApi.getMissionStatus(missionId);
+        if (!active) return;
         const findingsData = status?.findings || [];
         setMissionStatus(status);
+        setMissionStatusError(null);
         setFindings(findingsData);
         setSelectedFinding((current) => {
           if (!current) {
@@ -755,12 +764,19 @@ const QuickScoutPage = () => {
           return findingsData.find((finding) => finding.id === current.id) || null;
         });
       } catch (e) {
-        // Mission may not exist yet
+        if (active) {
+          setMissionStatusError(getApiErrorMessage(e, 'Unable to refresh mission status'));
+        }
+      } finally {
+        requestInFlight = false;
       }
     };
     pollStatus();
     const interval = setInterval(pollStatus, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [missionId]);
 
   const currentMissionSummary = useMemo(
@@ -874,24 +890,26 @@ const QuickScoutPage = () => {
       ].join(':'))
       .sort()
       .join('|');
-    const lastCommandSignature = [
-      missionStatus?.last_command_summary?.command_id || '',
-      missionStatus?.last_command_summary?.action || '',
-      missionStatus?.last_command_summary?.effect || '',
+    const latestCommandSignature = [
+      missionStatus?.latest_command_batch?.receipt?.command_id || '',
+      missionStatus?.latest_command_batch?.action || '',
+      missionStatus?.latest_command_batch?.state || '',
+      missionStatus?.latest_command_batch?.updated_at || '',
     ].join(':');
     return [
       missionId || '',
       missionStatus?.state || '',
       missionStatus?.operation_phase || '',
-      lastCommandSignature,
+      latestCommandSignature,
       findingSignature,
     ].join('|');
   }, [
     findings,
     missionId,
-    missionStatus?.last_command_summary?.action,
-    missionStatus?.last_command_summary?.command_id,
-    missionStatus?.last_command_summary?.effect,
+    missionStatus?.latest_command_batch?.action,
+    missionStatus?.latest_command_batch?.receipt?.command_id,
+    missionStatus?.latest_command_batch?.state,
+    missionStatus?.latest_command_batch?.updated_at,
     missionStatus?.operation_phase,
     missionStatus?.state,
   ]);
@@ -1329,7 +1347,7 @@ const QuickScoutPage = () => {
         ? await sarApi.launchMission(missionId, { revalidationToken })
         : await sarApi.launchMission(missionId);
       await refreshMissionCatalog();
-      toast.success(response?.message || 'Mission launched');
+      toast.info(response?.message || 'Mission launch queued');
       setLaunchReviewOpen(false);
       setMode('monitor');
     } catch (err) {
@@ -1345,13 +1363,9 @@ const QuickScoutPage = () => {
     try {
       const response = await sarApi.pauseMission(missionId);
       await refreshMissionCatalog();
-      if (response?.success) {
-        toast.info(response?.message || 'Mission paused');
-      } else {
-        toast.warning(response?.message || 'Pause was not accepted by the targeted drones');
-      }
+      toast.info(response?.message || 'Pause queued; awaiting execution evidence');
     } catch (err) {
-      toast.error('Pause failed');
+      toast.error(`Pause failed: ${getApiErrorMessage(err, 'Unable to queue pause')}`);
     }
   }, [missionId, refreshMissionCatalog]);
 
@@ -1365,13 +1379,9 @@ const QuickScoutPage = () => {
     try {
       const response = await sarApi.abortMission(missionId, null, returnBehavior);
       await refreshMissionCatalog();
-      if (response?.success) {
-        toast.warning(response?.message || 'Mission aborted');
-      } else {
-        toast.error(response?.message || 'Abort was not accepted by the targeted drones');
-      }
+      toast.warning(response?.message || 'Mission end queued; awaiting execution evidence');
     } catch (err) {
-      toast.error('Abort failed');
+      toast.error(`Mission end failed: ${getApiErrorMessage(err, 'Unable to queue mission end')}`);
     }
   }, [missionId, refreshMissionCatalog, returnBehavior]);
 
@@ -1503,6 +1513,7 @@ const QuickScoutPage = () => {
     setMode('plan');
     setMissionId(null);
     setMissionStatus(null);
+    setMissionStatusError(null);
     setFindings([]);
     setMarkingFinding(false);
     setSelectedFinding(null);
@@ -1889,6 +1900,7 @@ const QuickScoutPage = () => {
         ) : (
           <MissionMonitorSidebar
             missionStatus={missionStatus}
+            statusError={missionStatusError}
             findings={findings}
             missionCatalog={missionCatalog}
             currentMissionId={missionId}

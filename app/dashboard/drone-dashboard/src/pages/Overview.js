@@ -56,7 +56,7 @@ function normalizeNodeBootStatusMap(nodeBootPayload) {
   return { nodes, byKey };
 }
 
-const Overview = ({ setSelectedDrone }) => {
+const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
   const [drones, setDrones] = useState([]);
   const [configByHwId, setConfigByHwId] = useState({});
   const [expandedDrone, setExpandedDrone] = useState(null);
@@ -559,6 +559,7 @@ const Overview = ({ setSelectedDrone }) => {
       >
         <CommandSender
           drones={drones}
+          runtimeMode={runtimeMode}
           swarmData={swarmAssignments}
           targetMode={commandTargetMode}
           onTargetModeChange={handleCommandTargetModeChange}
@@ -705,6 +706,7 @@ const Overview = ({ setSelectedDrone }) => {
 
 Overview.propTypes = {
   setSelectedDrone: PropTypes.func.isRequired,
+  runtimeMode: PropTypes.oneOf(['real', 'sitl', 'unknown']),
 };
 
 export default Overview;

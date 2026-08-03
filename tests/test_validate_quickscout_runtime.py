@@ -1,6 +1,8 @@
 import argparse
 import time
 
+import pytest
+
 from tools.validate_quickscout_runtime import (
     _is_idle_baseline_row,
     _is_idle_reset_row,
@@ -9,6 +11,7 @@ from tools.validate_quickscout_runtime import (
     build_corridor_search_request,
     build_last_known_point_request,
     detect_foreign_active_commands,
+    require_queued_command_batch,
     resolve_selected_ids,
     select_target_drones,
 )
@@ -237,3 +240,52 @@ def test_detect_foreign_active_commands_reports_overlap_with_watched_drones():
             "target_drones": ["2", "3"],
         }
     ]
+
+
+def _queued_batch_response():
+    return {
+        "mission_id": "mission-1",
+        "message": "QuickScout launch queued.",
+        "latest_command_batch": {
+            "action": "launch",
+            "attempt": 1,
+            "state": "queued",
+            "receipt": {
+                "accepted_for_tracking": True,
+                "command_id": "command-1",
+                "idempotency_key": "quickscout:mission-1:launch:1",
+                "replayed": False,
+                "mission_type": 5,
+                "mission_name": "QUICKSCOUT",
+                "target_drones": ["1", "2"],
+                "tracking_url": "/api/v1/commands/command-1",
+                "message": "Tracked command queued.",
+                "timestamp": 1_700_000_000_000,
+            },
+            "targets": {
+                "1": {"hw_id": "1", "state": "queued"},
+                "2": {"hw_id": "2", "state": "queued"},
+            },
+        },
+    }
+
+
+def test_require_queued_command_batch_accepts_one_canonical_tracked_batch():
+    assert require_queued_command_batch(
+        _queued_batch_response(),
+        expected_action="launch",
+        expected_hw_ids=["1", "2"],
+    ) == "command-1"
+
+
+@pytest.mark.parametrize("legacy_field", ["success", "submissions", "launched_hw_ids", "accepted_hw_ids"])
+def test_require_queued_command_batch_rejects_legacy_per_drone_submission_contract(legacy_field):
+    response = _queued_batch_response()
+    response[legacy_field] = [] if legacy_field != "success" else True
+
+    with pytest.raises(RuntimeError, match="deprecated command fields"):
+        require_queued_command_batch(
+            response,
+            expected_action="launch",
+            expected_hw_ids=["1", "2"],
+        )

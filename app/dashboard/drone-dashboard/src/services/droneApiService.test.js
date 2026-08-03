@@ -10,6 +10,7 @@ import {
   getSwarmClusterStatus,
   processTrajectories,
   sendDroneCommand,
+  serializeCommandSubmission,
   uploadSwarmTrajectory,
 } from './droneApiService';
 import {
@@ -57,15 +58,106 @@ describe('droneApiService', () => {
   });
 
   it('delegates command submission to the centralized GCS service', async () => {
-    submitCommandResponse.mockResolvedValue({ data: { success: true, command_id: 'cmd-1' } });
+    submitCommandResponse.mockResolvedValue({ data: { accepted_for_tracking: true, command_id: 'cmd-1' } });
 
-    const result = await sendDroneCommand({ missionType: '4', target_drones: ['1'] });
+    const result = await sendDroneCommand({
+      mission_type: 4,
+      trigger_time: 0,
+      target_drone_ids: ['1'],
+      uiMeta: { operatorLabel: 'Swarm Trajectory' },
+    });
 
     expect(submitCommandResponse).toHaveBeenCalledWith(
-      { missionType: '4', target_drones: ['1'] },
+      {
+        mission_type: 4,
+        trigger_time: 0,
+        target_drone_ids: ['1'],
+        operator_label: 'Swarm Trajectory',
+        idempotency_key: expect.stringMatching(/^dashboard-/),
+      },
       { timeout: COMMAND_SUBMIT_TIMEOUT_MS },
     );
-    expect(result).toEqual({ success: true, command_id: 'cmd-1' });
+    expect(result).toEqual({ accepted_for_tracking: true, command_id: 'cmd-1' });
+  });
+
+  it('serializes nested command data once without leaking UI metadata or legacy keys', () => {
+    expect(serializeCommandSubmission({
+      mission_type: '112',
+      trigger_time: '0',
+      target_drone_ids: [1],
+      precision_move: {
+        frame: 'body',
+        translation_m: { forward: 1 },
+        yaw: { mode: 'hold_current' },
+      },
+      idempotency_key: 'move-1',
+      uiMeta: { operatorLabel: 'Precision Move', confirmationMessage: 'UI only' },
+    })).toEqual({
+      mission_type: 112,
+      trigger_time: 0,
+      target_drone_ids: ['1'],
+      precision_move: {
+        frame: 'body',
+        translation_m: { forward: 1 },
+        yaw: { mode: 'hold_current' },
+      },
+      idempotency_key: 'move-1',
+      operator_label: 'Precision Move',
+    });
+  });
+
+  it.each(['missionType', 'triggerTime', 'target_drones', 'operatorLabel', 'idempotencyKey'])(
+    'rejects obsolete dashboard command key %s',
+    (obsoleteKey) => {
+      expect(() => serializeCommandSubmission({
+        mission_type: 10,
+        [obsoleteKey]: 'obsolete',
+      })).toThrow(`Dashboard command uses obsolete envelope key: ${obsoleteKey}`);
+    },
+  );
+
+  it('requires one explicit and non-conflicting command target scope', () => {
+    expect(() => serializeCommandSubmission({
+      mission_type: 10,
+      target_drone_ids: [],
+    })).toThrow('target_drone_ids must be a non-empty array');
+    expect(() => serializeCommandSubmission({
+      mission_type: 10,
+      target_drone_ids: ['1'],
+      target_scope: 'all',
+    })).toThrow('Use target_drone_ids or target_scope, not both');
+    expect(() => serializeCommandSubmission({
+      mission_type: 10,
+    })).toThrow("Command target is required; use target_scope: 'all' for the whole fleet");
+    expect(serializeCommandSubmission({
+      mission_type: 10,
+      target_scope: 'all',
+      idempotency_key: 'all-1',
+    })).toEqual({
+      mission_type: 10,
+      trigger_time: 0,
+      target_scope: 'all',
+      idempotency_key: 'all-1',
+    });
+  });
+
+  it('replays an ambiguous timeout once with the same idempotency key', async () => {
+    const timeoutError = Object.assign(new Error('timeout of 12000ms exceeded'), {
+      code: 'ECONNABORTED',
+      request: {},
+    });
+    submitCommandResponse
+      .mockRejectedValueOnce(timeoutError)
+      .mockResolvedValueOnce({ data: { accepted_for_tracking: true, command_id: 'cmd-recovered', replayed: true } });
+
+    const result = await sendDroneCommand({ mission_type: 10, target_drone_ids: ['1'] });
+
+    expect(result.command_id).toBe('cmd-recovered');
+    expect(submitCommandResponse).toHaveBeenCalledTimes(2);
+    const firstPayload = submitCommandResponse.mock.calls[0][0];
+    const secondPayload = submitCommandResponse.mock.calls[1][0];
+    expect(firstPayload.idempotency_key).toMatch(/^dashboard-/);
+    expect(secondPayload.idempotency_key).toBe(firstPayload.idempotency_key);
   });
 
   it('delegates recent command filtering to the centralized GCS service', async () => {

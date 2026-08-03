@@ -28,6 +28,7 @@ import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import { classifyNodeBootStatus } from '../utilities/fleetOpsViewModel';
+import { getBatteryPresentation } from '../utilities/batteryPresentation';
 import '../styles/DroneWidget.css';
 
 /**
@@ -142,13 +143,6 @@ const DroneWidget = ({
   };
 
   // Status assessment functions
-  const getBatteryStatus = (voltage) => {
-    if (voltage === undefined) return { class: '', text: 'N/A' };
-    if (voltage >= 15.5) return { class: 'good', text: `${voltage.toFixed(1)}V` };
-    if (voltage >= 14.5) return { class: 'warning', text: `${voltage.toFixed(1)}V` };
-    return { class: 'critical', text: `${voltage.toFixed(1)}V` };
-  };
-
   const getGpsQualityStatus = (hdop, vdop) => {
     // Handle SITL simulation case where HDOP/VDOP are 0 but GPS is working
     if ((hdop === undefined || hdop === 0) && systemStatus === 4) {
@@ -204,7 +198,7 @@ const DroneWidget = ({
     });
   };
 
-  const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
+  const batteryStatus = getBatteryPresentation(drone);
   const gpsQuality = getGpsQualityStatus(drone[FIELD_NAMES.HDOP], drone[FIELD_NAMES.VDOP]);
   const hasLastKnownTelemetry = runtimeStatus.level === 'degraded' || runtimeStatus.indicatorClass === 'lost';
   const telemetryCanShowLastKnown = telemetryTrusted || hasLastKnownTelemetry;
@@ -518,7 +512,11 @@ const DroneWidget = ({
         {/* Battery */}
         <div className="data-item">
           <span className="data-label">Battery</span>
-          <span className={`data-value ${telemetryTrusted ? batteryStatus.class : telemetryPresentationClass}`}>
+          <span
+            className={`data-value ${telemetryTrusted ? batteryStatus.class : telemetryPresentationClass}`}
+            data-help={batteryStatus.help}
+            title={batteryStatus.help}
+          >
             {telemetryCanShowLastKnown ? batteryStatus.text : telemetryUnavailableText}
           </span>
         </div>

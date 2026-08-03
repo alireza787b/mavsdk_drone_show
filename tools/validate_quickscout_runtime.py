@@ -12,7 +12,7 @@ In both cases it validates the same operator-facing lifecycle:
 3. Launch the mission and confirm the targeted aircraft climb and begin searching
 4. Pause into HOLD and confirm the mission enters the holding phase
 5. Create/update a finding and validate the mission handoff bundle
-6. Confirm direct resume is rejected with explicit replan guidance
+6. Confirm the holding state offers local follow-up replanning
 7. Abort and confirm the fleet returns to a clean idle baseline
 
 For partial-fleet drills it also confirms that non-target drones remain idle.
@@ -35,69 +35,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import fetch_and_require_sitl_runtime
-
-try:
-    from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
-    from src.live_armability_utils import calculate_live_armability_request_timeout
-    from src.gcs_api_routes import (
-        GCS_ACTIVE_COMMANDS_ROUTE,
-        GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
-        GCS_FLEET_TELEMETRY_ROUTE,
-        GCS_SYSTEM_HEALTH_ROUTE,
-    )
-    from src.params import Params
-    from tools.runtime_validation_support import (
-        normalize_drone_ids,
-        parse_csv_drone_ids,
-        write_json_report,
-    )
-except Exception:  # pragma: no cover - fallback only
-    class _FallbackParams:
-        TELEMETRY_POLLING_TIMEOUT = 10
-        heartbeat_interval = 10
-        drone_api_port = 7070
-        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
-        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
-        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
-
-    Params = _FallbackParams()
-    DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
-    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
-    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
-    GCS_ACTIVE_COMMANDS_ROUTE = "/api/v1/commands/active"
-    GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
-
-    def calculate_live_armability_request_timeout(*, params):
-        connect_timeout = max(
-            0.1,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)),
-        )
-        probe_timeout = max(
-            0.1,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0)),
-        )
-        http_buffer_sec = max(
-            0.5,
-            float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)),
-        )
-        return connect_timeout + probe_timeout + http_buffer_sec
-
-    def normalize_drone_ids(ids):
-        normalized = sorted({int(drone_id) for drone_id in ids})
-        if not normalized:
-            raise RuntimeError("No drone IDs supplied.")
-        return normalized
-
-    def parse_csv_drone_ids(raw):
-        return normalize_drone_ids(int(part.strip()) for part in str(raw).split(",") if part.strip())
-
-    def write_json_report(path, payload):
-        if path is None:
-            return
-        report_path = Path(path)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
+from src.gcs_api_routes import (
+    GCS_ACTIVE_COMMANDS_ROUTE,
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+)
+from src.live_armability_utils import calculate_live_armability_request_timeout
+from src.params import Params
+from tools.runtime_validation_support import (
+    fetch_and_require_sitl_runtime,
+    normalize_drone_ids,
+    parse_csv_drone_ids,
+    write_json_report,
+)
 
 
 COMMAND_HEARTBEAT_GRACE_SECONDS = max(
@@ -831,6 +783,56 @@ def require_command_success(status: dict[str, Any], *, expected_accepts: int, ex
     )
 
 
+def require_queued_command_batch(
+    response: dict[str, Any],
+    *,
+    expected_action: str,
+    expected_hw_ids: list[str],
+) -> str:
+    """Validate the durable HTTP 202 QuickScout receipt contract."""
+
+    batch = response.get("latest_command_batch") or {}
+    receipt = batch.get("receipt") or {}
+    targets = batch.get("targets") or {}
+    legacy_fields = {
+        "success",
+        "submissions",
+        "last_command_summary",
+        "launched_hw_ids",
+        "accepted_hw_ids",
+        "tracking_status",
+        "results_summary",
+    }
+    unexpected_legacy = sorted(
+        legacy_fields.intersection(response)
+        | legacy_fields.intersection(batch)
+        | legacy_fields.intersection(receipt)
+    )
+    require(
+        not unexpected_legacy,
+        f"QuickScout returned deprecated command fields {unexpected_legacy}: {json.dumps(response, indent=2)}",
+    )
+    require(response.get("mission_id"), f"QuickScout response omitted mission_id: {response}")
+    require(batch.get("action") == expected_action, f"Unexpected QuickScout command action: {response}")
+    require(int(batch.get("attempt") or 0) >= 1, f"QuickScout response omitted a valid attempt: {response}")
+    require(batch.get("state") == "queued", f"QuickScout response was not queued: {response}")
+    require(receipt.get("accepted_for_tracking") is True, f"QuickScout receipt was not tracked: {response}")
+    receipt_targets = [str(hw_id) for hw_id in receipt.get("target_drones") or []]
+    require(
+        list(targets) == receipt_targets and sorted(receipt_targets) == sorted(expected_hw_ids),
+        f"QuickScout target set mismatch. Expected {expected_hw_ids}: {json.dumps(response, indent=2)}",
+    )
+    require(
+        all((targets.get(hw_id) or {}).get("state") == "queued" for hw_id in expected_hw_ids),
+        f"QuickScout response did not expose queued per-target state: {json.dumps(response, indent=2)}",
+    )
+    command_id = str(receipt.get("command_id") or "")
+    require(command_id, f"QuickScout receipt did not include command_id: {json.dumps(response, indent=2)}")
+    require(receipt.get("tracking_url"), f"QuickScout receipt did not include tracking_url: {response}")
+    require("tracking_timeout_ms" not in receipt, f"QuickScout receipt exposed a provisional timeout: {response}")
+    return command_id
+
+
 def validate_findings_and_handoff(
     client: ApiClient,
     mission_id: str,
@@ -1057,21 +1059,12 @@ def main() -> int:
         query={"mission_id": mission_id},
     )
     artifacts["stages"]["launch_response"] = launch_response
-    require(bool(launch_response.get("success")), f"QuickScout launch did not succeed: {json.dumps(launch_response, indent=2)}")
-    launched_hw_ids = sorted(str(hw_id) for hw_id in launch_response.get("launched_hw_ids", []))
-    launch_command_ids = {
-        str((submission.get("command") or {}).get("command_id"))
-        for submission in launch_response.get("submissions", [])
-        if (submission.get("command") or {}).get("command_id")
-    }
-    require(
-        launched_hw_ids == target_hw_ids,
-        f"QuickScout launched hw_ids mismatch. Expected {target_hw_ids}, got {launched_hw_ids}",
+    launch_command_id = require_queued_command_batch(
+        launch_response,
+        expected_action="launch",
+        expected_hw_ids=target_hw_ids,
     )
-    require(
-        int(launch_response.get("drones_failed", 0) or 0) == 0,
-        f"QuickScout launch reported failed drones: {json.dumps(launch_response, indent=2)}",
-    )
+    launch_command_ids = {launch_command_id}
 
     searching_status = wait_status_phase(client, mission_id, {"searching"})
     artifacts["stages"]["searching_status"] = searching_status
@@ -1093,14 +1086,11 @@ def main() -> int:
         query=[("pos_ids", pos_id) for pos_id in target_pos_ids],
     )
     artifacts["stages"]["pause_response"] = pause_response
-    require(bool(pause_response.get("success")), f"QuickScout pause was not accepted: {json.dumps(pause_response, indent=2)}")
-    require(
-        sorted(str(hw_id) for hw_id in pause_response.get("accepted_hw_ids", [])) == target_hw_ids,
-        f"Pause did not target the launched drones: {json.dumps(pause_response, indent=2)}",
+    pause_command_id = require_queued_command_batch(
+        pause_response,
+        expected_action="pause",
+        expected_hw_ids=target_hw_ids,
     )
-    pause_command = pause_response.get("command") or {}
-    pause_command_id = pause_command.get("command_id")
-    require(pause_command_id, "Pause response did not include a tracked command_id")
     pause_command_status = wait_command_terminal(client, pause_command_id, timeout=180)
     artifacts["stages"]["pause_command_status"] = pause_command_status
     require_command_success(
@@ -1123,31 +1113,16 @@ def main() -> int:
         reference_row=target_row_payloads[0],
     )
 
-    resume_response = client.post_json(
-        f"/api/sar/mission/{mission_id}/resume",
-        query=[("pos_ids", pos_id) for pos_id in target_pos_ids],
-    )
-    artifacts["stages"]["resume_response"] = resume_response
-    require(resume_response.get("success") is False, "QuickScout resume unexpectedly succeeded")
-    require(resume_response.get("effect") == "replan_required", f"Unexpected resume effect: {resume_response}")
-    require(resume_response.get("state_changed") is False, f"Resume unexpectedly changed mission state: {resume_response}")
-
-    holding_status_after_resume = client.get_json(f"/api/sar/mission/{mission_id}/status")
-    artifacts["stages"]["holding_status_after_resume"] = holding_status_after_resume
-    require(
-        holding_status_after_resume.get("operation_phase") == "holding",
-        f"Mission left holding after resume rejection: {json.dumps(holding_status_after_resume, indent=2)}",
-    )
-
     abort_response = client.post_json(
         f"/api/sar/mission/{mission_id}/abort",
         query=[*[("pos_ids", pos_id) for pos_id in target_pos_ids], ("return_behavior", args.abort_return_behavior)],
     )
     artifacts["stages"]["abort_response"] = abort_response
-    require(bool(abort_response.get("success")), f"QuickScout abort was not accepted: {json.dumps(abort_response, indent=2)}")
-    abort_command = abort_response.get("command") or {}
-    abort_command_id = abort_command.get("command_id")
-    require(abort_command_id, "Abort response did not include a tracked command_id")
+    abort_command_id = require_queued_command_batch(
+        abort_response,
+        expected_action="abort",
+        expected_hw_ids=target_hw_ids,
+    )
     abort_command_status = wait_command_terminal(client, abort_command_id, timeout=420)
     artifacts["stages"]["abort_command_status"] = abort_command_status
     require_command_success(

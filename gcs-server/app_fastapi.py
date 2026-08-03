@@ -54,14 +54,12 @@ sys.path.append(os.path.join(BASE_DIR, 'src'))
 sys.path.append(BASE_DIR)  # For functions module
 
 from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
-from command import (
+from command_execution_policy import (
     mission_requires_launch_armability_probe,
-    probe_live_armability_for_drones,
     resolve_mission_type,
-    send_commands_to_all,
-    send_commands_to_selected,
 )
 from command_timeout_policy import estimate_command_tracking_timeout_ms
+from fleet_rpc import FleetRPCService
 from config import (
     get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
@@ -71,7 +69,7 @@ from utils import allowed_file, clear_show_directories, git_operations, zip_dire
 from link_presence import get_recent_link_presence
 from params import Params
 from drone_api_routes import DRONE_GIT_STATUS_ROUTE, DRONE_STATE_ROUTE
-from enums import Mission
+from src.enums import Mission
 from get_elevation import get_elevation
 from origin import (
     build_desired_launch_positions_report,
@@ -91,8 +89,23 @@ from heartbeat import (
 from fleet_candidates import get_fleet_candidate_registry
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
+from command_submission_coordinator import CommandSubmissionCoordinator
 from src import __version__ as MDS_VERSION
 from src.telemetry_display import build_altitude_report
+
+
+# One lifespan-owned async transport keeps fleet fan-out off the ASGI event
+# loop and enforces shared routine/recovery concurrency budgets.
+fleet_rpc_service = FleetRPCService(Params)
+command_submission_coordinator = CommandSubmissionCoordinator(Params)
+
+
+def get_fleet_rpc_service() -> FleetRPCService:
+    return fleet_rpc_service
+
+
+def get_command_submission_coordinator() -> CommandSubmissionCoordinator:
+    return command_submission_coordinator
 
 # Import SAR router
 from api_routes.fleet_candidates import create_fleet_candidates_router
@@ -789,7 +802,7 @@ def _build_background_unavailable_record(
         "ip": existing.get("ip", ip),
         "telemetry_available": False,
         "telemetry_error": error_message,
-        "heartbeat_last_seen": heartbeat_data.get("timestamp"),
+        "heartbeat_last_seen": heartbeat_data.get("received_at_gcs_ms", heartbeat_data.get("timestamp")),
         "heartbeat_network_info": heartbeat_data.get("network_info") or {},
         "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
         "telemetry_last_update_age_ms": None,
@@ -819,7 +832,7 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
         "ip": data.get("ip", ip),
         "telemetry_available": data.get("telemetry_available", True),
         "telemetry_error": data.get("telemetry_error"),
-        "heartbeat_last_seen": heartbeat_data.get("timestamp"),
+        "heartbeat_last_seen": heartbeat_data.get("received_at_gcs_ms", heartbeat_data.get("timestamp")),
         "heartbeat_network_info": heartbeat_data.get("network_info") or {},
         "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
     }
@@ -878,6 +891,27 @@ async def lifespan(app: FastAPI):
     else:
         log_system_event(f"Loaded {len(drones)} drone(s) from configuration", "INFO", "startup")
 
+    tracker = init_command_tracker(
+        mission_enum=Mission,
+        default_timeout_ms=Params.COMMAND_TRACKING_DEFAULT_TIMEOUT_MS,
+        state_dir=Params.GCS_COMMAND_STATE_DIR,
+    )
+    reconciliation = await tracker.reconcile_after_restart()
+    if reconciliation["restored_commands"]:
+        log_system_event(
+            (
+                "Restored durable command journal "
+                f"({reconciliation['restored_commands']} tracked, "
+                f"{reconciliation['failed_before_dispatch']} interrupted before dispatch, "
+                f"{reconciliation['delivery_unknown_targets']} delivery-unknown targets)"
+            ),
+            "INFO",
+            "command",
+        )
+
+    await fleet_rpc_service.start()
+    await command_submission_coordinator.start()
+
     # Start background services even with an empty manifest so runtime fleet
     # changes can reconcile in-process without requiring a backend restart.
     await background_services.start(drones)
@@ -891,8 +925,13 @@ async def lifespan(app: FastAPI):
 
     # Shutdown - only runs in worker process
     log_system_event("GCS FastAPI server shutting down...", "INFO", "shutdown")
+    # Command preparation may still need FleetRPC while it drains, so stop it
+    # before closing shared transports and background services.
+    await command_submission_coordinator.stop()
     await background_puller.stop()
     await background_services.stop()
+    await fleet_rpc_service.close()
+    tracker.close()
     log_system_event("GCS FastAPI server stopped", "INFO", "shutdown")
 
 

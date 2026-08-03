@@ -178,7 +178,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands",
         "/api/v1/command-reports/execution-result",
         "/api/v1/command-reports/execution-start",
-        "/api/v1/git/sync-operations",
         "/api/v1/origin/compute",
         "/api/v1/px4-params/diff",
         "/api/v1/px4-params/imports/qgc",
@@ -229,7 +228,6 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/mission/plan/jobs/{job_id}/cancel",
         "/api/sar/mission/launch",
         "/api/sar/mission/{mission_id}/pause",
-        "/api/sar/mission/{mission_id}/resume",
         "/api/sar/mission/{mission_id}/abort",
         "/api/sar/mission/{mission_id}/progress",
         "/api/sar/mission/{mission_id}/revalidate-launch",
@@ -298,6 +296,7 @@ DRONE_EXPECTED_HTTP = {
     },
     "POST": {
         "/api/v1/drone/commands",
+        "/api/v1/preflight/launch-preparations",
         "/api/v1/sidecars/{sidecar}/profiles/{action}",
         "/api/v1/px4-params/snapshots/refresh",
         "/api/v1/px4-params/patches/apply",

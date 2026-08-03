@@ -1313,14 +1313,14 @@ const Px4ParametersPage = () => {
     setSingleNotice(buildNotice('info', 'Dispatching PX4 reboot', `Submitting reboot for ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`, true));
     try {
       await submitCommandWithLifecycleFeedback({
-        missionType: String(DRONE_ACTION_TYPES.REBOOT_FC),
-        target_drones: [String(selectedDrone.hw_id)],
-        triggerTime: '0',
+        mission_type: DRONE_ACTION_TYPES.REBOOT_FC,
+        target_drone_ids: [String(selectedDrone.hw_id)],
+        trigger_time: 0,
         uiMeta: {
           operatorLabel: 'Reboot PX4',
         },
       }, {
-        onCommandAccepted: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot accepted')),
+        onSubmissionTracked: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot tracking started')),
         onStatusUpdate: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot update')),
         onTrackingComplete: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot complete')),
         onTrackingUnavailable: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot status unavailable')),

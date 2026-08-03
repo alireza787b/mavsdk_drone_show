@@ -100,7 +100,6 @@ QuickScout routes intentionally use the stable `/api/sar` subsystem root.
 | `GET` | `/api/sar/mission/{mission_id}/status` | Read mission status and drone progress. |
 | `GET` | `/api/sar/mission/{mission_id}/handoff` | Export the mission handoff bundle. |
 | `POST` | `/api/sar/mission/{mission_id}/pause` | Pause/hold where available. |
-| `POST` | `/api/sar/mission/{mission_id}/resume` | Resume a paused mission where available. |
 | `POST` | `/api/sar/mission/{mission_id}/abort` | Abort with explicit return behavior. |
 | `POST` | `/api/sar/mission/{mission_id}/progress` | Drone-side progress reporting. |
 | `POST` | `/api/sar/findings` | Create a finding. |
@@ -110,6 +109,9 @@ QuickScout routes intentionally use the stable `/api/sar` subsystem root.
 | `POST` | `/api/sar/elevation/batch` | Batch terrain/elevation lookup. |
 
 Planning job state is in memory. A GCS restart may lose active job status, but persisted mission packages and findings remain in the QuickScout store.
+
+Paused coverage is not directly resumable. Hold the active package, then create
+a follow-up plan from the current aircraft state.
 
 ## Implementation Map
 

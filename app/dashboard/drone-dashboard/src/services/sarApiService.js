@@ -96,13 +96,6 @@ export const pauseMission = async (missionId, posIds = null) => {
   return response.data;
 };
 
-export const resumeMission = async (missionId, posIds = null) => {
-  const response = await postGcsResource(
-    buildSarUrl(`/mission/${encodeURIComponent(missionId)}/resume${buildQueryString({ pos_ids: posIds })}`)
-  );
-  return response.data;
-};
-
 export const abortMission = async (missionId, posIds = null, returnBehavior = 'return_home') => {
   const response = await postGcsResource(
     buildSarUrl(

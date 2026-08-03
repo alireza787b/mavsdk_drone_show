@@ -281,13 +281,37 @@ class OnboardUlogService:
             job.updated_at = self._now_ms()
             fallback_file = self._job_fallback_files.get(job_id)
 
+        stage_identity: tuple[int, int] | None = None
         try:
-            stage_identity = self._prepare_stage_file(stage_path)
-            async with self._lock:
-                self._job_stage_identities[job_id] = stage_identity
+            if fallback_file is not None:
+                stage_identity = self._prepare_stage_file(stage_path)
+                async with self._lock:
+                    self._job_stage_identities[job_id] = stage_identity
+            else:
+                # MAVSDK creates the destination itself and rejects an existing
+                # file with INVALID_ARGUMENT. Keep the random destination absent
+                # until MAVSDK opens it, then pin the created inode below.
+                self._prepare_stage_destination(stage_path)
+
+            async def _capture_downloaded_stage_identity() -> tuple[int, int]:
+                nonlocal stage_identity
+                if stage_identity is None:
+                    stage_identity = self._capture_stage_file_identity(stage_path)
+                    async with self._lock:
+                        current = self._jobs.get(job_id)
+                        if current is None:
+                            raise UlogNotFoundError(
+                                f"ULog download job {job_id} disappeared"
+                            )
+                        self._job_stage_identities[job_id] = stage_identity
+                return stage_identity
 
             async def _download() -> None:
                 if fallback_file is not None:
+                    if stage_identity is None:  # pragma: no cover - defensive invariant
+                        raise UlogUnsafePathError(
+                            f"ULog download job {job_id} has no trusted staging identity"
+                        )
                     await asyncio.to_thread(
                         self._copy_file_bounded,
                         fallback_file,
@@ -319,9 +343,10 @@ class OnboardUlogService:
                         )
                     except StopAsyncIteration:
                         break
+                    current_identity = await _capture_downloaded_stage_identity()
                     staged_size = self._assert_staged_size(
                         stage_path,
-                        expected_identity=stage_identity,
+                        expected_identity=current_identity,
                     )
                     self._assert_free_space_reserve(stage_path.parent)
                     async with self._lock:
@@ -335,11 +360,19 @@ class OnboardUlogService:
                         current.progress = max(0.0, min(1.0, float(progress.progress)))
                         current.updated_at = self._now_ms()
 
+                # A conforming downloader normally yields progress, but a
+                # completed zero-event stream must still produce and pin a file.
+                await _capture_downloaded_stage_identity()
+
             await asyncio.wait_for(
                 _download(),
                 timeout=ulog_download_timeout_seconds(),
             )
 
+            if stage_identity is None:  # pragma: no cover - defensive invariant
+                raise UlogUnsafePathError(
+                    f"ULog download job {job_id} has no trusted staging identity"
+                )
             staged_size = self._assert_staged_size(
                 stage_path,
                 expected_identity=stage_identity,
@@ -989,6 +1022,81 @@ class OnboardUlogService:
             return int(file_stat.st_dev), int(file_stat.st_ino)
         finally:
             os.close(file_fd)
+
+    def _prepare_stage_destination(self, stage_path: Path) -> None:
+        """Validate a confined, absent destination for MAVSDK to create."""
+
+        stage_dir = self._secure_stage_dir(create=True)
+        if stage_path.parent != stage_dir:
+            raise UlogUnsafePathError(
+                f"ULog stage file escapes the staging directory: {stage_path}"
+            )
+        parent_fd = self._open_directory_fd(stage_dir)
+        try:
+            self._assert_open_directory_identity(parent_fd, stage_dir)
+            try:
+                file_stat = os.stat(
+                    stage_path.name,
+                    dir_fd=parent_fd,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                return
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise UlogUnsafePathError(
+                    f"Unsafe ULog stage destination already exists: {stage_path}"
+                )
+            raise UlogJobConflictError(
+                f"ULog stage file already exists: {stage_path.name}"
+            )
+        except UlogServiceError:
+            raise
+        except OSError as exc:
+            raise UlogStorageError(
+                f"Unable to inspect ULog stage destination {stage_path}: {exc}"
+            ) from exc
+        finally:
+            os.close(parent_fd)
+
+    def _capture_stage_file_identity(self, stage_path: Path) -> tuple[int, int]:
+        """Open and pin the regular file created by the MAVSDK downloader."""
+
+        stage_dir = self._secure_stage_dir(create=False)
+        if stage_path.parent != stage_dir:
+            raise UlogUnsafePathError(
+                f"ULog stage file escapes the staging directory: {stage_path}"
+            )
+        parent_fd = self._open_directory_fd(stage_dir)
+        try:
+            self._assert_open_directory_identity(parent_fd, stage_dir)
+            try:
+                file_fd = os.open(
+                    stage_path.name,
+                    os.O_RDONLY
+                    | int(getattr(os, "O_NONBLOCK", 0))
+                    | self._nofollow_flags(),
+                    dir_fd=parent_fd,
+                )
+            except FileNotFoundError as exc:
+                raise UlogStorageError(
+                    f"MAVSDK did not create the ULog stage file: {stage_path}"
+                ) from exc
+            except OSError as exc:
+                raise UlogUnsafePathError(
+                    f"Unable to open MAVSDK ULog stage file safely: {stage_path}"
+                ) from exc
+            try:
+                file_stat = os.fstat(file_fd)
+                if not stat.S_ISREG(file_stat.st_mode):
+                    raise UlogUnsafePathError(
+                        f"ULog stage path is not a regular file: {stage_path}"
+                    )
+                os.fchmod(file_fd, 0o600)
+                return int(file_stat.st_dev), int(file_stat.st_ino)
+            finally:
+                os.close(file_fd)
+        finally:
+            os.close(parent_fd)
 
     def _stage_file_stat(
         self,

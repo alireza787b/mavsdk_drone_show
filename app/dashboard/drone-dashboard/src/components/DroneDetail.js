@@ -21,6 +21,7 @@ import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { getDroneDisplayIdentity } from '../utilities/dronePresentation';
 import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import { getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
+import { getBatteryPresentation } from '../utilities/batteryPresentation';
 
 const POLLING_RATE_HZ = 2;
 
@@ -63,13 +64,6 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       clearInterval(pollingInterval);
     };
   }, [droneId]);
-
-  const getBatteryStatus = (voltage) => {
-    if (voltage >= 16.0) return { class: 'excellent', color: 'var(--color-success)', tone: 'good', label: 'Excellent' };
-    if (voltage >= 15.5) return { class: 'good', color: 'var(--color-success)', tone: 'good', label: 'Good' };
-    if (voltage >= 14.5) return { class: 'warning', color: 'var(--color-warning)', tone: 'warning', label: 'Warning' };
-    return { class: 'critical', color: 'var(--color-danger)', tone: 'danger', label: 'Critical' };
-  };
 
   const getGpsStatus = (fixType, hdop) => {
     if (fixType >= 5) return { class: 'rtk', color: 'var(--color-primary)', tone: 'primary', label: 'RTK' };
@@ -118,7 +112,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   );
 
   const isArmed = detailedDrone[FIELD_NAMES.IS_ARMED] || false;
-  const batteryStatus = getBatteryStatus(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0);
+  const batteryStatus = getBatteryPresentation(detailedDrone);
   const gpsStatus = getGpsStatus(
     detailedDrone[FIELD_NAMES.GPS_FIX_TYPE] || 0,
     detailedDrone[FIELD_NAMES.HDOP] || 99.99
@@ -168,7 +162,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="status-info">
             <div className="status-label">Battery</div>
-            <div className="status-value">{(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0).toFixed(1)}V</div>
+            <div className="status-value" data-help={batteryStatus.help} title={batteryStatus.help}>{batteryStatus.text}</div>
             <div className={`status-sub status-sub--${batteryStatus.tone}`}>
               {batteryStatus.label}
             </div>

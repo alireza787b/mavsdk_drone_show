@@ -1596,10 +1596,10 @@ def _flight_payload_step_label(payload: Mapping[str, Any], *, fallback: str = "f
     mission_type = payload.get("mission_type")
     mission_name = str(payload.get("mission_name") or "").strip().upper()
     label = {
-        10: "Take off",
-        101: "Land",
-        104: "Return to launch",
-        112: "Precision move",
+        Mission.TAKE_OFF.value: "Take off",
+        Mission.LAND.value: "Land",
+        Mission.RETURN_RTL.value: "Return to launch",
+        Mission.PRECISION_MOVE.value: "Precision move",
         "TAKE_OFF": "Take off",
         "LAND": "Land",
         "RETURN_RTL": "Return to launch",
@@ -1610,10 +1610,13 @@ def _flight_payload_step_label(payload: Mapping[str, Any], *, fallback: str = "f
         "RETURN_RTL": "Return to launch",
         "PRECISION_MOVE": "Precision move",
     }.get(mission_name, fallback.replace("_", " ").strip().title() or "Flight command"))
-    if mission_type == 10 or mission_name == "TAKE_OFF":
+    if mission_type == Mission.TAKE_OFF.value or mission_name == Mission.TAKE_OFF.name:
         altitude = _format_metric_meters(payload.get("takeoff_altitude"))
         return f"{label} to {altitude}" if altitude else label
-    if mission_type == 112 or mission_name == "PRECISION_MOVE":
+    if (
+        mission_type == Mission.PRECISION_MOVE.value
+        or mission_name == Mission.PRECISION_MOVE.name
+    ):
         precision_move = payload.get("precision_move") if isinstance(payload.get("precision_move"), Mapping) else {}
         translation = precision_move.get("translation_m") if isinstance(precision_move, Mapping) else None
         return f"{label}: {_precision_translation_summary(translation)}"
@@ -5630,8 +5633,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 )
             )
         command_id = response_payload.get("command_id") or "unknown"
-        status = response_payload.get("status") or "submitted"
-        target_drones = response_payload.get("target_drones") or list(draft.target_drone_ids)
+        target_drones = list(draft.target_drone_ids)
         total_steps = 1 + len(draft.post_actions)
         primary_complete = bool(monitor_result and monitor_result.get("success"))
         completed_steps = (1 if primary_complete else 0) + sum(
@@ -6267,8 +6269,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                         else dict(action_response or {})
                     )
                     command_id = str(response_payload.get("command_id") or "").strip()
-                    summary = response_payload.get("results_summary") or response_payload.get("message") or ""
-                    final_status = str(response_payload.get("status") or "submitted")
+                    summary = response_payload.get("message") or ""
+                    final_status = "tracking"
                     monitor_status: Mapping[str, Any] | None = None
                     if command_id:
                         monitor_status = await _monitor_command_until_terminal(
@@ -6587,7 +6589,11 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     "verified": True,
                     "summary": (
                         "Fresh target telemetry confirms landed and disarmed state"
-                        + (" within the configured home threshold." if mission_type == 104 else ".")
+                        + (
+                            " within the configured home threshold."
+                            if mission_type == Mission.RETURN_RTL.value
+                            else "."
+                        )
                     ),
                     "mission_type": mission_type,
                     "thresholds": _final_state_thresholds(),

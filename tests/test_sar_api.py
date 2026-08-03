@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gcs-server'))
 from fastapi.testclient import TestClient
 from sar.schemas import SurveyState
 from sar.coverage_planner import SHAPELY_AVAILABLE
+from tests.helpers.command_submission import DeferredSubmissionCoordinator
 
 # Skip all tests if shapely not installed
 pytestmark = pytest.mark.skipif(not SHAPELY_AVAILABLE, reason="shapely not installed")
@@ -70,25 +71,32 @@ def mock_background_services():
 
 @pytest.fixture
 def client():
-    """Create TestClient with mocked telemetry and config."""
+    """Create a route client with explicitly owned deferred command work.
+
+    This legacy fixture intentionally does not enter the full GCS lifespan.
+    Give command-producing SAR routes the same deterministic coordinator used
+    by other route tests instead of weakening production's fail-closed
+    pre-lifespan admission boundary.
+    """
     with patch('app_fastapi.load_config', return_value=MOCK_CONFIG):
         with patch('app_fastapi.telemetry_data_all_drones', make_mock_telemetry()):
-            from app_fastapi import app
-            yield TestClient(app)
+            with patch(
+                'app_fastapi.command_submission_coordinator',
+                DeferredSubmissionCoordinator(),
+            ):
+                from app_fastapi import app
+                yield TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def reset_managers(tmp_path, monkeypatch):
     """Reset QuickScout singletons and isolate durable state between tests."""
     monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
-    import sar.mission_manager as mm
     import sar.service as svc
     import sar.store as store
-    mm._manager_instance = None
     svc._service_instance = None
     store._store_instance = None
     yield
-    mm._manager_instance = None
     svc._service_instance = None
     store._store_instance = None
 
@@ -432,51 +440,75 @@ class TestMissionStatus:
         assert payload["error"] == "Not found"
         assert payload["detail"] == "Mission nonexistent not found"
 
+    def test_status_reports_mixed_subset_control_state_without_calling_it_partial_launch(self, client):
+        response = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0, 1]))
+        mission_id = response.json()["mission_id"]
+
+        from sar.service import get_quickscout_service
+
+        service = get_quickscout_service()
+        operation = service.store.get_operation(mission_id)
+        operation.state = SurveyState.EXECUTING
+        operation.drone_states["1"].state = SurveyState.EXECUTING
+        operation.drone_states["2"].state = SurveyState.PAUSED
+        operation.started_at = time.time()
+        service.store.save_operation(operation)
+
+        status = client.get(f"/api/sar/mission/{mission_id}/status")
+
+        assert status.status_code == 200
+        payload = status.json()
+        assert payload["operation_phase"] == "mixed_control"
+        assert payload["control_availability"]["pause_enabled"] is True
+        assert payload["control_availability"]["replan_enabled"] is True
+        assert payload["control_availability"]["abort_enabled"] is True
+        assert "1 searching, 1 holding" in payload["status_summary"]
+
 
 class TestMissionLifecycle:
     def _plan_and_get_id(self, client):
         resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
         return resp.json()["mission_id"]
 
+    @staticmethod
+    def _set_executing_fixture_state(mission_id):
+        """Seed the route precondition; tracker integration is covered separately."""
+        from sar.service import get_quickscout_service
+
+        service = get_quickscout_service()
+        operation = service.store.get_operation(mission_id)
+        operation.state = SurveyState.EXECUTING
+        operation.drone_states["1"].state = SurveyState.EXECUTING
+        operation.started_at = time.time()
+        service.store.save_operation(operation)
+
     def test_pause_mission(self, client):
-        """POST /pause should succeed for existing mission."""
+        """POST /pause should queue one tracked command for an executing mission."""
         mid = self._plan_and_get_id(client)
-        # Start mission first (via manager directly since launch needs real drones)
-        from sar.mission_manager import get_mission_manager
-        get_mission_manager().start_mission(mid)
+        self._set_executing_fixture_state(mid)
 
         resp = client.post(f"/api/sar/mission/{mid}/pause")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         payload = resp.json()
-        assert payload["effect"] in {"command_accepted", "command_rejected"}
-        assert isinstance(payload["state_changed"], bool)
+        assert payload["latest_command_batch"]["action"] == "pause"
+        assert payload["latest_command_batch"]["state"] == "queued"
+        assert "success" not in payload
 
-    def test_resume_mission(self, client):
-        """POST /resume should return replan guidance for paused mission."""
+    def test_resume_endpoint_is_removed(self, client):
         mid = self._plan_and_get_id(client)
-        mgr = __import__('sar.mission_manager', fromlist=['get_mission_manager']).get_mission_manager()
-        mgr.start_mission(mid)
-        mgr.pause_mission(mid)
 
         resp = client.post(f"/api/sar/mission/{mid}/resume")
-        assert resp.status_code == 200
-        payload = resp.json()
-        assert payload["success"] is False
-        assert payload["effect"] == "replan_required"
-        assert payload["state_changed"] is False
-        assert "follow-up package" in payload["operator_guidance"].lower()
-        status = client.get(f"/api/sar/mission/{mid}/status").json()
-        assert status["state"] == SurveyState.PAUSED.value
-        assert status["operation_phase"] == "holding"
+        assert resp.status_code == 404
 
     def test_abort_mission(self, client):
-        """POST /abort should succeed for existing mission."""
+        """POST /abort should queue one tracked command for an executing mission."""
         mid = self._plan_and_get_id(client)
+        self._set_executing_fixture_state(mid)
         resp = client.post(f"/api/sar/mission/{mid}/abort")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         data = resp.json()
-        assert data["return_behavior"] == "return_home"
-        assert data["effect"] in {"command_accepted", "command_rejected"}
+        assert data["latest_command_batch"]["return_behavior"] == "return_home"
+        assert data["latest_command_batch"]["action"] == "abort"
 
     def test_pause_not_found(self, client):
         """POST /pause for unknown mission should return 404."""
@@ -487,7 +519,7 @@ class TestMissionLifecycle:
         assert payload["detail"] == "Mission nonexistent not found"
 
     def test_progress_report(self, client):
-        """POST /progress should update drone state."""
+        """POST /progress must not become a competing lifecycle authority."""
         mid = self._plan_and_get_id(client)
 
         report = {
@@ -497,16 +529,16 @@ class TestMissionLifecycle:
             "distance_covered_m": 150.0,
         }
         resp = client.post(f"/api/sar/mission/{mid}/progress", json=report)
-        assert resp.status_code == 200
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "quickscout_progress_before_execution"
 
-        # Check status reflects progress
         status = client.get(f"/api/sar/mission/{mid}/status").json()
         drone_state = status["drone_states"].get("1")
         if drone_state:
             assert drone_state["pos_id"] == 0
-            assert drone_state["current_waypoint_index"] == 5
-            assert drone_state["coverage_percent"] == 25.0
-            assert drone_state["status_note"] == "Executing assigned search track"
+            assert drone_state["current_waypoint_index"] == 0
+            assert drone_state["coverage_percent"] == 0.0
+            assert drone_state["state"] == "ready"
 
 
 class TestFindingEndpoints:

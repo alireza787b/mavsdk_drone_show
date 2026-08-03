@@ -4,17 +4,20 @@ import time
 import traceback
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from fastapi import APIRouter, Header, HTTPException, Path as PathParam, Query
 
 from command_submission import (
     CommandIdempotencyConflictError,
-    estimate_max_target_relative_altitude_m as _estimate_max_target_relative_altitude_m,
     submit_tracked_command,
 )
-from enums import Mission
+from command_tracker import (
+    CommandCallbackAuthenticationError,
+    CommandTrackerCapacityError,
+)
+from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
 from schemas import (
+    CommandSubmissionReceipt,
     CommandListResponse,
-    CommandOutcome,
     CommandPhase,
     PrecisionMovePolicyResponse,
     CommandStatisticsResponse,
@@ -25,7 +28,6 @@ from schemas import (
     ExecutionStartRequest,
     ExecutionStartResponse,
     SubmitCommandRequest,
-    SubmitCommandResponse,
 )
 
 def _build_precision_move_policy_payload(params: Any) -> dict[str, Any]:
@@ -76,7 +78,12 @@ def create_command_router(deps: Any) -> APIRouter:
         """Get the current runtime policy envelope for Precision Move."""
         return PrecisionMovePolicyResponse.model_validate(_build_precision_move_policy_payload(deps.Params))
 
-    @router.post("/api/v1/commands", response_model=SubmitCommandResponse, tags=["Commands"])
+    @router.post(
+        "/api/v1/commands",
+        response_model=CommandSubmissionReceipt,
+        status_code=202,
+        tags=["Commands"],
+    )
     async def submit_command(command: SubmitCommandRequest):
         """
         Submit command to drones with tracking.
@@ -84,15 +91,12 @@ def create_command_router(deps: Any) -> APIRouter:
         Returns a command_id that can be used to track the command's progress via
         GET /api/v1/commands/{command_id} endpoint.
         """
-        if int(command.mission_type) == int(Mission.UPDATE_CODE.value):
-            raise HTTPException(
-                status_code=400,
-                detail="UPDATE_CODE is restricted to Fleet Ops Git Sync dry-run and explicit apply.",
-            )
         try:
             return await submit_tracked_command(deps, command)
         except CommandIdempotencyConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except CommandTrackerCapacityError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         except HTTPException:
             raise
         except Exception as exc:
@@ -164,24 +168,42 @@ def create_command_router(deps: Any) -> APIRouter:
         return status
 
     @router.post("/api/v1/command-reports/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])
-    async def report_execution_result(report: ExecutionReportRequest):
+    async def report_execution_result(
+        report: ExecutionReportRequest,
+        command_report_capability: Optional[str] = Header(
+            None,
+            alias=GCS_COMMAND_REPORT_CAPABILITY_HEADER,
+        ),
+    ):
         """Endpoint for drones to report command execution results."""
         tracker = deps.get_command_tracker()
 
-        success = await tracker.record_execution(
-            command_id=report.command_id,
-            hw_id=report.hw_id,
-            success=report.success,
-            error_message=report.error_message,
-            exit_code=report.exit_code,
-            script_output=report.script_output,
-            duration_ms=report.duration_ms,
-        )
+        try:
+            success = await tracker.record_execution(
+                command_id=report.command_id,
+                hw_id=report.hw_id,
+                success=report.success,
+                error_message=report.error_message,
+                exit_code=report.exit_code,
+                script_output=report.script_output,
+                duration_ms=report.duration_ms,
+                callback_capability=command_report_capability,
+            )
+        except CommandCallbackAuthenticationError as exc:
+            deps.log_system_warning(
+                "Rejected unauthenticated command execution-result callback",
+                "command",
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         if not success:
             deps.log_system_warning(
-                f"Execution report for unknown command {report.command_id} from {report.hw_id}",
+                f"Execution report contradicted command lifecycle for {report.command_id} from {report.hw_id}",
                 "command",
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Execution report conflicts with the recorded command lifecycle",
             )
 
         status = await tracker.get_status(report.command_id)
@@ -196,19 +218,37 @@ def create_command_router(deps: Any) -> APIRouter:
         )
 
     @router.post("/api/v1/command-reports/execution-start", response_model=ExecutionStartResponse, tags=["Commands"])
-    async def report_execution_start(report: ExecutionStartRequest):
+    async def report_execution_start(
+        report: ExecutionStartRequest,
+        command_report_capability: Optional[str] = Header(
+            None,
+            alias=GCS_COMMAND_REPORT_CAPABILITY_HEADER,
+        ),
+    ):
         """Endpoint for drones to report that command execution has actually started."""
         tracker = deps.get_command_tracker()
 
-        success = await tracker.record_execution_start(
-            command_id=report.command_id,
-            hw_id=report.hw_id,
-        )
+        try:
+            success = await tracker.record_execution_start(
+                command_id=report.command_id,
+                hw_id=report.hw_id,
+                callback_capability=command_report_capability,
+            )
+        except CommandCallbackAuthenticationError as exc:
+            deps.log_system_warning(
+                "Rejected unauthenticated command execution-start callback",
+                "command",
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         if not success:
             deps.log_system_warning(
-                f"Execution-start report for unknown command {report.command_id} from {report.hw_id}",
+                f"Execution-start report contradicted command lifecycle for {report.command_id} from {report.hw_id}",
                 "command",
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Execution-start report conflicts with the recorded command lifecycle",
             )
 
         status = await tracker.get_status(report.command_id)

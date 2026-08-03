@@ -81,7 +81,7 @@ def test_estimate_command_tracking_timeout_includes_future_trigger_delay(monkeyp
 
     timeout_ms = estimate_command_tracking_timeout_ms(
         Mission.TAKE_OFF,
-        command_data={"triggerTime": int(fake_now) + 45},
+        command_data={"trigger_time": int(fake_now) + 45},
         params=_MockParams,
     )
 
@@ -118,7 +118,7 @@ def test_estimate_command_tracking_timeout_for_swarm_trajectory_adds_end_behavio
     assert timeout_ms == int(expected_duration_s * 1000)
 
 
-def test_estimate_command_tracking_timeout_accepts_foreign_enum_like_objects(tmp_path):
+def test_estimate_command_tracking_timeout_rejects_parallel_foreign_enum_identity(tmp_path):
     class ForeignMission(Enum):
         SWARM_TRAJECTORY = 4
 
@@ -133,8 +133,7 @@ def test_estimate_command_tracking_timeout_accepts_foreign_enum_like_objects(tmp
         params=_MockParams,
     )
 
-    expected_duration_s = (100 * _MockParams.SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER) + 120 + 300
-    assert timeout_ms == int(expected_duration_s * 1000)
+    assert timeout_ms == _MockParams.COMMAND_TRACKING_DEFAULT_TIMEOUT_MS
 
 
 def test_estimate_command_tracking_timeout_for_swarm_trajectory_filters_target_drones(tmp_path):

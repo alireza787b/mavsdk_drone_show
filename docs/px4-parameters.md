@@ -19,8 +19,8 @@ Design rules:
 - repo-backed parameter profiles live under `resources/px4_param_profiles/` so
   fleet baselines follow the same repo-managed asset model as other operator
   configuration artifacts
-- the older common-params CSV compatibility path defaults to
-  `resources/common_params.csv`, not an ad hoc project-root file
+- all reusable baselines use the same typed profile contract; there is no
+  parallel CSV/action mutation path
 
 ## Current v1 Capabilities
 
@@ -68,7 +68,7 @@ Design rules:
 - preview a saved profile against the currently selected drone snapshot
 - load the selected profile directly into the Batch workspace for tracked apply
 - use this workspace as the operator-facing home for repeatable fleet baselines
-  instead of the older one-off `Apply Common Params` action path
+  and keep all parameter mutations on this single typed, reviewed path
 
 ## Metadata Source Rules
 
@@ -185,8 +185,8 @@ Configuration:
 
 - live fleet config remains in root `config*.json` / `swarm*.json`
 - reviewed PX4 parameter profiles live in `resources/px4_param_profiles/`
-- the legacy `APPLY_COMMON_PARAMS` action reads `resources/common_params.csv`
-  by default until the action pipeline is fully converged
+- `mds_multidrone_field_baseline.json` is the reviewed multidrone field profile
+  with diff/readback/audit semantics
 - generated mission outputs belong under `shapes/` or `shapes_sitl/`, not in
   the PX4 profile library
 
@@ -196,11 +196,6 @@ doctrine.
 ## Deferred Follow-Up
 
 - tracked long-running patch jobs if real fleets need asynchronous apply flows
-- migration or retirement of the older `APPLY_COMMON_PARAMS` workflow after the
-  action-pipeline audit
-- convergence of the older `INIT_SYSID` action onto the same shared PX4
-  parameter write path, while keeping it a maintenance control rather than
-  duplicating it inside the main runtime parameter workspace
 - optional firmware/build identity reporting only after there is one clean
   vehicle-served source for PX4 version data; do not invent or hardcode it in
   the page

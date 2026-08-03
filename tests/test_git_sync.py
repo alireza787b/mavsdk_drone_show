@@ -198,24 +198,10 @@ class TestGitStatusSchemas:
         )
         assert response.git_result is None
 
-    def test_sync_repos_request(self):
-        """Test SyncReposRequest schema"""
-        from schemas import SyncReposRequest
-        req = SyncReposRequest(pos_ids=[1, 2, 3], force_pull=True)
-        assert req.pos_ids == [1, 2, 3]
-        assert req.force_pull is True
-
-    def test_sync_repos_request_defaults(self):
-        """Test SyncReposRequest default values"""
-        from schemas import SyncReposRequest
-        req = SyncReposRequest()
-        assert req.pos_ids is None
-        assert req.force_pull is False
-
-    def test_sync_repos_response(self):
-        """Test SyncReposResponse schema"""
-        from schemas import SyncReposResponse
-        resp = SyncReposResponse(
+    def test_fleet_git_sync_apply_response(self):
+        """Test the canonical Fleet Ops git-sync apply response schema."""
+        from schemas import FleetGitSyncApplyResponse
+        resp = FleetGitSyncApplyResponse(
             success=True,
             message="Sync complete",
             synced_drones=[1, 2],

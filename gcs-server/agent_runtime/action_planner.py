@@ -13,6 +13,8 @@ from dataclasses import dataclass, replace as dataclass_replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
+from src.enums import Mission
+
 try:  # pragma: no cover - import path differs in direct script/tests
     from .action_preconditions import ActionPrecondition
     from .query_adaptation import normalize_operator_query_text
@@ -43,10 +45,13 @@ SITL_BATCH_ACTION_TOOL_ID = "mds.sitl.instances.action"
 SITL_ACTION_INTENT = "sitl_lifecycle_action"
 
 _MISSION_TYPES = {
-    "TAKE_OFF": 10,
-    "LAND": 101,
-    "RETURN_RTL": 104,
-    "PRECISION_MOVE": 112,
+    mission.name: mission.value
+    for mission in (
+        Mission.TAKE_OFF,
+        Mission.LAND,
+        Mission.RETURN_RTL,
+        Mission.PRECISION_MOVE,
+    )
 }
 _TERMINAL_LANDING_MISSIONS = frozenset({"LAND", "RETURN_RTL"})
 

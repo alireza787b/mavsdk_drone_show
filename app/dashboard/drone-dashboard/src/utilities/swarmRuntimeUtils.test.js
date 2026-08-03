@@ -79,13 +79,12 @@ describe('swarmRuntimeUtils', () => {
     });
   });
 
-  test('buildSwarmRuntimeCommand preserves action mission type and explicit scope metadata', () => {
+  test('buildSwarmRuntimeCommand returns the canonical selected-target envelope', () => {
     expect(buildSwarmRuntimeCommand(SWARM_RUNTIME_ACTIONS.STOP_HOLD.key, ['2', '3'])).toEqual({
-      missionType: '102',
-      triggerTime: '0',
-      target_drones: ['2', '3'],
-      operatorLabel: 'Stop Smart Swarm (Hold)',
-      command_scope: 'smart_swarm_runtime',
+      mission_type: 102,
+      trigger_time: 0,
+      target_drone_ids: ['2', '3'],
+      operator_label: 'Stop Smart Swarm (Hold)',
     });
   });
 

@@ -21,6 +21,13 @@ from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
+from mds_logging.ulog_timestamp_evidence import (
+    bounded_topic_names,
+    derive_ulog_duration,
+    scan_ulog_timestamp_envelope,
+    ulog_observability_warnings,
+)
+
 
 ULOG_SUMMARY_TOPIC_FILTER: tuple[str, ...] = (
     "battery_status",
@@ -431,6 +438,18 @@ def summarize_ulog_file(
         name: _dataset_sample_count(dataset)
         for name, dataset in sorted(datasets.items())
     }
+    timestamp_envelope = scan_ulog_timestamp_envelope(log_path, ulog)
+    duration_sec, duration_evidence = derive_ulog_duration(ulog, timestamp_envelope)
+    logged_topics, logged_topic_count, logged_topics_truncated = bounded_topic_names(
+        timestamp_envelope.logged_topics
+    )
+    observability_warnings = ulog_observability_warnings(
+        requested_topics=set(ULOG_SUMMARY_TOPIC_FILTER),
+        parsed_topics=set(topic_sample_counts),
+        logged_topic_count=logged_topic_count,
+        timestamp_envelope=timestamp_envelope,
+        duration_evidence=duration_evidence,
+    )
     summary: dict[str, Any] = {
         **base,
         "parsed": True,
@@ -441,8 +460,13 @@ def summarize_ulog_file(
             "error": None,
             "topics_present": sorted(topic_sample_counts),
             "topic_sample_counts": topic_sample_counts,
+            "logged_topics": logged_topics,
+            "logged_topic_count": logged_topic_count,
+            "logged_topics_truncated": logged_topics_truncated,
+            "observability_warnings": observability_warnings,
         },
-        "duration_sec": _duration_seconds(ulog),
+        "duration_sec": duration_sec,
+        "duration_evidence": duration_evidence,
         "dropouts": _summarize_dropouts(getattr(ulog, "dropouts", []) or []),
         "logged_messages": _summarize_logged_messages(getattr(ulog, "logged_messages", []) or []),
         "system": _summarize_system_info(getattr(ulog, "msg_info_dict", {}) or {}),
@@ -484,14 +508,6 @@ def _dataset_sample_count(dataset: Any) -> int:
         return int(len(first))
     except TypeError:
         return 0
-
-
-def _duration_seconds(ulog: Any) -> float | None:
-    start = _safe_float(getattr(ulog, "start_timestamp", None), None)
-    end = _safe_float(getattr(ulog, "last_timestamp", None), None)
-    if start is None or end is None or end < start:
-        return None
-    return _round((end - start) / 1_000_000.0, 3)
 
 
 def _summarize_dropouts(dropouts: Sequence[Any]) -> dict[str, Any]:

@@ -99,6 +99,24 @@ class _StrictRefetchDrone:
         self.log_files = _StrictRefetchLogFiles()
 
 
+class _MissingDestinationLogFiles(_FakeLogFiles):
+    def __init__(self, entries=None):
+        super().__init__(entries=entries)
+        self.destination_was_absent = False
+
+    async def download_log_file(self, entry, path):
+        target = Path(path)
+        assert not target.exists(), "MAVSDK requires a non-existent destination"
+        self.destination_was_absent = True
+        target.write_bytes(b"mavsdk-created-ulog")
+        yield _FakeProgress(1.0)
+
+
+class _MissingDestinationDrone:
+    def __init__(self, entries=None):
+        self.log_files = _MissingDestinationLogFiles(entries=entries)
+
+
 class _BlockingLogFiles(_FakeLogFiles):
     def __init__(self, entries=None):
         super().__init__(entries=entries)
@@ -242,6 +260,54 @@ async def test_download_refetches_live_mavsdk_entry_before_staging(tmp_path):
     assert drone.log_files.downloaded_entry is drone.log_files.live_entry
     stage_path, _ = await service.get_ready_file(queued.job.job_id)
     assert stage_path.read_bytes() == b"fresh-entry-ulog"
+
+
+@pytest.mark.asyncio
+async def test_mavsdk_download_receives_nonexistent_secure_destination(tmp_path):
+    params = _make_params(tmp_path)
+    service = OnboardUlogService(params, hw_id="7", pos_id=3)
+    drone = _MissingDestinationDrone(
+        entries=[SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=64)]
+    )
+
+    queued = await service.create_download_job(
+        drone,
+        9,
+        SimpleNamespace(pos_id=3),
+    )
+    completed = await service.perform_download(drone, queued.job.job_id)
+    stage_path, _ = await service.get_ready_file(queued.job.job_id)
+
+    assert completed.job.status == "ready"
+    assert drone.log_files.destination_was_absent is True
+    assert stage_path.read_bytes() == b"mavsdk-created-ulog"
+    assert stat.S_IMODE(stage_path.stat().st_mode) == 0o600
+
+
+@pytest.mark.asyncio
+async def test_mavsdk_download_rejects_preexisting_stage_symlink(tmp_path):
+    params = _make_params(tmp_path)
+    service = OnboardUlogService(params, hw_id="7", pos_id=3)
+    drone = _TrackingDrone(
+        entries=[SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=64)]
+    )
+    queued = await service.create_download_job(
+        drone,
+        9,
+        SimpleNamespace(pos_id=3),
+    )
+    stage_path = service._job_paths[queued.job.job_id]
+    outside = tmp_path / "outside.ulg"
+    outside.write_bytes(b"must-remain")
+    stage_path.symlink_to(outside)
+
+    completed = await service.perform_download(drone, queued.job.job_id)
+
+    assert completed.job.status == "failed"
+    assert "Unsafe ULog stage destination" in (completed.job.error or "")
+    assert drone.log_files.download_attempted is False
+    assert stage_path.is_symlink()
+    assert outside.read_bytes() == b"must-remain"
 
 
 @pytest.mark.asyncio

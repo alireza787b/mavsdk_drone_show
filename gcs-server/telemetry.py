@@ -19,7 +19,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 
 from drone_api_routes import DRONE_STATE_ROUTE
 from params import Params
-from enums import Mission, State
+from src.enums import Mission, State
 from config import load_config
 from heartbeat import last_heartbeats, last_heartbeats_lock
 
@@ -65,7 +65,7 @@ def _build_telemetry_unavailable_record(drone_id: str, drone_ip: str, error_mess
         'preflight_blockers': [_build_link_blocker(now_ms, 'Telemetry link is stale or lost. Readiness is currently unavailable.')],
         'preflight_warnings': [],
         'preflight_last_update': now_ms,
-        'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),
+        'heartbeat_last_seen': heartbeat_data.get('received_at_gcs_ms', heartbeat_data.get('timestamp', 0)),
         'heartbeat_network_info': heartbeat_data.get('network_info', {}),
         'heartbeat_first_seen': _normalize_heartbeat_first_seen(heartbeat_data.get('first_seen')),
     })
@@ -314,6 +314,11 @@ def poll_telemetry(drone):
                         'velocity_down': telemetry_data.get('velocity_down', 0.0),
                         'yaw': telemetry_data.get('yaw', 0.0),
                         'battery_voltage': telemetry_data.get('battery_voltage', 0.0),
+                        'battery_remaining_percent': telemetry_data.get('battery_remaining_percent'),
+                        'battery_charge_state': telemetry_data.get('battery_charge_state'),
+                        'battery_fault_bitmask': telemetry_data.get('battery_fault_bitmask'),
+                        'battery_timestamp_ms': telemetry_data.get('battery_timestamp_ms', 0),
+                        'battery_age_ms': telemetry_data.get('battery_age_ms'),
                         'follow_mode': telemetry_data.get('follow_mode', 0),
                         'update_time': telemetry_data.get('update_time', 'UNKNOWN'),
                         'timestamp': telemetry_data.get('timestamp', time.time()),
@@ -346,7 +351,7 @@ def poll_telemetry(drone):
                         'local_position_time_boot_ms': telemetry_data.get('local_position_time_boot_ms', 0),
                         'ip': telemetry_data.get('ip', 'N/A'),  # Drone IP address from config
                         # Heartbeat data (kept with prefix for clarity)
-                        'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp
+                        'heartbeat_last_seen': heartbeat_data.get('received_at_gcs_ms', heartbeat_data.get('timestamp', 0)),  # Trusted GCS receipt timestamp
                         'heartbeat_network_info': heartbeat_data.get('network_info', {}),  # Network connectivity info
                         'heartbeat_first_seen': _normalize_heartbeat_first_seen(heartbeat_data.get('first_seen')),  # First heartbeat time
                     }

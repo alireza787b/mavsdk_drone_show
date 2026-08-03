@@ -6,6 +6,7 @@ import {
   formatShowSlotLabel,
   getIdentityDoctrineCopy,
   getDuplicateAssignments,
+  getHeartbeatTimestamp,
   getOnlineDroneCount,
   normalizeRuntimeIp,
   normalizeDroneConfigData,
@@ -107,6 +108,30 @@ describe('missionIdentityUtils', () => {
     };
 
     expect(getOnlineDroneCount(heartbeats)).toBe(2);
+  });
+
+  test('getOnlineDroneCount uses canonical backend presence and GCS receipt time', () => {
+    const now = Date.now();
+    const heartbeats = {
+      // A skewed node timestamp cannot make a backend-stale node look live.
+      '1': {
+        timestamp: now + 3_600_000,
+        received_at_gcs_ms: now - 40_000,
+        presence: { fresh: false, heartbeat_received_at_gcs_ms: now - 40_000 },
+      },
+      // Backend presence remains authoritative even if local fallback math
+      // would consider the timestamp stale.
+      '2': {
+        received_at_gcs_ms: now - 40_000,
+        presence: { fresh: true, heartbeat_received_at_gcs_ms: now - 40_000 },
+      },
+      // Older servers have no presence snapshot, so receipt time is preferred
+      // over the untrusted node timestamp.
+      '3': { timestamp: now + 3_600_000, received_at_gcs_ms: now - 5_000 },
+    };
+
+    expect(getOnlineDroneCount(heartbeats)).toBe(2);
+    expect(getHeartbeatTimestamp(heartbeats['3'])).toBe(now - 5_000);
   });
 
   test('toBackendConfigDrone coerces numeric identity fields back to integers', () => {

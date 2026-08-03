@@ -52,10 +52,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-PRECISION_MOVE = 112
-TAKEOFF = 10
-SMART_SWARM = 2
-LAND = 101
+from src.enums import Mission
+
+PRECISION_MOVE = Mission.PRECISION_MOVE.value
+TAKEOFF = Mission.TAKE_OFF.value
+SMART_SWARM = Mission.SMART_SWARM.value
+LAND = Mission.LAND.value
 
 
 @dataclass

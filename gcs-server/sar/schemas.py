@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Any, Optional, List, Dict, Literal
 from enum import Enum
 
-from schemas import SubmitCommandResponse
+from schemas import CommandSubmissionReceipt
 
 
 class ReturnBehavior(str, Enum):
@@ -39,18 +39,35 @@ class SurveyState(str, Enum):
 class QuickScoutMissionPhase(str, Enum):
     PLANNING = "planning"
     READY_TO_LAUNCH = "ready_to_launch"
+    LAUNCH_QUEUED = "launch_queued"
     LAUNCH_PARTIAL = "launch_partial"
     SEARCHING = "searching"
+    MIXED_CONTROL = "mixed_control"
     HOLDING = "holding"
     RETURN_COMMANDED = "return_commanded"
     COMPLETED = "completed"
     ABORTED = "aborted"
 
 
-class QuickScoutControlEffect(str, Enum):
-    COMMAND_ACCEPTED = "command_accepted"
-    COMMAND_REJECTED = "command_rejected"
-    REPLAN_REQUIRED = "replan_required"
+class QuickScoutCommandAction(str, Enum):
+    LAUNCH = "launch"
+    PAUSE = "pause"
+    ABORT = "abort"
+
+
+class QuickScoutCommandLifecycleState(str, Enum):
+    """QuickScout's durable projection of the canonical command tracker."""
+
+    QUEUED = "queued"
+    PREPARING = "preparing"
+    AWAITING_ACK = "awaiting_ack"
+    ACCEPTED = "accepted"
+    DELIVERY_UNKNOWN = "delivery_unknown"
+    REJECTED = "rejected"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TRACKING_UNAVAILABLE = "tracking_unavailable"
 
 
 class QuickScoutPlanningJobState(str, Enum):
@@ -122,6 +139,8 @@ class SearchAreaPoint(BaseModel):
 
 class SearchArea(BaseModel):
     """Template-aware search geometry definition."""
+    model_config = ConfigDict(extra="forbid")
+
     type: str = Field(default="polygon", description="Search geometry type")
     points: List[SearchAreaPoint] = Field(default_factory=list, description="Polygon vertices when using area search")
     center: Optional[SearchAreaPoint] = Field(None, description="Center point for point-centered search templates")
@@ -154,6 +173,8 @@ class SearchArea(BaseModel):
 
 class SurveyConfig(BaseModel):
     """Survey configuration parameters"""
+    model_config = ConfigDict(extra="forbid")
+
     algorithm: Literal["boustrophedon"] = Field(default="boustrophedon", description="Coverage algorithm")
     sweep_width_m: float = Field(default=30.0, gt=0, le=500, description="Sweep width in meters")
     overlap_percent: float = Field(default=10.0, ge=0, le=50, description="Overlap between sweeps (%)")
@@ -172,7 +193,7 @@ class SurveyConfig(BaseModel):
 
 class QuickScoutMissionRequest(BaseModel):
     """Request to plan or launch a QuickScout mission"""
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra="forbid")
 
     search_area: SearchArea = Field(..., description="Search area polygon")
     survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")
@@ -190,9 +211,22 @@ class QuickScoutMissionRequest(BaseModel):
     mission_brief: Optional[str] = Field(None, max_length=500, description="Optional operator mission brief")
     return_behavior: ReturnBehavior = Field(default=ReturnBehavior.RETURN_HOME, description="End-of-mission behavior")
 
+    @model_validator(mode="after")
+    def validate_target_position_ids(self):
+        if self.pos_ids is None:
+            return self
+        if not self.pos_ids:
+            raise ValueError("pos_ids must be omitted for all configured drones or contain at least one position ID")
+        if any(pos_id < 0 for pos_id in self.pos_ids):
+            raise ValueError("pos_ids cannot contain negative position IDs")
+        if len(set(self.pos_ids)) != len(self.pos_ids):
+            raise ValueError("pos_ids cannot contain duplicate position IDs")
+        return self
+
 
 class QuickScoutElevationPoint(BaseModel):
     """Coordinate requested for QuickScout terrain context."""
+    model_config = ConfigDict(extra="forbid")
 
     id: Optional[str] = Field(None, max_length=80, description="Caller-supplied point ID")
     lat: float = Field(..., ge=-90, le=90, description="Latitude")
@@ -423,6 +457,70 @@ class DroneSurveyState(BaseModel):
     last_update_at: Optional[float] = Field(None, ge=0, description="Last progress/control update timestamp (Unix epoch)")
 
 
+class QuickScoutCommandTargetState(BaseModel):
+    """Latest canonical lifecycle truth for one target in a QuickScout batch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hw_id: str = Field(..., min_length=1, description="Exact target hardware ID")
+    state: QuickScoutCommandLifecycleState = Field(..., description="Projected tracked-command state")
+    message: Optional[str] = Field(None, description="Compact target-specific lifecycle detail")
+    error_code: Optional[str] = Field(None, description="Tracker-provided target error code")
+    delivery_state: Optional[str] = Field(None, description="Tracker-provided delivery certainty when available")
+    updated_at: int = Field(..., ge=0, description="Projection update timestamp (Unix ms)")
+
+
+class QuickScoutCommandBatch(BaseModel):
+    """Durable QuickScout view of one queued tracked command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: QuickScoutCommandAction = Field(..., description="QuickScout operation requested by this command")
+    attempt: int = Field(..., ge=1, description="Monotonic attempt number for this action within the mission")
+    state: QuickScoutCommandLifecycleState = Field(
+        ...,
+        description="Aggregate lifecycle state; inspect targets for partial truth",
+    )
+    receipt: CommandSubmissionReceipt = Field(..., description="Immutable tracked-command submission receipt")
+    targets: Dict[str, QuickScoutCommandTargetState] = Field(
+        default_factory=dict,
+        description="Per-target lifecycle state keyed by exact hardware ID",
+    )
+    trigger_time: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Shared launch trigger time in Unix seconds once assigned after readiness",
+    )
+    timeout_at: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Authoritative command tracker deadline in Unix ms when available",
+    )
+    return_behavior: Optional[ReturnBehavior] = Field(
+        None,
+        description="Requested abort behavior, retained until execution evidence confirms it",
+    )
+    updated_at: int = Field(..., ge=0, description="Latest material lifecycle update timestamp (Unix ms)")
+
+    @model_validator(mode="after")
+    def validate_target_identity(self):
+        receipt_targets = [str(hw_id) for hw_id in self.receipt.target_drones]
+        receipt_target_set = set(receipt_targets)
+        target_key_set = set(self.targets)
+        if len(receipt_targets) != len(receipt_target_set):
+            raise ValueError("QuickScout command receipt target_drones must be unique")
+        if len(self.targets) != len(receipt_targets) or target_key_set != receipt_target_set:
+            raise ValueError("QuickScout command target keys must exactly match the receipt target set")
+        for hw_id, target in self.targets.items():
+            if target.hw_id != hw_id:
+                raise ValueError("QuickScout command target state hw_id must match its map key")
+        if self.action == QuickScoutCommandAction.ABORT and self.return_behavior is None:
+            raise ValueError("QuickScout abort command batches require return_behavior")
+        if self.action != QuickScoutCommandAction.ABORT and self.return_behavior is not None:
+            raise ValueError("return_behavior is valid only for QuickScout abort commands")
+        return self
+
+
 class MissionStatus(BaseModel):
     """Full mission status"""
     model_config = ConfigDict(extra='ignore')
@@ -447,10 +545,9 @@ class MissionStatus(BaseModel):
         default_factory=QuickScoutControlAvailability,
         description="Resolved monitor/control affordances for the current mission state",
     )
-    launch_summary: Optional[Dict[str, Any]] = Field(None, description="Latest launch batch summary for operator recovery")
-    last_command_summary: Optional[Dict[str, Any]] = Field(
+    latest_command_batch: Optional[QuickScoutCommandBatch] = Field(
         None,
-        description="Latest launch or control command summary for operator recovery",
+        description="Latest durable QuickScout command batch and per-target tracker projection",
     )
 
 
@@ -479,9 +576,9 @@ class QuickScoutMissionSummary(BaseModel):
     )
     launchable: bool = Field(default=True, description="Whether the package is launchable without extra revalidation")
     requires_revalidation: bool = Field(default=False, description="Whether launch requires live revalidation")
-    last_command_summary: Optional[Dict] = Field(
+    latest_command_batch: Optional[QuickScoutCommandBatch] = Field(
         None,
-        description="Most recent compact tracked-command recovery summary",
+        description="Latest durable QuickScout command batch and per-target tracker projection",
     )
 
 
@@ -492,39 +589,23 @@ class QuickScoutMissionCatalogResponse(BaseModel):
     count: int = Field(..., ge=0, description="Number of missions in this response")
 
 
-class QuickScoutLaunchSubmission(BaseModel):
-    """Single tracked command submission used to launch one drone's QuickScout plan."""
+class QuickScoutCommandQueuedResponse(BaseModel):
+    """HTTP 202 response for a queued QuickScout launch or control batch."""
 
-    hw_id: str = Field(..., description="Target hardware ID")
-    pos_id: int = Field(..., ge=0, description="Target position ID")
-    accepted: bool = Field(..., description="Whether at least one target drone accepted the launch command")
-    command: Optional[SubmitCommandResponse] = Field(
-        None,
-        description="Tracked command submission response when dispatch reached the command layer",
-    )
-    error: Optional[str] = Field(None, description="Error when launch submission failed before dispatch")
+    model_config = ConfigDict(extra="forbid")
 
-
-class QuickScoutMissionLaunchResponse(BaseModel):
-    """Response returned when launching a planned QuickScout mission."""
-
-    success: bool = Field(..., description="Whether at least one drone accepted the launch")
     mission_id: str = Field(..., description="Mission identifier")
-    trigger_time: int = Field(..., ge=0, description="Shared mission trigger time (Unix epoch seconds)")
-    drones_requested: int = Field(..., ge=0, description="Number of per-drone plans requested for launch")
-    drones_launched: int = Field(..., ge=0, description="Number of drones that accepted launch")
-    drones_failed: int = Field(..., ge=0, description="Number of drones that failed launch submission")
-    launched_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that accepted launch")
-    failed_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that failed launch")
-    submissions: List[QuickScoutLaunchSubmission] = Field(
-        default_factory=list,
-        description="Per-drone tracked command submissions for the launch batch",
+    latest_command_batch: QuickScoutCommandBatch = Field(
+        ...,
+        description="Persisted queued command batch; monitor its receipt tracking URL for truth",
     )
-    message: str = Field(..., description="Operator-facing summary")
+    message: str = Field(..., description="Operator-facing queued-work summary")
 
 
 class QuickScoutMissionLaunchRequest(BaseModel):
     """Optional launch payload for staged QuickScout package confirmation."""
+
+    model_config = ConfigDict(extra="forbid")
 
     revalidation_token: Optional[str] = Field(
         None,
@@ -548,26 +629,6 @@ class QuickScoutLaunchRevalidationResponse(BaseModel):
         description="Live positions accepted during revalidation",
     )
     message: str = Field(..., description="Operator-facing result summary")
-
-
-class QuickScoutMissionControlResponse(BaseModel):
-    """Response returned when sending a tracked QuickScout control command."""
-
-    success: bool = Field(..., description="Whether at least one targeted drone accepted the control command")
-    mission_id: str = Field(..., description="Mission identifier")
-    action: str = Field(..., description="Control action key such as 'pause' or 'abort'")
-    effect: QuickScoutControlEffect = Field(..., description="Resolved control outcome")
-    state_changed: bool = Field(..., description="Whether QuickScout mission state changed on the GCS")
-    target_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs targeted by the control command")
-    accepted_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that accepted the command")
-    failed_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that did not accept the command")
-    command: Optional[SubmitCommandResponse] = Field(
-        None,
-        description="Tracked command submission response when dispatch reached the command layer",
-    )
-    message: str = Field(..., description="Operator-facing summary")
-    operator_guidance: Optional[str] = Field(None, description="Suggested operator next step")
-    return_behavior: Optional[str] = Field(None, description="Resolved abort return behavior when applicable")
 
 
 class QuickScoutOperationRecord(BaseModel):
@@ -626,13 +687,9 @@ class QuickScoutOperationRecord(BaseModel):
     created_at: float = Field(..., description="Creation timestamp (Unix epoch)")
     updated_at: float = Field(..., description="Last-update timestamp (Unix epoch)")
     started_at: Optional[float] = Field(None, description="Mission launch timestamp (Unix epoch)")
-    launch_summary: Optional[Dict] = Field(
+    latest_command_batch: Optional[QuickScoutCommandBatch] = Field(
         None,
-        description="Latest launch batch summary for operator recovery",
-    )
-    last_command_summary: Optional[Dict] = Field(
-        None,
-        description="Latest launch or control command summary for operator recovery",
+        description="Latest durable QuickScout command batch and per-target tracker projection",
     )
 
 
@@ -681,9 +738,9 @@ class QuickScoutMissionHandoff(BaseModel):
     confirmed_finding_count: int = Field(default=0, ge=0, description="Confirmed findings")
     handed_off_finding_count: int = Field(default=0, ge=0, description="Findings explicitly marked handed off")
     evidence_ref_count: int = Field(default=0, ge=0, description="Total evidence references across all findings")
-    last_command_summary: Optional[Dict[str, Any]] = Field(
+    latest_command_batch: Optional[QuickScoutCommandBatch] = Field(
         None,
-        description="Most recent launch/control recovery summary for the mission",
+        description="Latest durable QuickScout command batch and per-target tracker projection",
     )
     brief_text: str = Field(..., description="Operator-facing handoff summary text")
     findings: List[QuickScoutMissionHandoffFinding] = Field(
@@ -693,9 +750,34 @@ class QuickScoutMissionHandoff(BaseModel):
 
 
 class DroneProgressReport(BaseModel):
-    """Progress report from drone"""
+    """Best-effort mission metrics from an already tracked execution.
+
+    Lifecycle state is deliberately absent.  The authenticated command tracker
+    is the only source allowed to move a QuickScout target into executing or a
+    terminal state; this report can only refine progress after that evidence
+    has been reconciled.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     hw_id: str = Field(..., description="Reporting drone hw_id")
     current_waypoint_index: int = Field(..., ge=0, description="Current waypoint index")
-    total_waypoints: int = Field(..., ge=0, description="Total waypoints")
+    total_waypoints: int = Field(..., gt=0, description="Total waypoints in the assigned plan")
     distance_covered_m: float = Field(default=0.0, ge=0, description="Distance covered (m)")
-    state: Optional[SurveyState] = Field(None, description="Drone survey state")
+
+    @model_validator(mode="after")
+    def validate_progress_bounds(self):
+        if self.current_waypoint_index > self.total_waypoints:
+            raise ValueError("current_waypoint_index cannot exceed total_waypoints")
+        return self
+
+
+class QuickScoutProgressReceipt(BaseModel):
+    """Result of applying non-authoritative QuickScout progress metrics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mission_id: str = Field(..., description="Mission identifier")
+    hw_id: str = Field(..., description="Exact reporting hardware ID")
+    applied: bool = Field(..., description="Whether newer progress metrics were persisted")
+    message: str = Field(..., description="Compact progress-ingestion result")

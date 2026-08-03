@@ -65,33 +65,20 @@ class TestSearchArea:
         assert area.center.lat == 47.0
         assert area.radius_m == 120
 
-    def test_valid_line_search_area(self):
+    @pytest.mark.parametrize("corridor_width_m", [80, 90])
+    def test_valid_line_search_area(self, corridor_width_m):
         area = SearchArea(
             type="line",
             path=[
                 SearchAreaPoint(lat=47.0, lng=8.0),
                 SearchAreaPoint(lat=47.001, lng=8.002),
             ],
-            corridor_width_m=80,
+            corridor_width_m=corridor_width_m,
         )
 
         assert area.type == "line"
         assert len(area.path) == 2
-        assert area.corridor_width_m == 80
-
-    def test_valid_line_search_area(self):
-        area = SearchArea(
-            type="line",
-            path=[
-                SearchAreaPoint(lat=47.0, lng=8.0),
-                SearchAreaPoint(lat=47.002, lng=8.004),
-            ],
-            corridor_width_m=90,
-        )
-
-        assert area.type == "line"
-        assert len(area.path) == 2
-        assert area.corridor_width_m == 90
+        assert area.corridor_width_m == corridor_width_m
 
 
 class TestSurveyConfig:
@@ -148,6 +135,34 @@ class TestQuickScoutMissionRequest:
         )
         assert req.survey_config.algorithm == "boustrophedon"
 
+    @pytest.mark.parametrize("pos_ids", [[], [-1], [1, 1]])
+    def test_rejects_ambiguous_target_position_ids(self, pos_ids):
+        with pytest.raises(ValidationError):
+            QuickScoutMissionRequest(
+                search_area=SearchArea(
+                    points=[
+                        SearchAreaPoint(lat=47.0, lng=8.0),
+                        SearchAreaPoint(lat=47.1, lng=8.0),
+                        SearchAreaPoint(lat=47.0, lng=8.1),
+                    ]
+                ),
+                pos_ids=pos_ids,
+            )
+
+    def test_rejects_unknown_request_fields(self):
+        with pytest.raises(ValidationError):
+            QuickScoutMissionRequest.model_validate({
+                "search_area": {
+                    "type": "polygon",
+                    "points": [
+                        {"lat": 47.0, "lng": 8.0},
+                        {"lat": 47.1, "lng": 8.0},
+                        {"lat": 47.0, "lng": 8.1},
+                    ],
+                },
+                "target_drones": ["1"],
+            })
+
     def test_last_known_point_template(self):
         req = QuickScoutMissionRequest(
             mission_template=QuickScoutMissionTemplate.LAST_KNOWN_POINT,
@@ -159,7 +174,8 @@ class TestQuickScoutMissionRequest:
         )
         assert req.mission_template == QuickScoutMissionTemplate.LAST_KNOWN_POINT
 
-    def test_corridor_search_template(self):
+    @pytest.mark.parametrize("corridor_width_m", [80, 90])
+    def test_corridor_search_template(self, corridor_width_m):
         req = QuickScoutMissionRequest(
             mission_template=QuickScoutMissionTemplate.CORRIDOR_SEARCH,
             search_area=SearchArea(
@@ -168,24 +184,11 @@ class TestQuickScoutMissionRequest:
                     SearchAreaPoint(lat=47.0, lng=8.0),
                     SearchAreaPoint(lat=47.001, lng=8.002),
                 ],
-                corridor_width_m=80,
+                corridor_width_m=corridor_width_m,
             ),
         )
         assert req.mission_template == QuickScoutMissionTemplate.CORRIDOR_SEARCH
-
-    def test_corridor_search_template(self):
-        req = QuickScoutMissionRequest(
-            mission_template=QuickScoutMissionTemplate.CORRIDOR_SEARCH,
-            search_area=SearchArea(
-                type="line",
-                path=[
-                    SearchAreaPoint(lat=47.0, lng=8.0),
-                    SearchAreaPoint(lat=47.002, lng=8.004),
-                ],
-                corridor_width_m=90,
-            ),
-        )
-        assert req.mission_template == QuickScoutMissionTemplate.CORRIDOR_SEARCH
+        assert req.search_area.corridor_width_m == corridor_width_m
 
 
 class TestCoverageWaypoint:
@@ -326,6 +329,18 @@ class TestDroneProgressReport:
             hw_id="1", current_waypoint_index=5, total_waypoints=20,
         )
         assert rpt.distance_covered_m == 0.0
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"hw_id": "1", "current_waypoint_index": 1, "total_waypoints": 20, "state": "executing"},
+            {"hw_id": "1", "current_waypoint_index": 21, "total_waypoints": 20},
+            {"hw_id": "1", "current_waypoint_index": 0, "total_waypoints": 0},
+        ],
+    )
+    def test_rejects_lifecycle_authority_and_invalid_bounds(self, payload):
+        with pytest.raises(ValidationError):
+            DroneProgressReport.model_validate(payload)
 
 
 class TestEnums:

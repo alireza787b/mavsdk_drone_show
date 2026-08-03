@@ -7,10 +7,18 @@ Tests for all HTTP REST endpoints in the Drone API Server.
 
 import pytest
 import asyncio
+import httpx
 import logging
+import time
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock
-from src.enums import Mission
+from src.command_installation import CommandInstallationRejected, CommandInstallationResult
+from src.command_contract import DroneCommandRequest
+from src.enums import Mission, State
+from src.launch_preparation_protocol import (
+    LAUNCH_PREPARATION_TOKEN_HEADER,
+    LaunchPreparationBinding,
+)
 from mds_logging.api_schemas import OnboardUlogDownloadJob, OnboardUlogDownloadJobResponse
 from src.security.auth import (
     AuthService,
@@ -24,6 +32,69 @@ from src.security.auth import (
     ULOG_OP_POLICY_READ,
 )
 from src.ulog_service import UlogJobConflictError
+
+
+def _commit_mock_command(mock_drone_config, command_data):
+    """Apply and prove the same typed install contract as DroneCommunicator."""
+    mission_type = int(command_data["mission_type"])
+    trigger_time = int(command_data["trigger_time"])
+    command_id = command_data.get("command_id")
+    mock_drone_config.mission = mission_type
+    mock_drone_config.trigger_time = trigger_time
+    mock_drone_config.current_command_id = command_id
+    mock_drone_config.state = 1
+    return CommandInstallationResult(
+        committed=True,
+        mission=mission_type,
+        trigger_time=trigger_time,
+        state=1,
+        command_id=command_id,
+        artifact_paths=(),
+    )
+
+
+def _set_fresh_airborne_state(mock_drone_config, *, relative_altitude_m=5.0):
+    now_ms = time.time_ns() // 1_000_000
+    mock_drone_config.is_armed = True
+    mock_drone_config.heartbeat_timestamp_ms = now_ms
+    mock_drone_config.global_position_timestamp_ms = now_ms
+    mock_drone_config.relative_altitude_m = relative_altitude_m
+
+
+def _ready_launch_probe(hw_id="1"):
+    now_ms = int(time.time() * 1_000)
+    return {
+        "hw_id": str(hw_id),
+        "success": True,
+        "ready": True,
+        "summary": "ready for mission startup",
+        "observation": {
+            "schema_version": 1,
+            "observation_id": f"route-test-{now_ms}",
+            "source": "test.health+battery",
+            "observed_at_ms": now_ms,
+            "valid_until_ms": now_ms + 2_000,
+            "require_global_position": True,
+            "ready": True,
+            "blockers": [],
+            "checks": {"armable": True},
+            "battery": {"remaining_percent": 80.0},
+        },
+        "remaining_valid_ms": 2_000,
+        "server_processing_ms": 1,
+    }
+
+
+def _prepared_launch_headers(api_server, command):
+    """Issue node-local authority for focused command-route unit tests."""
+    parsed = DroneCommandRequest.model_validate(command)
+    token, _ = api_server._launch_preparation_store.issue(
+        LaunchPreparationBinding.from_command(parsed)
+    )
+    api_server._probe_live_armability = AsyncMock(
+        return_value=_ready_launch_probe(api_server.drone_config.hw_id)
+    )
+    return {LAUNCH_PREPARATION_TOKEN_HEADER: token}
 
 
 @pytest.fixture
@@ -103,6 +174,11 @@ class TestDroneStateTelemetryFields:
                 "velocity_down": 0.0,
                 "yaw": 0.0,
                 "battery_voltage": 16.2,
+                "battery_remaining_percent": 72.0,
+                "battery_charge_state": 1,
+                "battery_fault_bitmask": 0,
+                "battery_timestamp_ms": 1732270245000,
+                "battery_age_ms": 250,
                 "flight_mode": 0,
                 "base_mode": 0,
                 "system_status": 3,
@@ -130,6 +206,11 @@ class TestDroneStateTelemetryFields:
         assert payload["altitude_report"]["display_m"] == 20.2
         assert payload["altitude_source"] == "local_ned"
         assert payload["local_position_down"] == -20.2
+        assert payload["battery_remaining_percent"] == 72.0
+        assert payload["battery_charge_state"] == 1
+        assert payload["battery_fault_bitmask"] == 0
+        assert payload["battery_timestamp_ms"] == 1732270245000
+        assert payload["battery_age_ms"] == 250
 
 
 class TestNodeEnvironment:
@@ -556,6 +637,7 @@ class TestDroneState:
 
         async def _mock_probe(self, require_global_position=True):
             return {
+                "hw_id": "1",
                 "success": True,
                 "ready": True,
                 "summary": "ready for mission startup",
@@ -567,6 +649,27 @@ class TestDroneState:
                 "gyro_ok": True,
                 "accel_ok": True,
                 "mag_ok": True,
+                "health_ready": True,
+                "health_age_ms": 25,
+                "battery": {
+                    "remaining_percent": 81.0,
+                    "minimum_remaining_percent": 30.0,
+                    "voltage_v": 16.0,
+                    "fresh": True,
+                    "reserve_ok": True,
+                },
+                "observation": {
+                    "schema_version": 1,
+                    "observation_id": "health-test-1",
+                    "source": "mavsdk_health",
+                    "observed_at_ms": 100,
+                    "valid_until_ms": 2_100,
+                    "require_global_position": require_global_position,
+                    "ready": True,
+                    "blockers": [],
+                },
+                "remaining_valid_ms": 1_900,
+                "server_processing_ms": 100,
                 "timed_out": False,
                 "elapsed_sec": 0.2,
                 "require_global_position": require_global_position,
@@ -581,8 +684,12 @@ class TestDroneState:
         assert response.status_code == 200
         data = response.json()
         assert data["ready"] is True
+        assert data["hw_id"] == "1"
         assert data["summary"] == "ready for mission startup"
         assert data["require_global_position"] is True
+        assert data["battery"]["remaining_percent"] == 81.0
+        assert data["battery"]["minimum_remaining_percent"] == 30.0
+        assert data["battery"]["fresh"] is True
 
     def test_resolve_live_probe_connection_uses_runtime_ports(
         self,
@@ -640,6 +747,18 @@ class TestDroneState:
                 "gyro_ok": True,
                 "accel_ok": True,
                 "mag_ok": True,
+                "observation": {
+                    "schema_version": 1,
+                    "observation_id": "health-test-route-1",
+                    "source": "mavsdk_health",
+                    "observed_at_ms": 100,
+                    "valid_until_ms": 2_100,
+                    "require_global_position": require_global_position,
+                    "ready": True,
+                    "blockers": [],
+                },
+                "remaining_valid_ms": 1_900,
+                "server_processing_ms": 100,
                 "timed_out": False,
                 "elapsed_sec": 0.1,
                 "require_global_position": require_global_position,
@@ -654,6 +773,7 @@ class TestDroneState:
         result = await api_server._probe_live_armability(require_global_position=True)
 
         assert result["success"] is True
+        assert result["hw_id"] == "1"
         assert captured["ensure"] == (50040, 14540)
         assert captured["mavsdk_server_address"] == "127.0.0.1"
         assert captured["grpc_port"] == 50040
@@ -690,6 +810,7 @@ class TestDroneState:
         result = await api_server._probe_live_armability(require_global_position=True)
 
         assert result["success"] is False
+        assert result["hw_id"] == "1"
         assert result["timed_out"] is True
         assert "Timed out" in result["summary"]
         wait_mock.assert_not_awaited()
@@ -1276,9 +1397,42 @@ class TestDroneState:
 class TestCommands:
     """Test command endpoint"""
 
-    def test_send_command_success(self, test_client, sample_command, mock_drone_communicator):
+    @pytest.mark.parametrize("mission_type", [123, Mission.UNKNOWN.value])
+    def test_send_command_rejects_non_executable_mission_before_mutation(
+        self,
+        test_client,
+        mock_drone_communicator,
+        mission_type,
+    ):
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": mission_type, "trigger_time": 0},
+        )
+
+        assert response.status_code == 422
+        assert "executable mission" in response.text
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_send_command_success(
+        self,
+        test_client,
+        api_server,
+        mock_drone_communicator,
+    ):
         """Test sending command to drone - new CommandAckResponse format"""
-        response = test_client.post("/api/v1/drone/commands", json=sample_command)
+        command = {
+            "mission_type": Mission.TAKE_OFF.value,
+            "trigger_time": 0,
+            "command_id": "takeoff-success",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+            "takeoff_altitude": 10.0,
+        }
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json=command,
+            headers=_prepared_launch_headers(api_server, command),
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -1295,12 +1449,51 @@ class TestCommands:
         mock_drone_communicator.process_command.assert_called_once()
         call_args = mock_drone_communicator.process_command.call_args[0][0]
         assert call_args['mission_type'] == 10
-        assert call_args['trigger_time'] == int(sample_command['triggerTime'])
+        assert call_args['trigger_time'] == 0
 
-    def test_send_command_accepts_snake_case_aliases(self, test_client, mock_drone_communicator):
+    def test_send_command_rejects_target_identity_mismatch_before_state_mutation(
+        self,
+        test_client,
+        mock_drone_communicator,
+        mock_drone_config,
+    ):
+        command = {
+            "mission_type": Mission.TAKE_OFF.value,
+            "trigger_time": 0,
+            "command_id": "wrong-target",
+            "target_hw_id": "2",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
+
+        response = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert data["error_code"] == "E108"
+        assert data["hw_id"] == "1"
+        assert "Intended hardware ID=2" in data["error_detail"]
+        mock_drone_communicator.process_command.assert_not_called()
+        assert mock_drone_config.current_command_id is None
+
+    def test_send_command_accepts_canonical_prepared_launch_envelope(
+        self,
+        test_client,
+        api_server,
+        mock_drone_communicator,
+    ):
+        command = {
+            "mission_type": "TAKE_OFF",
+            "trigger_time": 0,
+            "command_id": "canonical-takeoff",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+            "takeoff_altitude": 12,
+        }
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"mission_type": "TAKE_OFF", "trigger_time": 0, "takeoff_altitude": 12},
+            json=command,
+            headers=_prepared_launch_headers(api_server, command),
         )
 
         assert response.status_code == 200
@@ -1314,8 +1507,99 @@ class TestCommands:
         assert call_args["trigger_time"] == 0
         assert call_args["takeoff_altitude"] == 12.0
 
+    def test_ground_test_requires_typed_safety_acknowledgement(
+        self,
+        test_client,
+        mock_drone_communicator,
+    ):
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": Mission.TEST.value, "trigger_time": 0},
+        )
+
+        assert response.status_code == 422
+        assert "ground_test_safety acknowledgement is required" in response.text
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_sitl_ground_test_accepts_only_explicit_not_applicable_mode(
+        self,
+        test_client,
+        mock_drone_communicator,
+    ):
+        rejected = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST.value,
+                "trigger_time": 0,
+                "ground_test_safety": {
+                    "mode": "operator_acknowledged",
+                    "props_removed": True,
+                    "airframe_secured": True,
+                    "area_clear": True,
+                },
+            },
+        )
+        accepted = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST.value,
+                "trigger_time": 0,
+                "ground_test_safety": {"mode": "sitl_not_applicable"},
+            },
+        )
+
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "rejected"
+        assert "SITL Arm/Disarm Ground Test" in rejected.json()["error_detail"]
+        assert accepted.status_code == 200
+        assert accepted.json()["status"] == "accepted"
+        call_args = mock_drone_communicator.process_command.call_args[0][0]
+        assert call_args["ground_test_safety"] == {"mode": "sitl_not_applicable"}
+
+    def test_real_ground_test_accepts_only_complete_operator_acknowledgement(
+        self,
+        test_client,
+        api_server,
+        mock_drone_communicator,
+    ):
+        api_server.params.sim_mode = False
+        rejected = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST.value,
+                "trigger_time": 0,
+                "ground_test_safety": {"mode": "sitl_not_applicable"},
+            },
+        )
+        accepted = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST.value,
+                "trigger_time": 0,
+                "ground_test_safety": {
+                    "mode": "operator_acknowledged",
+                    "props_removed": True,
+                    "airframe_secured": True,
+                    "area_clear": True,
+                },
+            },
+        )
+
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "rejected"
+        assert "Real-aircraft Arm/Disarm Ground Test" in rejected.json()["error_detail"]
+        assert accepted.status_code == 200
+        assert accepted.json()["status"] == "accepted"
+        call_args = mock_drone_communicator.process_command.call_args[0][0]
+        assert call_args["ground_test_safety"] == {
+            "mode": "operator_acknowledged",
+            "props_removed": True,
+            "airframe_secured": True,
+            "area_clear": True,
+        }
+
     def test_send_precision_move_command_success(self, test_client, mock_drone_communicator, mock_drone_config):
-        mock_drone_config.is_armed = True
+        _set_fresh_airborne_state(mock_drone_config)
         response = test_client.post(
             "/api/v1/drone/commands",
             json={
@@ -1354,6 +1638,92 @@ class TestCommands:
 
         assert response.status_code == 422
         mock_drone_communicator.process_command.assert_not_called()
+
+    @pytest.mark.parametrize("mission_type", [Mission.HOLD.value, Mission.PRECISION_MOVE.value])
+    def test_airborne_commands_reject_stale_armed_heartbeat_before_install(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+        mission_type,
+    ):
+        now_ms = time.time_ns() // 1_000_000
+        mock_drone_config.is_armed = True
+        mock_drone_config.heartbeat_timestamp_ms = now_ms - 16_000
+        mock_drone_config.global_position_timestamp_ms = now_ms
+        mock_drone_config.relative_altitude_m = 5.0
+        command = {"mission_type": mission_type, "trigger_time": 0}
+        if mission_type == Mission.PRECISION_MOVE.value:
+            command["precision_move"] = {
+                "frame": "body",
+                "translation_m": {"forward": 1.0},
+            }
+
+        response = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "rejected"
+        assert "heartbeat/arming evidence is stale" in response.json()["error_detail"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_hold_rejects_stale_relative_altitude_even_with_fresh_armed_heartbeat(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        now_ms = time.time_ns() // 1_000_000
+        mock_drone_config.is_armed = True
+        mock_drone_config.heartbeat_timestamp_ms = now_ms
+        mock_drone_config.global_position_timestamp_ms = now_ms - 16_000
+        mock_drone_config.relative_altitude_m = 5.0
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": Mission.HOLD.value, "trigger_time": 0},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "rejected"
+        assert "altitude evidence is stale" in response.json()["error_detail"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_hold_rejects_armed_ground_state_before_install(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        _set_fresh_airborne_state(mock_drone_config, relative_altitude_m=0.1)
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": Mission.HOLD.value, "trigger_time": 0},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "rejected"
+        assert "airborne admission requires" in response.json()["error_detail"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_hold_accepts_only_fresh_cached_airborne_evidence_then_action_rechecks(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        _set_fresh_airborne_state(mock_drone_config, relative_altitude_m=4.0)
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": Mission.HOLD.value, "trigger_time": 0},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
+        mock_drone_communicator.process_command.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_report_pending_command_superseded_uses_canonical_execution_result_route(self, api_server, monkeypatch):
@@ -1437,6 +1807,7 @@ class TestCommands:
     def test_send_command_different_mission_types(
         self,
         test_client,
+        api_server,
         mock_drone_config,
         mock_drone_communicator,
     ):
@@ -1444,12 +1815,26 @@ class TestCommands:
         # Use valid mission type codes that exist in the Mission enum
         mission_types = [10, 101, 102, 104, 105]  # TAKE_OFF, LAND, HOLD, RETURN_RTL, KILL_TERMINATE
         # HOLD is a flight-mode command and correctly requires an airborne vehicle.
-        mock_drone_config.is_armed = True
+        _set_fresh_airborne_state(mock_drone_config)
 
         for mission_type in mission_types:
             mock_drone_communicator.process_command.reset_mock()
-            command = {"missionType": str(mission_type), "triggerTime": "0"}
-            response = test_client.post("/api/v1/drone/commands", json=command)
+            command = {"mission_type": mission_type, "trigger_time": 0}
+            headers = None
+            if mission_type == Mission.TAKE_OFF.value:
+                command.update(
+                    {
+                        "command_id": "mission-types-takeoff",
+                        "target_hw_id": "1",
+                        "command_report_capability": "cap-" + ("x" * 39),
+                    }
+                )
+                headers = _prepared_launch_headers(api_server, command)
+            response = test_client.post(
+                "/api/v1/drone/commands",
+                json=command,
+                headers=headers,
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -1464,13 +1849,17 @@ class TestCommands:
         mock_drone_communicator,
     ):
         mock_drone_config.state = 1
-        mock_drone_config.mission = 10
+        mock_drone_config.mission = Mission.TEST_LED.value
         mock_drone_config.trigger_time = 12345
         mock_drone_config.current_command_id = "cmd-123"
 
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "10", "triggerTime": "12345", "command_id": "cmd-123"},
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 12345,
+                "command_id": "cmd-123",
+            },
         )
 
         assert response.status_code == 200
@@ -1492,7 +1881,7 @@ class TestCommands:
         mock_drone_config.drone_setup = Mock(
             running_processes={},
             get_recent_command_record=Mock(return_value={
-                "mission_type": 10,
+                "mission_type": Mission.TEST_LED.value,
                 "trigger_time": 0,
                 "state": 0,
                 "phase": "completed",
@@ -1501,13 +1890,178 @@ class TestCommands:
 
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "10", "triggerTime": "0", "command_id": "cmd-123"},
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 0,
+                "command_id": "cmd-123",
+            },
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
         assert "already completed" in data["message"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_same_command_id_and_normalized_semantic_payload_replays_without_execution(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_communicator.process_command.side_effect = install
+
+        original = {
+            "mission_type": "TAKE_OFF",
+            "trigger_time": 0,
+            "takeoff_altitude": 12,
+            "command_id": "cmd-semantic-replay",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
+        first = test_client.post(
+            "/api/v1/drone/commands",
+            json=original,
+            headers=_prepared_launch_headers(api_server, original),
+        )
+        replay = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": 10,
+                "trigger_time": 0,
+                "takeoff_altitude": 12.0,
+                "command_id": "cmd-semantic-replay",
+                "target_hw_id": "1",
+                "command_report_capability": "cap-" + ("x" * 39),
+            },
+        )
+
+        assert first.status_code == 200
+        assert replay.status_code == 200
+        assert replay.json()["status"] == "accepted"
+        assert replay.json()["replayed"] is True
+        assert replay.json()["command_phase"] == "pending_execution"
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_command_id_semantic_mismatch_is_rejected_before_second_mutation(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_communicator.process_command.side_effect = install
+        original = {
+            "mission_type": 10,
+            "trigger_time": 0,
+            "takeoff_altitude": 10,
+            "command_id": "cmd-semantic-conflict",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
+
+        first = test_client.post(
+            "/api/v1/drone/commands",
+            json=original,
+            headers=_prepared_launch_headers(api_server, original),
+        )
+        conflicting = test_client.post(
+            "/api/v1/drone/commands",
+            json={**original, "takeoff_altitude": 20},
+        )
+
+        assert first.status_code == 200
+        assert conflicting.status_code == 200
+        data = conflicting.json()
+        assert data["status"] == "rejected"
+        assert data["error_code"] == "E109"
+        assert "takeoff_altitude" in data["error_detail"]
+        assert mock_drone_config.current_command_id == "cmd-semantic-conflict"
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_terminal_command_replay_preserves_outcome_without_reexecution(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_communicator.process_command.side_effect = install
+        command = {
+            "mission_type": 10,
+            "trigger_time": 0,
+            "takeoff_altitude": 10,
+            "command_id": "cmd-terminal-replay",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
+        first = test_client.post(
+            "/api/v1/drone/commands",
+            json=command,
+            headers=_prepared_launch_headers(api_server, command),
+        )
+        assert first.status_code == 200
+
+        mock_drone_config.current_command_id = None
+        mock_drone_config.mission = Mission.NONE.value
+        mock_drone_config.state = 0
+        mock_drone_config.drone_setup = type(
+            "TerminalHistory",
+            (),
+            {
+                "running_processes": {},
+                "get_recent_command_record": staticmethod(
+                    lambda _command_id: {
+                        "mission_type": Mission.TAKE_OFF.value,
+                        "trigger_time": 0,
+                        "state": 0,
+                        "phase": "completed",
+                    }
+                ),
+            },
+        )()
+
+        replay = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert replay.status_code == 200
+        data = replay.json()
+        assert data["status"] == "accepted"
+        assert data["replayed"] is True
+        assert data["command_phase"] == "terminal"
+        assert data["command_outcome"] == "completed"
+        assert "already completed" in data["message"]
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_rejected_command_replay_is_stable_after_state_changes(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        command = {
+            "mission_type": Mission.HOLD.value,
+            "trigger_time": 0,
+            "command_id": "cmd-rejected-replay",
+        }
+
+        first = test_client.post("/api/v1/drone/commands", json=command)
+        mock_drone_config.is_armed = True
+        replay = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert first.json()["status"] == "rejected"
+        assert replay.json()["status"] == "rejected"
+        assert replay.json()["replayed"] is True
+        assert replay.json()["command_outcome"] == "rejected"
         mock_drone_communicator.process_command.assert_not_called()
 
     def test_send_command_does_not_supersede_pending_command_when_install_fails(
@@ -1529,39 +2083,96 @@ class TestCommands:
 
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "101", "triggerTime": "0", "command_id": "new-cmd"},
+            json={
+                "mission_type": Mission.LAND.value,
+                "trigger_time": 0,
+                "command_id": "new-cmd",
+            },
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "rejected"
+        assert response.status_code == 503
+        data = response.json()["detail"]
+        assert data["status"] == "delivery_unknown"
+        assert data["command_phase"] == "outcome_unknown"
         assert mock_drone_config.current_command_id == "old-cmd"
         supersede_report.assert_not_awaited()
 
-    def test_send_command_stages_command_id_before_install_to_avoid_scheduler_race(
+        retry = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.LAND.value,
+                "trigger_time": 0,
+                "command_id": "new-cmd",
+            },
+        )
+        assert retry.status_code == 503
+        assert retry.json()["detail"]["replayed"] is True
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_verified_transaction_rollback_is_a_stable_definite_rejection(
         self,
         test_client,
         mock_drone_config,
         mock_drone_communicator,
     ):
+        mock_drone_config.state = State.MISSION_READY.value
+        mock_drone_config.mission = Mission.TAKE_OFF.value
+        mock_drone_config.current_command_id = "old-command"
+        mock_drone_communicator.process_command.side_effect = CommandInstallationRejected(
+            "injected config commit fault; prior command restored",
+            phase="config_commit",
+        )
+        command = {
+            "mission_type": Mission.LAND.value,
+            "trigger_time": 0,
+            "command_id": "rollback-command",
+        }
+
+        first = test_client.post("/api/v1/drone/commands", json=command)
+        replay = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert first.status_code == 200
+        assert first.json()["status"] == "rejected"
+        assert first.json()["command_outcome"] == "rejected"
+        assert "config_commit" in first.json()["error_detail"]
+        assert mock_drone_config.current_command_id == "old-command"
+        assert replay.status_code == 200
+        assert replay.json()["status"] == "rejected"
+        assert replay.json()["replayed"] is True
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_send_command_binds_command_id_at_commit_under_scheduler_transaction(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
         observed = {}
 
-        def _install(_command_data):
+        def _install(command_data):
             observed["current_command_id_during_install"] = mock_drone_config.current_command_id
-            mock_drone_config.mission = 10
-            mock_drone_config.state = 1
+            return _commit_mock_command(mock_drone_config, command_data)
 
         mock_drone_communicator.process_command.side_effect = _install
 
+        command = {
+            "mission_type": Mission.TAKE_OFF.value,
+            "trigger_time": 0,
+            "command_id": "cmd-race",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "10", "triggerTime": "0", "command_id": "cmd-race"},
+            json=command,
+            headers=_prepared_launch_headers(api_server, command),
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
-        assert observed["current_command_id_during_install"] == "cmd-race"
+        assert observed["current_command_id_during_install"] is None
         assert mock_drone_config.current_command_id == "cmd-race"
 
     def test_send_command_clears_staged_command_id_when_install_fails_without_previous_pending_command(
@@ -1577,13 +2188,385 @@ class TestCommands:
 
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "10", "triggerTime": "0", "command_id": "new-cmd"},
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 0,
+                "command_id": "new-cmd",
+            },
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "rejected"
+        assert response.status_code == 503
+        data = response.json()["detail"]
+        assert data["status"] == "delivery_unknown"
         assert mock_drone_config.current_command_id is None
+
+        retry = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 0,
+                "command_id": "new-cmd",
+            },
+        )
+        assert retry.status_code == 503
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_fault_after_core_state_mutation_binds_uncertain_command_and_never_reexecutes(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        def mutate_then_fail(command_data):
+            mock_drone_config.mission = command_data["mission_type"]
+            mock_drone_config.trigger_time = command_data["trigger_time"]
+            mock_drone_config.state = 1
+            raise RuntimeError("fault after mission state install")
+
+        mock_drone_communicator.process_command.side_effect = mutate_then_fail
+        command = {
+            "mission_type": Mission.TEST_LED.value,
+            "trigger_time": 0,
+            "command_id": "cmd-post-mutation",
+        }
+
+        first = test_client.post("/api/v1/drone/commands", json=command)
+        replay = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert first.status_code == 503
+        assert first.json()["detail"]["status"] == "delivery_unknown"
+        assert mock_drone_config.current_command_id == "cmd-post-mutation"
+        assert replay.status_code == 503
+        assert replay.json()["detail"]["command_outcome"] == "unknown"
+        assert replay.json()["detail"]["replayed"] is True
+        mock_drone_communicator.process_command.assert_called_once()
+
+        mock_drone_config.current_command_id = None
+        mock_drone_config.mission = Mission.NONE.value
+        mock_drone_config.state = 0
+        mock_drone_config.drone_setup = type(
+            "ReconciledHistory",
+            (),
+            {
+                "running_processes": {},
+                "get_recent_command_record": staticmethod(
+                    lambda _command_id: {
+                        "mission_type": Mission.TEST_LED.value,
+                        "trigger_time": 0,
+                        "state": 0,
+                        "phase": "completed",
+                    }
+                ),
+            },
+        )()
+        reconciled = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert reconciled.status_code == 200
+        assert reconciled.json()["status"] == "accepted"
+        assert reconciled.json()["command_phase"] == "terminal"
+        assert reconciled.json()["command_outcome"] == "completed"
+        mock_drone_communicator.process_command.assert_called_once()
+
+    def test_post_commit_reporting_fault_preserves_definite_acceptance(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+        monkeypatch,
+    ):
+        mock_drone_config.state = 1
+        mock_drone_config.mission = Mission.TAKE_OFF.value
+        mock_drone_config.current_command_id = "old-command"
+
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        async def fail_report(*_args, **_kwargs):
+            raise RuntimeError("report transport failed")
+
+        mock_drone_communicator.process_command.side_effect = install
+        monkeypatch.setattr(api_server, "_report_pending_command_superseded", fail_report)
+        command = {
+            "mission_type": Mission.LAND.value,
+            "trigger_time": 0,
+            "command_id": "cmd-committed",
+        }
+
+        response = test_client.post("/api/v1/drone/commands", json=command)
+        replay = test_client.post("/api/v1/drone/commands", json=command)
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
+        assert mock_drone_config.current_command_id == "cmd-committed"
+        assert replay.status_code == 200
+        assert replay.json()["status"] == "accepted"
+        assert replay.json()["replayed"] is True
+        mock_drone_communicator.process_command.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_slow_supersede_callback_does_not_hold_transaction_or_delay_cancel(
+        self,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+        monkeypatch,
+    ):
+        report_started = asyncio.Event()
+        release_report = asyncio.Event()
+
+        async def slow_report(*_args, **_kwargs):
+            report_started.set()
+            await release_report.wait()
+
+        async def cancel_active_command(_message):
+            mock_drone_config.mission = Mission.NONE.value
+            mock_drone_config.trigger_time = 0
+            mock_drone_config.state = 0
+            mock_drone_config.current_command_id = None
+            return True, "cancelled"
+
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_config.state = 1
+        mock_drone_config.mission = Mission.TAKE_OFF.value
+        mock_drone_config.current_command_id = "old-pending"
+        mock_drone_config.drone_setup = type(
+            "CancelableSetup",
+            (),
+            {"cancel_active_command": staticmethod(cancel_active_command)},
+        )()
+        mock_drone_communicator.process_command.side_effect = install
+        monkeypatch.setattr(api_server, "_report_pending_command_superseded", slow_report)
+
+        transport = httpx.ASGITransport(app=api_server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            land = await client.post(
+                "/api/v1/drone/commands",
+                json={"mission_type": 101, "trigger_time": 0, "command_id": "land-first"},
+            )
+            await asyncio.wait_for(report_started.wait(), timeout=1)
+            cancel = await asyncio.wait_for(
+                client.post(
+                    "/api/v1/drone/commands",
+                    json={"mission_type": 0, "trigger_time": 0, "command_id": "cancel-second"},
+                ),
+                timeout=0.5,
+            )
+
+        release_report.set()
+        await asyncio.gather(*tuple(api_server._command_followup_tasks), return_exceptions=True)
+
+        assert land.json()["status"] == "accepted"
+        assert cancel.json()["status"] == "accepted"
+        assert mock_drone_config.state == 0
+
+    def test_idempotency_registry_uses_bounded_terminal_lru_history(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        api_server._command_idempotency_max_records = 32
+
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_communicator.process_command.side_effect = install
+
+        for index in range(40):
+            response = test_client.post(
+                "/api/v1/drone/commands",
+                json={
+                    "mission_type": Mission.TEST_LED.value,
+                    "trigger_time": 0,
+                    "command_id": f"bounded-{index}",
+                },
+            )
+            assert response.status_code == 200
+            mock_drone_config.current_command_id = None
+            mock_drone_config.mission = Mission.NONE.value
+            mock_drone_config.state = 0
+
+        assert len(api_server._command_idempotency_records) == 32
+        assert "bounded-0" not in api_server._command_idempotency_records
+        assert "bounded-39" in api_server._command_idempotency_records
+
+    def test_idempotency_registry_rejects_at_protected_capacity_instead_of_evicting_active_ids(
+        self,
+        test_client,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        api_server._command_idempotency_max_records = 32
+        running_processes = {}
+        mock_drone_config.drone_setup = type(
+            "ActiveHistory",
+            (),
+            {
+                "running_processes": running_processes,
+                "get_recent_command_record": staticmethod(lambda _command_id: None),
+            },
+        )()
+
+        def install(command_data):
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_communicator.process_command.side_effect = install
+
+        for index in range(32):
+            command_id = f"protected-{index}"
+            response = test_client.post(
+                "/api/v1/drone/commands",
+                json={
+                    "mission_type": Mission.TEST_LED.value,
+                    "trigger_time": 0,
+                    "command_id": command_id,
+                },
+            )
+            assert response.json()["status"] == "accepted"
+            running_processes[command_id] = type(
+                "ProcessRecord",
+                (),
+                {
+                    "command_id": command_id,
+                    "mission_type": Mission.TEST_LED.value,
+                    "trigger_time": 0,
+                },
+            )()
+            mock_drone_config.current_command_id = None
+            mock_drone_config.mission = Mission.NONE.value
+            mock_drone_config.state = 0
+
+        overflow = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 0,
+                "command_id": "protected-overflow",
+            },
+        )
+
+        assert overflow.status_code == 200
+        assert overflow.json()["status"] == "rejected"
+        assert "protected capacity" in overflow.json()["message"]
+        assert len(api_server._command_idempotency_records) == 32
+        assert "protected-0" in api_server._command_idempotency_records
+        assert "protected-overflow" not in api_server._command_idempotency_records
+        assert mock_drone_communicator.process_command.call_count == 32
+
+    @pytest.mark.asyncio
+    async def test_concurrent_cancel_takeoff_and_land_are_serialized_without_torn_state(
+        self,
+        api_server,
+        mock_drone_config,
+        mock_drone_communicator,
+        monkeypatch,
+    ):
+        cancel_started = asyncio.Event()
+        allow_cancel_to_finish = asyncio.Event()
+        operation_order = []
+
+        async def cancel_active_command(_message):
+            operation_order.append("cancel-start")
+            cancel_started.set()
+            await allow_cancel_to_finish.wait()
+            mock_drone_config.mission = Mission.NONE.value
+            mock_drone_config.trigger_time = 0
+            mock_drone_config.state = 0
+            mock_drone_config.current_command_id = None
+            operation_order.append("cancel-end")
+            return True, "cancelled"
+
+        def install(command_data):
+            operation_order.append(f"install-{command_data['mission_type']}")
+            return _commit_mock_command(mock_drone_config, command_data)
+
+        mock_drone_config.state = 2
+        mock_drone_config.mission = Mission.HOVER_TEST.value
+        mock_drone_config.current_command_id = "running-old"
+        mock_drone_config.drone_setup = type(
+            "CancelableSetup",
+            (),
+            {"cancel_active_command": staticmethod(cancel_active_command)},
+        )()
+        mock_drone_communicator.process_command.side_effect = install
+        monkeypatch.setattr(
+            api_server,
+            "_report_pending_command_superseded",
+            AsyncMock(),
+        )
+        takeoff_command = {
+            "mission_type": Mission.TAKE_OFF.value,
+            "trigger_time": 0,
+            "command_id": "takeoff-new",
+            "target_hw_id": "1",
+            "command_report_capability": "cap-" + ("x" * 39),
+        }
+        takeoff_headers = _prepared_launch_headers(api_server, takeoff_command)
+
+        transport = httpx.ASGITransport(app=api_server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            cancel_task = asyncio.create_task(
+                client.post(
+                    "/api/v1/drone/commands",
+                    json={"mission_type": 0, "trigger_time": 0, "command_id": "cancel-new"},
+                )
+            )
+            await asyncio.wait_for(cancel_started.wait(), timeout=1)
+            takeoff_task = asyncio.create_task(
+                client.post(
+                    "/api/v1/drone/commands",
+                    json=takeoff_command,
+                    headers=takeoff_headers,
+                )
+            )
+            await asyncio.sleep(0)
+            land_task = asyncio.create_task(
+                client.post(
+                    "/api/v1/drone/commands",
+                    json={"mission_type": 101, "trigger_time": 0, "command_id": "land-new"},
+                )
+            )
+            await asyncio.sleep(0.02)
+            assert mock_drone_communicator.process_command.call_count == 0
+
+            allow_cancel_to_finish.set()
+            responses = await asyncio.gather(cancel_task, takeoff_task, land_task)
+
+        assert [response.json()["status"] for response in responses] == [
+            "accepted",
+            "accepted",
+            "accepted",
+        ]
+        assert operation_order == ["cancel-start", "cancel-end", "install-10", "install-101"]
+        assert mock_drone_config.mission == Mission.LAND.value
+        assert mock_drone_config.current_command_id == "land-new"
+
+    @pytest.mark.asyncio
+    async def test_cancelled_cross_thread_lock_waiter_does_not_orphan_scheduler_lock(
+        self,
+        api_server,
+    ):
+        shared_lock = api_server._command_state_transaction_lock
+        assert shared_lock.acquire(blocking=False)
+        guard = api_server._command_transaction_guard()
+        waiter = asyncio.create_task(guard.__anext__())
+        try:
+            await asyncio.sleep(0.02)
+            waiter.cancel()
+            shared_lock.release()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            assert shared_lock.acquire(blocking=False)
+            shared_lock.release()
+        finally:
+            if shared_lock.locked():
+                shared_lock.release()
+            await guard.aclose()
 
     def test_cancel_command_clears_active_mission_without_process_launch(
         self,
@@ -1599,7 +2582,7 @@ class TestCommands:
 
         response = test_client.post(
             "/api/v1/drone/commands",
-            json={"missionType": "0", "triggerTime": "0", "command_id": "cancel-1"},
+            json={"mission_type": 0, "trigger_time": 0, "command_id": "cancel-1"},
         )
 
         assert response.status_code == 200
@@ -1978,8 +2961,15 @@ class TestDroneRouteSurface:
         assert "timestamp" in data
         assert "server_time" in data
 
-    def test_v1_send_command_alias(self, test_client, sample_command):
-        response = test_client.post("/api/v1/drone/commands", json=sample_command)
+    def test_v1_send_command_uses_canonical_contract(self, test_client):
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.TEST_LED.value,
+                "trigger_time": 0,
+                "command_id": "route-surface-command",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -1991,6 +2981,7 @@ class TestDroneRouteSurface:
 
         async def _mock_probe(self, require_global_position=True):
             return {
+                "hw_id": "1",
                 "success": True,
                 "ready": True,
                 "summary": "ready for mission startup",
@@ -2002,6 +2993,18 @@ class TestDroneRouteSurface:
                 "gyro_ok": True,
                 "accel_ok": True,
                 "mag_ok": True,
+                "observation": {
+                    "schema_version": 1,
+                    "observation_id": "health-test-route-1",
+                    "source": "mavsdk_health",
+                    "observed_at_ms": 100,
+                    "valid_until_ms": 2_100,
+                    "require_global_position": require_global_position,
+                    "ready": True,
+                    "blockers": [],
+                },
+                "remaining_valid_ms": 1_900,
+                "server_processing_ms": 100,
                 "timed_out": False,
                 "elapsed_sec": 0.2,
                 "require_global_position": require_global_position,

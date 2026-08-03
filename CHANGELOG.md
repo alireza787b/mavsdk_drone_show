@@ -9,7 +9,49 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Added
+- Generic GCS command tracking now uses a host-local SQLite/WAL lifecycle
+  journal with durable idempotency bindings, deadlines, per-target evidence,
+  and a versioned callback capability key. GCS restarts preserve the original
+  command identity without redispatching: provably pre-dispatch work fails
+  clearly, while indeterminate post-dispatch targets remain
+  `delivery_unknown` until authenticated evidence or the original deadline.
+- Launch commands now use a typed prepare/commit protocol with one-use,
+  command/target/payload-bound authority, commit-time armability evidence,
+  bounded trigger timing, and exact-request idempotency.
+- Drone actions now share one connection-bound safety snapshot for freshness,
+  landed/airborne state, altitude, and armability instead of maintaining
+  competing readiness booleans.
+
+### Changed
+- Command preparation, fan-out, admission, timeout, target payload, and
+  execution policy now have focused ownership boundaries. Recovery actions use
+  an independent bounded lane so a slow launch batch cannot starve LAND, RTL,
+  HOLD, or emergency delivery.
+- QuickScout launch and control state now uses set-based target identity,
+  transactional mission updates, and per-mission serialization. A held package
+  is continued through an explicit follow-up plan; the former fake direct
+  resume route and UI contract are removed.
+- PX4 field defaults now use the typed parameter-profile store; the duplicate
+  root-level common-parameter CSV and its parallel loader are removed.
+
 ### Fixed
+- GCS receipt time, direct reachability, intended hardware identity, and typed
+  action evidence now remain coherent through command admission and dispatch;
+  stale or mixed-age evidence fails launch closed without suppressing the
+  separately reviewed recovery path.
+- Bench/action subprocesses handle `SIGTERM` and `SIGINT` cooperatively with
+  bounded verified cleanup. Forced termination is reported as cleanup
+  unconfirmed, and optional LED failures cannot redefine flight or emergency
+  command success.
+- Operator command cards preserve durable mission identity across refresh,
+  keep terminal history separate from active work, and keep dismissed failures
+  dismissed for the current provider session. Status presentation now uses
+  explicit altitude frames, landed/airborne evidence, and shared battery
+  formatting.
+- QuickScout mixed delivery, late reports, concurrent controls, and numeric
+  target IDs such as 1/2/10/100 can no longer overwrite or alias durable
+  mission truth.
 - Simurgh now uses an explicit route-commitment contract: complete bounded
   local actions survive transient provider outages through the normal guarded
   confirmation/precondition path, while incomplete or ordered/conditional

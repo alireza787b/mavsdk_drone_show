@@ -15,9 +15,12 @@ const MissionActionBar = ({
 
   if (!missionState || missionState === 'planning' || missionState === 'ready') return null;
 
-  const pauseEnabled = controlAvailability?.pause_enabled ?? (missionState === 'executing');
-  const replanEnabled = controlAvailability?.replan_enabled ?? (missionState === 'paused');
-  const abortEnabled = controlAvailability?.abort_enabled ?? true;
+  // Control availability is owned by the reconciled backend mission state.
+  // Missing authority must fail closed rather than recreating lifecycle rules
+  // in the browser.
+  const pauseEnabled = controlAvailability?.pause_enabled === true;
+  const replanEnabled = controlAvailability?.replan_enabled === true;
+  const abortEnabled = controlAvailability?.abort_enabled === true;
 
   const returnBehaviorMeta = {
     return_home: {
@@ -45,7 +48,7 @@ const MissionActionBar = ({
     <>
       <div className="qs-action-bar">
         <button
-          className="qs-action-btn resume"
+          className="qs-action-btn replan"
           onClick={onReplan}
           aria-label={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
           disabled={!replanEnabled}

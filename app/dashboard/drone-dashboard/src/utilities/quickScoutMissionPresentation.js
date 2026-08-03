@@ -61,11 +61,17 @@ export function getQuickScoutMissionPhaseLabel(operationPhase) {
   if (operationPhase === 'ready_to_launch') {
     return 'Ready to Launch';
   }
+  if (operationPhase === 'launch_queued') {
+    return 'Launch Queued';
+  }
   if (operationPhase === 'launch_partial') {
     return 'Launch Partial';
   }
   if (operationPhase === 'searching') {
     return 'Searching';
+  }
+  if (operationPhase === 'mixed_control') {
+    return 'Mixed Control State';
   }
   if (operationPhase === 'holding') {
     return 'Holding';
@@ -80,6 +86,44 @@ export function getQuickScoutMissionPhaseLabel(operationPhase) {
     return 'Aborted';
   }
   return 'Planning';
+}
+
+export function getQuickScoutCommandLifecycleMessage(batch) {
+  const state = batch?.state;
+  const targetCount = Object.keys(batch?.targets || {}).length;
+  const targetLabel = `${targetCount} target${targetCount === 1 ? '' : 's'}`;
+
+  if (state === 'queued') {
+    return `Queued one tracked command for ${targetLabel}; no execution is implied yet.`;
+  }
+  if (state === 'preparing') {
+    return `Checking current launch readiness for ${targetLabel}.`;
+  }
+  if (state === 'awaiting_ack') {
+    return `Command delivery is in progress for ${targetLabel}; acknowledgements are pending.`;
+  }
+  if (state === 'accepted') {
+    return `Delivery was accepted by ${targetLabel}; execution evidence is still pending.`;
+  }
+  if (state === 'delivery_unknown') {
+    return 'At least one delivery outcome is uncertain. Inspect each target before retrying.';
+  }
+  if (state === 'rejected') {
+    return 'At least one target rejected the command. Inspect the target states and blocker details.';
+  }
+  if (state === 'executing') {
+    return `Authenticated execution evidence is available for this ${targetLabel} command.`;
+  }
+  if (state === 'completed') {
+    return `Execution completed successfully for ${targetLabel}.`;
+  }
+  if (state === 'failed') {
+    return 'The tracked command reached a terminal failure. Inspect each target for the exact outcome.';
+  }
+  if (state === 'tracking_unavailable') {
+    return 'Current tracker truth is unavailable. Retained terminal target evidence is shown; do not infer success.';
+  }
+  return batch?.receipt?.message || 'Monitor the command tracker for lifecycle truth.';
 }
 
 function formatCoordinate(point) {

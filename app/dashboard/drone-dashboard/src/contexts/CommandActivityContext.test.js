@@ -10,19 +10,33 @@ jest.mock('../services/droneApiService', () => ({
   getRecentCommands: jest.fn(),
 }));
 
-jest.mock('../utilities/commandLifecycleFeedback', () => ({
-  buildLifecycleSnapshotFromStatus: jest.fn(),
-}));
-
 function MonitorProbe() {
-  const { commandMonitors } = useCommandActivity();
+  const {
+    commandMonitors,
+    dismissCommandMonitor,
+    primaryMonitor,
+    recentCommandMonitors,
+  } = useCommandActivity();
 
   return (
     <div>
+      <div data-testid="primary-command">
+        {primaryMonitor?.commandId || 'none'}
+      </div>
+      <div data-testid="recent-commands">
+        {recentCommandMonitors.map((monitor) => monitor.commandId).join(',') || 'none'}
+      </div>
       {commandMonitors.map((monitor) => (
         <div key={monitor.commandId}>
           <span>{monitor.commandLabel}</span>
           <span>{monitor.phase}</span>
+          <span>{monitor.missionType}</span>
+          <button
+            type="button"
+            onClick={() => dismissCommandMonitor(monitor.commandId)}
+          >
+            Dismiss {monitor.commandId}
+          </button>
         </div>
       ))}
     </div>
@@ -32,26 +46,28 @@ function MonitorProbe() {
 describe('CommandActivityContext', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.clearAllMocks();
-    buildLifecycleSnapshotFromStatus.mockImplementation((status) => ({
-      commandId: status.command_id,
-      commandLabel: status.mission_name,
-      missionType: status.mission_type,
-      targetDrones: status.target_drones || [],
-      phase: status.phase,
-      outcome: status.outcome,
-      isTerminal: status.phase === 'terminal',
-      trackingIssue: null,
-      progress: status.progress || null,
-      acks: status.acks || null,
-      executions: status.executions || null,
-      updatedAtMs: status.updated_at || 0,
-    }));
+    jest.resetAllMocks();
   });
 
   afterEach(() => {
     jest.clearAllTimers();
     jest.useRealTimers();
+  });
+
+  it('builds recovered status snapshots with canonical mission identity', () => {
+    expect(buildLifecycleSnapshotFromStatus({
+      command_id: 'cmd-recovered',
+      mission_name: 'TAKE_OFF',
+      mission_type: 10,
+      target_drones: ['1'],
+      phase: 'terminal',
+      outcome: 'failed',
+      updated_at: 4000,
+    })).toEqual(expect.objectContaining({
+      commandId: 'cmd-recovered',
+      missionType: 10,
+      isTerminal: true,
+    }));
   });
 
   it('discovers active commands started from another client during refresh polling', async () => {
@@ -135,7 +151,7 @@ describe('CommandActivityContext', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Drone Show from CSV')).toBeInTheDocument();
+      expect(screen.getByText('Drone Show From CSV')).toBeInTheDocument();
       expect(screen.getByText('in_progress')).toBeInTheDocument();
     });
 
@@ -149,5 +165,74 @@ describe('CommandActivityContext', () => {
       expect(getRecentCommands).toHaveBeenCalledTimes(2);
       expect(screen.getByText('terminal')).toBeInTheDocument();
     });
+  });
+
+  it('keeps terminal history out of the primary monitor while retaining typed mission identity', async () => {
+    getActiveCommands.mockResolvedValue({ commands: [] });
+    getRecentCommands.mockResolvedValue({
+      commands: [
+        {
+          command_id: 'cmd-failed-history',
+          mission_name: 'TAKE_OFF',
+          mission_type: 10,
+          target_drones: ['1'],
+          phase: 'terminal',
+          outcome: 'failed',
+          updated_at: 4000,
+        },
+      ],
+    });
+
+    render(
+      <CommandActivityProvider>
+        <MonitorProbe />
+      </CommandActivityProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Take Off')).toBeInTheDocument();
+      expect(screen.getByText('10')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('primary-command')).toHaveTextContent('none');
+    expect(screen.getByTestId('recent-commands')).toHaveTextContent('cmd-failed-history');
+  });
+
+  it('does not re-add dismissed terminal history during periodic recent polling', async () => {
+    const terminalStatus = {
+      command_id: 'cmd-dismissed-failure',
+      mission_name: 'LAND',
+      mission_type: 102,
+      target_drones: ['1'],
+      phase: 'terminal',
+      outcome: 'failed',
+      updated_at: 5000,
+    };
+    getActiveCommands.mockResolvedValue({ commands: [] });
+    getRecentCommands.mockResolvedValue({ commands: [terminalStatus] });
+
+    render(
+      <CommandActivityProvider>
+        <MonitorProbe />
+      </CommandActivityProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Land')).toBeInTheDocument();
+    });
+
+    act(() => {
+      screen.getByRole('button', { name: 'Dismiss cmd-dismissed-failure' }).click();
+    });
+    expect(screen.queryByText('Land')).not.toBeInTheDocument();
+
+    await act(async () => {
+      jest.advanceTimersByTime(15000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getRecentCommands.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText('Land')).not.toBeInTheDocument();
+    expect(screen.getByTestId('primary-command')).toHaveTextContent('none');
   });
 });

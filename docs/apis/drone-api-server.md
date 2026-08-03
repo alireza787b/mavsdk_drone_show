@@ -3,7 +3,7 @@
 **Version:** 5.0 (FastAPI)
 **Previous Version:** 1.x (Flask) - Deprecated
 **Migration Date:** 2025-11-22
-**Status:** ✅ Production Ready
+**Status:** Validated development/field-test component; MDS as a whole is not safety-certified or production-ready
 
 ---
 
@@ -15,7 +15,9 @@ The Drone API Server is a high-performance FastAPI-based server that runs on eac
 
 As of the 2026-04-04 drone-contract cleanup, the supported HTTP contract is the canonical `/api/v1/...` surface. The old verb-style drone routes were retired instead of being kept as misleading compatibility aliases.
 
-Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.
+Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) only for
+migration history; this document and the generated OpenAPI schema describe the
+current node contract.
 
 ### Key Features
 
@@ -27,15 +29,13 @@ Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the pl
 - ✅ **CORS Enabled** - Accessible from web dashboards
 - ✅ **Canonical Contract** - One current route per domain for UI, runtime tooling, and future MCP layers
 
-### Performance Metrics
+### Performance evidence boundary
 
-| Metric | Flask (v1.x) | FastAPI (v2.0) | Improvement |
-|--------|--------------|----------------|-------------|
-| Requests/sec | ~500 | ~2,000+ | **4x faster** |
-| Latency (p50) | 20ms | 5ms | **75% reduction** |
-| Memory usage | Baseline | -20% | **More efficient** |
-| WebSocket support | ❌ No | ✅ Yes | **New feature** |
-| Concurrent connections | 100 | 1,000+ | **10x more** |
+FastAPI provides async HTTP/WebSocket primitives, but this repository does not
+currently publish a reproducible hardware/profile benchmark for request rate,
+latency, memory use, or maximum connections. Treat capacity as deployment- and
+network-specific. Validate the intended node hardware, telemetry cadence,
+authentication posture, and fleet topology before setting operational limits.
 
 ---
 
@@ -210,8 +210,28 @@ The drone API returns structured ACKs for both accepted and rejected commands. A
 
 Preferred mission encoding:
 - canonical request fields are `mission_type` and `trigger_time`.
-- legacy aliases (`missionType`, `triggerTime`) are still accepted at the HTTP edge, but first-party GCS callers now send the canonical snake_case contract.
+- legacy aliases such as `missionType` and `triggerTime` are rejected. GCS and
+  direct integrations send the canonical snake_case contract.
 - GCS-to-drone traffic should stay on numeric mission codes for consistency.
+
+Action safety and interruption contract:
+
+- Takeoff, Hold, Arm/Disarm Ground Test, and the live-armability probe use one
+  connection-bound safety snapshot. Each field reports local receipt age and,
+  when the MAVSDK sample exposes it, source timestamp age or boot-clock value. A missing
+  source clock is `unknown`; it is never represented as age zero.
+- A disconnect during sampling invalidates the complete snapshot, even if the
+  link reconnects before the response. A new post-reconnect observation is
+  required. Source boot-clock rollback and mixed stale/fresh fields also fail
+  closed.
+- The action subprocess handles `SIGTERM` and `SIGINT` cooperatively. If
+  TAKE_OFF or the ground test has crossed its arm boundary, it receives one
+  fixed, shielded cleanup window to confirm LAND/disarm before emitting its
+  terminal result. Repeated signals do not cancel that cleanup.
+- Recovery replacement grants TAKE_OFF/TEST the action cleanup grace. Emergency
+  Stop remains immediate; if it must force-kill either action, the prior
+  command is reported as `superseded_cleanup_unconfirmed` rather than implying
+  a verified safe final state.
 
 ---
 
@@ -798,7 +818,7 @@ Visit `http://drone-ip:7070/docs` in browser:
 | Feature | Flask (v1.x) | FastAPI (v2.0) |
 |---------|-------------|----------------|
 | Module name | `flask_handler.py` | `drone_api_server.py` |
-| Class name | `FlaskHandler` | `DroneAPIServer` |
+| Class name | retired Flask server | `DroneAPIServer` |
 | WebSocket | ❌ Not supported | ✅ Supported |
 | API docs | ❌ Manual | ✅ Auto-generated at `/docs` |
 | Type validation | ❌ Manual | ✅ Pydantic models |
@@ -811,13 +831,9 @@ Visit `http://drone-ip:7070/docs` in browser:
 - ✅ CORS configuration
 - ✅ Core request/response payload shapes preserved while routes were canonicalized
 
-### Backward Compatibility
-
-The `DroneAPIServer` class includes a `FlaskHandler` alias for backward compatibility:
-
-```python
-FlaskHandler = DroneAPIServer  # Backward compatibility alias
-```
+The obsolete `FlaskHandler` class alias has been removed. Runtime code and
+extensions must import `DroneAPIServer`; keeping two names for the same current
+server obscured ownership without preserving a supported HTTP contract.
 
 ---
 
@@ -840,11 +856,11 @@ await asyncio.sleep(1.0)  # 1 Hz (default)
 | Bandwidth-constrained | 0.5 Hz | `2.0` |
 | Low-priority monitoring | 0.2 Hz | `5.0` |
 
-### Concurrent Connections
+### Concurrent connections
 
-FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS monitoring 100 drones:
-- Each drone can have 10+ simultaneous connections
-- Total system capacity: 100,000+ connections
+Connection capacity is deliberately not stated as a universal number. Measure
+it on the intended node hardware and network with the same telemetry cadence,
+TLS/authentication, and reconnect behavior used in deployment.
 
 ---
 
@@ -924,6 +940,10 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 - Target: 5,000 req/s per drone
 - Target: 10,000 concurrent WebSocket connections
 - Target: Sub-1ms latency for local requests
+
+These are aspirational targets, not current capability claims. Any promoted
+limit requires a checked-in benchmark procedure, environment description, and
+reproducible result artifact.
 
 ---
 

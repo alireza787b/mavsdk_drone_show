@@ -14,7 +14,12 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from src.command_contract import SubmitCommandRequest
+from src.command_contract import (
+    CommandPayloadRequest,
+    SubmitCommandRequest,
+    normalize_explicit_target_hw_ids,
+)
+from src.enums import Mission
 
 from .action_planner import (
     ACTION_INTENT,
@@ -900,7 +905,12 @@ def _build_sequence_post_actions(
                     f"steps[{index - 1}].{exc}",
                 )
             mission_type = int(arguments.get("mission_type") or 0)
-            if mission_type not in {10, 101, 104, 112}:
+            if mission_type not in {
+                Mission.TAKE_OFF.value,
+                Mission.LAND.value,
+                Mission.RETURN_RTL.value,
+                Mission.PRECISION_MOVE.value,
+            }:
                 return (), ProviderActionDraftResult(
                     None,
                     "unsupported_flight_command",
@@ -915,13 +925,19 @@ def _build_sequence_post_actions(
                     "missing_flight_arguments",
                     f"steps[{index - 1}].target_drone_ids",
                 )
-            if mission_type == 10 and arguments.get("takeoff_altitude") is None:
+            if (
+                mission_type == Mission.TAKE_OFF.value
+                and arguments.get("takeoff_altitude") is None
+            ):
                 return (), ProviderActionDraftResult(
                     None,
                     "missing_flight_arguments",
                     f"steps[{index - 1}].takeoff_altitude_m",
                 )
-            if mission_type == 112 and not isinstance(arguments.get("precision_move"), Mapping):
+            if (
+                mission_type == Mission.PRECISION_MOVE.value
+                and not isinstance(arguments.get("precision_move"), Mapping)
+            ):
                 return (), ProviderActionDraftResult(
                     None,
                     "missing_flight_arguments",
@@ -1071,16 +1087,24 @@ def _build_flight_draft(
     except ValueError as exc:
         return ProviderActionDraftResult(None, "invalid_flight_payload", str(exc))
     mission_type = int(primary.get("mission_type") or 0)
-    mission_name = {10: "TAKE_OFF", 101: "LAND", 104: "RETURN_RTL", 112: "PRECISION_MOVE"}.get(mission_type)
+    mission_name = {
+        Mission.TAKE_OFF.value: Mission.TAKE_OFF.name,
+        Mission.LAND.value: Mission.LAND.name,
+        Mission.RETURN_RTL.value: Mission.RETURN_RTL.name,
+        Mission.PRECISION_MOVE.value: Mission.PRECISION_MOVE.name,
+    }.get(mission_type)
     if not mission_name:
         return ProviderActionDraftResult(None, "unsupported_flight_command", "steps[0].mission_type")
     targets = tuple(str(item) for item in primary.get("target_drone_ids") or ())
     primary_missing: list[str] = []
     if not targets:
         primary_missing.append("target_drone_ids")
-    if mission_type == 10 and primary.get("takeoff_altitude") is None:
+    if mission_type == Mission.TAKE_OFF.value and primary.get("takeoff_altitude") is None:
         primary_missing.append("takeoff_altitude_m")
-    if mission_type == 112 and not isinstance(primary.get("precision_move"), Mapping):
+    if (
+        mission_type == Mission.PRECISION_MOVE.value
+        and not isinstance(primary.get("precision_move"), Mapping)
+    ):
         primary_missing.append("precision_move")
     post_actions, error = _build_sequence_post_actions(
         plan.steps[1:],
@@ -1134,13 +1158,18 @@ def _canonical_flight_payload(
         if inferred_targets:
             candidate["target_drone_ids"] = inferred_targets
     candidate.setdefault("trigger_time", 0)
-    candidate["operator_label"] = f"simurgh:{draft_id}:step:{step_index}"
+    raw_targets = candidate.pop("target_drone_ids", None)
+    if "target_scope" in candidate or "command_id" in candidate:
+        raise ValueError("draft flight payload cannot supply target_scope or command_id")
     try:
-        command = SubmitCommandRequest.model_validate(candidate)
+        command = CommandPayloadRequest.model_validate(candidate)
+        targets = normalize_explicit_target_hw_ids(raw_targets)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
     canonical = command.model_dump(mode="json", exclude_none=True)
-    canonical.pop("idempotency_key", None)
+    if targets is not None:
+        canonical["target_drone_ids"] = targets
+    canonical["operator_label"] = f"simurgh:{draft_id}:step:{step_index}"
     return canonical
 
 

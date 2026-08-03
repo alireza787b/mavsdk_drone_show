@@ -13,15 +13,24 @@ import uuid
 import math
 import asyncio
 import secrets
+import threading
+import weakref
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
 from command_submission import submit_tracked_command
-from enums import Mission
+from src.enums import Mission
 from mds_logging import get_logger
-from schemas import SubmitCommandRequest, SubmitCommandResponse
+from schemas import CommandSubmissionReceipt, SubmitCommandRequest
+from sar.command_lifecycle import (
+    QuickScoutCommandProjection,
+    build_queued_command_batch,
+    command_batch_has_unresolved_targets,
+    project_tracker_status,
+    project_tracking_unavailable,
+)
 from sar.coverage_planner import BoustrophedonPlanner
 from sar.schemas import (
     CoveragePlanResponse,
@@ -34,8 +43,10 @@ from sar.schemas import (
     QuickScoutFindingUpdate,
     MissionStatus,
     QuickScoutControlAvailability,
-    QuickScoutControlEffect,
-    QuickScoutLaunchSubmission,
+    QuickScoutCommandAction,
+    QuickScoutCommandBatch,
+    QuickScoutCommandLifecycleState,
+    QuickScoutCommandQueuedResponse,
     QuickScoutLaunchRevalidationResponse,
     QuickScoutMissionHandoff,
     QuickScoutMissionHandoffFinding,
@@ -43,14 +54,13 @@ from sar.schemas import (
     QuickScoutMissionPhase,
     QuickScoutPlanningJobResponse,
     QuickScoutPlanningJobState,
+    QuickScoutProgressReceipt,
     QuickScoutPlanningOrigin,
     QuickScoutPlanningPositionMode,
     QuickScoutPlanningPositionSource,
     QuickScoutPlanningWarning,
     QuickScoutTerrainSummary,
     QuickScoutMissionRequest,
-    QuickScoutMissionControlResponse,
-    QuickScoutMissionLaunchResponse,
     QuickScoutOperationRecord,
     QuickScoutMissionSummary,
     QuickScoutMissionWorkspaceResponse,
@@ -96,6 +106,26 @@ class QuickScoutService:
         self._planning_jobs: Dict[str, Dict[str, Any]] = {}
         self._planning_tasks: Dict[str, asyncio.Task] = {}
         self._launch_revalidation_tokens: Dict[str, Dict[str, Any]] = {}
+        self._mission_command_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = (
+            weakref.WeakValueDictionary()
+        )
+        self._mission_command_locks_guard = threading.Lock()
+
+    def _mission_command_lock(self, mission_id: str) -> asyncio.Lock:
+        """Return the process-local serializer for one mission's command flow.
+
+        MDS has one command-owning GCS service process.  The lock prevents two
+        pause/abort/launch submissions for the same mission from crossing an
+        ``await`` boundary, while the SQLite mutation API protects every durable
+        merge from stale whole-record replacement.
+        """
+
+        with self._mission_command_locks_guard:
+            lock = self._mission_command_locks.get(mission_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._mission_command_locks[mission_id] = lock
+            return lock
 
     @staticmethod
     def _now_ms() -> int:
@@ -362,46 +392,16 @@ class QuickScoutService:
             )
 
     @staticmethod
-    def _build_operator_label(action: str, mission_id: str, hw_id: Optional[str] = None) -> str:
-        suffix = f" {hw_id}" if hw_id else ""
-        return f"QuickScout {action} {mission_id[:8]}{suffix}"
+    def _build_operator_label(action: str, mission_id: str) -> str:
+        return f"QuickScout {action} {mission_id[:8]}"
 
     @staticmethod
-    def _accepted_hw_ids_from_response(
-        response: SubmitCommandResponse,
-        fallback_targets: List[str],
-    ) -> List[str]:
-        ack_summary = response.ack_summary
-        details = ack_summary.details if ack_summary is not None else {}
-        accepted_hw_ids = [
-            str(hw_id)
-            for hw_id, detail in details.items()
-            if getattr(detail, "category", None) == "accepted"
-        ]
-        if accepted_hw_ids:
-            return accepted_hw_ids
-        if response.success and len(fallback_targets) == 1:
-            return list(fallback_targets)
-        return []
-
-    @staticmethod
-    def _summarize_command_response(response: Optional[SubmitCommandResponse]) -> Optional[Dict[str, Any]]:
-        if response is None:
-            return None
-        return {
-            "command_id": response.command_id,
-            "status": response.status,
-            "mission_type": response.mission_type,
-            "mission_name": response.mission_name,
-            "target_drones": list(response.target_drones),
-            "submitted_count": response.submitted_count,
-            "tracking_status": response.tracking_status.value if response.tracking_status else None,
-            "tracking_phase": response.tracking_phase.value if response.tracking_phase else None,
-            "tracking_outcome": response.tracking_outcome.value if response.tracking_outcome else None,
-            "tracking_timeout_ms": response.tracking_timeout_ms,
-            "message": response.message,
-            "timestamp": response.timestamp,
-        }
+    def _command_idempotency_key(
+        mission_id: str,
+        action: QuickScoutCommandAction,
+        attempt: int,
+    ) -> str:
+        return f"quickscout:{mission_id}:{action.value}:{attempt}"
 
     @staticmethod
     def _resolve_abort_mission_type(return_behavior: ReturnBehavior) -> Mission:
@@ -418,14 +418,16 @@ class QuickScoutService:
         mission_type: Mission,
         mission_id: str,
         hw_ids: List[str],
-        action: str,
-    ) -> SubmitCommandResponse:
+        action: QuickScoutCommandAction,
+        attempt: int,
+    ) -> CommandSubmissionReceipt:
         request = SubmitCommandRequest(
             mission_type=mission_type.value,
             trigger_time=0,
             mission_id=mission_id,
             target_drone_ids=hw_ids,
-            operator_label=self._build_operator_label(action, mission_id),
+            operator_label=self._build_operator_label(action.value, mission_id),
+            idempotency_key=self._command_idempotency_key(mission_id, action, attempt),
         )
         return await submit_tracked_command(deps, request)
 
@@ -804,22 +806,44 @@ class QuickScoutService:
         if operation.state == SurveyState.PLANNING:
             return QuickScoutMissionPhase.PLANNING
         if operation.state == SurveyState.READY:
+            batch = operation.latest_command_batch
+            if (
+                batch is not None
+                and batch.action == QuickScoutCommandAction.LAUNCH
+                and self._command_is_pending(batch)
+            ):
+                return QuickScoutMissionPhase.LAUNCH_QUEUED
             return QuickScoutMissionPhase.READY_TO_LAUNCH
         if operation.state == SurveyState.PAUSED:
             return QuickScoutMissionPhase.HOLDING
         if operation.state == SurveyState.COMPLETED:
             return QuickScoutMissionPhase.COMPLETED
         if operation.state == SurveyState.ABORTED:
-            last_action = (operation.last_command_summary or {}).get("action")
-            if last_action == "abort":
+            batch = operation.latest_command_batch
+            if (
+                batch is not None
+                and batch.action == QuickScoutCommandAction.ABORT
+                and batch.state == QuickScoutCommandLifecycleState.COMPLETED
+            ):
                 return QuickScoutMissionPhase.RETURN_COMMANDED
             return QuickScoutMissionPhase.ABORTED
         if operation.state == SurveyState.EXECUTING:
-            launch_summary = operation.launch_summary or {}
-            launched = int(launch_summary.get("drones_launched") or 0)
-            failed = int(launch_summary.get("drones_failed") or 0)
-            if launched > 0 and failed > 0:
+            active = sum(
+                state.state in {SurveyState.EXECUTING, SurveyState.COMPLETED}
+                for state in operation.drone_states.values()
+            )
+            batch = operation.latest_command_batch
+            if (
+                batch is not None
+                and batch.action == QuickScoutCommandAction.LAUNCH
+                and 0 < active < len(operation.drone_states)
+            ):
                 return QuickScoutMissionPhase.LAUNCH_PARTIAL
+            if any(
+                state.state in {SurveyState.PAUSED, SurveyState.ABORTED}
+                for state in operation.drone_states.values()
+            ):
+                return QuickScoutMissionPhase.MIXED_CONTROL
             return QuickScoutMissionPhase.SEARCHING
         return QuickScoutMissionPhase.PLANNING
 
@@ -828,6 +852,24 @@ class QuickScoutService:
         operation: QuickScoutOperationRecord,
         phase: QuickScoutMissionPhase,
     ) -> QuickScoutControlAvailability:
+        batch = operation.latest_command_batch
+        command_pending = (
+            batch is not None
+            and batch.action in {QuickScoutCommandAction.PAUSE, QuickScoutCommandAction.ABORT}
+            and self._command_is_pending(batch)
+        )
+        if command_pending:
+            action = batch.action.value.replace("_", " ")
+            reason = f"The {action} command is still being tracked."
+            return QuickScoutControlAvailability(
+                pause_enabled=False,
+                pause_reason=reason,
+                replan_enabled=False,
+                replan_reason="Wait for execution evidence before changing the mission package.",
+                abort_enabled=False,
+                abort_reason=reason,
+            )
+
         if phase in (QuickScoutMissionPhase.SEARCHING, QuickScoutMissionPhase.LAUNCH_PARTIAL):
             return QuickScoutControlAvailability(
                 pause_enabled=True,
@@ -838,6 +880,27 @@ class QuickScoutService:
                     else "Follow-up planning is typically used after hold, return, or completion."
                 ),
                 abort_enabled=True,
+            )
+
+        if phase == QuickScoutMissionPhase.MIXED_CONTROL:
+            active_count = sum(
+                state.state == SurveyState.EXECUTING
+                for state in operation.drone_states.values()
+            )
+            return QuickScoutControlAvailability(
+                pause_enabled=active_count > 0,
+                pause_reason=(
+                    None
+                    if active_count > 0
+                    else "No assigned aircraft is currently searching."
+                ),
+                replan_enabled=True,
+                replan_reason="Build a follow-up package for the mixed active/holding mission state.",
+                abort_enabled=any(
+                    state.state in {SurveyState.EXECUTING, SurveyState.PAUSED}
+                    for state in operation.drone_states.values()
+                ),
+                abort_reason="Mission end is unavailable when every assignment is already terminal.",
             )
 
         if phase == QuickScoutMissionPhase.HOLDING:
@@ -893,12 +956,30 @@ class QuickScoutService:
                 )
             return ("Package is computed and ready for launch review.", None)
 
-        if phase == QuickScoutMissionPhase.LAUNCH_PARTIAL:
-            launch_summary = operation.launch_summary or {}
-            launched = int(launch_summary.get("drones_launched") or 0)
-            failed = int(launch_summary.get("drones_failed") or 0)
+        if phase == QuickScoutMissionPhase.LAUNCH_QUEUED:
+            batch = operation.latest_command_batch
+            target_counts: Dict[str, int] = {}
+            if batch is not None:
+                for target in batch.targets.values():
+                    label = target.state.value.replace("_", " ")
+                    target_counts[label] = target_counts.get(label, 0) + 1
+            target_summary = ", ".join(
+                f"{count} {label}"
+                for label, count in sorted(target_counts.items())
+            ) or "queued"
             return (
-                f"Search package is running on {launched}/{drone_count} assigned drone(s); {failed} launch assignment(s) did not accept dispatch.",
+                f"Launch target state: {target_summary}; unresolved targets retain the command slot until terminal evidence arrives.",
+                "Monitor the tracked command and do not infer launch from delivery or ACK state.",
+            )
+
+        if phase == QuickScoutMissionPhase.LAUNCH_PARTIAL:
+            launched = sum(
+                state.state in {SurveyState.EXECUTING, SurveyState.COMPLETED}
+                for state in operation.drone_states.values()
+            )
+            failed = max(0, drone_count - launched)
+            return (
+                f"Search package has execution evidence on {launched}/{drone_count} assigned drone(s); {failed} assignment(s) are not executing.",
                 "Review failed assets or generate a reduced follow-up package before expanding the search.",
             )
 
@@ -908,15 +989,26 @@ class QuickScoutService:
                 None,
             )
 
+        if phase == QuickScoutMissionPhase.MIXED_CONTROL:
+            aborted_count = sum(
+                state.state == SurveyState.ABORTED
+                for state in operation.drone_states.values()
+            )
+            return (
+                f"Mixed assignment state: {executing_count} searching, {paused_count} holding, "
+                f"{aborted_count} ended, {completed_count} completed.",
+                "Review target states before issuing another subset control or build a follow-up package.",
+            )
+
         if phase == QuickScoutMissionPhase.HOLDING:
             return (
                 f"{paused_count or drone_count} assigned drone(s) are holding on operator command.",
-                "QuickScout V1 does not support direct resume; generate a follow-up package from current state.",
+                "Generate a follow-up package from current aircraft state when the search should continue.",
             )
 
         if phase == QuickScoutMissionPhase.RETURN_COMMANDED:
             return (
-                f"Mission end command issued; affected drones will {self._return_behavior_label(operation.return_behavior)}.",
+                f"Mission end command executed successfully; affected drones will {self._return_behavior_label(operation.return_behavior)}.",
                 "Monitor the return and build a follow-up package if search coverage is still required.",
             )
 
@@ -1331,6 +1423,158 @@ class QuickScoutService:
         operation = self.store.get_operation(mission_id)
         return operation.survey_config if operation else None
 
+    @staticmethod
+    def _recompute_operation_state(
+        operation: QuickScoutOperationRecord,
+        batch: Optional[QuickScoutCommandBatch] = None,
+    ) -> None:
+        states = [drone.state for drone in operation.drone_states.values()]
+        if not states:
+            return
+        if all(state == SurveyState.COMPLETED for state in states):
+            operation.state = SurveyState.COMPLETED
+        elif all(state in {SurveyState.COMPLETED, SurveyState.ABORTED} for state in states):
+            operation.state = SurveyState.ABORTED
+        elif any(state == SurveyState.EXECUTING for state in states):
+            operation.state = SurveyState.EXECUTING
+        elif any(state == SurveyState.PAUSED for state in states):
+            operation.state = SurveyState.PAUSED
+        elif (
+            batch is not None
+            and batch.action == QuickScoutCommandAction.LAUNCH
+            and batch.state
+            in {
+                QuickScoutCommandLifecycleState.FAILED,
+                QuickScoutCommandLifecycleState.REJECTED,
+            }
+            and any(state in {SurveyState.COMPLETED, SurveyState.ABORTED} for state in states)
+        ):
+            operation.state = SurveyState.ABORTED
+
+    def _apply_execution_evidence(
+        self,
+        operation: QuickScoutOperationRecord,
+        projection: QuickScoutCommandProjection,
+    ) -> bool:
+        """Mutate survey state only from authenticated execution evidence."""
+
+        batch = projection.batch
+        evidence = projection.execution
+        changed = False
+        now = time.time()
+        original_state = operation.state
+        original_started_at = operation.started_at
+        if batch.action == QuickScoutCommandAction.LAUNCH and evidence.started_hw_ids:
+            operation.started_at = operation.started_at or now
+            operation.state = SurveyState.EXECUTING
+
+        for hw_id in batch.targets:
+            drone = operation.drone_states.get(hw_id)
+            if drone is None:
+                continue
+
+            previous = drone.model_dump()
+            target = batch.targets[hw_id]
+            if batch.action == QuickScoutCommandAction.LAUNCH:
+                if hw_id in evidence.succeeded_hw_ids:
+                    drone.state = SurveyState.COMPLETED
+                    drone.current_waypoint_index = drone.total_waypoints
+                    drone.coverage_percent = 100.0
+                    drone.estimated_remaining_s = 0.0
+                    drone.status_note = "Search package execution completed"
+                elif hw_id in evidence.failed_hw_ids:
+                    drone.state = SurveyState.ABORTED
+                    drone.status_note = target.message or "Search package execution failed"
+                elif hw_id in evidence.started_hw_ids:
+                    drone.state = SurveyState.EXECUTING
+                    drone.status_note = "Executing assigned search track"
+            elif batch.action == QuickScoutCommandAction.PAUSE:
+                if hw_id in evidence.succeeded_hw_ids:
+                    drone.state = SurveyState.PAUSED
+                    drone.status_note = "Holding on operator command"
+            elif batch.action == QuickScoutCommandAction.ABORT:
+                if hw_id in evidence.succeeded_hw_ids:
+                    drone.state = SurveyState.ABORTED
+                    resolved_behavior = batch.return_behavior or operation.return_behavior
+                    drone.status_note = f"Mission ended: {self._return_behavior_label(resolved_behavior)}"
+
+            if drone.model_dump() != previous:
+                drone.last_update_at = now
+                changed = True
+
+        self._recompute_operation_state(operation, batch)
+        if operation.state != original_state or operation.started_at != original_started_at:
+            changed = True
+        if (
+            batch.action == QuickScoutCommandAction.ABORT
+            and evidence.succeeded_hw_ids
+            and batch.return_behavior is not None
+            and operation.return_behavior != batch.return_behavior
+        ):
+            operation.return_behavior = batch.return_behavior
+            changed = True
+        return changed
+
+    async def reconcile_latest_command(self, deps: Any, mission_id: str) -> Optional[MissionStatus]:
+        """Refresh QuickScout's durable projection from the authoritative command tracker."""
+
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
+            return None
+        batch = operation.latest_command_batch
+        if batch is None:
+            return self.get_status(mission_id)
+
+        tracker_status_payload: Optional[Any] = None
+        unavailable_message = "The tracked command is not available in this GCS process."
+        try:
+            tracker_getter = getattr(deps, "get_command_tracker", None)
+            if not callable(tracker_getter):
+                raise RuntimeError("command tracker dependency is unavailable")
+            tracker = tracker_getter()
+            tracker_status_payload = await tracker.get_status(batch.receipt.command_id)
+            if hasattr(tracker_status_payload, "model_dump"):
+                tracker_status_payload = tracker_status_payload.model_dump(mode="json")
+        except Exception as exc:
+            logger.debug(
+                "QuickScout command reconciliation unavailable for mission_id=%s command_id=%s: %s",
+                mission_id,
+                batch.receipt.command_id,
+                exc,
+            )
+            unavailable_message = "The command tracker is currently unavailable."
+
+        expected_command_id = batch.receipt.command_id
+
+        def apply_projection(current: QuickScoutOperationRecord) -> QuickScoutOperationRecord:
+            current_batch = current.latest_command_batch
+            if (
+                current_batch is None
+                or current_batch.receipt.command_id != expected_command_id
+            ):
+                # A newer launch/control command won the mission slot while the
+                # tracker read was in flight.  Never project the stale snapshot
+                # onto that newer durable command.
+                return current
+
+            projection = (
+                project_tracker_status(current_batch, tracker_status_payload)
+                if tracker_status_payload is not None
+                else project_tracking_unavailable(
+                    current_batch,
+                    message=unavailable_message,
+                )
+            )
+            batch_changed = projection.batch != current_batch
+            state_changed = self._apply_execution_evidence(current, projection)
+            if batch_changed or state_changed:
+                current.latest_command_batch = projection.batch
+                current.updated_at = time.time()
+            return current
+
+        self.store.mutate_operation(mission_id, apply_projection)
+        return self.get_status(mission_id)
+
     def get_status(self, mission_id: str) -> Optional[MissionStatus]:
         operation = self.store.get_operation(mission_id)
         if operation is None:
@@ -1352,8 +1596,7 @@ class QuickScoutService:
             status_summary=status_summary,
             recommended_operator_action=recommended_action,
             control_availability=self._build_control_availability(operation, phase),
-            launch_summary=operation.launch_summary,
-            last_command_summary=operation.last_command_summary,
+            latest_command_batch=operation.latest_command_batch,
         )
 
     def list_operation_summaries(
@@ -1391,7 +1634,7 @@ class QuickScoutService:
                     position_source_mode=operation.position_source_mode,
                     launchable=operation.launchable,
                     requires_revalidation=operation.requires_revalidation,
-                    last_command_summary=operation.last_command_summary,
+                    latest_command_batch=operation.latest_command_batch,
                 )
             )
 
@@ -1525,7 +1768,7 @@ class QuickScoutService:
             confirmed_finding_count=confirmed_finding_count,
             handed_off_finding_count=handed_off_finding_count,
             evidence_ref_count=evidence_ref_count,
-            last_command_summary=status.last_command_summary,
+            latest_command_batch=status.latest_command_batch,
             brief_text=brief_text,
             findings=[
                 QuickScoutMissionHandoffFinding(
@@ -1545,41 +1788,6 @@ class QuickScoutService:
             ],
         )
 
-    def start_mission(
-        self,
-        mission_id: str,
-        *,
-        launched_hw_ids: Optional[List[str]] = None,
-        failed_hw_ids: Optional[List[str]] = None,
-        launch_summary: Optional[Dict[str, Any]] = None,
-    ) -> Optional[MissionStatus]:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            return None
-
-        now = time.time()
-        operation.started_at = operation.started_at or now
-        operation.updated_at = now
-        operation.state = SurveyState.EXECUTING
-        launched = set(launched_hw_ids or operation.drone_states.keys())
-        failed = set(failed_hw_ids or [])
-
-        for hw_id, drone_state in operation.drone_states.items():
-            if hw_id in launched:
-                drone_state.state = SurveyState.EXECUTING
-                drone_state.status_note = "Search package dispatched"
-                drone_state.last_update_at = now
-            elif hw_id in failed:
-                drone_state.state = SurveyState.READY
-                drone_state.status_note = "Launch not accepted"
-                drone_state.last_update_at = now
-
-        if launch_summary is not None:
-            operation.launch_summary = launch_summary
-
-        self.store.save_operation(operation)
-        return self.get_status(mission_id)
-
     def update_drone_progress(
         self,
         mission_id: str,
@@ -1587,167 +1795,75 @@ class QuickScoutService:
         current_waypoint_index: int,
         total_waypoints: int,
         distance_covered_m: float = 0.0,
-        state: Optional[SurveyState] = None,
     ) -> bool:
-        operation = self.store.get_operation(mission_id)
-        if operation is None or hw_id not in operation.drone_states:
+        result = {"applied": False, "target_exists": False}
+
+        def apply_progress(operation: QuickScoutOperationRecord) -> QuickScoutOperationRecord:
+            if hw_id not in operation.drone_states:
+                return operation
+            result["target_exists"] = True
+
+            drone_state = operation.drone_states[hw_id]
+            if drone_state.state not in {SurveyState.EXECUTING, SurveyState.COMPLETED}:
+                raise HTTPException(
+                    status_code=409,
+                    detail=self._problem_detail(
+                        "quickscout_progress_before_execution",
+                        "Progress metrics are accepted only after tracker-backed execution evidence.",
+                        details={"hw_id": hw_id, "state": drone_state.state.value},
+                    ),
+                )
+
+            expected_total = int(drone_state.total_waypoints)
+            if total_waypoints != expected_total:
+                raise HTTPException(
+                    status_code=409,
+                    detail=self._problem_detail(
+                        "quickscout_progress_plan_mismatch",
+                        "Progress total does not match the persisted QuickScout assignment.",
+                        details={
+                            "hw_id": hw_id,
+                            "expected_total_waypoints": expected_total,
+                            "reported_total_waypoints": total_waypoints,
+                        },
+                    ),
+                )
+
+            if (
+                current_waypoint_index < drone_state.current_waypoint_index
+                or distance_covered_m < drone_state.distance_covered_m
+            ):
+                return operation
+
+            drone_state.current_waypoint_index = current_waypoint_index
+            drone_state.distance_covered_m = distance_covered_m
+            drone_state.last_update_at = time.time()
+            if total_waypoints > 0:
+                drone_state.coverage_percent = min(
+                    100.0,
+                    (current_waypoint_index / total_waypoints) * 100.0,
+                )
+            plan = next(
+                (candidate for candidate in operation.plans if candidate.hw_id == hw_id),
+                None,
+            )
+            if plan is not None and total_waypoints > 0:
+                remaining_ratio = max(
+                    0.0,
+                    1.0 - min(current_waypoint_index, total_waypoints) / total_waypoints,
+                )
+                drone_state.estimated_remaining_s = round(
+                    plan.estimated_duration_s * remaining_ratio,
+                    1,
+                )
+            operation.updated_at = time.time()
+            result["applied"] = True
+            return operation
+
+        operation = self.store.mutate_operation(mission_id, apply_progress)
+        if operation is None or not result["target_exists"]:
             return False
-
-        drone_state = operation.drone_states[hw_id]
-        drone_state.current_waypoint_index = current_waypoint_index
-        drone_state.total_waypoints = total_waypoints
-        drone_state.distance_covered_m = distance_covered_m
-        drone_state.last_update_at = time.time()
-        if total_waypoints > 0:
-            drone_state.coverage_percent = min(100.0, (current_waypoint_index / total_waypoints) * 100.0)
-        plan = next((candidate for candidate in operation.plans if candidate.hw_id == hw_id), None)
-        if plan is not None and total_waypoints > 0:
-            remaining_ratio = max(0.0, 1.0 - min(current_waypoint_index, total_waypoints) / total_waypoints)
-            drone_state.estimated_remaining_s = round(plan.estimated_duration_s * remaining_ratio, 1)
-        if state is not None:
-            drone_state.state = state
-            if state == SurveyState.EXECUTING:
-                drone_state.status_note = "Executing assigned search track"
-            elif state == SurveyState.PAUSED:
-                drone_state.status_note = "Holding on operator command"
-            elif state == SurveyState.COMPLETED:
-                drone_state.status_note = "Search package complete"
-            elif state == SurveyState.ABORTED:
-                drone_state.status_note = f"Mission ended: {self._return_behavior_label(operation.return_behavior)}"
-        elif total_waypoints > 0 and current_waypoint_index >= total_waypoints:
-            drone_state.state = SurveyState.COMPLETED
-            drone_state.status_note = "Search package complete"
-        elif total_waypoints > 0 and current_waypoint_index > 0:
-            drone_state.status_note = "Executing assigned search track"
-
-        if operation.drone_states and all(
-            current.state == SurveyState.COMPLETED for current in operation.drone_states.values()
-        ):
-            operation.state = SurveyState.COMPLETED
-        elif any(current.state == SurveyState.PAUSED for current in operation.drone_states.values()) and not any(
-            current.state == SurveyState.EXECUTING for current in operation.drone_states.values()
-        ):
-            operation.state = SurveyState.PAUSED
-        elif any(current.state == SurveyState.EXECUTING for current in operation.drone_states.values()):
-            operation.state = SurveyState.EXECUTING
-
-        operation.updated_at = time.time()
-        self.store.save_operation(operation)
-        return True
-
-    def pause_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            return False
-
-        targets = set(hw_ids or operation.drone_states.keys())
-        now = time.time()
-        for hw_id, drone_state in operation.drone_states.items():
-            if hw_id in targets and drone_state.state == SurveyState.EXECUTING:
-                drone_state.state = SurveyState.PAUSED
-                drone_state.status_note = "Holding on operator command"
-                drone_state.last_update_at = now
-
-        if operation.drone_states and not any(
-            state.state == SurveyState.EXECUTING for state in operation.drone_states.values()
-        ) and any(state.state == SurveyState.PAUSED for state in operation.drone_states.values()):
-            operation.state = SurveyState.PAUSED
-        operation.updated_at = now
-        self.store.save_operation(operation)
-        return True
-
-    def resume_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            return False
-
-        targets = set(hw_ids or operation.drone_states.keys())
-        for hw_id, drone_state in operation.drone_states.items():
-            if hw_id in targets and drone_state.state == SurveyState.PAUSED:
-                drone_state.state = SurveyState.EXECUTING
-
-        if any(state.state == SurveyState.EXECUTING for state in operation.drone_states.values()):
-            operation.state = SurveyState.EXECUTING
-        operation.updated_at = time.time()
-        self.store.save_operation(operation)
-        return True
-
-    def abort_mission(
-        self,
-        mission_id: str,
-        hw_ids: Optional[List[str]] = None,
-        return_behavior: str = "return_home",
-    ) -> bool:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            return False
-
-        targets = set(hw_ids or operation.drone_states.keys())
-        now = time.time()
-        for hw_id, drone_state in operation.drone_states.items():
-            if hw_id in targets:
-                drone_state.state = SurveyState.ABORTED
-                drone_state.status_note = f"Mission ended: {self._return_behavior_label(ReturnBehavior(return_behavior))}"
-                drone_state.last_update_at = now
-
-        if operation.drone_states and all(state.state == SurveyState.ABORTED for state in operation.drone_states.values()):
-            operation.state = SurveyState.ABORTED
-        elif any(state.state == SurveyState.EXECUTING for state in operation.drone_states.values()):
-            operation.state = SurveyState.EXECUTING
-        elif any(state.state == SurveyState.PAUSED for state in operation.drone_states.values()):
-            operation.state = SurveyState.PAUSED
-        operation.return_behavior = ReturnBehavior(return_behavior)
-        operation.updated_at = now
-        operation.launch_summary = {
-            **(operation.launch_summary or {}),
-            "last_abort_return_behavior": return_behavior,
-        }
-        self.store.save_operation(operation)
-        return True
-
-    def _persist_last_command_summary(
-        self,
-        mission_id: str,
-        summary: Dict[str, Any],
-        *,
-        update_launch_summary: bool = False,
-    ) -> None:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            return
-        operation.last_command_summary = summary
-        if update_launch_summary:
-            operation.launch_summary = summary
-        operation.updated_at = time.time()
-        self.store.save_operation(operation)
-
-    def _build_launch_summary_payload(
-        self,
-        response: QuickScoutMissionLaunchResponse,
-    ) -> Dict[str, Any]:
-        return {
-            "action": "launch",
-            "timestamp": time.time(),
-            "success": response.success,
-            "mission_id": response.mission_id,
-            "trigger_time": response.trigger_time,
-            "drones_requested": response.drones_requested,
-            "drones_launched": response.drones_launched,
-            "drones_failed": response.drones_failed,
-            "launched_hw_ids": list(response.launched_hw_ids),
-            "failed_hw_ids": list(response.failed_hw_ids),
-            "message": response.message,
-            "submissions": [
-                {
-                    "hw_id": submission.hw_id,
-                    "pos_id": submission.pos_id,
-                    "accepted": submission.accepted,
-                    "error": submission.error,
-                    "command": self._summarize_command_response(submission.command),
-                }
-                for submission in response.submissions
-            ],
-        }
+        return result["applied"]
 
     def _create_launch_revalidation_token(self, mission_id: str) -> Tuple[str, float]:
         token = secrets.token_urlsafe(24)
@@ -1929,25 +2045,195 @@ class QuickScoutService:
             message="Live GPS positions match the configured-origin QuickScout plan. Launch token issued.",
         )
 
-    def _build_control_summary_payload(
+    @staticmethod
+    def _command_is_pending(batch: Optional[QuickScoutCommandBatch]) -> bool:
+        return bool(batch is not None and command_batch_has_unresolved_targets(batch))
+
+    @staticmethod
+    def _next_command_attempt(
+        operation: QuickScoutOperationRecord,
+        action: QuickScoutCommandAction,
+    ) -> int:
+        batch = operation.latest_command_batch
+        if batch is not None and batch.action == action:
+            return batch.attempt + 1
+        return 1
+
+    def _recover_pending_command(
         self,
-        response: QuickScoutMissionControlResponse,
-    ) -> Dict[str, Any]:
-        return {
-            "action": response.action,
-            "timestamp": time.time(),
-            "success": response.success,
-            "mission_id": response.mission_id,
-            "effect": response.effect.value,
-            "state_changed": response.state_changed,
-            "target_hw_ids": list(response.target_hw_ids),
-            "accepted_hw_ids": list(response.accepted_hw_ids),
-            "failed_hw_ids": list(response.failed_hw_ids),
-            "return_behavior": response.return_behavior,
-            "message": response.message,
-            "operator_guidance": response.operator_guidance,
-            "command": self._summarize_command_response(response.command),
-        }
+        operation: QuickScoutOperationRecord,
+        action: QuickScoutCommandAction,
+    ) -> Optional[QuickScoutCommandQueuedResponse]:
+        batch = operation.latest_command_batch
+        if not self._command_is_pending(batch) or batch.action != action:
+            return None
+        return QuickScoutCommandQueuedResponse(
+            mission_id=operation.mission_id,
+            latest_command_batch=batch,
+            message=(
+                f"QuickScout {action.value} is already queued as command "
+                f"{batch.receipt.command_id}; monitor its tracking URL."
+            ),
+        )
+
+    def _ensure_command_slot_available(
+        self,
+        operation: QuickScoutOperationRecord,
+        action: QuickScoutCommandAction,
+    ) -> None:
+        batch = operation.latest_command_batch
+        # A QuickScout launch executor owns the aircraft for the duration of
+        # the survey, so its tracked command legitimately remains EXECUTING
+        # while pause/end controls are needed.  Once tracker evidence has
+        # moved the launch into EXECUTING, a control command may replace the
+        # latest projection.  Pre-execution launch states remain protected so
+        # HOLD/RTL/LAND cannot race aircraft whose launch outcome is unknown.
+        launch_is_controllable = bool(
+            batch is not None
+            and batch.action == QuickScoutCommandAction.LAUNCH
+            and batch.state == QuickScoutCommandLifecycleState.EXECUTING
+            and action in {
+                QuickScoutCommandAction.PAUSE,
+                QuickScoutCommandAction.ABORT,
+            }
+        )
+        if launch_is_controllable:
+            return
+        if self._command_is_pending(batch) and batch.action != action:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_command_in_progress",
+                    f"A QuickScout {batch.action.value} command is still being tracked.",
+                    details={
+                        "command_id": batch.receipt.command_id,
+                        "state": batch.state.value,
+                        "tracking_url": batch.receipt.tracking_url,
+                    },
+                ),
+            )
+
+    @staticmethod
+    def _validate_plan_target_ids(operation: QuickScoutOperationRecord) -> List[str]:
+        hw_ids = [plan.hw_id for plan in operation.plans]
+        if not hw_ids:
+            raise HTTPException(status_code=409, detail="QuickScout mission has no launch plans")
+        if any(not hw_id or hw_id != hw_id.strip() for hw_id in hw_ids):
+            raise HTTPException(status_code=409, detail="QuickScout plan contains a non-canonical hardware ID")
+        if len(set(hw_ids)) != len(hw_ids):
+            raise HTTPException(status_code=409, detail="QuickScout plan contains duplicate hardware IDs")
+        return hw_ids
+
+    def _resolve_control_targets(
+        self,
+        deps: Any,
+        operation: QuickScoutOperationRecord,
+        pos_ids: Optional[List[int]],
+        action: QuickScoutCommandAction,
+    ) -> List[str]:
+        eligible_states = (
+            {SurveyState.EXECUTING}
+            if action == QuickScoutCommandAction.PAUSE
+            else {SurveyState.EXECUTING, SurveyState.PAUSED}
+        )
+        assigned_hw_ids = list(operation.drone_states)
+        default_hw_ids = [
+            hw_id
+            for hw_id, state in operation.drone_states.items()
+            if state.state in eligible_states
+        ]
+        hw_ids = self._resolve_pos_ids_to_hw_ids(
+            deps,
+            pos_ids,
+            default_hw_ids=default_hw_ids,
+        )
+        if not hw_ids:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_no_actionable_targets",
+                    f"No assigned aircraft is currently eligible for QuickScout {action.value}.",
+                ),
+            )
+        unassigned = sorted(set(hw_ids) - set(assigned_hw_ids))
+        if unassigned:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_unassigned_targets",
+                    "QuickScout controls may target only drones assigned to this mission.",
+                    details={"unassigned_hw_ids": unassigned},
+                ),
+            )
+        ineligible = sorted(
+            hw_id
+            for hw_id in hw_ids
+            if operation.drone_states[hw_id].state not in eligible_states
+        )
+        if ineligible:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_control_targets_not_actionable",
+                    f"QuickScout {action.value} may target only aircraft in an actionable mission state.",
+                    details={
+                        "ineligible_hw_ids": ineligible,
+                        "states": {
+                            hw_id: operation.drone_states[hw_id].state.value
+                            for hw_id in ineligible
+                        },
+                    },
+                ),
+            )
+        return hw_ids
+
+    def _persist_queued_batch(
+        self,
+        operation: QuickScoutOperationRecord,
+        *,
+        action: QuickScoutCommandAction,
+        attempt: int,
+        receipt: CommandSubmissionReceipt,
+        message: str,
+        return_behavior: Optional[ReturnBehavior] = None,
+    ) -> QuickScoutCommandQueuedResponse:
+        persisted_batch: list[QuickScoutCommandBatch] = []
+
+        def persist(current: QuickScoutOperationRecord) -> QuickScoutOperationRecord:
+            existing = current.latest_command_batch
+            if existing is not None and existing.receipt.command_id == receipt.command_id:
+                batch = existing.model_copy(update={"receipt": receipt})
+            else:
+                batch = build_queued_command_batch(
+                    action=action,
+                    attempt=attempt,
+                    receipt=receipt,
+                    return_behavior=return_behavior,
+                )
+            current.latest_command_batch = batch
+            current.updated_at = time.time()
+            persisted_batch.append(batch)
+            return current
+
+        persisted = self.store.mutate_operation(operation.mission_id, persist)
+        if persisted is None or not persisted_batch:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_operation_removed_during_submission",
+                    "The QuickScout mission was removed while its command was being queued.",
+                    details={
+                        "command_id": receipt.command_id,
+                        "tracking_url": receipt.tracking_url,
+                    },
+                ),
+            )
+        batch = persisted_batch[0]
+        return QuickScoutCommandQueuedResponse(
+            mission_id=operation.mission_id,
+            latest_command_batch=batch,
+            message=message,
+        )
 
     async def launch_mission(
         self,
@@ -1955,207 +2241,131 @@ class QuickScoutService:
         mission_id: str,
         *,
         revalidation_token: Optional[str] = None,
-    ) -> QuickScoutMissionLaunchResponse:
+    ) -> QuickScoutCommandQueuedResponse:
+        async with self._mission_command_lock(mission_id):
+            return await self._launch_mission_serialized(
+                deps,
+                mission_id,
+                revalidation_token=revalidation_token,
+            )
+
+    async def _launch_mission_serialized(
+        self,
+        deps: Any,
+        mission_id: str,
+        *,
+        revalidation_token: Optional[str] = None,
+    ) -> QuickScoutCommandQueuedResponse:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
 
+        if operation.state != SurveyState.READY:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_launch_state_invalid",
+                    "Only a ready QuickScout mission package can be launched.",
+                    details={"state": operation.state.value},
+                ),
+            )
+        recovered = self._recover_pending_command(operation, QuickScoutCommandAction.LAUNCH)
+        if recovered is not None:
+            return recovered
+        self._ensure_command_slot_available(operation, QuickScoutCommandAction.LAUNCH)
+        attempt = self._next_command_attempt(operation, QuickScoutCommandAction.LAUNCH)
+
         if operation.requires_revalidation and not self._consume_launch_revalidation_token(mission_id, revalidation_token):
             raise self._build_launch_revalidation_required_error(operation)
 
-        try:
-            deps.load_config()
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to load drone config: {exc}") from exc
-
-        trigger_time = int(time.time()) + 5
-        return_behavior = operation.return_behavior.value
-        successes = 0
-        failures = 0
-        submissions: List[QuickScoutLaunchSubmission] = []
-        launched_hw_ids: List[str] = []
-        failed_hw_ids: List[str] = []
-
-        for plan in operation.plans:
-            hw_id = plan.hw_id
-            waypoints_data = [waypoint.model_dump(mode="json") for waypoint in plan.waypoints]
-            try:
-                response = await submit_tracked_command(
-                    deps,
-                    SubmitCommandRequest(
-                        mission_type=Mission.QUICKSCOUT.value,
-                        trigger_time=trigger_time,
-                        mission_id=mission_id,
-                        waypoints=waypoints_data,
-                        return_behavior=return_behavior,
-                        target_drone_ids=[hw_id],
-                        operator_label=self._build_operator_label("launch", mission_id, hw_id),
-                    ),
-                )
-                accepted_hw_ids = self._accepted_hw_ids_from_response(response, [hw_id])
-                accepted = hw_id in accepted_hw_ids
-                if accepted:
-                    successes += 1
-                    launched_hw_ids.append(hw_id)
-                else:
-                    failures += 1
-                    failed_hw_ids.append(hw_id)
-                submissions.append(
-                    QuickScoutLaunchSubmission(
-                        hw_id=hw_id,
-                        pos_id=plan.pos_id,
-                        accepted=accepted,
-                        command=response,
-                    )
-                )
-            except HTTPException as exc:
-                logger.warning("QuickScout launch submission failed for hw_id=%s: %s", hw_id, exc.detail)
-                failures += 1
-                failed_hw_ids.append(hw_id)
-                submissions.append(
-                    QuickScoutLaunchSubmission(
-                        hw_id=hw_id,
-                        pos_id=plan.pos_id,
-                        accepted=False,
-                        error=str(exc.detail),
-                    )
-                )
-            except Exception as exc:
-                logger.error(f"Failed to send command to drone {hw_id}: {exc}")
-                failures += 1
-                failed_hw_ids.append(hw_id)
-                submissions.append(
-                    QuickScoutLaunchSubmission(
-                        hw_id=hw_id,
-                        pos_id=plan.pos_id,
-                        accepted=False,
-                        error=str(exc),
-                    )
-                )
-
-        response = QuickScoutMissionLaunchResponse(
-            success=successes > 0,
-            mission_id=mission_id,
-            trigger_time=trigger_time,
-            drones_requested=len(operation.plans),
-            drones_launched=successes,
-            drones_failed=failures,
-            launched_hw_ids=launched_hw_ids,
-            failed_hw_ids=failed_hw_ids,
-            submissions=submissions,
+        hw_ids = self._validate_plan_target_ids(operation)
+        per_target_payloads = {
+            plan.hw_id: {
+                "waypoints": [waypoint.model_dump(mode="json") for waypoint in plan.waypoints],
+            }
+            for plan in operation.plans
+        }
+        receipt = await submit_tracked_command(
+            deps,
+            SubmitCommandRequest(
+                mission_type=Mission.QUICKSCOUT.value,
+                trigger_time=0,
+                mission_id=mission_id,
+                return_behavior=operation.return_behavior.value,
+                target_drone_ids=hw_ids,
+                operator_label=self._build_operator_label("launch", mission_id),
+                idempotency_key=self._command_idempotency_key(
+                    mission_id,
+                    QuickScoutCommandAction.LAUNCH,
+                    attempt,
+                ),
+            ),
+            per_target_payloads=per_target_payloads,
+        )
+        return self._persist_queued_batch(
+            operation,
+            action=QuickScoutCommandAction.LAUNCH,
+            attempt=attempt,
+            receipt=receipt,
             message=(
-                f"QuickScout launch accepted by {successes}/{len(operation.plans)} planned drone(s)."
-                if successes > 0
-                else f"QuickScout launch was not accepted by any of the {len(operation.plans)} planned drone(s)."
+                f"QuickScout launch queued for {len(hw_ids)} assigned drone(s). "
+                "Mission state will change only after execution evidence arrives."
             ),
         )
-
-        summary = self._build_launch_summary_payload(response)
-        if successes > 0:
-            self.start_mission(
-                mission_id,
-                launched_hw_ids=launched_hw_ids,
-                failed_hw_ids=failed_hw_ids,
-                launch_summary=summary,
-            )
-        self._persist_last_command_summary(
-            mission_id,
-            summary,
-            update_launch_summary=successes > 0,
-        )
-        return response
 
     async def pause_and_command(
         self,
         deps: Any,
         mission_id: str,
         pos_ids: Optional[List[int]] = None,
-    ) -> QuickScoutMissionControlResponse:
-        operation = self.store.get_operation(mission_id)
-        if operation is None:
-            raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+    ) -> QuickScoutCommandQueuedResponse:
+        async with self._mission_command_lock(mission_id):
+            return await self._pause_and_command_serialized(deps, mission_id, pos_ids)
 
-        hw_ids = self._resolve_pos_ids_to_hw_ids(
-            deps,
-            pos_ids,
-            default_hw_ids=list(operation.drone_states.keys()),
-        )
-        if not hw_ids:
-            raise HTTPException(status_code=400, detail="No mission drones resolved for pause command")
-
-        response = await self._submit_control_command(
-            deps,
-            mission_type=Mission.HOLD,
-            mission_id=mission_id,
-            hw_ids=hw_ids,
-            action="pause",
-        )
-        accepted_hw_ids = self._accepted_hw_ids_from_response(response, hw_ids)
-        failed_hw_ids = [hw_id for hw_id in hw_ids if hw_id not in accepted_hw_ids]
-        if accepted_hw_ids:
-            self.pause_mission(mission_id, accepted_hw_ids)
-
-        payload = QuickScoutMissionControlResponse(
-            success=bool(accepted_hw_ids),
-            mission_id=mission_id,
-            action="pause",
-            effect=(
-                QuickScoutControlEffect.COMMAND_ACCEPTED
-                if accepted_hw_ids
-                else QuickScoutControlEffect.COMMAND_REJECTED
-            ),
-            state_changed=bool(accepted_hw_ids),
-            target_hw_ids=hw_ids,
-            accepted_hw_ids=accepted_hw_ids,
-            failed_hw_ids=failed_hw_ids,
-            command=response,
-            message=(
-                f"Pause accepted by {len(accepted_hw_ids)}/{len(hw_ids)} targeted drone(s)."
-                if accepted_hw_ids
-                else "Pause command was not accepted by any targeted drone."
-            ),
-            operator_guidance=(
-                "Monitor the hold, then generate a follow-up package from current state if the search must continue."
-                if accepted_hw_ids
-                else "Check live command status and aircraft readiness before retrying pause."
-            ),
-        )
-        self._persist_last_command_summary(mission_id, self._build_control_summary_payload(payload))
-        return payload
-
-    def resume_and_record(
+    async def _pause_and_command_serialized(
         self,
         deps: Any,
         mission_id: str,
         pos_ids: Optional[List[int]] = None,
-    ) -> QuickScoutMissionControlResponse:
+    ) -> QuickScoutCommandQueuedResponse:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
-
-        hw_ids = self._resolve_pos_ids_to_hw_ids(
+        if operation.state != SurveyState.EXECUTING:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_pause_state_invalid",
+                    "Pause is available only while a QuickScout mission is executing.",
+                    details={"state": operation.state.value},
+                ),
+            )
+        recovered = self._recover_pending_command(operation, QuickScoutCommandAction.PAUSE)
+        if recovered is not None:
+            return recovered
+        self._ensure_command_slot_available(operation, QuickScoutCommandAction.PAUSE)
+        attempt = self._next_command_attempt(operation, QuickScoutCommandAction.PAUSE)
+        hw_ids = self._resolve_control_targets(
             deps,
+            operation,
             pos_ids,
-            default_hw_ids=list(operation.drone_states.keys()),
+            QuickScoutCommandAction.PAUSE,
         )
-        payload = QuickScoutMissionControlResponse(
-            success=False,
+        receipt = await self._submit_control_command(
+            deps,
+            mission_type=Mission.HOLD,
             mission_id=mission_id,
-            action="resume",
-            effect=QuickScoutControlEffect.REPLAN_REQUIRED,
-            state_changed=False,
-            target_hw_ids=hw_ids or [],
-            accepted_hw_ids=[],
-            failed_hw_ids=hw_ids or [],
-            command=None,
-            message="QuickScout coverage missions do not support direct resume in V1.",
-            operator_guidance="Open plan mode and generate a follow-up package from the current aircraft state.",
+            hw_ids=hw_ids,
+            action=QuickScoutCommandAction.PAUSE,
+            attempt=attempt,
         )
-        self._persist_last_command_summary(
-            mission_id,
-            self._build_control_summary_payload(payload),
+        return self._persist_queued_batch(
+            operation,
+            action=QuickScoutCommandAction.PAUSE,
+            attempt=attempt,
+            receipt=receipt,
+            message=f"Pause queued for {len(hw_ids)} assigned drone(s); awaiting execution evidence.",
         )
-        return payload
 
     async def abort_and_command(
         self,
@@ -2163,7 +2373,22 @@ class QuickScoutService:
         mission_id: str,
         pos_ids: Optional[List[int]] = None,
         return_behavior: str = "return_home",
-    ) -> QuickScoutMissionControlResponse:
+    ) -> QuickScoutCommandQueuedResponse:
+        async with self._mission_command_lock(mission_id):
+            return await self._abort_and_command_serialized(
+                deps,
+                mission_id,
+                pos_ids,
+                return_behavior,
+            )
+
+    async def _abort_and_command_serialized(
+        self,
+        deps: Any,
+        mission_id: str,
+        pos_ids: Optional[List[int]] = None,
+        return_behavior: str = "return_home",
+    ) -> QuickScoutCommandQueuedResponse:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
@@ -2179,67 +2404,80 @@ class QuickScoutService:
                     details={"allowed": [behavior.value for behavior in ReturnBehavior]},
                 ),
             ) from exc
-        hw_ids = self._resolve_pos_ids_to_hw_ids(
+        if operation.state not in {SurveyState.EXECUTING, SurveyState.PAUSED}:
+            raise HTTPException(
+                status_code=409,
+                detail=self._problem_detail(
+                    "quickscout_abort_state_invalid",
+                    "Mission end control is available only while QuickScout is executing or holding.",
+                    details={"state": operation.state.value},
+                ),
+            )
+        recovered = self._recover_pending_command(operation, QuickScoutCommandAction.ABORT)
+        if recovered is not None:
+            if recovered.latest_command_batch.return_behavior != resolved_return_behavior:
+                raise HTTPException(
+                    status_code=409,
+                    detail=self._problem_detail(
+                        "quickscout_abort_behavior_conflict",
+                        "The queued mission-end command uses a different return behavior.",
+                        details={
+                            "queued_return_behavior": recovered.latest_command_batch.return_behavior.value,
+                            "requested_return_behavior": resolved_return_behavior.value,
+                        },
+                    ),
+                )
+            return recovered
+        self._ensure_command_slot_available(operation, QuickScoutCommandAction.ABORT)
+        attempt = self._next_command_attempt(operation, QuickScoutCommandAction.ABORT)
+        hw_ids = self._resolve_control_targets(
             deps,
+            operation,
             pos_ids,
-            default_hw_ids=list(operation.drone_states.keys()),
+            QuickScoutCommandAction.ABORT,
         )
-        if not hw_ids:
-            raise HTTPException(status_code=400, detail="No mission drones resolved for abort command")
-
-        response = await self._submit_control_command(
+        receipt = await self._submit_control_command(
             deps,
             mission_type=self._resolve_abort_mission_type(resolved_return_behavior),
             mission_id=mission_id,
             hw_ids=hw_ids,
-            action="abort",
+            action=QuickScoutCommandAction.ABORT,
+            attempt=attempt,
         )
-        accepted_hw_ids = self._accepted_hw_ids_from_response(response, hw_ids)
-        failed_hw_ids = [hw_id for hw_id in hw_ids if hw_id not in accepted_hw_ids]
-        if accepted_hw_ids:
-            self.abort_mission(mission_id, accepted_hw_ids, resolved_return_behavior.value)
-
-        payload = QuickScoutMissionControlResponse(
-            success=bool(accepted_hw_ids),
-            mission_id=mission_id,
-            action="abort",
-            effect=(
-                QuickScoutControlEffect.COMMAND_ACCEPTED
-                if accepted_hw_ids
-                else QuickScoutControlEffect.COMMAND_REJECTED
-            ),
-            state_changed=bool(accepted_hw_ids),
-            target_hw_ids=hw_ids,
-            accepted_hw_ids=accepted_hw_ids,
-            failed_hw_ids=failed_hw_ids,
-            command=response,
+        return self._persist_queued_batch(
+            operation,
+            action=QuickScoutCommandAction.ABORT,
+            attempt=attempt,
+            receipt=receipt,
+            return_behavior=resolved_return_behavior,
             message=(
-                f"Abort accepted by {len(accepted_hw_ids)}/{len(hw_ids)} targeted drone(s)."
-                if accepted_hw_ids
-                else "Abort command was not accepted by any targeted drone."
+                f"Mission end queued for {len(hw_ids)} assigned drone(s); "
+                "return behavior will apply only after successful execution evidence."
             ),
-            operator_guidance=(
-                f"Monitor the aircraft as they {self._return_behavior_label(resolved_return_behavior)}."
-                if accepted_hw_ids
-                else "Check live command status and aircraft readiness before retrying mission end control."
-            ),
-            return_behavior=resolved_return_behavior.value,
         )
-        self._persist_last_command_summary(mission_id, self._build_control_summary_payload(payload))
-        return payload
 
-    def report_progress(self, mission_id: str, report: DroneProgressReport) -> Dict[str, Any]:
-        success = self.update_drone_progress(
+    def report_progress(self, mission_id: str, report: DroneProgressReport) -> QuickScoutProgressReceipt:
+        operation = self.store.get_operation(mission_id)
+        if operation is None or report.hw_id not in operation.drone_states:
+            raise HTTPException(status_code=404, detail="Mission or drone not found")
+
+        applied = self.update_drone_progress(
             mission_id=mission_id,
             hw_id=report.hw_id,
             current_waypoint_index=report.current_waypoint_index,
             total_waypoints=report.total_waypoints,
             distance_covered_m=report.distance_covered_m,
-            state=report.state,
         )
-        if not success:
-            raise HTTPException(status_code=404, detail="Mission or drone not found")
-        return {"success": True}
+        return QuickScoutProgressReceipt(
+            mission_id=mission_id,
+            hw_id=report.hw_id,
+            applied=applied,
+            message=(
+                "Progress metrics updated."
+                if applied
+                else "Stale progress metrics ignored; persisted progress is newer."
+            ),
+        )
 
     def add_finding(
         self,

@@ -212,10 +212,9 @@ export function buildSwarmRuntimeCommand(actionKey, targetIds = []) {
   }
 
   return {
-    missionType: String(action.missionType),
-    triggerTime: '0',
-    target_drones: targetIds,
-    operatorLabel: action.operatorLabel,
-    command_scope: 'smart_swarm_runtime',
+    mission_type: action.missionType,
+    trigger_time: 0,
+    target_drone_ids: targetIds.map((value) => String(value)),
+    operator_label: action.operatorLabel,
   };
 }

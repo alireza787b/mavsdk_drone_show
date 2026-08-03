@@ -34,6 +34,14 @@ def _make_deps():
     )
 
 
+def _patch_tracked_submission(monkeypatch):
+    submit = AsyncMock(return_value=SimpleNamespace(command_id="cmd-git-sync"))
+    wait = AsyncMock(return_value={"phase": "pending_execution"})
+    monkeypatch.setattr(git_routes, "submit_tracked_command", submit)
+    monkeypatch.setattr(git_routes, "_wait_for_tracked_dispatch", wait)
+    return submit, wait
+
+
 def test_git_router_registers_expected_routes():
     deps = _make_deps()
     app = FastAPI()
@@ -42,7 +50,7 @@ def test_git_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/git/status" in routes
-    assert "/api/v1/git/sync-operations" in routes
+    assert "/api/v1/git/sync-operations" not in routes
     assert "/api/v1/fleet/git-sync" in routes
     assert "/api/v1/fleet/git-sync/dry-run" in routes
     assert "/api/v1/fleet/git-sync/apply" in routes
@@ -55,6 +63,7 @@ def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(
     monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
     git_routes._git_sync_jobs.clear()
     initial_verify = deps._verify_sync_targets
+    submit, wait = _patch_tracked_submission(monkeypatch)
 
     app = FastAPI()
     app.include_router(create_git_router(deps))
@@ -80,6 +89,8 @@ def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(
     assert response.status_code == 200
     initial_verify.assert_not_called()
     replacement_verify.assert_awaited_once()
+    submit.assert_awaited_once()
+    wait.assert_awaited_once_with(deps, "cmd-git-sync")
 
 
 def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload(monkeypatch):
@@ -87,6 +98,7 @@ def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload(monkey
     deps.get_all_heartbeats = lambda: {"1": {"timestamp": int(time.time() * 1000), "hw_id": "1"}}
     monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
     git_routes._git_sync_jobs.clear()
+    submit, _wait = _patch_tracked_submission(monkeypatch)
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
@@ -105,27 +117,13 @@ def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload(monkey
     )
 
     assert response.status_code == 200
-    deps.send_commands_to_selected.assert_called_once()
-    _, command_data, target_hw_ids = deps.send_commands_to_selected.call_args.args
-    assert target_hw_ids == ["1"]
-    assert command_data["mission_type"] == 103
-    assert command_data["update_branch"] == "main-candidate"
-    assert "pos_ids" not in command_data
-
-
-def test_deprecated_git_sync_operation_no_longer_dispatches_update_code():
-    deps = _make_deps()
-    app = FastAPI()
-    app.include_router(create_git_router(deps))
-
-    client = SyncASGITestClient(app)
-    response = client.post("/api/v1/git/sync-operations", json={"pos_ids": [1]})
-
-    assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert "dry-run" in response.json()["message"]
+    submit.assert_awaited_once()
+    command = submit.await_args.args[1]
+    assert command.target_drone_ids == ["1"]
+    assert command.mission_type == git_routes.Mission.UPDATE_CODE.value
+    assert command.update_branch == "main-candidate"
+    assert "pos_ids" not in command.model_dump()
     deps.send_commands_to_selected.assert_not_called()
-    deps.send_commands_to_all.assert_not_called()
 
 
 def test_fleet_git_sync_dry_run_requires_operator_token(monkeypatch):

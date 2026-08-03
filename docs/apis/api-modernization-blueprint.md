@@ -1,12 +1,14 @@
 # API Modernization Blueprint
 
 Date: 2026-04-03
-Status: Core cleanup complete on `main-candidate`; deferred follow-ups tracked explicitly
+Status: Historical implementation blueprint; core migration complete and later
+contracts supersede individual route snapshots in this file
 Owner: API audit / modernization stream
 
 ## Purpose
 
-This document is the source of truth for the API cleanup and migration effort across:
+This document preserves the decisions and migration history for the API cleanup
+effort across:
 
 - GCS FastAPI HTTP routes
 - GCS WebSocket and SSE streams
@@ -14,6 +16,12 @@ This document is the source of truth for the API cleanup and migration effort ac
 - internal runtime HTTP callbacks between drones and GCS
 - frontend API consumption patterns
 - future MCP and AI-agent integration
+
+It is not the current route inventory. Use
+[GCS API Server](gcs-api-server.md),
+[Drone API Server](drone-api-server.md), and the generated OpenAPI schemas for
+current contracts. In particular, routes described here as provisional or
+temporary may since have been removed.
 
 ## Why This Work Exists
 

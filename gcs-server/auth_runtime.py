@@ -40,7 +40,6 @@ ADMIN_PREFIXES = (
     "/api/v1/system/env",
     "/api/v1/system/runtime-update",
     "/api/v1/system/sitl",
-    "/api/v1/git/sync-operations",
     "/api/v1/simurgh/runtime-settings",
     "/api/v1/simurgh/provider-credentials",
 )

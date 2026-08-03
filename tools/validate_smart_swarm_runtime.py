@@ -43,6 +43,7 @@ from src.gcs_api_routes import (
     GCS_FLEET_TELEMETRY_ROUTE,
     GCS_SYSTEM_HEALTH_ROUTE,
 )
+from src.enums import Mission
 
 from tools.runtime_validation_support import (
     fetch_and_require_sitl_runtime,
@@ -51,11 +52,11 @@ from tools.runtime_validation_support import (
 )
 
 
-TAKEOFF = 10
-SMART_SWARM = 2
-LAND = 101
-HOLD = 102
-RTL = 104
+TAKEOFF = Mission.TAKE_OFF.value
+SMART_SWARM = Mission.SMART_SWARM.value
+LAND = Mission.LAND.value
+HOLD = Mission.HOLD.value
+RTL = Mission.RETURN_RTL.value
 
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout"}
 COMMAND_HEARTBEAT_GRACE_SECONDS = (

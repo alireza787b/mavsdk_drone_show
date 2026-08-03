@@ -27,6 +27,26 @@ const advanceLifecyclePoll = async (ms = 1500) => {
   await flushMicrotasks();
 };
 
+const commandReceipt = ({
+  command_id,
+  mission_type = 10,
+  mission_name = 'TAKE_OFF',
+  target_drones = ['1'],
+  ...overrides
+}) => ({
+  accepted_for_tracking: true,
+  command_id,
+  idempotency_key: `test-${command_id}`,
+  replayed: false,
+  mission_type,
+  mission_name,
+  target_drones,
+  tracking_url: `/api/v1/commands/${command_id}`,
+  message: 'Command accepted for tracked preparation.',
+  timestamp: 1000,
+  ...overrides,
+});
+
 describe('commandLifecycleFeedback', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -38,21 +58,90 @@ describe('commandLifecycleFeedback', () => {
     jest.useRealTimers();
   });
 
-  it('emits progress toasts when a command moves from active execution into final completion', async () => {
-    sendDroneCommand.mockResolvedValue({
-      success: true,
-      command_id: 'cmd-123',
-      mission_name: 'SWARM_TRAJECTORY',
-      submitted_count: 3,
-      target_drones: ['1', '2', '3'],
-      ack_summary: {
-        accepted: 3,
-        offline: 0,
-        rejected: 0,
-        errors: 0,
-      },
-      tracking_phase: 'pending_execution',
+  it('passes one canonical command draft to the serializer with typed ground-test evidence', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-ground-test',
+      mission_type: 100,
+      mission_name: 'TEST',
+    }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'cmd-ground-test',
+      phase: 'terminal',
+      outcome: 'failed',
+      acks: { expected: 1, received: 0, accepted: 0 },
+      executions: { expected: 0, succeeded: 0, failed: 0 },
     });
+    const safetyAcknowledgement = {
+      mode: 'operator_acknowledged',
+      props_removed: true,
+      airframe_secured: true,
+      area_clear: true,
+    };
+
+    await submitCommandWithLifecycleFeedback({
+      mission_type: 100,
+      trigger_time: 0,
+      target_drone_ids: ['1'],
+      ground_test_safety: safetyAcknowledgement,
+      uiMeta: {
+        operatorLabel: 'Arm/Disarm Ground Test',
+        confirmationMessage: 'frontend-only',
+      },
+    });
+
+    expect(sendDroneCommand).toHaveBeenCalledWith({
+      mission_type: 100,
+      trigger_time: 0,
+      target_drone_ids: ['1'],
+      ground_test_safety: safetyAcknowledgement,
+      uiMeta: {
+        operatorLabel: 'Arm/Disarm Ground Test',
+        confirmationMessage: 'frontend-only',
+      },
+    });
+  });
+
+  it('tracks a recovered command that is still preparing without claiming acceptance', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-preparing',
+      target_drones: ['1', '2'],
+      replayed: true,
+    }));
+    getCommandStatus.mockResolvedValue({
+      phase: 'terminal',
+      outcome: 'failed',
+      error_summary: 'Drone 2 battery reserve is below policy',
+      progress: {
+        stage: 'failed',
+        message: 'Launch was not dispatched under all-required policy: 1 not ready',
+      },
+      preparations: { expected: 2, ready: 1, blocked: 1, unavailable: 0 },
+      acks: { expected: 2, received: 0, accepted: 0, offline: 0, rejected: 0, errors: 0 },
+      executions: { expected: 0, succeeded: 0, failed: 0 },
+    });
+
+    await submitCommandWithLifecycleFeedback({
+      mission_type: 10,
+      trigger_time: 0,
+      target_scope: 'all',
+      uiMeta: { operatorLabel: 'Take Off' },
+    });
+    await flushMicrotasks();
+
+    expect(toast.info).toHaveBeenCalledWith(
+      'Take Off accepted for tracking for 2 target drones. Monitoring preparation, dispatch, and execution now.'
+    );
+    expect(getCommandStatus).toHaveBeenCalledWith('cmd-preparing');
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('emits progress toasts when a command moves from active execution into final completion', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-123',
+      mission_type: 4,
+      mission_name: 'SWARM_TRAJECTORY',
+      target_drones: ['1', '2', '3'],
+    }));
 
     getCommandStatus
       .mockResolvedValueOnce({
@@ -113,18 +202,20 @@ describe('commandLifecycleFeedback', () => {
 
     const response = await submitCommandWithLifecycleFeedback(
       {
-        missionType: 4,
+        mission_type: 4,
+        trigger_time: 0,
+        target_scope: 'all',
         uiMeta: { operatorLabel: 'Swarm Trajectory' },
       },
       { trackTimeoutMs: 10000 },
     );
 
-    expect(response.success).toBe(true);
+    expect(response.accepted_for_tracking).toBe(true);
 
     await flushMicrotasks();
 
-    expect(toast.success.mock.calls.map(([message]) => message)).toContain(
-      'Swarm Trajectory accepted. 3/3 targeted drones accepted. Monitoring outcome in background.',
+    expect(toast.info.mock.calls.map(([message]) => message)).toContain(
+      'Swarm Trajectory accepted for tracking for 3 target drones. Monitoring preparation, dispatch, and execution now.',
     );
     expect(toast.info.mock.calls.map(([message]) => message)).toContain(
       'Swarm Trajectory started. Execution is active on 3 drone(s).',
@@ -143,21 +234,11 @@ describe('commandLifecycleFeedback', () => {
     );
   });
 
-  it('keeps the initial submission toast provisional when acknowledgments are still arriving', async () => {
-    sendDroneCommand.mockResolvedValue({
-      success: true,
+  it('keeps the submission receipt unclassified while acknowledgments are still arriving', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
       command_id: 'cmd-partial-acks',
-      mission_name: 'TAKE_OFF',
-      submitted_count: 5,
       target_drones: ['1', '2', '3', '4', '5'],
-      ack_summary: {
-        accepted: 3,
-        offline: 0,
-        rejected: 0,
-        errors: 0,
-      },
-      tracking_phase: 'awaiting_ack',
-    });
+    }));
 
     getCommandStatus.mockResolvedValue({
       phase: 'terminal',
@@ -183,7 +264,9 @@ describe('commandLifecycleFeedback', () => {
 
     await submitCommandWithLifecycleFeedback(
       {
-        missionType: 10,
+        mission_type: 10,
+        trigger_time: 0,
+        target_scope: 'all',
         uiMeta: { operatorLabel: 'Take Off' },
       },
       { trackTimeoutMs: 10000 },
@@ -192,29 +275,23 @@ describe('commandLifecycleFeedback', () => {
     await flushMicrotasks();
 
     expect(toast.info.mock.calls.map(([message]) => message)).toContain(
-      'Take Off submitted. 3/5 acknowledgments received so far. Monitoring remaining acknowledgments and outcome in background.',
+      'Take Off accepted for tracking for 5 target drones. Monitoring preparation, dispatch, and execution now.',
     );
   });
 
-  it('uses the backend mission-aware tracking timeout when no frontend override is provided', async () => {
-    sendDroneCommand.mockResolvedValue({
-      success: true,
+  it('replaces the bounded first-poll fallback with the authoritative tracker deadline', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
       command_id: 'cmd-456',
+      mission_type: 104,
       mission_name: 'RETURN_RTL',
-      submitted_count: 3,
       target_drones: ['1', '2', '3'],
-      ack_summary: {
-        accepted: 3,
-        offline: 0,
-        rejected: 0,
-        errors: 0,
-      },
-      tracking_phase: 'pending_execution',
-      tracking_timeout_ms: 2500,
-    });
+    }));
+    const trackerDeadline = Date.now() + 2500;
 
-    getCommandStatus.mockResolvedValue({
+    getCommandStatus.mockImplementation(async () => ({
       phase: 'in_progress',
+      timeout_at: trackerDeadline,
+      observed_at: Date.now(),
       progress: {
         stage: 'executing',
         message: 'Execution is active on 3 drone(s).',
@@ -230,39 +307,325 @@ describe('commandLifecycleFeedback', () => {
         rejected: 0,
         errors: 0,
       },
-    });
+    }));
 
     await submitCommandWithLifecycleFeedback({
-      missionType: 104,
+      mission_type: 104,
+      trigger_time: 0,
+      target_scope: 'all',
       uiMeta: { operatorLabel: 'Return RTL' },
-    });
+    }, { trackTimeoutMs: 500 });
 
     await flushMicrotasks();
     await advanceLifecyclePoll(1500);
     await advanceLifecyclePoll(1500);
 
     expect(toast.warn).toHaveBeenCalledWith(
-      'Return RTL was accepted, but tracking did not close before the timeout. The last known state remains visible.',
+      'Return RTL: Tracking did not close before the timeout. The final execution outcome is not confirmed. The last known state remains visible.',
     );
   });
 
-  it('uses server time instead of raw browser time for the initial scheduled snapshot', async () => {
-    jest.setSystemTime(new Date('2026-04-01T12:00:10Z'));
-    sendDroneCommand.mockResolvedValue({
-      success: true,
-      command_id: 'cmd-server-time',
-      mission_name: 'SWARM_TRAJECTORY',
-      submitted_count: 1,
-      target_drones: ['1'],
-      ack_summary: {
-        accepted: 1,
+  it('reconciles late execution success after a delivery-unknown timeout without rewriting the timeout outcome', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-late-success',
+    }));
+    const timedOutStatus = {
+      command_id: 'cmd-late-success',
+      phase: 'terminal',
+      status: 'timeout',
+      outcome: 'timeout',
+      error_summary: 'Delivery remained unconfirmed before the tracker timeout.',
+      progress: {
+        stage: 'timeout',
+        label: 'Tracking timed out',
+        message: 'Delivery remained unconfirmed before the tracker timeout.',
+      },
+      acks: {
+        expected: 1,
+        received: 1,
+        accepted: 0,
         offline: 0,
         rejected: 0,
-        errors: 0,
+        errors: 1,
+        details: { '1': { delivery_state: 'delivery_unknown' } },
       },
-      tracking_phase: 'pending_execution',
-      timestamp: Date.parse('2026-04-01T12:00:00Z'),
+      executions: { expected: 0, received: 0, succeeded: 0, failed: 0 },
+      late_reports: {
+        acks: { received: 0, details: {} },
+        execution_starts: { received: 0, details: {} },
+        executions: { received: 0, succeeded: 0, failed: 0, details: {} },
+      },
+      updated_at: 1000,
+    };
+    getCommandStatus
+      .mockResolvedValueOnce(timedOutStatus)
+      .mockResolvedValueOnce({
+        ...timedOutStatus,
+        late_reports: {
+          acks: { received: 0, details: {} },
+          execution_starts: { received: 1, details: { '1': 2000 } },
+          executions: {
+            received: 1,
+            succeeded: 1,
+            failed: 0,
+            details: { '1': { success: true, timestamp: 2000 } },
+          },
+        },
+        updated_at: 2000,
+      });
+    const onLateEvidence = jest.fn();
+    const onSubmissionTracked = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 10, trigger_time: 0, target_scope: 'all', uiMeta: { operatorLabel: 'Take Off' } },
+      {
+        onSubmissionTracked,
+        onLateEvidence,
+        lateReconciliationWindowMs: 5000,
+        lateReconciliationPollIntervalMs: 1000,
+      },
+    );
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1000);
+
+    expect(onLateEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'timeout',
+        isTerminal: true,
+        lateEvidence: expect.objectContaining({
+          result: 'succeeded',
+          originalOutcome: 'timeout',
+          succeeded: 1,
+        }),
+        progress: expect.objectContaining({
+          stage: 'timeout',
+          label: 'Late evidence: execution succeeded',
+        }),
+      }),
+      expect.objectContaining({ outcome: 'timeout' }),
+    );
+    expect(toast.info).toHaveBeenCalledWith(
+      'Take Off: 1 drone reported successful execution after tracking closed. The original tracker outcome remains timeout.',
+    );
+    expect(onSubmissionTracked).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandId: 'cmd-late-success',
+        acks: expect.objectContaining({ accepted: 0 }),
+      }),
+      expect.objectContaining({ accepted_for_tracking: true }),
+    );
+    expect(Object.values(toast).flatMap((mock) => mock.mock.calls.flat()).join(' ')).not.toMatch(/drone(?:s)? accepted/i);
+    expect(toast.success.mock.calls.flat().join(' ')).not.toMatch(/late evidence|late execution/i);
+  });
+
+  it('surfaces late execution failure while preserving the original timeout', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-late-failure',
+      mission_type: 102,
+      mission_name: 'LAND',
+    }));
+    const timedOutStatus = {
+      command_id: 'cmd-late-failure',
+      phase: 'terminal',
+      status: 'timeout',
+      outcome: 'timeout',
+      error_summary: 'Final landing result was not confirmed.',
+      progress: {
+        stage: 'timeout',
+        label: 'Tracking timed out',
+        message: 'Final landing result was not confirmed.',
+      },
+      acks: { expected: 1, received: 1, accepted: 1, offline: 0, rejected: 0, errors: 0 },
+      executions: { expected: 1, received: 0, succeeded: 0, failed: 0 },
+      late_reports: {
+        acks: { received: 0, details: {} },
+        execution_starts: { received: 0, details: {} },
+        executions: { received: 0, succeeded: 0, failed: 0, details: {} },
+      },
+      updated_at: 1000,
+    };
+    getCommandStatus
+      .mockResolvedValueOnce(timedOutStatus)
+      .mockResolvedValueOnce({
+        ...timedOutStatus,
+        late_reports: {
+          acks: { received: 0, details: {} },
+          execution_starts: { received: 1, details: { '1': 2000 } },
+          executions: {
+            received: 1,
+            succeeded: 0,
+            failed: 1,
+            details: { '1': { success: false, error: 'PX4 command denied', timestamp: 2000 } },
+          },
+        },
+        updated_at: 2000,
+      });
+    const onLateEvidence = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 102, trigger_time: 0, target_drone_ids: ['1'], uiMeta: { operatorLabel: 'Land' } },
+      {
+        onLateEvidence,
+        lateReconciliationWindowMs: 5000,
+        lateReconciliationPollIntervalMs: 1000,
+      },
+    );
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1000);
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Land: 1 drone reported execution failure after tracking closed. The original tracker outcome remains timeout.',
+    );
+    expect(onLateEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'timeout',
+        lateEvidence: expect.objectContaining({ result: 'failed', failed: 1 }),
+        progress: expect.objectContaining({
+          stage: 'timeout',
+          label: 'Late evidence: execution failed',
+        }),
+      }),
+      expect.objectContaining({ outcome: 'timeout' }),
+    );
+  });
+
+  it('does not reconcile or continue polling a normally completed command', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-normal-complete',
+      mission_type: 102,
+      mission_name: 'LAND',
+    }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'cmd-normal-complete',
+      phase: 'terminal',
+      status: 'completed',
+      outcome: 'completed',
+      progress: { stage: 'completed', label: 'Completed', message: 'Landing completed.' },
+      acks: { expected: 1, received: 1, accepted: 1, offline: 0, rejected: 0, errors: 0 },
+      executions: { expected: 1, received: 1, succeeded: 1, failed: 0 },
+      late_reports: {
+        acks: { received: 0, details: {} },
+        execution_starts: { received: 0, details: {} },
+        executions: { received: 0, succeeded: 0, failed: 0, details: {} },
+      },
     });
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 102, trigger_time: 0, target_drone_ids: ['1'], uiMeta: { operatorLabel: 'Land' } },
+      {
+        lateReconciliationWindowMs: 5000,
+        lateReconciliationPollIntervalMs: 1000,
+      },
+    );
+    await flushMicrotasks();
+    await advanceLifecyclePoll(10000);
+
+    expect(getCommandStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops timeout reconciliation at the configured bound when no late evidence arrives', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-timeout-no-late-report',
+      mission_type: 104,
+      mission_name: 'RETURN_RTL',
+    }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'cmd-timeout-no-late-report',
+      phase: 'terminal',
+      status: 'timeout',
+      outcome: 'timeout',
+      error_summary: 'Final RTL result was not confirmed.',
+      progress: { stage: 'timeout', label: 'Tracking timed out', message: 'Final RTL result was not confirmed.' },
+      acks: { expected: 1, received: 1, accepted: 1, offline: 0, rejected: 0, errors: 0 },
+      executions: { expected: 1, received: 0, succeeded: 0, failed: 0 },
+      late_reports: {
+        acks: { received: 0, details: {} },
+        execution_starts: { received: 0, details: {} },
+        executions: { received: 0, succeeded: 0, failed: 0, details: {} },
+      },
+    });
+    const onLateEvidence = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 104, trigger_time: 0, target_drone_ids: ['1'], uiMeta: { operatorLabel: 'Return RTL' } },
+      {
+        onLateEvidence,
+        lateReconciliationWindowMs: 2500,
+        lateReconciliationPollIntervalMs: 1000,
+      },
+    );
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1000);
+    await advanceLifecyclePoll(1000);
+    await advanceLifecyclePoll(500);
+
+    expect(getCommandStatus).toHaveBeenCalledTimes(4);
+    expect(onLateEvidence).not.toHaveBeenCalled();
+
+    await advanceLifecyclePoll(10000);
+
+    expect(getCommandStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('fetches tracker terminal details without treating the receipt as outcome evidence', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-preflight-failed',
+      target_drones: ['1', '2'],
+    }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'cmd-preflight-failed',
+      phase: 'terminal',
+      outcome: 'failed',
+      error_summary: 'Drone 2 battery reserve is below policy.',
+      progress: { stage: 'failed', message: 'No launch command was dispatched.' },
+      acks: { expected: 2, received: 0, accepted: 0, offline: 0, rejected: 0, errors: 0 },
+      executions: { expected: 0, succeeded: 0, failed: 0 },
+    });
+    const onTrackingComplete = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 10, trigger_time: 0, target_scope: 'all', uiMeta: { operatorLabel: 'Take Off' } },
+      { onTrackingComplete },
+    );
+    await flushMicrotasks();
+
+    expect(getCommandStatus).toHaveBeenCalledWith('cmd-preflight-failed');
+    expect(toast.error).toHaveBeenCalledWith('Drone 2 battery reserve is below policy.');
+    expect(onTrackingComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ commandId: 'cmd-preflight-failed', isTerminal: true }),
+      expect.objectContaining({ outcome: 'failed' }),
+    );
+  });
+
+  it('does not claim acceptance when preparation tracking becomes unavailable', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-preparing-unavailable',
+    }));
+    getCommandStatus.mockRejectedValue(new Error('network'));
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 10, trigger_time: 0, target_drone_ids: ['1'], uiMeta: { operatorLabel: 'Take Off' } },
+      { trackTimeoutMs: 10000 },
+    );
+    await flushMicrotasks();
+    await advanceLifecyclePoll();
+    await advanceLifecyclePoll();
+    await advanceLifecyclePoll();
+
+    expect(toast.warn).toHaveBeenCalledWith(
+      'Take Off: Live tracking updates are currently unavailable. Launch readiness, command delivery, and execution are not confirmed. The last known state remains visible.',
+    );
+    expect(toast.warn.mock.calls.flat().join(' ')).not.toMatch(/drone(?:s)? accepted/i);
+  });
+
+  it('does not infer scheduled or accepted state from receipt timing metadata', async () => {
+    jest.setSystemTime(new Date('2026-04-01T12:00:10Z'));
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-server-time',
+      mission_type: 4,
+      mission_name: 'SWARM_TRAJECTORY',
+      timestamp: Date.parse('2026-04-01T12:00:00Z'),
+    }));
     getCommandStatus.mockResolvedValue({
       phase: 'terminal',
       outcome: 'completed',
@@ -283,46 +646,40 @@ describe('commandLifecycleFeedback', () => {
       },
     });
 
-    const onCommandAccepted = jest.fn();
+    const onSubmissionTracked = jest.fn();
 
     await submitCommandWithLifecycleFeedback(
       {
-        missionType: 4,
-        triggerTime: String(Math.floor(Date.parse('2026-04-01T12:00:05Z') / 1000)),
+        mission_type: 4,
+        trigger_time: Math.floor(Date.parse('2026-04-01T12:00:05Z') / 1000),
+        target_drone_ids: ['1'],
         uiMeta: { operatorLabel: 'Swarm Trajectory' },
       },
       {
-        onCommandAccepted,
+        onSubmissionTracked,
         trackTimeoutMs: 10000,
       },
     );
 
-    expect(onCommandAccepted).toHaveBeenCalledWith(
+    expect(onSubmissionTracked).toHaveBeenCalledWith(
       expect.objectContaining({
         progress: expect.objectContaining({
-          stage: 'scheduled',
-          message: expect.stringMatching(/Waiting for the scheduled trigger time/i),
+          stage: 'preparing',
+          message: expect.stringMatching(/tracked preparation/i),
         }),
+        acks: expect.objectContaining({ accepted: 0, received: 0 }),
       }),
       expect.any(Object),
     );
   });
 
   it('emits lifecycle callbacks for submission, status updates, and terminal completion', async () => {
-    sendDroneCommand.mockResolvedValue({
-      success: true,
+    sendDroneCommand.mockResolvedValue(commandReceipt({
       command_id: 'cmd-789',
+      mission_type: 4,
       mission_name: 'SWARM_TRAJECTORY',
-      submitted_count: 2,
       target_drones: ['1', '2'],
-      ack_summary: {
-        accepted: 2,
-        offline: 0,
-        rejected: 0,
-        errors: 0,
-      },
-      tracking_phase: 'pending_execution',
-    });
+    }));
 
     getCommandStatus
       .mockResolvedValueOnce({
@@ -381,14 +738,15 @@ describe('commandLifecycleFeedback', () => {
         },
       });
 
-    const onCommandAccepted = jest.fn();
+    const onSubmissionTracked = jest.fn();
     const onStatusUpdate = jest.fn();
     const onTrackingComplete = jest.fn();
 
     await submitCommandWithLifecycleFeedback(
       {
-        missionType: 4,
-        target_drones: ['1', '2'],
+        mission_type: 4,
+        trigger_time: 0,
+        target_drone_ids: ['1', '2'],
         uiMeta: {
           operatorLabel: 'Swarm Trajectory',
           targetLabel: '2 selected drones',
@@ -397,7 +755,7 @@ describe('commandLifecycleFeedback', () => {
       },
       {
         trackTimeoutMs: 10000,
-        onCommandAccepted,
+        onSubmissionTracked,
         onStatusUpdate,
         onTrackingComplete,
       },
@@ -407,7 +765,7 @@ describe('commandLifecycleFeedback', () => {
     await advanceLifecyclePoll(1500);
     await advanceLifecyclePoll(1500);
 
-    expect(onCommandAccepted).toHaveBeenCalledWith(
+    expect(onSubmissionTracked).toHaveBeenCalledWith(
       expect.objectContaining({
         commandId: 'cmd-789',
         commandLabel: 'Swarm Trajectory',
@@ -446,20 +804,12 @@ describe('commandLifecycleFeedback', () => {
   });
 
   it('emits a tracking-unavailable callback after repeated poll errors', async () => {
-    sendDroneCommand.mockResolvedValue({
-      success: true,
+    sendDroneCommand.mockResolvedValue(commandReceipt({
       command_id: 'cmd-999',
+      mission_type: 4,
       mission_name: 'SWARM_TRAJECTORY',
-      submitted_count: 2,
       target_drones: ['1', '2'],
-      ack_summary: {
-        accepted: 2,
-        offline: 0,
-        rejected: 0,
-        errors: 0,
-      },
-      tracking_phase: 'pending_execution',
-    });
+    }));
 
     getCommandStatus.mockRejectedValue(new Error('network'));
 
@@ -467,9 +817,9 @@ describe('commandLifecycleFeedback', () => {
 
     await submitCommandWithLifecycleFeedback(
       {
-        missionType: 4,
-        target_drones: ['1', '2'],
-        triggerTime: '0',
+        mission_type: 4,
+        target_drone_ids: ['1', '2'],
+        trigger_time: 0,
         uiMeta: {
           operatorLabel: 'Swarm Trajectory',
           targetLabel: '2 selected drones',

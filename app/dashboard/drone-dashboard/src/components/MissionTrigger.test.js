@@ -30,7 +30,7 @@ describe('MissionTrigger', () => {
 
     expect(onSendCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        missionType: String(DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW),
+        mission_type: DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW,
         auto_global_origin: false,
         use_global_setpoints: false,
       })
@@ -53,7 +53,7 @@ describe('MissionTrigger', () => {
 
     expect(onSendCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        missionType: String(DRONE_MISSION_TYPES.SWARM_TRAJECTORY),
+        mission_type: DRONE_MISSION_TYPES.SWARM_TRAJECTORY,
         uiMeta: expect.objectContaining({
           details: expect.arrayContaining([
             expect.objectContaining({

@@ -76,3 +76,24 @@ def test_presence_snapshot_keeps_node_presence_separate_from_telemetry_freshness
     assert snapshot["heartbeat_recent"] is True
     assert snapshot["telemetry_recent"] is False
     assert snapshot["source"] == "heartbeat"
+
+
+def test_presence_uses_gcs_receipt_time_not_skewed_node_clock():
+    from presence import PresenceThresholds, build_presence_snapshot
+
+    now = 1_700_000_000.0
+    snapshot = build_presence_snapshot(
+        hw_id="1",
+        heartbeat={
+            "timestamp": int((now - 3600) * 1000),
+            "sent_at_node_ms": int((now - 3600) * 1000),
+            "received_at_gcs_ms": int((now - 2) * 1000),
+        },
+        now=now,
+        thresholds=PresenceThresholds(20, 30, 60, 300),
+    )
+
+    assert snapshot["state"] == "live"
+    assert snapshot["heartbeat_age_sec"] == 2.0
+    assert snapshot["heartbeat_sent_at_node_ms"] == int((now - 3600) * 1000)
+    assert snapshot["heartbeat_received_at_gcs_ms"] == int((now - 2) * 1000)

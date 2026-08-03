@@ -9,6 +9,118 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestGcsSubmitCommandValidation:
+    """Keep the GCS request model on the shared executable-mission contract."""
+
+    @pytest.mark.parametrize("mission_type", [123, 999])
+    def test_unknown_or_status_only_mission_values_are_rejected(self, mission_type):
+        from schemas import SubmitCommandRequest
+
+        with pytest.raises(ValidationError, match="executable mission"):
+            SubmitCommandRequest(mission_type=mission_type, trigger_time=0)
+
+
+class TestDroneCommandEnvelopeValidation:
+    """Validate the nodes-first shim and the target-bound callback envelope."""
+
+    @pytest.mark.parametrize("mission_type", [123, 999, 10.0, True, "RTL", "take off"])
+    def test_command_identity_rejects_unknown_status_only_or_untyped_values(
+        self,
+        mission_type,
+    ):
+        from src.command_contract import DroneCommandRequest
+
+        with pytest.raises(ValidationError, match="executable mission"):
+            DroneCommandRequest(mission_type=mission_type, trigger_time=0)
+
+    def test_old_gcs_envelope_remains_valid_during_nodes_first_rollout(self):
+        from src.command_contract import DroneCommandRequest
+
+        request = DroneCommandRequest(mission_type=10, trigger_time=0)
+        assert request.command_id is None
+        assert request.target_hw_id is None
+        assert request.command_report_capability is None
+
+    def test_callback_capability_is_hidden_from_model_repr(self):
+        from src.command_contract import DroneCommandRequest
+
+        capability = "c" * 43
+        request = DroneCommandRequest(
+            mission_type=10,
+            command_id="cmd-1",
+            target_hw_id="1",
+            command_report_capability=capability,
+        )
+        assert capability not in repr(request)
+
+    @pytest.mark.parametrize(
+        "missing_field,payload",
+        [
+            (
+                "command_id",
+                {
+                    "mission_type": 10,
+                    "target_hw_id": "1",
+                    "command_report_capability": "c" * 43,
+                },
+            ),
+            (
+                "target_hw_id",
+                {
+                    "mission_type": 10,
+                    "command_id": "cmd-1",
+                    "command_report_capability": "c" * 43,
+                },
+            ),
+        ],
+    )
+    def test_callback_capability_requires_complete_identity_binding(
+        self,
+        missing_field,
+        payload,
+    ):
+        from src.command_contract import DroneCommandRequest
+
+        with pytest.raises(ValidationError, match=missing_field):
+            DroneCommandRequest(**payload)
+
+
+class TestCommandCallbackSchemaValidation:
+    """Keep unauthenticated callback input bounded before tracker mutation."""
+
+    @pytest.mark.parametrize(
+        "schema_name,payload",
+        [
+            (
+                "ExecutionStartRequest",
+                {"command_id": "cmd-1", "hw_id": "1", "unexpected": True},
+            ),
+            (
+                "ExecutionReportRequest",
+                {
+                    "command_id": "cmd-1",
+                    "hw_id": "1",
+                    "success": False,
+                    "script_output": "x" * 65_537,
+                },
+            ),
+        ],
+    )
+    def test_callback_payloads_reject_extra_or_oversized_input(
+        self,
+        schema_name,
+        payload,
+    ):
+        from schemas import ExecutionReportRequest, ExecutionStartRequest
+
+        schema = {
+            "ExecutionStartRequest": ExecutionStartRequest,
+            "ExecutionReportRequest": ExecutionReportRequest,
+        }[schema_name]
+        with pytest.raises(ValidationError):
+            schema(**payload)
+
+
 class TestDroneConfigValidation:
     """Test DroneConfig schema validation"""
 
@@ -393,6 +505,27 @@ class TestGPSFixValidation:
         assert telemetry.relative_altitude_m == 12.3
         assert telemetry.baro_altitude_m == 10.8
         assert telemetry.local_position_timestamp_ms == 1732270245123
+
+    def test_drone_telemetry_preserves_battery_safety_evidence(self):
+        from gcs_server_schemas import DroneTelemetry
+
+        payload = self._telemetry_payload(3)
+        payload.update(
+            {
+                "battery_remaining_percent": 27.0,
+                "battery_charge_state": 2,
+                "battery_fault_bitmask": 4,
+                "battery_timestamp_ms": 1732270245123,
+                "battery_age_ms": 250,
+            }
+        )
+
+        telemetry = DroneTelemetry(**payload)
+
+        assert telemetry.battery_remaining_percent == 27.0
+        assert telemetry.battery_charge_state == 2
+        assert telemetry.battery_fault_bitmask == 4
+        assert telemetry.battery_age_ms == 250
 
     def test_invalid_gps_fix_high(self):
         """Test rejection of GPS fix > 6"""

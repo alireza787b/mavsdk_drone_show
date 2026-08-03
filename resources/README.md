@@ -7,9 +7,7 @@ Use these conventions:
 - `resources/px4_param_profiles/`
   - approved PX4 parameter profiles for the `PX4 Parameters` dashboard page
   - typed JSON, repo-reviewed, reusable for batch apply and export
-- `resources/common_params.csv`
-  - legacy CSV bundle for the older `APPLY_COMMON_PARAMS` action path
-  - kept only for backward operational compatibility until the action pipeline is fully retired or migrated
+  - includes the reviewed `mds_multidrone_field_baseline` profile
 - `resources/config_*.json` and `resources/swarm_*.json`
   - sample or preset fleet layouts for setup/reference workflows
   - these are not the active runtime config files

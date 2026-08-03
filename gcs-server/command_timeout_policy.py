@@ -9,33 +9,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from src.enums import Mission
+from src.enums import Mission, resolve_executable_mission
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.params import Params
-
-
-def _coerce_mission(value: Any) -> Mission | None:
-    if isinstance(value, Mission):
-        return value
-
-    enum_value = getattr(value, "value", None)
-    if enum_value is not None and enum_value is not value:
-        coerced = _coerce_mission(enum_value)
-        if coerced is not None:
-            return coerced
-
-    enum_name = getattr(value, "name", None)
-    if isinstance(enum_name, str):
-        normalized_name = enum_name.strip().upper().replace("-", "_").replace(" ", "_")
-        if normalized_name:
-            mission = Mission.__members__.get(normalized_name)
-            if mission is not None:
-                return mission
-
-    try:
-        return Mission(int(value))
-    except (TypeError, ValueError):
-        return None
 
 
 def _safe_int(value: Any, default: int) -> int:
@@ -63,7 +39,7 @@ def _extract_future_trigger_delay_ms(command_data: Optional[Dict[str, Any]]) -> 
     if not command_data:
         return 0
 
-    trigger_time = command_data.get("trigger_time", command_data.get("triggerTime"))
+    trigger_time = command_data.get("trigger_time")
     if trigger_time in (None, "", 0, "0"):
         return 0
 
@@ -183,7 +159,7 @@ def estimate_command_tracking_timeout_ms(
     The tracker should stay alive for the whole real operator-visible lifecycle,
     not just for ACK collection or for the first mode transition.
     """
-    mission_enum = _coerce_mission(mission)
+    mission_enum = resolve_executable_mission(mission)
     default_ms = _safe_int(getattr(params, "COMMAND_TRACKING_DEFAULT_TIMEOUT_MS", 60000), 60000)
     action_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_ACTION_BUFFER_SEC", 30), 30))
     mission_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_MISSION_BUFFER_SEC", 120), 120))

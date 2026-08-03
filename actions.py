@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
 ===============================================================
-Drone Action Executor with MAVSDK - Multi-Parameter Setting
+Drone Action Executor with MAVSDK
 ---------------------------------------------------------------
 Usage Examples:
 ---------------
-1) Take off with altitude 15 and set multiple PX4 parameters:
-   python3 actions.py --action takeoff --altitude 15 \
-       --param MAV_SYS_ID 4 \
-       --param MPC_XY_CRUISE 8
+1) Take off to 15 metres:
+   python3 actions.py --action takeoff --altitude 15
 
 2) Land without setting any parameters:
    python3 actions.py --action land
@@ -16,49 +14,34 @@ Usage Examples:
 3) Update code from a specific branch (e.g., "new_feature_branch"):
    python3 actions.py --action update_code --branch new_feature_branch
 
-4) Set only parameters (no flight action). If you want to just set parameters,
-   you can still pick an action (like "hold") or any other valid action to
-   ensure the script runs, but supply all your desired parameters:
-   python3 actions.py --action hold \
-       --param MAV_SYS_ID 6 \
-       --param MPC_XY_VEL_MAX 10 \
-       --param MIS_TAKEOFF_ALT 5
-
-5) Initialize the system ID automatically from the detected hardware ID
-   and reboot the flight controller:
-   python3 actions.py --action init_sysid
-
-6) Apply common parameters from the repo-managed common params CSV:
-   python3 actions.py --action apply_common_params
-   (Optionally add --reboot_after to reboot the flight controller right after)
+4) Execute a typed precision move request:
+   python3 actions.py --action precision_move --request-file /path/to/request.json
 
 Description:
 ------------
 This script executes various drone actions using MAVSDK:
  - takeoff, land, hold, test, reboot, kill_terminate, update_code,
-   return_rtl, init_sysid, apply_common_params, etc.
+   return_rtl and precision_move.
  - Safely manages MAVSDK server launch/teardown.
  - Provides logging, exit codes, LED status feedback, and robust error handling.
- - Supports setting multiple PX4 parameters in a single run via repeated --param.
- - Supports automatically setting MAV_SYS_ID based on canonical runtime identity with 'init_sysid'.
- - Now supports applying a shared set of parameters stored in the repo-managed
-   common params CSV via the 'apply_common_params' action.
+ - PX4 parameter changes are intentionally excluded. Use the typed PX4
+   Parameters API/dashboard workflow for mutation, diff, readback, and audit.
 
 ---------------------------------------------------------------
 """
 
 import argparse
 import asyncio
-import csv
 import os
 import requests
+import signal
 import socket
 import subprocess
 import sys
 import time
 
 import psutil
-from mavsdk import System, telemetry, action
+from mavsdk import System, telemetry
 from mavsdk.action import ActionError
 from src.action_runners import (
     ActionExecutionContext,
@@ -67,6 +50,25 @@ from src.action_runners import (
     load_request_payload,
 )
 from src.action_runners.precision_move import precision_move
+from src.action_result_protocol import (
+    TerminalActionResult,
+    emit_terminal_result,
+    make_terminal_result,
+)
+from src.async_stream_utils import (
+    managed_async_stream,
+    monotonic_deadline,
+    next_stream_sample,
+)
+from src.action_safety import (
+    ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+    AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
+    GROUND_MAX_RELATIVE_ALTITUDE_M,
+    ActionSafetyError,
+    VehicleStateObservation,
+    observe_authoritative_vehicle_state,
+)
+from src.command_contract import GroundTestSafetyAcknowledgement
 from src.drone_config import ConfigLoader
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
@@ -84,6 +86,12 @@ logger = get_logger("actions")
 
 # Return codes: 0 = success, 1 = failure
 RETURN_CODE = 0
+_LAST_ACTION_FAILURE: TerminalActionResult | None = None
+_CURRENT_ACTION_NAME: str | None = None
+_LAST_FINAL_VEHICLE_STATE: dict | None = None
+_LAST_ACTION_CLEANUP_EVIDENCE: dict | None = None
+_REQUESTED_PROCESS_SIGNAL: str | None = None
+_LED_FEEDBACK_DISABLED = False
 
 GRPC_PORT = Params.DEFAULT_GRPC_PORT
 UDP_PORT = Params.mavsdk_port
@@ -93,12 +101,188 @@ HW_ID = None
 # Helper / Setup Functions
 # -----------------------
 
-def fail():
+def fail(
+    *,
+    code: str | None = None,
+    phase: str = "execution",
+    operator_message: str | None = None,
+    retryable: bool = False,
+    evidence: dict | None = None,
+    final_vehicle_state: dict | None = None,
+):
     """
-    Sets the return code to 1 indicating failure.
+    Set the process return code and, when supplied, preserve the first
+    structured root cause for the terminal action result.
+
+    The first structured failure wins: later cleanup/LED diagnostics must not
+    replace the vehicle-command failure that caused the action to stop.
     """
-    global RETURN_CODE
+    global RETURN_CODE, _LAST_ACTION_FAILURE, _LAST_FINAL_VEHICLE_STATE
     RETURN_CODE = 1
+    if final_vehicle_state is not None:
+        _LAST_FINAL_VEHICLE_STATE = dict(final_vehicle_state)
+    if code and operator_message and _LAST_ACTION_FAILURE is None:
+        _LAST_ACTION_FAILURE = make_terminal_result(
+            success=False,
+            code=code,
+            phase=phase,
+            operator_message=operator_message,
+            retryable=retryable,
+            evidence=evidence or {},
+            final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
+        )
+
+
+def _set_final_vehicle_state(final_vehicle_state: dict | None) -> None:
+    """Retain the latest action-local terminal state for the result protocol."""
+    global _LAST_FINAL_VEHICLE_STATE
+    _LAST_FINAL_VEHICLE_STATE = (
+        dict(final_vehicle_state) if final_vehicle_state is not None else None
+    )
+
+
+def _set_action_cleanup_evidence(evidence: dict | None) -> None:
+    """Retain bounded cleanup facts for cooperative process interruption."""
+    global _LAST_ACTION_CLEANUP_EVIDENCE
+    _LAST_ACTION_CLEANUP_EVIDENCE = dict(evidence) if evidence is not None else None
+
+
+def _exception_detail(exc: BaseException) -> tuple[str, dict]:
+    """Extract bounded MAVSDK result detail without depending on one SDK version."""
+    evidence = {
+        "action": _CURRENT_ACTION_NAME or "unknown",
+        "exception_type": type(exc).__name__,
+    }
+    result = getattr(exc, "_result", None) or getattr(exc, "result", None)
+    result_value = getattr(result, "result", None)
+    result_name = getattr(result_value, "name", None)
+    result_text = getattr(result, "result_str", None)
+    if result_name:
+        evidence["mavsdk_result"] = result_name
+    elif result_value is not None:
+        evidence["mavsdk_result"] = str(result_value)
+    if result_text:
+        evidence["mavsdk_result_str"] = str(result_text)
+
+    detail = str(result_text or exc or type(exc).__name__)
+    return detail, evidence
+
+
+def _record_action_exception(action_name: str, exc: BaseException) -> None:
+    primary_error = getattr(exc, "primary_error", exc)
+    final_vehicle_state = getattr(exc, "final_vehicle_state", None)
+    if final_vehicle_state is None:
+        final_vehicle_state = _LAST_FINAL_VEHICLE_STATE
+    transaction_evidence = getattr(exc, "evidence", None)
+    cleanup_unconfirmed = bool(
+        isinstance(transaction_evidence, dict)
+        and transaction_evidence.get("cleanup_confirmed") is False
+    )
+    cleanup_warning = (
+        " Safety cleanup could not be confirmed; keep clear of the vehicle and use the "
+        "primary recovery controls."
+        if cleanup_unconfirmed
+        else ""
+    )
+
+    typed_code = getattr(primary_error, "code", None)
+    typed_phase = getattr(primary_error, "phase", None)
+    if isinstance(typed_code, str) and isinstance(typed_phase, str):
+        typed_evidence = {
+            "action": action_name,
+            "exception_type": type(primary_error).__name__,
+        }
+        for attribute in ("observation", "battery", "blockers", "evidence", "timed_out"):
+            value = getattr(primary_error, attribute, None)
+            if value not in (None, [], {}):
+                typed_evidence[attribute] = value
+        if isinstance(transaction_evidence, dict):
+            typed_evidence["transaction"] = transaction_evidence
+        fail(
+            code=typed_code,
+            phase=typed_phase,
+            operator_message=(
+                (str(primary_error) or f"Action '{action_name}' was blocked.")
+                + cleanup_warning
+            ),
+            retryable=bool(getattr(primary_error, "retryable", False)),
+            evidence=typed_evidence,
+            final_vehicle_state=final_vehicle_state,
+        )
+        return
+
+    detail, evidence = _exception_detail(primary_error)
+    evidence["action"] = action_name
+    if isinstance(transaction_evidence, dict):
+        evidence["transaction"] = transaction_evidence
+    normalized_detail = detail.upper()
+    if "COMMAND_DENIED" in normalized_detail or "DENIED" in normalized_detail:
+        fail(
+            code="PX4_COMMAND_DENIED",
+            phase="vehicle_command",
+            operator_message=(
+                f"PX4 rejected the '{action_name}' vehicle command: {detail}. "
+                "Resolve the reported vehicle health or flight-state condition before retrying."
+                f"{cleanup_warning}"
+            ),
+            retryable=False,
+            evidence=evidence,
+            final_vehicle_state=final_vehicle_state,
+        )
+    else:
+        fail(
+            code=("MAVSDK_ACTION_ERROR" if isinstance(primary_error, ActionError) else "ACTION_EXECUTION_FAILED"),
+            phase=("vehicle_command" if isinstance(primary_error, ActionError) else "execution"),
+            operator_message=(
+                f"The '{action_name}' vehicle command failed: {detail}."
+                if isinstance(primary_error, ActionError)
+                else f"Action '{action_name}' failed before terminal vehicle-state confirmation: {detail}."
+            ) + cleanup_warning,
+            retryable=isinstance(primary_error, (TimeoutError, asyncio.TimeoutError)),
+            evidence=evidence,
+            final_vehicle_state=final_vehicle_state,
+        )
+
+
+def _build_terminal_result(action_name: str | None) -> TerminalActionResult:
+    """Build the process' single authoritative terminal result."""
+    if RETURN_CODE == 0:
+        return make_terminal_result(
+            success=True,
+            code="ACTION_COMPLETED",
+            phase="completed",
+            operator_message=f"Action '{action_name or 'unknown'}' completed successfully.",
+            retryable=False,
+            evidence={"action": action_name or "unknown"},
+            final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
+        )
+    if _LAST_ACTION_FAILURE is not None:
+        if (
+            _LAST_FINAL_VEHICLE_STATE is not None
+            and _LAST_ACTION_FAILURE.final_vehicle_state != _LAST_FINAL_VEHICLE_STATE
+        ):
+            return make_terminal_result(
+                success=False,
+                code=_LAST_ACTION_FAILURE.code,
+                phase=_LAST_ACTION_FAILURE.phase,
+                operator_message=_LAST_ACTION_FAILURE.operator_message,
+                retryable=_LAST_ACTION_FAILURE.retryable,
+                evidence=_LAST_ACTION_FAILURE.evidence,
+                final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
+            )
+        return _LAST_ACTION_FAILURE
+    return make_terminal_result(
+        success=False,
+        code="ACTION_FAILED",
+        phase="execution",
+        operator_message=(
+            f"Action '{action_name or 'unknown'}' stopped before completion. "
+            "Review the node unified log for supporting diagnostics."
+        ),
+        retryable=False,
+        evidence={"action": action_name or "unknown"},
+        final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
+    )
 
 def check_mavsdk_server_running(port):
     """
@@ -233,7 +417,12 @@ def start_mavsdk_server(grpc_port, udp_port):
     mavsdk_server_path = find_mavsdk_server()
     if not mavsdk_server_path:
         logger.error("mavsdk_server executable not found.")
-        fail()
+        fail(
+            code="MAVSDK_SERVER_UNAVAILABLE",
+            phase="mavsdk_startup",
+            operator_message="The local MAVSDK server executable is unavailable; no vehicle command was sent.",
+            retryable=False,
+        )
         sys.exit(1)
 
     logger.info(f"Starting MAVSDK server: {mavsdk_server_path} on gRPC:{grpc_port}, UDP:{udp_port}")
@@ -249,14 +438,24 @@ def start_mavsdk_server(grpc_port, udp_port):
         if not wait_for_port(grpc_port, timeout=10):
             logger.error("MAVSDK server did not start listening in time.")
             mavsdk_server.terminate()
-            fail()
+            fail(
+                code="MAVSDK_SERVER_START_TIMEOUT",
+                phase="mavsdk_startup",
+                operator_message="The local MAVSDK server did not become ready before the startup timeout; no vehicle command was sent.",
+                retryable=True,
+            )
             sys.exit(1)
 
         logger.info("MAVSDK server ready.")
         return mavsdk_server
     except Exception:
         logger.exception("Failed to start MAVSDK server")
-        fail()
+        fail(
+            code="MAVSDK_SERVER_START_FAILED",
+            phase="mavsdk_startup",
+            operator_message="The local MAVSDK server failed to start; no vehicle command was sent.",
+            retryable=True,
+        )
         sys.exit(1)
 
 
@@ -271,29 +470,41 @@ def _normalize_action_name(action_name: str | None) -> str | None:
     return normalized or None
 
 
-async def perform_action(action, altitude=None, parameters=None, branch=None, reboot_after=False, request_payload=None):
+async def perform_action(action, altitude=None, branch=None, request_payload=None):
     """
-    Main entry to perform the requested action with optional altitude/parameters/branch, plus
-    an optional reboot_after boolean for certain actions like apply_common_params.
+    Main entry to perform the requested action with optional altitude, branch,
+    and a typed request payload.
     """
+    global _CURRENT_ACTION_NAME, _LAST_ACTION_FAILURE, _LAST_FINAL_VEHICLE_STATE
+    global _LAST_ACTION_CLEANUP_EVIDENCE
+    global _LED_FEEDBACK_DISABLED, RETURN_CODE
     action_name = _normalize_action_name(action)
+    RETURN_CODE = 0
+    _LAST_ACTION_FAILURE = None
+    _LAST_FINAL_VEHICLE_STATE = None
+    _LAST_ACTION_CLEANUP_EVIDENCE = None
+    _LED_FEEDBACK_DISABLED = False
+    _CURRENT_ACTION_NAME = action_name
     logger.info(
-        f"Requested action: {action_name}, altitude: {altitude}, parameters: {parameters}, "
-        f"branch: {branch}, reboot_after: {reboot_after}"
+        f"Requested action: {action_name}, altitude: {altitude}, branch: {branch}"
     )
     global HW_ID
     invocation = ActionInvocation(
         action=action_name or "",
         altitude=altitude,
-        parameters=parameters,
         branch=branch,
-        reboot_after=bool(reboot_after),
         request_payload=request_payload,
     )
     action_spec = get_action_spec(action_name)
     if action_spec is None:
         logger.error(f"Invalid action specified: {action_name}")
-        fail()
+        fail(
+            code="INVALID_ACTION",
+            phase="validation",
+            operator_message=f"Action '{action_name or 'missing'}' is not supported; no vehicle command was sent.",
+            retryable=False,
+            evidence={"action": action_name or "missing"},
+        )
         return
 
     if not action_spec.requires_connection:
@@ -301,24 +512,40 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
             ActionExecutionContext(drone=None, hw_id=str(HW_ID) if HW_ID is not None else None, logger=logger),
             invocation,
         ):
-            fail()
+            fail(
+                code="ACTION_RUNNER_FAILED",
+                phase="execution",
+                operator_message=f"Action '{action_name}' stopped before completion.",
+                retryable=False,
+                evidence={"action": action_name},
+            )
         return
 
-    # For init_sysid, we do need a valid HW_ID. That is checked later in init_sysid logic.
-    # For apply_common_params or normal flight actions, we also read HW_ID for consistency.
     HW_ID = ConfigLoader.get_hw_id()
 
-    if action not in ["init_sysid", "update_code"]:
-        # For normal flight actions (and apply_common_params), we also read config
+    if action != "update_code":
+        # Vehicle actions require a canonical companion identity and config.
         if HW_ID is None:
             logger.error("No valid HW_ID found, cannot proceed.")
-            fail()
+            fail(
+                code="DRONE_IDENTITY_UNAVAILABLE",
+                phase="configuration",
+                operator_message="The companion computer has no valid hardware identity; no vehicle command was sent.",
+                retryable=False,
+                evidence={"action": action_name},
+            )
             return
 
         drone_config = ConfigLoader.read_config(HW_ID)  # Returns raw CSV row dict (keys: hw_id, pos_id, ip, mavlink_port, serial_port, baudrate)
         if not drone_config:
             logger.error("Drone config not found, cannot proceed.")
-            fail()
+            fail(
+                code="DRONE_CONFIGURATION_UNAVAILABLE",
+                phase="configuration",
+                operator_message="No configuration was found for this drone identity; no vehicle command was sent.",
+                retryable=False,
+                evidence={"action": action_name, "hw_id": HW_ID},
+            )
             return
 
     # Start MAVSDK if not just "update_code" (that doesn't need flight connect).
@@ -329,7 +556,13 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
     if not mavsdk_server:
         logger.error("Failed to start MAVSDK server.")
-        fail()
+        fail(
+            code="MAVSDK_SERVER_UNAVAILABLE",
+            phase="mavsdk_startup",
+            operator_message="The local MAVSDK server is unavailable; no vehicle command was sent.",
+            retryable=True,
+            evidence={"action": action_name},
+        )
         return
 
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
@@ -338,20 +571,28 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
         await drone.connect(system_address=f"udp://:{udp_port}")
     except Exception:
         logger.exception("Failed to connect to MAVSDK server")
-        fail()
+        fail(
+            code="MAVSDK_CONNECTION_FAILED",
+            phase="vehicle_connection",
+            operator_message="The action process could not connect to the local MAVSDK service; no vehicle command was confirmed.",
+            retryable=True,
+            evidence={"action": action_name},
+        )
         stop_mavsdk_server(mavsdk_server)
         return
 
     # Wait for connection
     if not await wait_for_drone_connection(drone):
         logger.error("Drone not connected in time.")
-        fail()
+        fail(
+            code="VEHICLE_CONNECTION_TIMEOUT",
+            phase="vehicle_connection",
+            operator_message="No PX4 connection was observed before the action timeout; no vehicle command was sent.",
+            retryable=True,
+            evidence={"action": action_name},
+        )
         stop_mavsdk_server(mavsdk_server)
         return
-
-    # Set parameters if provided via CLI
-    if parameters:
-        await set_parameters(drone, parameters)
 
     # Execute the requested action safely
     try:
@@ -364,10 +605,22 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
             mavsdk_server=mavsdk_server,
         )
         if not await action_spec.runner(context, invocation):
-            fail()
-    except Exception:
+            fail(
+                code="ACTION_RUNNER_FAILED",
+                phase="execution",
+                operator_message=f"Action '{action_name}' stopped before terminal vehicle-state confirmation.",
+                retryable=False,
+                evidence={"action": action_name},
+            )
+    except Exception as exc:
         logger.exception(f"Error performing action '{action_name}'")
-        fail()
+        fail(
+            code="ACTION_EXECUTION_FAILED",
+            phase="execution",
+            operator_message=f"Action '{action_name}' failed unexpectedly: {exc}.",
+            retryable=False,
+            evidence={"action": action_name, "exception_type": type(exc).__name__},
+        )
     finally:
         stop_mavsdk_server(mavsdk_server)
         logger.info("Action completed.")
@@ -378,14 +631,20 @@ async def wait_for_drone_connection(drone, timeout=10):
     Returns True if connected, else False.
     """
     logger.info("Waiting for drone connection state...")
-    start = time.time()
-    async for state in drone.core.connection_state():
-        if state.is_connected:
-            logger.info("Drone connected successfully.")
-            return True
-        if time.time() - start > timeout:
-            return False
-        await asyncio.sleep(0.5)
+    deadline = monotonic_deadline(timeout)
+    try:
+        async with managed_async_stream(drone.core.connection_state) as stream:
+            while True:
+                state = await next_stream_sample(
+                    stream,
+                    deadline=deadline,
+                    description="drone connection",
+                )
+                if state.is_connected:
+                    logger.info("Drone connected successfully.")
+                    return True
+    except TimeoutError:
+        return False
 
 
 async def wait_for_telemetry_condition(stream_factory, predicate, description, timeout=20):
@@ -395,13 +654,17 @@ async def wait_for_telemetry_condition(stream_factory, predicate, description, t
     This keeps action completion aligned with actual vehicle state changes
     instead of treating MAVSDK RPC acceptance as the terminal success signal.
     """
-    deadline = time.monotonic() + timeout
-    async for sample in stream_factory():
-        if predicate(sample):
-            logger.info(f"{description} confirmed.")
-            return sample
-        if time.monotonic() >= deadline:
-            raise TimeoutError(f"Timed out waiting for {description}")
+    deadline = monotonic_deadline(timeout)
+    async with managed_async_stream(stream_factory) as stream:
+        while True:
+            sample = await next_stream_sample(
+                stream,
+                deadline=deadline,
+                description=description,
+            )
+            if predicate(sample):
+                logger.info(f"{description} confirmed.")
+                return sample
 
 
 def _get_local_drone_state_snapshot(timeout: float = 1.0):
@@ -450,31 +713,410 @@ def _get_local_relative_altitude_snapshot(timeout: float = 1.0):
 
 async def _get_current_relative_altitude(drone, timeout: float = 3.0):
     """Capture the current relative altitude, preferring the local API snapshot."""
-    local_relative_altitude = _get_local_relative_altitude_snapshot(timeout=1.0)
+    local_relative_altitude = await asyncio.to_thread(
+        _get_local_relative_altitude_snapshot,
+        timeout=1.0,
+    )
     if local_relative_altitude is not None:
         return local_relative_altitude
 
-    deadline = time.monotonic() + timeout
-    position_stream = drone.telemetry.position()
-    while time.monotonic() < deadline:
-        try:
-            position = await asyncio.wait_for(anext(position_stream), timeout=max(0.1, deadline - time.monotonic()))
-        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
-            break
-        return getattr(position, "relative_altitude_m", None)
+    deadline = monotonic_deadline(timeout)
+    try:
+        async with managed_async_stream(drone.telemetry.position) as stream:
+            position = await next_stream_sample(
+                stream,
+                deadline=deadline,
+                description="current relative altitude",
+            )
+            return getattr(position, "relative_altitude_m", None)
+    except TimeoutError:
+        pass
     return None
 
 
 async def _get_current_landed_state(drone, timeout: float = 3.0):
     """Read the current landed state without treating the read as a logged milestone."""
-    deadline = time.monotonic() + timeout
-    landed_state_stream = drone.telemetry.landed_state()
-    while time.monotonic() < deadline:
-        try:
-            return await asyncio.wait_for(anext(landed_state_stream), timeout=max(0.1, deadline - time.monotonic()))
-        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
-            break
+    deadline = monotonic_deadline(timeout)
+    try:
+        async with managed_async_stream(drone.telemetry.landed_state) as stream:
+            return await next_stream_sample(
+                stream,
+                deadline=deadline,
+                description="current landed state",
+            )
+    except TimeoutError:
+        pass
     return None
+
+
+class _ActionTransactionError(RuntimeError):
+    """Preserve the primary failure while attaching cleanup/final-state facts."""
+
+    def __init__(
+        self,
+        primary_error: Exception,
+        *,
+        evidence: dict,
+        final_vehicle_state: dict | None,
+    ) -> None:
+        self.primary_error = primary_error
+        self.evidence = dict(evidence)
+        self.final_vehicle_state = (
+            dict(final_vehicle_state) if final_vehicle_state is not None else None
+        )
+        super().__init__(str(primary_error) or type(primary_error).__name__)
+
+
+def _safe_led_call(led_controller, method_name: str, *args) -> None:
+    """Keep optional companion LED/SPI failures out of vehicle action results."""
+    global _LED_FEEDBACK_DISABLED
+    if led_controller is None or _LED_FEEDBACK_DISABLED:
+        return
+    try:
+        getattr(led_controller, method_name)(*args)
+    except Exception as exc:
+        _LED_FEEDBACK_DISABLED = True
+        logger.warning(
+            "Optional LED feedback failed during %s: %s",
+            _CURRENT_ACTION_NAME or "action",
+            exc,
+        )
+
+
+def _optional_led_controller():
+    global _LED_FEEDBACK_DISABLED
+    try:
+        return LEDController.get_instance()
+    except Exception as exc:
+        _LED_FEEDBACK_DISABLED = True
+        logger.warning("Optional LED controller is unavailable: %s", exc)
+        return None
+
+
+def _landed_state_name(value) -> str | None:
+    if value is None:
+        return None
+    name = getattr(value, "name", None)
+    if name:
+        return str(name).upper()
+    text = str(value).strip()
+    return text.rsplit(".", 1)[-1].upper() if text else None
+
+
+def _relative_altitude_value(sample) -> float | None:
+    raw_value = (
+        getattr(sample, "relative_altitude_m", None)
+        if sample is not None and not isinstance(sample, (int, float))
+        else sample
+    )
+    try:
+        converted = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return converted if converted == converted and abs(converted) != float("inf") else None
+
+
+def _takeoff_confirmation_altitude_m(target_altitude_m: float) -> float:
+    """Return an attainable confirmation threshold for every positive target.
+
+    The historical 1.5 m floor made a valid 1 m takeoff impossible to confirm.
+    Keep the normal 80%/0.5 m margin posture while never requiring telemetry to
+    exceed the requested target.
+    """
+    threshold = max(
+        0.5,
+        min(target_altitude_m - 0.5, target_altitude_m * 0.8),
+    )
+    return min(target_altitude_m, threshold)
+
+
+async def _best_effort_state_observation(drone) -> VehicleStateObservation | None:
+    try:
+        return await observe_authoritative_vehicle_state(drone)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Final vehicle-state observation failed: %s", exc)
+        return None
+
+
+def _final_state_from_observation(
+    observation: VehicleStateObservation | None,
+    *,
+    recovery_action: str | None,
+    recovery_status: str,
+    armed_override: bool | None = None,
+    landed_state_override: str | None = None,
+) -> dict:
+    state = observation.as_dict() if observation is not None else {
+        "source": "mavsdk.telemetry",
+        "fresh": False,
+        "complete": False,
+        "armed": None,
+        "landed_state": None,
+        "relative_altitude_m": None,
+        "field_errors": {"observation": "final vehicle-state observation unavailable"},
+    }
+    if armed_override is not None:
+        state["armed"] = armed_override
+    if landed_state_override is not None:
+        state["landed_state"] = landed_state_override
+    state["recovery_action"] = recovery_action
+    state["recovery_status"] = recovery_status
+    return state
+
+
+async def _verified_disarm_cleanup(
+    drone,
+    *,
+    initial_observation: VehicleStateObservation | None = None,
+) -> tuple[bool, dict, dict]:
+    """Best-effort normal disarm with authoritative confirmation and evidence."""
+    evidence: dict = {"cleanup": "disarm", "disarm_command_attempted": False}
+    observation = initial_observation or await _best_effort_state_observation(drone)
+    if observation is not None:
+        evidence["initial_state"] = observation.as_dict()
+        if observation.armed is False:
+            final_state = _final_state_from_observation(
+                observation,
+                recovery_action=None,
+                recovery_status="safe_disarmed_confirmed",
+            )
+            return True, final_state, evidence
+        if observation.armed is True and not observation.on_ground:
+            evidence["disarm_blocked"] = "fresh telemetry did not confirm ON_GROUND"
+            final_state = _final_state_from_observation(
+                observation,
+                recovery_action=None,
+                recovery_status="disarm_blocked_airborne",
+            )
+            return False, final_state, evidence
+
+    command_error = None
+    try:
+        evidence["disarm_command_attempted"] = True
+        await drone.action.disarm()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        command_error = exc
+        evidence["disarm_command_error"] = _exception_detail(exc)[0]
+
+    disarm_confirmed = False
+    try:
+        await wait_until_armed_state(drone, False, timeout=10)
+        disarm_confirmed = True
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        evidence["disarm_confirmation_error"] = _exception_detail(exc)[0]
+
+    final_observation = await _best_effort_state_observation(drone)
+    if final_observation is not None:
+        evidence["final_state"] = final_observation.as_dict()
+        if final_observation.armed is False:
+            disarm_confirmed = True
+        elif final_observation.armed is True:
+            disarm_confirmed = False
+
+    recovery_status = (
+        "safe_disarmed_confirmed" if disarm_confirmed else "disarm_unconfirmed"
+    )
+    final_state = _final_state_from_observation(
+        final_observation or observation,
+        recovery_action="disarm" if evidence["disarm_command_attempted"] else None,
+        recovery_status=recovery_status,
+        armed_override=False if disarm_confirmed else None,
+    )
+    if command_error is not None and disarm_confirmed:
+        evidence["note"] = "Disarm RPC failed, but fresh telemetry confirmed the vehicle disarmed."
+    return disarm_confirmed, final_state, evidence
+
+
+async def _recover_failed_takeoff(
+    drone,
+    *,
+    takeoff_command_may_have_started: bool,
+) -> tuple[bool, dict, dict]:
+    """Reach verified disarm or confirm that primary LAND recovery has started."""
+    initial = await _best_effort_state_observation(drone)
+    evidence: dict = {
+        "cleanup": "failed_takeoff",
+        "takeoff_command_may_have_started": takeoff_command_may_have_started,
+    }
+    if initial is not None:
+        evidence["initial_state"] = initial.as_dict()
+
+    if initial is not None and initial.armed is False:
+        final_state = _final_state_from_observation(
+            initial,
+            recovery_action=None,
+            recovery_status="safe_disarmed_confirmed",
+        )
+        return True, final_state, evidence
+
+    if initial is not None and initial.on_ground:
+        confirmed, final_state, disarm_evidence = await _verified_disarm_cleanup(
+            drone,
+            initial_observation=initial,
+        )
+        evidence["disarm"] = disarm_evidence
+        return confirmed, final_state, evidence
+
+    should_land = bool(
+        takeoff_command_may_have_started
+        or (initial is not None and initial.landed_state in {"TAKING_OFF", "IN_AIR", "LANDING"})
+    )
+    if not should_land:
+        confirmed, final_state, disarm_evidence = await _verified_disarm_cleanup(
+            drone,
+            initial_observation=initial,
+        )
+        evidence["disarm"] = disarm_evidence
+        return confirmed, final_state, evidence
+
+    evidence["land_command_attempted"] = True
+    try:
+        # LAND is the primary recovery action.  Never gate it on HOLD.
+        await drone.action.land()
+        transition = await wait_until_landed_state(
+            drone,
+            {telemetry.LandedState.LANDING, telemetry.LandedState.ON_GROUND},
+            "failed-takeoff landing state transition",
+            timeout=15,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        evidence["land_recovery_error"] = _exception_detail(exc)[0]
+        final_observation = await _best_effort_state_observation(drone)
+        final_state = _final_state_from_observation(
+            final_observation or initial,
+            recovery_action="land",
+            recovery_status="land_recovery_unconfirmed",
+        )
+        return False, final_state, evidence
+
+    transition_name = _landed_state_name(transition)
+    final_observation = await _best_effort_state_observation(drone)
+    if final_observation is not None:
+        evidence["final_state"] = final_observation.as_dict()
+        if final_observation.armed is False:
+            final_state = _final_state_from_observation(
+                final_observation,
+                recovery_action="land",
+                recovery_status="safe_disarmed_confirmed",
+            )
+            return True, final_state, evidence
+
+    if transition_name == "ON_GROUND":
+        confirmed, final_state, disarm_evidence = await _verified_disarm_cleanup(
+            drone,
+            initial_observation=final_observation,
+        )
+        evidence["post_land_disarm"] = disarm_evidence
+        return confirmed, final_state, evidence
+
+    recovery_confirmed = transition_name in {"LANDING", "ON_GROUND"}
+    final_state = _final_state_from_observation(
+        final_observation or initial,
+        recovery_action="land",
+        recovery_status=(
+            "land_recovery_started" if recovery_confirmed else "land_recovery_unconfirmed"
+        ),
+        landed_state_override=transition_name,
+    )
+    return recovery_confirmed, final_state, evidence
+
+
+async def _shielded_takeoff_cleanup(
+    drone,
+    *,
+    takeoff_command_may_have_started: bool,
+) -> tuple[bool, dict, dict]:
+    return await _run_bounded_shielded_cleanup(
+        _recover_failed_takeoff(
+            drone,
+            takeoff_command_may_have_started=takeoff_command_may_have_started,
+        ),
+        cleanup_name="failed_takeoff",
+    )
+
+
+async def _shielded_verified_disarm_cleanup(
+    drone,
+    *,
+    initial_observation: VehicleStateObservation | None,
+) -> tuple[bool, dict, dict]:
+    return await _run_bounded_shielded_cleanup(
+        _verified_disarm_cleanup(
+            drone,
+            initial_observation=initial_observation,
+        ),
+        cleanup_name="verified_disarm",
+    )
+
+
+async def _run_bounded_shielded_cleanup(
+    cleanup_coro,
+    *,
+    cleanup_name: str,
+) -> tuple[bool, dict, dict]:
+    """Let one cooperative signal reach bounded cleanup exactly once.
+
+    The cleanup task is shielded from the cancellation that initiated it.  A
+    fixed wall-clock deadline prevents a stuck SDK call from keeping the action
+    process alive forever; the process manager grants a slightly longer grace
+    window before force-kill.
+    """
+
+    cleanup_task = asyncio.create_task(cleanup_coro)
+
+    async def wait_for_cleanup():
+        return await asyncio.wait_for(
+            asyncio.shield(cleanup_task),
+            timeout=ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+        )
+
+    wait_task = asyncio.create_task(wait_for_cleanup())
+    try:
+        return await asyncio.shield(wait_task)
+    except asyncio.CancelledError:
+        # Consume the initiating cancellation, but keep the safety task alive.
+        try:
+            return await wait_task
+        except asyncio.TimeoutError:
+            pass
+    except asyncio.TimeoutError:
+        pass
+
+    cleanup_task.cancel()
+    cleanup_task.add_done_callback(
+        lambda task: task.exception() if not task.cancelled() else None
+    )
+    logger.critical(
+        "%s safety cleanup exceeded the fixed %.1fs deadline.",
+        cleanup_name,
+        ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+    )
+    final_state = {
+        "source": "mavsdk.telemetry",
+        "fresh": False,
+        "complete": False,
+        "connection_live": None,
+        "armed": None,
+        "landed_state": None,
+        "relative_altitude_m": None,
+        "field_errors": {"cleanup": "bounded safety cleanup timed out"},
+        "recovery_action": cleanup_name,
+        "recovery_status": "cleanup_unconfirmed_timeout",
+    }
+    evidence = {
+        "cleanup": cleanup_name,
+        "cleanup_confirmed": False,
+        "cleanup_timeout_sec": ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+    }
+    return False, final_state, evidence
 
 
 async def wait_until_armed_state(drone, expected: bool, timeout=15):
@@ -515,7 +1157,10 @@ async def wait_until_relative_altitude(drone, minimum_relative_altitude_m: float
             timeout=timeout,
         )
     except TimeoutError:
-        local_relative_altitude = _get_local_relative_altitude_snapshot(timeout=1.0)
+        local_relative_altitude = await asyncio.to_thread(
+            _get_local_relative_altitude_snapshot,
+            timeout=1.0,
+        )
         if (
             local_relative_altitude is not None
             and local_relative_altitude >= minimum_relative_altitude_m
@@ -541,9 +1186,19 @@ async def safe_action(func, *args, **kwargs):
         return True
     except ActionError as ae:
         logger.error(f"Action {action_name} failed with ActionError: {ae}")
+        _record_action_exception(action_name, ae)
         return False
-    except Exception:
-        logger.exception(f"Action {action_name} failed with an unexpected error.")
+    except Exception as exc:
+        if isinstance(getattr(exc, "code", None), str):
+            logger.warning(
+                "Action %s was blocked (%s): %s",
+                action_name,
+                exc.code,
+                exc,
+            )
+        else:
+            logger.exception(f"Action {action_name} failed with an unexpected error.")
+        _record_action_exception(action_name, exc)
         return False
 
 
@@ -568,7 +1223,11 @@ async def _run_kill_terminate(context: ActionExecutionContext, invocation: Actio
 
 
 async def _run_test(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
-    return await safe_action(test, context.drone)
+    return await safe_action(
+        test,
+        context.drone,
+        request_payload=invocation.request_payload,
+    )
 
 
 async def _run_reboot_fc(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
@@ -577,14 +1236,6 @@ async def _run_reboot_fc(context: ActionExecutionContext, invocation: ActionInvo
 
 async def _run_reboot_sys(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
     return await safe_action(reboot, context.drone, fc_flag=False, sys_flag=True)
-
-
-async def _run_init_sysid(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
-    return await safe_action(init_sysid, context.drone)
-
-
-async def _run_apply_common_params(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
-    return await safe_action(apply_common_params, context.drone, invocation.reboot_after)
 
 
 async def _run_update_code(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
@@ -635,7 +1286,7 @@ def get_action_spec(action_name: str | None) -> ActionSpec | None:
             name="test",
             runner=_run_test,
             requires_connection=True,
-            description="Connectivity and LED bench test.",
+            description="Arm motors briefly, then disarm under the required ground-test safety acknowledgement.",
         ),
         "reboot_fc": ActionSpec(
             name="reboot_fc",
@@ -648,18 +1299,6 @@ def get_action_spec(action_name: str | None) -> ActionSpec | None:
             runner=_run_reboot_sys,
             requires_connection=True,
             description="Reboot the companion computer/system.",
-        ),
-        "init_sysid": ActionSpec(
-            name="init_sysid",
-            runner=_run_init_sysid,
-            requires_connection=True,
-            description="Set MAV_SYS_ID from HW_ID and reboot FC.",
-        ),
-        "apply_common_params": ActionSpec(
-            name="apply_common_params",
-            runner=_run_apply_common_params,
-            requires_connection=True,
-            description="Apply common PX4 parameters and optionally reboot.",
         ),
         "update_code": ActionSpec(
             name="update_code",
@@ -676,113 +1315,6 @@ def get_action_spec(action_name: str | None) -> ActionSpec | None:
     }
     return action_specs.get(normalized)
 
-# Mapping of parameter names to their expected types
-PARAM_TYPES = {
-    "COM_RCL_EXCEPT": "int",
-    "GF_ACTION": "int",
-    "GF_MAX_HOR_DIST": "float",
-    "GF_MAX_VER_DIST": "float",
-}
-
-def parse_param_value(raw_value, param_name):
-    """
-    Parses the raw parameter value string into the correct type based on the
-    expected type for the parameter as defined in PARAM_TYPES.
-    """
-    expected_type = PARAM_TYPES.get(param_name)
-    try:
-        if expected_type == "int":
-            return int(raw_value), "int"
-        elif expected_type == "float":
-            return float(raw_value), "float"
-        else:
-            # Fallback: if no mapping exists, try guessing based on a decimal point.
-            if '.' in raw_value:
-                return float(raw_value), "float"
-            else:
-                return int(raw_value), "int"
-    except ValueError as e:
-        logger.error(f"Failed to parse value '{raw_value}' for parameter '{param_name}' with expected type '{expected_type}'")
-        raise e
-
-async def set_parameters(drone, parameters):
-    """
-    Sets multiple parameters on the drone using MAVSDK's param interface.
-    The `parameters` dict should be {param_name: param_value_str}.
-    """
-    for param_name, raw_value in parameters.items():
-        try:
-            param_value, param_type = parse_param_value(raw_value, param_name)
-            logger.info(f"Setting param '{param_name}' to {param_value} (type: {param_type})")
-            if param_type == "int":
-                await drone.param.set_param_int(param_name, param_value)
-            elif param_type == "float":
-                await drone.param.set_param_float(param_name, param_value)
-            else:
-                raise ValueError(f"Unsupported parameter type for {param_name}")
-            logger.info(f"Param '{param_name}' set successfully.")
-        except Exception as e:
-            logger.exception(f"Failed to set param '{param_name}': {e}")
-            fail()  # Assuming fail() handles the error as per your project's conventions
-
-async def apply_common_params(drone, reboot_after=False):
-    """
-    Reads the configured common-params CSV, applies each parameter to the drone,
-    and optionally reboots the flight controller.
-    
-    The expected CSV format is:
-      param_name,param_value
-    Example:
-      COM_RCL_EXCEPT,7
-      GF_ACTION,3
-      GF_MAX_HOR_DIST,3000
-      GF_MAX_VER_DIST,120
-    """
-    led_controller = LEDController.get_instance()
-    common_file = Params.COMMON_PARAMS_FILE
-
-    # Indicate start with a distinct LED color (e.g., magenta)
-    led_controller.set_color(255, 0, 255)
-    await asyncio.sleep(0.5)
-
-    if not os.path.isfile(common_file):
-        logger.error(f"Common parameter file '{common_file}' not found.")
-        fail()
-        return
-
-        logger.info(f"Loading common parameters from {common_file} ...")
-    try:
-        common_params = {}
-        with open(common_file, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                param_name = row['param_name'].strip()
-                param_value = row['param_value'].strip()
-                common_params[param_name] = param_value
-
-        logger.info(f"Found {len(common_params)} common parameters. Applying now...")
-        await set_parameters(drone, common_params)
-
-        # Blink green a few times for success feedback
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        if reboot_after:
-            logger.info("Rebooting flight controller as requested...")
-            await drone.action.reboot()
-            led_controller.set_color(255, 255, 0)
-            await asyncio.sleep(1.0)
-
-        logger.info("apply_common_params action completed successfully.")
-    except Exception:
-        logger.exception("Error applying common parameters")
-        fail()
-    finally:
-        led_controller.turn_off()
-
 # -----------------------
 # Action Implementations
 # -----------------------
@@ -795,126 +1327,261 @@ async def ensure_ready_for_flight(drone, timeout: float | None = None):
     preflight_timeout = float(timeout or getattr(Params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30))
     logger.info("Checking preflight conditions...")
     start = time.monotonic()
+    deadline = monotonic_deadline(preflight_timeout)
     gps_ok = False
     home_ok = False
     last_reported_state = None
-    async for health in drone.telemetry.health():
-        if health.is_global_position_ok:
-            gps_ok = True
-        if health.is_home_position_ok:
-            home_ok = True
+    try:
+        async with managed_async_stream(drone.telemetry.health) as stream:
+            while True:
+                health = await next_stream_sample(
+                    stream,
+                    deadline=deadline,
+                    description="takeoff preflight health",
+                )
+                if health.is_global_position_ok:
+                    gps_ok = True
+                if health.is_home_position_ok:
+                    home_ok = True
 
-        local_state = _get_local_drone_state_snapshot()
-        local_home_ok = bool(local_state and local_state.get("home_position_set"))
-        if local_home_ok:
-            home_ok = True
+                local_state = await asyncio.to_thread(
+                    _get_local_drone_state_snapshot,
+                    timeout=min(1.0, max(0.1, deadline - time.monotonic())),
+                )
+                local_home_ok = bool(local_state and local_state.get("home_position_set"))
+                if local_home_ok:
+                    home_ok = True
 
-        home_source = "mavsdk" if health.is_home_position_ok else ("drone_api" if local_home_ok else "pending")
-        current_state = (gps_ok, home_ok, home_source)
-        if current_state != last_reported_state:
-            logger.info(
-                "Preflight health update: gps_ok=%s, home_ok=%s, home_source=%s, elapsed=%.1fs/%.1fs",
-                gps_ok,
-                home_ok,
-                home_source,
-                time.monotonic() - start,
-                preflight_timeout,
-            )
-            last_reported_state = current_state
-        if gps_ok and home_ok:
-            logger.info("Preflight checks passed: GPS and Home position are good.")
-            return True
-        if time.monotonic() - start > preflight_timeout:
-            logger.error(
-                "Preflight checks timed out. GPS or Home not ready (gps_ok=%s, home_ok=%s, timeout=%.1fs).",
-                gps_ok,
-                home_ok,
-                preflight_timeout,
-            )
-            return False
-        await asyncio.sleep(1)
+                home_source = (
+                    "mavsdk"
+                    if health.is_home_position_ok
+                    else ("drone_api" if local_home_ok else "pending")
+                )
+                current_state = (gps_ok, home_ok, home_source)
+                if current_state != last_reported_state:
+                    logger.info(
+                        "Preflight health update: gps_ok=%s, home_ok=%s, home_source=%s, elapsed=%.1fs/%.1fs",
+                        gps_ok,
+                        home_ok,
+                        home_source,
+                        time.monotonic() - start,
+                        preflight_timeout,
+                    )
+                    last_reported_state = current_state
+                if gps_ok and home_ok:
+                    logger.info("Preflight checks passed: GPS and Home position are good.")
+                    return True
+    except TimeoutError:
+        logger.error(
+            "Preflight checks timed out. GPS or Home not ready (gps_ok=%s, home_ok=%s, timeout=%.1fs).",
+            gps_ok,
+            home_ok,
+            preflight_timeout,
+        )
+        return False
 
 async def takeoff(drone, altitude):
     """
     Arms and takes off to the specified altitude (in meters).
     """
-    led_controller = LEDController.get_instance()
-    # Check preflight conditions
-    if not await ensure_ready_for_flight(drone):
-        raise Exception("Preflight conditions not met (GPS/Home)")
-
-    # Try arming
+    led_controller = _optional_led_controller()
     try:
         target_altitude = float(altitude)
-        led_controller.set_color(255, 255, 0)  # Yellow: starting
+    except (TypeError, ValueError) as exc:
+        raise ActionSafetyError(
+            code="TAKEOFF_ALTITUDE_INVALID",
+            phase="validation",
+            message="Takeoff altitude must be a positive finite number; no vehicle command was sent.",
+            evidence={"requested_altitude": altitude},
+        ) from exc
+    if (
+        target_altitude <= 0.0
+        or target_altitude != target_altitude
+        or abs(target_altitude) == float("inf")
+    ):
+        raise ActionSafetyError(
+            code="TAKEOFF_ALTITUDE_INVALID",
+            phase="validation",
+            message="Takeoff altitude must be a positive finite number; no vehicle command was sent.",
+            evidence={"requested_altitude": altitude},
+        )
+
+    arm_phase_started = False
+    takeoff_command_may_have_started = False
+    try:
+        if not await ensure_ready_for_flight(drone):
+            raise ActionSafetyError(
+                code="TAKEOFF_PREFLIGHT_NOT_READY",
+                phase="preflight",
+                message="Takeoff was blocked because fresh GPS/home readiness was not confirmed.",
+                retryable=True,
+            )
+
+        _safe_led_call(led_controller, "set_color", 255, 255, 0)
         await asyncio.sleep(0.5)
         await drone.action.set_takeoff_altitude(target_altitude)
+
+        try:
+            start_state = await observe_authoritative_vehicle_state(drone)
+        except Exception as exc:
+            raise ActionSafetyError(
+                code="TAKEOFF_START_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Takeoff was blocked because fresh armed, landed, and relative-altitude "
+                    "state could not be sampled immediately before arming."
+                ),
+                retryable=True,
+                evidence={"observation_error": _exception_detail(exc)[0]},
+            ) from exc
+        if not start_state.complete:
+            raise ActionSafetyError(
+                code="TAKEOFF_START_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Takeoff was blocked because fresh armed, landed, and relative-altitude "
+                    "state was incomplete immediately before arming."
+                ),
+                retryable=True,
+                evidence={"observation": start_state.as_dict()},
+                final_vehicle_state=start_state.as_dict(),
+            )
+        if not start_state.safe_ground_disarmed:
+            raise ActionSafetyError(
+                code="TAKEOFF_REQUIRES_SAFE_GROUND_STATE",
+                phase="precondition",
+                message=(
+                    "Takeoff requires a freshly confirmed on-ground, disarmed vehicle near "
+                    f"zero relative altitude (within {GROUND_MAX_RELATIVE_ALTITUDE_M:.1f} m)."
+                ),
+                evidence={"observation": start_state.as_dict()},
+                final_vehicle_state=start_state.as_dict(),
+            )
+
         # Keep standalone takeoff on the same bounded armability posture as
         # synchronized launchers without changing its separate GPS/home preflight.
+        arm_phase_started = True
         await arm_with_preflight_gate(
             drone,
             require_global_position=False,
             logger=logger,
         )
         await wait_until_armed_state(drone, True, timeout=10)
-        led_controller.set_color(255, 255, 255)  # White: armed
+        _safe_led_call(led_controller, "set_color", 255, 255, 255)
         await asyncio.sleep(0.5)
+        takeoff_command_may_have_started = True
         await drone.action.takeoff()
-        await wait_until_landed_state(
+        landed_transition = await wait_until_landed_state(
             drone,
             {telemetry.LandedState.TAKING_OFF, telemetry.LandedState.IN_AIR},
             "takeoff state transition",
             timeout=15,
         )
-        minimum_altitude = max(1.5, min(target_altitude - 0.5, target_altitude * 0.8))
-        await wait_until_relative_altitude(
+        minimum_altitude = _takeoff_confirmation_altitude_m(target_altitude)
+        altitude_sample = await wait_until_relative_altitude(
             drone,
             minimum_altitude,
             timeout=Params.TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC,
         )
-    except ActionError as e:
-        logger.error(f"Failed to take off: {e}")
-        raise
-    except Exception:
-        logger.exception("Unexpected error during takeoff")
-        raise
+        confirmed_altitude = _relative_altitude_value(altitude_sample)
+        if confirmed_altitude is None or confirmed_altitude < minimum_altitude:
+            raise ActionSafetyError(
+                code="TAKEOFF_ALTITUDE_UNCONFIRMED",
+                phase="state_verification",
+                message=(
+                    "Takeoff started, but the required relative-altitude threshold was not "
+                    "confirmed from telemetry. LAND recovery was initiated."
+                ),
+                retryable=False,
+                evidence={
+                    "target_altitude_m": target_altitude,
+                    "minimum_confirmed_altitude_m": minimum_altitude,
+                    "observed_relative_altitude_m": confirmed_altitude,
+                },
+            )
+        completion_state = await observe_authoritative_vehicle_state(drone)
+        if (
+            not completion_state.complete
+            or not completion_state.airborne
+            or completion_state.relative_altitude_m is None
+            or completion_state.relative_altitude_m < minimum_altitude
+        ):
+            raise ActionSafetyError(
+                code="TAKEOFF_FINAL_STATE_UNAVAILABLE",
+                phase="state_verification",
+                message=(
+                    "Takeoff reached the altitude threshold, but a connected, fresh and "
+                    "internally consistent final airborne snapshot was not confirmed. "
+                    "LAND recovery was initiated."
+                ),
+                evidence={"observation": completion_state.as_dict()},
+                final_vehicle_state=completion_state.as_dict(),
+            )
+        final_vehicle_state = completion_state.as_dict()
+        final_vehicle_state.update(
+            {
+                "target_altitude_m": target_altitude,
+                "minimum_confirmed_altitude_m": minimum_altitude,
+                "recovery_action": None,
+                "recovery_status": "not_required",
+            }
+        )
+        _set_final_vehicle_state(final_vehicle_state)
+    except BaseException as primary_error:
+        _safe_led_call(led_controller, "turn_off")
+        if not arm_phase_started:
+            raise
+
+        cleanup_confirmed, final_vehicle_state, cleanup_evidence = (
+            await _shielded_takeoff_cleanup(
+                drone,
+                takeoff_command_may_have_started=takeoff_command_may_have_started,
+            )
+        )
+        cleanup_evidence["cleanup_confirmed"] = cleanup_confirmed
+        _set_action_cleanup_evidence(cleanup_evidence)
+        _set_final_vehicle_state(final_vehicle_state)
+        if isinstance(primary_error, asyncio.CancelledError):
+            raise
+        if not isinstance(primary_error, Exception):
+            raise
+        raise _ActionTransactionError(
+            primary_error,
+            evidence=cleanup_evidence,
+            final_vehicle_state=final_vehicle_state,
+        ) from primary_error
 
     # Indicate success with green blinks
     for _ in range(3):
-        led_controller.set_color(0, 255, 0)
+        _safe_led_call(led_controller, "set_color", 0, 255, 0)
         await asyncio.sleep(0.2)
-        led_controller.turn_off()
+        _safe_led_call(led_controller, "turn_off")
         await asyncio.sleep(0.2)
-    led_controller.turn_off()
+    _safe_led_call(led_controller, "turn_off")
     logger.info("Takeoff successful.")
 
 async def land(drone):
     """
     Commands the drone to land safely.
     """
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 255, 0)  # Yellow
-    await asyncio.sleep(0.5)
-
+    led_controller = None
     try:
-        await drone.action.hold()
-        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
-        await asyncio.sleep(1)
-
-        # Indicate landing in progress (blue pulses)
-        for _ in range(3):
-            led_controller.set_color(0, 0, 255)
-            await asyncio.sleep(0.5)
-            led_controller.turn_off()
-            await asyncio.sleep(0.5)
-
+        # LAND is itself the recovery command.  A preliminary HOLD can be
+        # rejected while LAND remains available, so it must never gate or
+        # delay the primary recovery action.
         await drone.action.land()
+        led_controller = _optional_led_controller()
+        _safe_led_call(led_controller, "set_color", 255, 255, 0)
         await wait_until_landed_state(
             drone,
             {telemetry.LandedState.LANDING, telemetry.LandedState.ON_GROUND},
             "landing state transition",
             timeout=15,
         )
+
+        # A steady best-effort indicator must not add sleeps to the recovery
+        # state machine or delay disarm confirmation.
+        _safe_led_call(led_controller, "set_color", 0, 0, 255)
 
         relative_altitude = await _get_current_relative_altitude(drone)
         disarm_timeout = calculate_land_disarm_timeout(relative_altitude)
@@ -945,12 +1612,6 @@ async def land(drone):
             else:
                 raise
 
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-        led_controller.turn_off()
         logger.info("Landing successful.")
     except ActionError as e:
         logger.error(f"Landing failed: {e}")
@@ -958,28 +1619,24 @@ async def land(drone):
     except Exception:
         logger.exception("Unexpected error during landing")
         raise
+    finally:
+        _safe_led_call(led_controller, "turn_off")
 
 async def return_rtl(drone):
     """
     Commands the drone to return to launch (home) position.
     """
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 0, 255)  # Purple start
-    await asyncio.sleep(0.5)
-
+    led_controller = None
     try:
-        await drone.action.hold()
-        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
-        await asyncio.sleep(1)
-
-        for _ in range(3):
-            led_controller.set_color(0, 0, 255)
-            await asyncio.sleep(0.5)
-            led_controller.turn_off()
-            await asyncio.sleep(0.5)
-
+        # RTL is the primary recovery action and must be attempted directly.
+        # Requiring HOLD first suppresses RTL on vehicles that reject HOLD but
+        # can still accept return-to-launch.
         await drone.action.return_to_launch()
+        led_controller = _optional_led_controller()
+        _safe_led_call(led_controller, "set_color", 255, 0, 255)
         await wait_until_flight_mode(drone, telemetry.FlightMode.RETURN_TO_LAUNCH, timeout=15)
+
+        _safe_led_call(led_controller, "set_color", 0, 0, 255)
 
         relative_altitude = await _get_current_relative_altitude(drone)
         completion_timeout = calculate_rtl_completion_timeout(relative_altitude)
@@ -1010,12 +1667,6 @@ async def return_rtl(drone):
             else:
                 raise
 
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-        led_controller.turn_off()
         logger.info("RTL successful.")
     except ActionError as e:
         logger.error(f"RTL failed: {e}")
@@ -1023,29 +1674,21 @@ async def return_rtl(drone):
     except Exception:
         logger.exception("Unexpected error during RTL")
         raise
+    finally:
+        _safe_led_call(led_controller, "turn_off")
 
 async def kill_terminate(drone):
     """
     Immediately terminates the drone (emergency kill).
     """
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 0, 0)
-    await asyncio.sleep(0.2)
-    led_controller.set_color(0, 0, 0)
-    led_controller.set_color(255, 0, 0)
-    await asyncio.sleep(0.2)
-
+    led_controller = None
     try:
+        # Termination is the emergency effect. Optional companion cosmetics
+        # must never run, fail, or sleep ahead of this RPC.
         await drone.action.terminate()
+        led_controller = _optional_led_controller()
+        _safe_led_call(led_controller, "set_color", 255, 0, 0)
         await wait_until_armed_state(drone, False, timeout=10)
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-        led_controller.turn_off()
-        await asyncio.sleep(0.2)
-        led_controller.set_color(255, 0, 0)
         logger.info("Kill and Terminate successful.")
     except ActionError as e:
         logger.error(f"Kill terminate failed: {e}")
@@ -1056,17 +1699,63 @@ async def kill_terminate(drone):
 
 async def hold(drone):
     """
-    Commands the drone to hold (loiter) at current position.
+    Commands an authoritatively-confirmed airborne drone to hold position.
     """
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(0, 0, 255)
-    await asyncio.sleep(0.5)
+    led_controller = None
     try:
+        try:
+            admission_state = await observe_authoritative_vehicle_state(drone)
+        except Exception as exc:
+            raise ActionSafetyError(
+                code="HOLD_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Hold was blocked because fresh armed, landed, and relative-altitude "
+                    "telemetry could not be sampled immediately before the mode change."
+                ),
+                retryable=True,
+                evidence={"observation_error": _exception_detail(exc)[0]},
+            ) from exc
+        if not admission_state.complete:
+            raise ActionSafetyError(
+                code="HOLD_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Hold was blocked because fresh armed, landed, and relative-altitude "
+                    "telemetry was incomplete immediately before the mode change."
+                ),
+                retryable=True,
+                evidence={"observation": admission_state.as_dict()},
+                final_vehicle_state=admission_state.as_dict(),
+            )
+        if not admission_state.airborne:
+            raise ActionSafetyError(
+                code="HOLD_REQUIRES_AIRBORNE_STATE",
+                phase="precondition",
+                message=(
+                    "Hold Position requires a freshly confirmed armed, IN_AIR vehicle at "
+                    f"or above {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f} m relative altitude. "
+                    "It never arms or launches a grounded drone."
+                ),
+                evidence={"observation": admission_state.as_dict()},
+                final_vehicle_state=admission_state.as_dict(),
+            )
+
         await drone.action.hold()
+        led_controller = _optional_led_controller()
+        _safe_led_call(led_controller, "set_color", 0, 0, 255)
         await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
-        led_controller.set_color(0, 0, 255)
+        final_observation = await _best_effort_state_observation(drone)
+        final_state = _final_state_from_observation(
+            final_observation or admission_state,
+            recovery_action=None,
+            recovery_status="not_required",
+        )
+        final_state["flight_mode"] = "HOLD"
+        _set_final_vehicle_state(final_state)
+        _safe_led_call(led_controller, "set_color", 0, 0, 255)
         await asyncio.sleep(1)
-        led_controller.turn_off()
+        _safe_led_call(led_controller, "turn_off")
         logger.info("Hold successful.")
     except ActionError as e:
         logger.error(f"Hold failed: {e}")
@@ -1074,62 +1763,216 @@ async def hold(drone):
     except Exception:
         logger.exception("Unexpected error during hold")
         raise
+    finally:
+        _safe_led_call(led_controller, "turn_off")
 
-async def test(drone):
+async def test(drone, *, request_payload=None):
     """
-    A simple test action to verify connectivity and LED control.
+    Ground arm/disarm test with state confirmation.
+
+    A successful result proves command transport and observed arm/disarm state
+    transitions only.  It is not evidence that takeoff preflight requirements
+    are currently satisfied.
     """
-    led_controller = LEDController.get_instance()
     try:
-        led_controller.set_color(255, 0, 0)
-        await asyncio.sleep(1)
+        safety_acknowledgement = GroundTestSafetyAcknowledgement.from_action_payload(
+            request_payload
+        )
+        safety_acknowledgement.validate_for_runtime(
+            sim_mode=bool(getattr(Params, "sim_mode", False))
+        )
+    except Exception as exc:
+        acknowledgement = (
+            request_payload.get("ground_test_safety")
+            if isinstance(request_payload, dict)
+            else None
+        )
+        acknowledgement_mode = (
+            acknowledgement.get("mode")
+            if isinstance(acknowledgement, dict)
+            else None
+        )
+        raise ActionSafetyError(
+            code="GROUND_TEST_SAFETY_ACK_REQUIRED",
+            phase="precondition",
+            message=(
+                f"Arm/Disarm Ground Test safety acknowledgement was rejected: {exc}. "
+                "No arm command was sent."
+            ),
+            evidence={
+                "runtime_mode": "sitl" if bool(getattr(Params, "sim_mode", False)) else "real",
+                "acknowledgement_mode": acknowledgement_mode,
+            },
+        ) from exc
+
+    led_controller = _optional_led_controller()
+    arm_command_may_have_started = False
+    disarm_confirmed = False
+    primary_error: BaseException | None = None
+    cleanup_confirmed = True
+    cleanup_evidence: dict = {"cleanup": "not_required"}
+    final_vehicle_state: dict | None = None
+
+    try:
+        try:
+            start_state = await observe_authoritative_vehicle_state(drone)
+        except Exception as exc:
+            raise ActionSafetyError(
+                code="GROUND_TEST_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Arm/Disarm Ground Test was blocked because fresh armed, landed, and "
+                    "relative-altitude telemetry could not be sampled."
+                ),
+                retryable=True,
+                evidence={"observation_error": _exception_detail(exc)[0]},
+            ) from exc
+        if not start_state.complete:
+            raise ActionSafetyError(
+                code="GROUND_TEST_STATE_UNAVAILABLE",
+                phase="precondition",
+                message=(
+                    "Arm/Disarm Ground Test was blocked because fresh armed, landed, and "
+                    "relative-altitude telemetry was incomplete."
+                ),
+                retryable=True,
+                evidence={"observation": start_state.as_dict()},
+                final_vehicle_state=start_state.as_dict(),
+            )
+        if not start_state.safe_ground_disarmed:
+            raise ActionSafetyError(
+                code="GROUND_TEST_REQUIRES_SAFE_GROUND_STATE",
+                phase="precondition",
+                message=(
+                    "Arm/Disarm Ground Test requires a freshly confirmed on-ground, "
+                    f"disarmed vehicle within {GROUND_MAX_RELATIVE_ALTITUDE_M:.1f} m of "
+                    "zero relative altitude. It is not allowed on an airborne vehicle."
+                ),
+                evidence={"observation": start_state.as_dict()},
+                final_vehicle_state=start_state.as_dict(),
+            )
+
+        _safe_led_call(led_controller, "set_color", 255, 0, 0)
+        arm_command_may_have_started = True
         await drone.action.arm()
-        led_controller.set_color(255, 255, 255)
+        await wait_until_armed_state(drone, True, timeout=10)
+        _safe_led_call(led_controller, "set_color", 255, 255, 255)
         await asyncio.sleep(1)
-        led_controller.set_color(0, 0, 255)
+        _safe_led_call(led_controller, "set_color", 0, 0, 255)
         await asyncio.sleep(1)
-        led_controller.set_color(0, 255, 0)
+        _safe_led_call(led_controller, "set_color", 0, 255, 0)
         await asyncio.sleep(1)
         await drone.action.disarm()
-        led_controller.turn_off()
-        logger.info("Test action successful.")
-    except ActionError as e:
-        logger.error(f"Test action failed: {e}")
-        raise
-    except Exception:
-        logger.exception("Unexpected error during test")
-        raise
+        await wait_until_armed_state(drone, False, timeout=10)
+        disarm_confirmed = True
+    except BaseException as exc:
+        primary_error = exc
+    finally:
+        if arm_command_may_have_started:
+            final_observation = await _best_effort_state_observation(drone)
+            if final_observation is not None and final_observation.armed is False:
+                disarm_confirmed = True
+            elif final_observation is not None and final_observation.armed is True:
+                disarm_confirmed = False
+
+            if not disarm_confirmed:
+                if final_observation is not None and not final_observation.on_ground:
+                    cleanup_confirmed, final_vehicle_state, cleanup_evidence = (
+                        await _shielded_takeoff_cleanup(
+                            drone,
+                            takeoff_command_may_have_started=False,
+                        )
+                    )
+                else:
+                    cleanup_confirmed, final_vehicle_state, cleanup_evidence = (
+                        await _shielded_verified_disarm_cleanup(
+                            drone,
+                            initial_observation=final_observation,
+                        )
+                    )
+            else:
+                final_vehicle_state = _final_state_from_observation(
+                    final_observation,
+                    recovery_action="disarm",
+                    recovery_status="safe_disarmed_confirmed",
+                    armed_override=(
+                        False
+                        if final_observation is None or final_observation.armed is None
+                        else None
+                    ),
+                )
+                cleanup_evidence = {
+                    "cleanup": "disarm",
+                    "cleanup_confirmed": True,
+                    "disarm_confirmation": "mavsdk.telemetry.armed",
+                }
+            _set_action_cleanup_evidence(cleanup_evidence)
+        _safe_led_call(led_controller, "turn_off")
+
+    if final_vehicle_state is not None:
+        _set_final_vehicle_state(final_vehicle_state)
+
+    if primary_error is not None:
+        if not arm_command_may_have_started:
+            raise primary_error
+        cleanup_evidence["cleanup_confirmed"] = cleanup_confirmed
+        _set_action_cleanup_evidence(cleanup_evidence)
+        if isinstance(primary_error, asyncio.CancelledError):
+            raise primary_error
+        if not isinstance(primary_error, Exception):
+            raise primary_error
+        raise _ActionTransactionError(
+            primary_error,
+            evidence=cleanup_evidence,
+            final_vehicle_state=final_vehicle_state,
+        ) from primary_error
+
+    if not cleanup_confirmed:
+        raise ActionSafetyError(
+            code="GROUND_TEST_DISARM_UNCONFIRMED",
+            phase="safety_cleanup",
+            message=(
+                "Arm/Disarm Ground Test ended, but a safe disarmed state could not be "
+                "confirmed. Keep clear of the vehicle and use the primary recovery controls."
+            ),
+            evidence=cleanup_evidence,
+            final_vehicle_state=final_vehicle_state,
+        )
+
+    logger.info("Arm/Disarm Ground Test successful; final disarmed state confirmed.")
 
 async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
     """
     Reboots flight controller or entire system (Linux-based), or both.
     """
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 255, 0)
+    led_controller = _optional_led_controller()
+    _safe_led_call(led_controller, "set_color", 255, 255, 0)
     await asyncio.sleep(0.5)
 
     try:
         if fc_flag:
             await drone.action.reboot()
             for _ in range(3):
-                led_controller.set_color(0, 255, 0)
+                _safe_led_call(led_controller, "set_color", 0, 255, 0)
                 await asyncio.sleep(0.2)
-                led_controller.turn_off()
+                _safe_led_call(led_controller, "turn_off")
                 await asyncio.sleep(0.2)
             logger.info("FC reboot successful.")
 
         if sys_flag:
             logger.info("Initiating system reboot...")
-            led_controller.turn_off()
+            _safe_led_call(led_controller, "turn_off")
             await reboot_system()
 
-        led_controller.turn_off()
+        _safe_led_call(led_controller, "turn_off")
     except ActionError as e:
         logger.error(f"Reboot failed: {e}")
         raise
     except Exception:
         logger.exception("Unexpected error during reboot")
         raise
+    finally:
+        _safe_led_call(led_controller, "turn_off")
 
 async def reboot_system():
     """
@@ -1152,8 +1995,8 @@ async def update_code(branch=None):
     Optionally checks out a specific branch.
     """
     global RETURN_CODE
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 255, 0)
+    led_controller = _optional_led_controller()
+    _safe_led_call(led_controller, "set_color", 255, 255, 0)
     await asyncio.sleep(0.5)
 
     try:
@@ -1185,9 +2028,9 @@ async def update_code(branch=None):
                     break
             fail()
             for _ in range(3):
-                led_controller.set_color(255, 0, 0)
+                _safe_led_call(led_controller, "set_color", 255, 0, 0)
                 await asyncio.sleep(0.2)
-                led_controller.turn_off()
+                _safe_led_call(led_controller, "turn_off")
                 await asyncio.sleep(0.2)
             raise ActionError(f"Update script failed with exit code {process.returncode}")
         else:
@@ -1206,72 +2049,109 @@ async def update_code(branch=None):
                         logger.warning(f"Could not parse GIT_SYNC_RESULT: {parse_err}")
                     break
             for _ in range(3):
-                led_controller.set_color(0, 255, 0)
+                _safe_led_call(led_controller, "set_color", 0, 255, 0)
                 await asyncio.sleep(0.2)
     except Exception:
         logger.exception("Update code action failed")
         fail()
         for _ in range(3):
-            led_controller.set_color(255, 0, 0)
+            _safe_led_call(led_controller, "set_color", 255, 0, 0)
             await asyncio.sleep(0.2)
-            led_controller.turn_off()
+            _safe_led_call(led_controller, "turn_off")
             await asyncio.sleep(0.2)
     finally:
-        led_controller.turn_off()
+        _safe_led_call(led_controller, "turn_off")
 
-# -----------------------
-# Action: init_sysid
-# -----------------------
 
-async def init_sysid(drone):
+async def run_action_process(
+    *,
+    action: str | None,
+    altitude: float | None,
+    branch: str | None,
+    request_payload: dict | None,
+) -> None:
+    """Run one action with cooperative SIGTERM/SIGINT cancellation.
+
+    Only the first signal cancels the action task.  Subsequent signals are
+    deliberately ignored inside this process so TAKE_OFF/TEST cleanup cannot
+    be cancelled repeatedly; the owning process manager retains the bounded
+    force-kill deadline.
     """
-    Automatically set MAV_SYS_ID based on the hardware ID file and
-    then reboot the flight controller.
-    """
-    led_controller = LEDController.get_instance()
 
-    # We rely on the global HW_ID already read in perform_action().
-    global HW_ID
+    global _REQUESTED_PROCESS_SIGNAL, RETURN_CODE
+    _REQUESTED_PROCESS_SIGNAL = None
+    loop = asyncio.get_running_loop()
+    action_task = asyncio.current_task()
+    installed_signals: list[signal.Signals] = []
 
-    if HW_ID is None:
-        raise Exception("HW_ID not found or invalid. Cannot init system ID.")
+    def request_shutdown(received_signal: signal.Signals) -> None:
+        global _REQUESTED_PROCESS_SIGNAL, RETURN_CODE
+        if _REQUESTED_PROCESS_SIGNAL is not None:
+            logger.warning(
+                "Ignoring repeated %s while bounded action cleanup is in progress.",
+                received_signal.name,
+            )
+            return
+        _REQUESTED_PROCESS_SIGNAL = received_signal.name
+        RETURN_CODE = 1
+        logger.warning(
+            "Received %s; cancelling the action cooperatively so bounded safety cleanup can run.",
+            received_signal.name,
+        )
+        if action_task is not None:
+            action_task.cancel()
 
-    logger.info(f"Initializing system ID: MAV_SYS_ID = {HW_ID}")
+    for handled_signal in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(
+                handled_signal,
+                request_shutdown,
+                handled_signal,
+            )
+            installed_signals.append(handled_signal)
+        except (NotImplementedError, RuntimeError, ValueError):
+            # Non-POSIX/test loops may not expose signal handlers. The process
+            # manager uses this path only on Linux, where installation succeeds.
+            logger.debug("Event loop signal handlers are unavailable for %s.", handled_signal.name)
 
     try:
-        # Indicate start with yellow LED
-        led_controller.set_color(255, 255, 0)
-        await asyncio.sleep(0.5)
-
-        # TODO(deferred): Decouple hw_id from MAV_SYS_ID for >254 drone support.
-        # Currently hw_id == MAV_SYS_ID. MAVLink limits to uint8 (1-254).
-        # See docs/TODO_deferred.md #1
-        await drone.param.set_param_int("MAV_SYS_ID", HW_ID)
-        logger.info("MAV_SYS_ID parameter set successfully.")
-
-        # Reboot FC to make the new system ID take effect
-        led_controller.set_color(0, 255, 255)  # Cyan to indicate reboot in progress
-        await asyncio.sleep(0.5)
-
-        logger.info("Rebooting flight controller for system ID change...")
-        await drone.action.reboot()
-
-        # Blink green a few times for success
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("init_sysid action completed successfully.")
-    except ActionError as e:
-        logger.error(f"init_sysid failed with ActionError: {e}")
-        raise
-    except Exception:
-        logger.exception("Unexpected error during init_sysid")
-        raise
+        await perform_action(
+            action=action,
+            altitude=altitude,
+            branch=branch,
+            request_payload=request_payload,
+        )
+    except asyncio.CancelledError:
+        signal_name = _REQUESTED_PROCESS_SIGNAL or "task cancellation"
+        cleanup = dict(_LAST_ACTION_CLEANUP_EVIDENCE or {})
+        cleanup_confirmed = cleanup.get("cleanup_confirmed")
+        if cleanup_confirmed is True:
+            cleanup_message = "Bounded safety cleanup completed and was confirmed."
+        elif cleanup_confirmed is False:
+            cleanup_message = (
+                "Safety cleanup could not be confirmed; keep clear of the vehicle and use "
+                "the primary recovery controls."
+            )
+        else:
+            cleanup_message = "No post-arm cleanup was required before the action stopped."
+        fail(
+            code="ACTION_INTERRUPTED",
+            phase="safety_cleanup",
+            operator_message=(
+                f"Action '{_normalize_action_name(action) or 'unknown'}' was interrupted by "
+                f"{signal_name}. {cleanup_message}"
+            ),
+            retryable=False,
+            evidence={
+                "action": _normalize_action_name(action) or "unknown",
+                "signal": signal_name,
+                "cleanup": cleanup,
+            },
+            final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
+        )
     finally:
-        led_controller.turn_off()
+        for handled_signal in installed_signals:
+            loop.remove_signal_handler(handled_signal)
 
 # -----------------------
 # Main Entry Point
@@ -1281,13 +2161,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action',
                         help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, '
-                             'return_rtl, kill_terminate, init_sysid, apply_common_params, precision_move')
+                             'return_rtl, kill_terminate, precision_move')
     parser.add_argument('--altitude', type=float, default=10.0, help='Altitude (meters) for takeoff')
-    parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
-                        help='Set one or more PX4 parameters, e.g.: --param MPC_XY_CRUISE 5.0 --param MAV_SYS_ID 4')
     parser.add_argument('--branch', type=str, help='Branch name for code update')
-    parser.add_argument('--reboot_after', action='store_true',
-                        help='If set, certain actions (e.g. apply_common_params) will reboot FC at the end')
     parser.add_argument('--request-json', dest='request_json', type=str,
                         help='Optional structured JSON request payload for typed action runners')
     parser.add_argument('--request-file', dest='request_file', type=str,
@@ -1295,29 +2171,44 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Convert all param pairs into a dictionary { 'param_name': 'param_value_str', ... }
-    parameters = {p[0]: p[1] for p in args.param} if args.param else None
+    request_payload_valid = True
     try:
         request_payload = load_request_payload(args.request_json, args.request_file)
     except Exception as exc:
         logger.error(f"Invalid structured action request payload: {exc}")
-        fail()
+        fail(
+            code="INVALID_ACTION_REQUEST",
+            phase="validation",
+            operator_message=f"The structured action request is invalid: {exc}. No vehicle command was sent.",
+            retryable=False,
+            evidence={"action": _normalize_action_name(args.action) or "missing"},
+        )
         request_payload = None
+        request_payload_valid = False
 
     try:
-        asyncio.run(
-            perform_action(
-                action=args.action,
-                altitude=args.altitude,
-                parameters=parameters,
-                branch=args.branch,
-                reboot_after=args.reboot_after,
-                request_payload=request_payload,
+        if request_payload_valid:
+            asyncio.run(
+                run_action_process(
+                    action=args.action,
+                    altitude=args.altitude,
+                    branch=args.branch,
+                    request_payload=request_payload,
+                )
             )
-        )
-    except Exception:
+    except Exception as exc:
         logger.exception("An unexpected error occurred in the main block.")
-        fail()
+        fail(
+            code="ACTION_PROCESS_FAILED",
+            phase="process",
+            operator_message=f"The action process stopped unexpectedly: {exc}.",
+            retryable=False,
+            evidence={
+                "action": _normalize_action_name(args.action) or "missing",
+                "exception_type": type(exc).__name__,
+            },
+        )
     finally:
         logger.info("Operation completed.")
+        emit_terminal_result(_build_terminal_result(_normalize_action_name(args.action)))
         sys.exit(RETURN_CODE)

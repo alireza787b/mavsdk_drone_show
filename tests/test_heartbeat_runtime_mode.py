@@ -28,7 +28,10 @@ def test_handle_heartbeat_post_accepts_matching_runtime_mode(monkeypatch):
     )
 
     assert result["accepted"] is True
-    assert heartbeat_module.last_heartbeats["101"]["runtime_mode"] == "real"
+    heartbeat = heartbeat_module.last_heartbeats["101"]
+    assert heartbeat["runtime_mode"] == "real"
+    assert heartbeat["sent_at_node_ms"] == 1700000000000
+    assert heartbeat["received_at_gcs_ms"] >= 1700000000000
     assert heartbeat_module.network_info_from_heartbeats["101"]["runtime_mode"] == "real"
 
 

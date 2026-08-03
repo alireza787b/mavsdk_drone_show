@@ -315,14 +315,24 @@ export function getRoleSwaps(configData = []) {
 }
 
 export function getHeartbeatTimestamp(heartbeat) {
-  const timestamp = heartbeat?.last_heartbeat ?? heartbeat?.timestamp;
-  return Number.isFinite(timestamp) ? timestamp : null;
+  const timestamp = heartbeat?.presence?.heartbeat_received_at_gcs_ms
+    ?? heartbeat?.received_at_gcs_ms
+    ?? heartbeat?.last_heartbeat
+    ?? heartbeat?.timestamp;
+  const numeric = Number(timestamp);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 export function getOnlineDroneCount(heartbeats = {}, staleThresholdSeconds = 20) {
   const now = Date.now();
 
   return Object.values(heartbeats).filter((heartbeat) => {
+    // The backend presence snapshot is the canonical threshold/clock
+    // authority. Timestamp math remains only for older-server compatibility.
+    if (typeof heartbeat?.presence?.fresh === 'boolean') {
+      return heartbeat.presence.fresh;
+    }
+
     const timestamp = getHeartbeatTimestamp(heartbeat);
     if (timestamp === null) {
       return false;

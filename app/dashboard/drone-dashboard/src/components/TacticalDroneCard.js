@@ -20,6 +20,7 @@ import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import { buildActionCommand } from '../services/droneApiService';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
+import { getBatteryPresentation } from '../utilities/batteryPresentation';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import '../styles/TacticalDroneCard.css';
@@ -109,6 +110,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
     && (Math.abs(latitude) > 0.000001 || Math.abs(longitude) > 0.000001);
   const globalPositionValid = drone?.global_position_valid !== false && hasMapCoordinate;
   const altitudeReading = resolveMslAltitude(drone);
+  const batteryStatus = getBatteryPresentation(drone);
   const altitudeAvailable = altitudeReading.value !== null;
   const positionUnavailableReason = drone?.position_unavailable_reason || 'Waiting for valid PX4 global position';
   const altitudeHelpBySource = {
@@ -164,7 +166,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       setSubmitting(true);
       const response = await submitCommandWithLifecycleFeedback({
         ...commandData,
-        target_drones: [hwId],
+        target_drone_ids: [hwId],
         uiMeta: {
           ...(commandData.uiMeta || {}),
           targetLabel: actionTargetLabel,
@@ -173,7 +175,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       }, {
         ...commandLifecycleCallbacks,
       });
-      const didSend = response?.success !== false;
+      const didSend = response?.accepted_for_tracking === true;
       if (didSend && options.closeOnSuccess !== false) {
         setPrecisionMoveOpen(false);
       }
@@ -241,7 +243,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
         <TacticalMetric icon={FaCompass} label="Altitude" value={altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : 'Alt n/a'} help={altitudeHelp} />
         <TacticalMetric icon={FaHome} label="Distance home" value={globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m)) ? `${formatMetricNumber(drone.distance_to_home_m)} m` : distanceToHome} help={globalPositionValid ? 'Horizontal distance to cached home position' : positionUnavailableReason} />
-        <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
+        <TacticalMetric icon={FaBatteryHalf} label="Battery" value={batteryStatus.text === 'N/A' ? 'Batt n/a' : batteryStatus.text} help={batteryStatus.help} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
       </div>
 
