@@ -42,6 +42,7 @@ ACTION_PROCESS_CLEANUP_GRACE_SEC = 30.0
 
 AIRBORNE_MIN_RELATIVE_ALTITUDE_M = 0.5
 GROUND_MAX_RELATIVE_ALTITUDE_M = 0.5
+RECOVERY_AIRBORNE_LANDED_STATES = frozenset({"TAKING_OFF", "IN_AIR", "LANDING"})
 
 
 class EvidenceFreshness(str, Enum):
@@ -260,6 +261,18 @@ class SafetySnapshot:
             self.complete
             and self.armed is True
             and self.landed_state == "IN_AIR"
+            and self.relative_altitude_m is not None
+            and self.relative_altitude_m >= AIRBORNE_MIN_RELATIVE_ALTITUDE_M
+        )
+
+    @property
+    def airborne_for_recovery(self) -> bool:
+        """Whether an airborne recovery mode may be applied without launching."""
+
+        return bool(
+            self.complete
+            and self.armed is True
+            and self.landed_state in RECOVERY_AIRBORNE_LANDED_STATES
             and self.relative_altitude_m is not None
             and self.relative_altitude_m >= AIRBORNE_MIN_RELATIVE_ALTITUDE_M
         )

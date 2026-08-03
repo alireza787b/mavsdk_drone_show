@@ -5,6 +5,7 @@ import pytest
 
 from src.action_safety import (
     EvidenceFreshness,
+    SafetySnapshot,
     SafetyStreamSpec,
     observe_safety_snapshot,
 )
@@ -200,3 +201,54 @@ async def test_missing_source_clock_is_explicit_not_invented():
     assert evidence.source_freshness is EvidenceFreshness.UNKNOWN
     assert evidence.source_age_ms is None
     assert snapshot.complete is True
+
+
+@pytest.mark.parametrize("landed_state", ["TAKING_OFF", "LANDING"])
+def test_recovery_airborne_state_does_not_weaken_strict_airborne_truth(landed_state):
+    snapshot = SafetySnapshot.from_values(
+        armed=True,
+        landed_state=landed_state,
+        relative_altitude_m=6.0,
+    )
+
+    assert snapshot.airborne is False
+    assert snapshot.airborne_for_recovery is True
+
+
+@pytest.mark.parametrize(
+    ("armed", "landed_state", "relative_altitude_m", "expected"),
+    [
+        (True, "IN_AIR", 0.5, True),
+        (True, "TAKING_OFF", 0.5, True),
+        (True, "LANDING", 0.5, True),
+        (True, "ON_GROUND", 6.0, False),
+        (False, "IN_AIR", 6.0, False),
+        (True, "IN_AIR", 0.49, False),
+        (True, "UNKNOWN", 6.0, False),
+    ],
+)
+def test_recovery_airborne_gate_fails_closed(
+    armed,
+    landed_state,
+    relative_altitude_m,
+    expected,
+):
+    snapshot = SafetySnapshot.from_values(
+        armed=armed,
+        landed_state=landed_state,
+        relative_altitude_m=relative_altitude_m,
+    )
+
+    assert snapshot.airborne_for_recovery is expected
+
+
+def test_recovery_airborne_gate_rejects_incomplete_evidence():
+    snapshot = SafetySnapshot.from_values(
+        armed=True,
+        landed_state="TAKING_OFF",
+        relative_altitude_m=None,
+        errors={"relative_altitude_m": "timeout"},
+    )
+
+    assert snapshot.complete is False
+    assert snapshot.airborne_for_recovery is False

@@ -1770,7 +1770,7 @@ async def kill_terminate(drone):
 
 async def hold(drone):
     """
-    Commands an authoritatively-confirmed airborne drone to hold position.
+    Commands an authoritatively-confirmed clear-of-ground drone to hold position.
     """
     led_controller = None
     try:
@@ -1799,14 +1799,15 @@ async def hold(drone):
                 evidence={"observation": admission_state.as_dict()},
                 final_vehicle_state=admission_state.as_dict(),
             )
-        if not admission_state.airborne:
+        if not admission_state.airborne_for_recovery:
             raise ActionSafetyError(
                 code="HOLD_REQUIRES_AIRBORNE_STATE",
                 phase="precondition",
                 message=(
-                    "Hold Position requires a freshly confirmed armed, IN_AIR vehicle at "
-                    f"or above {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f} m relative altitude. "
-                    "It never arms or launches a grounded drone."
+                    "Hold Position requires fresh telemetry showing an armed vehicle at "
+                    f"least {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f} m above its takeoff point "
+                    "and in TAKING_OFF, IN_AIR, or LANDING state. It never arms or launches "
+                    "a grounded drone."
                 ),
                 evidence={"observation": admission_state.as_dict()},
                 final_vehicle_state=admission_state.as_dict(),

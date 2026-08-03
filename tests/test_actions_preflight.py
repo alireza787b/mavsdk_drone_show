@@ -897,14 +897,15 @@ async def test_hold_rejects_partial_authoritative_state(mocker):
 
 
 @pytest.mark.asyncio
-async def test_hold_changes_mode_only_after_fresh_airborne_gate(mocker):
+@pytest.mark.parametrize("landed_state", ["TAKING_OFF", "IN_AIR", "LANDING"])
+async def test_hold_changes_mode_only_after_fresh_airborne_gate(mocker, landed_state):
     led = MagicMock()
     led.set_color.side_effect = RuntimeError("optional SPI unavailable")
     mocker.patch("actions.LEDController.get_instance", return_value=led)
     mocker.patch("actions.asyncio.sleep", new=mocker.AsyncMock())
     admission = _vehicle_state(
         armed=True,
-        landed_state="IN_AIR",
+        landed_state=landed_state,
         relative_altitude_m=6.0,
     )
     observe = mocker.patch(
