@@ -1,8 +1,8 @@
 # Field Launch Readiness Release Gate
 
 **Date:** 2026-08-03  
-**Branch:** `incident/field-launch-readiness-20260802`  
-**Status:** P0 gates and the bounded fresh-SITL acceptance pass are complete; release promotion and props-off field retest remain
+**Source branch:** `incident/field-launch-readiness-20260802`
+**Status:** P0 gates, bounded fresh-SITL acceptance, official/private promotion, and the guarded production refresh are complete; the props-off field retest remains the external acceptance boundary
 **Related evidence:** [2026-08-02 field incident](2026-08-02-field-launch-readiness-incident.md)
 
 This file is the finite completion contract for the incident checkpoint. It
@@ -114,8 +114,10 @@ coverage and one scenario rerun, then the gate closed.
    release candidate. Do not reuse the five-day-old container as evidence.
 4. Exercise readiness, Take Off, altitude/status reporting, precision movement,
    Hold eligibility, RTL/Land, lifecycle monitoring, QuickScout launch/control,
-   duplicate submission, GCS restart reconciliation, node disconnect, and
-   container removal/recreation.
+   and container removal/recreation in fresh SITL. Exercise duplicate
+   submission, GCS restart reconciliation, and node disconnect in their owning
+   automated process/integration tests; those cases are not attributed to the
+   live SITL artifacts above.
 5. Promote only after terminal state is unambiguous, the node is disarmed and
    landed, logs/ULog evidence is captured, and no P0 regression remains.
 
@@ -146,12 +148,62 @@ capability:
 
 ## Promotion and field boundary
 
-Promotion order is nodes first, capability/version convergence verified second,
-GCS last. A new GCS must not be placed in front of old nodes that lack launch
-preparation support. Production refresh may restart services and verify health,
-but it must not send an arming or flight command to real aircraft.
+Normal operational activation order is nodes first, capability/version
+convergence verified second, and GCS last. When physical nodes are unavailable,
+the new GCS may be staged but not activated for field commands: the Simurgh
+circuit breaker must remain on, launch must fail closed for a missing/legacy
+prepare capability, and no operator may send a command until every target node
+has restarted, synced, and passed the convergence/readiness check. Production
+refresh may restart services and verify health, but it must not send an arming
+or flight command to real aircraft.
 
 Arnaude's retest begins props-off on one vehicle, then both vehicles only after
 version, readiness, QGC arming report, telemetry freshness, and command history
 all agree. The exact **Take Off** action must be used; Hover Demo and PX4 Hold
 are separate operations.
+
+## Release and deployment record
+
+The bounded checkpoint was promoted on 2026-08-03 without sending a command to
+a real aircraft.
+
+- Official `main` contains the validated shared implementation at
+  `87cfe5015c1e7788a0419772e694e2345036c77e`. The annotated release tag is
+  `v5.5.115-field-launch-readiness`.
+- Catch-A-Drone private `main` preserves the reviewed two-drone deployment
+  overlay and the old private history in merge commit
+  `fe3b1ea72ef6eb3112332b6f71e157f0e1edf6e6`. The pre-migration private tree
+  remains recoverable at tag
+  `catchadrone-archive-pre-field-hardening-20260803`; the release tag is
+  `cad-v5.5.115-field-launch-readiness`.
+- The VPS production launcher synced private `main`, rebuilt the optimized
+  dashboard, and restarted the real-mode services at 13:26 UTC. Health returned
+  HTTP 200, an unauthenticated protected telemetry request returned HTTP 401,
+  and both Gunicorn processes reported `MDS_MODE=real`, `MDS_AUTH_ENABLED=true`,
+  and `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`.
+- The served dashboard asset is `main.ebc9c4b6.js` (SHA-256
+  `a6f24e9f4425a8efbf068d5e01675ec5b5f236db5f14be77782f51c836b95347`);
+  `index.html` has SHA-256
+  `142a6ef77dc79acf5e2682d26856f95501cc429fdffe87bea2705af7631d5bd6`.
+  The production build completed with only the documented P2 Browserslist and
+  bundle-size warnings.
+- Startup restored zero generic commands. The durable command journal was
+  empty, Simurgh had no nonterminal action runs or active resource leases, and
+  current GCS/tmux plus MAVLink service logs contained no startup error.
+- The isolated validation vehicle was first confirmed disarmed, ready, and at
+  zero active commands, then removed through the SITL Control API. Its GCS
+  service was stopped and port 5111 closed. The real GCS remained on port 5030;
+  MAVLink Router and its dashboard remained healthy.
+- Approved cleanup removed the retired validation worktree, reproducible
+  frontend `node_modules`, generated coverage, an obsolete validation snapshot,
+  and old `/tmp/mds*` scratch files. Preserved evidence remains under
+  `/root/mds-validation-evidence`; production data/logs, repository history,
+  and the current SITL image were retained. VPS free space increased from
+  2.5 GiB (97% used) to 3.9 GiB (95% used).
+
+The release tags include this record as documentation-only follow-up state;
+the production runtime code is identical to the validated promotion commit
+above. Physical-node version convergence and the one-drone-then-two-drone
+props-off procedure are intentionally not claimed here: they require the field
+operator to power/restart the nodes and provide the correlated command ID, QGC
+arming report, and result evidence.
