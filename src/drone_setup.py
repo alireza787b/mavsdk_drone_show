@@ -23,6 +23,12 @@ from src.action_result_protocol import (
     format_legacy_diagnostics,
     read_bounded_result_fd,
 )
+from src.command_execution_contract import (
+    DroneExecutionOutcome,
+    format_superseded_execution_error,
+    is_legacy_schema_outcome_rejection,
+    validate_execution_outcome,
+)
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_CAPABILITY_HEADER,
@@ -1173,9 +1179,9 @@ class DroneSetup:
             if process_record.superseded:
                 if process_record.forced_kill_cleanup_unconfirmed:
                     superseded_error = (
-                        "Superseded by a newer command and force-killed before TAKE_OFF/TEST "
-                        "safety cleanup could be confirmed. Keep clear of the vehicle and use "
-                        "the primary recovery controls."
+                        "A newer command replaced this action, but the process was force-killed "
+                        "before TAKE_OFF/TEST safety cleanup could be confirmed. Keep clear of "
+                        "the vehicle and use the primary recovery controls."
                     )
                     diagnostic_output = (
                         "Safety cleanup unconfirmed after forced process stop "
@@ -1184,10 +1190,10 @@ class DroneSetup:
                     )
                     superseded_phase = "superseded_cleanup_unconfirmed"
                 else:
-                    superseded_error = (
+                    superseded_error = format_superseded_execution_error(
                         action_result.operator_message
                         if action_result is not None and not action_result.success
-                        else "Superseded by a newer command before completion"
+                        else None
                     )
                     superseded_phase = "superseded"
                 logger.info(
@@ -1201,7 +1207,12 @@ class DroneSetup:
                     error_message=superseded_error,
                     exit_code=return_code,
                     script_output=diagnostic_output,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    outcome=(
+                        DroneExecutionOutcome.FAILED
+                        if process_record.forced_kill_cleanup_unconfirmed
+                        else DroneExecutionOutcome.SUPERSEDED
+                    ),
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1297,6 +1308,11 @@ class DroneSetup:
                     success=False,
                     error_message=superseded_error,
                     duration_ms=int((time.time() - start_time) * 1000),
+                    outcome=(
+                        DroneExecutionOutcome.FAILED
+                        if process_record.forced_kill_cleanup_unconfirmed
+                        else DroneExecutionOutcome.SUPERSEDED
+                    ),
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1343,7 +1359,7 @@ class DroneSetup:
         payload: dict,
         capability: Optional[str],
     ) -> bool:
-        """Best-effort single HTTP POST for a drone execution callback."""
+        """Post a callback, with one bounded fallback for old result schemas."""
         url = self._build_command_report_url(endpoint)
         if not url:
             logger.warning("GCS_IP not configured, cannot report command callback")
@@ -1354,17 +1370,43 @@ class DroneSetup:
         if capability:
             headers[GCS_COMMAND_REPORT_CAPABILITY_HEADER] = capability
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout_sec),
-            ) as response:
-                if 200 <= response.status < 300:
-                    return True
-                if response.status in {408, 425, 429} or response.status >= 500:
-                    return False
-                raise PermanentCommandReportRejection(response.status)
+            async def post_once(report_payload: dict) -> tuple[int, object]:
+                async with session.post(
+                    url,
+                    json=report_payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=timeout_sec),
+                ) as response:
+                    response_payload = None
+                    if response.status == 422:
+                        try:
+                            response_payload = await response.json(content_type=None)
+                        except (aiohttp.ClientError, ValueError, TypeError):
+                            pass
+                    return response.status, response_payload
+
+            status, response_payload = await post_once(payload)
+            if (
+                endpoint == GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE
+                and "outcome" in payload
+                and is_legacy_schema_outcome_rejection(
+                    status_code=status,
+                    response_payload=response_payload,
+                )
+            ):
+                legacy_payload = dict(payload)
+                legacy_payload.pop("outcome", None)
+                logger.info(
+                    "GCS rejected the typed execution outcome; retrying once with the "
+                    "legacy result envelope for rolling-upgrade compatibility."
+                )
+                status, _ = await post_once(legacy_payload)
+
+            if 200 <= status < 300:
+                return True
+            if status in {408, 425, 429} or status >= 500:
+                return False
+            raise PermanentCommandReportRejection(status)
 
     async def _ensure_command_report_retry_worker(self):
         if self.command_report_retry_task and not self.command_report_retry_task.done():
@@ -1560,7 +1602,8 @@ class DroneSetup:
         error_message: Optional[str] = None,
         exit_code: Optional[int] = None,
         script_output: Optional[str] = None,
-        duration_ms: Optional[int] = None
+        duration_ms: Optional[int] = None,
+        outcome: DroneExecutionOutcome | str | None = None,
     ):
         """
         Report command execution result to the GCS command tracker.
@@ -1575,6 +1618,18 @@ class DroneSetup:
             logger.warning("GCS_IP not configured, cannot report execution result")
             return
 
+        normalized_outcome = validate_execution_outcome(
+            success=success,
+            outcome=(
+                outcome
+                if outcome is not None
+                else (
+                    DroneExecutionOutcome.COMPLETED
+                    if success
+                    else DroneExecutionOutcome.FAILED
+                )
+            ),
+        )
         report_data = {
             'command_id': command_id,
             'hw_id': str(self.drone_config.hw_id),
@@ -1582,7 +1637,8 @@ class DroneSetup:
             'error_message': error_message,
             'exit_code': exit_code,
             'script_output': script_output,
-            'duration_ms': duration_ms
+            'duration_ms': duration_ms,
+            'outcome': normalized_outcome.value,
         }
         description = f"execution-result for command {command_id[:8]}"
         capability = self._get_command_report_capability(command_id)

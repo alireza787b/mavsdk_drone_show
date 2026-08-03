@@ -608,6 +608,7 @@ def test_execution_callback_routes_require_exact_command_target_capability():
             "command_id": command_id,
             "hw_id": "1",
             "success": True,
+            "outcome": "completed",
             "duration_ms": 25,
         }
         accepted_result = client.post(
@@ -633,6 +634,7 @@ def test_execution_callback_routes_require_exact_command_target_capability():
     status = asyncio.run(tracker.get_status(command_id))
     assert status["outcome"] == "completed"
     assert status["executions"]["received"] == 1
+    assert status["executions"]["details"]["1"]["outcome"] == "completed"
 
 
 def test_terminal_command_keeps_authenticated_late_execution_as_evidence_only():

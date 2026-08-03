@@ -609,6 +609,7 @@ class TestProcessManagement:
     @pytest.mark.asyncio
     async def test_monitor_reports_superseded_process_without_reset(self):
         """Superseded mission processes should skip state reset but still close the command tracker."""
+        from src.command_execution_contract import DroneExecutionOutcome
         from src.drone_setup import DroneSetup, RunningMissionProcess
 
         class FakeProcess:
@@ -644,6 +645,7 @@ class TestProcessManagement:
         report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
         assert report_kwargs["command_id"] == "cmd-1"
         assert report_kwargs["success"] is False
+        assert report_kwargs["outcome"] == DroneExecutionOutcome.SUPERSEDED
         assert report_kwargs["error_message"] == "Superseded by a newer command before completion"
         assert report_kwargs["exit_code"] == 0
         assert report_kwargs["script_output"] == "Legacy stdout (diagnostic only): ok"
@@ -695,6 +697,38 @@ class TestProcessManagement:
         report = setup._report_execution_to_gcs.await_args.kwargs
         assert report["success"] is False
         assert report["error_message"] == "Superseded by a newer command before completion"
+
+    @pytest.mark.asyncio
+    async def test_monitor_reports_cleanup_unconfirmed_override_as_failed(self):
+        """A force-stopped action must not look like a safely superseded command."""
+        from src.command_execution_contract import (
+            DroneExecutionOutcome,
+            is_legacy_superseded_execution_error,
+        )
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        process = Mock(returncode=-9)
+        process.communicate = AsyncMock(return_value=(b"", b""))
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        record = RunningMissionProcess(
+            process_key="actions.py:unsafe-stop",
+            script_name="actions.py",
+            process=process,
+            command_id="unsafe-stop",
+            superseded=True,
+            forced_kill_cleanup_unconfirmed=True,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(record)
+
+        report = setup._report_execution_to_gcs.await_args.kwargs
+        assert report["outcome"] == DroneExecutionOutcome.FAILED
+        assert "cleanup could be confirmed" in report["error_message"]
+        assert is_legacy_superseded_execution_error(report["error_message"]) is False
 
 
 # ============================================================================
@@ -1683,6 +1717,49 @@ class TestMissionProcessMonitoring:
         assert "SPI" not in report_kwargs["script_output"]
 
     @pytest.mark.asyncio
+    async def test_monitor_types_superseded_structured_action_independent_of_message(self):
+        """Process ownership, not arbitrary child text, classifies supersession."""
+        from src.action_result_protocol import encode_terminal_result, make_terminal_result
+        from src.command_execution_contract import DroneExecutionOutcome
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        process = Mock(returncode=1)
+        process.communicate = AsyncMock(return_value=(b"", b""))
+        result = make_terminal_result(
+            success=False,
+            code="ACTION_INTERRUPTED",
+            phase="interrupted",
+            operator_message="Precision move stopped after SIGTERM.",
+            retryable=False,
+            final_vehicle_state={"armed": True},
+        )
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, encode_terminal_result(result))
+        os.close(write_fd)
+        record = RunningMissionProcess(
+            process_key="actions.py:interrupted",
+            script_name="actions.py",
+            process=process,
+            command_id="interrupted",
+            superseded=True,
+            action_result_read_fd=read_fd,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(record)
+
+        report = setup._report_execution_to_gcs.await_args.kwargs
+        assert report["outcome"] == DroneExecutionOutcome.SUPERSEDED
+        assert report["error_message"].startswith(
+            "Superseded by a newer command before completion."
+        )
+        assert "Precision move stopped after SIGTERM" in report["error_message"]
+
+    @pytest.mark.asyncio
     async def test_monitor_preserves_legacy_mission_failure_as_operator_reason(self):
         """Non-actions runners keep their concrete bounded failure diagnostics."""
         from src.drone_setup import DroneSetup, RunningMissionProcess
@@ -1881,6 +1958,7 @@ class TestCommandReportRetry:
         assert report.endpoint == "/api/v1/command-reports/execution-result"
         assert report.payload["command_id"] == "cmd-123"
         assert report.payload["success"] is True
+        assert report.payload["outcome"] == "completed"
         assert "capability" not in report.payload
         assert report.capability == capability
         assert capability not in repr(report)
@@ -1891,6 +1969,70 @@ class TestCommandReportRetry:
             capability,
         )
         setup._ensure_command_report_retry_worker.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_typed_execution_report_retries_old_strict_schema_once(self, monkeypatch):
+        """New nodes downgrade only the optional outcome after an old GCS returns 422."""
+        from src.drone_setup import DroneSetup
+
+        posted_payloads = []
+        statuses = iter([422, 200])
+
+        class FakeResponse:
+            def __init__(self, status):
+                self.status = status
+
+            async def json(self, *, content_type=None):
+                del content_type
+                return {
+                    "detail": [
+                        {
+                            "type": "extra_forbidden",
+                            "loc": ["body", "outcome"],
+                        }
+                    ]
+                }
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, traceback):
+                return False
+
+        class FakeSession:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, traceback):
+                return False
+
+            def post(self, url, *, json, headers, timeout):
+                del url, headers, timeout
+                posted_payloads.append(dict(json))
+                return FakeResponse(next(statuses))
+
+        monkeypatch.setattr(
+            "src.drone_setup.aiohttp.ClientSession",
+            lambda: FakeSession(),
+        )
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+
+        delivered = await setup._post_command_report(
+            "/api/v1/command-reports/execution-result",
+            {
+                "command_id": "cmd-compat",
+                "hw_id": "1",
+                "success": False,
+                "outcome": "superseded",
+                "error_message": "Superseded by a newer command before completion",
+            },
+            capability="c" * 43,
+        )
+
+        assert delivered is True
+        assert posted_payloads[0]["outcome"] == "superseded"
+        assert "outcome" not in posted_payloads[1]
+        assert posted_payloads[1]["command_id"] == "cmd-compat"
 
     def test_long_running_command_keeps_capability_for_terminal_report(self):
         from src.drone_setup import DroneSetup

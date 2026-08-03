@@ -61,7 +61,12 @@ from mds_logging.api_schemas import (
     OnboardUlogSummaryResponse,
 )
 from src.live_armability_contract import LiveArmabilityTrustEnvelope
-from src.command_execution_contract import mission_requires_launch_armability_probe
+from src.command_execution_contract import (
+    DroneExecutionOutcome,
+    format_pending_superseded_execution_error,
+    is_legacy_schema_outcome_rejection,
+    mission_requires_launch_armability_probe,
+)
 from src.launch_preparation_protocol import (
     LAUNCH_PREPARATION_TOKEN_HEADER,
     LaunchPreparationBinding,
@@ -4364,13 +4369,15 @@ class DroneAPIServer:
             mission_name = Mission(override_mission_type).name
         except ValueError:
             mission_name = f"MISSION_{override_mission_type}"
+        superseded_message = format_pending_superseded_execution_error(mission_name)
 
         drone_setup = getattr(self.drone_config, 'drone_setup', None)
         if drone_setup and hasattr(drone_setup, '_report_execution_to_gcs'):
             await drone_setup._report_execution_to_gcs(
                 command_id=command_id,
                 success=False,
-                error_message=f"Superseded by a newer command ({mission_name}) before execution started",
+                outcome=DroneExecutionOutcome.SUPERSEDED,
+                error_message=superseded_message,
                 duration_ms=0,
             )
             return
@@ -4385,7 +4392,8 @@ class DroneAPIServer:
                 'command_id': command_id,
                 'hw_id': str(self.drone_config.hw_id),
                 'success': False,
-                'error_message': f"Superseded by a newer command ({mission_name}) before execution started",
+                'outcome': DroneExecutionOutcome.SUPERSEDED.value,
+                'error_message': superseded_message,
                 'duration_ms': 0,
             }
             url = f"http://{gcs_ip}:{self.params.gcs_api_port}{GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE}"
@@ -4396,6 +4404,23 @@ class DroneAPIServer:
                 headers=gcs_auth_headers(),
                 timeout=5,
             )
+            try:
+                response_payload = response.json() if response.status_code == 422 else None
+            except (requests.RequestException, ValueError, TypeError):
+                response_payload = None
+            if is_legacy_schema_outcome_rejection(
+                status_code=response.status_code,
+                response_payload=response_payload,
+            ):
+                legacy_payload = dict(payload)
+                legacy_payload.pop('outcome', None)
+                response = await asyncio.to_thread(
+                    requests.post,
+                    url,
+                    json=legacy_payload,
+                    headers=gcs_auth_headers(),
+                    timeout=5,
+                )
             if response.status_code == 200:
                 logger.info(f"Reported superseded pending command {command_id[:8]}...")
             else:

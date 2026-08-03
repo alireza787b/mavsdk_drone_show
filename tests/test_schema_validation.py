@@ -120,6 +120,35 @@ class TestCommandCallbackSchemaValidation:
         with pytest.raises(ValidationError):
             schema(**payload)
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {
+                "command_id": "cmd-1",
+                "hw_id": "1",
+                "success": False,
+                "outcome": "unknown",
+            },
+            {
+                "command_id": "cmd-1",
+                "hw_id": "1",
+                "success": True,
+                "outcome": "superseded",
+            },
+            {
+                "command_id": "cmd-1",
+                "hw_id": "1",
+                "success": False,
+                "outcome": "completed",
+            },
+        ],
+    )
+    def test_execution_result_rejects_unknown_or_contradictory_outcome(self, payload):
+        from schemas import ExecutionReportRequest
+
+        with pytest.raises(ValidationError):
+            ExecutionReportRequest(**payload)
+
 
 class TestDroneConfigValidation:
     """Test DroneConfig schema validation"""

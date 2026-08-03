@@ -236,7 +236,9 @@ def command_summary(status: dict) -> dict:
 def _is_safe_interrupted_terminal_status(status: dict[str, Any]) -> bool:
     state = str(status.get("status") or "").lower()
     outcome = str(status.get("outcome") or "").lower()
-    return state == "completed" or outcome == "superseded" or state == "superseded"
+    if outcome:
+        return outcome in {"completed", "superseded"}
+    return state in {"completed", "superseded"}
 
 
 def require_full_acceptance(status: dict, expected_count: int, label: str) -> None:

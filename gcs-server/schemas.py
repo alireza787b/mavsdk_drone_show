@@ -12,12 +12,13 @@ Last Updated: 2025-11-22
 import os
 import sys
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from src.command_execution_contract import DroneExecutionOutcome
 from src.enums import CommandOutcome, CommandPhase, CommandStatus
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
 
@@ -2060,6 +2061,10 @@ class DroneAckDetail(BaseModel):
 class DroneExecutionDetail(BaseModel):
     """Execution detail from a single drone"""
     success: bool = Field(..., description="Whether execution succeeded")
+    outcome: Optional[DroneExecutionOutcome] = Field(
+        None,
+        description="Typed per-drone terminal outcome when reported by the node",
+    )
     error: Optional[str] = Field(None, description="Error message if failed")
     exit_code: Optional[int] = Field(None, description="Script exit code")
     duration_ms: Optional[int] = Field(None, description="Execution duration (ms)")
@@ -2307,6 +2312,10 @@ class ExecutionReportRequest(BaseModel):
         description="Reporting drone's hardware ID",
     )
     success: bool = Field(..., description="Whether execution succeeded")
+    outcome: Optional[DroneExecutionOutcome] = Field(
+        None,
+        description="Typed per-drone terminal outcome; omitted by legacy nodes",
+    )
     error_message: Optional[str] = Field(
         None,
         max_length=500,
@@ -2319,6 +2328,14 @@ class ExecutionReportRequest(BaseModel):
         description="Bounded diagnostic script output; never callback authority",
     )
     duration_ms: Optional[int] = Field(None, ge=0, description="Execution duration (ms)")
+
+    @model_validator(mode="after")
+    def _validate_outcome_consistency(self) -> "ExecutionReportRequest":
+        if self.outcome is None:
+            return self
+        if self.success != (self.outcome == DroneExecutionOutcome.COMPLETED):
+            raise ValueError("success must be true exactly when outcome is completed")
+        return self
 
 
 class ExecutionStartRequest(BaseModel):

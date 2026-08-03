@@ -1,6 +1,8 @@
 import argparse
 import time
 
+import pytest
+
 from tools.validate_actions_runtime import (
     _is_safe_interrupted_terminal_status,
     _is_idle_baseline_row,
@@ -70,7 +72,24 @@ def test_resolve_selected_ids_falls_back_to_csv_argument_and_default():
     assert resolve_selected_ids(default_args) == [1, 2, 3]
 
 
-def test_interrupted_terminal_status_accepts_superseded_outcome_even_if_status_is_cancelled():
-    assert _is_safe_interrupted_terminal_status({"status": "cancelled", "outcome": "superseded"}) is True
-    assert _is_safe_interrupted_terminal_status({"status": "completed", "outcome": "completed"}) is True
-    assert _is_safe_interrupted_terminal_status({"status": "failed", "outcome": "failed"}) is False
+@pytest.mark.parametrize(
+    ("status", "outcome", "expected"),
+    [
+        ("cancelled", "superseded", True),
+        ("completed", "completed", True),
+        ("completed", "failed", False),
+        ("failed", "failed", False),
+        ("completed", None, True),
+        ("superseded", None, True),
+        ("cancelled", None, False),
+    ],
+)
+def test_interrupted_terminal_status_prefers_explicit_outcome(
+    status,
+    outcome,
+    expected,
+):
+    payload = {"status": status}
+    if outcome is not None:
+        payload["outcome"] = outcome
+    assert _is_safe_interrupted_terminal_status(payload) is expected

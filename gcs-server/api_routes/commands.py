@@ -183,6 +183,7 @@ def create_command_router(deps: Any) -> APIRouter:
                 command_id=report.command_id,
                 hw_id=report.hw_id,
                 success=report.success,
+                outcome=report.outcome,
                 error_message=report.error_message,
                 exit_code=report.exit_code,
                 script_output=report.script_output,

@@ -72,6 +72,11 @@ from typing import Any, Dict, List, Optional
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from src.command_execution_contract import (
+    DroneExecutionOutcome,
+    is_legacy_superseded_execution_error,
+    validate_execution_outcome,
+)
 from src.enums import CommandErrorCode, CommandOutcome, CommandPhase, CommandStatus, Mission
 from mds_logging import get_logger
 from command_journal import CommandJournal, CommandJournalError
@@ -135,6 +140,7 @@ class DroneExecution:
     """Execution result from a single drone"""
     hw_id: str
     success: bool
+    outcome: Optional[str] = None
     error_message: Optional[str] = None
     exit_code: Optional[int] = None
     script_output: Optional[str] = None
@@ -430,8 +436,11 @@ class CommandTracker:
         for execution in command.executions.values():
             if execution.success:
                 return False
-            message = (execution.error_message or "").strip().lower()
-            if "superseded by a newer command" not in message:
+            if execution.outcome is not None:
+                if execution.outcome != DroneExecutionOutcome.SUPERSEDED.value:
+                    return False
+                continue
+            if not is_legacy_superseded_execution_error(execution.error_message):
                 return False
 
         return True
@@ -1324,6 +1333,7 @@ class CommandTracker:
         timestamp: int,
         *,
         success: bool,
+        outcome: DroneExecutionOutcome | str | None,
         error_message: Optional[str],
         exit_code: Optional[int],
         script_output: Optional[str],
@@ -1339,6 +1349,7 @@ class CommandTracker:
         command.late_executions[hw_id] = DroneExecution(
             hw_id=hw_id,
             success=success,
+            outcome=(outcome.value if isinstance(outcome, DroneExecutionOutcome) else outcome),
             error_message=error_message,
             exit_code=exit_code,
             script_output=script_output,
@@ -1492,6 +1503,7 @@ class CommandTracker:
         command_id: str,
         hw_id: str,
         success: bool,
+        outcome: DroneExecutionOutcome | str | None = None,
         error_message: Optional[str] = None,
         exit_code: Optional[int] = None,
         script_output: Optional[str] = None,
@@ -1505,6 +1517,7 @@ class CommandTracker:
             command_id: Command UUID
             hw_id: Drone hardware ID
             success: Whether execution succeeded
+            outcome: Typed per-drone outcome, or omitted for legacy callbacks
             error_message: Error message if failed
             exit_code: Script exit code
             script_output: Script output/logs
@@ -1529,12 +1542,18 @@ class CommandTracker:
                     "Command callback authentication failed"
                 )
 
+            normalized_outcome = validate_execution_outcome(
+                success=success,
+                outcome=outcome,
+            )
+
             if self._is_terminal(command):
                 recorded_late_execution = self._record_late_execution_locked(
                     command,
                     hw_id,
                     timestamp,
                     success=success,
+                    outcome=normalized_outcome,
                     error_message=error_message,
                     exit_code=exit_code,
                     script_output=script_output,
@@ -1575,6 +1594,11 @@ class CommandTracker:
                 execution = DroneExecution(
                     hw_id=hw_id,
                     success=success,
+                    outcome=(
+                        normalized_outcome.value
+                        if normalized_outcome is not None
+                        else None
+                    ),
                     error_message=error_message,
                     exit_code=exit_code,
                     script_output=script_output,
@@ -2148,6 +2172,7 @@ class CommandTracker:
                 'details': {
                     hw_id: {
                         'success': exe.success,
+                        'outcome': exe.outcome,
                         'error': exe.error_message,
                         'exit_code': exe.exit_code,
                         'duration_ms': exe.duration_ms,
@@ -2188,6 +2213,7 @@ class CommandTracker:
                     'details': {
                         hw_id: {
                             'success': exe.success,
+                            'outcome': exe.outcome,
                             'error': exe.error_message,
                             'exit_code': exe.exit_code,
                             'duration_ms': exe.duration_ms,

@@ -1747,6 +1747,7 @@ class TestCommands:
         assert captured['url'] == "http://172.18.0.1:5030/api/v1/command-reports/execution-result"
         assert captured['json']['command_id'] == "cmd-123"
         assert captured['json']['success'] is False
+        assert captured['json']['outcome'] == "superseded"
         assert captured['timeout'] == 5
         assert captured['headers'] == {}
 

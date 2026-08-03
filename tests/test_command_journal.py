@@ -138,10 +138,18 @@ async def test_callback_capability_remains_valid_after_restart(tmp_path):
         command_id,
         "1",
         True,
+        outcome="completed",
         callback_capability=capability,
     ) is True
     status = await restored_tracker.get_status(command_id)
     assert status["outcome"] == "completed"
+    assert status["executions"]["details"]["1"]["outcome"] == "completed"
+    restored_tracker.close()
+
+    final_tracker = CommandTracker(state_dir=str(state_dir))
+    restored_status = await final_tracker.get_status(command_id)
+    assert restored_status["outcome"] == "completed"
+    assert restored_status["executions"]["details"]["1"]["outcome"] == "completed"
 
     key_payload = json.loads(
         (state_dir / CALLBACK_KEY_FILENAME).read_text(encoding="utf-8")
@@ -149,7 +157,7 @@ async def test_callback_capability_remains_valid_after_restart(tmp_path):
     assert key_payload["version"] == 1
     assert key_payload["key_id"]
     assert stat.S_IMODE((state_dir / CALLBACK_KEY_FILENAME).stat().st_mode) == 0o600
-    restored_tracker.close()
+    final_tracker.close()
 
 
 def test_idempotency_replay_after_restart_never_redispatches(tmp_path):

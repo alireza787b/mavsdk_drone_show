@@ -743,7 +743,7 @@ class TestCommandTracker:
 
     @pytest.mark.asyncio
     async def test_superseded_execution_results_surface_superseded_outcome(self, tracker):
-        """A fully superseded running mission should not look like a generic execution failure."""
+        """Typed and legacy nodes compose into one superseded fleet outcome."""
         command_id = await tracker.create_command(
             mission_type=10,
             target_drones=['1', '2']
@@ -752,19 +752,63 @@ class TestCommandTracker:
         for hw_id in ['1', '2']:
             await tracker.record_ack(command_id, hw_id=hw_id, category='accepted')
 
-        for hw_id in ['1', '2']:
-            await tracker.record_execution(
-                command_id,
-                hw_id=hw_id,
-                success=False,
-                error_message='Superseded by a newer command before completion',
-            )
+        await tracker.record_execution(
+            command_id,
+            hw_id='1',
+            success=False,
+            outcome='superseded',
+            error_message='Precision move stopped after SIGTERM.',
+        )
+        await tracker.record_execution(
+            command_id,
+            hw_id='2',
+            success=False,
+            error_message='Superseded by a newer command before completion',
+        )
 
         status = await tracker.get_status(command_id)
         assert status['status'] == 'cancelled'
         assert status['phase'] == 'terminal'
         assert status['outcome'] == 'superseded'
         assert status['error_summary'] == 'Superseded by newer command on all 2 drones'
+        assert status['executions']['details']['1']['outcome'] == 'superseded'
+        assert status['executions']['details']['2']['outcome'] is None
+
+    @pytest.mark.asyncio
+    async def test_explicit_failed_outcome_overrides_supersede_text(self, tracker):
+        """Typed failure authority must beat misleading compatibility text."""
+        command_id = await tracker.create_command(mission_type=10, target_drones=['1'])
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_execution(
+            command_id,
+            hw_id='1',
+            success=False,
+            outcome='failed',
+            error_message='Superseded by a newer command before completion',
+        )
+
+        status = await tracker.get_status(command_id)
+        assert status['status'] == 'failed'
+        assert status['outcome'] == 'failed'
+
+    @pytest.mark.asyncio
+    async def test_legacy_cleanup_unconfirmed_message_is_not_safe_supersede(self, tracker):
+        """Broad legacy text matching must not hide an unconfirmed cleanup."""
+        command_id = await tracker.create_command(mission_type=10, target_drones=['1'])
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_execution(
+            command_id,
+            hw_id='1',
+            success=False,
+            error_message=(
+                'Superseded by a newer command and force-killed before TAKE_OFF/TEST '
+                'safety cleanup could be confirmed.'
+            ),
+        )
+
+        status = await tracker.get_status(command_id)
+        assert status['status'] == 'failed'
+        assert status['outcome'] == 'failed'
 
     @pytest.mark.asyncio
     async def test_late_execution_after_timeout_does_not_mutate_terminal_outcome(self, tracker):
@@ -788,6 +832,7 @@ class TestCommandTracker:
             command_id,
             hw_id='1',
             success=True,
+            outcome='completed',
             duration_ms=5000,
             callback_capability=callback_capability,
         )
@@ -804,6 +849,7 @@ class TestCommandTracker:
         assert validated.late_reports.executions.succeeded == 1
         assert validated.late_reports.execution_starts.received == 1
         assert validated.late_reports.executions.details['1'].duration_ms == 5000
+        assert validated.late_reports.executions.details['1'].outcome.value == 'completed'
 
     @pytest.mark.asyncio
     async def test_late_ack_after_timeout_does_not_change_terminal_counts(self, tracker):
