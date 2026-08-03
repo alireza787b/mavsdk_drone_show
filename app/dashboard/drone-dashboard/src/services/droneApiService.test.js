@@ -80,6 +80,28 @@ describe('droneApiService', () => {
     expect(result).toEqual({ accepted_for_tracking: true, command_id: 'cmd-1' });
   });
 
+  it('uses the browser UUID source for a stable first-party idempotency key', () => {
+    const originalCrypto = Object.getOwnPropertyDescriptor(window, 'crypto');
+    Object.defineProperty(window, 'crypto', {
+      configurable: true,
+      value: { randomUUID: () => 'browser-command-id' },
+    });
+
+    try {
+      expect(serializeCommandSubmission({
+        mission_type: 10,
+        trigger_time: 0,
+        target_drone_ids: ['1'],
+      }).idempotency_key).toBe('dashboard-browser-command-id');
+    } finally {
+      if (originalCrypto) {
+        Object.defineProperty(window, 'crypto', originalCrypto);
+      } else {
+        delete window.crypto;
+      }
+    }
+  });
+
   it('serializes nested command data once without leaking UI metadata or legacy keys', () => {
     expect(serializeCommandSubmission({
       mission_type: '112',
