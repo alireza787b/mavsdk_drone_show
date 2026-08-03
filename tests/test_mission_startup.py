@@ -1,4 +1,5 @@
 import asyncio
+import math
 import sys
 import types
 from types import SimpleNamespace
@@ -582,3 +583,78 @@ async def test_non_denial_action_error_preserves_mavsdk_error(monkeypatch):
             drone,
             require_global_position=True,
         )
+
+
+def test_positive_finite_float_helper_rejects_nonfinite():
+    assert mission_startup._positive_finite_float(float("nan"), 15.0) == 15.0
+    assert mission_startup._positive_finite_float(float("inf"), 15.0) == 15.0
+    assert mission_startup._positive_finite_float(-1.0, 15.0) == 15.0
+    assert mission_startup._positive_finite_float("nope", 15.0) == 15.0
+    assert mission_startup._positive_finite_float(3.5, 15.0) == 3.5
+
+
+def test_non_negative_finite_float_helper_allows_zero():
+    assert mission_startup._non_negative_finite_float(0.0, 2.0) == 0.0
+    assert mission_startup._non_negative_finite_float(float("nan"), 2.0) == 2.0
+    assert mission_startup._non_negative_finite_float(float("-inf"), 2.0) == 2.0
+
+
+@pytest.mark.asyncio
+async def test_probe_offboard_armability_falls_back_from_nonfinite_timeout(monkeypatch):
+    async def _stuck_stream():
+        while True:
+            yield _health(is_armable=False, is_home_position_ok=False)
+
+    drone = _connected_drone()
+    drone.telemetry.health = _stuck_stream
+    drone.telemetry.battery = _battery_stream([_battery()])
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", float("inf"))
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", float("nan"))
+
+    original = mission_startup._positive_finite_float
+
+    def _fast_default(value, default):
+        result = original(value, default)
+        try:
+            parsed = float(value)
+            bad = not (math.isfinite(parsed) and parsed > 0)
+        except (TypeError, ValueError):
+            bad = True
+        if bad:
+            return 0.05 if float(default) >= 1.0 else 0.01
+        return result
+
+    monkeypatch.setattr(mission_startup, "_positive_finite_float", _fast_default)
+
+    result = await mission_startup.probe_offboard_armability(
+        drone,
+        require_global_position=True,
+    )
+    assert result["timed_out"] is True
+    assert result["ready"] is False
+
+
+def test_arm_with_preflight_gate_uses_finite_arm_timeout_budget(monkeypatch):
+    drone = MagicMock()
+    drone.action.arm = AsyncMock(return_value=None)
+    async def _status_text_stream():
+        await asyncio.Event().wait()
+        yield  # pragma: no cover
+
+    drone.telemetry.status_text = _status_text_stream
+    wait_mock = AsyncMock(return_value={"ready": True, "observation": {}})
+    monkeypatch.setattr(mission_startup, "wait_until_offboard_armable", wait_mock)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", float("nan"))
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", float("inf"))
+    captured = {}
+    real_wait_for = asyncio.wait_for
+
+    async def _capture(awaitable, timeout):
+        captured["timeout"] = timeout
+        return await real_wait_for(awaitable, timeout)
+
+    monkeypatch.setattr(mission_startup.asyncio, "wait_for", _capture)
+    asyncio.run(mission_startup.arm_with_preflight_gate(drone, require_global_position=True))
+    assert math.isfinite(captured["timeout"])
+    assert captured["timeout"] >= 1.0
