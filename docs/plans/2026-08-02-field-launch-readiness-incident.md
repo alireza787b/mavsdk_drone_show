@@ -1,6 +1,6 @@
 # Field Launch Readiness Incident Checkpoint
 
-**Status:** Systemic fixes and consolidated automated validation complete; fresh-SITL release validation pending
+**Status:** Systemic fixes and bounded fresh-SITL validation complete; the historical field E202 cause remains unproven and a props-off field retest is pending
 **Incident window:** 2026-08-01 16:00-16:30 UTC  
 **Checkpoint date:** 2026-08-02  
 **Official baseline:** `b00a0599`  
@@ -285,16 +285,37 @@ then move production to a supervised single-owner service and remove stale SITL
 runtime only through the documented cleanup path.
 
 The incident ULogs were not available from the GCS or validation VPS while the
-nodes were offline, so the exact PX4 arming blocker remains an explicit evidence
-gap rather than a guessed root cause. That gap did not justify leaving the
-independently proven MDS defects in place. The official fix now has focused
-coverage for readiness freshness, latency, LED failure, process signals,
-idempotent delivery, restart reconciliation, concurrency, and link ambiguity.
-It must still pass the consolidated suite and a new SITL operator run before
-promotion. The physical retest starts on one props-off vehicle and does not
-become a two-vehicle props-on test until the operator verifies version
-convergence, current readiness, QGC arming checks, and unambiguous command
-history.
+physical nodes were offline, so the exact PX4, sensor, GPS, home, or cached-text
+blocker behind the field E202 response remains an explicit evidence gap rather
+than a guessed root cause. That gap did not justify leaving the independently
+proven MDS defects in place.
+
+A separate SITL regression ULog was preserved after a later command-reporting
+failure. It proved the vehicle physically ascended while the command was
+reported failed: armed/airborne at 8.03 m, recovery began while airborne at
+9.51 m, landed at 05:03:39.081 UTC, and disarmed at 05:03:41.089 UTC. Its
+SHA-256 is
+`1b66bdb518ce5019a53d1128f0a52770f96ed921413e143b49b90f15d879bf55`.
+This evidence motivated authoritative Take Off terminal-state handling and
+typed command outcomes; because it predates those fixes, it is regression
+evidence rather than final acceptance evidence.
+
+The final bounded acceptance used two clean scenarios. `actions_core` passed
+at `/root/mds-validation-evidence/20260803T055900Z/actions-core`, including
+Take Off, Hold, precision movement, typed supersession, RTL, and safe final
+reset. QuickScout then exposed and isolated an incorrect reuse of strict
+`IN_AIR` truth for recovery Hold while PX4 was still `TAKING_OFF`. After adding
+a separate fail-closed clear-of-ground recovery predicate, the single rerun
+passed at
+`/root/mds-validation-evidence/20260803T061759Z/quickscout-runtime`: +6 m
+airborne confirmation, completed Hold, `holding`, completed abort/RTL, zero
+active commands, and final idle/disarmed/ready state. The combined final owner
+gate passed 453 tests with one skip, and the production dashboard build passed.
+
+The software/SITL gate is therefore closed. The physical retest still starts
+on one props-off vehicle and does not become a two-vehicle props-on test until
+the operator verifies version convergence, current readiness, QGC arming
+checks, and unambiguous command history.
 
 ## Implemented Resolution Checkpoint
 
@@ -319,14 +340,21 @@ typed boundaries:
   cleanup; forced termination reports cleanup as unconfirmed instead of
   inventing a safe final state
 - optional LED/SPI feedback cannot prevent or redefine recovery/emergency
-  command success, and Hold requires fresh armed-and-airborne evidence
+  command success; Hold uses a distinct fresh recovery predicate for an armed
+  vehicle at least 0.5 m clear of ground during `TAKING_OFF`, `IN_AIR`, or
+  `LANDING`, while Take Off completion still requires strict `IN_AIR`
+- Take Off terminal completion is based on authoritative post-climb vehicle
+  state, battery values preserve MAVSDK percentage units, and node callbacks
+  carry explicit `completed`, `failed`, or `superseded` outcomes through the
+  API, tracker, late-report record, and journal
 - QuickScout target identity and mission updates are transactional, mixed
   delivery retains the active slot, and late callbacks remain audit evidence
 - the dashboard preserves the correct mission identity after refresh, keeps
   terminal history out of the live primary card, and keeps dismissed failures
   dismissed for the provider session
 
-Focused consolidation at this checkpoint passed 150 command/QuickScout tests
-and 179 action/safety tests. This is implementation evidence, not field-flight
-approval; the remaining release gates are deliberately bounded to one complete
-automated pass and one new SITL pass.
+The final combined owner gate passed 453 tests with one skip, the dashboard
+passed all 119 suites / 667 tests and its production build, and the bounded
+fresh-SITL actions and QuickScout scenarios passed. This is software/SITL
+evidence, not field-flight approval; the remaining gate is the controlled
+props-off hardware retest.

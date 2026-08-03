@@ -9,6 +9,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.115-field-launch-readiness] - 2026-08-03
+
 ### Added
 - Generic GCS command tracking now uses a host-local SQLite/WAL lifecycle
   journal with durable idempotency bindings, deadlines, per-target evidence,
@@ -36,6 +38,25 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   root-level common-parameter CSV and its parallel loader are removed.
 
 ### Fixed
+- Hold now uses a distinct fresh recovery predicate for armed vehicles at least
+  0.5 m clear of ground during PX4 `TAKING_OFF`, `IN_AIR`, or `LANDING`
+  transitions. Strict `IN_AIR` truth remains unchanged for declaring Take Off
+  complete, and grounded, disarmed, stale, unknown, or low-altitude state still
+  fails closed.
+- Take Off terminal success now requires one coherent authoritative airborne
+  snapshot after the climb threshold, while bounded terminal-result transport
+  and cleanup deadlines prevent a physically successful ascent from being
+  mislabeled by a late local reporting timeout.
+- Per-node callbacks now carry explicit `completed`, `failed`, or `superseded`
+  outcomes through the drone API, GCS tracker, late reports, validator, and
+  journal. Legacy message inference remains isolated to old nodes, and exact
+  old-schema fallback cannot reinterpret cleanup-unconfirmed failure as safe
+  supersession.
+- MAVSDK battery `remaining_percent` values retain their documented 0–100
+  percentage-point units instead of being multiplied a second time.
+- Supervised runtime path resolution no longer depends on `HOME`, and browser
+  idempotency-key generation no longer depends on Node-only globals, keeping
+  service startup and optimized dashboard builds portable.
 - GCS receipt time, direct reachability, intended hardware identity, and typed
   action evidence now remain coherent through command admission and dispatch;
   stale or mixed-age evidence fails launch closed without suppressing the
