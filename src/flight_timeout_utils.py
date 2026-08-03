@@ -1,5 +1,5 @@
 """
-Shared timeout estimators for long-running landing / return-to-home flows.
+Shared timeout estimators for complete operator-visible flight lifecycles.
 
 These helpers keep action commands, mission end-behavior logic, and runtime
 validators aligned on the same conservative timing assumptions instead of
@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import math
 
+from src.action_safety import (
+    ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+    ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+)
 from src.params import Params
 
 
@@ -18,6 +22,95 @@ def _coerce_non_negative_altitude(relative_altitude_m) -> float | None:
         return max(0.0, float(relative_altitude_m))
     except (TypeError, ValueError):
         return None
+
+
+def _non_negative_param(params, name: str, default: float) -> float:
+    try:
+        return max(0.0, float(getattr(params, name, default)))
+    except (TypeError, ValueError):
+        return max(0.0, float(default))
+
+
+def calculate_takeoff_tracking_timeout(*, params=Params) -> int:
+    """Budget the full standalone Take Off lifecycle, including safe failure.
+
+    The command tracker must remain non-terminal until the node can report its
+    authoritative result.  Arm retries are the largest conditional phase: each
+    attempt may spend both its health wait and its bounded arm RPC timeout.
+    Cleanup is included because a failed launch still owes the operator a
+    structured recovery result.
+    """
+
+    try:
+        arm_attempts = max(
+            1,
+            int(getattr(params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)),
+        )
+    except (TypeError, ValueError):
+        arm_attempts = 3
+    arm_health_sec = _non_negative_param(
+        params,
+        "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC",
+        15.0,
+    )
+    arm_action_sec = max(
+        1.0,
+        _non_negative_param(params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0),
+    )
+    arm_retry_delay_sec = _non_negative_param(
+        params,
+        "OFFBOARD_ARM_RETRY_DELAY_SEC",
+        2.0,
+    )
+    arm_budget_sec = (
+        arm_attempts * (arm_health_sec + arm_action_sec)
+        + max(0, arm_attempts - 1) * arm_retry_delay_sec
+    )
+
+    phase_budget_sec = sum(
+        (
+            _non_negative_param(
+                params,
+                "ACTION_MAVSDK_SERVER_START_TIMEOUT_SEC",
+                10.0,
+            ),
+            _non_negative_param(
+                params,
+                "ACTION_VEHICLE_CONNECTION_TIMEOUT_SEC",
+                10.0,
+            ),
+            _non_negative_param(params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30.0),
+            ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+            arm_budget_sec,
+            _non_negative_param(
+                params,
+                "TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC",
+                10.0,
+            ),
+            _non_negative_param(
+                params,
+                "TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC",
+                15.0,
+            ),
+            _non_negative_param(
+                params,
+                "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC",
+                60.0,
+            ),
+            _non_negative_param(
+                params,
+                "TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC",
+                20.0,
+            ),
+            ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+            _non_negative_param(
+                params,
+                "COMMAND_TRACKING_ACTION_BUFFER_SEC",
+                30.0,
+            ),
+        )
+    )
+    return math.ceil(phase_budget_sec)
 
 
 def calculate_land_disarm_timeout(relative_altitude_m, *, params=Params) -> int:

@@ -319,8 +319,13 @@ class Params:
     PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC", "2.5"), 2.5)
     PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES = _safe_int(os.environ.get("MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES", "4"), 4)
     PX4_PARAMETER_PROFILE_DIR = os.environ.get("MDS_PX4_PARAMETER_PROFILE_DIR", "resources/px4_param_profiles")
+    ACTION_MAVSDK_SERVER_START_TIMEOUT_SEC = 10  # Local MAVSDK server listen deadline for standalone actions
+    ACTION_VEHICLE_CONNECTION_TIMEOUT_SEC = 10  # PX4 connection deadline after MAVSDK starts
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
+    TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC = 10  # Fresh armed-state confirmation after the arm RPC
+    TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC = 15  # PX4 TAKING_OFF/IN_AIR transition deadline
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
+    TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC = 20  # Bound the coherent IN_AIR terminal-state confirmation phase
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm
     LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 1.5 # Conservative PX4 autonomous descent-rate estimate for high-altitude LAND/RTL flows
     LAND_ACTION_DISARM_BUFFER_SEC = 30         # Extra landing/disarm buffer above the estimated descent time

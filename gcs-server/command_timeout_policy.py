@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from src.enums import Mission, resolve_executable_mission
-from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
+from src.flight_timeout_utils import (
+    calculate_land_disarm_timeout,
+    calculate_rtl_completion_timeout,
+    calculate_takeoff_tracking_timeout,
+)
 from src.params import Params
 
 
@@ -166,9 +170,11 @@ def estimate_command_tracking_timeout_ms(
     trigger_delay_ms = _extract_future_trigger_delay_ms(command_data)
 
     if mission_enum == Mission.TAKE_OFF:
-        preflight_sec = _safe_int(getattr(params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30), 30)
-        climb_sec = _safe_int(getattr(params, "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC", 60), 60)
-        return max(default_ms, trigger_delay_ms + ((preflight_sec + climb_sec + action_buffer_sec) * 1000))
+        return max(
+            default_ms,
+            trigger_delay_ms
+            + (calculate_takeoff_tracking_timeout(params=params) * 1000),
+        )
 
     if mission_enum == Mission.LAND:
         return max(

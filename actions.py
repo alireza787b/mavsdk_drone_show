@@ -62,6 +62,7 @@ from src.async_stream_utils import (
 )
 from src.action_safety import (
     ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
+    ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
     AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
     GROUND_MAX_RELATIVE_ALTITUDE_M,
     ActionSafetyError,
@@ -435,7 +436,10 @@ def start_mavsdk_server(grpc_port, udp_port):
 
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        if not wait_for_port(grpc_port, timeout=10):
+        if not wait_for_port(
+            grpc_port,
+            timeout=Params.ACTION_MAVSDK_SERVER_START_TIMEOUT_SEC,
+        ):
             logger.error("MAVSDK server did not start listening in time.")
             mavsdk_server.terminate()
             fail(
@@ -625,11 +629,16 @@ async def perform_action(action, altitude=None, branch=None, request_payload=Non
         stop_mavsdk_server(mavsdk_server)
         logger.info("Action completed.")
 
-async def wait_for_drone_connection(drone, timeout=10):
+async def wait_for_drone_connection(drone, timeout=None):
     """
     Waits up to 'timeout' seconds for drone connection.
     Returns True if connected, else False.
     """
+    timeout = float(
+        Params.ACTION_VEHICLE_CONNECTION_TIMEOUT_SEC
+        if timeout is None
+        else timeout
+    )
     logger.info("Waiting for drone connection state...")
     deadline = monotonic_deadline(timeout)
     try:
@@ -1173,6 +1182,42 @@ async def wait_until_relative_altitude(drone, minimum_relative_altitude_m: float
             return local_relative_altitude
         raise
 
+
+async def wait_for_authoritative_airborne_state(
+    drone,
+    minimum_relative_altitude_m: float,
+    *,
+    timeout: float | None = None,
+):
+    """Wait for one coherent terminal Take Off snapshot under one deadline."""
+
+    timeout = float(
+        Params.TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC
+        if timeout is None
+        else timeout
+    )
+    deadline = monotonic_deadline(timeout)
+    last_observation = None
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return last_observation
+        last_observation = await observe_authoritative_vehicle_state(
+            drone,
+            timeout=min(ACTION_STATE_OBSERVATION_TIMEOUT_SEC, remaining),
+        )
+        if (
+            last_observation.airborne
+            and last_observation.relative_altitude_m is not None
+            and last_observation.relative_altitude_m >= minimum_relative_altitude_m
+        ):
+            logger.info("coherent authoritative airborne state confirmed.")
+            return last_observation
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return last_observation
+        await asyncio.sleep(min(0.25, remaining))
+
 async def safe_action(func, *args, **kwargs):
     """
     Wraps an action function with exception handling.
@@ -1466,16 +1511,20 @@ async def takeoff(drone, altitude):
             require_global_position=False,
             logger=logger,
         )
-        await wait_until_armed_state(drone, True, timeout=10)
+        await wait_until_armed_state(
+            drone,
+            True,
+            timeout=Params.TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC,
+        )
         _safe_led_call(led_controller, "set_color", 255, 255, 255)
         await asyncio.sleep(0.5)
         takeoff_command_may_have_started = True
         await drone.action.takeoff()
-        landed_transition = await wait_until_landed_state(
+        await wait_until_landed_state(
             drone,
             {telemetry.LandedState.TAKING_OFF, telemetry.LandedState.IN_AIR},
             "takeoff state transition",
-            timeout=15,
+            timeout=Params.TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC,
         )
         minimum_altitude = _takeoff_confirmation_altitude_m(target_altitude)
         altitude_sample = await wait_until_relative_altitude(
@@ -1499,13 +1548,31 @@ async def takeoff(drone, altitude):
                     "observed_relative_altitude_m": confirmed_altitude,
                 },
             )
-        completion_state = await observe_authoritative_vehicle_state(drone)
+
+        # The attainable altitude threshold proves climb progress, not a
+        # terminal Take Off. PX4 may still report TAKING_OFF while settling at
+        # the requested altitude. Keep the command active until one coherent,
+        # connection-bound snapshot proves the coherent airborne state.
+        completion_state = await wait_for_authoritative_airborne_state(
+            drone,
+            minimum_altitude,
+        )
         if (
-            not completion_state.complete
+            completion_state is None
+            or not completion_state.complete
             or not completion_state.airborne
             or completion_state.relative_altitude_m is None
             or completion_state.relative_altitude_m < minimum_altitude
         ):
+            logger.warning(
+                "Takeoff final-state verification failed after the climb threshold: %s",
+                completion_state.as_dict() if completion_state is not None else None,
+            )
+            completion_evidence = (
+                completion_state.as_dict()
+                if completion_state is not None
+                else {"observation_error": "no final vehicle-state sample was available"}
+            )
             raise ActionSafetyError(
                 code="TAKEOFF_FINAL_STATE_UNAVAILABLE",
                 phase="state_verification",
@@ -1514,8 +1581,12 @@ async def takeoff(drone, altitude):
                     "internally consistent final airborne snapshot was not confirmed. "
                     "LAND recovery was initiated."
                 ),
-                evidence={"observation": completion_state.as_dict()},
-                final_vehicle_state=completion_state.as_dict(),
+                evidence={"observation": completion_evidence},
+                final_vehicle_state=(
+                    completion_state.as_dict()
+                    if completion_state is not None
+                    else None
+                ),
             )
         final_vehicle_state = completion_state.as_dict()
         final_vehicle_state.update(

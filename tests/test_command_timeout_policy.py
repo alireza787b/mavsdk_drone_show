@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "gcs-server"))
 
 from command_timeout_policy import estimate_command_tracking_timeout_ms
 from src.enums import Mission
+from src.flight_timeout_utils import calculate_takeoff_tracking_timeout
 
 
 class _MockParams:
@@ -16,8 +17,17 @@ class _MockParams:
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900
     COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45
     COMMAND_TRACKING_SMART_SWARM_TIMEOUT_SEC = 21_600
+    ACTION_MAVSDK_SERVER_START_TIMEOUT_SEC = 10
+    ACTION_VEHICLE_CONNECTION_TIMEOUT_SEC = 10
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30
+    TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC = 10
+    TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC = 15
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60
+    TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC = 20
+    OFFBOARD_ARM_HEALTH_TIMEOUT_SEC = 15
+    OFFBOARD_ARM_MAX_ATTEMPTS = 3
+    OFFBOARD_ARM_ACTION_TIMEOUT_SEC = 15
+    OFFBOARD_ARM_RETRY_DELAY_SEC = 2
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
     LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 1.5
     LAND_ACTION_DISARM_BUFFER_SEC = 30
@@ -30,10 +40,11 @@ class _MockParams:
     PRECISION_MOVE_DEFAULT_TIMEOUT_SEC = 30.0
 
 
-def test_estimate_command_tracking_timeout_for_takeoff_uses_prefight_and_climb_budget():
+def test_estimate_command_tracking_timeout_for_takeoff_covers_full_terminal_lifecycle():
     timeout_ms = estimate_command_tracking_timeout_ms(Mission.TAKE_OFF, params=_MockParams)
 
-    assert timeout_ms == (30 + 60 + 30) * 1000
+    assert calculate_takeoff_tracking_timeout(params=_MockParams) == 307
+    assert timeout_ms == 307_000
 
 
 def test_estimate_command_tracking_timeout_for_land_scales_with_relative_altitude():
@@ -85,7 +96,9 @@ def test_estimate_command_tracking_timeout_includes_future_trigger_delay(monkeyp
         params=_MockParams,
     )
 
-    assert timeout_ms == 45_000 + ((30 + 60 + 30) * 1000)
+    assert timeout_ms == 45_000 + (
+        calculate_takeoff_tracking_timeout(params=_MockParams) * 1000
+    )
 
 
 def test_estimate_command_tracking_timeout_for_drone_show_uses_show_duration(tmp_path):
