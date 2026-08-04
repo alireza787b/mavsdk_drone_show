@@ -361,7 +361,12 @@ EOF
 def test_node_wrapper_private_https_auth_uses_askpass_token_file():
     result = run_bash(
         f"""
+        test_home="$(mktemp -d)"
+        MDS_USER="$(id -un)"
         source "{NODE_INSTALLER}"
+        wrapper_mds_user_home() {{
+            printf '%s\n' "$test_home"
+        }}
         sudo() {{
             if [[ "$1" == "-u" ]]; then
                 shift 2
@@ -1076,9 +1081,13 @@ def test_repo_verification_uses_deployment_profile_defaults_not_params_file():
 def test_run_services_phase_reconciles_runtime_services_after_enable():
     result = run_bash(
         f"""
+        tmpdir="$(mktemp -d)"
+        MDS_USER="$(id -un)"
+        MDS_HOME="$tmpdir/home"
+        MDS_INSTALL_DIR="$tmpdir/repo"
+        mkdir -p "$MDS_HOME" "$MDS_INSTALL_DIR"
         source "{COMMON_LIB}"
         source "{SERVICES_LIB}"
-        mkdir -p "${{MDS_INSTALL_DIR}}"
         SKIP_SERVICES="false"
         print_phase_header() {{ :; }}
         print_section() {{ :; }}
@@ -1421,16 +1430,10 @@ EOF
         REPO_DIR="$repo_dir" \
         MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
         RUNTIME_RESTART_DELAY_SECONDS=0 \
-        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions'
+        bash --noprofile --norc -c 'source "{GIT_SYNC_SCRIPT}"; is_effective_root() {{ return 1; }}; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; wait'
 
         grep -q "is-active --quiet coordinator.service" "$tmpdir/systemctl.log"
-        for _ in $(seq 1 20); do
-          if grep -q "restart coordinator" "$tmpdir/systemctl.log"; then
-            exit 0
-          fi
-          sleep 0.1
-        done
-        exit 1
+        grep -q "restart coordinator" "$tmpdir/systemctl.log"
         """
     )
 
@@ -1470,15 +1473,9 @@ EOF
         REPO_DIR="$repo_dir" \
         MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
         RUNTIME_RESTART_DELAY_SECONDS=0 \
-        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions'
+        bash --noprofile --norc -c 'source "{GIT_SYNC_SCRIPT}"; is_effective_root() {{ return 0; }}; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; wait'
 
-        for _ in $(seq 1 20); do
-          if grep -q "restart coordinator" "$tmpdir/systemctl.log"; then
-            exit 0
-          fi
-          sleep 0.1
-        done
-        exit 1
+        grep -q "restart coordinator" "$tmpdir/systemctl.log"
         """
     )
 

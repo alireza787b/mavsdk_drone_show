@@ -133,8 +133,12 @@ log_warn() { log "warn" "$@"; }
 log_error() { log "error" "$@"; }
 log_debug() { [[ "${DEBUG:-0}" == "1" ]] && log "debug" "$@" || true; }
 
+is_effective_root() {
+    [[ "${EUID:-$(id -u)}" -eq 0 ]]
+}
+
 run_privileged() {
-    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    if is_effective_root; then
         "$@"
         return $?
     fi
