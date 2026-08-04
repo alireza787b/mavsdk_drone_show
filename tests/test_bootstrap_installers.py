@@ -2497,6 +2497,64 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_post_sync_validation_allows_deleted_runtime_python_files():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools" "$tmpdir/home/logs"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name test
+        cat > "$repo_dir/tools/retired_runtime.py" <<'EOF'
+value = 1
+EOF
+        git -C "$repo_dir" add tools/retired_runtime.py
+        git -C "$repo_dir" commit -q -m "baseline"
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        git -C "$repo_dir" rm -q tools/retired_runtime.py
+        git -C "$repo_dir" commit -q -m "retire runtime helper"
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_validation_checks_renamed_python_path_with_newline():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools" "$tmpdir/home/logs"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name test
+        old_path=$'tools/runtime helper.py'
+        new_path=$'tools/renamed\\nruntime.py'
+        printf 'value = 1\\n' > "$repo_dir/$old_path"
+        git -C "$repo_dir" add "$old_path"
+        git -C "$repo_dir" commit -q -m "baseline"
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        git -C "$repo_dir" mv "$old_path" "$new_path"
+        printf 'def broken(:\\n    pass\\n' > "$repo_dir/$new_path"
+        git -C "$repo_dir" add "$new_path"
+        git -C "$repo_dir" commit -q -m "rename to unusual invalid path"
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        ! preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_post_sync_python_validation_does_not_write_bytecode():
     result = run_bash(
         f"""

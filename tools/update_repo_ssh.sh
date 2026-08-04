@@ -609,12 +609,23 @@ preflight_validate_post_sync_runtime_changes() {
         return 0
     fi
 
-    while IFS= read -r changed_path; do
-        [[ -z "$changed_path" ]] && continue
+    # Validate only paths that exist in the target revision.  Deleted runtime
+    # files are a valid release operation and cannot be syntax-checked after
+    # the worktree has moved to new_head.  NUL delimiters also keep unusual
+    # (for example, whitespace-containing) repository paths unambiguous.
+    while IFS= read -r -d '' changed_path; do
         if ! validate_post_sync_changed_path "$changed_path" "$component"; then
             ((failures++))
         fi
-    done < <(git -C "$REPO_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
+    done < <(
+        git -C "$REPO_DIR" diff \
+            --name-only \
+            --diff-filter=ACMRTUXB \
+            -z \
+            "$old_head" \
+            "$new_head" \
+            2>/dev/null || true
+    )
 
     if [[ $failures -gt 0 ]]; then
         log_error "$component" "Post-sync runtime validation failed for ${failures} path(s)"

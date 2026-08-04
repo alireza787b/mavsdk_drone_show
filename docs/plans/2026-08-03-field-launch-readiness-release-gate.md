@@ -5,6 +5,8 @@
 **Status:** P0 gates, bounded fresh-SITL acceptance, official/private promotion, and the guarded production refresh are complete; the props-off field retest remains the external acceptance boundary
 **Related evidence:** [2026-08-02 field incident](2026-08-02-field-launch-readiness-incident.md)
 
+**Activation follow-up:** [2026-08-04 node sync recovery and props-off gate](2026-08-04-field-node-sync-recovery-and-props-off-gate.md)
+
 This file is the finite completion contract for the incident checkpoint. It
 prevents both unsafe early promotion and an open-ended perfection loop.
 

@@ -9,6 +9,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Fixed
+- Drone post-sync validation now syntax-checks only runtime files present in
+  the target revision. Intentional deletions no longer look like invalid
+  Python or shell files and force an otherwise healthy release rollback; path
+  discovery is NUL-delimited so unusual repository filenames remain safe.
+
 ## [5.5.115-field-launch-readiness] - 2026-08-03
 
 ### Added

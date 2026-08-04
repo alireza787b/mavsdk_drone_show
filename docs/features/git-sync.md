@@ -227,6 +227,11 @@ Validation and rollback coverage:
 - runtime Python files:
   - any changed `*.py` path outside docs/tests/frontend-only trees
 
+Validation applies to paths present in the target revision. A deleted runtime
+file is an intentional target state, not a file that can be syntax-checked;
+deletions are therefore excluded while additions, copies, modifications,
+renames, type changes, unresolved paths, and rewrites remain covered.
+
 If validation fails after the pull/reset:
 
 - the node rolls the repo back to the previous commit
