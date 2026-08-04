@@ -525,6 +525,35 @@ class TestDroneOnboardUlogProxy:
         assert resp.status_code == 200
         assert resp.json()["policy"]["storage_mode"] == "file_backed"
 
+    def test_ulog_summary_preserves_structured_node_failure(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        app = _make_gcs_app(str(tmp_path))
+        client = TestClient(app)
+        detail = {
+            "code": "ulog_transport_timeout",
+            "error": "ulog_transport_timeout",
+            "message": "Timed out opening the node-local MAVSDK RPC channel.",
+            "stage": "mavsdk_rpc_connect",
+            "timeout_seconds": 5.0,
+            "retryable": True,
+        }
+        monkeypatch.setattr(
+            log_proxy,
+            "resolve_drone_ip",
+            lambda drone_id: "10.0.0.5",
+        )
+
+        async def fake_summary(_drone_ip, _log_id):
+            raise log_proxy.DroneProxyResponseError(504, detail)
+
+        monkeypatch.setattr(log_proxy, "fetch_drone_ulog_summary", fake_summary)
+
+        response = client.get("/api/logs/drone/5/ulog/files/12/summary")
+
+        assert response.status_code == 504
+        assert response.json()["detail"] == detail
+
     def test_create_drone_ulog_download_job(self, tmp_path, monkeypatch):
         import log_proxy
 

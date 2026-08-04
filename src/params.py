@@ -1,5 +1,6 @@
 # src/params.py
 
+import math
 import os
 import struct
 from enum import Enum
@@ -68,6 +69,53 @@ def _env_flag(name: str, default: bool) -> bool:
 
     logger.warning(f"Invalid boolean value for {name!r}: {value!r}. Using default {default}.")
     return default
+
+
+# Fleet Ops verification starts immediately after asynchronous UPDATE_CODE
+# dispatch, so its budget covers the node's complete sync/reconcile/restart
+# lifecycle rather than only the final git-status request. Keep this default in
+# one importable location so the verifier and command tracker cannot drift.
+DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 150.0
+MIN_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 30.0
+MAX_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 900.0
+
+
+def resolve_gcs_git_sync_verify_timeout_sec(value=None) -> float:
+    """Return a finite, positive Fleet Ops verification budget.
+
+    Invalid or out-of-policy overrides fall back to the evidence-based default
+    rather than turning verification into an immediate false failure or an
+    effectively unbounded operator wait.
+    """
+    raw_value = (
+        os.environ.get(
+            "MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC",
+            str(DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC),
+        )
+        if value is None
+        else value
+    )
+    try:
+        timeout_sec = float(raw_value)
+    except (TypeError, ValueError):
+        timeout_sec = math.nan
+
+    if not math.isfinite(timeout_sec) or not (
+        MIN_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC
+        <= timeout_sec
+        <= MAX_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC
+    ):
+        logger.warning(
+            "Invalid MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC %r; expected %.0f..%.0f "
+            "seconds, using default %.0f",
+            raw_value,
+            MIN_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+            MAX_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+            DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+        )
+        return DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC
+
+    return timeout_sec
 
 
 class Params:
@@ -352,7 +400,7 @@ class Params:
     GCS_FLEET_DISPATCH_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_DISPATCH_DEADLINE_SEC", "15"), 15.0)
     GCS_FLEET_RECOVERY_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_RECOVERY_DEADLINE_SEC", "20"), 20.0)
     GCS_COMMAND_HTTP_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_GCS_COMMAND_HTTP_TIMEOUT_SEC", "5"), 5.0)
-    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 45.0  # Fleet Ops branch/commit/clean-runtime postcondition window
+    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = resolve_gcs_git_sync_verify_timeout_sec()
     # Bounded lifespan-owned submission lanes return a tracker ID before slow
     # readiness/dispatch I/O. Recovery work has independent admission so a
     # burst of routine submissions cannot starve LAND/RTL/HOLD/KILL.

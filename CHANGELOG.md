@@ -9,6 +9,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.116-field-sync-origin-readiness] - 2026-08-04
+
 ### Fixed
 - Drone post-sync validation now syntax-checks only runtime files present in
   the target revision. Intentional deletions no longer look like invalid
@@ -25,6 +27,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by the node restart. Transport ACKs and authenticated node reports remain
   separate evidence, the verifier result is journaled atomically, and the
   tracker deadline covers the complete dispatch and verification envelope.
+- Fleet Ops verification now uses one registry-backed, 150-second bounded
+  lifecycle budget shared with UPDATE_CODE tracking. The default covers the
+  measured startup jitter, sync, validation, runtime reconciliation, deferred
+  restart, and final polling path; only finite 30–900-second deployment
+  overrides are accepted, and targets remain concurrently identity-verified.
 - Drone-referenced formation origin now uses one server-authoritative identity,
   telemetry, slot, altitude, preview, and persistence contract. Mission Config
   unwraps the canonical telemetry payload, distinguishes raw 3D GPS from a
@@ -32,6 +39,22 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   cross-selection preview races, and reports success only after the atomic
   origin write succeeds. Deviation review applies the same fresh-global-
   position validator, and dead duplicate origin-modal/export code is removed.
+- Production dashboard builds now install their required build-time dependency
+  set explicitly even under `NODE_ENV=production`, preventing a clean restart
+  from stopping both services and then failing because `react-scripts` was
+  omitted. Production-pruned dependency trees are detected explicitly, and
+  dependency/build preflight completes before the current services are stopped.
+- ULog summary errors now preserve structured node transport stages. MAVSDK
+  server/RPC/PX4-connection setup timeouts are reported as retryable transport
+  failures instead of being mislabeled as a 90-second isolated-parser timeout;
+  raw content remains excluded and all stages stay bounded.
+- The environment registry now owns the optional supervisor-safe
+  `MDS_USER_HOME` input, while resolved home paths remain shell-local instead
+  of creating an undocumented second environment setting.
+- Simurgh's optional action stop is labeled as blocking only Simurgh execution
+  in its own settings/status surfaces. Read-only Simurgh use and normal
+  human-operated MDS controls, readiness, and recovery behavior remain clearly
+  separate.
 
 ## [5.5.115-field-launch-readiness] - 2026-08-03
 

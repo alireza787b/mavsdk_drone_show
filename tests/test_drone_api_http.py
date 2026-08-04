@@ -30,8 +30,9 @@ from src.security.auth import (
     ULOG_OP_ERASE,
     ULOG_OP_FILES_READ,
     ULOG_OP_POLICY_READ,
+    ULOG_OP_SUMMARY_READ,
 )
-from src.ulog_service import UlogJobConflictError
+from src.ulog_service import UlogJobConflictError, UlogTransportTimeoutError
 
 
 def _commit_mock_command(mock_drone_config, command_data):
@@ -1085,6 +1086,108 @@ class TestDroneState:
         detail = response.json()["detail"]
         assert detail["error"] == "mavsdk_server_missing"
         assert detail["ulog_capability"]["mavsdk_server_present"] is False
+
+    def test_ulog_summary_transport_timeout_is_not_reported_as_parser_timeout(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        ulog_machine_headers,
+    ):
+        async def timed_out_before_operation(_operation):
+            raise TimeoutError()
+
+        monkeypatch.setattr(
+            api_server,
+            "_with_local_ulog_system",
+            timed_out_before_operation,
+        )
+        monkeypatch.setattr(
+            api_server.params,
+            "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC",
+            5.0,
+        )
+
+        response = test_client.get(
+            "/api/v1/ulog/files/9/summary",
+            headers=ulog_machine_headers(ULOG_OP_SUMMARY_READ),
+        )
+
+        assert response.status_code == 504
+        detail = response.json()["detail"]
+        assert detail["code"] == "ulog_transport_timeout"
+        assert detail["error"] == "ulog_transport_timeout"
+        assert detail["error"] != "ulog_summary_timeout"
+        assert detail["stage"] == "transport_setup"
+        assert detail["timeout_seconds"] == 5.0
+        assert detail["retryable"] is True
+        assert "node-local MAVSDK ULog transport" in detail["message"]
+
+    def test_ulog_parser_timeout_keeps_distinct_typed_result(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        ulog_machine_headers,
+    ):
+        from mds_logging.ulog_analysis import UlogSummaryTimeoutError
+
+        async def parser_timed_out(_operation):
+            raise UlogSummaryTimeoutError(
+                "ULog summary timed out after 90 second(s)"
+            )
+
+        monkeypatch.setattr(
+            api_server,
+            "_with_local_ulog_system",
+            parser_timed_out,
+        )
+
+        response = test_client.get(
+            "/api/v1/ulog/files/9/summary",
+            headers=ulog_machine_headers(ULOG_OP_SUMMARY_READ),
+        )
+
+        assert response.status_code == 504
+        detail = response.json()["detail"]
+        assert detail["code"] == "ulog_summary_timeout"
+        assert detail["error"] == "ulog_summary_timeout"
+        assert "stage" not in detail
+
+    @pytest.mark.asyncio
+    async def test_ulog_rpc_connect_timeout_carries_exact_setup_stage(
+        self,
+        api_server,
+        monkeypatch,
+    ):
+        import src.drone_api_server as drone_api_server
+
+        class SlowSystem:
+            def __init__(self, **_kwargs):
+                pass
+
+            async def connect(self, **_kwargs):
+                await asyncio.sleep(1)
+
+        monkeypatch.setattr(drone_api_server, "System", SlowSystem)
+        monkeypatch.setattr(
+            api_server,
+            "_ensure_live_probe_server",
+            AsyncMock(return_value=(None, False)),
+        )
+        monkeypatch.setattr(
+            api_server.params,
+            "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC",
+            0.001,
+        )
+
+        with pytest.raises(UlogTransportTimeoutError) as exc_info:
+            await api_server._with_local_ulog_system(AsyncMock())
+
+        assert exc_info.value.code == "ulog_transport_timeout"
+        assert exc_info.value.stage == "mavsdk_rpc_connect"
+        assert exc_info.value.timeout_seconds == 0.001
+        assert "opening the node-local MAVSDK RPC channel" in str(exc_info.value)
 
     def test_create_onboard_ulog_download_job_success(
         self,

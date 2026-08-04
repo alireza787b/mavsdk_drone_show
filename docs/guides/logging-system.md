@@ -256,9 +256,21 @@ successful empty summary. Expected HTTP mappings are:
 | `404` | Drone, ULog id, or staged job is unavailable to this caller |
 | `413` | File exceeds the configured analysis or transfer limit |
 | `422` | The file exists but is not a valid parseable PX4 ULog |
+| `424` | MAVSDK/PX4 transport dependency setup failed before ULog access |
 | `502` | The selected drone/log source could not be reached |
 | `503` | The local ULog parser dependency is unavailable |
-| `504` | Proxy, transfer, or isolated parser deadline expired |
+| `504` | Node-local ULog transport setup, proxy/transfer, or isolated parser deadline expired |
+
+Timeout stages remain distinct in the error payload. `ulog_transport_timeout`
+means the node could not establish its bounded MAVSDK/PX4 ULog transport before
+the file inventory, staging, or parser work began; its `stage` identifies
+server startup, MAVSDK RPC setup, or the PX4 connection wait.
+`ulog_summary_timeout` is reserved for the isolated parser deadline. The GCS
+preserves this structured node detail, while Simurgh renders its concise
+operator message. Typed failures carry the canonical `code` field and retain
+the matching legacy `error` field for compatibility. A transport timeout
+therefore is not evidence that the ULog was too large or that the 90-second
+parser budget was exhausted.
 
 Parsing runs in a separate child process with wall-clock, address-space, CPU,
 output-file, and open-file limits. The child receives a minimal environment
@@ -503,6 +515,10 @@ Operational notes:
   loop, so one slow onboard log cannot freeze unrelated chat/status requests
 - ULog parsing runs in a killable resource-bounded child process; timeout,
   malformed input, oversize input, and missing-parser outcomes remain distinct
+- node-local MAVSDK server, RPC-channel, and PX4-connection setup failures are
+  reported as retryable `ulog_transport_unavailable` or
+  `ulog_transport_timeout` results; parser exhaustion remains the separate
+  `ulog_summary_timeout` result
 - direct parser and filesystem-fallback summaries are both validated against
   the same strict versioned response schema before GCS, MCP, or Simurgh can use
   them
@@ -530,6 +546,7 @@ ULog-specific failures remain typed across node and GCS boundaries:
 | `403` | Authenticated actor lacks the required operator/admin role |
 | `409` | Vehicle/runtime conflict or an active leased transfer |
 | `413` | File or parser input exceeds a configured limit |
+| `424` | MAVSDK/PX4 transport dependency setup failed before ULog access |
 | `503` | Machine authentication or a required ULog dependency is unavailable |
 | `507` | Staging quota or disk reserve cannot safely accept the file |
 

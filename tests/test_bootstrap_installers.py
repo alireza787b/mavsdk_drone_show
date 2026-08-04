@@ -491,6 +491,43 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "build_tmux_runtime_env_prefix() {" in start_text
     assert 'tmux set-environment -t "$session" "$var_name" "${!var_name}"' in start_text
     assert '${tmux_env_prefix}clear && echo ' in start_text
+    assert 'ci --include=dev --no-audit --no-fund' in start_text
+    assert 'install --include=dev --no-audit --no-fund' in start_text
+    main_text = start_text.split("# MAIN EXECUTION", 2)[-1]
+    assert main_text.index("prepare_react_runtime") < main_text.index("PORT MANAGEMENT")
+
+
+def test_dashboard_start_reinstalls_production_pruned_node_modules():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard/node_modules/.bin" \
+                 "$tmpdir/gcs-server"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        touch "$tmpdir/app/dashboard/drone-dashboard/package.json"
+        touch "$tmpdir/app/dashboard/drone-dashboard/package-lock.json"
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        REACT_APP_DIR="$tmpdir/app/dashboard/drone-dashboard"
+        dashboard_dependencies_need_install
+        touch "$REACT_APP_DIR/node_modules/.bin/react-scripts"
+        chmod +x "$REACT_APP_DIR/node_modules/.bin/react-scripts"
+        touch "$REACT_APP_DIR/node_modules"
+        ! dashboard_dependencies_need_install
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_dashboard_start_build_check_skips_rebuild_when_marker_is_newer_than_sources():

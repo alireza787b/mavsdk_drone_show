@@ -15,7 +15,11 @@ from src.flight_timeout_utils import (
     calculate_rtl_completion_timeout,
     calculate_takeoff_tracking_timeout,
 )
-from src.params import Params
+from src.params import (
+    DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+    Params,
+    resolve_gcs_git_sync_verify_timeout_sec,
+)
 
 
 def _safe_int(value: Any, default: int) -> int:
@@ -182,9 +186,12 @@ def estimate_command_tracking_timeout_ms(
             0.0,
             float(getattr(params, "GCS_COMMAND_HTTP_TIMEOUT_SEC", 5.0)),
         )
-        verification_sec = max(
-            0.0,
-            float(getattr(params, "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", 45.0)),
+        verification_sec = resolve_gcs_git_sync_verify_timeout_sec(
+            getattr(
+                params,
+                "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC",
+                DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+            )
         )
         return max(
             default_ms,

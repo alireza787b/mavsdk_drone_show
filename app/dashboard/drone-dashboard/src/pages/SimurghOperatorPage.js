@@ -750,6 +750,7 @@ function SafetyChips({ status, evidenceState = 'loading' }) {
   }
   const agentEnabled = Boolean(status?.agent_enabled);
   const circuitBreaker = Boolean(status?.action_circuit_breaker_enabled);
+  const actionsBlocked = Boolean(status?.actions_blocked ?? circuitBreaker);
   const mcpEnabled = Boolean(status?.mcp_enabled);
   const gcsMode = status?.gcs_mode ? String(status.gcs_mode).toUpperCase() : 'UNKNOWN';
   const providerReady = status?.provider_ready !== false;
@@ -762,8 +763,8 @@ function SafetyChips({ status, evidenceState = 'loading' }) {
       <StatusBadge tone={gcsMode === 'REAL' ? 'warning' : 'info'} icon={<FaShieldAlt />}>
         {gcsMode}
       </StatusBadge>
-      <StatusBadge tone={circuitBreaker ? 'success' : 'danger'} icon={circuitBreaker ? <FaCheckCircle /> : <FaExclamationTriangle />}>
-        {circuitBreaker ? 'Circuit breaker on' : 'Circuit breaker off'}
+      <StatusBadge tone={actionsBlocked ? 'success' : 'danger'} icon={actionsBlocked ? <FaCheckCircle /> : <FaExclamationTriangle />}>
+        {actionsBlocked ? 'Simurgh actions blocked' : 'Simurgh actions enabled'}
       </StatusBadge>
       <StatusBadge tone={mcpEnabled ? 'warning' : 'muted'}>
         {mcpEnabled ? 'MCP on' : 'MCP off'}
@@ -942,6 +943,7 @@ function SettingsPanel({
   const openAiCredential = status?.credentials?.openai || {};
   const keyReady = Boolean(openAiCredential.ready || status?.openai_key_file_ready);
   const keyFingerprint = openAiCredential.fingerprint || status?.openai_key_fingerprint || '';
+  const simurghActionsBlocked = Boolean(settings.action_circuit_breaker_enabled);
 
   return (
     <aside
@@ -1013,9 +1015,10 @@ function SettingsPanel({
             type="checkbox"
             checked={settings.action_circuit_breaker_enabled}
             disabled={busy}
+            aria-describedby="simurgh-action-boundary"
             onChange={(event) => onChange({ action_circuit_breaker_enabled: event.target.checked })}
           />
-          <span>Circuit breaker</span>
+          <span>Block Simurgh actions</span>
         </label>
         <label className="simurgh-chat__toggle">
           <input
@@ -1035,6 +1038,22 @@ function SettingsPanel({
           />
           <span>Web search</span>
         </label>
+      </div>
+      <div
+        id="simurgh-action-boundary"
+        className={`simurgh-chat__action-boundary ${simurghActionsBlocked ? 'is-blocked' : 'is-enabled'}`}
+        role="status"
+      >
+        <strong>
+          {simurghActionsBlocked
+            ? 'Simurgh cannot execute actions'
+            : 'Simurgh may execute approved actions'}
+        </strong>
+        <span>
+          {simurghActionsBlocked
+            ? 'Read-only Simurgh answers and normal MDS operator controls still work.'
+            : 'Policy and confirmation still apply. Normal MDS controls and drone readiness are separate.'}
+        </span>
       </div>
       <label className="simurgh-chat__field">
         <span>Provider</span>

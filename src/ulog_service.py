@@ -85,6 +85,35 @@ class UlogSizeLimitError(UlogServiceError, ValueError):
     http_status = 413
 
 
+class UlogTransportUnavailableError(UlogServiceError):
+    """The node-local MAVSDK/PX4 transport could not serve a ULog operation."""
+
+    code = "ulog_transport_unavailable"
+    http_status = 503
+    retryable = True
+
+    def __init__(self, message: str, *, stage: str) -> None:
+        self.stage = str(stage)
+        super().__init__(message)
+
+
+class UlogTransportTimeoutError(UlogTransportUnavailableError):
+    """A bounded node-local ULog transport setup stage timed out."""
+
+    code = "ulog_transport_timeout"
+    http_status = 504
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        stage: str,
+        timeout_seconds: float,
+    ) -> None:
+        self.timeout_seconds = float(timeout_seconds)
+        super().__init__(message, stage=stage)
+
+
 @dataclass(frozen=True)
 class _IndexedUlogFile:
     path: Path

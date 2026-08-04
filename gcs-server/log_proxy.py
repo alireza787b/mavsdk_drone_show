@@ -91,10 +91,22 @@ class DroneProxyUnavailableError(DroneProxyRequestError):
 class DroneProxyResponseError(DroneProxyRequestError):
     """Raised when the drone responds with a non-success HTTP status."""
 
-    def __init__(self, status_code: int, detail: str) -> None:
-        super().__init__(detail)
+    def __init__(self, status_code: int, detail: Any) -> None:
+        super().__init__(_proxy_error_message(detail))
         self.status_code = int(status_code)
         self.detail = detail
+
+
+def _proxy_error_message(detail: Any) -> str:
+    """Return concise text while retaining a node's structured error payload."""
+
+    if isinstance(detail, dict):
+        for key in ("message", "detail", "error"):
+            value = detail.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return json.dumps(detail, sort_keys=True, default=str)
+    return str(detail or "Drone proxy request failed")
 
 
 def _validate_ulog_summary_payload(payload: Any) -> dict[str, Any]:
@@ -265,13 +277,15 @@ def _authenticated_ulog_headers(
     return protected_headers
 
 
-def _extract_error_detail(response: httpx.Response) -> str:
+def _extract_error_detail(response: httpx.Response) -> Any:
     try:
         payload = response.json()
         if isinstance(payload, dict):
             detail = payload.get("detail")
             if isinstance(detail, str) and detail.strip():
                 return detail
+            if isinstance(detail, dict):
+                return dict(detail)
     except Exception:
         pass
     text = (response.text or "").strip()

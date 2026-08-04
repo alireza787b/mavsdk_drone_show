@@ -184,7 +184,12 @@ from src.px4_param_models import (
     Px4ParamValueResponse,
 )
 from src.px4_params.service import Px4ParamService
-from src.ulog_service import OnboardUlogService, UlogServiceError
+from src.ulog_service import (
+    OnboardUlogService,
+    UlogServiceError,
+    UlogTransportTimeoutError,
+    UlogTransportUnavailableError,
+)
 from functions.git_manager import get_local_git_report
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, load_json, get_trajectory_first_position
@@ -1322,6 +1327,28 @@ class DroneAPIServer:
             and "mavsdk_server" in message
         )
 
+    @staticmethod
+    def _build_ulog_transport_setup_error(
+        exc: Exception,
+        *,
+        stage: str,
+        stage_label: str,
+        timeout_seconds: float,
+    ) -> UlogServiceError:
+        """Convert only MAVSDK setup failures into stage-specific ULog errors."""
+
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+            return UlogTransportTimeoutError(
+                f"Timed out after {timeout_seconds:g} second(s) while {stage_label}.",
+                stage=stage,
+                timeout_seconds=timeout_seconds,
+            )
+        reason = str(exc).strip() or exc.__class__.__name__
+        return UlogTransportUnavailableError(
+            f"Node-local ULog transport failed while {stage_label}: {reason}",
+            stage=stage,
+        )
+
     def _ulog_failure_http_exception(self, action: str, exc: Exception) -> HTTPException:
         capability = self._build_ulog_capability_payload()
         message = str(exc) or exc.__class__.__name__
@@ -1330,23 +1357,49 @@ class DroneAPIServer:
         typed_status = getattr(exc, "http_status", None)
         typed_code = getattr(exc, "code", None)
         if isinstance(typed_status, int) and isinstance(typed_code, str):
+            detail: Dict[str, Any] = {
+                "code": typed_code,
+                "error": typed_code,
+                "message": message,
+                "action": action,
+                "ulog_capability": capability,
+            }
+            stage = getattr(exc, "stage", None)
+            if isinstance(stage, str) and stage:
+                detail["stage"] = stage
+            timeout_seconds = getattr(exc, "timeout_seconds", None)
+            if isinstance(timeout_seconds, (int, float)) and math.isfinite(timeout_seconds):
+                detail["timeout_seconds"] = float(timeout_seconds)
+            retryable = getattr(exc, "retryable", None)
+            if isinstance(retryable, bool):
+                detail["retryable"] = retryable
             return HTTPException(
                 status_code=typed_status,
-                detail={
-                    "error": typed_code,
-                    "message": message,
-                    "action": action,
-                    "ulog_capability": capability,
-                },
+                detail=detail,
             )
 
-        if isinstance(exc, TimeoutError):
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+            timeout_seconds = safe_float(
+                getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+                5.0,
+            )
             return HTTPException(
                 status_code=504,
                 detail={
-                    "error": "ulog_summary_timeout",
-                    "message": message,
+                    "code": "ulog_transport_timeout",
+                    "error": "ulog_transport_timeout",
+                    "message": (
+                        message
+                        if message != exc.__class__.__name__
+                        else (
+                            f"Timed out after {timeout_seconds:g} second(s) while preparing "
+                            "the node-local MAVSDK ULog transport."
+                        )
+                    ),
                     "action": action,
+                    "stage": "transport_setup",
+                    "timeout_seconds": timeout_seconds,
+                    "retryable": True,
                     "ulog_capability": capability,
                 },
             )
@@ -1356,6 +1409,7 @@ class DroneAPIServer:
             return HTTPException(
                 status_code=424,
                 detail={
+                    "code": error,
                     "error": error,
                     "message": message,
                     "action": action,
@@ -1372,6 +1426,7 @@ class DroneAPIServer:
             return HTTPException(
                 status_code=503,
                 detail={
+                    "code": "ulog_transport_unavailable",
                     "error": "ulog_transport_unavailable",
                     "message": message,
                     "action": action,
@@ -1382,6 +1437,7 @@ class DroneAPIServer:
         return HTTPException(
             status_code=500,
             detail={
+                "code": "ulog_operation_failed",
                 "error": "ulog_operation_failed",
                 "message": message,
                 "action": action,
@@ -1619,21 +1675,49 @@ class DroneAPIServer:
         async with self._ulog_lock:
             grpc_port, system_address = self._resolve_live_probe_connection()
             udp_port = safe_int(getattr(self.params, "mavsdk_port", 14540), 14540)
-            mavsdk_server, started_server = await self._ensure_live_probe_server(grpc_port, udp_port)
+            connect_timeout = safe_float(
+                getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+                5.0,
+            )
+            try:
+                mavsdk_server, started_server = await self._ensure_live_probe_server(
+                    grpc_port,
+                    udp_port,
+                )
+            except (TimeoutError, asyncio.TimeoutError, ConnectionError, RuntimeError) as exc:
+                raise self._build_ulog_transport_setup_error(
+                    exc,
+                    stage="mavsdk_server_start",
+                    stage_label="starting the node-local MAVSDK server used for ULog access",
+                    timeout_seconds=connect_timeout,
+                ) from exc
 
             try:
-                drone = System(
-                    mavsdk_server_address="127.0.0.1",
-                    port=grpc_port,
-                )
-                await asyncio.wait_for(
-                    drone.connect(system_address=system_address),
-                    timeout=safe_float(
-                        getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
-                        5.0,
-                    ),
-                )
-                await self._wait_for_mavsdk_connection(drone)
+                try:
+                    drone = System(
+                        mavsdk_server_address="127.0.0.1",
+                        port=grpc_port,
+                    )
+                    await asyncio.wait_for(
+                        drone.connect(system_address=system_address),
+                        timeout=connect_timeout,
+                    )
+                except (TimeoutError, asyncio.TimeoutError, ConnectionError, RuntimeError) as exc:
+                    raise self._build_ulog_transport_setup_error(
+                        exc,
+                        stage="mavsdk_rpc_connect",
+                        stage_label="opening the node-local MAVSDK RPC channel for ULog access",
+                        timeout_seconds=connect_timeout,
+                    ) from exc
+                try:
+                    await self._wait_for_mavsdk_connection(drone)
+                except (TimeoutError, asyncio.TimeoutError, ConnectionError, RuntimeError) as exc:
+                    raise self._build_ulog_transport_setup_error(
+                        exc,
+                        stage="px4_connection",
+                        stage_label="waiting for the node-local MAVSDK ULog connection to PX4",
+                        timeout_seconds=connect_timeout,
+                    ) from exc
                 return await operation(drone)
             finally:
                 if started_server:

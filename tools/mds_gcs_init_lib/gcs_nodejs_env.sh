@@ -99,7 +99,7 @@ install_npm_dependencies() {
     npm_log=$(mktemp)
 
     start_progress "Running npm ci" "may take 2-5 min depending on network"
-    if run_npm_with_log "$npm_log" npm ci --no-audit --no-fund; then
+    if run_npm_with_log "$npm_log" npm ci --include=dev --no-audit --no-fund; then
         stop_progress
         grep -q "added" "$npm_log" && log_debug "$(grep "added" "$npm_log" | tail -1)"
         fix_node_modules_ownership "$dashboard_path"
@@ -118,7 +118,7 @@ install_npm_dependencies() {
 
     log_warn "npm ci failed. MDS_ALLOW_NPM_INSTALL_FALLBACK=true, trying npm install..."
     start_progress "Running npm install (fallback)" "may take 2-5 min"
-    if run_npm_with_log "$npm_log" npm install --no-audit --no-fund; then
+    if run_npm_with_log "$npm_log" npm install --include=dev --no-audit --no-fund; then
         stop_progress
         grep -q "added" "$npm_log" && log_debug "$(grep "added" "$npm_log" | tail -1)"
         fix_node_modules_ownership "$dashboard_path"

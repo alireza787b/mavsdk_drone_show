@@ -1069,7 +1069,7 @@ build_react_app() {
         exit 1
     }
     
-    if [[ ! -d "node_modules" || "$REACT_APP_DIR/package.json" -nt "node_modules" || "$REACT_APP_DIR/package-lock.json" -nt "node_modules" ]]; then
+    if dashboard_dependencies_need_install; then
         install_dashboard_dependencies
     fi
 
@@ -1083,18 +1083,29 @@ build_react_app() {
     log_success "React build completed successfully."
 }
 
+dashboard_dependencies_need_install() {
+    [[ ! -d "$REACT_APP_DIR/node_modules" ]] && return 0
+    [[ ! -x "$REACT_APP_DIR/node_modules/.bin/react-scripts" ]] && return 0
+    [[ "$REACT_APP_DIR/package.json" -nt "$REACT_APP_DIR/node_modules" ]] && return 0
+    [[ "$REACT_APP_DIR/package-lock.json" -nt "$REACT_APP_DIR/node_modules" ]] && return 0
+    return 1
+}
+
 install_dashboard_dependencies() {
     log_info "Installing dashboard npm dependencies..."
     ensure_nodejs_in_path
 
-    if "$NPM_BIN_PATH" ci --no-audit --no-fund; then
+    # The optimized bundle is compiled on this host. react-scripts and the
+    # compiler toolchain are build-time devDependencies, so an inherited
+    # NODE_ENV=production must not silently omit them before `npm run build`.
+    if "$NPM_BIN_PATH" ci --include=dev --no-audit --no-fund; then
         log_success "Dashboard npm dependencies ready."
         return 0
     fi
 
     if [[ "$NPM_ALLOW_INSTALL_FALLBACK" == "true" ]]; then
         log_warn "npm ci failed. MDS_ALLOW_NPM_INSTALL_FALLBACK=true, so npm install will be attempted."
-        "$NPM_BIN_PATH" install --no-audit --no-fund
+        "$NPM_BIN_PATH" install --include=dev --no-audit --no-fund
         log_success "Dashboard npm dependencies ready via npm install fallback."
         return 0
     fi
@@ -1112,14 +1123,15 @@ verify_react_setup() {
         exit 1
     fi
 
-    # Verify node_modules exists (MDS GCS Init integration)
-    if [[ ! -d "$REACT_APP_DIR/node_modules" || "$REACT_APP_DIR/package.json" -nt "$REACT_APP_DIR/node_modules" || "$REACT_APP_DIR/package-lock.json" -nt "$REACT_APP_DIR/node_modules" ]]; then
-        log_warn "Node modules not installed at $REACT_APP_DIR"
+    # Verify both the dependency tree and the build tool required by this repo.
+    # A production-pruned node_modules directory exists but cannot build MDS.
+    if dashboard_dependencies_need_install; then
+        log_warn "Dashboard dependencies are missing, stale, or production-pruned at $REACT_APP_DIR"
         (
             cd "$REACT_APP_DIR" && install_dashboard_dependencies
         ) || {
             log_error "Failed to install npm dependencies"
-            log_info "Run: cd $REACT_APP_DIR && npm ci --no-audit --no-fund"
+            log_info "Run: cd $REACT_APP_DIR && npm ci --include=dev --no-audit --no-fund"
             exit 1
         }
     fi
@@ -1336,8 +1348,6 @@ start_services_in_tmux() {
     local react_cmd=""
     local tmux_env_prefix=""
 
-    prepare_react_runtime
-
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         gcs_cmd=$(get_gcs_server_command)
     fi
@@ -1399,8 +1409,6 @@ start_services_in_tmux() {
 
 start_services_no_tmux() {
     log_info "Starting services without tmux in $DEPLOYMENT_MODE mode..."
-
-    prepare_react_runtime
 
     if ! command -v gnome-terminal >/dev/null 2>&1; then
         log_error "gnome-terminal is not available. Use tmux mode on headless systems."
@@ -1655,6 +1663,11 @@ validate_backend
 check_python_dependencies
 handle_env_file
 setup_production_environment
+
+# Validate dependencies and finish any required dashboard build while the
+# current services are still available. A failed install/build must not tear
+# down a healthy production GCS before the replacement is ready.
+prepare_react_runtime
 
 echo ""
 echo "-----------------------------------------------------------------------"

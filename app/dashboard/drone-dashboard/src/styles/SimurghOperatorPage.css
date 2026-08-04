@@ -1719,6 +1719,26 @@
   accent-color: var(--color-primary);
 }
 
+.simurgh-chat__action-boundary {
+  display: grid;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  border-left: 3px solid var(--color-success);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.simurgh-chat__action-boundary strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.simurgh-chat__action-boundary.is-enabled {
+  border-left-color: var(--color-danger);
+}
+
 .simurgh-chat__field select,
 .simurgh-chat__field input {
   min-width: 0;

@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "gcs-server"))
 from command_timeout_policy import estimate_command_tracking_timeout_ms
 from src.enums import Mission
 from src.flight_timeout_utils import calculate_takeoff_tracking_timeout
+from src.params import resolve_gcs_git_sync_verify_timeout_sec
 
 
 class _MockParams:
@@ -40,7 +41,7 @@ class _MockParams:
     PRECISION_MOVE_DEFAULT_TIMEOUT_SEC = 30.0
     GCS_FLEET_DISPATCH_DEADLINE_SEC = 15.0
     GCS_COMMAND_HTTP_TIMEOUT_SEC = 5.0
-    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 45.0
+    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 150.0
 
 
 def test_estimate_command_tracking_timeout_for_takeoff_covers_full_terminal_lifecycle():
@@ -56,7 +57,21 @@ def test_update_code_tracker_outlives_dispatch_and_postcondition_verification():
         params=_MockParams,
     )
 
-    assert timeout_ms == (15 + 5 + 45 + 30) * 1000
+    assert timeout_ms == (15 + 5 + 150 + 30) * 1000
+
+
+def test_git_sync_verification_timeout_rejects_unbounded_overrides(monkeypatch):
+    for invalid in ("bad", float("nan"), float("inf"), -1, 0, 29.9, 900.1):
+        assert resolve_gcs_git_sync_verify_timeout_sec(invalid) == 150.0
+
+    assert resolve_gcs_git_sync_verify_timeout_sec(30) == 30.0
+    assert resolve_gcs_git_sync_verify_timeout_sec("150") == 150.0
+    assert resolve_gcs_git_sync_verify_timeout_sec(900) == 900.0
+
+    monkeypatch.setenv("MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", "inf")
+    assert resolve_gcs_git_sync_verify_timeout_sec() == 150.0
+    monkeypatch.setenv("MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", "300")
+    assert resolve_gcs_git_sync_verify_timeout_sec() == 300.0
 
 
 def test_estimate_command_tracking_timeout_for_land_scales_with_relative_altitude():

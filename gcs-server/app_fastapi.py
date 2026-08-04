@@ -67,7 +67,11 @@ from config import (
 )
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from link_presence import get_recent_link_presence
-from params import Params
+from params import (
+    DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+    Params,
+    resolve_gcs_git_sync_verify_timeout_sec,
+)
 from drone_api_routes import DRONE_GIT_STATUS_ROUTE, DRONE_STATE_ROUTE
 from src.enums import Mission
 from get_elevation import get_elevation
@@ -1110,7 +1114,13 @@ async def _verify_sync_targets(
         return [], []
 
     if timeout_sec is None:
-        timeout_sec = float(getattr(Params, "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", 45.0))
+        timeout_sec = resolve_gcs_git_sync_verify_timeout_sec(
+            getattr(
+                Params,
+                "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC",
+                DEFAULT_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC,
+            )
+        )
     pending: Dict[str, Dict[str, Any]] = {str(d['hw_id']): d for d in target_drones}
     verified_hw_ids: set[str] = set()
     deadline = time.monotonic() + timeout_sec

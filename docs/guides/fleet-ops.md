@@ -99,6 +99,16 @@ The thresholds are registry-backed GCS env keys:
 Means the node commit matches the GCS commit. A drifted node may still be
 running, but it should not be treated as handoff-ready until it has synced.
 
+After a confirmed apply, Fleet Ops waits for the exact target branch and
+commit, a clean worktree, and zero ahead/behind drift. The bounded verification
+window defaults to 150 seconds through
+`MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC`. That budget covers the node's startup
+jitter, fetch/reset, post-sync validation, runtime reconcile, deferred restart,
+and final status polling. Nodes are checked concurrently, so the deadline is
+not multiplied by fleet size. Override it only for a measured deployment path;
+accepted values are 30 through 900 seconds, and invalid or out-of-range values
+fall back to 150 seconds. Changing it requires a GCS restart.
+
 Fleet Ops also surfaces the latest node-local git-sync runtime summary. If
 `service_reload_status=warning` and a deferred action ends in
 `manual_unit_update_required`, the repository sync succeeded but the node could

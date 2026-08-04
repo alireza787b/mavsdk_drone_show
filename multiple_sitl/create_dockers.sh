@@ -21,7 +21,7 @@ else
     exit 1
 fi
 
-if ! MDS_RESOLVED_USER_HOME="$(mds_resolve_user_home)"; then
+if ! resolved_user_home="$(mds_resolve_user_home)"; then
     printf 'Error: Cannot resolve the current account home; set MDS_USER_HOME for this supervisor.\n' >&2
     exit 1
 fi
@@ -122,7 +122,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
-HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$MDS_RESOLVED_USER_HOME/.local/share/mavsdk_drone_show/sitl_runtime}"
+HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$resolved_user_home/.local/share/mavsdk_drone_show/sitl_runtime}"
 HOST_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_HOST_SWARM_TRAJECTORY_DIR:-$REPO_ROOT/shapes_sitl/swarm_trajectory}"
 CONTAINER_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR:-/tmp/mds_shared_swarm_trajectory}"
 SHARE_HOST_SWARM_TRAJECTORY="${MDS_SITL_SHARE_SWARM_TRAJECTORY:-true}"

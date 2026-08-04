@@ -4457,7 +4457,7 @@ class MdsReadOnlyTools:
                 timeout=timeout,
             )
         except DroneProxyResponseError as exc:
-            return {}, f"HTTP {exc.status_code}: {_truncate_text(exc.detail, 80)}"
+            return {}, f"HTTP {exc.status_code}: {_truncate_text(str(exc), 80)}"
         except DroneProxyUnavailableError as exc:
             return {}, _truncate_text(str(exc), 80) or "request failed"
         except ValueError:

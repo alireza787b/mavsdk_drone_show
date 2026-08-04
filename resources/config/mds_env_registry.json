@@ -27,6 +27,32 @@
       "owner": "platform"
     },
     {
+      "name": "MDS_USER_HOME",
+      "title": "Supervisor user home override",
+      "scope": "bootstrap",
+      "domain": "runtime",
+      "source_of_truth": "process env",
+      "value_type": "path",
+      "default": "",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "diagnostic",
+      "restart_required": "manual",
+      "apply_action": "manual",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [
+        "tools/shell_runtime_paths.sh",
+        "tools/mds_git_access_check.sh",
+        "multiple_sitl/create_dockers.sh"
+      ],
+      "notes": "Optional explicit account home for launchers running under a minimal supervisor without a trustworthy HOME. Resolved paths remain shell-local and are not exported or persisted as another MDS_* setting.",
+      "owner": "platform"
+    },
+    {
       "name": "MDS_DEFAULT_PROFILE_ID",
       "title": "Deployment profile id",
       "scope": "deployment",
@@ -974,6 +1000,32 @@
       "docs": "docs/guides/runtime-config-sources.md",
       "consumers": ["src/params.py", "gcs-server/fleet_rpc.py"],
       "notes": "Per-node request bound. Response/write loss after dispatch begins is reported as delivery unknown and must be reconciled with the same command ID.",
+      "owner": "platform"
+    },
+    {
+      "name": "MDS_GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC",
+      "title": "Fleet git-sync verification deadline",
+      "scope": "gcs",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 150,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/fleet-ops.md",
+      "consumers": [
+        "src/params.py",
+        "gcs-server/app_fastapi.py",
+        "gcs-server/command_timeout_policy.py"
+      ],
+      "notes": "Absolute Fleet Ops postcondition window, constrained to 30..900 seconds; invalid, non-finite, or out-of-range values revert to 150 seconds. The 150-second default covers the node's bounded startup jitter plus fetch, reset, validation, runtime reconcile, deferred restart, and status-poll margin. Targets are polled concurrently, so it is not multiplied by fleet size.",
       "owner": "platform"
     },
     {
@@ -3640,7 +3692,7 @@
     },
     {
       "name": "MDS_AGENT_ACTION_CIRCUIT_BREAKER",
-      "title": "Simurgh non-action circuit breaker",
+      "title": "Block Simurgh action execution",
       "scope": "agent",
       "domain": "agent",
       "source_of_truth": "/etc/mds/gcs.env",
@@ -3662,7 +3714,7 @@
       "consumers": [
         "gcs-server/agent_runtime/policy.py"
       ],
-      "notes": "Primary field safety switch and final Simurgh execution stop. When true, upstream planning and approval may explain what would be called, but the executor must not run non-read-only tools. This does not affect human dashboard controls or MDS_MODE.",
+      "notes": "Optional Simurgh-layer safety switch and final Simurgh execution stop. When true, upstream planning and approval may explain what would be called, but the Simurgh executor must not run non-read-only tools. Normal human-operated MDS controls, vehicle readiness, and MDS_MODE are unaffected.",
       "owner": "simurgh"
     },
     {

@@ -4,7 +4,9 @@
 
 **Scope:** Catch-A-Drone two-node field deployment
 
-**Status:** both rolling-update corrections reproduced and locally validated; production node convergence and props-off acceptance remain pending
+**Status:** both nodes converged and the one-drone props-off admission check
+completed safely; bounded lifecycle corrections are locally validated and final
+integrated validation/release publication remain pending
 
 **Prior gate:** [Field Launch Readiness Release Gate](2026-08-03-field-launch-readiness-release-gate.md)
 
@@ -219,6 +221,98 @@ invalid, or stale global samples through the same validator.
   stale/unavailable/armed/invalid-position rejection, in-flight deviation
   observation, and no persistence after failed validation.
 
+## Live deployment and node convergence evidence
+
+The validated correction was published first to official `main` at
+`b037e446`, then cherry-picked to Catch-A-Drone private `main` as
+`1ada356b2be2bb5cab2d596ddf9a693de68da3dc`. The private checkout was clean
+before production deployment.
+
+The canonical production restart exposed an independent launcher defect:
+production mode exported `NODE_ENV=production` before dependency installation,
+so a clean `npm ci` omitted the build-time `react-scripts` dependency and the
+optimized dashboard build stopped after the old services had been terminated.
+Production was recovered without changing runtime policy by installing the
+locked dependency set with development/build dependencies included and rerunning
+the documented real-mode production launcher. The optimized build completed,
+the GCS and static dashboard returned healthy, real mode remained active,
+authentication remained enabled, and the Simurgh action circuit breaker
+remained on. The launcher correction is covered by the release described below.
+
+One authenticated Fleet Ops preview and one apply targeted exactly hardware 1
+and hardware 2 on private branch `main` at commit `1ada356b2`. The tracker was
+created at 11:52:36.878 UTC. The operation card reached a failed terminal result
+at 11:53:24.605 after its 45-second verification window, but the node boot
+stream then recorded the complete deferred-restart lifecycle as successful:
+hardware 1 at 11:54:18.831 and hardware 2 at 11:54:27.686. The slower target
+therefore required approximately 110.8 seconds from tracker creation. This was
+a verifier-window false negative, not an update rollback and not permission to
+retry the update.
+
+After restart, each node independently proved:
+
+- healthy `/ping` and coherent hardware identity (`hw_id=1` and `hw_id=2`);
+- branch `main`, exact commit `1ada356b2`, clean worktree, and zero commits
+  ahead or behind;
+- terminal Git-sync runtime status `success`; and
+- disarmed, idle ground state with zero active GCS commands.
+
+The real deployment therefore satisfied the convergence gate. One shared
+policy now gives the verifier a 150-second default, accepts only finite
+30–900-second deployment overrides, and derives the UPDATE_CODE tracker budget
+from that same value. This covers the observed 110.8-second lifecycle plus
+transport/poll margin without multiplying the deadline by fleet size.
+Completion truth remains the exact hardware/branch/commit/clean/ahead-behind
+postcondition; a longer wait cannot turn a wrong node or revision into success.
+
+## Live props-off admission evidence
+
+With both aircraft confirmed propeller-free, one exact Drone 1 **Take Off to
+2 m** request was submitted with one idempotency key. Its durable command ID was
+`36c57f67-9fe8-4bfd-b672-a943ccecbabb`.
+
+The request reached one clean failed terminal result before dispatch:
+
+- preparation blocked: 1 target;
+- transport/execution ACKs: 0;
+- expected executions: 0; and
+- operator summary: launch not dispatched under the all-required policy because
+  Drone 1 was not ready.
+
+The typed blockers were unavailable PX4 armability, global position, home
+position, and battery telemetry. After terminalization the GCS again reported
+zero active commands and both nodes remained disarmed and idle. This proves the
+correct fail-closed real-node admission, idempotency, tracking, reporting, and
+cleanup behavior for the observed indoor state. It does not claim an airborne
+or landing acceptance.
+
+## ULog smoke and bounded limitation
+
+The existing field ULogs remain Drone 1 IDs `103` and `104` and Drone 2 ID
+`60`. After node convergence, a GCS-proxied derived-summary smoke request for
+the approximately 45 MB Drone 1 log `103` reached HTTP 504 in only 5.902 seconds
+with `ulog_summary_timeout` and the bare message `TimeoutError`. The configured
+isolated-parser deadline was 90 seconds, so this was not evidence that the
+large log exhausted its parser budget. The failure happened during bounded
+node-local MAVSDK/PX4 ULog transport setup and was misclassified by a generic
+`TimeoutError` handler.
+
+The corrected contract gives MAVSDK server startup, MAVSDK RPC-channel setup,
+and PX4 connection wait explicit typed stages. Transport setup failures are
+retryable `ulog_transport_unavailable` or `ulog_transport_timeout`; only the
+resource-bounded parser can return `ulog_summary_timeout`. The GCS preserves the
+node's structured stage/detail while Simurgh renders concise text. No parser or
+download timeout was made unbounded, and the request did not expose raw content
+or leave a flight command active. A live retry belongs in the next props-off
+window because both nodes are now powered down.
+
+Deferred architecture note: a synchronous summary may include a node transfer
+whose independent ceiling is longer than the GCS summary and Simurgh evidence
+budgets. The clean future solution for guaranteed large-hardware-log completion
+is an asynchronous summary job/cache with explicit progress and terminal
+evidence, not a per-byte timeout guess. This mismatch did not cause the observed
+5.902-second setup failure and is not expanded in this field checkpoint.
+
 ## Required node convergence gate
 
 Before any command is tested, both nodes must independently prove all of the
@@ -291,6 +385,8 @@ through the same operator path.
 
 ## Release record
 
-The final official commit/tag, private commit/tag, node sync timestamps,
-runtime checks, props-off result, and any retrieved ULog identifiers must be
-appended here before this gate is marked complete.
+The final official commit/tag, private commit/tag, final production runtime
+commit, integrated validation, and release URLs must be appended here before
+this gate is marked complete. The node convergence, props-off command result,
+and ULog identifiers are recorded above and must not be replaced by an
+uncorrelated retry.

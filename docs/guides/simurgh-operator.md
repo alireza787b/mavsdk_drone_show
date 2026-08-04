@@ -388,6 +388,9 @@ real-command override. If the circuit breaker is on, Simurgh may still produce
 a dry-run explanation of the tool and arguments it would use, but the final
 executor layer must not perform the action. If the circuit breaker is off, the
 current `MDS_MODE`, tool risk policy, and human-confirmation rules still apply.
+This switch belongs only to the optional Simurgh layer: it does not disable,
+enable, or redefine normal human-operated MDS controls, vehicle readiness,
+Bench, Take Off, mission, or recovery behavior.
 
 ## Guarded Actions
 

@@ -244,7 +244,7 @@ describe('SimurghOperatorPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /operator chat/i })).toBeInTheDocument();
     expect(await screen.findByText('Agent on')).toBeInTheDocument();
     expect(screen.getByText('REAL')).toBeInTheDocument();
-    expect(screen.getByText('Circuit breaker on')).toBeInTheDocument();
+    expect(screen.getByText('Simurgh actions blocked')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message simurgh/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /start new simurgh chat/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /more chat history actions/i })).toBeInTheDocument();
@@ -262,7 +262,7 @@ describe('SimurghOperatorPage', () => {
     expect(await screen.findByText('Posture unavailable')).toBeInTheDocument();
     expect(screen.getByText('Runtime unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Agent off')).not.toBeInTheDocument();
-    expect(screen.queryByText('Circuit breaker off')).not.toBeInTheDocument();
+    expect(screen.queryByText('Simurgh actions enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('Provider ready')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /open simurgh settings/i })).toBeDisabled();
     expect(screen.getByRole('textbox', { name: /message simurgh/i })).toBeDisabled();
@@ -283,7 +283,7 @@ describe('SimurghOperatorPage', () => {
 
     expect(await screen.findByText('Posture unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Agent on')).not.toBeInTheDocument();
-    expect(screen.queryByText('Circuit breaker on')).not.toBeInTheDocument();
+    expect(screen.queryByText('Simurgh actions blocked')).not.toBeInTheDocument();
     expect(input).toBeDisabled();
   });
 
@@ -678,6 +678,14 @@ describe('SimurghOperatorPage', () => {
     expect(within(activeToolsPanel).getByText('Guarded')).toBeInTheDocument();
     expect(await screen.findByText('MCP review')).toBeInTheDocument();
     expect(screen.getByText('196')).toBeInTheDocument();
+    const actionStop = screen.getByLabelText(/block simurgh actions/i);
+    expect(actionStop).toBeChecked();
+    expect(screen.getByText('Simurgh cannot execute actions')).toBeInTheDocument();
+    expect(screen.getByText(/normal MDS operator controls still work/i)).toBeInTheDocument();
+    fireEvent.click(actionStop);
+    expect(screen.getByText('Simurgh may execute approved actions')).toBeInTheDocument();
+    expect(screen.getByText(/normal MDS controls and drone readiness are separate/i)).toBeInTheDocument();
+    fireEvent.click(actionStop);
     fireEvent.change(screen.getByLabelText(/simurgh provider/i), { target: { value: 'openai' } });
     fireEvent.change(screen.getByLabelText(/openai model/i), { target: { value: 'gpt-5.4-nano' } });
     fireEvent.click(screen.getByLabelText(/web search/i));

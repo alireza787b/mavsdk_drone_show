@@ -118,7 +118,7 @@ github_https_repo_url() {
 
 require_cmd git
 
-if ! MDS_RESOLVED_USER_HOME="$(mds_resolve_user_home)"; then
+if ! resolved_user_home="$(mds_resolve_user_home)"; then
     fail "Cannot resolve the current account home; set MDS_USER_HOME explicitly for this supervisor."
 fi
 
@@ -140,7 +140,7 @@ TMP_DIR=""
 
 runtime_tmp_dir() {
     local candidate
-    for candidate in "${XDG_RUNTIME_DIR:-}" "${MDS_RESOLVED_USER_HOME}/.cache/mds-runtime" "/var/tmp/mds-runtime"; do
+    for candidate in "${XDG_RUNTIME_DIR:-}" "${resolved_user_home}/.cache/mds-runtime" "/var/tmp/mds-runtime"; do
         [[ -n "$candidate" ]] || continue
         mkdir -p "$candidate" 2>/dev/null || continue
         chmod 700 "$candidate" 2>/dev/null || true
@@ -160,9 +160,9 @@ trap cleanup EXIT
 
 if should_use_ssh; then
     [[ -r "$MDS_GIT_SSH_KEY_FILE" ]] || fail "MDS_GIT_SSH_KEY_FILE is not readable: $MDS_GIT_SSH_KEY_FILE"
-    mkdir -p "$MDS_RESOLVED_USER_HOME/.ssh"
-    chmod 700 "$MDS_RESOLVED_USER_HOME/.ssh"
-    export GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${MDS_GIT_KNOWN_HOSTS_FILE:-$MDS_RESOLVED_USER_HOME/.ssh/known_hosts}"
+    mkdir -p "$resolved_user_home/.ssh"
+    chmod 700 "$resolved_user_home/.ssh"
+    export GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${MDS_GIT_KNOWN_HOSTS_FILE:-$resolved_user_home/.ssh/known_hosts}"
     export GIT_TERMINAL_PROMPT=0
     AUTH_MODE="ssh-key-file"
 elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then

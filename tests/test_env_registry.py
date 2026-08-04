@@ -25,6 +25,26 @@ def test_env_registry_loads_without_raw_secret_entries():
     assert not [entry.name for entry in registry.entries.values() if entry.secret]
 
 
+def test_supervisor_home_override_is_registered_but_resolved_home_is_shell_local():
+    registry = load_env_registry()
+    entry = registry.require("MDS_USER_HOME")
+
+    assert entry.scope == "bootstrap"
+    assert entry.domain == "runtime"
+    assert entry.source_of_truth == "process env"
+    assert entry.value_type == "path"
+    assert entry.editable is False
+
+    audit = audit_mds_env_references()
+    assert "MDS_USER_HOME" in audit.registered
+    assert "MDS_USER_HOME" not in audit.internal
+    assert "MDS_RESOLVED_USER_HOME" not in {
+        *audit.registered,
+        *audit.internal,
+        *audit.unclassified,
+    }
+
+
 def test_env_registry_covers_active_templates():
     registry = load_env_registry()
     expected_keys = set()

@@ -248,6 +248,73 @@ class TestHealthEndpoints:
         assert response.headers["access-control-allow-credentials"] == "true"
 
 
+class TestGlobalHttpErrorBoundary:
+    """Exercise the real app-level 5xx detail sanitizer."""
+
+    @staticmethod
+    def _request(path: str):
+        from starlette.requests import Request
+
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": path,
+                "raw_path": path.encode("utf-8"),
+                "query_string": b"",
+                "headers": [],
+                "scheme": "http",
+                "server": ("testserver", 80),
+                "client": ("testclient", 50000),
+            }
+        )
+
+    def test_preserves_canonical_typed_ulog_stage(self, monkeypatch):
+        import app_fastapi
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        detail = {
+            "code": "ulog_transport_timeout",
+            "error": "ulog_transport_timeout",
+            "message": "Timed out opening the node-local MAVSDK RPC channel.",
+            "stage": "mavsdk_rpc_connect",
+            "timeout_seconds": 5.0,
+            "retryable": True,
+        }
+        monkeypatch.setattr(app_fastapi, "log_system_error", Mock())
+
+        response = asyncio.run(
+            app_fastapi.http_error_handler(
+                self._request("/api/logs/drone/1/ulog/files/103/summary"),
+                StarletteHTTPException(status_code=504, detail=detail),
+            )
+        )
+        payload = json.loads(response.body)
+
+        assert response.status_code == 504
+        assert payload["detail"] == detail
+        assert payload["detail"]["stage"] == "mavsdk_rpc_connect"
+
+    def test_redacts_arbitrary_5xx_dict_without_canonical_code(self, monkeypatch):
+        import app_fastapi
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        monkeypatch.setattr(app_fastapi, "log_system_error", Mock())
+        response = asyncio.run(
+            app_fastapi.http_error_handler(
+                self._request("/unsafe"),
+                StarletteHTTPException(
+                    status_code=500,
+                    detail={"error": "raw_internal", "message": "private traceback"},
+                ),
+            )
+        )
+        payload = json.loads(response.body)
+
+        assert response.status_code == 500
+        assert "detail" not in payload
+
+
 class TestSwarmTrajectoryPolicyEndpoint:
     """Test Swarm Trajectory runtime policy endpoint."""
 
@@ -1707,6 +1774,58 @@ class TestGitStatusEndpoints:
             "abc12345",
             "41",
         ) is False
+
+    def test_sync_verifier_default_covers_delayed_node_convergence(self, monkeypatch):
+        """A healthy rolling update may converge after the former 45-second window."""
+        import app_fastapi
+
+        target = {"hw_id": "42", "pos_id": 7, "ip": "192.0.2.42"}
+        old_report = {
+            "hw_id": "42",
+            "branch": "main-candidate",
+            "commit": "old12345",
+            "status": "clean",
+            "uncommitted_changes": [],
+            "commits_ahead": 0,
+            "commits_behind": 1,
+        }
+        converged_report = {
+            **old_report,
+            "commit": "abc12345",
+            "commits_behind": 0,
+        }
+        reports = [old_report] * 5 + [converged_report]
+        observed_reports = []
+
+        def read_status(_uri):
+            report = reports.pop(0)
+            observed_reports.append(report)
+            return report
+
+        # The sixth observation is at virtual t=120s: later than the retired
+        # 45s budget and the observed 110.8s full field restart cycle, but
+        # still inside the current bounded default.
+        monotonic_values = iter((0.0, 0.0, 30.0, 60.0, 90.0, 110.0, 120.0))
+        monkeypatch.setattr(
+            app_fastapi,
+            "time",
+            SimpleNamespace(monotonic=lambda: next(monotonic_values)),
+        )
+        monkeypatch.setattr(app_fastapi, "_config_get_drone_git_status", read_status)
+
+        verified, failed = asyncio.run(
+            app_fastapi._verify_sync_targets(
+                [target],
+                expected_branch="main-candidate",
+                expected_commit="abc12345",
+                poll_interval_sec=0.0,
+            )
+        )
+
+        assert app_fastapi.Params.GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC == 150.0
+        assert len(observed_reports) == 6
+        assert verified == ["42"]
+        assert failed == []
 
     """Test git status endpoints"""
 

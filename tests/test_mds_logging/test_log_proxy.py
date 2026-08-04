@@ -194,6 +194,40 @@ class TestFetchDroneJsonSync:
         assert exc_info.value.status_code == 409
         assert exc_info.value.detail == "vehicle armed"
 
+    def test_fetch_drone_json_sync_preserves_structured_node_error(self):
+        from log_proxy import DroneProxyResponseError, fetch_drone_json_sync
+
+        detail = {
+            "code": "ulog_transport_timeout",
+            "error": "ulog_transport_timeout",
+            "message": "Timed out opening the node-local MAVSDK RPC channel.",
+            "stage": "mavsdk_rpc_connect",
+            "retryable": True,
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 504
+        mock_response.json.return_value = {"detail": detail}
+
+        with (
+            patch("log_proxy.httpx.Client") as MockClient,
+            patch("log_proxy._authenticated_ulog_headers", return_value={}),
+        ):
+            client_instance = MagicMock()
+            client_instance.request = MagicMock(return_value=mock_response)
+            client_instance.__enter__ = MagicMock(return_value=client_instance)
+            client_instance.__exit__ = MagicMock(return_value=None)
+            MockClient.return_value = client_instance
+
+            with pytest.raises(DroneProxyResponseError) as exc_info:
+                fetch_drone_json_sync(
+                    "192.168.1.105",
+                    "/api/v1/ulog/files/1/summary",
+                )
+
+        assert exc_info.value.status_code == 504
+        assert exc_info.value.detail == detail
+        assert str(exc_info.value) == detail["message"]
+
 
 class TestUlogProxyTimeouts:
     @pytest.mark.asyncio

@@ -31,6 +31,7 @@ handled separately from normal desired state, see
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
 | GCS command lifecycle state | `MDS_GCS_COMMAND_STATE_DIR` | Host-local SQLite/WAL journal and callback key; persistent and never git-tracked |
 | GCS dashboard/API auth | `/etc/mds/gcs.env` + `/etc/mds/auth/*` | Config flags in env; user/token/session secrets in root-owned local files |
+| Supervisor-safe launcher home | `MDS_USER_HOME` process override | Optional fallback only when a minimal supervisor does not provide a trustworthy `HOME`; resolved paths stay shell-local and are not another persisted setting |
 | Dashboard build/runtime hints | `app/dashboard/drone-dashboard/.env` | Mapbox token, React dev port, and optional `REACT_APP_MDS_SERVER_URL` for split-host deployments |
 | Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, `MDS_MODE`, GCS routing, repo/branch/auth/connectivity overrides for that node |
 | Node identity metadata | `/etc/mds/node_identity.json` | Canonical structured node identity/reporting metadata |
