@@ -14,6 +14,24 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   the target revision. Intentional deletions no longer look like invalid
   Python or shell files and force an otherwise healthy release rollback; path
   discovery is NUL-delimited so unusual repository filenames remain safe.
+- Fleet Ops can now bootstrap an older node across the command-envelope
+  upgrade without weakening normal command delivery. Only `UPDATE_CODE`, from
+  the typed Fleet Ops authority, may retry the exact two-field old-schema 422;
+  the GCS first verifies the same host's hardware identity, preserves the
+  command ID, retries once, and never applies this compatibility path to a
+  flight or recovery mission.
+- Tracked code updates now complete from the Fleet Ops branch/commit/clean-
+  runtime postcondition instead of racing a callback that may be interrupted
+  by the node restart. Transport ACKs and authenticated node reports remain
+  separate evidence, the verifier result is journaled atomically, and the
+  tracker deadline covers the complete dispatch and verification envelope.
+- Drone-referenced formation origin now uses one server-authoritative identity,
+  telemetry, slot, altitude, preview, and persistence contract. Mission Config
+  unwraps the canonical telemetry payload, distinguishes raw 3D GPS from a
+  usable PX4 global position, rejects stale/invalid/armed references, prevents
+  cross-selection preview races, and reports success only after the atomic
+  origin write succeeds. Deviation review applies the same fresh-global-
+  position validator, and dead duplicate origin-modal/export code is removed.
 
 ## [5.5.115-field-launch-readiness] - 2026-08-03
 

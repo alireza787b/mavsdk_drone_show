@@ -10,7 +10,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
-from command_tracker import CommandIdempotencyConflictError
+from command_tracker import (
+    CommandCompletionAuthority,
+    CommandIdempotencyConflictError,
+)
 from command_execution_policy import (
     CommandSubmissionAuthority,
     CommandSubmissionPolicyError,
@@ -346,6 +349,16 @@ async def submit_tracked_command(
             target_hw_ids,
         )
 
+    fleet_git_completion = (
+        resolved_mission is deps.Mission.UPDATE_CODE
+        and authority is CommandSubmissionAuthority.FLEET_OPS_GIT_SYNC
+    )
+    completion_authority = (
+        CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+        if fleet_git_completion
+        else CommandCompletionAuthority.NODE_CALLBACK
+    )
+
     get_coordinator = getattr(deps, "get_command_submission_coordinator", None)
     if not callable(get_coordinator):
         raise HTTPException(
@@ -389,6 +402,7 @@ async def submit_tracked_command(
             request_fingerprint=request_fingerprint,
             preparation_required=launch_preparation_required,
             start_preparing=True,
+            completion_authority=completion_authority,
         )
         command_id = creation_result.command_id
 
@@ -419,6 +433,7 @@ async def submit_tracked_command(
             tracking_processed_dir=tracking_processed_dir,
             tracking_shapes_dir=tracking_shapes_dir,
             per_target_payloads=normalized_per_target_payloads,
+            allow_legacy_update_envelope=fleet_git_completion,
         )
         tracked_status = await tracker.get_status(command_id)
         if tracked_status is None:

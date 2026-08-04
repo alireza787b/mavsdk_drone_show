@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import sys
 import time
 import urllib.error
@@ -359,29 +360,41 @@ def build_swarm_patch_update(current_assignment: dict[str, Any], *, patch_delta:
     return patch_payload, updated
 
 
-def select_origin_compute_source(
+def select_origin_reference_hw_id(
     *,
     selected_ids: list[int],
     fleet_entries: list[dict[str, Any]],
     telemetry: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+) -> str:
     fleet_index = fleet_by_hw_id(fleet_entries)
     for hw_id in selected_ids:
         entry = fleet_index.get(int(hw_id))
         row = telemetry.get(str(hw_id))
         if not entry or not row:
             continue
-        lat = row.get("position_lat")
-        lon = row.get("position_long")
-        if lat in (None, "") or lon in (None, ""):
+        if row.get("telemetry_available") is not True:
             continue
-        return {
-            "hw_id": int(hw_id),
-            "pos_id": int(entry.get("pos_id", hw_id)),
-            "current_lat": float(lat),
-            "current_lon": float(lon),
-        }
-    raise RuntimeError(f"No telemetry-backed origin-compute source found for drones {selected_ids}")
+        if row.get("global_position_valid") is not True:
+            continue
+        if str(row.get("position_source") or "") != "global_position_int":
+            continue
+        try:
+            lat = float(row.get("position_lat"))
+            lon = float(row.get("position_long"))
+            alt = float(row.get("position_alt"))
+            age_ms = int(row.get("global_position_age_ms"))
+        except (TypeError, ValueError):
+            continue
+        if not all(math.isfinite(value) for value in (lat, lon, alt)):
+            continue
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            continue
+        if abs(lat) <= 0.000001 and abs(lon) <= 0.000001:
+            continue
+        if age_ms < 0 or age_ms > 15_000:
+            continue
+        return str(hw_id)
+    raise RuntimeError(f"No fresh PX4 global-position origin reference found for drones {selected_ids}")
 
 
 def load_origin_file_snapshot(repo_root: Path) -> dict[str, Any]:
@@ -563,28 +576,23 @@ def main() -> int:
         }
 
         telemetry = client.get_telemetry()
-        origin_compute_source = select_origin_compute_source(
+        origin_reference_hw_id = select_origin_reference_hw_id(
             selected_ids=args.drone_ids,
             fleet_entries=original_fleet,
             telemetry=telemetry,
         )
-        results["origin_compute_source"] = origin_compute_source
+        results["origin_reference_hw_id"] = origin_reference_hw_id
 
-        compute_result = client.compute_origin(
-            {
-                "current_lat": origin_compute_source["current_lat"],
-                "current_lon": origin_compute_source["current_lon"],
-                "pos_id": origin_compute_source["pos_id"],
-            }
-        )
+        compute_result = client.compute_origin({"hw_id": origin_reference_hw_id})
         results["origin_compute"] = compute_result
         require(compute_result.get("status") == "success", f"Origin compute failed: {compute_result}")
+        computed_origin = compute_result.get("origin", {})
 
         temp_origin_payload = {
-            "lat": float(compute_result["lat"]),
-            "lon": float(compute_result["lon"]),
-            "alt": float(original_origin.get("alt", 0.0) or 0.0) + float(args.origin_altitude_delta),
-            "alt_source": "validator",
+            "method": "manual",
+            "lat": float(computed_origin["lat"]),
+            "lon": float(computed_origin["lon"]),
+            "alt": float(computed_origin["alt"]) + float(args.origin_altitude_delta),
         }
         saved_origin = client.put_origin(temp_origin_payload)
         bootstrap_origin = client.get_origin_bootstrap()

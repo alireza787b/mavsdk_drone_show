@@ -608,6 +608,7 @@ class GPSGlobalOriginResponse(BaseModel):
 
 
 class DroneGitStatusResponse(BaseModel):
+    hw_id: str
     branch: str
     commit: str
     author_name: str
@@ -2658,6 +2659,7 @@ class DroneAPIServer:
                 raise HTTPException(status_code=500, detail=git_report["error"])
 
             return {
+                'hw_id': str(self.drone_config.hw_id),
                 'branch': git_report.get('branch', ''),
                 'commit': git_report.get('commit', ''),
                 'author_name': git_report.get('author_name', ''),

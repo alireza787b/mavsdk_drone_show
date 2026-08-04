@@ -19,7 +19,7 @@ from command_execution_policy import (
     resolve_mission_type,
 )
 from command_journal import CALLBACK_KEY_FILENAME, DATABASE_FILENAME
-from command_tracker import CommandTracker
+from command_tracker import CommandCompletionAuthority, CommandTracker
 from src.enums import CommandPhase, Mission
 from tests.helpers.command_submission import DeferredSubmissionCoordinator
 from tests.helpers.fake_fleet_rpc import FakeFleetRPC
@@ -239,4 +239,60 @@ async def test_restart_mid_fanout_marks_only_missing_targets_delivery_unknown(tm
         }
     assert {"commands", "command_targets", "command_events"}.issubset(tables)
     assert "restart_delivery_reconciled" in event_types
+    restored_tracker.close()
+
+
+@pytest.mark.asyncio
+async def test_postcondition_authority_and_node_diagnostics_survive_restart(tmp_path):
+    """Journal restoration must preserve both terminal truth and conflicting node evidence."""
+
+    state_dir = tmp_path / "command-state"
+    first_tracker = CommandTracker(state_dir=str(state_dir))
+    creation = await first_tracker.create_or_replay_command(
+        mission_type=Mission.UPDATE_CODE.value,
+        target_drones=["1", "2"],
+        completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+    )
+    capabilities = await first_tracker.get_callback_capabilities(creation.command_id)
+    assert await first_tracker.mark_submitted(creation.command_id) is True
+    for hw_id in ("1", "2"):
+        assert await first_tracker.record_ack(
+            creation.command_id,
+            hw_id,
+            category="accepted",
+        ) is True
+
+    assert await first_tracker.record_execution(
+        creation.command_id,
+        "1",
+        False,
+        error_message="legacy callback lost its restart response",
+        callback_capability=capabilities["1"],
+    ) is True
+    assert await first_tracker.record_authoritative_completion(
+        creation.command_id,
+        {
+            "1": {"success": True},
+            "2": {"success": False, "error_message": "runtime commit did not load"},
+        },
+        completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+        callback_capabilities=capabilities,
+    ) is True
+    first_tracker.close()
+
+    restored_tracker = CommandTracker(state_dir=str(state_dir))
+    status = await restored_tracker.get_status(creation.command_id)
+    serialized = json.dumps(status)
+
+    assert status["completion_authority"] == "fleet_git_postcondition"
+    assert status["status"] == "partial"
+    assert status["phase"] == "terminal"
+    assert status["outcome"] == "partial"
+    assert status["executions"]["details"]["1"]["success"] is True
+    assert status["executions"]["details"]["2"]["success"] is False
+    assert status["node_execution_reports"]["details"]["1"]["success"] is False
+    assert "1" in status["completion_discrepancies"]
+    assert capabilities["1"] not in serialized
+    assert capabilities["2"] not in serialized
+    assert "callback_capability" not in serialized
     restored_tracker.close()

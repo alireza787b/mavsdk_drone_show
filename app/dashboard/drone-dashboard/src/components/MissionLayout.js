@@ -1,11 +1,10 @@
 // src/components/MissionLayout.js
 
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import '../styles/MissionLayout.css';
 import { FaDownload, FaMapMarkerAlt, FaPrint } from 'react-icons/fa';
 import { generateKML } from '../utilities/missionConfigUtilities';
-import OriginModal from './OriginModal';
 
 /**
  * MissionLayout
@@ -15,7 +14,6 @@ import OriginModal from './OriginModal';
  * - Origin controls and status (right) for balance
  */
 const MissionLayout = ({ configData, origin, openOriginModal }) => {
-  const [showOriginModal, setShowOriginModal] = useState(false);
   const hasOriginCoordinates = origin.lat !== null
     && origin.lat !== undefined
     && origin.lon !== null
@@ -29,7 +27,7 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
   // Export the drone positions to a KML file for Google Earth
   const exportToKML = () => {
     if (!hasOriginCoordinates) {
-      setShowOriginModal(true);
+      openOriginModal();
       return;
     }
 
@@ -48,12 +46,6 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleOriginSubmit = (newOrigin) => {
-    // Use the existing openOriginModal functionality instead
-    setShowOriginModal(false);
-    exportToKML();
   };
 
   return (
@@ -92,18 +84,6 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
           )}
         </div>
       </div>
-
-      {/* Origin Modal for KML export when no origin is set */}
-      {showOriginModal && (
-        <OriginModal
-          isOpen={showOriginModal}
-          onClose={() => setShowOriginModal(false)}
-          onSubmit={handleOriginSubmit}
-          telemetryData={{}}
-          configData={configData}
-          currentOrigin={origin}
-        />
-      )}
     </div>
   );
 };

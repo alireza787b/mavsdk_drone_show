@@ -26,7 +26,10 @@ from command_execution_policy import (
 )
 from src.enums import CommandErrorCode, CommandResultCategory, Mission
 from src.live_armability_utils import calculate_live_armability_request_timeout
-from src.drone_api_routes import DRONE_LAUNCH_PREPARATION_ROUTE
+from src.drone_api_routes import (
+    DRONE_LAUNCH_PREPARATION_ROUTE,
+    DRONE_SWARM_STATE_ROUTE,
+)
 from target_command_payloads import validate_per_target_payloads
 from src.command_execution_contract import mission_requires_launch_armability_probe
 from src.launch_preparation_protocol import (
@@ -57,6 +60,51 @@ def _response_payload(response: httpx.Response) -> dict[str, Any]:
     except (ValueError, TypeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+_LEGACY_UPDATE_ENVELOPE_FIELDS = frozenset(
+    {"target_hw_id", "command_report_capability"}
+)
+_PYDANTIC_EXTRA_FIELD_ERROR_TYPES = frozenset(
+    {"extra_forbidden", "value_error.extra"}
+)
+
+
+def _is_legacy_update_envelope_rejection(
+    *,
+    status_code: int,
+    payload: dict[str, Any],
+) -> bool:
+    """Recognize only the old-node rejection of the two new envelope fields.
+
+    FastAPI/Pydantic v1 and v2 use different error type names, but both report
+    request-body locations.  Requiring exactly the two known errors prevents a
+    retry from hiding any other validation failure.
+    """
+
+    if status_code != 422:
+        return False
+    detail = payload.get("detail")
+    if not isinstance(detail, list) or len(detail) != 2:
+        return False
+
+    rejected_fields: set[str] = set()
+    for error in detail:
+        if not isinstance(error, dict):
+            return False
+        if error.get("type") not in _PYDANTIC_EXTRA_FIELD_ERROR_TYPES:
+            return False
+        location = error.get("loc")
+        if (
+            not isinstance(location, (list, tuple))
+            or len(location) != 2
+            or location[0] != "body"
+            or location[1] not in _LEGACY_UPDATE_ENVELOPE_FIELDS
+        ):
+            return False
+        rejected_fields.add(location[1])
+
+    return rejected_fields == _LEGACY_UPDATE_ENVELOPE_FIELDS
 
 
 def _is_exact_nonblank_string(value: Any) -> bool:
@@ -567,6 +615,7 @@ class FleetRPCService:
         per_target_payloads: dict[str, dict[str, Any]] | None = None,
         launch_preparation_tokens: dict[str, str] | None = None,
         operation_deadline_sec: float | None = None,
+        allow_legacy_update_envelope: bool = False,
     ) -> dict[str, Any]:
         """Dispatch one idempotent command attempt to every committed target."""
 
@@ -731,6 +780,55 @@ class FleetRPCService:
                     timeout=request_timeout,
                 )
                 payload = _response_payload(response)
+                used_legacy_update_envelope = False
+                if (
+                    allow_legacy_update_envelope is True
+                    and mission is Mission.UPDATE_CODE
+                    and _is_legacy_update_envelope_rejection(
+                        status_code=response.status_code,
+                        payload=payload,
+                    )
+                ):
+                    # Dropping target_hw_id is safe only after a read from the
+                    # same host proves that its runtime hardware identity is
+                    # the intended numeric target. Any probe failure leaves
+                    # the original schema rejection authoritative.
+                    identity_matches = False
+                    identity_url = (
+                        f"http://{drone.get('ip')}:{self.params.drone_api_port}"
+                        f"{DRONE_SWARM_STATE_ROUTE}"
+                    )
+                    try:
+                        identity_response = await client.get(
+                            identity_url,
+                            timeout=request_timeout,
+                        )
+                    except httpx.HTTPError:
+                        identity_response = None
+                    if identity_response is not None and identity_response.status_code == 200:
+                        identity_hw_id = _response_payload(identity_response).get("hw_id")
+                        identity_matches = (
+                            type(identity_hw_id) is int
+                            and str(identity_hw_id) == drone_id
+                        )
+
+                    if identity_matches:
+                        # The first request was rejected by FastAPI schema
+                        # validation, before the command handler could run.
+                        # Retry the same UPDATE_CODE command ID once using only
+                        # the old node's envelope. No flight or recovery
+                        # mission can enter this compatibility path.
+                        legacy_payload = dict(command_payload)
+                        legacy_payload.pop("target_hw_id")
+                        legacy_payload.pop("command_report_capability")
+                        response = await client.post(
+                            url,
+                            json=legacy_payload,
+                            headers=headers,
+                            timeout=request_timeout,
+                        )
+                        payload = _response_payload(response)
+                        used_legacy_update_envelope = True
                 latency_ms = int((time.monotonic() - started) * 1000)
                 if response.status_code != 200:
                     code, message, detail = _node_error_fields(
@@ -823,7 +921,11 @@ class FleetRPCService:
                     return {
                         "success": True,
                         "category": CommandResultCategory.ACCEPTED.value,
-                        "delivery_state": "accepted",
+                        "delivery_state": (
+                            "accepted_legacy_update_envelope"
+                            if used_legacy_update_envelope
+                            else "accepted"
+                        ),
                         "error": None,
                         "error_code": None,
                         "error_detail": None,

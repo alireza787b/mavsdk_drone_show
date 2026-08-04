@@ -654,19 +654,33 @@ Get current origin coordinates.
 ```
 
 #### `PUT /api/v1/origin`
-Set origin coordinates manually.
+Persist a manual origin or atomically derive one from a live drone reference.
 
-**Request:**
+**Manual request:**
 ```json
 {
+  "method": "manual",
   "lat": 35.123456,
   "lon": -120.654321,
-  "alt": 488.0,
-  "alt_source": "manual"
+  "alt": 488.0
 }
 ```
 
-`alt` is optional on the canonical write path and defaults to `0.0` meters MSL when omitted.
+`alt` defaults to `0.0` meters MSL when omitted. The server owns the source
+label; clients do not submit `alt_source`.
+
+**Drone-reference request:**
+```json
+{
+  "method": "drone_reference",
+  "hw_id": "2"
+}
+```
+
+For a drone reference, the GCS resolves the configured slot, revalidates a
+fresh disarmed `GLOBAL_POSITION_INT` sample with absolute MSL altitude, computes
+the origin, and persists it as one operation. Validation failure leaves the
+saved origin unchanged.
 
 #### `GET /api/v1/origin/bootstrap`
 Canonical origin bootstrap payload for runtime consumers that need origin before flight.
@@ -711,16 +725,16 @@ Get elevation data for coordinates.
 ```
 
 #### `POST /api/v1/origin/compute`
-Compute origin from drone's current position.
+Preview origin from a configured drone's current position.
 
-This endpoint is compute-only. It returns the candidate origin and does not persist it. Use `PUT /api/v1/origin` to save the result explicitly.
+This endpoint is compute-only. The browser supplies hardware identity only; the
+GCS resolves slot ownership and authoritative telemetry. A raw 3D receiver fix
+without a valid PX4 global position is rejected.
 
 **Request:**
 ```json
 {
-  "current_lat": 35.123456,
-  "current_lon": -120.654321,
-  "pos_id": 1
+  "hw_id": "2"
 }
 ```
 
@@ -728,16 +742,38 @@ This endpoint is compute-only. It returns the candidate origin and does not pers
 ```json
 {
   "status": "success",
-  "lat": 35.123456,
-  "lon": -120.654321
+  "origin": {
+    "lat": 35.123456,
+    "lon": -120.654321,
+    "alt": 488.0,
+    "source": "drone_global_position_msl"
+  },
+  "reference": {
+    "hw_id": "2",
+    "pos_id": 2,
+    "latitude": 35.1234,
+    "longitude": -120.6543,
+    "altitude_msl": 488.0,
+    "position_source": "global_position_int",
+    "position_timestamp_ms": 1785859200000,
+    "position_age_ms": 800,
+    "gps_fix_type": 3
+  },
+  "intended_offset": {
+    "north_m": -5.0,
+    "east_m": -2.5
+  }
 }
 ```
 
-Malformed JSON or missing/invalid required fields now return the shared
-validation envelope instead of route-local `400` parsing errors.
+Operational reference failures return `409` with a typed `detail.code` and an
+operator-facing `detail.message`. Unknown hardware or missing trajectory return
+`404`; malformed requests return the shared `422` validation envelope.
 
 #### `GET /api/v1/origin/deviations`
-Calculate position deviations for all drones.
+Calculate position deviations for all drones. Only fresh, valid PX4 global
+positions are compared; invalid or stale samples are reported as
+`no_telemetry` rather than being treated as coordinates.
 
 **Response:**
 ```json

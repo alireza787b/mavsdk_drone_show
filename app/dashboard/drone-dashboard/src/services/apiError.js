@@ -8,6 +8,13 @@ export async function extractApiErrorMessage(error, fallbackMessage = 'Request f
       return payload.detail;
     }
 
+    if (payload.detail && typeof payload.detail === 'object' && !Array.isArray(payload.detail)) {
+      const nestedMessage = payload.detail.message || payload.detail.detail || payload.detail.error;
+      if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+        return nestedMessage;
+      }
+    }
+
     if (Array.isArray(payload.detail) && payload.detail.length > 0) {
       const firstDetail = payload.detail[0];
       if (typeof firstDetail === 'string' && firstDetail.trim()) {

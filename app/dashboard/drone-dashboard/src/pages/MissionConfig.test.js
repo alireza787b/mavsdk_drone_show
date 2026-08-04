@@ -1,9 +1,10 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import MissionConfig from './MissionConfig';
 import useFetch from '../hooks/useFetch';
 import { useNormalizedTelemetry } from '../hooks/useNormalizedTelemetry';
+import { setOriginResponse } from '../services/gcsApiService';
 
 jest.mock('../hooks/useFetch');
 jest.mock('../hooks/useNormalizedTelemetry', () => ({
@@ -39,8 +40,21 @@ jest.mock('../components/DronePositionMap', () => () => <div data-testid="drone-
 jest.mock('../components/SaveReviewDialog', () => () => <div data-testid="save-review-dialog" />);
 jest.mock('../components/ClusterScopeBar', () => () => <div data-testid="cluster-scope-bar" />);
 jest.mock('../components/OriginModal', () => {
-  function MockOriginModal({ isOpen }) {
-    return isOpen ? <div data-testid="origin-modal">Origin modal</div> : null;
+  function MockOriginModal({ isOpen, onSubmit }) {
+    if (!isOpen) return null;
+    return (
+      <div data-testid="origin-modal">
+        Origin modal
+        <button
+          type="button"
+          onClick={() => {
+            Promise.resolve(onSubmit({ method: 'manual', lat: 0, lon: 0, alt: 0 })).catch(() => {});
+          }}
+        >
+          Save mock origin
+        </button>
+      </div>
+    );
   }
 
   return MockOriginModal;
@@ -76,6 +90,16 @@ const renderMissionConfig = () => render(
   </MemoryRouter>
 );
 
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
+
 const buildFetchResponseMap = (originResponse, overrides = {}) => {
   const base = {
     fleetConfig: {
@@ -100,6 +124,18 @@ const buildFetchResponseMap = (originResponse, overrides = {}) => {
   return merged;
 };
 
+const normalizedFleetTelemetry = {
+  data: { '2': { hw_id: '2', global_position_valid: true } },
+  loading: false,
+  error: null,
+};
+
+const normalizedGitStatus = {
+  data: { git_status: {}, gcs_status: null },
+  loading: false,
+  error: null,
+};
+
 describe('MissionConfig origin review surface', () => {
   const originalScrollIntoView = Element.prototype.scrollIntoView;
 
@@ -108,7 +144,12 @@ describe('MissionConfig origin review surface', () => {
   });
 
   beforeEach(() => {
-    useNormalizedTelemetry.mockReturnValue({ data: { git_status: {}, gcs_status: null } });
+    useNormalizedTelemetry.mockImplementation((endpoint) => (
+      endpoint === 'fleetTelemetry'
+        ? normalizedFleetTelemetry
+        : normalizedGitStatus
+    ));
+    setOriginResponse.mockReset();
   });
 
   afterEach(() => {
@@ -139,6 +180,20 @@ describe('MissionConfig origin review surface', () => {
     expect(screen.getByText('Checking')).toBeInTheDocument();
   });
 
+  test('uses the normalized fleet telemetry contract for the origin workflow', () => {
+    const fetchResponses = buildFetchResponseMap({
+      data: null,
+      loading: false,
+      error: null,
+    });
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+
+    expect(useNormalizedTelemetry).toHaveBeenCalledWith('fleetTelemetry', 2000);
+    expect(useNormalizedTelemetry).toHaveBeenCalledWith('gitStatus', 20000);
+  });
+
   test('opens the origin workflow when the origin warning is clicked', () => {
     const fetchResponses = buildFetchResponseMap({
       data: null,
@@ -156,6 +211,60 @@ describe('MissionConfig origin review surface', () => {
         .closest('button')
     );
 
+    expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
+  });
+
+  test('keeps the modal open until the canonical origin write succeeds', async () => {
+    const fetchResponses = buildFetchResponseMap({
+      data: null,
+      loading: false,
+      error: null,
+    });
+    const saveRequest = deferred();
+    setOriginResponse.mockImplementation(() => saveRequest.promise);
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+    fireEvent.click(
+      screen
+        .getByText(/set the origin before using deviation-based launch review/i)
+        .closest('button')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save mock origin' }));
+
+    expect(setOriginResponse).toHaveBeenCalledWith({ method: 'manual', lat: 0, lon: 0, alt: 0 });
+    expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
+
+    await act(async () => {
+      saveRequest.resolve({
+        data: { lat: 0, lon: 0, alt: 0, source: 'manual', timestamp: 1_700_000_000_000 },
+      });
+      await saveRequest.promise;
+    });
+
+    await waitFor(() => expect(screen.queryByTestId('origin-modal')).not.toBeInTheDocument());
+  });
+
+  test('leaves the modal open when the canonical origin write fails', async () => {
+    const fetchResponses = buildFetchResponseMap({
+      data: null,
+      loading: false,
+      error: null,
+    });
+    setOriginResponse.mockRejectedValue({
+      response: { data: { detail: 'Origin storage is unavailable.' } },
+    });
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+    fireEvent.click(
+      screen
+        .getByText(/set the origin before using deviation-based launch review/i)
+        .closest('button')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save mock origin' }));
+
+    await waitFor(() => expect(setOriginResponse).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
   });
 

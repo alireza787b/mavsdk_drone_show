@@ -87,7 +87,7 @@ def _make_git_deps():
         _sync_state={"active": False, "started_at": None, "results": None},
         _sync_lock=asyncio.Lock(),
         _select_sync_target_drones=lambda drones_config, pos_ids: (drones_config, []),
-        _verify_sync_targets=AsyncMock(return_value=([1], [])),
+        _verify_sync_targets=AsyncMock(return_value=(["1"], [])),
         send_commands_to_all=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
         send_commands_to_selected=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
         log_system_event=lambda *args, **kwargs: None,

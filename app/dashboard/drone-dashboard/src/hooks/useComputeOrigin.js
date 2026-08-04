@@ -1,7 +1,8 @@
 // src/hooks/useComputeOrigin.js
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { computeOriginResponse } from '../services/gcsApiService';
+import { extractApiErrorMessage } from '../services/apiError';
 
 /**
  * Custom hook to compute origin based on drone's current position and intended N-E positions.
@@ -12,54 +13,65 @@ const useComputeOrigin = () => {
   const [origin, setOrigin] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const requestSequence = useRef(0);
+
+  const resetOrigin = useCallback(() => {
+    requestSequence.current += 1;
+    setOrigin(null);
+    setError(null);
+    setLoading(false);
+  }, []);
 
   /**
    * Triggers the origin computation.
-   * @param {object} params - { current_lat, current_lon, pos_id }
+   * @param {object} params - { hw_id }
    */
-  const computeOrigin = async (params) => {
-    const { current_lat, current_lon, pos_id } = params;
+  const computeOrigin = useCallback(async (params = {}) => {
+    const hwId = String(params.hw_id ?? '').trim();
+    const requestId = requestSequence.current + 1;
+    requestSequence.current = requestId;
+    setOrigin(null);
+    setError(null);
 
-    // Validate input parameters
-    if (
-      current_lat === undefined ||
-      current_lon === undefined ||
-      pos_id === undefined
-    ) {
-      setError('Incomplete parameters for origin computation.');
-      return;
+    if (!hwId) {
+      setError('Select a configured drone to compute the origin.');
+      setLoading(false);
+      return null;
     }
 
     setLoading(true);
 
     try {
-      const response = await computeOriginResponse({
-        current_lat,
-        current_lon,
-        pos_id,
-      });
+      const response = await computeOriginResponse({ hw_id: hwId });
+
+      if (requestSequence.current !== requestId) return null;
 
       if (
         response.data &&
         response.data.status === 'success' &&
-        typeof response.data.lat === 'number' &&
-        typeof response.data.lon === 'number'
+        typeof response.data.origin?.lat === 'number' &&
+        typeof response.data.origin?.lon === 'number' &&
+        String(response.data.reference?.hw_id ?? '').trim() === hwId
       ) {
-        setOrigin({ lat: response.data.lat, lon: response.data.lon });
+        setOrigin(response.data);
         setError(null);
-      } else if (response.data && response.data.status === 'error') {
-        setError(response.data.message || 'Error computing origin.');
+        return response.data;
       } else {
         setError('Unexpected response from server.');
+        return null;
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Error computing origin.');
+      if (requestSequence.current === requestId) {
+        setOrigin(null);
+        setError(await extractApiErrorMessage(err, 'Error computing origin.'));
+      }
+      return null;
     } finally {
-      setLoading(false);
+      if (requestSequence.current === requestId) setLoading(false);
     }
-  };
+  }, []);
 
-  return { origin, error, loading, computeOrigin };
+  return { origin, error, loading, computeOrigin, resetOrigin };
 };
 
 export default useComputeOrigin;

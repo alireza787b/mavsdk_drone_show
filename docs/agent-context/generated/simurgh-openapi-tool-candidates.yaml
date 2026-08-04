@@ -8057,7 +8057,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: f44ce87ceb0bad5720360465cade62678b6419d5a12e31f976f36f7829d5ac1e
+  openapi_sha256: 95a202434e1e13a3bc5588ab028fb3a3339510e3daca6a8ce31bed2112d0c213
   title: GCS Server API
   version: '5.5'
 summary:

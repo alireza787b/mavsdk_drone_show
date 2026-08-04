@@ -1031,7 +1031,6 @@ async def log_requests(request: Request, call_next):
 # Module-level sync operation state (protected by _sync_lock)
 _sync_state = {"active": False, "started_at": None, "results": None}
 _sync_lock = asyncio.Lock()
-_SYNC_VERIFY_TIMEOUT_SEC = 45.0
 _SYNC_VERIFY_POLL_SEC = 2.0
 
 
@@ -1072,9 +1071,16 @@ def _is_git_sync_verified(
     git_status: Dict[str, Any],
     expected_branch: str,
     expected_commit: str,
+    expected_hw_id: str,
 ) -> bool:
     """Check whether a drone repo actually converged to the expected revision."""
     if not git_status or git_status.get('error'):
+        return False
+
+    # The configured IP is routing information, not identity authority. A
+    # postcondition observed from that host is valid only when the updated node
+    # reports the exact hardware identity that was targeted.
+    if str(git_status.get('hw_id') or '').strip() != str(expected_hw_id).strip():
         return False
 
     if git_status.get('branch') != expected_branch:
@@ -1096,13 +1102,15 @@ async def _verify_sync_targets(
     target_drones: List[Dict[str, Any]],
     expected_branch: str,
     expected_commit: str,
-    timeout_sec: float = _SYNC_VERIFY_TIMEOUT_SEC,
+    timeout_sec: Optional[float] = None,
     poll_interval_sec: float = _SYNC_VERIFY_POLL_SEC,
-) -> tuple[List[int], List[int]]:
+) -> tuple[List[str], List[str]]:
     """Poll targeted drones until their repos actually match the expected revision."""
     if not target_drones:
         return [], []
 
+    if timeout_sec is None:
+        timeout_sec = float(getattr(Params, "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", 45.0))
     pending: Dict[str, Dict[str, Any]] = {str(d['hw_id']): d for d in target_drones}
     verified_hw_ids: set[str] = set()
     deadline = time.monotonic() + timeout_sec
@@ -1127,16 +1135,21 @@ async def _verify_sync_targets(
                 with data_lock_git_status:
                     git_status_data_all_drones[hw_id] = git_status
 
-            if _is_git_sync_verified(git_status, expected_branch, expected_commit):
+            if _is_git_sync_verified(
+                git_status,
+                expected_branch,
+                expected_commit,
+                hw_id,
+            ):
                 verified_hw_ids.add(hw_id)
                 pending.pop(hw_id, None)
 
         if pending:
             await asyncio.sleep(poll_interval_sec)
 
-    verified_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) in verified_hw_ids)
-    failed_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) not in verified_hw_ids)
-    return verified_pos_ids, failed_pos_ids
+    verified = sorted(verified_hw_ids)
+    failed = sorted(str(d['hw_id']) for d in target_drones if str(d['hw_id']) not in verified_hw_ids)
+    return verified, failed
 
 
 # ============================================================================

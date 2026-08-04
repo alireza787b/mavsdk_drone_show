@@ -4,7 +4,7 @@ from tools.validate_configuration_runtime import (
     build_slot_reassignment_update,
     build_swarm_patch_update,
     build_swarm_put_update,
-    select_origin_compute_source,
+    select_origin_reference_hw_id,
     select_swarm_target,
 )
 
@@ -86,20 +86,23 @@ def test_swarm_put_and_patch_updates_return_expected_assignment_shapes():
     assert expected_patch["offset_y"] == 52.0
 
 
-def test_select_origin_compute_source_uses_selected_fleet_and_live_telemetry():
+def test_select_origin_reference_uses_selected_fleet_and_fresh_global_telemetry():
     fleet_entries = [
         {"hw_id": 1, "pos_id": 11},
         {"hw_id": 2, "pos_id": 22},
     ]
     telemetry = {
-        "2": {"position_lat": 35.1, "position_long": 51.2},
+        "2": {
+            "telemetry_available": True,
+            "global_position_valid": True,
+            "global_position_age_ms": 500,
+            "position_source": "global_position_int",
+            "position_lat": 35.1,
+            "position_long": 51.2,
+            "position_alt": 1200.0,
+        },
     }
 
-    source = select_origin_compute_source(selected_ids=[1, 2], fleet_entries=fleet_entries, telemetry=telemetry)
+    source = select_origin_reference_hw_id(selected_ids=[1, 2], fleet_entries=fleet_entries, telemetry=telemetry)
 
-    assert source == {
-        "hw_id": 2,
-        "pos_id": 22,
-        "current_lat": 35.1,
-        "current_lon": 51.2,
-    }
+    assert source == "2"

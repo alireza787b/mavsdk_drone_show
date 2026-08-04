@@ -63,6 +63,7 @@ import {
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
+import { extractApiErrorMessage } from '../services/apiError';
 import { FaClipboardList, FaExchangeAlt } from 'react-icons/fa';
 import {
   EmptyState,
@@ -150,7 +151,7 @@ const MissionConfig = () => {
     GCS_ROUTE_KEYS.positionDeviations,
     originAvailable ? 5000 : null
   );
-  const { data: telemetryDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
+  const { data: telemetryDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
   const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
   const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
   const { data: heartbeatsFetched } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
@@ -213,6 +214,8 @@ const MissionConfig = () => {
       setOrigin({
         lat: Number(originDataFetched.lat),
         lon: Number(originDataFetched.lon),
+        alt: Number(originDataFetched.alt ?? 0),
+        source: originDataFetched.source || 'unknown',
       });
       setOriginAvailable(true);
     } else {
@@ -411,20 +414,20 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Origin Modal submission
   // -----------------------------------------------------
-  const handleOriginSubmit = (newOrigin) => {
-    setOrigin(newOrigin);
-    setShowOriginModal(false);
-    setOriginAvailable(true);
-    toast.success('Origin set successfully.');
-
-    setOriginResponse(newOrigin)
-      .then(() => {
-        toast.success('Origin saved to server.');
-      })
-      .catch((error) => {
-        console.error('Error saving origin to backend:', error);
-        toastErrorThrottled('mission-config-origin-save', 'Failed to save origin to server.');
-      });
+  const handleOriginSubmit = async (originRequest) => {
+    try {
+      const response = await setOriginResponse(originRequest);
+      const savedOrigin = response.data;
+      setOrigin(savedOrigin);
+      setOriginAvailable(true);
+      setShowOriginModal(false);
+      toast.success('Formation origin saved.');
+      return savedOrigin;
+    } catch (error) {
+      const message = await extractApiErrorMessage(error, 'Failed to save formation origin.');
+      toastErrorThrottled('mission-config-origin-save', message);
+      throw error;
+    }
   };
 
   // -----------------------------------------------------

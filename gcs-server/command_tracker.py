@@ -68,6 +68,7 @@ import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 # Import shared enums from src
@@ -99,6 +100,20 @@ class CommandCallbackAuthenticationError(PermissionError):
     capabilities intentionally share one error.  Callers must not turn this
     boundary into an existence oracle.
     """
+
+
+class CommandCompletionAuthority(str, Enum):
+    """Single owner allowed to terminalize a tracked command.
+
+    Normal missions are completed by capability-authenticated node callbacks.
+    Fleet code updates are different: restarting the node can interrupt that
+    callback, while the Fleet Ops route can directly verify the required Git
+    and runtime postcondition.  Keeping this choice in the tracked record
+    prevents whichever signal happens to arrive first from becoming truth.
+    """
+
+    NODE_CALLBACK = "node_callback"
+    FLEET_GIT_POSTCONDITION = "fleet_git_postcondition"
 
 
 @dataclass(frozen=True)
@@ -163,6 +178,7 @@ class TrackedCommand:
     outcome: Optional[CommandOutcome]
     created_at: int
     updated_at: int
+    completion_authority: CommandCompletionAuthority = CommandCompletionAuthority.NODE_CALLBACK
 
     # Optional all-required preparation for launch-style commands. Preparation
     # is not a delivery ACK and is never presented as command acceptance.
@@ -192,6 +208,9 @@ class TrackedCommand:
     late_acks: Dict[str, DroneAck] = field(default_factory=dict)
     late_execution_starts: Dict[str, int] = field(default_factory=dict)
     late_executions: Dict[str, DroneExecution] = field(default_factory=dict)
+    node_execution_starts: Dict[str, int] = field(default_factory=dict)
+    node_execution_reports: Dict[str, DroneExecution] = field(default_factory=dict)
+    completion_discrepancies: Dict[str, str] = field(default_factory=dict)
 
     # Timing
     submitted_at: Optional[int] = None
@@ -324,6 +343,8 @@ class CommandTracker:
             late_acks: Dict[str, DroneAck] = {}
             late_execution_starts: Dict[str, int] = {}
             late_executions: Dict[str, DroneExecution] = {}
+            node_execution_starts: Dict[str, int] = {}
+            node_execution_reports: Dict[str, DroneExecution] = {}
             for hw_id in target_drones:
                 target = target_payloads[hw_id]
                 if not isinstance(target, dict):
@@ -348,6 +369,14 @@ class CommandTracker:
                     late_executions[hw_id] = self._restore_dataclass(
                         DroneExecution, target["late_execution"]
                     )
+                if target.get("node_execution_started_at") is not None:
+                    node_execution_starts[hw_id] = int(
+                        target["node_execution_started_at"]
+                    )
+                if target.get("node_execution_report") is not None:
+                    node_execution_reports[hw_id] = self._restore_dataclass(
+                        DroneExecution, target["node_execution_report"]
+                    )
 
             preparation_states = [item.state for item in preparations.values()]
             ack_categories = [item.category for item in acks.values()]
@@ -365,6 +394,12 @@ class CommandTracker:
                     CommandOutcome(payload["outcome"])
                     if payload.get("outcome") is not None
                     else None
+                ),
+                completion_authority=CommandCompletionAuthority(
+                    payload.get(
+                        "completion_authority",
+                        CommandCompletionAuthority.NODE_CALLBACK.value,
+                    )
                 ),
                 created_at=int(payload["created_at"]),
                 updated_at=int(payload["updated_at"]),
@@ -393,6 +428,14 @@ class CommandTracker:
                 late_acks=late_acks,
                 late_execution_starts=late_execution_starts,
                 late_executions=late_executions,
+                node_execution_starts=node_execution_starts,
+                node_execution_reports=node_execution_reports,
+                completion_discrepancies={
+                    str(key): str(value)
+                    for key, value in dict(
+                        payload.get("completion_discrepancies") or {}
+                    ).items()
+                },
                 submitted_at=payload.get("submitted_at"),
                 execution_started_at=payload.get("execution_started_at"),
                 completed_at=payload.get("completed_at"),
@@ -497,7 +540,12 @@ class CommandTracker:
         for all target ACK classifications prevents a fast callback from
         terminalizing a fleet command while other targets are still in flight.
         """
-        if self._is_terminal(command) or command.acks_received < command.acks_expected:
+        if (
+            command.completion_authority
+            is not CommandCompletionAuthority.NODE_CALLBACK
+            or self._is_terminal(command)
+            or command.acks_received < command.acks_expected
+        ):
             return False
 
         if any(
@@ -719,6 +767,7 @@ class CommandTracker:
         request_fingerprint: Optional[str] = None,
         preparation_required: bool = False,
         start_preparing: bool = False,
+        completion_authority: CommandCompletionAuthority = CommandCompletionAuthority.NODE_CALLBACK,
     ) -> CommandCreationResult:
         """Create a command or return an existing replay-safe command for the same idempotency key."""
         timestamp = int(time.time() * 1000)
@@ -728,6 +777,8 @@ class CommandTracker:
             raise ValueError("target_drones must contain at least one non-blank hardware ID")
         if len(set(normalized_targets)) != len(normalized_targets):
             raise ValueError("target_drones must contain unique hardware IDs")
+        if not isinstance(completion_authority, CommandCompletionAuthority):
+            raise TypeError("completion_authority must be a CommandCompletionAuthority")
 
         async with self._lock:
             if idempotency_key:
@@ -742,6 +793,11 @@ class CommandTracker:
                             idempotency_key=idempotency_key,
                             request_fingerprint=request_fingerprint,
                         )
+                        if existing_command.completion_authority is not completion_authority:
+                            raise CommandIdempotencyConflictError(
+                                f"idempotency_key '{idempotency_key}' is already bound "
+                                "to a different completion authority"
+                            )
                         return CommandCreationResult(command_id=existing_command_id, replayed=True)
 
             command_id = str(uuid.uuid4())
@@ -762,6 +818,7 @@ class CommandTracker:
                 outcome=None,
                 created_at=timestamp,
                 updated_at=timestamp,
+                completion_authority=completion_authority,
                 preparations_expected=(len(normalized_targets) if preparation_required else 0),
                 acks_expected=len(normalized_targets),
                 executions_expected=len(normalized_targets),
@@ -1164,7 +1221,11 @@ class CommandTracker:
                     command.acks_errors += 1
 
                 # Update command status if all ACKs received
-                if command.acks_received >= command.acks_expected:
+                if (
+                    command.acks_received >= command.acks_expected
+                    and command.completion_authority
+                    is CommandCompletionAuthority.NODE_CALLBACK
+                ):
                     # Calculate actual problems (rejected + errors, NOT offline)
                     actual_problems = command.acks_rejected + command.acks_errors
                     has_delivery_unknown = any(
@@ -1229,6 +1290,22 @@ class CommandTracker:
                         command.error_summary = ", ".join(parts)
 
                     self._maybe_finalize_execution_locked(command, timestamp)
+                elif command.acks_received >= command.acks_expected:
+                    # UPDATE_CODE completion belongs to the Fleet Ops
+                    # postcondition verifier.  Transport ACKs remain visible,
+                    # but even an all-rejected response must not race the
+                    # authoritative branch/commit/clean-tree observation.
+                    command.status = (
+                        CommandStatus.EXECUTING
+                        if command.acks_accepted > 0
+                        else CommandStatus.SUBMITTED
+                    )
+                    command.phase = CommandPhase.PENDING_EXECUTION
+                    command.outcome = None
+                    command.error_summary = (
+                        "Command delivery has been classified; waiting for Fleet Ops "
+                        "Git/runtime postcondition verification"
+                    )
 
             await self._persist_command_locked(
                 command,
@@ -1441,6 +1518,25 @@ class CommandTracker:
                 raise CommandCallbackAuthenticationError(
                     "Command callback authentication failed"
                 )
+            if (
+                command.completion_authority
+                is CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+            ):
+                if hw_id not in command.node_execution_starts:
+                    command.node_execution_starts[hw_id] = timestamp
+                    command.updated_at = timestamp
+                    await self._persist_command_locked(
+                        command,
+                        event_type="node_execution_started_advisory",
+                        hw_ids=[hw_id],
+                    )
+                logger.info(
+                    "Authenticated advisory execution-start recorded for Fleet Ops "
+                    "command %s target %s",
+                    command_id[:8],
+                    hw_id,
+                )
+                return True
             if self._is_terminal(command):
                 recorded_late_start = self._record_late_execution_start_locked(
                     command,
@@ -1547,6 +1643,53 @@ class CommandTracker:
                 outcome=outcome,
             )
 
+            if (
+                command.completion_authority
+                is CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+            ):
+                if hw_id not in command.node_execution_starts:
+                    command.node_execution_starts[hw_id] = timestamp
+                existing_report = command.node_execution_reports.get(hw_id)
+                if existing_report is None:
+                    command.node_execution_reports[hw_id] = DroneExecution(
+                        hw_id=hw_id,
+                        success=success,
+                        outcome=(
+                            normalized_outcome.value
+                            if normalized_outcome is not None
+                            else None
+                        ),
+                        error_message=error_message,
+                        exit_code=exit_code,
+                        script_output=script_output,
+                        duration_ms=duration_ms,
+                        timestamp=timestamp,
+                    )
+                elif existing_report.success != success:
+                    command.completion_discrepancies[hw_id] = (
+                        "Authenticated node callbacks reported conflicting completion results"
+                    )
+
+                verified_result = command.executions.get(hw_id)
+                if verified_result is not None and verified_result.success != success:
+                    command.completion_discrepancies[hw_id] = (
+                        "Node callback result differs from the Fleet Ops Git/runtime postcondition"
+                    )
+                command.updated_at = timestamp
+                await self._persist_command_locked(
+                    command,
+                    event_type="node_execution_reported_advisory",
+                    hw_ids=[hw_id],
+                    event_data={"success": bool(success)},
+                )
+                logger.info(
+                    "Authenticated advisory execution result recorded for Fleet Ops "
+                    "command %s target %s",
+                    command_id[:8],
+                    hw_id,
+                )
+                return True
+
             if self._is_terminal(command):
                 recorded_late_execution = self._record_late_execution_locked(
                     command,
@@ -1647,6 +1790,164 @@ class CommandTracker:
                     f"{reason or 'no failure detail reported'}"
                 )
 
+        return True
+
+    async def record_authoritative_completion(
+        self,
+        command_id: str,
+        results: Dict[str, Dict[str, Any]],
+        *,
+        completion_authority: CommandCompletionAuthority,
+        callback_capabilities: Dict[str, str],
+    ) -> bool:
+        """Atomically terminalize a verifier-owned command from exact targets.
+
+        This is an internal coordination boundary, not an HTTP callback.  The
+        caller must prove that it still owns every target using the same opaque
+        capabilities issued for dispatch.  All inputs are validated before any
+        mutation, and the capabilities are never persisted or returned.
+        """
+
+        if (
+            completion_authority
+            is not CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+        ):
+            raise ValueError("unsupported authoritative completion source")
+        if not isinstance(results, dict) or not isinstance(
+            callback_capabilities, dict
+        ):
+            raise ValueError("results and callback_capabilities must be mappings")
+
+        async with self._lock:
+            command = self._commands.get(command_id)
+            if command is None:
+                raise KeyError(f"Command {command_id} not found")
+            if (
+                command.completion_authority is not completion_authority
+                or command.mission_type != Mission.UPDATE_CODE.value
+            ):
+                raise ValueError(
+                    "command is not owned by Fleet Ops Git/runtime verification"
+                )
+
+            expected_targets = set(command.target_drones)
+            if set(results) != expected_targets:
+                raise ValueError("authoritative results must match the exact target set")
+            if set(callback_capabilities) != expected_targets or any(
+                not self._callback_capability_matches_locked(
+                    command,
+                    hw_id,
+                    callback_capabilities.get(hw_id),
+                )
+                for hw_id in command.target_drones
+            ):
+                raise CommandCallbackAuthenticationError(
+                    "Command callback authentication failed"
+                )
+
+            normalized_results: Dict[str, tuple[bool, Optional[str]]] = {}
+            for hw_id in command.target_drones:
+                result = results[hw_id]
+                if not isinstance(result, dict) or type(result.get("success")) is not bool:
+                    raise ValueError(
+                        "each authoritative result must contain an exact boolean success"
+                    )
+                error_message = result.get("error_message")
+                if error_message is not None:
+                    if not isinstance(error_message, str):
+                        raise ValueError("authoritative error_message must be a string")
+                    error_message = " ".join(error_message.split())[:500] or None
+                normalized_results[hw_id] = (result["success"], error_message)
+
+            if self._is_terminal(command):
+                same_results = (
+                    set(command.executions) == expected_targets
+                    and all(
+                        command.executions[hw_id].success
+                        == normalized_results[hw_id][0]
+                        for hw_id in command.target_drones
+                    )
+                )
+                if same_results:
+                    return True
+                raise RuntimeError(
+                    "command already has a different immutable terminal outcome"
+                )
+            if command.submitted_at is None:
+                raise RuntimeError(
+                    "authoritative completion cannot precede the dispatch boundary"
+                )
+
+            timestamp = int(time.time() * 1000)
+            command.executions = {
+                hw_id: DroneExecution(
+                    hw_id=hw_id,
+                    success=success,
+                    error_message=error_message,
+                    timestamp=timestamp,
+                )
+                for hw_id, (success, error_message) in normalized_results.items()
+            }
+            command.executions_expected = len(command.target_drones)
+            command.executions_received = len(command.target_drones)
+            command.executions_succeeded = sum(
+                success for success, _error in normalized_results.values()
+            )
+            command.executions_failed = (
+                command.executions_expected - command.executions_succeeded
+            )
+
+            for hw_id, report in command.node_execution_reports.items():
+                verified = command.executions.get(hw_id)
+                if verified is not None and report.success != verified.success:
+                    command.completion_discrepancies[hw_id] = (
+                        "Node callback result differs from the Fleet Ops Git/runtime postcondition"
+                    )
+
+            if command.executions_failed == 0:
+                command.status = CommandStatus.COMPLETED
+                command.outcome = CommandOutcome.COMPLETED
+                command.error_summary = None
+                self._stats["successful_commands"] += 1
+            elif command.executions_succeeded == 0:
+                command.status = CommandStatus.FAILED
+                command.outcome = CommandOutcome.FAILED
+                details = self._build_execution_failure_detail(command)
+                command.error_summary = (
+                    "Fleet Ops could not verify the requested Git/runtime "
+                    f"postcondition on any of {command.executions_expected} target(s)"
+                    + (f" ({details})" if details else "")
+                )
+                self._stats["failed_commands"] += 1
+            else:
+                command.status = CommandStatus.PARTIAL
+                command.outcome = CommandOutcome.PARTIAL
+                command.error_summary = (
+                    "Fleet Ops verified the requested Git/runtime postcondition on "
+                    f"{command.executions_succeeded}/{command.executions_expected} target(s)"
+                )
+                self._stats["partial_commands"] += 1
+
+            command.phase = CommandPhase.TERMINAL
+            command.completed_at = timestamp
+            command.updated_at = timestamp
+            await self._persist_command_locked(
+                command,
+                event_type="authoritative_completion_recorded",
+                hw_ids=list(command.target_drones),
+                event_data={
+                    "completion_authority": completion_authority.value,
+                    "succeeded": command.executions_succeeded,
+                    "failed": command.executions_failed,
+                },
+            )
+
+        logger.info(
+            "Fleet Ops postcondition recorded for %s... (%s/%s verified)",
+            command_id[:8],
+            command.executions_succeeded,
+            command.executions_expected,
+        )
         return True
 
     async def cancel_command(self, command_id: str, reason: str = "User cancelled") -> bool:
@@ -1800,7 +2101,15 @@ class CommandTracker:
                         command.completed_at = timestamp
                         command.updated_at = timestamp
                         timeout_age_s = (timestamp - command.created_at) / 1000
-                        if previous_phase == CommandPhase.IN_PROGRESS:
+                        if (
+                            command.completion_authority
+                            is CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+                        ):
+                            command.error_summary = (
+                                "Fleet Ops Git/runtime postcondition verification did not "
+                                f"finish within the {timeout_age_s:.1f}s tracking window."
+                            )
+                        elif previous_phase == CommandPhase.IN_PROGRESS:
                             command.error_summary = (
                                 f"Tracking timed out after {timeout_age_s:.1f}s after execution started "
                                 f"(results: {command.executions_received}/{command.acks_accepted}). Final outcome unknown."
@@ -1936,12 +2245,23 @@ class CommandTracker:
         """Build an operator-facing progress snapshot for the current lifecycle."""
         now_ms = int(time.time() * 1000)
         accepted = command.acks_accepted
-        started = len(command.execution_starts)
+        externally_verified = (
+            command.completion_authority
+            is CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+        )
+        completion_expected = (
+            len(command.target_drones) if externally_verified else accepted
+        )
+        started = len(
+            command.node_execution_starts
+            if externally_verified
+            else command.execution_starts
+        )
         completed = command.executions_received
         active = max(0, started - completed)
-        remaining = max(0, accepted - completed)
+        remaining = max(0, completion_expected - completed)
         ack_pending = max(0, command.acks_expected - command.acks_received)
-        execution_pending = max(0, accepted - started)
+        execution_pending = max(0, completion_expected - started)
         scheduled_trigger_time = self._extract_trigger_time_ms(command.params)
         persistent_smart_swarm = command.mission_type == Mission.SMART_SWARM.value
         waiting_for_future_trigger = (
@@ -1983,7 +2303,14 @@ class CommandTracker:
                     f"Received {command.acks_received}/{command.acks_expected} acknowledgments so far."
                 )
         elif command.phase == CommandPhase.PENDING_EXECUTION:
-            if waiting_for_future_trigger:
+            if externally_verified:
+                stage = "verifying_postcondition"
+                label = "Verifying node code state"
+                message = (
+                    f"Delivery is classified for {command.acks_received}/{command.acks_expected} "
+                    "target drone(s). Fleet Ops is verifying branch, commit, and clean runtime state."
+                )
+            elif waiting_for_future_trigger:
                 stage = "scheduled"
                 label = "Scheduled, waiting for trigger time"
                 message = (
@@ -2029,7 +2356,7 @@ class CommandTracker:
             terminal_defaults = {
                 CommandOutcome.COMPLETED.value: (
                     "Completed",
-                    f"Completed successfully on {command.executions_succeeded}/{max(accepted, 1)} accepted drone(s).",
+                    f"Completed successfully on {command.executions_succeeded}/{max(completion_expected, 1)} target drone(s).",
                 ),
                 CommandOutcome.PARTIAL.value: (
                     "Completed with partial coverage",
@@ -2088,6 +2415,8 @@ class CommandTracker:
         preparations_snapshot = dict(command.preparations)
         acks_snapshot = dict(command.acks)
         executions_snapshot = dict(command.executions)
+        node_execution_starts_snapshot = dict(command.node_execution_starts)
+        node_execution_reports_snapshot = dict(command.node_execution_reports)
         late_acks_snapshot = dict(command.late_acks)
         late_execution_starts_snapshot = dict(command.late_execution_starts)
         late_executions_snapshot = dict(command.late_executions)
@@ -2102,6 +2431,8 @@ class CommandTracker:
             'status': command.status.value,
             'phase': command.phase.value,
             'outcome': command.outcome.value if command.outcome else None,
+            'completion_authority': command.completion_authority.value,
+            'completion_discrepancies': dict(command.completion_discrepancies),
 
             # Timing
             'created_at': command.created_at,
@@ -2157,7 +2488,12 @@ class CommandTracker:
 
             # Execution summary
             'executions': {
-                'expected': command.acks_accepted,  # Only those that accepted
+                'expected': (
+                    len(command.target_drones)
+                    if command.completion_authority
+                    is CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+                    else command.acks_accepted
+                ),
                 'started': len(command.execution_starts),
                 'started_hw_ids': sorted(command.execution_starts),
                 'active': max(0, len(command.execution_starts) - command.executions_received),
@@ -2180,6 +2516,32 @@ class CommandTracker:
                     }
                     for hw_id, exe in executions_snapshot.items()  # Use snapshot
                 }
+            },
+
+            # Authenticated node callbacks are diagnostic only when Fleet Ops
+            # owns completion. They are deliberately separate from the
+            # postcondition results above and cannot race the terminal outcome.
+            'node_execution_reports': {
+                'started': len(node_execution_starts_snapshot),
+                'started_hw_ids': sorted(node_execution_starts_snapshot),
+                'received': len(node_execution_reports_snapshot),
+                'succeeded': sum(
+                    report.success for report in node_execution_reports_snapshot.values()
+                ),
+                'failed': sum(
+                    not report.success for report in node_execution_reports_snapshot.values()
+                ),
+                'details': {
+                    hw_id: {
+                        'success': report.success,
+                        'outcome': report.outcome,
+                        'error': report.error_message,
+                        'exit_code': report.exit_code,
+                        'duration_ms': report.duration_ms,
+                        'timestamp': report.timestamp,
+                    }
+                    for hw_id, report in node_execution_reports_snapshot.items()
+                },
             },
 
             'late_reports': {

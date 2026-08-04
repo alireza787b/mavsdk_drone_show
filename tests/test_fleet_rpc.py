@@ -855,6 +855,371 @@ async def test_dispatch_definite_http_client_rejection_is_not_delivery_unknown()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("extra_error_type", ["value_error.extra", "extra_forbidden"])
+async def test_update_code_can_bridge_exact_legacy_envelope_rejection(extra_error_type):
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+
+    requests = []
+    request_sequence = []
+    capability = "field-recovery-secret-" + ("x" * 43)
+
+    async def handler(request):
+        request_sequence.append((request.method, request.url.path))
+        if request.method == "GET":
+            return httpx.Response(200, request=request, json={"hw_id": 1})
+        payload = json.loads(request.content)
+        requests.append(payload)
+        if len(requests) == 1:
+            return httpx.Response(
+                422,
+                request=request,
+                json={
+                    "detail": [
+                        {
+                            "type": extra_error_type,
+                            "loc": ["body", "command_report_capability"],
+                            "msg": "extra field",
+                            "input": capability,
+                        },
+                        {
+                            "type": extra_error_type,
+                            "loc": ["body", "target_hw_id"],
+                            "msg": "extra field",
+                            "input": "1",
+                        },
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "status": "accepted",
+                "command_id": payload["command_id"],
+                "hw_id": "1",
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": Mission.UPDATE_CODE.value, "command_id": "update-legacy"},
+            callback_capabilities={"1": capability},
+            allow_legacy_update_envelope=True,
+        )
+    finally:
+        await client.aclose()
+
+    assert len(requests) == 2
+    assert request_sequence == [
+        ("POST", "/api/v1/commands"),
+        ("GET", "/api/v1/swarm/state"),
+        ("POST", "/api/v1/commands"),
+    ]
+    current_payload, legacy_payload = requests
+    assert current_payload["command_id"] == legacy_payload["command_id"] == "update-legacy"
+    assert set(current_payload) - set(legacy_payload) == {
+        "target_hw_id",
+        "command_report_capability",
+    }
+    assert all(
+        legacy_payload[key] == value
+        for key, value in current_payload.items()
+        if key not in {"target_hw_id", "command_report_capability"}
+    )
+    assert result["success"] == 1
+    assert result["results"]["1"]["delivery_state"] == "accepted_legacy_update_envelope"
+    assert capability not in json.dumps(result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mission_type", "allow_bridge", "status_code", "detail"),
+    [
+        (
+            103,
+            False,
+            422,
+            [
+                {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                {
+                    "type": "extra_forbidden",
+                    "loc": ["body", "command_report_capability"],
+                },
+            ],
+        ),
+        (
+            102,
+            True,
+            422,
+            [
+                {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                {
+                    "type": "extra_forbidden",
+                    "loc": ["body", "command_report_capability"],
+                },
+            ],
+        ),
+        (
+            103,
+            True,
+            400,
+            [
+                {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                {
+                    "type": "extra_forbidden",
+                    "loc": ["body", "command_report_capability"],
+                },
+            ],
+        ),
+        (
+            103,
+            True,
+            422,
+            [{"type": "extra_forbidden", "loc": ["body", "target_hw_id"]}],
+        ),
+        (
+            103,
+            True,
+            422,
+            [
+                {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                {
+                    "type": "value_error.missing",
+                    "loc": ["body", "command_report_capability"],
+                },
+            ],
+        ),
+        (
+            103,
+            True,
+            422,
+            [
+                {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                {"type": "extra_forbidden", "loc": ["body", "unexpected"]},
+            ],
+        ),
+    ],
+)
+async def test_legacy_envelope_bridge_rejects_every_nonexact_case(
+    mission_type,
+    allow_bridge,
+    status_code,
+    detail,
+):
+    from fleet_rpc import FleetRPCService
+
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(status_code, request=request, json={"detail": detail})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": mission_type, "command_id": "no-legacy-bridge"},
+            allow_legacy_update_envelope=allow_bridge,
+        )
+    finally:
+        await client.aclose()
+
+    assert calls == 1
+    assert result["rejected"] == 1
+    assert result["results"]["1"]["delivery_state"] == "request_rejected"
+
+
+@pytest.mark.asyncio
+async def test_legacy_update_envelope_bridge_retries_only_once():
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+
+    methods = []
+
+    async def handler(request):
+        methods.append(request.method)
+        if request.method == "GET":
+            return httpx.Response(200, request=request, json={"hw_id": 1})
+        return httpx.Response(
+            422,
+            request=request,
+            json={
+                "detail": [
+                    {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                    {
+                        "type": "extra_forbidden",
+                        "loc": ["body", "command_report_capability"],
+                    },
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": Mission.UPDATE_CODE.value, "command_id": "one-retry"},
+            allow_legacy_update_envelope=True,
+        )
+    finally:
+        await client.aclose()
+
+    assert methods == ["POST", "GET", "POST"]
+    assert result["rejected"] == 1
+    assert result["results"]["1"]["delivery_state"] == "request_rejected"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("identity_status", "identity_payload"),
+    [
+        (404, {"detail": "not found"}),
+        (200, {}),
+        (200, {"hw_id": "1"}),
+        (200, {"hw_id": True}),
+        (200, {"hw_id": 2}),
+    ],
+)
+async def test_legacy_update_bridge_requires_exact_typed_identity(
+    identity_status,
+    identity_payload,
+):
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+
+    methods = []
+
+    async def handler(request):
+        methods.append(request.method)
+        if request.method == "GET":
+            return httpx.Response(
+                identity_status,
+                request=request,
+                json=identity_payload,
+            )
+        return httpx.Response(
+            422,
+            request=request,
+            json={
+                "detail": [
+                    {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                    {
+                        "type": "extra_forbidden",
+                        "loc": ["body", "command_report_capability"],
+                    },
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": Mission.UPDATE_CODE.value, "command_id": "identity-bound"},
+            allow_legacy_update_envelope=True,
+        )
+    finally:
+        await client.aclose()
+
+    assert methods == ["POST", "GET"]
+    assert result["rejected"] == 1
+    assert result["results"]["1"]["delivery_state"] == "request_rejected"
+
+
+@pytest.mark.asyncio
+async def test_legacy_update_bridge_does_not_retry_when_identity_probe_is_unreachable():
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+
+    methods = []
+
+    async def handler(request):
+        methods.append(request.method)
+        if request.method == "GET":
+            raise httpx.ConnectError("identity route unreachable", request=request)
+        return httpx.Response(
+            422,
+            request=request,
+            json={
+                "detail": [
+                    {"type": "value_error.extra", "loc": ["body", "target_hw_id"]},
+                    {
+                        "type": "value_error.extra",
+                        "loc": ["body", "command_report_capability"],
+                    },
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": Mission.UPDATE_CODE.value, "command_id": "identity-offline"},
+            allow_legacy_update_envelope=True,
+        )
+    finally:
+        await client.aclose()
+
+    assert methods == ["POST", "GET"]
+    assert result["rejected"] == 1
+    assert result["results"]["1"]["delivery_state"] == "request_rejected"
+
+
+@pytest.mark.asyncio
+async def test_legacy_update_identity_probe_remains_inside_fleet_deadline():
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+
+    methods = []
+
+    async def handler(request):
+        methods.append(request.method)
+        if request.method == "GET":
+            await asyncio.sleep(0.2)
+            return httpx.Response(200, request=request, json={"hw_id": 1})
+        return httpx.Response(
+            422,
+            request=request,
+            json={
+                "detail": [
+                    {"type": "extra_forbidden", "loc": ["body", "target_hw_id"]},
+                    {
+                        "type": "extra_forbidden",
+                        "loc": ["body", "command_report_capability"],
+                    },
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(_params(), client=client)
+    started = time.monotonic()
+    try:
+        result = await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": Mission.UPDATE_CODE.value, "command_id": "identity-deadline"},
+            allow_legacy_update_envelope=True,
+            operation_deadline_sec=0.01,
+        )
+    finally:
+        await client.aclose()
+
+    assert time.monotonic() - started < 0.1
+    assert methods == ["POST", "GET"]
+    assert result["results"]["1"]["delivery_state"] == "delivery_unknown"
+
+
+@pytest.mark.asyncio
 async def test_post_read_timeout_is_delivery_unknown_and_is_not_retried():
     from fleet_rpc import FleetRPCService
 

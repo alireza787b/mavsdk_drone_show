@@ -2660,7 +2660,7 @@ class TestPositionData:
 class TestGitStatus:
     """Test git status endpoint"""
 
-    def test_get_git_status(self, test_client, monkeypatch):
+    def test_get_git_status(self, test_client, api_server, monkeypatch):
         """Test canonical drone git-status endpoint"""
         from src import drone_api_server
         monkeypatch.setattr(
@@ -2770,6 +2770,7 @@ class TestGitStatus:
         assert response.status_code == 200
         data = response.json()
 
+        assert data['hw_id'] == str(api_server.drone_config.hw_id)
         assert 'branch' in data
         assert 'commit' in data
         assert 'status' in data

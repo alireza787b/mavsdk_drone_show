@@ -352,6 +352,7 @@ class Params:
     GCS_FLEET_DISPATCH_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_DISPATCH_DEADLINE_SEC", "15"), 15.0)
     GCS_FLEET_RECOVERY_DEADLINE_SEC = _safe_float(os.environ.get("MDS_GCS_FLEET_RECOVERY_DEADLINE_SEC", "20"), 20.0)
     GCS_COMMAND_HTTP_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_GCS_COMMAND_HTTP_TIMEOUT_SEC", "5"), 5.0)
+    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 45.0  # Fleet Ops branch/commit/clean-runtime postcondition window
     # Bounded lifespan-owned submission lanes return a tracker ID before slow
     # readiness/dispatch I/O. Recovery work has independent admission so a
     # burst of routine submissions cannot starve LAND/RTL/HOLD/KILL.

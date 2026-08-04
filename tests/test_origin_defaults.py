@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import origin
 
 
@@ -65,3 +67,22 @@ def test_load_origin_prefers_runtime_origin_over_packaged_default(tmp_path, monk
     assert loaded['alt'] == 1300.0
     assert loaded['alt_source'] == 'manual'
     assert loaded['timestamp'] == '2026-03-26T00:00:00'
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"lat": float("nan"), "lon": 0.0, "alt": 0.0},
+        {"lat": 91.0, "lon": 0.0, "alt": 0.0},
+        {"lat": 0.0, "lon": float("inf"), "alt": 0.0},
+        {"lat": 0.0, "lon": 0.0, "alt": float("-inf")},
+    ],
+)
+def test_save_origin_rejects_invalid_values_without_writing(tmp_path, monkeypatch, invalid):
+    runtime_origin = tmp_path / "origin.json"
+    monkeypatch.setattr(origin, "origin_file_path", str(runtime_origin))
+
+    with pytest.raises(ValueError):
+        origin.save_origin(invalid)
+
+    assert not runtime_origin.exists()

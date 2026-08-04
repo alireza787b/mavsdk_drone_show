@@ -530,11 +530,11 @@ describe('gcsApiService', () => {
   it('saves origin through the canonical origin resource with PUT', async () => {
     axios.put.mockResolvedValue({ data: { success: true } });
 
-    await setOriginResponse({ lat: 35, lon: -120, alt: 12, alt_source: 'manual' }, { timeout: 2500 });
+    await setOriginResponse({ method: 'manual', lat: 35, lon: -120, alt: 12 }, { timeout: 2500 });
 
     expect(axios.put).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/origin',
-      { lat: 35, lon: -120, alt: 12, alt_source: 'manual' },
+      { method: 'manual', lat: 35, lon: -120, alt: 12 },
       authConfig({ timeout: 2500 })
     );
   });

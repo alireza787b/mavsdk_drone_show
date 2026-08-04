@@ -688,23 +688,11 @@ class TestOriginEndpoints:
         assert data['lat'] == 35.123456
         assert data['lon'] == -120.654321
 
-    @patch('app_fastapi.load_origin')
-    def test_get_origin_v1(self, mock_load, test_client, mock_origin):
-        """Test GET /api/v1/origin"""
-        mock_load.return_value = mock_origin
-
-        response = test_client.get("/api/v1/origin")
-        assert response.status_code == 200
-        data = response.json()
-        assert data['lat'] == 35.123456
-        assert data['lon'] == -120.654321
-        assert data['source'] == 'manual'
-
     @patch('app_fastapi.save_origin')
     def test_set_origin(self, mock_save, test_client):
         """Test PUT /api/v1/origin"""
-        # API uses short field names: lat, lon, alt
         origin_data = {
+            'method': 'manual',
             'lat': 35.123456,
             'lon': -120.654321,
             'alt': 488.0
@@ -716,24 +704,10 @@ class TestOriginEndpoints:
         assert data['lat'] == origin_data['lat']
 
     @patch('app_fastapi.save_origin')
-    def test_put_origin_v1(self, mock_save, test_client):
-        """Test PUT /api/v1/origin"""
-        origin_data = {
-            'lat': 35.123456,
-            'lon': -120.654321,
-            'alt': 488.0,
-        }
-
-        response = test_client.request("PUT", "/api/v1/origin", json=origin_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data['lat'] == origin_data['lat']
-        assert data['source'] == 'manual'
-
-    @patch('app_fastapi.save_origin')
-    def test_put_origin_v1_defaults_optional_altitude_to_zero(self, mock_save, test_client):
+    def test_put_origin_defaults_optional_altitude_to_zero(self, mock_save, test_client):
         """Test PUT /api/v1/origin defaults missing altitude to zero."""
         origin_data = {
+            'method': 'manual',
             'lat': 35.123456,
             'lon': -120.654321,
         }
@@ -757,16 +731,6 @@ class TestOriginEndpoints:
         assert data['has_origin'] == True
 
     @patch('app_fastapi.load_origin')
-    def test_get_gps_global_origin_v1(self, mock_load, test_client, mock_origin):
-        """Test GET /api/v1/navigation/global-origin"""
-        mock_load.return_value = mock_origin
-
-        response = test_client.get("/api/v1/navigation/global-origin")
-        assert response.status_code == 200
-        data = response.json()
-        assert data['has_origin'] == True
-
-    @patch('app_fastapi.load_origin')
     def test_get_origin_for_drone(self, mock_load, test_client, mock_origin):
         """Test GET /api/v1/origin/bootstrap"""
         mock_load.return_value = mock_origin
@@ -777,18 +741,6 @@ class TestOriginEndpoints:
         assert data['lat'] == 35.123456
         assert data['source'] == 'manual'
 
-    @patch('app_fastapi.load_origin')
-    def test_get_origin_bootstrap_v1(self, mock_load, test_client, mock_origin):
-        """Test GET /api/v1/origin/bootstrap"""
-        mock_load.return_value = mock_origin
-
-        response = test_client.get("/api/v1/origin/bootstrap")
-        assert response.status_code == 200
-        data = response.json()
-        assert data['lat'] == 35.123456
-        assert data['source'] == 'manual'
-        assert isinstance(data['timestamp'], int)
-
     @patch('app_fastapi.save_origin')
     @patch('app_fastapi.compute_origin_from_drone')
     @patch('app_fastapi.get_expected_position_from_trajectory')
@@ -798,52 +750,33 @@ class TestOriginEndpoints:
         mock_compute_origin,
         mock_save_origin,
         test_client,
+        mock_telemetry_data,
     ):
         """Test POST /api/v1/origin/compute"""
         mock_get_expected_position.return_value = (10.0, 5.0)
         mock_compute_origin.return_value = (35.555, -120.777)
+        now_ms = int(time.time() * 1000)
+        mock_telemetry_data[1].update({
+            'telemetry_available': True,
+            'global_position_valid': True,
+            'global_position_timestamp_ms': now_ms,
+            'position_source': 'global_position_int',
+        })
 
         response = test_client.post('/api/v1/origin/compute', json={
-            'current_lat': 35.123456,
-            'current_lon': -120.654321,
-            'pos_id': 1,
+            'hw_id': '1',
         })
 
         assert response.status_code == 200
-        assert response.json() == {
-            'status': 'success',
+        payload = response.json()
+        assert payload['origin'] == {
             'lat': 35.555,
             'lon': -120.777,
+            'alt': 488.5,
+            'source': 'drone_global_position_msl',
         }
-        mock_compute_origin.assert_called_once_with(35.123456, -120.654321, 10.0, 5.0)
-        mock_save_origin.assert_not_called()
-
-    @patch('app_fastapi.save_origin')
-    @patch('app_fastapi.compute_origin_from_drone')
-    @patch('app_fastapi.get_expected_position_from_trajectory')
-    def test_compute_origin_v1(
-        self,
-        mock_get_expected_position,
-        mock_compute_origin,
-        mock_save_origin,
-        test_client,
-    ):
-        """Test POST /api/v1/origin/compute"""
-        mock_get_expected_position.return_value = (10.0, 5.0)
-        mock_compute_origin.return_value = (35.555, -120.777)
-
-        response = test_client.post('/api/v1/origin/compute', json={
-            'current_lat': 35.123456,
-            'current_lon': -120.654321,
-            'pos_id': 1,
-        })
-
-        assert response.status_code == 200
-        assert response.json() == {
-            'status': 'success',
-            'lat': 35.555,
-            'lon': -120.777,
-        }
+        assert payload['reference']['hw_id'] == '1'
+        assert payload['reference']['pos_id'] == 1
         mock_compute_origin.assert_called_once_with(35.123456, -120.654321, 10.0, 5.0)
         mock_save_origin.assert_not_called()
 
@@ -1092,16 +1025,29 @@ class TestShowManagementEndpoints:
         """Live background telemetry stores string hw_id keys; deviation checks must still resolve them."""
         import app_fastapi
 
+        now_ms = int(time.time() * 1000)
         string_keyed_telemetry = {
             "1": {
                 "hw_id": "1",
+                "telemetry_available": True,
+                "gps_fix_type": 3,
+                "global_position_valid": True,
+                "global_position_timestamp_ms": now_ms,
+                "position_source": "global_position_int",
                 "position_lat": mock_origin["lat"],
                 "position_long": mock_origin["lon"],
+                "position_alt": mock_origin["alt"],
             },
             "2": {
                 "hw_id": "2",
+                "telemetry_available": True,
+                "gps_fix_type": 3,
+                "global_position_valid": True,
+                "global_position_timestamp_ms": now_ms,
+                "position_source": "global_position_int",
                 "position_lat": mock_origin["lat"],
                 "position_long": mock_origin["lon"],
+                "position_alt": mock_origin["alt"],
             },
         }
 
@@ -1735,6 +1681,33 @@ class TestGCSManagementEndpoints:
 # ============================================================================
 
 class TestGitStatusEndpoints:
+    def test_sync_postcondition_requires_exact_node_hardware_identity(self):
+        """A matching revision from the wrong node must never satisfy update verification."""
+        import app_fastapi
+
+        report = {
+            "hw_id": "42",
+            "branch": "main-candidate",
+            "commit": "abc12345",
+            "status": "clean",
+            "uncommitted_changes": [],
+            "commits_ahead": 0,
+            "commits_behind": 0,
+        }
+
+        assert app_fastapi._is_git_sync_verified(
+            report,
+            "main-candidate",
+            "abc12345",
+            "42",
+        ) is True
+        assert app_fastapi._is_git_sync_verified(
+            report,
+            "main-candidate",
+            "abc12345",
+            "41",
+        ) is False
+
     """Test git status endpoints"""
 
     @patch('app_fastapi.git_status_data_all_drones', {

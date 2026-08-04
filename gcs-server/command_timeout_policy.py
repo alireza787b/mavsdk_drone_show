@@ -169,6 +169,36 @@ def estimate_command_tracking_timeout_ms(
     mission_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_MISSION_BUFFER_SEC", 120), 120))
     trigger_delay_ms = _extract_future_trigger_delay_ms(command_data)
 
+    if mission_enum == Mission.UPDATE_CODE:
+        # Fleet Ops owns UPDATE_CODE completion through a bounded
+        # branch/commit/clean-runtime verifier. Its tracker must outlive the
+        # complete dispatch + per-node HTTP + verification envelope, otherwise
+        # a successful rolling update can become a false timeout card.
+        dispatch_sec = max(
+            0.0,
+            float(getattr(params, "GCS_FLEET_DISPATCH_DEADLINE_SEC", 15.0)),
+        )
+        request_sec = max(
+            0.0,
+            float(getattr(params, "GCS_COMMAND_HTTP_TIMEOUT_SEC", 5.0)),
+        )
+        verification_sec = max(
+            0.0,
+            float(getattr(params, "GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC", 45.0)),
+        )
+        return max(
+            default_ms,
+            int(
+                (
+                    dispatch_sec
+                    + request_sec
+                    + verification_sec
+                    + action_buffer_sec
+                )
+                * 1000
+            ),
+        )
+
     if mission_enum == Mission.TAKE_OFF:
         return max(
             default_ms,

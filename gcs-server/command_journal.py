@@ -82,6 +82,8 @@ def _command_payload(command: Any) -> dict[str, Any]:
         "status": _enum_value(command.status),
         "phase": _enum_value(command.phase),
         "outcome": _enum_value(command.outcome) if command.outcome is not None else None,
+        "completion_authority": _enum_value(command.completion_authority),
+        "completion_discrepancies": dict(command.completion_discrepancies),
         "created_at": command.created_at,
         "updated_at": command.updated_at,
         "preparations_expected": command.preparations_expected,
@@ -104,6 +106,8 @@ def _target_payload(command: Any, hw_id: str) -> dict[str, Any]:
         "late_ack": _dataclass_payload(command.late_acks.get(hw_id)),
         "late_execution_started_at": command.late_execution_starts.get(hw_id),
         "late_execution": _execution_payload(command.late_executions.get(hw_id)),
+        "node_execution_started_at": command.node_execution_starts.get(hw_id),
+        "node_execution_report": _execution_payload(command.node_execution_reports.get(hw_id)),
     }
 
 

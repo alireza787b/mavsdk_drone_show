@@ -41,6 +41,7 @@ class FakeFleetRPC:
         per_target_payloads: dict[str, dict[str, Any]] | None = None,
         launch_preparation_tokens: dict[str, str] | None = None,
         operation_deadline_sec: float | None = None,
+        allow_legacy_update_envelope: bool = False,
     ) -> dict[str, Any]:
         call = {
             "drones": list(drones),
@@ -53,6 +54,7 @@ class FakeFleetRPC:
             ),
             "launch_preparation_tokens": dict(launch_preparation_tokens or {}),
             "operation_deadline_sec": operation_deadline_sec,
+            "allow_legacy_update_envelope": allow_legacy_update_envelope,
         }
         self.dispatch_calls.append(call)
         if self._dispatch_impl is not None:
@@ -64,6 +66,7 @@ class FakeFleetRPC:
                     per_target_payloads=per_target_payloads,
                     launch_preparation_tokens=launch_preparation_tokens,
                     operation_deadline_sec=operation_deadline_sec,
+                    allow_legacy_update_envelope=allow_legacy_update_envelope,
                 )
             )
 

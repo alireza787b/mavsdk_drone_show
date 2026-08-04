@@ -1,44 +1,30 @@
-// src/components/OriginModal.js
-
-import React, { useState, useEffect } from 'react';
-import '../styles/OriginModal.css';
-import MapSelector from './MapSelector';
-import { toast } from 'react-toastify';
-import useComputeOrigin from '../hooks/useComputeOrigin';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { FaSyncAlt } from 'react-icons/fa';
-import { FIELD_NAMES } from '../constants/fieldMappings';
 
-function extractDroneParameters(drone, telemetryData) {
-  const tData = telemetryData[drone.hw_id] || {};
-  const lat = parseFloat(tData[FIELD_NAMES.POSITION_LAT] || 0);
-  const lon = parseFloat(tData[FIELD_NAMES.POSITION_LONG] || 0);
+import MapSelector from './MapSelector';
+import useComputeOrigin from '../hooks/useComputeOrigin';
+import { extractApiErrorMessage } from '../services/apiError';
+import { normalizeComparableId } from '../utilities/missionIdentityUtils';
+import {
+  candidateMatchesDrone,
+  describeOriginReference,
+} from '../utilities/originReference';
+import '../styles/OriginModal.css';
 
-  if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
-    return {
-      current_lat: 0,
-      current_lon: 0,
-      pos_id: drone.pos_id,
-      isValid: false,
-    };
-  }
-
-  return {
-    current_lat: lat,
-    current_lon: lon,
-    pos_id: drone.pos_id,
-    isValid: true,
-  };
+function validatedCoordinates(value) {
+  const lat = Number(value?.lat);
+  const lon = Number(value?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
 }
 
 /**
- * OriginModal
+ * Review and persist the formation origin.
  *
- * Workflow:
- * 1. "Manual" tab: user enters lat/lon or picks from map, then clicks "Set Origin".
- * 2. "Drone" tab: user picks a drone. The system attempts auto-compute once, storing success or error in the hook.
- *    - We show the "Retry" button at all times if a drone is selected.
- *    - The user must explicitly click "Set Origin" to finalize the computed origin if it is successful.
+ * Drone-reference previews and writes send hardware identity only. The GCS
+ * resolves slot ownership and validates a fresh PX4 global-position snapshot.
  */
 const OriginModal = ({
   isOpen,
@@ -48,203 +34,139 @@ const OriginModal = ({
   configData,
   currentOrigin,
 }) => {
-  // ------------------------------------------
-  // Local States
-  // ------------------------------------------
   const [coordinateInput, setCoordinateInput] = useState('');
   const [selectedLatLon, setSelectedLatLon] = useState(null);
-  const [originMethod, setOriginMethod] = useState('manual'); // 'manual' or 'drone'
+  const [originMethod, setOriginMethod] = useState('manual');
   const [selectedDroneId, setSelectedDroneId] = useState('');
-  const [errors, setErrors] = useState({});
-
-  // Altitude support (optional)
   const [altitude, setAltitude] = useState('');
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  // A flag to ensure we auto-compute only once when a drone is first picked.
-  const [hasAutoComputed, setHasAutoComputed] = useState(false);
+  const {
+    origin,
+    error,
+    loading,
+    computeOrigin,
+    resetOrigin,
+  } = useComputeOrigin();
 
-  // The custom hook to compute origin
-  const { origin, error, loading, computeOrigin } = useComputeOrigin();
+  const selectedDrone = useMemo(() => {
+    const selectedId = normalizeComparableId(selectedDroneId);
+    return configData.find(
+      (drone) => normalizeComparableId(drone.hw_id) === selectedId
+    ) || null;
+  }, [configData, selectedDroneId]);
+  const selectedReferenceStatus = useMemo(
+    () => describeOriginReference(telemetryData, selectedDroneId),
+    [selectedDroneId, telemetryData]
+  );
+  const hasMatchingCandidate = candidateMatchesDrone(origin, selectedDroneId);
 
-  // ------------------------------------------
-  // 1. Initialize or reset modal
-  // ------------------------------------------
   useEffect(() => {
-    if (isOpen) {
-      // If there's a known current origin, load it into the manual tab.
-      if (currentOrigin?.lat && currentOrigin?.lon) {
-        setCoordinateInput(`${currentOrigin.lat}, ${currentOrigin.lon}`);
-        setSelectedLatLon({ lat: currentOrigin.lat, lon: currentOrigin.lon });
-        setOriginMethod('manual');
-        // Load altitude if available
-        if (currentOrigin.alt !== undefined && currentOrigin.alt !== null) {
-          setAltitude(currentOrigin.alt.toString());
-        }
-      } else {
-        setCoordinateInput('');
-        setSelectedLatLon(null);
-        setAltitude('');
-      }
+    if (!isOpen) return;
 
-      // Reset states
-      setErrors({});
-      setSelectedDroneId('');
-      setHasAutoComputed(false);
+    const existingCoordinates = validatedCoordinates(currentOrigin);
+    if (existingCoordinates) {
+      setCoordinateInput(`${existingCoordinates.lat}, ${existingCoordinates.lon}`);
+      setSelectedLatLon(existingCoordinates);
+      setAltitude(
+        currentOrigin?.alt !== undefined && currentOrigin?.alt !== null
+          ? String(currentOrigin.alt)
+          : ''
+      );
+    } else {
+      setCoordinateInput('');
+      setSelectedLatLon(null);
+      setAltitude('');
     }
-  }, [isOpen, currentOrigin]);
 
-  // If user picks a lat/lon from the map in manual mode, reflect that in text input
+    setOriginMethod('manual');
+    setSelectedDroneId('');
+    setErrors({});
+    setSaving(false);
+    resetOrigin();
+  }, [currentOrigin, isOpen, resetOrigin]);
+
   useEffect(() => {
     if (selectedLatLon) {
       setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`);
     }
   }, [selectedLatLon]);
 
-  // ------------------------------------------
-  // 2. Auto-compute once if Drone is selected
-  // ------------------------------------------
   useEffect(() => {
-    if (originMethod === 'drone' && selectedDroneId && !hasAutoComputed) {
-      // Mark that we've done auto-compute attempt
-      setHasAutoComputed(true);
-
-      // Try to compute once (if valid lat/lon)
-      const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
-      if (!selectedDrone) {
-        setErrors({ drone: 'Selected drone not found.' });
-        return;
-      }
-      const {
-        current_lat,
-        current_lon,
-        pos_id,
-        isValid,
-      } = extractDroneParameters(selectedDrone, telemetryData);
-      if (!isValid) {
-        setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
-        return;
-      }
-      computeOrigin({ current_lat, current_lon, pos_id });
+    if (originMethod !== 'drone' || !selectedDroneId) return;
+    if (!selectedDrone) {
+      setErrors({ drone: 'Selected drone was not found in Mission Config.' });
+      return;
     }
-  }, [
-    originMethod,
-    selectedDroneId,
-    hasAutoComputed,
-    configData,
-    computeOrigin,
-    telemetryData,
-  ]);
+    computeOrigin({ hw_id: normalizeComparableId(selectedDrone.hw_id) });
+  }, [computeOrigin, originMethod, selectedDrone, selectedDroneId]);
 
-  // If the custom hook has an error, toast once
-  useEffect(() => {
-    if (error) {
-      toast.error(`Origin computation failed: ${error}`);
-    }
-  }, [error]);
-
-  // ------------------------------------------
-  // Manual Input Validation
-  // ------------------------------------------
   const validateManualInput = () => {
-    const ddRegex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
-    if (ddRegex.test(coordinateInput.trim())) {
+    const coordinatePattern = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
+    if (coordinatePattern.test(coordinateInput.trim())) {
       const [lat, lon] = coordinateInput.trim().split(',').map(Number);
-      return { lat, lon };
+      const validated = validatedCoordinates({ lat, lon });
+      if (validated) return validated;
     }
     setErrors({
-      input: 'Invalid format. Please enter coordinates as "lat, lon" in decimal degrees.',
+      input: 'Enter decimal latitude and longitude within valid ranges, for example “35.4079, 50.1649”.',
     });
     return null;
   };
 
-  // ------------------------------------------
-  // Retry button for Drone-based approach
-  // Always visible if a drone is selected
-  // ------------------------------------------
   const handleRetryCompute = () => {
-    if (!selectedDroneId) {
-      toast.error('No drone selected.');
-      return;
-    }
-    const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
     if (!selectedDrone) {
-      setErrors({ drone: 'Selected drone not found.' });
+      setErrors({ drone: 'Select a configured drone before retrying.' });
       return;
     }
-    const {
-      current_lat,
-      current_lon,
-      pos_id,
-      isValid,
-    } = extractDroneParameters(selectedDrone, telemetryData);
-
-    if (!isValid) {
-      setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
-      return;
-    }
-    // Attempt re-compute
-    computeOrigin({ current_lat, current_lon, pos_id });
+    setErrors({});
+    computeOrigin({ hw_id: normalizeComparableId(selectedDrone.hw_id) });
   };
 
-  // ------------------------------------------
-  // Handler: "Set Origin"
-  // ------------------------------------------
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    let request;
     if (originMethod === 'manual') {
-      let originData;
+      const coordinates = validatedCoordinates(selectedLatLon) || validateManualInput();
+      if (!coordinates) return;
 
-      if (selectedLatLon) {
-        originData = {
-          lat: selectedLatLon.lat,
-          lon: selectedLatLon.lon
-        };
-      } else {
-        const validated = validateManualInput();
-        if (!validated) return;
-        originData = validated;
-      }
-
-      // Add altitude if provided
-      if (altitude && altitude.trim() !== '') {
-        originData.alt = parseFloat(altitude);
-        originData.alt_source = 'manual';
-      }
-
-      onSubmit(originData);
-      toast.success('Origin set successfully.');
-      onClose();
-
-    } else {
-      // Drone-based
-      if (!selectedDroneId) {
-        setErrors({ drone: 'Please select a drone to compute origin.' });
+      const altitudeMsl = altitude.trim() === '' ? 0 : Number(altitude);
+      if (!Number.isFinite(altitudeMsl)) {
+        setErrors({ input: 'Altitude MSL must be a finite number.' });
         return;
       }
-      if (origin) {
-        // We have a computed origin => finalize
-        // Add altitude from drone telemetry if available
-        const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
-        const tData = telemetryData[selectedDrone?.hw_id] || {};
-        const droneAlt = tData[FIELD_NAMES.POSITION_ALT];
-
-        const originData = { ...origin };
-        if (droneAlt && !isNaN(parseFloat(droneAlt))) {
-          originData.alt = parseFloat(droneAlt);
-          originData.alt_source = 'drone';
-        }
-
-        onSubmit(originData);
-        toast.success('Origin set successfully.');
-        onClose();
-      } else {
-        // No success yet => attempt one more time
-        handleRetryCompute();
+      request = {
+        method: 'manual',
+        lat: coordinates.lat,
+        lon: coordinates.lon,
+        alt: altitudeMsl,
+      };
+    } else {
+      if (!selectedDroneId || !hasMatchingCandidate) {
+        setErrors({ drone: 'Compute a current preview for the selected drone before saving.' });
+        return;
       }
+      request = {
+        method: 'drone_reference',
+        hw_id: normalizeComparableId(selectedDroneId),
+      };
+    }
+
+    setSaving(true);
+    setErrors({});
+    try {
+      await onSubmit(request);
+    } catch (submitError) {
+      setErrors({
+        submit: await extractApiErrorMessage(submitError, 'Failed to save formation origin.'),
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleInputChange = (e) => {
-    setCoordinateInput(e.target.value);
+  const handleInputChange = (event) => {
+    setCoordinateInput(event.target.value);
     setSelectedLatLon(null);
     setErrors({});
   };
@@ -252,11 +174,13 @@ const OriginModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="origin-modal-overlay" onClick={onClose}>
-      <div className="origin-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Set Origin Coordinates</h3>
+    <div
+      className="origin-modal-overlay"
+      onClick={() => { if (!saving) onClose(); }}
+    >
+      <div className="origin-modal" onClick={(event) => event.stopPropagation()}>
+        <h3>Set Formation Origin</h3>
 
-        {/* Tab Buttons */}
         <div className="origin-method-selection">
           <button
             className={`method-button ${originMethod === 'manual' ? 'active' : ''}`}
@@ -264,6 +188,7 @@ const OriginModal = ({
               setOriginMethod('manual');
               setErrors({});
             }}
+            disabled={saving}
           >
             Enter Coordinates Manually
           </button>
@@ -273,12 +198,12 @@ const OriginModal = ({
               setOriginMethod('drone');
               setErrors({});
             }}
+            disabled={saving}
           >
             Use Drone as Reference
           </button>
         </div>
 
-        {/* Manual Section */}
         {originMethod === 'manual' && (
           <div className="manual-entry">
             <label>
@@ -288,98 +213,102 @@ const OriginModal = ({
                 value={coordinateInput}
                 onChange={handleInputChange}
                 placeholder='e.g., "35.4079, 50.1649"'
+                disabled={saving}
               />
             </label>
             {errors.input && <span className="error-message">{errors.input}</span>}
 
             <label className="manual-entry__altitude-label">
-              Altitude MSL (optional, meters):
+              Altitude MSL (meters):
               <input
                 type="number"
                 step="0.1"
                 value={altitude}
-                onChange={(e) => setAltitude(e.target.value)}
-                placeholder="Ground level (default: 0m)"
+                onChange={(event) => setAltitude(event.target.value)}
+                placeholder="0.0"
+                disabled={saving}
               />
             </label>
             <small className="help-text">
-              Mean Sea Level altitude in meters. Leave blank for ground level (0m).
+              Use absolute altitude above mean sea level. Blank means 0 m MSL.
             </small>
 
             <p className="or-text">OR</p>
             <MapSelector
               onSelect={setSelectedLatLon}
-              initialPosition={
-                selectedLatLon
-                  ? { lat: selectedLatLon.lat, lon: selectedLatLon.lon }
-                  : null
-              }
+              initialPosition={selectedLatLon}
             />
           </div>
         )}
 
-        {/* Drone Section */}
         {originMethod === 'drone' && (
           <div className="drone-reference">
             <label>
               Select Drone:
               <select
                 value={selectedDroneId}
-                onChange={(e) => {
-                  setSelectedDroneId(e.target.value);
+                onChange={(event) => {
+                  setSelectedDroneId(event.target.value);
                   setErrors({});
-                  setHasAutoComputed(false); // So we can auto-compute again on new selection
+                  resetOrigin();
                 }}
+                disabled={saving}
               >
                 <option value="">-- Select Drone --</option>
-                {configData.map((drone) => (
-                  <option key={drone.hw_id} value={drone.hw_id}>
-                    Position {drone.pos_id} (HW {drone.hw_id})
-                  </option>
-                ))}
+                {configData.map((drone) => {
+                  const status = describeOriginReference(telemetryData, drone.hw_id);
+                  return (
+                    <option key={drone.hw_id} value={normalizeComparableId(drone.hw_id)}>
+                      Position {drone.pos_id} (HW {drone.hw_id}) — {status.label}
+                    </option>
+                  );
+                })}
               </select>
             </label>
+
             {errors.drone && <span className="error-message">{errors.drone}</span>}
+            {selectedDroneId && (
+              <p className={selectedReferenceStatus.eligible ? 'reference-status ready' : 'reference-status pending'}>
+                <strong>{selectedReferenceStatus.label}.</strong> {selectedReferenceStatus.detail}
+              </p>
+            )}
+            {loading && <p className="loading-text">Computing origin preview...</p>}
+            {error && <span className="error-message">{error}</span>}
 
-            {loading && <p className="loading-text">Computing origin...</p>}
-
-            {/* If computed successfully */}
-            {origin && (
+            {hasMatchingCandidate && (
               <div className="computed-origin">
-                <p><strong>Computed Origin:</strong></p>
-                <p>Latitude: {origin.lat.toFixed(8)}</p>
-                <p>Longitude: {origin.lon.toFixed(8)}</p>
-                {selectedDroneId && (() => {
-                  const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
-                  const tData = telemetryData[selectedDrone?.hw_id] || {};
-                  const droneAlt = tData[FIELD_NAMES.POSITION_ALT];
-                  return droneAlt && !isNaN(parseFloat(droneAlt)) ? (
-                    <p>Altitude: {parseFloat(droneAlt).toFixed(1)}m MSL (from drone)</p>
-                  ) : null;
-                })()}
+                <p><strong>Computed Origin</strong></p>
+                <p>Latitude: {origin.origin.lat.toFixed(8)}</p>
+                <p>Longitude: {origin.origin.lon.toFixed(8)}</p>
+                <p>Altitude: {origin.origin.alt.toFixed(1)} m MSL</p>
+                <p>Reference: HW {origin.reference.hw_id}, Position {origin.reference.pos_id}</p>
+                <p>PX4 global sample: {(origin.reference.position_age_ms / 1000).toFixed(1)}s old</p>
               </div>
             )}
 
-            {/* Always show the Retry button if a drone is selected */}
             {selectedDroneId && (
               <button
                 className="retry-button"
                 onClick={handleRetryCompute}
-                disabled={loading}
+                disabled={loading || saving}
               >
                 <FaSyncAlt />
-                Retry
+                Retry with latest telemetry
               </button>
             )}
           </div>
         )}
 
-        {/* Modal Actions */}
         <div className="modal-actions">
-          <button onClick={handleSubmit} className="ok-button" disabled={loading}>
-            Set Origin
+          {errors.submit && <span className="error-message">{errors.submit}</span>}
+          <button
+            onClick={handleSubmit}
+            className="ok-button"
+            disabled={loading || saving || (originMethod === 'drone' && !hasMatchingCandidate)}
+          >
+            {saving ? 'Saving...' : 'Set Origin'}
           </button>
-          <button onClick={onClose} className="cancel-button" disabled={loading}>
+          <button onClick={onClose} className="cancel-button" disabled={loading || saving}>
             Cancel
           </button>
         </div>
@@ -397,6 +326,8 @@ OriginModal.propTypes = {
   currentOrigin: PropTypes.shape({
     lat: PropTypes.number,
     lon: PropTypes.number,
+    alt: PropTypes.number,
+    source: PropTypes.string,
   }),
 };
 

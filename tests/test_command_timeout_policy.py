@@ -38,6 +38,9 @@ class _MockParams:
     SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER = 1.2
     SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
     PRECISION_MOVE_DEFAULT_TIMEOUT_SEC = 30.0
+    GCS_FLEET_DISPATCH_DEADLINE_SEC = 15.0
+    GCS_COMMAND_HTTP_TIMEOUT_SEC = 5.0
+    GCS_GIT_SYNC_VERIFY_TIMEOUT_SEC = 45.0
 
 
 def test_estimate_command_tracking_timeout_for_takeoff_covers_full_terminal_lifecycle():
@@ -45,6 +48,15 @@ def test_estimate_command_tracking_timeout_for_takeoff_covers_full_terminal_life
 
     assert calculate_takeoff_tracking_timeout(params=_MockParams) == 307
     assert timeout_ms == 307_000
+
+
+def test_update_code_tracker_outlives_dispatch_and_postcondition_verification():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.UPDATE_CODE,
+        params=_MockParams,
+    )
+
+    assert timeout_ms == (15 + 5 + 45 + 30) * 1000
 
 
 def test_estimate_command_tracking_timeout_for_land_scales_with_relative_altitude():

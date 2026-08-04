@@ -1118,6 +1118,304 @@ class TestCommandTracker:
         assert status['outcome'] == 'completed'
 
 
+class TestFleetGitPostconditionCompletion:
+    """Keep Fleet Ops Git verification separate from transport callbacks.
+
+    UPDATE_CODE can restart an old node before that node reports execution.
+    These tests define the tracker boundary: the Fleet Git postcondition is the
+    only terminal authority, while capability-authenticated node reports remain
+    durable diagnostic evidence.
+    """
+
+    @staticmethod
+    async def _create(targets=("1", "2")):
+        from command_tracker import CommandCompletionAuthority, CommandTracker
+
+        tracker = CommandTracker(max_commands=20)
+        creation = await tracker.create_or_replay_command(
+            mission_type=Mission.UPDATE_CODE.value,
+            target_drones=list(targets),
+            completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+        )
+        capabilities = await tracker.get_callback_capabilities(creation.command_id)
+        assert await tracker.mark_submitted(creation.command_id) is True
+        return tracker, creation.command_id, capabilities
+
+    @pytest.mark.asyncio
+    async def test_authoritative_batch_requires_exact_targets_capabilities_and_authority(self):
+        from command_tracker import (
+            CommandCallbackAuthenticationError,
+            CommandCompletionAuthority,
+        )
+
+        tracker, command_id, capabilities = await self._create()
+        before = await tracker.get_status(command_id)
+
+        invalid_batches = (
+            ({"1": {"success": True}}, capabilities, ValueError),
+            (
+                {
+                    "1": {"success": True},
+                    "2": {"success": True},
+                    "3": {"success": True},
+                },
+                capabilities,
+                ValueError,
+            ),
+            (
+                {"1": {"success": True}, "2": {"success": True}},
+                {"1": capabilities["1"]},
+                CommandCallbackAuthenticationError,
+            ),
+            (
+                {"1": {"success": True}, "2": {"success": True}},
+                {**capabilities, "3": capabilities["1"]},
+                CommandCallbackAuthenticationError,
+            ),
+            (
+                {"1": {"success": True}, "2": {"success": True}},
+                {"1": capabilities["2"], "2": capabilities["1"]},
+                CommandCallbackAuthenticationError,
+            ),
+        )
+        for results, supplied_capabilities, expected_error in invalid_batches:
+            with pytest.raises(expected_error):
+                await tracker.record_authoritative_completion(
+                    command_id,
+                    results,
+                    completion_authority=(
+                        CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+                    ),
+                    callback_capabilities=supplied_capabilities,
+                )
+
+        with pytest.raises(ValueError):
+            await tracker.record_authoritative_completion(
+                command_id,
+                {"1": {"success": True}, "2": {"success": True}},
+                completion_authority=CommandCompletionAuthority.NODE_CALLBACK,
+                callback_capabilities=capabilities,
+            )
+
+        after = await tracker.get_status(command_id)
+        assert after["status"] == before["status"]
+        assert after["phase"] == before["phase"]
+        assert after["outcome"] is None
+        assert after["executions"]["received"] == 0
+        assert after["node_execution_reports"]["received"] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("results", "expected_status", "expected_outcome", "succeeded", "failed"),
+        (
+            (
+                {"1": {"success": True}, "2": {"success": True}},
+                "completed",
+                "completed",
+                2,
+                0,
+            ),
+            (
+                {
+                    "1": {"success": False, "error_message": "commit mismatch"},
+                    "2": {"success": False, "error_message": "dirty worktree"},
+                },
+                "failed",
+                "failed",
+                0,
+                2,
+            ),
+            (
+                {
+                    "1": {"success": True},
+                    "2": {"success": False, "error_message": "runtime still old"},
+                },
+                "partial",
+                "partial",
+                1,
+                1,
+            ),
+        ),
+    )
+    async def test_postcondition_is_terminal_truth_for_all_result_combinations(
+        self,
+        results,
+        expected_status,
+        expected_outcome,
+        succeeded,
+        failed,
+    ):
+        from command_tracker import CommandCompletionAuthority
+
+        tracker, command_id, capabilities = await self._create()
+        for hw_id in ("1", "2"):
+            await tracker.record_ack(command_id, hw_id, category="accepted")
+
+        assert await tracker.record_authoritative_completion(
+            command_id,
+            results,
+            completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+            callback_capabilities=capabilities,
+        ) is True
+
+        status = await tracker.get_status(command_id)
+        assert status["completion_authority"] == "fleet_git_postcondition"
+        assert status["status"] == expected_status
+        assert status["phase"] == "terminal"
+        assert status["outcome"] == expected_outcome
+        assert status["executions"]["received"] == 2
+        assert status["executions"]["succeeded"] == succeeded
+        assert status["executions"]["failed"] == failed
+        for hw_id, result in results.items():
+            assert status["executions"]["details"][hw_id]["success"] is result["success"]
+            assert status["executions"]["details"][hw_id]["error"] == result.get(
+                "error_message"
+            )
+
+    @pytest.mark.asyncio
+    async def test_postcondition_completion_does_not_rewrite_missing_or_failed_acks(self):
+        from command_tracker import CommandCompletionAuthority
+
+        tracker, command_id, capabilities = await self._create(("1", "2", "3", "4"))
+        await tracker.record_ack(command_id, "1", category="accepted")
+        await tracker.record_ack(
+            command_id,
+            "2",
+            category="offline",
+            delivery_state="delivery_unknown",
+        )
+        await tracker.record_ack(
+            command_id,
+            "3",
+            category="rejected",
+            delivery_state="rejected",
+            error_code="E202",
+        )
+
+        assert await tracker.record_authoritative_completion(
+            command_id,
+            {hw_id: {"success": True} for hw_id in ("1", "2", "3", "4")},
+            completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+            callback_capabilities=capabilities,
+        ) is True
+
+        status = await tracker.get_status(command_id)
+        assert status["outcome"] == "completed"
+        assert status["acks"]["expected"] == 4
+        assert status["acks"]["received"] == 3
+        assert status["acks"]["accepted"] == 1
+        assert status["acks"]["offline"] == 1
+        assert status["acks"]["rejected"] == 1
+        assert status["acks"]["details"]["2"]["delivery_state"] == "delivery_unknown"
+        assert status["acks"]["details"]["3"]["error_code"] == "E202"
+        assert "4" not in status["acks"]["details"]
+
+    @pytest.mark.asyncio
+    async def test_node_callback_before_verifier_is_diagnostic_and_non_terminal(self):
+        tracker, command_id, capabilities = await self._create(("1",))
+        await tracker.record_ack(command_id, "1", category="accepted")
+
+        assert await tracker.record_execution_start(
+            command_id,
+            "1",
+            callback_capability=capabilities["1"],
+        ) is True
+        assert await tracker.record_execution(
+            command_id,
+            "1",
+            True,
+            duration_ms=123,
+            callback_capability=capabilities["1"],
+        ) is True
+
+        status = await tracker.get_status(command_id)
+        assert status["phase"] != "terminal"
+        assert status["outcome"] is None
+        assert status["executions"]["received"] == 0
+        assert status["node_execution_reports"]["started"] == 1
+        assert status["node_execution_reports"]["received"] == 1
+        assert status["node_execution_reports"]["details"]["1"]["success"] is True
+        assert status["node_execution_reports"]["details"]["1"]["duration_ms"] == 123
+
+    @pytest.mark.asyncio
+    async def test_node_callback_after_verifier_cannot_change_outcome_and_surfaces_discrepancy(self):
+        from command_tracker import CommandCompletionAuthority
+
+        tracker, command_id, capabilities = await self._create(("1",))
+        await tracker.record_ack(command_id, "1", category="accepted")
+        await tracker.record_authoritative_completion(
+            command_id,
+            {"1": {"success": True}},
+            completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+            callback_capabilities=capabilities,
+        )
+        completed = await tracker.get_status(command_id)
+
+        assert await tracker.record_execution(
+            command_id,
+            "1",
+            False,
+            error_message="node callback reported script failure",
+            callback_capability=capabilities["1"],
+        ) is True
+
+        status = await tracker.get_status(command_id)
+        assert status["status"] == "completed"
+        assert status["outcome"] == "completed"
+        assert status["completed_at"] == completed["completed_at"]
+        assert status["executions"]["details"]["1"]["success"] is True
+        assert status["node_execution_reports"]["details"]["1"]["success"] is False
+        assert "1" in status["completion_discrepancies"]
+        assert "script failure" in status["node_execution_reports"]["details"]["1"]["error"]
+
+    @pytest.mark.asyncio
+    async def test_authoritative_completion_batch_is_idempotent(self):
+        from command_tracker import CommandCompletionAuthority
+
+        tracker, command_id, capabilities = await self._create()
+        for hw_id in ("1", "2"):
+            await tracker.record_ack(command_id, hw_id, category="accepted")
+        results = {"1": {"success": True}, "2": {"success": True}}
+
+        for _ in range(2):
+            assert await tracker.record_authoritative_completion(
+                command_id,
+                results,
+                completion_authority=CommandCompletionAuthority.FLEET_GIT_POSTCONDITION,
+                callback_capabilities=capabilities,
+            ) is True
+
+        status = await tracker.get_status(command_id)
+        stats = await tracker.get_statistics()
+        assert status["outcome"] == "completed"
+        assert status["executions"]["received"] == 2
+        assert stats["successful_commands"] == 1
+
+    @pytest.mark.asyncio
+    async def test_status_exposes_authority_and_diagnostics_but_never_capabilities(self):
+        from schemas import CommandStatusResponse
+
+        tracker, command_id, capabilities = await self._create(("1",))
+        await tracker.record_ack(command_id, "1", category="accepted")
+        await tracker.record_execution(
+            command_id,
+            "1",
+            True,
+            callback_capability=capabilities["1"],
+        )
+
+        status = await tracker.get_status(command_id)
+        public_status = CommandStatusResponse.model_validate(status).model_dump(mode="json")
+        serialized = json.dumps(public_status)
+        assert status["completion_authority"] == "fleet_git_postcondition"
+        assert "node_execution_reports" in status
+        assert public_status["completion_authority"] == "fleet_git_postcondition"
+        assert public_status["node_execution_reports"]["received"] == 1
+        assert capabilities["1"] not in serialized
+        assert "callback_capability" not in serialized
+        assert "callback_capabilities" not in serialized
+
+
 # ============================================================================
 # Command Validation Tests
 # ============================================================================

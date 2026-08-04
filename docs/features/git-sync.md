@@ -96,6 +96,41 @@ policy reconcile all require dry-run first and explicit confirmation second.
 | UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
 
+### Mixed-version bootstrap boundary
+
+Fleet Ops normally sends the current target-bound command envelope. During a
+rolling upgrade, a supported older node may reject exactly the newer
+`target_hw_id` and `command_report_capability` fields at FastAPI schema
+validation before its update handler can run. The GCS has one narrow recovery
+bridge for that condition:
+
+- it is enabled only by the typed Fleet Ops Git Sync authority and only for
+  `UPDATE_CODE`;
+- it requires HTTP 422 with exactly those two top-level Pydantic extra-field
+  errors and no other validation problem;
+- it verifies the same host's typed hardware identity from
+  `/api/v1/swarm/state` before removing the unsupported target metadata;
+- it retries once with the same command ID, branch, trigger, and mission; and
+- it never applies to flight, recovery, parameter, or ordinary operator
+  commands.
+
+The compatibility response is still subject to exact command-ID and hardware-
+ID ACK correlation. A timeout or ambiguous response is not retried with a new
+ID. Raw schema-error input is never logged because it may contain the opaque
+callback capability.
+
+Code-update completion belongs to Fleet Ops postcondition verification, not to
+whichever callback arrives first. The tracker keeps transport ACKs and
+authenticated node reports as separate evidence, then atomically terminalizes
+from the exact branch, commit, clean-worktree, and ahead/behind result for every
+hardware target. This also covers the expected coordinator restart that can
+interrupt a node callback.
+
+Do not generalize this bridge or key its retirement to one commit SHA. Remove
+it only after the minimum supported node protocol, physical/customer rollback
+artifacts, and stock SITL all use the current envelope and bridge-use evidence
+has remained zero for a full supported release window.
+
 ## Post-Sync Runtime Reconcile
 
 After a successful node pull/reset, `update_repo_ssh.sh` now performs a narrow

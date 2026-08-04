@@ -186,6 +186,24 @@
     border-left: 3px solid var(--color-info);
 }
 
+.reference-status {
+    margin: 0;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-warning-border);
+    border-left: 3px solid var(--color-warning);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-warning-light);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    line-height: 1.45;
+}
+
+.reference-status.ready {
+    border-color: var(--color-success-border);
+    border-left-color: var(--color-success);
+    background: var(--color-success-light);
+}
+
 
 /* Computed Origin Box */
 

@@ -2,12 +2,19 @@
 
 import csv
 import io
+import math
 import time
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
+
+from origin_reference import (
+    OriginReferenceError,
+    coerce_valid_origin_values,
+    resolve_origin_reference,
+)
 
 from schemas import (
     GPSGlobalOriginResponse,
@@ -131,6 +138,107 @@ def _render_launch_positions_kml(payload: dict[str, Any]) -> Response:
 def create_origin_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    def _reference_max_age_ms() -> int:
+        configured_seconds = getattr(deps.Params, "LOCAL_MAVLINK_STALE_TIMEOUT_SEC", 15)
+        try:
+            return max(1, int(float(configured_seconds) * 1000))
+        except (TypeError, ValueError):
+            return 15_000
+
+    def _compute_drone_reference_candidate(hw_id: str) -> dict[str, Any]:
+        drones_config = deps.load_config() or []
+        with deps.telemetry_lock:
+            telemetry_snapshot = {
+                key: dict(value or {})
+                for key, value in (deps.telemetry_data_all_drones or {}).items()
+            }
+
+        try:
+            reference = resolve_origin_reference(
+                hw_id=hw_id,
+                drones_config=drones_config,
+                telemetry_snapshot=telemetry_snapshot,
+                now_ms=int(time.time() * 1000),
+                max_age_ms=_reference_max_age_ms(),
+            )
+        except OriginReferenceError as exc:
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+
+        sim_mode = getattr(deps.Params, "sim_mode", False)
+        intended_north, intended_east = deps.get_expected_position_from_trajectory(
+            reference["pos_id"],
+            sim_mode,
+        )
+        if intended_north is None or intended_east is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "ORIGIN_REFERENCE_TRAJECTORY_MISSING",
+                    "message": (
+                        f"No trajectory start is available for show slot {reference['pos_id']}. "
+                        "Import or select the mission trajectories before setting origin."
+                    ),
+                },
+            )
+
+        try:
+            intended_north = float(intended_north)
+            intended_east = float(intended_east)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "ORIGIN_REFERENCE_TRAJECTORY_INVALID",
+                    "message": f"Show slot {reference['pos_id']} has invalid trajectory start offsets.",
+                },
+            ) from exc
+        if not math.isfinite(intended_north) or not math.isfinite(intended_east):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "ORIGIN_REFERENCE_TRAJECTORY_INVALID",
+                    "message": f"Show slot {reference['pos_id']} has non-finite trajectory start offsets.",
+                },
+            )
+
+        origin_lat, origin_lon = deps.compute_origin_from_drone(
+            reference["latitude"],
+            reference["longitude"],
+            intended_north,
+            intended_east,
+        )
+        try:
+            origin_lat, origin_lon, origin_alt = coerce_valid_origin_values(
+                origin_lat,
+                origin_lon,
+                reference["altitude_msl"],
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "ORIGIN_REFERENCE_COMPUTATION_INVALID",
+                    "message": "The computed formation origin is invalid; review the reference telemetry and trajectory start.",
+                },
+            ) from exc
+        return {
+            "status": "success",
+            "origin": {
+                "lat": origin_lat,
+                "lon": origin_lon,
+                "alt": origin_alt,
+                "source": "drone_global_position_msl",
+            },
+            "reference": reference,
+            "intended_offset": {
+                "north_m": intended_north,
+                "east_m": intended_east,
+            },
+        }
+
     @router.get("/api/v1/origin", response_model=OriginResponse, tags=["Origin"])
     async def get_origin():
         """Get current origin coordinates."""
@@ -149,26 +257,43 @@ def create_origin_router(deps: Any) -> APIRouter:
 
     @router.put("/api/v1/origin", response_model=OriginResponse, tags=["Origin"])
     async def set_origin(origin_req: OriginRequest):
-        """Set origin coordinates manually."""
+        """Persist a manual origin or atomically derive one from live drone telemetry."""
         try:
-            altitude_msl = float(origin_req.alt if origin_req.alt is not None else 0.0)
-            origin_data = {
-                "lat": origin_req.lat,
-                "lon": origin_req.lon,
-                "alt": altitude_msl,
-                "alt_source": origin_req.alt_source,
-                "timestamp": datetime.now().isoformat(),
-                "version": 2,
-            }
+            if origin_req.method == "drone_reference":
+                candidate = _compute_drone_reference_candidate(origin_req.hw_id)
+                candidate_origin = candidate["origin"]
+                reference = candidate["reference"]
+                origin_data = {
+                    "lat": candidate_origin["lat"],
+                    "lon": candidate_origin["lon"],
+                    "alt": candidate_origin["alt"],
+                    "alt_source": candidate_origin["source"],
+                    "reference_hw_id": reference["hw_id"],
+                    "reference_pos_id": reference["pos_id"],
+                    "reference_position_timestamp_ms": reference["position_timestamp_ms"],
+                    "timestamp": datetime.now().isoformat(),
+                    "version": 2,
+                }
+            else:
+                origin_data = {
+                    "lat": origin_req.lat,
+                    "lon": origin_req.lon,
+                    "alt": float(origin_req.alt),
+                    "alt_source": "manual",
+                    "timestamp": datetime.now().isoformat(),
+                    "version": 2,
+                }
             deps.save_origin(origin_data)
 
             return OriginResponse(
-                lat=origin_req.lat,
-                lon=origin_req.lon,
-                alt=altitude_msl,
+                lat=float(origin_data["lat"]),
+                lon=float(origin_data["lon"]),
+                alt=float(origin_data["alt"]),
                 timestamp=int(time.time() * 1000),
-                source=origin_req.alt_source,
+                source=str(origin_data["alt_source"]),
             )
+        except HTTPException:
+            raise
         except Exception as exc:
             deps.log_system_error(f"Error setting origin: {exc}", "origin")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -276,29 +401,9 @@ def create_origin_router(deps: Any) -> APIRouter:
 
     @router.post("/api/v1/origin/compute", response_model=OriginComputeResponse, tags=["Origin"])
     async def compute_origin_endpoint(payload: OriginComputeRequest):
-        """Compute origin coordinates from a drone's current position and assigned launch slot."""
+        """Preview origin from a configured drone's fresh, valid global position."""
         try:
-            current_lat = float(payload.current_lat)
-            current_lon = float(payload.current_lon)
-            pos_id = int(payload.pos_id)
-
-            sim_mode = getattr(deps.Params, "sim_mode", False)
-            intended_north, intended_east = deps.get_expected_position_from_trajectory(pos_id, sim_mode)
-
-            if intended_north is None or intended_east is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Could not read trajectory file for pos_id={pos_id}. Ensure trajectory CSV exists.",
-                )
-
-            origin_lat, origin_lon = deps.compute_origin_from_drone(
-                current_lat,
-                current_lon,
-                intended_north,
-                intended_east,
-            )
-
-            return OriginComputeResponse(status="success", lat=origin_lat, lon=origin_lon)
+            return OriginComputeResponse(**_compute_drone_reference_candidate(payload.hw_id))
         except HTTPException:
             raise
         except Exception as exc:

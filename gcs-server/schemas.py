@@ -499,7 +499,7 @@ class DroneTelemetry(BaseModel):
 
     hdop: float = Field(..., description="Horizontal dilution of precision")
     vdop: float = Field(..., description="Vertical dilution of precision")
-    gps_fix_type: int = Field(..., ge=0, le=6, description="GPS fix type (0-6)")
+    gps_fix_type: int = Field(..., ge=0, le=8, description="MAVLink GPS fix type (0-8)")
     satellites_visible: int = Field(..., ge=0, description="Visible satellites")
 
     ip: str = Field(..., description="Drone IP address")
@@ -1498,26 +1498,80 @@ class CommandResponse(BaseModel):
 # Origin & GPS Schemas
 # ============================================================================
 
-class OriginRequest(BaseModel):
-    """Request for manual origin persistence."""
+class ManualOriginRequest(BaseModel):
+    """Persist an operator-entered formation origin."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    method: Literal["manual"] = Field(..., description="Manual origin workflow discriminator")
     lat: float = Field(..., ge=-90, le=90, description="Origin latitude")
     lon: float = Field(..., ge=-180, le=180, description="Origin longitude")
     alt: float = Field(0.0, description="Origin altitude (m MSL)")
-    alt_source: Optional[str] = Field('manual', description="Altitude source (manual/drone)")
+
+
+class DroneReferenceOriginRequest(BaseModel):
+    """Atomically derive and persist origin from one live drone reference."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["drone_reference"] = Field(..., description="Live-drone origin workflow discriminator")
+    hw_id: str = Field(..., min_length=1, description="Configured drone hardware identity")
+
+
+OriginRequest = Union[ManualOriginRequest, DroneReferenceOriginRequest]
 
 
 class OriginComputeRequest(BaseModel):
-    """Request for computing origin from a live drone position plus assigned slot."""
-    current_lat: float = Field(..., ge=-90, le=90, description="Current drone latitude")
-    current_lon: float = Field(..., ge=-180, le=180, description="Current drone longitude")
-    pos_id: int = Field(..., ge=1, description="Assigned launch-slot position ID")
+    """Request a server-authoritative live-drone origin preview."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hw_id: str = Field(..., min_length=1, description="Configured drone hardware identity")
+
+
+class OriginCandidate(BaseModel):
+    """Candidate formation origin derived from a reference snapshot."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+    alt: float = Field(..., description="Absolute altitude (m MSL)")
+    source: Literal["drone_global_position_msl"]
+
+
+class OriginReferenceEvidence(BaseModel):
+    """Exact live position evidence used for an origin computation."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    hw_id: str
+    pos_id: int = Field(..., ge=1)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    altitude_msl: float
+    position_source: Literal["global_position_int"]
+    position_timestamp_ms: int = Field(..., ge=1)
+    position_age_ms: int = Field(..., ge=0)
+    gps_fix_type: int = Field(..., ge=3, le=8)
+
+
+class OriginIntendedOffset(BaseModel):
+    """Configured show-slot offset used to recover the formation origin."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    north_m: float
+    east_m: float
 
 
 class OriginComputeResponse(BaseModel):
     """Response for POST /api/v1/origin/compute."""
-    status: str = Field(..., description="Computation status")
-    lat: float = Field(..., description="Computed origin latitude")
-    lon: float = Field(..., description="Computed origin longitude")
+
+    status: Literal["success"] = "success"
+    origin: OriginCandidate
+    reference: OriginReferenceEvidence
+    intended_offset: OriginIntendedOffset
 
 
 class OriginResponse(BaseModel):
@@ -2102,6 +2156,23 @@ class ExecutionSummary(BaseModel):
     details: Dict[str, DroneExecutionDetail] = Field(default_factory=dict, description="Per-drone execution details")
 
 
+class NodeExecutionReportSummary(BaseModel):
+    """Authenticated node reports retained as advisory verifier evidence."""
+
+    started: int = Field(0, ge=0, description="Number of node-reported starts")
+    started_hw_ids: List[str] = Field(
+        default_factory=list,
+        description="Hardware IDs with authenticated node-reported starts",
+    )
+    received: int = Field(0, ge=0, description="Number of node-reported results")
+    succeeded: int = Field(0, ge=0, description="Node-reported successful results")
+    failed: int = Field(0, ge=0, description="Node-reported failed results")
+    details: Dict[str, DroneExecutionDetail] = Field(
+        default_factory=dict,
+        description="Per-drone authenticated advisory execution reports",
+    )
+
+
 class LateAckSummary(BaseModel):
     """Late acknowledgments recorded after the command already reached a terminal state."""
     received: int = Field(0, ge=0, description="Number of late ACKs received after terminal state")
@@ -2185,6 +2256,16 @@ class CommandStatusResponse(BaseModel):
     status: CommandStatus = Field(..., description="Current command status")
     phase: CommandPhase = Field(..., description="Operational phase separating ACK collection from actual execution")
     outcome: Optional[CommandOutcome] = Field(None, description="Terminal outcome when the command has finished")
+    completion_authority: Literal[
+        "node_callback", "fleet_git_postcondition"
+    ] = Field(
+        "node_callback",
+        description="Evidence source with sole authority to terminalize this command",
+    )
+    completion_discrepancies: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-target disagreements between advisory and authoritative evidence",
+    )
 
     # Timing
     created_at: int = Field(..., description="Creation timestamp (Unix ms)")
@@ -2199,6 +2280,10 @@ class CommandStatusResponse(BaseModel):
     preparations: PreparationSummary = Field(default_factory=PreparationSummary, description="Launch preparation evidence; empty for commands that do not require it")
     acks: AckSummary = Field(..., description="Acknowledgment summary")
     executions: ExecutionSummary = Field(..., description="Execution summary")
+    node_execution_reports: NodeExecutionReportSummary = Field(
+        default_factory=NodeExecutionReportSummary,
+        description="Authenticated node reports retained separately when an external verifier owns completion",
+    )
     late_reports: LateReportSummary = Field(default_factory=LateReportSummary, description="Late post-terminal ACK/execution evidence that did not change the final outcome")
     progress: CommandProgressSummary = Field(..., description="Operator-facing lifecycle progress snapshot")
 

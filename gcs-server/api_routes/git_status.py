@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from auth_runtime import authorize_websocket
 from command_execution_policy import CommandSubmissionAuthority
 from command_submission import submit_tracked_command
+from command_tracker import CommandCompletionAuthority
 from git_status import commits_match
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
@@ -633,18 +634,55 @@ def create_git_router(deps: Any) -> APIRouter:
                 ),
                 authority=CommandSubmissionAuthority.FLEET_OPS_GIT_SYNC,
             )
+            tracker = deps.get_command_tracker()
+            verification_capabilities = await tracker.get_callback_capabilities(
+                tracked_submission.command_id
+            )
             await _wait_for_tracked_dispatch(deps, tracked_submission.command_id)
 
             # Git/runtime verification is the operation's source of truth. It
             # checks every planned live target even when an UPDATE_CODE ACK is
             # lost during the node service restart.
-            verified_synced, verification_failed = await deps._verify_sync_targets(
+            verified_hw_ids, failed_hw_ids = await deps._verify_sync_targets(
                 live_targets,
                 expected_branch=str(job.get("target_branch") or ""),
                 expected_commit=str(job.get("target_commit") or ""),
             )
-            failed = sorted(set(verification_failed))
-            synced = verified_synced
+            verified_hw_id_set = {str(hw_id) for hw_id in verified_hw_ids}
+            failed_hw_id_set = {str(hw_id) for hw_id in failed_hw_ids}
+            synced = sorted(
+                int(target["pos_id"])
+                for target in live_targets
+                if str(target["hw_id"]) in verified_hw_id_set
+            )
+            failed = sorted(
+                int(target["pos_id"])
+                for target in live_targets
+                if str(target["hw_id"]) in failed_hw_id_set
+            )
+            completion_results = {
+                str(target["hw_id"]): {
+                    "success": str(target["hw_id"]) in verified_hw_id_set,
+                    "error_message": (
+                        None
+                        if str(target["hw_id"]) in verified_hw_id_set
+                        else (
+                            "Fleet Ops did not observe the requested branch, exact "
+                            "commit, clean worktree, and zero ahead/behind drift before "
+                            "the verification deadline"
+                        )
+                    ),
+                }
+                for target in live_targets
+            }
+            await tracker.record_authoritative_completion(
+                tracked_submission.command_id,
+                completion_results,
+                completion_authority=(
+                    CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
+                ),
+                callback_capabilities=verification_capabilities,
+            )
             job["applied"] = True
             job["applied_at"] = int(time.time() * 1000)
             deps._sync_state["results"] = {"synced": synced, "failed": failed}

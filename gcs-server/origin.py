@@ -3,14 +3,20 @@
 import math
 import os
 import json
+import time
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 from params import Params
 from pyproj import Proj, Transformer
 from scipy.optimize import minimize
-from coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from coordinate_utils import get_expected_position_from_trajectory
 from mds_logging import get_logger
+from origin_reference import (
+    OriginReferenceError,
+    coerce_valid_origin_values,
+    validate_fresh_global_position,
+)
 
 logger = get_logger("origin")
 
@@ -56,6 +62,14 @@ def _normalize_origin_payload(data: Dict[str, Any], *, default_alt_source: str) 
         'alt_source': data.get('alt_source', default_alt_source),
         'version': int(data.get('version', 2) or 2),
     }
+
+    for metadata_key in (
+        'reference_hw_id',
+        'reference_pos_id',
+        'reference_position_timestamp_ms',
+    ):
+        if data.get(metadata_key) not in (None, ''):
+            normalized[metadata_key] = data.get(metadata_key)
 
     if data.get('timestamp'):
         normalized['timestamp'] = data.get('timestamp')
@@ -107,17 +121,30 @@ def save_origin(data):
     """
     try:
         # Build v2 schema with backwards compatibility
+        latitude, longitude, altitude_msl = coerce_valid_origin_values(
+            data.get('lat'),
+            data.get('lon'),
+            data.get('alt', 0),
+        )
         origin_data = {
-            'lat': float(data.get('lat')),
-            'lon': float(data.get('lon')),
-            'alt': float(data.get('alt', 0)),  # Default to 0 for backwards compat
+            'lat': latitude,
+            'lon': longitude,
+            'alt': altitude_msl,  # Default to 0 for backwards compatibility.
             'alt_source': data.get('alt_source', 'manual'),
             'timestamp': datetime.now().isoformat(),
             'version': 2
         }
 
+        for metadata_key in (
+            'reference_hw_id',
+            'reference_pos_id',
+            'reference_position_timestamp_ms',
+        ):
+            if data.get(metadata_key) not in (None, ''):
+                origin_data[metadata_key] = data.get(metadata_key)
+
         with open(origin_file_path, 'w', encoding='utf-8') as f:
-            json.dump(origin_data, f, indent=2)
+            json.dump(origin_data, f, indent=2, allow_nan=False)
 
         logger.info(f"Origin coordinates saved successfully: lat={origin_data['lat']}, "
                    f"lon={origin_data['lon']}, alt={origin_data['alt']}m")
@@ -170,102 +197,6 @@ def load_origin():
     logger.debug("Origin file does not exist yet. Returning default values.")
     return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
 
-def calculate_position_deviations(telemetry_data_all_drones, drones_config, origin_lat, origin_lon):
-    """
-    Calculates the position deviations for all drones.
-    
-    :param telemetry_data_all_drones: Dictionary containing telemetry data for all drones.
-    :param drones_config: List of drone configurations.
-    :param origin_lat: Latitude of the origin point.
-    :param origin_lon: Longitude of the origin point.
-    :return: Dictionary with deviations for each drone.
-    """
-    deviations = {}
-    acceptable_range = Params.acceptable_deviation  # in meters
-
-    for drone in drones_config:
-        hw_id = drone.get('hw_id')
-        pos_id = drone.get('pos_id')
-
-        if not hw_id:
-            continue
-
-        # CRITICAL FIX: Use pos_id to get expected position from trajectory CSV
-        # When hw_id ≠ pos_id, the drone executes pos_id's trajectory, so expected
-        # position must come from trajectory file, NOT from config x,y values
-        if not pos_id:
-            # Fallback: if no pos_id defined, assume pos_id == hw_id
-            pos_id = hw_id
-            logger.warning(f"No pos_id found for hw_id={hw_id}, assuming pos_id={hw_id}")
-
-        # Detect simulation mode from Params
-        sim_mode = getattr(Params, 'sim_mode', False)
-
-        # Get expected position from trajectory CSV (single source of truth)
-        initial_north, initial_east = get_expected_position_from_trajectory(pos_id, sim_mode, base_dir=BASE_DIR)
-
-        if initial_north is None or initial_east is None:
-            deviations[hw_id] = {
-                "error": f"Could not read trajectory file for pos_id={pos_id}"
-            }
-            logger.error(
-                f"hw_id={hw_id}, pos_id={pos_id}: Failed to read expected position from trajectory CSV"
-            )
-            continue
-
-        logger.debug(
-            f"hw_id={hw_id}, pos_id={pos_id}: Expected position from trajectory: "
-            f"North={initial_north:.2f}m, East={initial_east:.2f}m"
-        )
-
-        # Get current position from telemetry
-        drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_all_drones, hw_id)
-        current_lat = drone_telemetry.get('position_lat')
-        current_lon = drone_telemetry.get('position_long')
-
-        if current_lat is None or current_lon is None:
-            deviations[hw_id] = {
-                "error": "Current position not available"
-            }
-            continue
-
-        try:
-            current_lat = float(current_lat)
-            current_lon = float(current_lon)
-        except (TypeError, ValueError):
-            deviations[hw_id] = {
-                "error": "Invalid current position data"
-            }
-            continue
-
-        # Convert current lat/lon to NE coordinates relative to the origin
-        try:
-            current_north, current_east = latlon_to_ne(current_lat, current_lon, origin_lat, origin_lon)
-        except Exception as e:
-            deviations[hw_id] = {
-                "error": f"Coordinate transformation error: {str(e)}"
-            }
-            continue
-
-        # Calculate deviations
-        deviation_north = current_north - initial_north
-        deviation_east = current_east - initial_east
-        total_deviation = math.sqrt(deviation_north**2 + deviation_east**2)
-
-        # Check if within acceptable range
-        within_range = total_deviation <= acceptable_range
-
-        # Prepare deviation data
-        deviations[hw_id] = {
-            "deviation_north": deviation_north,
-            "deviation_east": deviation_east,
-            "total_deviation": total_deviation,
-            "within_acceptable_range": within_range
-        }
-
-    return deviations
-
-
 def rotate_north_east(north: float, east: float, heading_deg: float) -> tuple[float, float]:
     """Rotate formation offsets clockwise by the requested heading."""
     heading_rad = math.radians(float(heading_deg) % 360.0)
@@ -300,6 +231,10 @@ def build_position_deviation_report(
 
     threshold_warning = Params.acceptable_deviation
     threshold_error = threshold_warning * 2.5
+    position_max_age_ms = max(
+        1,
+        int(float(getattr(Params, 'LOCAL_MAVLINK_STALE_TIMEOUT_SEC', 15)) * 1000),
+    )
     sim_mode = getattr(Params, 'sim_mode', False)
     resolve_trajectory = trajectory_resolver or (
         lambda pos_id, current_sim_mode: get_expected_position_from_trajectory(
@@ -348,10 +283,15 @@ def build_position_deviation_report(
             continue
 
         drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_all_drones, hw_id)
-        current_lat = drone_telemetry.get('position_lat')
-        current_lon = drone_telemetry.get('position_long')
-
-        if current_lat is None or current_lon is None:
+        try:
+            position = validate_fresh_global_position(
+                drone_telemetry,
+                hw_id=hw_id,
+                now_ms=int(time.time() * 1000),
+                max_age_ms=position_max_age_ms,
+                require_disarmed=False,
+            )
+        except OriginReferenceError as exc:
             deviations[hw_id] = {
                 'hw_id': hw_id,
                 'pos_id': pos_id,
@@ -364,23 +304,13 @@ def build_position_deviation_report(
                 'current': None,
                 'deviation': None,
                 'status': 'no_telemetry',
-                'message': 'No GPS data available',
+                'message': exc.message,
             }
             summary_stats['no_telemetry'] += 1
             continue
 
-        try:
-            current_lat = float(current_lat)
-            current_lon = float(current_lon)
-        except (TypeError, ValueError):
-            deviations[hw_id] = {
-                'hw_id': hw_id,
-                'pos_id': pos_id,
-                'status': 'error',
-                'message': 'Invalid current position data',
-            }
-            summary_stats['errors'] += 1
-            continue
+        current_lat = position['latitude']
+        current_lon = position['longitude']
 
         current_north, current_east, _current_down = pm.geodetic2ned(
             current_lat,
@@ -431,6 +361,8 @@ def build_position_deviation_report(
                 'lon': current_lon,
                 'north': current_north,
                 'east': current_east,
+                'position_source': position['position_source'],
+                'position_age_ms': position['position_age_ms'],
             },
             'deviation': {
                 'north': deviation_north,

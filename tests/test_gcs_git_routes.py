@@ -14,6 +14,12 @@ MUTATION_HEADERS = {"x-fleet-ops-token": "test-token"}
 
 
 def _make_deps():
+    tracker = SimpleNamespace(
+        get_callback_capabilities=AsyncMock(
+            return_value={"1": "x" * 43}
+        ),
+        record_authoritative_completion=AsyncMock(return_value=True),
+    )
     return SimpleNamespace(
         Params=SimpleNamespace(GIT_BRANCH="main-candidate"),
         GitStatus=None,
@@ -26,7 +32,8 @@ def _make_deps():
         _sync_state={"active": False, "started_at": None, "results": None},
         _sync_lock=asyncio.Lock(),
         _select_sync_target_drones=lambda drones_config, pos_ids: (drones_config, []),
-        _verify_sync_targets=AsyncMock(return_value=([1], [])),
+        _verify_sync_targets=AsyncMock(return_value=(["1"], [])),
+        get_command_tracker=lambda: tracker,
         send_commands_to_all=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
         send_commands_to_selected=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
         log_system_event=lambda *args, **kwargs: None,
@@ -68,7 +75,7 @@ def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
-    replacement_verify = AsyncMock(return_value=([1], []))
+    replacement_verify = AsyncMock(return_value=(["1"], []))
     deps._verify_sync_targets = replacement_verify
 
     client = SyncASGITestClient(app)
@@ -124,6 +131,108 @@ def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload(monkey
     assert command.update_branch == "main-candidate"
     assert "pos_ids" not in command.model_dump()
     deps.send_commands_to_selected.assert_not_called()
+
+
+def test_fleet_git_sync_maps_verified_position_back_to_exact_hardware_target(monkeypatch):
+    deps = _make_deps()
+    deps.load_config = lambda: [
+        {"hw_id": "42", "pos_id": 7, "ip": "10.0.0.42"}
+    ]
+    deps._select_sync_target_drones = lambda drones_config, _pos_ids: (
+        drones_config,
+        [],
+    )
+    deps.get_all_heartbeats = lambda: {
+        "42": {"timestamp": int(time.time() * 1000), "hw_id": "42"}
+    }
+    deps._verify_sync_targets = AsyncMock(return_value=(["42"], []))
+    tracker = SimpleNamespace(
+        get_callback_capabilities=AsyncMock(
+            return_value={"42": "x" * 43}
+        ),
+        record_authoritative_completion=AsyncMock(return_value=True),
+    )
+    deps.get_command_tracker = lambda: tracker
+    monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
+    git_routes._git_sync_jobs.clear()
+    _patch_tracked_submission(monkeypatch)
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    client = SyncASGITestClient(app)
+    dry_run = client.post(
+        "/api/v1/fleet/git-sync/dry-run",
+        headers=MUTATION_HEADERS,
+        json={"pos_ids": [7]},
+    )
+    response = client.post(
+        "/api/v1/fleet/git-sync/apply",
+        headers=MUTATION_HEADERS,
+        json={
+            "dry_run_id": dry_run.json()["job_id"],
+            "confirmation": {
+                "acknowledged_risks": True,
+                "confirmation_token": dry_run.json()["confirmation_token"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    completion_results = tracker.record_authoritative_completion.await_args.args[1]
+    assert completion_results == {"42": {"success": True, "error_message": None}}
+
+
+def test_fleet_git_sync_never_aliases_duplicate_position_ids_to_hardware(monkeypatch):
+    deps = _make_deps()
+    targets = [
+        {"hw_id": "41", "pos_id": 7, "ip": "10.0.0.41"},
+        {"hw_id": "42", "pos_id": 7, "ip": "10.0.0.42"},
+    ]
+    deps.load_config = lambda: targets
+    deps._select_sync_target_drones = lambda drones_config, _pos_ids: (
+        drones_config,
+        [],
+    )
+    deps.get_all_heartbeats = lambda: {
+        hw_id: {"timestamp": int(time.time() * 1000), "hw_id": hw_id}
+        for hw_id in ("41", "42")
+    }
+    deps._verify_sync_targets = AsyncMock(return_value=(["41"], ["42"]))
+    tracker = SimpleNamespace(
+        get_callback_capabilities=AsyncMock(
+            return_value={"41": "a" * 43, "42": "b" * 43}
+        ),
+        record_authoritative_completion=AsyncMock(return_value=True),
+    )
+    deps.get_command_tracker = lambda: tracker
+    monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
+    git_routes._git_sync_jobs.clear()
+    _patch_tracked_submission(monkeypatch)
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    client = SyncASGITestClient(app)
+    dry_run = client.post(
+        "/api/v1/fleet/git-sync/dry-run",
+        headers=MUTATION_HEADERS,
+        json={"pos_ids": [7]},
+    )
+    response = client.post(
+        "/api/v1/fleet/git-sync/apply",
+        headers=MUTATION_HEADERS,
+        json={
+            "dry_run_id": dry_run.json()["job_id"],
+            "confirmation": {
+                "acknowledged_risks": True,
+                "confirmation_token": dry_run.json()["confirmation_token"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    completion_results = tracker.record_authoritative_completion.await_args.args[1]
+    assert completion_results["41"]["success"] is True
+    assert completion_results["42"]["success"] is False
 
 
 def test_fleet_git_sync_dry_run_requires_operator_token(monkeypatch):

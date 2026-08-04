@@ -35,6 +35,7 @@ class TrackedSubmissionWork:
     tracking_processed_dir: str
     tracking_shapes_dir: str
     per_target_payloads: Optional[Dict[str, Dict[str, Any]]] = None
+    allow_legacy_update_envelope: bool = False
 
 
 def _sitl_callback_endpoint_guard_enabled(deps: Any) -> bool:
@@ -176,6 +177,7 @@ async def _dispatch_command(
     callback_capabilities: Dict[str, str],
     per_target_payloads: Optional[Dict[str, Dict[str, Any]]],
     launch_preparation_tokens: Optional[Dict[str, str]],
+    allow_legacy_update_envelope: bool,
 ) -> Dict[str, Any]:
     """Dispatch every committed target without cached-presence suppression."""
     get_service = getattr(deps, "get_fleet_rpc_service", None)
@@ -190,6 +192,7 @@ async def _dispatch_command(
         callback_capabilities=callback_capabilities,
         per_target_payloads=per_target_payloads,
         launch_preparation_tokens=launch_preparation_tokens,
+        allow_legacy_update_envelope=allow_legacy_update_envelope,
     )
 
 
@@ -302,6 +305,7 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
         callback_capabilities=callback_capabilities,
         per_target_payloads=work.per_target_payloads,
         launch_preparation_tokens=launch_preparation_tokens,
+        allow_legacy_update_envelope=work.allow_legacy_update_envelope,
     )
     await record_command_acknowledgements(tracker, work.command_id, results)
 

@@ -8,6 +8,7 @@ import pytest
 from command_submission import submit_tracked_command
 from command_submission_coordinator import CommandSubmissionCoordinator
 from command_execution_policy import (
+    CommandSubmissionAuthority,
     mission_requires_launch_armability_probe,
     resolve_mission_type,
 )
@@ -125,6 +126,34 @@ async def test_submit_returns_tracker_id_before_slow_dispatch_completes():
     assert status["acks"]["accepted"] == 1
     assert status["timeout_at"] > status["created_at"]
     assert status["observed_at"] >= status["updated_at"]
+    await coordinator.stop()
+
+
+@pytest.mark.asyncio
+async def test_fleet_ops_update_code_alone_enables_legacy_bridge_and_postcondition_owner():
+    deps, tracker, coordinator = _submission_deps()
+    await coordinator.start()
+
+    response = await submit_tracked_command(
+        deps,
+        SubmitCommandRequest(
+            mission_type=Mission.UPDATE_CODE.value,
+            trigger_time=0,
+            update_branch="main",
+            target_drone_ids=["1"],
+            idempotency_key="fleet-update-bridge",
+        ),
+        authority=CommandSubmissionAuthority.FLEET_OPS_GIT_SYNC,
+    )
+
+    status = await _wait_for_phase(
+        tracker,
+        response.command_id,
+        CommandPhase.PENDING_EXECUTION.value,
+    )
+    dispatch = deps.get_fleet_rpc_service().dispatch_calls[0]
+    assert dispatch["allow_legacy_update_envelope"] is True
+    assert status["completion_authority"] == "fleet_git_postcondition"
     await coordinator.stop()
 
 
