@@ -1,4 +1,5 @@
 import os
+import math
 import sys
 import logging
 import logging.handlers
@@ -55,10 +56,15 @@ def clamp_led_value(value):
     """
     logger = logging.getLogger(__name__)
     try:
-        return int(max(0, min(255, float(value))))
-    except ValueError:
+        numeric = float(value)
+    except (TypeError, ValueError):
         logger.warning(f"Invalid LED value '{value}'. Defaulting to 0.")
         return 0  # Default to 0 if the value cannot be converted
+
+    if not math.isfinite(numeric):
+        logger.warning(f"Non-finite LED value '{value}'. Defaulting to 0.")
+        return 0
+    return int(max(0, min(255, numeric)))
 
 
 def get_expected_position_from_trajectory(pos_id, sim_mode=False):
@@ -110,6 +116,13 @@ def get_expected_position_from_trajectory(pos_id, sim_mode=False):
             # These represent the canonical expected position for this pos_id
             expected_north = float(first_waypoint.get('px', 0))
             expected_east = float(first_waypoint.get('py', 0))
+
+            if not math.isfinite(expected_north) or not math.isfinite(expected_east):
+                logger.error(
+                    f"Non-finite expected position for pos_id={pos_id} in {trajectory_file}: "
+                    f"North={expected_north}, East={expected_east}"
+                )
+                return None, None
 
             logger.debug(
                 f"Expected position for pos_id={pos_id}: "
