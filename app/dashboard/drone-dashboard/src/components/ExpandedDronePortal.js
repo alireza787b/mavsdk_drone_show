@@ -65,11 +65,9 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
         ? 'Lost'
         : 'Waiting';
 
-  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
-  const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
-  const actualFlightMode = flightModeValue === 0 && baseMode === 192 ? 262147 : flightModeValue;
-  const flightModeTitle = getFlightModeTitle(actualFlightMode);
-  const flightModeCategory = getFlightModeCategory(actualFlightMode);
+  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE];
+  const flightModeTitle = getFlightModeTitle(flightModeValue);
+  const flightModeCategory = getFlightModeCategory(flightModeValue);
 
   const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
   const readiness = getDroneReadinessModel(drone, runtimeStatus);

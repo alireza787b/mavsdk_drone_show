@@ -117,6 +117,31 @@ describe('DroneWidget command scope state', () => {
     expect(indicator).toHaveAttribute('aria-label', expect.stringContaining('Signal: 82%'));
   });
 
+  test('does not invent Hold when an armed drone reports custom mode zero', () => {
+    const { container } = renderWidget({
+      drone: {
+        ...baseDrone,
+        is_armed: true,
+        base_mode: 192,
+        flight_mode: 0,
+      },
+    });
+
+    expect(container.querySelector('.mode-badge')).toHaveTextContent('Initializing');
+    expect(container.querySelector('.mode-badge')).not.toHaveTextContent('Hold');
+  });
+
+  test('shows unavailable mode data truthfully', () => {
+    renderWidget({
+      drone: {
+        ...baseDrone,
+        flight_mode: null,
+      },
+    });
+
+    expect(screen.getByText('No Data')).toBeInTheDocument();
+  });
+
   test('does not present raw GPS fix as a valid map position', () => {
     renderWidget({
       drone: {

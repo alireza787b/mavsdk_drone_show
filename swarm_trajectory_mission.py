@@ -118,6 +118,7 @@ from src.flight_timeout_utils import (
 from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_STATE_ROUTE
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
+from src.px4_flight_modes import describe_px4_custom_mode
 from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
 
 from drone_show_src.utils import (
@@ -1007,14 +1008,7 @@ def _describe_local_flight_mode(local_state: dict | None) -> str:
         return "unknown"
 
     mode = local_state.get("flight_mode")
-    mode_map = {
-        262147: "Hold",
-        262149: "Return",
-        262150: "Land",
-        393216: "Offboard",
-        50593792: "Hold (GPS-less)",
-    }
-    return mode_map.get(mode, str(mode))
+    return describe_px4_custom_mode(mode)
 
 
 async def engage_rtl(drone: System) -> bool:

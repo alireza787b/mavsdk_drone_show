@@ -116,6 +116,8 @@ jobs:
             tests/test_mds_logging/test_schema.py \
             tests/test_mds_logging/test_ulog_analysis.py \
             tests/test_node_boot_status_routes.py \
+            tests/test_local_mavlink_controller.py \
+            tests/test_command_processing.py \
             tests/test_presence.py \
             tests/test_run_sitl_validation_suite.py \
             tests/test_runtime_validation_support.py \
@@ -127,6 +129,7 @@ jobs:
             tests/test_simurgh_tool_candidate_generator.py \
             tests/test_sitl_control_service.py \
             tests/test_sitl_control_client.py \
+            tests/test_swarm_trajectory_mission.py \
             tests/test_ulog_job_handles.py \
             tests/test_ulog_service.py
           python3 tools/run_simurgh_dashboard_prompt_evals.py
@@ -160,6 +163,10 @@ jobs:
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
+            src/components/DroneWidget.test.js \
+            src/components/ExpandedDronePortal.test.js \
+            src/components/TacticalDroneCard.test.js \
+            src/utilities/flightModeUtils.test.js \
             src/App.test.js
           npm run build:release
 
@@ -435,6 +442,10 @@ jobs:
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
+            src/components/DroneWidget.test.js \
+            src/components/ExpandedDronePortal.test.js \
+            src/components/TacticalDroneCard.test.js \
+            src/utilities/flightModeUtils.test.js \
             src/App.test.js
           npm run build:release
           git diff --exit-code

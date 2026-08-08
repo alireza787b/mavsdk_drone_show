@@ -2,7 +2,10 @@ from collections import OrderedDict
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from pymavlink import mavutil
+
 from src.local_mavlink_controller import LocalMavlinkController
+from src.px4_flight_modes import describe_px4_custom_mode
 
 
 def build_controller(mock_drone_config):
@@ -22,7 +25,9 @@ def build_controller(mock_drone_config):
     mock_drone_config.radian_to_degrees_heading = lambda yaw_radians: yaw_radians * (180.0 / 3.141592653589793)
 
     mock_drone_config.system_status = 3
-    mock_drone_config.custom_mode = 262147
+    mock_drone_config.base_mode = 29
+    mock_drone_config.custom_mode = (4 << 16) | (3 << 24)
+    mock_drone_config.is_armed = False
     mock_drone_config.is_gyrometer_calibration_ok = True
     mock_drone_config.is_accelerometer_calibration_ok = True
     mock_drone_config.is_magnetometer_calibration_ok = True
@@ -56,12 +61,34 @@ def build_controller(mock_drone_config):
     return controller
 
 
+def heartbeat_message(
+    *,
+    component_type,
+    autopilot_type,
+    base_mode,
+    custom_mode,
+    system_status,
+    source_system=1,
+    source_component=1,
+):
+    return SimpleNamespace(
+        type=component_type,
+        autopilot=autopilot_type,
+        base_mode=base_mode,
+        custom_mode=custom_mode,
+        system_status=system_status,
+        get_type=lambda: "HEARTBEAT",
+        get_srcSystem=lambda: source_system,
+        get_srcComponent=lambda: source_component,
+    )
+
+
 def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, monkeypatch):
     controller = build_controller(mock_drone_config)
     monkeypatch.setattr(controller, "_now_ms", lambda: 1_765_000_000_123)
     msg = SimpleNamespace(
         base_mode=128,
-        custom_mode=262147,
+        custom_mode=(4 << 16) | (3 << 24),
         system_status=4,
     )
 
@@ -71,6 +98,119 @@ def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, 
     assert mock_drone_config.heartbeat_timestamp_ms == 1_765_000_000_123
     assert mock_drone_config.telemetry_timestamp_ms == 1_765_000_000_123
     assert mock_drone_config.telemetry_sequence == 1
+
+
+def test_process_message_ignores_ground_station_heartbeat_without_refreshing_vehicle_state(
+    mock_drone_config,
+    monkeypatch,
+):
+    controller = build_controller(mock_drone_config)
+    accepted_heartbeat = heartbeat_message(
+        component_type=mavutil.mavlink.MAV_TYPE_QUADROTOR,
+        autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_PX4,
+        base_mode=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        custom_mode=(4 << 16) | (4 << 24),
+        system_status=mavutil.mavlink.MAV_STATE_STANDBY,
+    )
+    monkeypatch.setattr(controller, "_now_ms", lambda: 1_765_000_000_100)
+    controller.process_message(accepted_heartbeat)
+
+    state_before = {
+        "base_mode": mock_drone_config.base_mode,
+        "custom_mode": mock_drone_config.custom_mode,
+        "system_status": mock_drone_config.system_status,
+        "is_armed": mock_drone_config.is_armed,
+        "heartbeat_timestamp_ms": mock_drone_config.heartbeat_timestamp_ms,
+        "telemetry_timestamp_ms": mock_drone_config.telemetry_timestamp_ms,
+        "telemetry_sequence": mock_drone_config.telemetry_sequence,
+    }
+
+    ground_station_heartbeat = heartbeat_message(
+        component_type=mavutil.mavlink.MAV_TYPE_GCS,
+        autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+        base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+        custom_mode=0,
+        system_status=mavutil.mavlink.MAV_STATE_ACTIVE,
+        source_system=255,
+        source_component=190,
+    )
+    monkeypatch.setattr(controller, "_now_ms", lambda: 1_765_000_000_200)
+    controller.process_message(ground_station_heartbeat)
+
+    assert {
+        "base_mode": mock_drone_config.base_mode,
+        "custom_mode": mock_drone_config.custom_mode,
+        "system_status": mock_drone_config.system_status,
+        "is_armed": mock_drone_config.is_armed,
+        "heartbeat_timestamp_ms": mock_drone_config.heartbeat_timestamp_ms,
+        "telemetry_timestamp_ms": mock_drone_config.telemetry_timestamp_ms,
+        "telemetry_sequence": mock_drone_config.telemetry_sequence,
+    } == state_before
+    assert controller.latest_messages["HEARTBEAT"] is accepted_heartbeat
+
+
+def test_process_message_uses_heartbeat_classification_not_component_id(
+    mock_drone_config,
+):
+    controller = build_controller(mock_drone_config)
+    px4_heartbeat = heartbeat_message(
+        component_type=mavutil.mavlink.MAV_TYPE_QUADROTOR,
+        autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_PX4,
+        base_mode=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        custom_mode=(4 << 16) | (3 << 24),
+        system_status=mavutil.mavlink.MAV_STATE_STANDBY,
+        source_component=42,
+    )
+
+    controller.process_message(px4_heartbeat)
+
+    assert mock_drone_config.custom_mode == (4 << 16) | (3 << 24)
+    assert controller.latest_messages["HEARTBEAT"] is px4_heartbeat
+
+
+def test_process_message_rejects_companion_heartbeat_with_invalid_autopilot(
+    mock_drone_config,
+):
+    controller = build_controller(mock_drone_config)
+    original_mode = mock_drone_config.custom_mode
+    companion_heartbeat = heartbeat_message(
+        component_type=mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+        autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+        base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED,
+        custom_mode=0,
+        system_status=mavutil.mavlink.MAV_STATE_ACTIVE,
+        source_component=mavutil.mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,
+    )
+
+    controller.process_message(companion_heartbeat)
+
+    assert mock_drone_config.custom_mode == original_mode
+    assert "HEARTBEAT" not in controller.latest_messages
+
+
+def test_get_flight_mode_name_decodes_px4_wire_layout(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+
+    assert controller._get_flight_mode_name((4 << 16) | (2 << 24)) == "Takeoff"
+    assert controller._get_flight_mode_name((4 << 16) | (3 << 24)) == "Hold"
+    assert controller._get_flight_mode_name((4 << 16) | (4 << 24)) == "Mission"
+    assert controller._get_flight_mode_name((4 << 16) | (5 << 24)) == "Return"
+    assert controller._get_flight_mode_name((4 << 16) | (6 << 24)) == "Land"
+    assert controller._get_flight_mode_name((3 << 16) | (1 << 24)) == "Orbit"
+    assert controller._get_flight_mode_name((3 << 16) | (2 << 24)) == "Position Slow"
+
+
+def test_get_flight_mode_name_does_not_treat_reserved_bits_as_sub_mode(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+
+    assert controller._get_flight_mode_name((4 << 16) | 4) == "Auto"
+
+
+def test_shared_px4_mode_description_covers_mission_diagnostics():
+    assert describe_px4_custom_mode((4 << 16) | (3 << 24)) == "Hold"
+    assert describe_px4_custom_mode((4 << 16) | (5 << 24)) == "Return"
+    assert describe_px4_custom_mode((4 << 16) | (6 << 24)) == "Land"
+    assert describe_px4_custom_mode(6 << 16) == "Offboard"
 
 
 def test_update_pre_arm_status_reports_ready(mock_drone_config):

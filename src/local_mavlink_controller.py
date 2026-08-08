@@ -7,6 +7,14 @@ from typing import Any, Dict, List, Optional
 
 from pymavlink import mavutil
 
+from src.px4_flight_modes import (
+    PX4_MAIN_MODE_AUTO,
+    PX4_MAIN_MODE_OFFBOARD,
+    PX4_MAIN_MODE_POSCTL,
+    decode_px4_custom_mode,
+    describe_px4_custom_mode,
+)
+
 
 STATUS_TEXT_RETENTION_MS = 120000
 STATUS_TEXT_MAX_MESSAGES = 8
@@ -118,7 +126,6 @@ class LocalMavlinkController:
                     )
                     consecutive_timeouts = 0
                 self.process_message(msg)
-                self.latest_messages[msg.get_type()] = msg
                 continue
 
             consecutive_timeouts += 1
@@ -136,6 +143,15 @@ class LocalMavlinkController:
         Process incoming Mavlink messages based on their type and update the drone_config object.
         """
         msg_type = msg.get_type()
+
+        # A routed MAVLink network can carry HEARTBEATs from QGC, companion
+        # computers, and other components. Only a flight-controller heartbeat
+        # may own flight mode, system state, arming state, or their freshness.
+        if msg_type == 'HEARTBEAT':
+            if self.process_heartbeat(msg):
+                self.latest_messages[msg_type] = msg
+            return
+
         self.latest_messages[msg_type] = msg
 
         if msg_type == 'GLOBAL_POSITION_INT':
@@ -146,8 +162,6 @@ class LocalMavlinkController:
             self.process_battery_status(msg)
         elif msg_type == 'ATTITUDE':
             self.process_attitude(msg)
-        elif msg_type == 'HEARTBEAT':
-            self.process_heartbeat(msg)
         elif msg_type == 'GPS_RAW_INT':
             self.process_gps_raw_int(msg)
         elif msg_type == 'LOCAL_POSITION_NED':
@@ -355,11 +369,79 @@ class LocalMavlinkController:
         })
         self._update_pre_arm_status()
 
-    def process_heartbeat(self, msg):
+    @staticmethod
+    def _optional_mavlink_int(value: Any) -> Optional[int]:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _is_autopilot_heartbeat(cls, msg) -> bool:
+        """Return whether ``msg`` identifies a flight controller per MAVLink.
+
+        HEARTBEAT.type and HEARTBEAT.autopilot are the protocol-defined
+        component classification. Component ids are addressing information and
+        must not be used as the primary component-type test.
+
+        Header-less synthetic messages are accepted for compatibility with
+        direct unit/in-process callers. Real pymavlink HEARTBEAT messages always
+        carry both classification fields and therefore take the strict path.
+        """
+        component_type = cls._optional_mavlink_int(getattr(msg, 'type', None))
+        autopilot_type = cls._optional_mavlink_int(getattr(msg, 'autopilot', None))
+
+        if component_type == mavutil.mavlink.MAV_TYPE_GCS:
+            return False
+        if autopilot_type == mavutil.mavlink.MAV_AUTOPILOT_INVALID:
+            return False
+
+        if component_type is not None and autopilot_type is not None:
+            return True
+
+        # Compatibility fallback for decoded/synthetic messages that lost the
+        # HEARTBEAT classification fields but retained their source header.
+        get_source_component = getattr(msg, 'get_srcComponent', None)
+        if callable(get_source_component):
+            source_component = cls._optional_mavlink_int(get_source_component())
+            if source_component is not None:
+                return source_component == mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1
+
+        return component_type is None and autopilot_type is None
+
+    @staticmethod
+    def _mavlink_message_source(msg) -> str:
+        """Return a compact source identifier for debug-only filter evidence."""
+        values = []
+        for label, accessor_name in (
+            ('system', 'get_srcSystem'),
+            ('component', 'get_srcComponent'),
+        ):
+            accessor = getattr(msg, accessor_name, None)
+            if not callable(accessor):
+                continue
+            try:
+                values.append(f"{label}={int(accessor())}")
+            except (TypeError, ValueError):
+                continue
+        return ', '.join(values) if values else 'source unavailable'
+
+    def process_heartbeat(self, msg) -> bool:
         """
         Process the HEARTBEAT message and update flight mode and system status.
         Follows MAVLink/PX4 standards for proper flight mode handling.
+
+        Returns True only when the heartbeat belongs to a flight controller.
         """
+        if not self._is_autopilot_heartbeat(msg):
+            self.log_debug(
+                "Ignoring non-autopilot HEARTBEAT "
+                f"({self._mavlink_message_source(msg)}, "
+                f"type={getattr(msg, 'type', None)}, "
+                f"autopilot={getattr(msg, 'autopilot', None)})"
+            )
+            return False
+
         # Store previous values for change detection
         now_ms = self._now_ms()
         prev_custom_mode = self.drone_config.custom_mode
@@ -414,17 +496,17 @@ class LocalMavlinkController:
         if self.drone_config.is_armed != prev_armed:
             self.log_info(f"🔄 Arming changed: {prev_armed} → {self.drone_config.is_armed}")
 
-        # Special attention to custom modes and offboard
-        if self.drone_config.custom_mode == 393216:
+        # Keep high-signal diagnostics based on the decoded protocol fields,
+        # never on observed raw-number aliases.
+        main_mode, sub_mode = self._decode_px4_custom_mode(self.drone_config.custom_mode)
+        if main_mode == PX4_MAIN_MODE_OFFBOARD:
             self.log_info(f"🚁 OFFBOARD mode active: {self.drone_config.custom_mode}")
-        elif self.drone_config.custom_mode in [33816576, 100925440]:
-            self.log_info(f"🚁 Custom mode active: {mode_name} ({self.drone_config.custom_mode})")
         elif self.drone_config.custom_mode == 0:
             self.log_warning("⚠️ Flight mode is 0 - possible issue with HEARTBEAT or mode initialization")
         elif mode_name.startswith('Unknown'):
-            main_mode = self.drone_config.custom_mode >> 16
-            sub_mode = self.drone_config.custom_mode & 0xFFFF
             self.log_warning(f"⚠️ Unknown flight mode: {self.drone_config.custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
+
+        return True
                       
     def _update_pre_arm_status(self):
         """
@@ -476,17 +558,15 @@ class LocalMavlinkController:
         mag_ready = self.drone_config.is_magnetometer_calibration_ok
         gps_fix_ok = getattr(self.drone_config, 'gps_fix_type', 0) >= 3
 
-        gps_dependent_modes = [
-            196608,
-            262147,
-            262148,
-            262149,
-            196609,
-            262152,
-        ]
-        mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
+        main_mode, _sub_mode = self._decode_px4_custom_mode(self.drone_config.custom_mode)
+        mode_requires_gps = main_mode in {PX4_MAIN_MODE_POSCTL, PX4_MAIN_MODE_AUTO}
         takeoff_requires_gps = not bool(getattr(self.drone_config, 'is_armed', False))
         gps_required = bool(getattr(self, 'require_global_position', False)) or takeoff_requires_gps or mode_requires_gps
+        # Home is an explicit launch prerequisite, not a proxy for every
+        # position-dependent airborne mode.  Once already armed, a vehicle in
+        # Hold can remain healthy on local-position evidence even if the home
+        # sample becomes temporarily unavailable.
+        home_required = takeoff_requires_gps
         home_ready = bool(getattr(self.drone_config, 'px4_home_position_set', False))
 
         if gps_required:
@@ -551,12 +631,11 @@ class LocalMavlinkController:
             else:
                 gps_message = f"GPS quality is insufficient for {requirement_context} (HDOP={self.drone_config.hdop:.2f})."
             heuristic_blockers.append(self._build_message('telemetry', 'error', gps_message, now_ms))
-        if gps_required and not home_ready:
-            requirement_context = "Takeoff readiness" if takeoff_requires_gps else "This mode"
+        if home_required and not home_ready:
             heuristic_blockers.append(self._build_message(
                 'telemetry',
                 'error',
-                f"{requirement_context} is waiting for PX4 home position.",
+                "Takeoff readiness is waiting for PX4 home position.",
                 now_ms,
             ))
 
@@ -609,11 +688,11 @@ class LocalMavlinkController:
             {
                 'id': 'home',
                 'label': 'Home position',
-                'ready': (not gps_required) or home_ready,
+                'ready': (not home_required) or home_ready,
                 'detail': (
                     "PX4 home position is set"
                     if home_ready else
-                    ("Awaiting PX4 home position before takeoff." if gps_required else "Home position is not required in the current mode.")
+                    ("Awaiting PX4 home position before takeoff." if home_required else "Home position is not required in the current mode.")
                 ),
             },
             {
@@ -632,7 +711,7 @@ class LocalMavlinkController:
             system_ready_effective
             and sensors_ready
             and gps_ready
-            and ((not gps_required) or home_ready)
+            and ((not home_required) or home_ready)
             and not blockers
         )
         if blockers:
@@ -660,85 +739,34 @@ class LocalMavlinkController:
         self.log_debug(
             "Pre-arm checks: "
             f"system={system_ready_effective} (raw={system_state_name}), imu={imu_sensors_ready}, mag={mag_ready}, "
-            f"gps_required={gps_required}, gps_ready={gps_ready}, home_ready={home_ready} "
+            f"gps_required={gps_required}, gps_ready={gps_ready}, "
+            f"home_required={home_required}, home_ready={home_ready} "
             f"(fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop}) "
             f"px4_blockers={len(px4_blockers)} -> ready={self.drone_config.is_ready_to_arm}"
         )
 
+    @staticmethod
+    def _decode_px4_custom_mode(custom_mode: int):
+        """Decode PX4's uint16-reserved/uint8-main/uint8-sub union layout."""
+        return decode_px4_custom_mode(custom_mode)
+
     def _get_flight_mode_name(self, custom_mode):
         """
-        Helper function to decode PX4 custom_mode to human-readable name for debugging.
-        This matches the frontend mapping in px4FlightModes.js
+        Decode PX4 custom_mode to a human-readable name for debugging.
+
+        PX4 stores main_mode in bits 16..23 and sub_mode in bits 24..31.
+        Values in the reserved low 16 bits are deliberately not treated as
+        compatibility aliases.
         """
-        flight_modes = {
-            0: 'Unknown/Uninit',
-            65536: 'Manual',
-            131072: 'Altitude',
-            196608: 'Position',
-            327680: 'Acro',
-            393216: 'Offboard',
-            458752: 'Stabilized',
-            524288: 'Rattitude',
-            655360: 'Termination',
-            262144: 'Auto',
-            262145: 'Ready',
-            262146: 'Takeoff',
-            262147: 'Hold',
-            262148: 'Mission',
-            262149: 'Return',
-            262150: 'Land',
-            262152: 'Follow',
-            262153: 'Precision Land',
-            262154: 'VTOL Takeoff',
-            196609: 'Orbit',
-            196610: 'Position Slow',
-            50593792: 'Hold (GPS-less)',  # Special Hold mode variant
+        mode = int(custom_mode or 0)
+        if mode == 0:
+            return 'Unknown/Uninit'
 
-            # Additional Offboard mode variations (PX4 sub-modes)
-            393217: 'Offboard',  # OFFBOARD with sub-mode 1
-            393218: 'Offboard',  # OFFBOARD with sub-mode 2
-            393219: 'Offboard',  # OFFBOARD with sub-mode 3
-            393220: 'Offboard',  # OFFBOARD with sub-mode 4
-
-            # Custom/Extended flight modes (observed in field)
-            33816576: 'Takeoff',   # Custom takeoff mode (516 << 16)
-            100925440: 'Land'      # Custom land mode (1540 << 16)
-        }
-        # Simple fallback for unknown modes
-        if custom_mode not in flight_modes:
-            main_mode = (custom_mode >> 16) & 0xFFFF
-            sub_mode = custom_mode & 0xFFFF
-
-            # Try intelligent detection for common patterns
-            if main_mode == 6:
-                return 'Offboard'
-            elif main_mode == 516:
-                return 'Takeoff'
-            elif main_mode == 1540:
-                return 'Land'
-            elif main_mode == 4:
-                # Auto modes
-                auto_sub_modes = {
-                    1: 'Ready', 2: 'Takeoff', 3: 'Hold',
-                    4: 'Mission', 5: 'Return', 6: 'Land'
-                }
-                return auto_sub_modes.get(sub_mode, f'Auto({sub_mode})')
-            elif main_mode == 1:
-                return 'Manual'
-            elif main_mode == 2:
-                return 'Altitude'
-            elif main_mode == 3:
-                return 'Position'
-            elif main_mode == 5:
-                return 'Acro'
-            elif main_mode == 7:
-                return 'Stabilized'
-
-            # Log unknown modes for debugging
-            self.log_warning(f"Unknown flight mode: {custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
-            return f'Unknown({custom_mode})'
-
-        return flight_modes[custom_mode]
+        mode_name = describe_px4_custom_mode(mode)
+        if mode_name.startswith('Unknown'):
+            main_mode, sub_mode = self._decode_px4_custom_mode(mode)
+            self.log_warning(f"Unknown flight mode: {mode} (Main: {main_mode}, Sub: {sub_mode})")
+        return mode_name
 
     def process_sys_status(self, msg):
         """

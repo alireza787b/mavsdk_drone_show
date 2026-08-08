@@ -55,4 +55,15 @@ describe('ExpandedDronePortal altitude display', () => {
       expect.stringContaining('LOCAL_POSITION_NED')
     );
   });
+
+  test('does not invent Hold when an armed drone reports custom mode zero', () => {
+    renderPortal({
+      is_armed: true,
+      base_mode: 192,
+      flight_mode: 0,
+    });
+
+    expect(document.querySelector('.mode-badge')).toHaveTextContent('Initializing');
+    expect(document.querySelector('.mode-badge')).not.toHaveTextContent('Hold');
+  });
 });

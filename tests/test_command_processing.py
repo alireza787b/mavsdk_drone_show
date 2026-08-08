@@ -140,7 +140,7 @@ def _populate_fresh_telemetry(drone_config):
     drone_config.yaw = 0.0
     drone_config.battery = 16.2
     drone_config.last_update_timestamp = int(time.time())
-    drone_config.custom_mode = 262147
+    drone_config.custom_mode = (4 << 16) | (3 << 24)
     drone_config.base_mode = 81
     drone_config.system_status = 4
     drone_config.readiness_checks = []

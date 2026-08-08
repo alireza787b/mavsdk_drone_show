@@ -4,6 +4,11 @@ import { MemoryRouter } from 'react-router-dom';
 import TacticalDroneCard from './TacticalDroneCard';
 import { CommandActivityProvider } from '../contexts/CommandActivityContext';
 import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
+import {
+  encodePx4CustomMode,
+  PX4_AUTO_SUB_MODES,
+  PX4_MAIN_MODES,
+} from '../constants/px4FlightModes';
 
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
   submitCommandWithLifecycleFeedback: jest.fn(),
@@ -45,7 +50,10 @@ describe('TacticalDroneCard', () => {
           altitude: 112.3,
           battery_voltage: 16.25,
           distance_to_home_m: 18.4,
-          flight_mode: 262147,
+          flight_mode: encodePx4CustomMode(
+            PX4_MAIN_MODES.AUTO,
+            PX4_AUTO_SUB_MODES.AUTO_LOITER,
+          ),
           is_armed: true,
           gps_fix_type: 3,
           satellites_visible: 14,

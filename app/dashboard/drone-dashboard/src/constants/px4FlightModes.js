@@ -8,11 +8,16 @@
  * - PX4 Developer Guide flight mode documentation
  * - Tested against real PX4 HEARTBEAT messages
  *
- * Custom Mode Encoding: (main_mode << 16) | sub_mode
+ * PX4 stores custom_mode as a little-endian union:
+ * - bits 0..15: reserved
+ * - bits 16..23: main_mode
+ * - bits 24..31: sub_mode
+ *
+ * Therefore an AUTO mission heartbeat is 0x04040000, not 0x00040004.
  */
 
 /**
- * Official PX4 Main Mode Definitions (upper 16 bits of custom_mode)
+ * Official PX4 Main Mode Definitions (bits 16..23 of custom_mode)
  * Source: PX4-Autopilot/src/modules/commander/px4_custom_mode.h
  */
 export const PX4_MAIN_MODES = {
@@ -27,7 +32,7 @@ export const PX4_MAIN_MODES = {
 };
 
 /**
- * Official PX4 Auto Sub-Mode Definitions (lower 16 bits when main_mode = AUTO)
+ * Official PX4 Auto Sub-Mode Definitions (bits 24..31 when main_mode = AUTO)
  * Source: PX4-Autopilot/src/modules/commander/px4_custom_mode.h
  */
 export const PX4_AUTO_SUB_MODES = {
@@ -37,46 +42,101 @@ export const PX4_AUTO_SUB_MODES = {
   AUTO_MISSION: 4,
   AUTO_RTL: 5,
   AUTO_LAND: 6,
-  AUTO_RTGS: 7,
+  AUTO_RESERVED_DO_NOT_USE: 7,
   AUTO_FOLLOW_TARGET: 8,
   AUTO_PRECLAND: 9
 };
 
+const UINT32_MAX = 0xFFFFFFFF;
+
+const normalizeUint32 = (value) => {
+  if (typeof value === 'string' && value.trim() === '') {
+    return null;
+  }
+
+  const numericValue = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isInteger(numericValue) || numericValue < 0 || numericValue > UINT32_MAX) {
+    return null;
+  }
+
+  return numericValue >>> 0;
+};
+
 /**
- * Official PX4 Flight Mode Mappings
- * Direct mapping from custom_mode values to human-readable names
- * Format: custom_mode = (main_mode << 16) | sub_mode
+ * Encode the two PX4 mode bytes into MAVLink HEARTBEAT.custom_mode.
+ *
+ * @param {number} mainMode - PX4_CUSTOM_MAIN_MODE value
+ * @param {number} [subMode=0] - PX4_CUSTOM_SUB_MODE value
+ * @returns {number} Unsigned 32-bit PX4 custom_mode
+ */
+export const encodePx4CustomMode = (mainMode, subMode = 0) => {
+  if (
+    !Number.isInteger(mainMode) || mainMode < 0 || mainMode > 0xFF ||
+    !Number.isInteger(subMode) || subMode < 0 || subMode > 0xFF
+  ) {
+    throw new RangeError('PX4 main mode and sub-mode must be unsigned bytes');
+  }
+
+  return (((subMode & 0xFF) << 24) | ((mainMode & 0xFF) << 16)) >>> 0;
+};
+
+/**
+ * Decode MAVLink HEARTBEAT.custom_mode using PX4's px4_custom_mode union.
+ *
+ * @param {number|string} customMode - Unsigned PX4 custom_mode value
+ * @returns {{customMode: number, reserved: number, mainMode: number, subMode: number}|null}
+ */
+export const decodePx4CustomMode = (customMode) => {
+  const mode = normalizeUint32(customMode);
+  if (mode === null) {
+    return null;
+  }
+
+  return {
+    customMode: mode,
+    reserved: mode & 0xFFFF,
+    mainMode: (mode >>> 16) & 0xFF,
+    subMode: (mode >>> 24) & 0xFF
+  };
+};
+
+const AUTO_SUB_MODE_NAMES = {
+  [PX4_AUTO_SUB_MODES.AUTO_READY]: 'Ready',
+  [PX4_AUTO_SUB_MODES.AUTO_TAKEOFF]: 'Takeoff',
+  [PX4_AUTO_SUB_MODES.AUTO_LOITER]: 'Hold',
+  [PX4_AUTO_SUB_MODES.AUTO_MISSION]: 'Mission',
+  [PX4_AUTO_SUB_MODES.AUTO_RTL]: 'Return',
+  [PX4_AUTO_SUB_MODES.AUTO_LAND]: 'Land',
+  [PX4_AUTO_SUB_MODES.AUTO_RESERVED_DO_NOT_USE]: 'Auto Reserved',
+  [PX4_AUTO_SUB_MODES.AUTO_FOLLOW_TARGET]: 'Follow Target',
+  [PX4_AUTO_SUB_MODES.AUTO_PRECLAND]: 'Precision Land'
+};
+
+/**
+ * Official PX4 Flight Mode Mappings.
+ * Keys are generated from PX4's byte layout to keep the table and decoder aligned.
  */
 export const PX4_FLIGHT_MODES = {
   // System States
   0: 'Initializing',
 
-  // Manual Control Modes (main_mode << 16)
-  65536: 'Manual',          // MANUAL (1 << 16)
-  131072: 'Altitude',       // ALTCTL (2 << 16)
-  196608: 'Position',       // POSCTL (3 << 16)
-  327680: 'Acro',          // ACRO (5 << 16)
-  393216: 'Offboard',      // OFFBOARD (6 << 16)
-  458752: 'Stabilized',    // STABILIZED (7 << 16)
-  524288: 'Rattitude',     // RATTITUDE (8 << 16)
+  // Manual Control Modes
+  [encodePx4CustomMode(PX4_MAIN_MODES.MANUAL)]: 'Manual',
+  [encodePx4CustomMode(PX4_MAIN_MODES.ALTCTL)]: 'Altitude',
+  [encodePx4CustomMode(PX4_MAIN_MODES.POSCTL)]: 'Position',
+  [encodePx4CustomMode(PX4_MAIN_MODES.ACRO)]: 'Acro',
+  [encodePx4CustomMode(PX4_MAIN_MODES.OFFBOARD)]: 'Offboard',
+  [encodePx4CustomMode(PX4_MAIN_MODES.STABILIZED)]: 'Stabilized',
+  [encodePx4CustomMode(PX4_MAIN_MODES.RATTITUDE)]: 'Rattitude',
 
-  // Auto Modes with Sub-modes ((AUTO << 16) | sub_mode)
-  262144: 'Auto',          // AUTO (4 << 16 | 0)
-  262145: 'Ready',         // AUTO_READY (4 << 16 | 1)
-  262146: 'Takeoff',       // AUTO_TAKEOFF (4 << 16 | 2)
-  262147: 'Hold',          // AUTO_LOITER (4 << 16 | 3)
-  262148: 'Mission',       // AUTO_MISSION (4 << 16 | 4)
-  262149: 'Return',        // AUTO_RTL (4 << 16 | 5)
-  262150: 'Land',          // AUTO_LAND (4 << 16 | 6)
-  262151: 'RTGS',          // AUTO_RTGS (4 << 16 | 7)
-  262152: 'Follow Target', // AUTO_FOLLOW_TARGET (4 << 16 | 8)
-  262153: 'Precision Land', // AUTO_PRECLAND (4 << 16 | 9)
-
-  // Extended PX4 modes observed in field
-  50593792: 'Hold',        // Special Hold mode (773 << 16)
-  84148224: 'Return',      // Special Return mode (1284 << 16)
-  33816576: 'Takeoff',     // Custom takeoff (516 << 16)
-  100925440: 'Land'        // Custom land (1540 << 16)
+  // Auto Modes with Sub-modes
+  [encodePx4CustomMode(PX4_MAIN_MODES.AUTO)]: 'Auto',
+  ...Object.fromEntries(
+    Object.entries(AUTO_SUB_MODE_NAMES).map(([subMode, name]) => [
+      encodePx4CustomMode(PX4_MAIN_MODES.AUTO, Number(subMode)),
+      name
+    ])
+  )
 };
 
 /**
@@ -105,20 +165,17 @@ export const getFlightModeName = (customMode) => {
     return 'No Data';
   }
 
-  const mode = typeof customMode === 'string' ? parseInt(customMode, 10) : customMode;
-
-  if (isNaN(mode)) {
+  const decoded = decodePx4CustomMode(customMode);
+  if (!decoded) {
     return 'Invalid Mode';
   }
 
+  const { customMode: mode, mainMode, subMode } = decoded;
+
   // Direct lookup for known modes
-  if (PX4_FLIGHT_MODES[mode]) {
+  if (Object.prototype.hasOwnProperty.call(PX4_FLIGHT_MODES, mode)) {
     return PX4_FLIGHT_MODES[mode];
   }
-
-  // PX4 encoding fallback: decode main_mode and sub_mode
-  const mainMode = (mode >> 16) & 0xFFFF;
-  const subMode = mode & 0xFFFF;
 
   // Handle main modes with unknown sub-modes
   switch (mainMode) {
@@ -129,19 +186,7 @@ export const getFlightModeName = (customMode) => {
     case PX4_MAIN_MODES.POSCTL:
       return 'Position';
     case PX4_MAIN_MODES.AUTO:
-      // Map known AUTO sub-modes
-      const autoModes = {
-        1: 'Ready',
-        2: 'Takeoff',
-        3: 'Hold',
-        4: 'Mission',
-        5: 'Return',
-        6: 'Land',
-        7: 'RTGS',
-        8: 'Follow Target',
-        9: 'Precision Land'
-      };
-      return autoModes[subMode] || `Auto.${subMode}`;
+      return AUTO_SUB_MODE_NAMES[subMode] || (subMode === 0 ? 'Auto' : `Auto.${subMode}`);
     case PX4_MAIN_MODES.ACRO:
       return 'Acro';
     case PX4_MAIN_MODES.OFFBOARD:
@@ -150,16 +195,6 @@ export const getFlightModeName = (customMode) => {
       return 'Stabilized';
     case PX4_MAIN_MODES.RATTITUDE:
       return 'Rattitude';
-
-    // Handle extended modes observed in field
-    case 773:
-      return 'Hold';
-    case 1284:
-      return 'Return';
-    case 516:
-      return 'Takeoff';
-    case 1540:
-      return 'Land';
 
     default:
       return `Unknown (${mode})`;
@@ -191,21 +226,18 @@ export const getSystemStatusName = (systemStatus) => {
  * @returns {boolean} True if manual control available
  */
 export const isSafeFlightMode = (customMode) => {
-  const mode = typeof customMode === 'string' ? parseInt(customMode, 10) : customMode;
+  const decoded = decodePx4CustomMode(customMode);
+  if (!decoded) return false;
 
-  if (isNaN(mode)) return false;
-
-  // Manual control modes are considered "safe"
-  const manualModes = [
-    65536,   // Manual
-    131072,  // Altitude
-    196608,  // Position
-    327680,  // Acro
-    458752,  // Stabilized
-    524288   // Rattitude
-  ];
-
-  return manualModes.includes(mode);
+  // Modes with direct pilot control are considered "safe" by this UI helper.
+  return [
+    PX4_MAIN_MODES.MANUAL,
+    PX4_MAIN_MODES.ALTCTL,
+    PX4_MAIN_MODES.POSCTL,
+    PX4_MAIN_MODES.ACRO,
+    PX4_MAIN_MODES.STABILIZED,
+    PX4_MAIN_MODES.RATTITUDE
+  ].includes(decoded.mainMode);
 };
 
 /**
@@ -228,13 +260,10 @@ export const isSystemReady = (systemStatus) => {
  * @returns {string} Category: 'manual', 'auto', 'offboard', or 'unknown'
  */
 export const getFlightModeCategory = (customMode) => {
-  const mode = typeof customMode === 'string' ? parseInt(customMode, 10) : customMode;
+  const decoded = decodePx4CustomMode(customMode);
+  if (!decoded) return 'unknown';
 
-  if (isNaN(mode)) return 'unknown';
-
-  const mainMode = (mode >> 16) & 0xFFFF;
-
-  switch (mainMode) {
+  switch (decoded.mainMode) {
     case PX4_MAIN_MODES.MANUAL:
     case PX4_MAIN_MODES.ALTCTL:
     case PX4_MAIN_MODES.POSCTL:

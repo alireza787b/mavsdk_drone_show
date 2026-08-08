@@ -80,13 +80,9 @@ const DroneWidget = ({
   })();
 
   // Flight mode and system status
-  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
-  const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
-
-  // Derive actual flight mode from base mode if custom mode is 0 (SITL issue)
-  const actualFlightMode = flightModeValue === 0 && baseMode === 192 ? 262147 : flightModeValue; // 192 = armed, use Hold as fallback
-  const flightModeTitle = getFlightModeTitle(actualFlightMode);
-  const flightModeCategory = getFlightModeCategory(actualFlightMode);
+  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE];
+  const flightModeTitle = getFlightModeTitle(flightModeValue);
+  const flightModeCategory = getFlightModeCategory(flightModeValue);
 
   // Arming and readiness status
   const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
