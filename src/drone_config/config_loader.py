@@ -12,6 +12,7 @@ This module provides stateless methods for:
 """
 
 import csv
+import math
 import logging
 import os
 from typing import Dict, Optional, Any
@@ -208,7 +209,16 @@ class ConfigLoader:
                             if first_waypoint:
                                 x = float(first_waypoint.get('px', 0))  # North
                                 y = float(first_waypoint.get('py', 0))  # East
-                                all_configs[pos_id] = {'x': x, 'y': y}
+                                if not (math.isfinite(x) and math.isfinite(y)):
+                                    logger.warning(
+                                        "Non-finite first waypoint for pos_id=%s (px=%r, py=%r); using 0,0",
+                                        pos_id,
+                                        first_waypoint.get('px', 0),
+                                        first_waypoint.get('py', 0),
+                                    )
+                                    all_configs[pos_id] = {'x': 0.0, 'y': 0.0}
+                                else:
+                                    all_configs[pos_id] = {'x': x, 'y': y}
                             else:
                                 logger.warning(f"Trajectory file empty for pos_id={pos_id}")
                                 all_configs[pos_id] = {'x': 0, 'y': 0}
