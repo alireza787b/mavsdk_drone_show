@@ -101,6 +101,16 @@ class TestSafeFloat:
         assert safe_float([1.0, 2.0]) == 0.0
         assert safe_float({'key': 1.5}) == 0.0
 
+    def test_nonfinite_returns_default(self):
+        """Non-finite values must not masquerade as valid telemetry numbers."""
+        import math
+        from functions.data_utils import safe_float
+
+        assert safe_float(math.nan) == 0.0
+        assert safe_float(float("nan"), default=1.5) == 1.5
+        assert safe_float(math.inf) == 0.0
+        assert safe_float(-math.inf, default=-1.0) == -1.0
+
 
 class TestSafeGet:
     """Test safe_get function"""

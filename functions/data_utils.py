@@ -1,4 +1,5 @@
 import logging
+import math
 
 
 def safe_int(value, default=0):
@@ -15,7 +16,13 @@ def safe_float(value, default=0.0):
         if value is None:
             logging.warning(f"Expected float, got None. Using default {default}.")
             return default
-        return float(value)
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            logging.error(
+                f"Non-finite float value {value!r}. Using default {default}."
+            )
+            return default
+        return parsed
     except (ValueError, TypeError) as e:
         logging.error(f"Error converting value to float: {e}. Using default {default}.")
         return default
