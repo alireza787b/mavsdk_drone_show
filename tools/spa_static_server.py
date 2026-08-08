@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import io
 import mimetypes
 import posixpath
@@ -49,6 +50,14 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=directory, **kwargs)
 
     def send_head(self):
+        if self._normalized_request_path(self.path) == "/":
+            original_path = self.path
+            self.path = "/index.html"
+            self._cache_request_path = "/index.html"
+            try:
+                return self._send_head_with_optional_gzip()
+            finally:
+                self.path = original_path
         if self._should_fallback_to_index():
             original_path = self.path
             self.path = "/index.html"
@@ -87,6 +96,8 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
         stat_result = translated_path.stat()
         use_gzip = self._should_serve_gzip(translated_path, stat_result.st_size)
         self._vary_accept_encoding = use_gzip
+        if translated_path.name == "index.html":
+            return self._send_html_shell(translated_path, stat_result, use_gzip)
         if not use_gzip:
             return super().send_head()
 
@@ -108,6 +119,39 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Last-Modified", self.date_time_string(stat_result.st_mtime))
         self.end_headers()
         return io.BytesIO(content)
+
+    def _send_html_shell(self, translated_path: Path, stat_result, use_gzip: bool):
+        raw_content = translated_path.read_bytes()
+        content = (
+            gzip.compress(raw_content, compresslevel=6, mtime=0)
+            if use_gzip
+            else raw_content
+        )
+        etag = f'"{hashlib.sha256(content).hexdigest()}"'
+
+        if self._etag_matches(etag):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Last-Modified", self.date_time_string(stat_result.st_mtime))
+            self.end_headers()
+            return None
+
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        if use_gzip:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("ETag", etag)
+        self.send_header("Last-Modified", self.date_time_string(stat_result.st_mtime))
+        self.end_headers()
+        return io.BytesIO(content)
+
+    def _etag_matches(self, current_etag: str) -> bool:
+        raw_header = self.headers.get("If-None-Match", "")
+        if not raw_header:
+            return False
+        candidates = {candidate.strip() for candidate in raw_header.split(",")}
+        return "*" in candidates or current_etag in candidates
 
     def _should_fallback_to_index(self) -> bool:
         request_path = self._normalized_request_path(self.path)

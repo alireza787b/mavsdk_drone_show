@@ -27,6 +27,19 @@ on:
         required: false
         default: ''
 
+# One non-secret, deployable compile profile feeds both dashboard builds and
+# the artifact manifest. Prebuilt-only deployment intentionally requires
+# browser auto-detection, no embedded map token, and no source maps; custom API
+# ports must be changed here and on the target runtime as one reviewed unit.
+env:
+  MDS_DASHBOARD_BUILD_GCS_PORT: '5030'
+  MDS_DASHBOARD_BUILD_DRONE_PORT: '7070'
+  MDS_DASHBOARD_BUILD_SERVER_URL: ''
+  MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''
+  MDS_DASHBOARD_BUILD_MAPBOX_TOKEN: ''
+  MDS_DASHBOARD_BUILD_MAP_TOKEN: ''
+  MDS_DASHBOARD_BUILD_SOURCE_MAPS: 'false'
+
 jobs:
   quality-gates:
     runs-on: ubuntu-latest
@@ -132,6 +145,13 @@ jobs:
           REACT_APP_GIT_COMMIT: ${{ github.sha }}
           REACT_APP_GIT_BRANCH: ${{ github.event.inputs.prerelease_tag || github.ref_name }}
           REACT_APP_GIT_REPO: ${{ github.repository }}
+          REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}
+          REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}
+          REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}
+          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
+          REACT_APP_MAPBOX_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_TOKEN }}
+          REACT_APP_MAP_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAP_TOKEN }}
+          GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -142,6 +162,51 @@ jobs:
             src/components/SidebarMenu.test.js \
             src/App.test.js
           npm run build:release
+
+      - name: Package dashboard deployment artifact
+        env:
+          MDS_ARTIFACT_REPOSITORY: ${{ github.repository }}
+          MDS_ARTIFACT_COMMIT: ${{ github.sha }}
+          MDS_ARTIFACT_REF: ${{ github.ref }}
+          MDS_ARTIFACT_REF_NAME: ${{ github.ref_name }}
+          MDS_ARTIFACT_DISPLAY_REF: ${{ github.event.inputs.prerelease_tag || github.ref_name }}
+          MDS_ARTIFACT_RUN_ID: ${{ github.run_id }}
+          MDS_ARTIFACT_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/mds-dashboard-artifact"
+          python3 tools/dashboard_build_artifact.py package \
+            --build-dir app/dashboard/drone-dashboard/build \
+            --package-lock app/dashboard/drone-dashboard/package-lock.json \
+            --version-file VERSION \
+            --repository "$MDS_ARTIFACT_REPOSITORY" \
+            --commit "$MDS_ARTIFACT_COMMIT" \
+            --ref "$MDS_ARTIFACT_REF" \
+            --ref-name "$MDS_ARTIFACT_REF_NAME" \
+            --display-ref "$MDS_ARTIFACT_DISPLAY_REF" \
+            --run-id "$MDS_ARTIFACT_RUN_ID" \
+            --run-attempt "$MDS_ARTIFACT_RUN_ATTEMPT" \
+            --output-dir "$artifact_dir"
+          python3 tools/dashboard_build_artifact.py verify \
+            --build-dir app/dashboard/drone-dashboard/build \
+            --package-lock app/dashboard/drone-dashboard/package-lock.json \
+            --version-file VERSION \
+            --repository "$MDS_ARTIFACT_REPOSITORY" \
+            --commit "$MDS_ARTIFACT_COMMIT" \
+            --ref "$MDS_ARTIFACT_REF" \
+            --ref-name "$MDS_ARTIFACT_REF_NAME" \
+            --gcs-port "$MDS_DASHBOARD_BUILD_GCS_PORT" \
+            --drone-port "$MDS_DASHBOARD_BUILD_DRONE_PORT"
+
+      - name: Upload dashboard deployment artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-build-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/mds-dashboard-artifact/dashboard-build-${{ github.sha }}.tar.gz
+            ${{ runner.temp }}/mds-dashboard-artifact/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
 
   release:
     if: >-
@@ -355,6 +420,13 @@ jobs:
           REACT_APP_GIT_COMMIT: ${{ steps.release_commit.outputs.sha }}
           REACT_APP_GIT_BRANCH: ${{ steps.version_check.outputs.tag }}
           REACT_APP_GIT_REPO: ${{ github.repository }}
+          REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}
+          REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}
+          REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}
+          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
+          REACT_APP_MAPBOX_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_TOKEN }}
+          REACT_APP_MAP_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAP_TOKEN }}
+          GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -366,6 +438,70 @@ jobs:
             src/App.test.js
           npm run build:release
           git diff --exit-code
+
+      - name: Package stable dashboard deployment artifact
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        env:
+          MDS_ARTIFACT_REPOSITORY: ${{ github.repository }}
+          MDS_ARTIFACT_COMMIT: ${{ steps.release_commit.outputs.sha }}
+          MDS_ARTIFACT_REF: ${{ github.ref }}
+          MDS_ARTIFACT_REF_NAME: ${{ github.ref_name }}
+          MDS_ARTIFACT_DISPLAY_REF: ${{ steps.version_check.outputs.tag }}
+          MDS_ARTIFACT_RUN_ID: ${{ github.run_id }}
+          MDS_ARTIFACT_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/mds-dashboard-stable-artifact"
+          python3 tools/dashboard_build_artifact.py package \
+            --build-dir app/dashboard/drone-dashboard/build \
+            --package-lock app/dashboard/drone-dashboard/package-lock.json \
+            --version-file VERSION \
+            --repository "$MDS_ARTIFACT_REPOSITORY" \
+            --commit "$MDS_ARTIFACT_COMMIT" \
+            --ref "$MDS_ARTIFACT_REF" \
+            --ref-name "$MDS_ARTIFACT_REF_NAME" \
+            --display-ref "$MDS_ARTIFACT_DISPLAY_REF" \
+            --run-id "$MDS_ARTIFACT_RUN_ID" \
+            --run-attempt "$MDS_ARTIFACT_RUN_ATTEMPT" \
+            --output-dir "$artifact_dir"
+          python3 tools/dashboard_build_artifact.py verify \
+            --build-dir app/dashboard/drone-dashboard/build \
+            --package-lock app/dashboard/drone-dashboard/package-lock.json \
+            --version-file VERSION \
+            --repository "$MDS_ARTIFACT_REPOSITORY" \
+            --commit "$MDS_ARTIFACT_COMMIT" \
+            --ref "$MDS_ARTIFACT_REF" \
+            --ref-name "$MDS_ARTIFACT_REF_NAME" \
+            --gcs-port "$MDS_DASHBOARD_BUILD_GCS_PORT" \
+            --drone-port "$MDS_DASHBOARD_BUILD_DRONE_PORT"
+
+      - name: Upload stable dashboard deployment artifact
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-build-${{ steps.release_commit.outputs.sha }}
+          path: |
+            ${{ runner.temp }}/mds-dashboard-stable-artifact/dashboard-build-${{ steps.release_commit.outputs.sha }}.tar.gz
+            ${{ runner.temp }}/mds-dashboard-stable-artifact/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stage prerelease dashboard release assets
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: dashboard-build-${{ steps.release_commit.outputs.sha }}
+          path: ${{ runner.temp }}/mds-dashboard-release-assets
+
+      - name: Stage stable dashboard release assets
+        if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mds-dashboard-release-assets"
+          cp \
+            "$RUNNER_TEMP/mds-dashboard-stable-artifact/dashboard-build-${{ steps.release_commit.outputs.sha }}.tar.gz" \
+            "$RUNNER_TEMP/mds-dashboard-stable-artifact/SHA256SUMS" \
+            "$RUNNER_TEMP/mds-dashboard-release-assets/"
 
       - name: Generate release notes
         if: steps.version_check.outputs.changed == 'true'
@@ -408,6 +544,8 @@ jobs:
           tag_name: ${{ steps.version_check.outputs.tag }}
           name: ${{ steps.version_check.outputs.tag }}
           body_path: release_notes.md
+          files: ${{ runner.temp }}/mds-dashboard-release-assets/*
+          fail_on_unmatched_files: true
           draft: false
           prerelease: ${{ steps.version_check.outputs.prerelease == 'true' }}
         env:

@@ -1,5 +1,6 @@
 import gzip
 import http.client
+import os
 import threading
 from contextlib import contextmanager
 from functools import partial
@@ -68,7 +69,62 @@ def test_spa_server_falls_back_to_index_with_no_cache(tmp_path):
 
     assert status == 200
     assert headers["cache-control"] == "no-cache"
+    assert headers["etag"].startswith('"')
     assert b"dashboard" in payload
+
+
+def test_spa_html_revalidation_uses_content_not_reused_archive_mtime(tmp_path):
+    build_dir = tmp_path / "build"
+    build_dir.mkdir(parents=True)
+    index_path = build_dir / "index.html"
+    first_body = b"<html><body>release-one</body></html>"
+    second_body = b"<html><body>release-two</body></html>"
+    assert len(first_body) == len(second_body)
+
+    index_path.write_bytes(first_body)
+    os.utime(index_path, (0, 0))
+    with run_spa_server(build_dir) as port:
+        first_status, first_headers, first_payload = request(port, "/index.html")
+
+    assert first_status == 200
+    assert first_payload == first_body
+    first_etag = first_headers["etag"]
+    first_last_modified = first_headers["last-modified"]
+
+    index_path.write_bytes(second_body)
+    os.utime(index_path, (0, 0))
+    with run_spa_server(build_dir) as port:
+        direct_status, direct_headers, direct_payload = request(
+            port,
+            "/index.html",
+            headers={
+                "If-None-Match": first_etag,
+                "If-Modified-Since": first_last_modified,
+            },
+        )
+        fallback_status, fallback_headers, fallback_payload = request(
+            port,
+            "/fleet-ops",
+            headers={"If-Modified-Since": first_last_modified},
+        )
+        current_status, current_headers, current_payload = request(
+            port,
+            "/",
+            headers={"If-None-Match": direct_headers["etag"]},
+        )
+
+    assert direct_status == 200
+    assert direct_payload == second_body
+    assert direct_headers["last-modified"] == first_last_modified
+    assert direct_headers["etag"] != first_etag
+    assert direct_headers["cache-control"] == "no-cache"
+    assert fallback_status == 200
+    assert fallback_payload == second_body
+    assert fallback_headers["etag"] == direct_headers["etag"]
+    assert current_status == 304
+    assert current_payload == b""
+    assert current_headers["etag"] == direct_headers["etag"]
+    assert current_headers["cache-control"] == "no-cache"
 
 
 def test_spa_server_serves_route_prefixed_lazy_chunks_with_immutable_cache(tmp_path):

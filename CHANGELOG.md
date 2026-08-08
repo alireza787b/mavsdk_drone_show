@@ -44,6 +44,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   from stopping both services and then failing because `react-scripts` was
   omitted. Production-pruned dependency trees are detected explicitly, and
   dependency/build preflight completes before the current services are stopped.
+- Release quality gates now retain the already-tested dashboard for seven days
+  as a SHA-named transfer artifact with exact repository/ref/commit provenance,
+  a non-secret build manifest, and a SHA-256 checksum instead of discarding the
+  only off-host production bundle. Release workflows also attach that exact
+  archive and checksum as durable release assets.
+- Production launch now supports `--require-prebuilt-dashboard`. It verifies
+  the exact CI manifest and complete bundle tree, needs no Node/npm toolchain,
+  and fails before service teardown rather than building on a constrained GCS
+  when the artifact is missing, stale, altered, or from another source. Exact
+  commit and content provenance replaces unreliable cross-host file mtimes.
+- The production SPA shell now revalidates `index.html` and BrowserRouter
+  fallbacks with content-based ETags. A deterministic artifact timestamp can no
+  longer produce a false `304 Not Modified` for an older operator dashboard.
 - ULog summary errors now preserve structured node transport stages. MAVSDK
   server/RPC/PX4-connection setup timeouts are reported as retryable transport
   failures instead of being mislabeled as a 90-second isolated-parser timeout;

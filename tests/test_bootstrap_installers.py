@@ -1,4 +1,9 @@
+import hashlib
+import json
+import os
 import subprocess
+import sys
+import tarfile
 from pathlib import Path
 
 
@@ -498,8 +503,149 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert '${tmux_env_prefix}clear && echo ' in start_text
     assert 'ci --include=dev --no-audit --no-fund' in start_text
     assert 'install --include=dev --no-audit --no-fund' in start_text
-    main_text = start_text.split("# MAIN EXECUTION", 2)[-1]
+    assert '--require-prebuilt-dashboard) REQUIRE_PREBUILT_DASHBOARD=true; shift ;;' in start_text
+    assert "Verify an exact CI-built dashboard and refuse local npm/build work" in start_text
+    assert "validate_prebuilt_dashboard_manifest() {" in start_text
+    assert "--require-prebuilt-dashboard is valid only with --prod." in start_text
+    assert "--require-prebuilt-dashboard cannot be combined with --rebuild." in start_text
+    assert "--require-prebuilt-dashboard cannot be combined with --overwrite-ip." in start_text
+    assert "Build Manifest:" in start_text
+    assert "Prebuilt Policy:" in start_text
+    assert "Prebuilt Dashboard Required:" in start_text
+    main_text = start_text.rsplit("# MAIN EXECUTION", 1)[-1]
+    assert main_text.index("validate_prebuilt_dashboard_options") < main_text.index(
+        "configure_react_version_env"
+    )
     assert main_text.index("prepare_react_runtime") < main_text.index("PORT MANAGEMENT")
+    assert main_text.index("prepare_react_runtime") < main_text.index("check_and_kill_port")
+    assert main_text.index("prepare_react_runtime") < main_text.index("start_services_in_tmux")
+
+
+def test_release_workflow_retains_exact_dashboard_build_artifact():
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uses: actions/upload-artifact@v7" in workflow_text
+    assert "uses: actions/download-artifact@v8" in workflow_text
+    assert "name: dashboard-build-${{ github.sha }}" in workflow_text
+    assert "retention-days: 7" in workflow_text
+    assert workflow_text.count("python3 tools/dashboard_build_artifact.py package") == 2
+    assert workflow_text.count("python3 tools/dashboard_build_artifact.py verify") == 2
+    assert "Package stable dashboard deployment artifact" in workflow_text
+    assert "name: dashboard-build-${{ steps.release_commit.outputs.sha }}" in workflow_text
+    assert "MDS_ARTIFACT_COMMIT: ${{ steps.release_commit.outputs.sha }}" in workflow_text
+    assert "files: ${{ runner.temp }}/mds-dashboard-release-assets/*" in workflow_text
+    assert "fail_on_unmatched_files: true" in workflow_text
+    assert workflow_text.count(
+        "REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}"
+    ) == 2
+    assert workflow_text.count(
+        "REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}"
+    ) == 2
+    assert workflow_text.count(
+        "REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}"
+    ) == 2
+    assert workflow_text.count(
+        "REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}"
+    ) == 2
+    assert workflow_text.count(
+        "GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}"
+    ) == 2
+    assert "app/dashboard/drone-dashboard/.env" not in workflow_text
+    assert "MDS_DASHBOARD_BUILD_SERVER_URL: ''" in workflow_text
+    assert "MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''" in workflow_text
+    assert "MDS_DASHBOARD_BUILD_MAPBOX_TOKEN: ''" in workflow_text
+    assert "MDS_DASHBOARD_BUILD_MAP_TOKEN: ''" in workflow_text
+    assert workflow_text.index("npm run build:release") < workflow_text.index(
+        "Package dashboard deployment artifact"
+    )
+
+
+def test_dashboard_build_artifact_packager_binds_complete_tree(tmp_path):
+    build_dir = tmp_path / "dashboard" / "build"
+    static_dir = build_dir / "static" / "js"
+    static_dir.mkdir(parents=True)
+    (build_dir / "asset-manifest.json").write_text('{"files":{}}\n', encoding="utf-8")
+    (build_dir / "index.html").write_text("<!doctype html><title>MDS</title>\n", encoding="utf-8")
+    (static_dir / "main.js").write_text("console.log('MDS');\n", encoding="utf-8")
+    package_lock = tmp_path / "dashboard" / "package-lock.json"
+    package_lock.write_text('{"lockfileVersion":3}\n', encoding="utf-8")
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("5.5\n", encoding="utf-8")
+    output_dir = tmp_path / "artifact"
+    commit = "a" * 40
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "tools" / "dashboard_build_artifact.py"),
+            "package",
+            "--build-dir",
+            str(build_dir),
+            "--package-lock",
+            str(package_lock),
+            "--version-file",
+            str(version_file),
+            "--repository",
+            "demo/private",
+            "--commit",
+            commit,
+            "--ref",
+            "refs/heads/main",
+            "--ref-name",
+            "main",
+            "--display-ref",
+            "main",
+            "--run-id",
+            "123",
+            "--run-attempt",
+            "1",
+            "--output-dir",
+            str(output_dir),
+        ],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "MDS_DASHBOARD_BUILD_GCS_PORT": "5040",
+            "MDS_DASHBOARD_BUILD_DRONE_PORT": "7080",
+            "MDS_DASHBOARD_BUILD_SERVER_URL": "https://gcs.example.invalid",
+            "MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN": "public-test-token",
+            "MDS_DASHBOARD_BUILD_MAPBOX_TOKEN": "",
+            "MDS_DASHBOARD_BUILD_MAP_TOKEN": "",
+            "MDS_DASHBOARD_BUILD_SOURCE_MAPS": "true",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    manifest_path = build_dir / "mds-dashboard-build-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["source"]["repository"] == "demo/private"
+    assert manifest["source"]["commit"] == commit
+    assert manifest["build"]["file_count"] == 3
+    assert len(manifest["build"]["tree_sha256"]) == 64
+    assert manifest["build"]["compile_inputs"] == {
+        "gcs_port": "5040",
+        "drone_port": "7080",
+        "server_url_mode": "explicit",
+        "mapbox_access_token_embedded": True,
+        "source_maps": True,
+    }
+    assert "public-test-token" not in manifest_path.read_text(encoding="utf-8")
+
+    archive = Path(report["archive"])
+    checksum_line = (output_dir / "SHA256SUMS").read_text(encoding="utf-8").strip()
+    assert checksum_line == f"{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name}"
+    with tarfile.open(archive, "r:gz") as bundle:
+        names = set(bundle.getnames())
+        assert "build/mds-dashboard-build-manifest.json" in names
+        assert "build/static/js/main.js" in names
+        assert all(member.uid == 0 and member.gid == 0 for member in bundle.getmembers())
+        assert all(member.mtime == 0 for member in bundle.getmembers())
 
 
 def test_dashboard_start_reinstalls_production_pruned_node_modules():
@@ -738,6 +884,197 @@ PY
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_start_prebuilt_policy_accepts_exact_current_artifact_without_node_or_build():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard/src" \
+                 "$tmpdir/app/dashboard/drone-dashboard/build" \
+                 "$tmpdir/app/dashboard/drone-dashboard/build/static/js" \
+                 "$tmpdir/gcs-server" \
+                 "$tmpdir/tools"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        touch "$tmpdir/tools/spa_static_server.py"
+        cp "{REPO_ROOT / 'tools' / 'dashboard_build_artifact.py'}" \
+           "$tmpdir/tools/dashboard_build_artifact.py"
+        cat >"$tmpdir/VERSION" <<'EOF'
+5.5
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/package.json" <<'EOF'
+{{"name":"demo-dashboard","version":"5.5"}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/package-lock.json" <<'EOF'
+{{"name":"demo-dashboard","version":"5.5","lockfileVersion":3}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/src/App.js" <<'EOF'
+console.log('demo');
+EOF
+        git -C "$tmpdir" init -q -b main
+        git -C "$tmpdir" config user.name "MDS Test"
+        git -C "$tmpdir" config user.email "mds-test@example.invalid"
+        git -C "$tmpdir" remote add origin git@github.com:demo/private.git
+        git -C "$tmpdir" add VERSION app
+        git -C "$tmpdir" commit -qm "test fixture"
+        commit="$(git -C "$tmpdir" rev-parse HEAD)"
+
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/asset-manifest.json" <<'EOF'
+{{"files":{{}}}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/index.html" <<'EOF'
+<!doctype html><title>MDS</title>
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/static/js/main.js" <<'EOF'
+console.log('built dashboard');
+EOF
+        MDS_DASHBOARD_BUILD_GCS_PORT=5030 \
+        MDS_DASHBOARD_BUILD_DRONE_PORT=7070 \
+        MDS_DASHBOARD_BUILD_SERVER_URL= \
+        MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN= \
+        MDS_DASHBOARD_BUILD_MAPBOX_TOKEN= \
+        MDS_DASHBOARD_BUILD_MAP_TOKEN= \
+        MDS_DASHBOARD_BUILD_SOURCE_MAPS=false \
+          python3 "$tmpdir/tools/dashboard_build_artifact.py" package \
+            --build-dir "$tmpdir/app/dashboard/drone-dashboard/build" \
+            --package-lock "$tmpdir/app/dashboard/drone-dashboard/package-lock.json" \
+            --version-file "$tmpdir/VERSION" \
+            --repository demo/private \
+            --commit "$commit" \
+            --ref refs/heads/main \
+            --ref-name main \
+            --display-ref main \
+            --run-id 123 \
+            --run-attempt 1 \
+            --output-dir "$tmpdir/artifact" >/dev/null
+        python3 - <<'PY' "$tmpdir"
+import os
+import sys
+import time
+from pathlib import Path
+
+# A valid archive may have been built before the production checkout occurred.
+# Source mtimes therefore cannot be the authority for a prebuilt artifact.
+root = Path(sys.argv[1])
+future = time.time() + 120
+os.utime(root / "app/dashboard/drone-dashboard/src/App.js", (future, future))
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        parse_arguments --prod --require-prebuilt-dashboard
+        [[ "$DEPLOYMENT_MODE" == "production" ]]
+        [[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]]
+        RUN_GUI_APP="true"
+        build_react_app() {{ printf 'build\n' >>"$tmpdir/calls"; return 90; }}
+        ensure_nodejs_in_path() {{ printf 'node\n' >>"$tmpdir/calls"; return 91; }}
+        prepare_react_runtime
+        get_react_command >/dev/null
+        [[ ! -e "$tmpdir/calls" ]]
+        DEV_GCS_PORT=5040
+        if prepare_react_runtime; then
+            echo "unexpected acceptance for incompatible dashboard API port" >&2
+            exit 1
+        fi
+        DEV_GCS_PORT=5030
+        [[ ! -e "$tmpdir/calls" ]]
+        printf 'tampered' >>"$tmpdir/app/dashboard/drone-dashboard/build/index.html"
+        if prepare_react_runtime; then
+            echo "unexpected acceptance of altered prebuilt dashboard" >&2
+            exit 1
+        fi
+        [[ ! -e "$tmpdir/calls" ]]
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/index.html" <<'EOF'
+<!doctype html><title>MDS</title>
+EOF
+        printf 'tampered' >>"$tmpdir/app/dashboard/drone-dashboard/build/static/js/main.js"
+        if prepare_react_runtime; then
+            echo "unexpected acceptance of altered dashboard asset" >&2
+            exit 1
+        fi
+        [[ ! -e "$tmpdir/calls" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Verified prebuilt dashboard" in result.stdout
+    assert "no local npm/install/build work was run" in result.stdout
+    assert "dashboard compile-input profile mismatch" in result.stderr
+    assert "index_sha256 mismatch" in result.stderr
+    assert "tree_sha256 mismatch" in result.stderr
+
+
+def test_dashboard_start_prebuilt_policy_fails_closed_before_build_when_stale():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard/src" \
+                 "$tmpdir/app/dashboard/drone-dashboard/build" \
+                 "$tmpdir/gcs-server"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        cat >"$tmpdir/VERSION" <<'EOF'
+5.5
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/package.json" <<'EOF'
+{{"name":"demo-dashboard","version":"5.5"}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/src/App.js" <<'EOF'
+console.log('new source');
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/asset-manifest.json" <<'EOF'
+{{"files":{{}}}}
+EOF
+        python3 - <<'PY' "$tmpdir"
+from pathlib import Path
+import os
+import sys
+import time
+
+root = Path(sys.argv[1])
+older = time.time() - 120
+newer = time.time()
+marker = root / "app/dashboard/drone-dashboard/build/asset-manifest.json"
+source = root / "app/dashboard/drone-dashboard/src/App.js"
+os.utime(marker, (older, older))
+os.utime(source, (newer, newer))
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        DEPLOYMENT_MODE="production"
+        RUN_GUI_APP="true"
+        REQUIRE_PREBUILT_DASHBOARD="true"
+        FORCE_REBUILD="false"
+        build_react_app() {{ printf 'build\n' >>"$tmpdir/calls"; return 90; }}
+        ensure_nodejs_in_path() {{ printf 'node\n' >>"$tmpdir/calls"; return 91; }}
+        if prepare_react_runtime; then
+            echo "unexpected prebuilt acceptance" >&2
+            exit 1
+        fi
+        [[ ! -e "$tmpdir/calls" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "refusing npm/install/build work on this host" in result.stderr
 
 
 def test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config():

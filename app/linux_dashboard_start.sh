@@ -112,6 +112,8 @@ fi
 
 ENV_FILE_PATH="$REACT_APP_DIR/.env"
 BUILD_DIR="$REACT_APP_DIR/build"
+DASHBOARD_BUILD_MANIFEST="$BUILD_DIR/mds-dashboard-build-manifest.json"
+DASHBOARD_ARTIFACT_TOOL="$PROJECT_ROOT/tools/dashboard_build_artifact.py"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 VERSION_FILE_PATH="$PROJECT_ROOT/VERSION"
 SPA_SERVER_SCRIPT="$PROJECT_ROOT/tools/spa_static_server.py"
@@ -121,6 +123,7 @@ SPA_SERVER_SCRIPT="$PROJECT_ROOT/tools/spa_static_server.py"
 # ===========================================
 DEPLOYMENT_MODE="$DEFAULT_MODE"
 FORCE_REBUILD=false
+REQUIRE_PREBUILT_DASHBOARD=false
 CHECK_ONLY=false
 RUN_GCS_SERVER=true
 RUN_GUI_APP=true
@@ -438,6 +441,8 @@ Backend:          FastAPI
 Backend Reload:   $([[ "$DEPLOYMENT_MODE" == "production" ]] && echo "DISABLED (production)" || (backend_reload_enabled && echo "ENABLED (dev override)" || echo "DISABLED (state-safe default)"))
 Virtual Env:      $([[ -d "$VENV_PATH" ]] && echo "OK ($VENV_PATH)" || echo "MISSING")
 React Build:      $([[ -d "$BUILD_DIR" ]] && echo "EXISTS" || echo "NOT BUILT")
+Build Manifest:   $([[ -f "$DASHBOARD_BUILD_MANIFEST" ]] && echo "PRESENT" || echo "MISSING")
+Prebuilt Policy:  $([[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]] && echo "REQUIRED" || echo "BUILD IF NEEDED")
 .env File:        $([[ -f "$ENV_FILE_PATH" ]] && echo "EXISTS" || echo "MISSING")
 
 PATHS:
@@ -673,6 +678,8 @@ MODE OPTIONS:
 BUILD OPTIONS:
   --rebuild             : Force rebuild all components (React + dependencies)
   --force-rebuild       : Same as --rebuild (alias)
+  --require-prebuilt-dashboard
+                        : Verify an exact CI-built dashboard and refuse local npm/build work
   --skip-deps           : Skip Python dependency check (faster startup)
 
 DRONE MODE OPTIONS:
@@ -704,6 +711,7 @@ EXAMPLES:
   Quick start (SITL):    $0 --sitl
   Quick start (Real):    $0 --real
   Production deploy:     $0 --prod --real
+  Prebuilt production:   $0 --prod --real --require-prebuilt-dashboard
   Dev with rebuild:      $0 --dev --sitl --rebuild
   Check config only:     $0 --check
   Show current status:   $0 --status
@@ -716,6 +724,7 @@ parse_arguments() {
             --prod|--production) DEPLOYMENT_MODE="production"; shift ;;
             --dev|--development) DEPLOYMENT_MODE="development"; shift ;;
             --rebuild|--force-rebuild) FORCE_REBUILD=true; shift ;;
+            --require-prebuilt-dashboard) REQUIRE_PREBUILT_DASHBOARD=true; shift ;;
             --skip-deps) SKIP_DEPENDENCY_CHECK=true; shift ;;
             --check) CHECK_ONLY=true; shift ;;
             --status) STATUS_ONLY=true; shift ;;
@@ -1060,6 +1069,51 @@ path_tree_has_updates_since() {
     return 1
 }
 
+validate_prebuilt_dashboard_manifest() {
+    local expected_commit=""
+    local expected_ref_name=""
+    local expected_repository=""
+    local validation_error=""
+
+    if [[ ! -f "$DASHBOARD_BUILD_MANIFEST" ]]; then
+        log_error "Required prebuilt dashboard manifest is missing: $DASHBOARD_BUILD_MANIFEST"
+        return 1
+    fi
+    if [[ ! -f "$DASHBOARD_ARTIFACT_TOOL" ]]; then
+        log_error "Dashboard artifact verifier is missing: $DASHBOARD_ARTIFACT_TOOL"
+        return 1
+    fi
+
+    expected_commit="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
+    expected_ref_name="$(git -C "$PROJECT_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    expected_repository="$(normalize_repo_url_for_compare "$(get_origin_remote_url)")"
+
+    if [[ -z "$expected_commit" || -z "$expected_ref_name" || -z "$expected_repository" ]]; then
+        log_error "Cannot verify prebuilt dashboard provenance from the current Git checkout."
+        return 1
+    fi
+
+    if ! validation_error="$(
+        python3 "$DASHBOARD_ARTIFACT_TOOL" verify \
+            --build-dir "$BUILD_DIR" \
+            --package-lock "$REACT_APP_DIR/package-lock.json" \
+            --version-file "$VERSION_FILE_PATH" \
+            --repository "$expected_repository" \
+            --commit "$expected_commit" \
+            --ref "refs/heads/$expected_ref_name" \
+            --ref-name "$expected_ref_name" \
+            --gcs-port "$DEV_GCS_PORT" \
+            --drone-port "${MDS_DEFAULT_DRONE_API_PORT:-7070}" \
+            2>&1
+    )"; then
+        log_error "Prebuilt dashboard manifest verification failed: $validation_error"
+        return 1
+    fi
+
+    log_success "Verified prebuilt dashboard for ${expected_repository}@${expected_commit:0:12} (${expected_ref_name})."
+    return 0
+}
+
 build_react_app() {
     log_info "Building React application for production..."
     ensure_nodejs_in_path
@@ -1228,8 +1282,6 @@ get_gcs_server_command() {
 
 
 get_react_command() {
-    ensure_nodejs_in_path
-
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         if [[ ! -d "$BUILD_DIR" ]]; then
             log_error "Production build directory missing: $BUILD_DIR"
@@ -1241,6 +1293,7 @@ get_react_command() {
         fi
         echo "python3 '$SPA_SERVER_SCRIPT' --directory '$BUILD_DIR' --port $DEV_REACT_PORT"
     else
+        ensure_nodejs_in_path
         echo "cd '$REACT_APP_DIR' && '$NPM_BIN_PATH' start"
     fi
 }
@@ -1312,13 +1365,41 @@ tmux_wait_for_pane_ready() {
     sleep "$delay"
 }
 
+validate_prebuilt_dashboard_options() {
+    if [[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]]; then
+        if [[ "$DEPLOYMENT_MODE" != "production" ]]; then
+            log_error "--require-prebuilt-dashboard is valid only with --prod."
+            return 1
+        fi
+        if [[ "$FORCE_REBUILD" == "true" ]]; then
+            log_error "--require-prebuilt-dashboard cannot be combined with --rebuild."
+            return 1
+        fi
+        if [[ -n "$OVERWRITE_IP" ]]; then
+            log_error "--require-prebuilt-dashboard cannot be combined with --overwrite-ip."
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 prepare_react_runtime() {
+    validate_prebuilt_dashboard_options || return 1
+
     if [[ "$RUN_GUI_APP" != "true" ]]; then
         return 0
     fi
 
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        if check_build_needed; then
+        if [[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]]; then
+            if ! validate_prebuilt_dashboard_manifest; then
+                log_error "The required prebuilt dashboard is missing, stale, or invalid; refusing npm/install/build work on this host."
+                log_error "Install the exact CI artifact for the current repository, commit, and branch, then retry."
+                return 1
+            fi
+            log_success "Prebuilt-only policy satisfied; no local npm/install/build work was run."
+        elif check_build_needed; then
             build_react_app
         else
             log_success "Production React build already up to date."
@@ -1494,6 +1575,7 @@ GUI React App: $([[ "$RUN_GUI_APP" == "true" ]] && echo "ENABLED" || echo "DISAB
 Tmux: $([[ "$USE_TMUX" == "true" ]] && echo "ENABLED" || echo "DISABLED")
 View: $([[ "$COMBINED_VIEW" == "true" ]] && echo "Combined Panes" || echo "Separate Windows")
 Force Rebuild: $([[ "$FORCE_REBUILD" == "true" ]] && echo "YES" || echo "NO")
+Prebuilt Dashboard Required: $([[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]] && echo "YES" || echo "NO")
 EOF
 
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
@@ -1628,6 +1710,10 @@ if [[ "$STOP_ONLY" == "true" ]]; then
     exit 0
 fi
 
+# Reject incompatible prebuilt-only options before repository, .env, build,
+# port, process, or tmux mutation.
+validate_prebuilt_dashboard_options
+
 # Handle --check option (run checks only, don't start services)
 if [[ "$CHECK_ONLY" == "true" ]]; then
     run_configuration_check
@@ -1654,7 +1740,7 @@ echo "-----------------------------------------------------------------------"
 # Execute setup sequence (minimal output)
 apply_requested_runtime_mode
 update_repository
-if [[ "$RUN_GUI_APP" == "true" ]]; then
+if [[ "$RUN_GUI_APP" == "true" ]] && ! { [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$REQUIRE_PREBUILT_DASHBOARD" == "true" ]]; }; then
     ensure_nodejs_in_path
 fi
 configure_react_version_env

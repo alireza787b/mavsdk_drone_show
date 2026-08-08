@@ -530,6 +530,7 @@ cd ~/mavsdk_drone_show/app
 | `--prod` | Production mode (optimized builds) |
 | `--dev` | Development mode (hot reload) |
 | `--rebuild` | Force rebuild React app |
+| `--require-prebuilt-dashboard` | Production only: verify the exact CI dashboard artifact and refuse local npm/build work |
 | `--status` | Show current status |
 | `-n` | Do NOT use tmux |
 | `--help` | Show all options |
@@ -546,9 +547,69 @@ cd ~/mavsdk_drone_show/app
 # Production with real drones
 ./linux_dashboard_start.sh --prod --real
 
+# Production with a verified CI-built dashboard; never build on this host
+./linux_dashboard_start.sh --prod --real --require-prebuilt-dashboard
+
 # Check status
 ./linux_dashboard_start.sh --status
 ```
+
+### Prebuilt-Only Production Deployment
+
+Use `--require-prebuilt-dashboard` on a production host where frontend builds
+are prohibited or too expensive. The release quality gate already compiles and
+tests the dashboard. It retains a seven-day artifact named
+`dashboard-build-<full-commit-sha>` containing:
+
+- `build/`, with no `.env`, dependency tree, source map, or credential file
+- `mds-dashboard-build-manifest.json`, binding the complete bundle tree to the
+  GitHub repository, full commit SHA, branch ref, product version, package
+  lock, compile-input profile, file count, and content hashes
+- `SHA256SUMS` for the compressed transfer archive
+
+When the workflow creates a GitHub release, that exact archive and checksum are
+also attached as durable release assets; the seven-day limit applies only to
+ordinary branch/run artifacts.
+
+For a customer/private checkout, use the artifact produced by that private
+repository's successful quality-gate run. An official-repository artifact has
+different repository and commit provenance and is intentionally rejected.
+The authenticated GitHub download is the trust boundary; the bundled manifest
+and checksum detect source/content or transfer mismatch but are not an
+independent signature. Do not accept a re-hosted bundle unless its checksum or
+signature arrives through a separately trusted channel.
+
+Deployment sequence:
+
+1. Confirm the target checkout is clean, on the intended branch and exact
+   commit, and that its private CI quality gate is green.
+2. On an authenticated control workstation, download the matching
+   `dashboard-build-<full-commit-sha>` artifact with GitHub CLI or the Actions
+   UI. Do not install GitHub credentials on the production GCS just to fetch it.
+3. Run `sha256sum --check SHA256SUMS`, transfer the archive over a verified SSH
+   connection, verify the checksum again on the GCS, and extract it into a
+   staging directory on the same filesystem as the dashboard checkout.
+4. Keep the current `build/` as a rollback copy, move the staged `build/` into
+   place, and run:
+
+   ```bash
+   bash app/linux_dashboard_start.sh \
+     --prod --real --require-prebuilt-dashboard
+   ```
+
+5. Verify `/health`, `/ping`, the dashboard HTML, runtime mode, and displayed
+   source provenance before deleting the single rollback copy.
+
+The flag is fail-closed. It is incompatible with `--rebuild` and
+`--overwrite-ip`, requires production mode, and treats exact manifest
+provenance plus the full build-tree hash as authoritative. This avoids false
+rejections caused by timestamps being different across the CI runner, Git
+checkout, archive, and production host. If the bundle is missing, stale,
+altered, from another repository/commit/ref, or built from another package lock
+or compile-input profile, the launcher exits before port or tmux teardown and
+does not invoke Node, npm, frontend dependency installation, or a React build.
+Install the correct artifact instead of touching timestamps or bypassing the
+check.
 
 Operational note: the FastAPI backend currently keeps heartbeats, command tracking, telemetry polling, and other live runtime state in process memory. For that reason:
 - `--prod` intentionally runs a single Gunicorn worker
