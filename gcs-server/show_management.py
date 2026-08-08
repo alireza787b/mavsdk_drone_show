@@ -2,6 +2,7 @@
 
 import csv
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -103,6 +104,28 @@ def inspect_custom_show_csv(csv_path: str) -> Dict[str, Any]:
                     status_code=400,
                     detail=f"Invalid custom CSV row {line_no}: {exc}",
                 ) from exc
+
+            trajectory_values = (
+                t_val,
+                px_val,
+                py_val,
+                pz_val,
+                vx_val,
+                vy_val,
+                vz_val,
+                ax_val,
+                ay_val,
+                az_val,
+                yaw_val,
+            )
+            if not all(math.isfinite(value) for value in trajectory_values):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Invalid custom CSV row {line_no}: "
+                        "trajectory samples must be finite numbers"
+                    ),
+                )
 
             if t_val < 0:
                 raise HTTPException(status_code=400, detail=f"Invalid custom CSV row {line_no}: time must be non-negative")
@@ -385,16 +408,22 @@ def build_show_info_payload(skybrush_dir: str) -> Dict[str, Any]:
                 continue
 
             last_line = lines[-1].strip().split(",")
-            duration_ms = float(last_line[0])
-            if duration_ms > max_duration_ms:
+            try:
+                duration_ms = float(last_line[0])
+            except (TypeError, ValueError):
+                duration_ms = float("nan")
+            if math.isfinite(duration_ms) and duration_ms > max_duration_ms:
                 max_duration_ms = duration_ms
 
             for line in lines:
                 parts = line.strip().split(",")
                 if len(parts) < 4:
                     continue
-                z_val = float(parts[3])
-                if z_val > max_altitude:
+                try:
+                    z_val = float(parts[3])
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(z_val) and z_val > max_altitude:
                     max_altitude = z_val
 
     duration_minutes = max_duration_ms / 60000
