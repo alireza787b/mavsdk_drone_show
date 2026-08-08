@@ -289,8 +289,9 @@ or landing acceptance.
 ## ULog smoke and bounded limitation
 
 The existing field ULogs remain Drone 1 IDs `103` and `104` and Drone 2 ID
-`60`. After node convergence, a GCS-proxied derived-summary smoke request for
-the approximately 45 MB Drone 1 log `103` reached HTTP 504 in only 5.902 seconds
+`60`. The authoritative later inventory reports Drone 1 log `103` as exactly
+`2,971,637` bytes. After node convergence, a GCS-proxied derived-summary smoke
+request for that log reached HTTP 504 in only 5.902 seconds
 with `ulog_summary_timeout` and the bare message `TimeoutError`. The configured
 isolated-parser deadline was 90 seconds, so this was not evidence that the
 large log exhausted its parser budget. The failure happened during bounded
@@ -390,3 +391,6 @@ commit, integrated validation, and release URLs must be appended here before
 this gate is marked complete. The node convergence, props-off command result,
 and ULog identifiers are recorded above and must not be replaced by an
 uncorrelated retry.
+
+The subsequent mode, altitude-truth, and GNSS field handoff is recorded in
+[Field Flight-Mode, Altitude Truth, and GNSS Readiness Checkpoint](2026-08-08-field-mode-altitude-gnss-readiness-checkpoint.md).

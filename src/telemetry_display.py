@@ -32,6 +32,7 @@ def build_altitude_report(
     *,
     position: Optional[Dict[str, Any]],
     local_position_ned: Optional[Dict[str, Any]],
+    home_position_set: Any = False,
     gps_fix_type: Any = 0,
     global_position_timestamp_ms: Any = 0,
     relative_altitude_m: Any = None,
@@ -42,7 +43,8 @@ def build_altitude_report(
     """Build a compact source-aware altitude report.
 
     Selection order:
-    1. ``relative_home`` from GLOBAL_POSITION_INT.relative_alt.
+    1. ``relative_home`` from GLOBAL_POSITION_INT.relative_alt, but only after
+       PX4 has authoritatively established home.
     2. ``local_ned`` from LOCAL_POSITION_NED.z converted to up-positive metres.
     3. ``baro`` from SCALED_PRESSURE.press_abs when available.
     4. ``absolute_msl`` from GLOBAL_POSITION_INT.alt.
@@ -65,6 +67,7 @@ def build_altitude_report(
     baro_m = _finite_float(baro_altitude_m)
 
     has_global_position = global_position_timestamp_ms > 0
+    has_px4_home = home_position_set is True
     sources = {
         "relative_home": _altitude_source_entry(
             value_m=relative_home_m,
@@ -73,7 +76,7 @@ def build_altitude_report(
             timestamp_ms=global_position_timestamp_ms,
             now_ms=now_ms,
             requires_global_position=True,
-            valid=has_global_position and relative_home_m is not None,
+            valid=has_global_position and has_px4_home and relative_home_m is not None,
         ),
         "local_ned": _altitude_source_entry(
             value_m=local_up_m,
@@ -142,6 +145,7 @@ def build_altitude_report(
         "local_up_m": sources["local_ned"]["value_m"] if sources["local_ned"]["valid"] else None,
         "baro_m": sources["baro"]["value_m"] if sources["baro"]["valid"] else None,
         "global_position_available": has_global_position,
+        "home_position_set": has_px4_home,
         "local_position_available": sources["local_ned"]["valid"],
         "gps_fix_type": safe_int(gps_fix_type),
     }

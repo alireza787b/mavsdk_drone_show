@@ -386,6 +386,42 @@ class TestBackgroundTelemetryHelpers:
         assert payload['altitude_report']['source'] == 'absolute_msl'
         assert payload['altitude_display_m'] == pytest.approx(153.388)
 
+    def test_background_telemetry_rejects_legacy_relative_and_distance_without_px4_home(self):
+        from app_fastapi import _build_background_telemetry_record
+
+        now_ms = int(time.time() * 1000)
+        payload = _build_background_telemetry_record(
+            2,
+            '192.168.1.102',
+            {
+                'hw_id': 2,
+                'position_lat': 35.123456,
+                'position_long': -120.654321,
+                'position_alt': 62.5,
+                'global_position_valid': True,
+                'global_position_timestamp_ms': now_ms,
+                'home_position_set': False,
+                'distance_to_home_m': 18.4,
+                'relative_altitude_m': 62.5,
+                'local_position_down': -1.25,
+                'local_position_time_boot_ms': 1200,
+                'local_position_timestamp_ms': now_ms,
+                'altitude_report': {
+                    'display_m': 62.5,
+                    'source': 'relative_home',
+                    'relative_home_m': 62.5,
+                },
+                'timestamp': now_ms,
+                'update_time': now_ms // 1000,
+            },
+        )
+
+        assert payload['distance_to_home_m'] is None
+        assert payload['relative_altitude_m'] is None
+        assert payload['altitude_report']['sources']['relative_home']['valid'] is False
+        assert payload['altitude_source'] == 'local_ned'
+        assert payload['altitude_display_m'] == pytest.approx(1.25)
+
     def test_build_background_telemetry_record_marks_stale_local_feed_unavailable(self):
         from app_fastapi import _build_background_telemetry_record, last_heartbeats
 

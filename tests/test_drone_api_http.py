@@ -60,6 +60,7 @@ def _set_fresh_airborne_state(mock_drone_config, *, relative_altitude_m=5.0):
     mock_drone_config.heartbeat_timestamp_ms = now_ms
     mock_drone_config.global_position_timestamp_ms = now_ms
     mock_drone_config.relative_altitude_m = relative_altitude_m
+    mock_drone_config.px4_home_position_set = True
 
 
 def _ready_launch_probe(hw_id="1"):
@@ -1782,6 +1783,7 @@ class TestCommands:
         mock_drone_config.heartbeat_timestamp_ms = now_ms
         mock_drone_config.global_position_timestamp_ms = now_ms - 16_000
         mock_drone_config.relative_altitude_m = 5.0
+        mock_drone_config.px4_home_position_set = True
 
         response = test_client.post(
             "/api/v1/drone/commands",
@@ -1791,6 +1793,25 @@ class TestCommands:
         assert response.status_code == 200
         assert response.json()["status"] == "rejected"
         assert "altitude evidence is stale" in response.json()["error_detail"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_hold_rejects_raw_relative_altitude_when_px4_home_is_not_set(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        _set_fresh_airborne_state(mock_drone_config, relative_altitude_m=60.0)
+        mock_drone_config.px4_home_position_set = False
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": Mission.HOLD.value, "trigger_time": 0},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "rejected"
+        assert "home position is not established" in response.json()["error_detail"]
         mock_drone_communicator.process_command.assert_not_called()
 
     def test_hold_rejects_armed_ground_state_before_install(

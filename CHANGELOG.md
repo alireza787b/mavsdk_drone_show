@@ -9,6 +9,27 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.117-field-mode-altitude-gnss-readiness] - 2026-08-08
+
+### Fixed
+- PX4 flight mode, arming, and system-state ownership now accepts only a
+  flight-controller heartbeat. Routed QGroundControl and companion heartbeats
+  can no longer overwrite vehicle truth, and the shared PX4 decoder uses the
+  canonical wire layout (`main_mode` bits 16–23 and `sub_mode` bits 24–31), so
+  Mission (`67371008`) and Hold (`50593792`) remain stable across node,
+  dashboard, and mission diagnostics.
+- Home-relative altitude is now valid only after PX4 publishes authoritative
+  home. Node, swarm, GCS legacy reconstruction, and cached airborne admission
+  all reject a pre-home `GLOBAL_POSITION_INT.relative_alt`; operator display
+  falls through to explicitly labelled local, barometric, or MSL altitude, and
+  fallback home caches can no longer produce a distance-to-home value.
+
+### Changed
+- The field GNSS gate now documents receiver fix, RTCM delivery, satellite
+  count, estimator-approved position/home, and launch readiness as distinct
+  evidence. No PX4 GNSS or preflight threshold was weakened: the affected
+  aircraft remain blocked for flight while horizontal-position drift recurs.
+
 ## [5.5.116-field-sync-origin-readiness] - 2026-08-04
 
 ### Fixed

@@ -5,6 +5,7 @@ def test_altitude_report_prefers_relative_home_altitude():
     report = build_altitude_report(
         position={"alt": 488.5},
         local_position_ned={"time_boot_ms": 1200, "timestamp_ms": 1732270245123, "z": -5.0},
+        home_position_set=True,
         gps_fix_type=3,
         global_position_timestamp_ms=1732270245123,
         relative_altitude_m=12.3,
@@ -38,6 +39,42 @@ def test_altitude_report_uses_local_ned_without_global_position():
     assert report["sources"]["local_ned"]["fresh"] is True
 
 
+def test_altitude_report_does_not_label_raw_relative_altitude_without_px4_home():
+    report = build_altitude_report(
+        position={"alt": 62.5},
+        local_position_ned={"time_boot_ms": 1200, "timestamp_ms": 1732270245123, "z": -1.25},
+        home_position_set=False,
+        gps_fix_type=3,
+        global_position_timestamp_ms=1732270245123,
+        relative_altitude_m=62.5,
+        now_ms=1732270245200,
+    )
+
+    assert report["home_position_set"] is False
+    assert report["sources"]["relative_home"]["valid"] is False
+    assert report["sources"]["relative_home"]["value_m"] is None
+    assert report["relative_home_m"] is None
+    assert report["source"] == "local_ned"
+    assert report["display_m"] == 1.25
+
+
+def test_altitude_report_labels_msl_when_px4_home_and_local_position_are_unavailable():
+    report = build_altitude_report(
+        position={"alt": 62.5},
+        local_position_ned={},
+        home_position_set=False,
+        gps_fix_type=3,
+        global_position_timestamp_ms=1732270245123,
+        relative_altitude_m=62.5,
+        now_ms=1732270245200,
+    )
+
+    assert report["relative_home_m"] is None
+    assert report["source"] == "absolute_msl"
+    assert report["label"] == "MSL"
+    assert report["display_m"] == 62.5
+
+
 def test_altitude_report_uses_baro_before_absolute_msl_when_no_relative_or_local():
     report = build_altitude_report(
         position={"alt": 488.5},
@@ -59,6 +96,7 @@ def test_altitude_report_keeps_stale_last_known_value_with_stale_flag():
     report = build_altitude_report(
         position={"alt": 488.5},
         local_position_ned={},
+        home_position_set=True,
         gps_fix_type=3,
         global_position_timestamp_ms=1732270240000,
         relative_altitude_m=12.3,

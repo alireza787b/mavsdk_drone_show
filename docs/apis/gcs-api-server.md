@@ -486,7 +486,9 @@ The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonic
 
 `gps_raw_valid` describes raw GPS fix evidence. `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`; dashboards may show it as an altitude fallback, but must not use it for map placement. `global_position_valid` describes whether PX4 has published a usable mappable global coordinate. These are intentionally separate: a board can have a 3D GPS fix while `position_lat=0` and `position_long=0` because the estimator has not emitted a valid `GLOBAL_POSITION_INT` yet. Dashboards must not map `0,0,0` as a real aircraft position.
 
-`distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to cached home position; dashboards should show `n/a` until both endpoints are known.
+`relative_altitude_m` and the `relative_home` altitude source are nullable until the drone reports `home_position_set=true`. GCS also revalidates legacy node payloads so a pre-home `GLOBAL_POSITION_INT.relative_alt` cannot be mislabeled as home-relative altitude.
+
+`distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to PX4's authoritative home position; dashboards should show `n/a` until current position is valid and `home_position_set=true`. A companion fallback cache is not authoritative home.
 
 ---
 

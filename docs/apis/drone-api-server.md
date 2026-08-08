@@ -168,7 +168,8 @@ Readiness fields:
 - `gps_raw_valid` is raw GPS evidence from `GPS_RAW_INT`; it does not prove the drone has a usable mappable position.
 - `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`. It can be shown as an altitude fallback while map placement remains unavailable.
 - `global_position_valid` is true only after PX4 publishes a finite, non-zero `GLOBAL_POSITION_INT` coordinate. If GPS reports a fix but global position is not valid, keep map placement and `distance_to_home_m` unavailable.
-- `distance_to_home_m` is the horizontal great-circle distance from current valid LLA to cached home position. It is `null` until current position and home position are both available.
+- `relative_altitude_m` and the `relative_home` altitude source are available only after PX4 authoritatively reports `home_position_set=true`. A raw `GLOBAL_POSITION_INT.relative_alt` received before that point is not presented as home-relative altitude; the display policy falls back to local NED, barometric, or clearly labeled MSL altitude.
+- `distance_to_home_m` is the horizontal great-circle distance from current valid LLA to PX4's authoritative home position. It is `null` until both current position and `home_position_set=true` are available; a local fallback cache is never presented as PX4 home.
 
 ---
 

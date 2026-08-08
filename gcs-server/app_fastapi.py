@@ -675,7 +675,7 @@ def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict
     record["position_unavailable_reason"] = None if valid_global else (
         record.get("position_unavailable_reason") or _position_unavailable_reason(record)
     )
-    if not valid_global:
+    if not valid_global or record.get("home_position_set") is not True:
         record["distance_to_home_m"] = None
     return record
 
@@ -690,11 +690,11 @@ def _first_update_timestamp_ms(record: Dict[str, Any], *keys: str) -> int:
 
 def _ensure_altitude_policy_fields(record: Dict[str, Any], now_ms: int) -> Dict[str, Any]:
     existing_report = record.get("altitude_report")
-    if isinstance(existing_report, dict):
-        record.setdefault("altitude_display_m", existing_report.get("display_m"))
-        record.setdefault("altitude_source", existing_report.get("source"))
-        record.setdefault("relative_altitude_m", existing_report.get("relative_home_m"))
-        record.setdefault("baro_altitude_m", existing_report.get("baro_m"))
+    if isinstance(existing_report, dict) and record.get("home_position_set") is True:
+        record["altitude_display_m"] = existing_report.get("display_m")
+        record["altitude_source"] = existing_report.get("source")
+        record["relative_altitude_m"] = existing_report.get("relative_home_m")
+        record["baro_altitude_m"] = existing_report.get("baro_m")
         return record
 
     global_timestamp_ms = 0
@@ -720,6 +720,7 @@ def _ensure_altitude_policy_fields(record: Dict[str, Any], now_ms: int) -> Dict[
             "time_boot_ms": record.get("local_position_time_boot_ms"),
             "timestamp_ms": local_timestamp_ms,
         },
+        home_position_set=record.get("home_position_set") is True,
         gps_fix_type=record.get("gps_fix_type", 0),
         global_position_timestamp_ms=global_timestamp_ms,
         relative_altitude_m=record.get("relative_altitude_m"),

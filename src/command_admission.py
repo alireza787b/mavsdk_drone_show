@@ -25,6 +25,7 @@ class AirborneAdmissionStatus(str, Enum):
     HEARTBEAT_STALE = "heartbeat_stale"
     ARMED_UNAVAILABLE = "armed_unavailable"
     DISARMED = "disarmed"
+    HOME_UNAVAILABLE = "home_unavailable"
     ALTITUDE_UNAVAILABLE = "altitude_unavailable"
     ALTITUDE_STALE = "altitude_stale"
     NOT_AIRBORNE = "not_airborne"
@@ -122,6 +123,18 @@ def evaluate_cached_airborne_admission(
             observed_at_ms=observed_at_ms,
             heartbeat_age_ms=heartbeat_age_ms,
             armed=False,
+        )
+
+    if getattr(drone_config, "px4_home_position_set", False) is not True:
+        return CachedAirborneAdmission(
+            status=AirborneAdmissionStatus.HOME_UNAVAILABLE,
+            detail=(
+                "PX4 home position is not established; cached relative altitude "
+                "cannot be treated as home-relative evidence."
+            ),
+            observed_at_ms=observed_at_ms,
+            heartbeat_age_ms=heartbeat_age_ms,
+            armed=True,
         )
 
     altitude_age_ms, altitude_error = _timestamp_age_ms(

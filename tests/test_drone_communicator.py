@@ -59,6 +59,8 @@ def build_drone_config(follow_value=1):
         system_status=3,
         is_armed=True,
         is_ready_to_arm=True,
+        px4_home_position_set=True,
+        home_position_source="px4",
         readiness_status="ready",
         readiness_summary="Ready to fly",
         readiness_checks=[],
@@ -105,6 +107,27 @@ def test_get_drone_state_reports_distance_to_home():
     state = communicator.get_drone_state()
 
     assert 90 <= state["distance_to_home_m"] <= 92
+
+
+def test_get_drone_state_hides_fallback_home_relative_values_without_px4_home():
+    drone_config = build_drone_config(follow_value=0)
+    drone_config.px4_home_position_set = False
+    drone_config.home_position_source = "fallback_position"
+    drone_config.relative_altitude_m = 1286.0
+    params = SimpleNamespace(enable_udp_telemetry=False, enable_default_subscriptions=False)
+
+    communicator = DroneCommunicator(drone_config=drone_config, params=params, drones={})
+    state = communicator.get_drone_state()
+    swarm_state = communicator.get_swarm_state()
+
+    assert state["home_position_set"] is False
+    assert state["distance_to_home_m"] is None
+    assert state["relative_altitude_m"] is None
+    assert state["altitude_report"]["sources"]["relative_home"]["valid"] is False
+    assert state["altitude_source"] == "local_ned"
+    assert state["altitude_display_m"] == 3.4
+    assert swarm_state["relative_altitude_m"] is None
+    assert swarm_state["altitude_source"] == "local_ned"
 
 
 def test_get_drone_state_falls_back_to_cached_swarm_assignment():

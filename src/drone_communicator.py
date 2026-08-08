@@ -147,8 +147,15 @@ class DroneCommunicator:
         return "No GPS fix reported."
 
     @staticmethod
-    def _distance_to_home_m(position: Any, home_position: Any) -> Optional[float]:
-        """Return horizontal great-circle distance to cached home, or None when unavailable."""
+    def _distance_to_home_m(
+        position: Any,
+        home_position: Any,
+        *,
+        home_position_set: bool,
+    ) -> Optional[float]:
+        """Return distance to authoritative PX4 home, or None when unavailable."""
+        if home_position_set is not True:
+            return None
         if not isinstance(position, dict) or not isinstance(home_position, dict):
             return None
 
@@ -185,9 +192,11 @@ class DroneCommunicator:
             bool(getattr(self.drone_config, "global_position_valid", False))
             and self._is_valid_global_position(getattr(self.drone_config, "position", None))
         )
+        home_position_set = getattr(self.drone_config, "px4_home_position_set", False) is True
         altitude_report = build_altitude_report(
             position=getattr(self.drone_config, "position", None),
             local_position_ned=local_ned,
+            home_position_set=home_position_set,
             gps_fix_type=getattr(self.drone_config, "gps_fix_type", 0),
             global_position_timestamp_ms=global_position_timestamp_ms,
             relative_altitude_m=getattr(self.drone_config, "relative_altitude_m", None),
@@ -794,6 +803,7 @@ class DroneCommunicator:
         gps_raw_timestamp_ms = safe_int(getattr(self.drone_config, "gps_raw_timestamp_ms", 0))
         global_position_timestamp_ms = safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0))
         gps_raw_altitude_m = getattr(self.drone_config, "gps_raw_altitude_m", None)
+        home_position_set = getattr(self.drone_config, "px4_home_position_set", False) is True
         try:
             gps_raw_altitude_m = float(gps_raw_altitude_m) if gps_raw_altitude_m is not None else None
         except (TypeError, ValueError):
@@ -805,6 +815,7 @@ class DroneCommunicator:
         altitude_report = build_altitude_report(
             position=getattr(self.drone_config, "position", None),
             local_position_ned=local_ned,
+            home_position_set=home_position_set,
             gps_fix_type=gps_fix_type,
             global_position_timestamp_ms=global_position_timestamp_ms,
             relative_altitude_m=getattr(self.drone_config, "relative_altitude_m", None),
@@ -863,11 +874,12 @@ class DroneCommunicator:
                 getattr(self.drone_config, "heartbeat_timestamp_ms", 0),
             ),
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
-            "home_position_set": bool(getattr(self.drone_config, 'px4_home_position_set', False)),
+            "home_position_set": home_position_set,
             "home_position_source": str(getattr(self.drone_config, 'home_position_source', 'unknown')),
             "distance_to_home_m": self._distance_to_home_m(
                 getattr(self.drone_config, "position", None),
                 getattr(self.drone_config, "home_position", None),
+                home_position_set=home_position_set,
             ) if global_position_valid else None,
             "global_position_valid": global_position_valid,
             "global_position_timestamp_ms": global_position_timestamp_ms,

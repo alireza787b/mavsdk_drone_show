@@ -6434,7 +6434,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "830266818dc56fcdd584ab0c3cd3f6d43f2efaf8f89e45ee00072b5991701c8b",
+      "content_hash": "aa4e29677734d2537d2bbb904c0b280d3e93c98cc09de658b5032208e714fa06",
       "heading": "`GET /api/v1/fleet/telemetry`",
       "id": "mds.gcs_api:035-02-get-api-v1-fleet-telemetry",
       "links": [],
@@ -6447,7 +6447,7 @@
         "api",
         "gcs"
       ],
-      "text": "`readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for \"Ready to Fly\" and live PX4 preflight feedback.\n\n`gps_raw_valid` describes raw GPS fix evidence. `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`; dashboards may show it as an altitude fallback, but must not use it for map placement. `global_position_valid` describes whether PX4 has published a usable mappable global coordinate. These are intentionally separate: a board can have a 3D GPS fix while `position_lat=0` and `position_long=0` because the estimator has not emitted a valid `GLOBAL_POSITION_INT` yet. Dashboards must not map `0,0,0` as a real aircraft position.\n\n`distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to cached home position; dashboards should show `n/a` until both endpoints are known.\n\n---",
+      "text": "`readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for \"Ready to Fly\" and live PX4 preflight feedback.\n\n`gps_raw_valid` describes raw GPS fix evidence. `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`; dashboards may show it as an altitude fallback, but must not use it for map placement. `global_position_valid` describes whether PX4 has published a usable mappable global coordinate. These are intentionally separate: a board can have a 3D GPS fix while `position_lat=0` and `position_long=0` because the estimator has not emitted a valid `GLOBAL_POSITION_INT` yet. Dashboards must not map `0,0,0` as a real aircraft position.\n\n`relative_altitude_m` and the `relative_home` altitude source are nullable until the drone reports `home_position_set=true`. GCS also revalidates legacy node payloads so a pre-home `GLOBAL_POSITION_INT.relative_alt` cannot be mislabeled as home-relative altitude.\n\n`distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to PX4's authoritative home position; dashboards should show `n/a` until current position is valid and `home_position_set=true`. A companion fallback cache is not authoritative home.\n\n---",
       "title": "GCS API server guide"
     },
     {
@@ -15393,7 +15393,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 142,
-      "content_hash": "c4895d212898d6b05bf82899bf1c1addbf9a4c43eadab7d9682a45f4673ab5e9",
+      "content_hash": "66abd6ef778e01718bcb033b22305117ab235da187f483f6d4b73d63f6369396",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
