@@ -10,6 +10,7 @@ that were previously scattered across multiple files.
 
 import csv
 import logging
+import math
 import os
 from pathlib import Path
 from typing import Optional, Tuple
@@ -153,6 +154,14 @@ def get_expected_position_from_trajectory(
             # These represent the canonical expected position for this pos_id
             expected_north = float(first_waypoint.get('px', 0))
             expected_east = float(first_waypoint.get('py', 0))
+
+            if not (math.isfinite(expected_north) and math.isfinite(expected_east)):
+                logger.error(
+                    f"Non-finite first waypoint coordinates for pos_id={pos_id}: "
+                    f"North={expected_north!r}, East={expected_east!r} "
+                    f"(from {trajectory_file})"
+                )
+                return None, None
 
             logger.debug(
                 f"Expected position for pos_id={pos_id}: "
