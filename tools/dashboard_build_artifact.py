@@ -19,13 +19,13 @@ MANIFEST_NAME = "mds-dashboard-build-manifest.json"
 ARTIFACT_TYPE = "mds-dashboard-build"
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 BUILD_ENV_DEFAULTS = {
-    "MDS_DASHBOARD_BUILD_GCS_PORT": "5030",
-    "MDS_DASHBOARD_BUILD_DRONE_PORT": "7070",
-    "MDS_DASHBOARD_BUILD_SERVER_URL": "",
-    "MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN": "",
-    "MDS_DASHBOARD_BUILD_MAPBOX_TOKEN": "",
-    "MDS_DASHBOARD_BUILD_MAP_TOKEN": "",
-    "MDS_DASHBOARD_BUILD_SOURCE_MAPS": "false",
+    "DASHBOARD_BUILD_GCS_PORT": "5030",
+    "DASHBOARD_BUILD_DRONE_PORT": "7070",
+    "DASHBOARD_BUILD_SERVER_URL": "",
+    "DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN": "",
+    "DASHBOARD_BUILD_MAPBOX_TOKEN": "",
+    "DASHBOARD_BUILD_MAP_TOKEN": "",
+    "DASHBOARD_BUILD_SOURCE_MAPS": "false",
 }
 
 
@@ -90,18 +90,18 @@ def build_environment_port(name: str) -> str:
 
 
 def compile_inputs_from_environment() -> dict[str, object]:
-    server_url = build_environment_value("MDS_DASHBOARD_BUILD_SERVER_URL").strip()
+    server_url = build_environment_value("DASHBOARD_BUILD_SERVER_URL").strip()
     mapbox_values = (
-        build_environment_value("MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN"),
-        build_environment_value("MDS_DASHBOARD_BUILD_MAPBOX_TOKEN"),
-        build_environment_value("MDS_DASHBOARD_BUILD_MAP_TOKEN"),
+        build_environment_value("DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN"),
+        build_environment_value("DASHBOARD_BUILD_MAPBOX_TOKEN"),
+        build_environment_value("DASHBOARD_BUILD_MAP_TOKEN"),
     )
     return {
-        "gcs_port": build_environment_port("MDS_DASHBOARD_BUILD_GCS_PORT"),
-        "drone_port": build_environment_port("MDS_DASHBOARD_BUILD_DRONE_PORT"),
+        "gcs_port": build_environment_port("DASHBOARD_BUILD_GCS_PORT"),
+        "drone_port": build_environment_port("DASHBOARD_BUILD_DRONE_PORT"),
         "server_url_mode": "explicit" if server_url else "browser_auto_detect",
         "mapbox_access_token_embedded": any(value.strip() for value in mapbox_values),
-        "source_maps": build_environment_flag("MDS_DASHBOARD_BUILD_SOURCE_MAPS"),
+        "source_maps": build_environment_flag("DASHBOARD_BUILD_SOURCE_MAPS"),
     }
 
 

@@ -32,13 +32,13 @@ on:
 # browser auto-detection, no embedded map token, and no source maps; custom API
 # ports must be changed here and on the target runtime as one reviewed unit.
 env:
-  MDS_DASHBOARD_BUILD_GCS_PORT: '5030'
-  MDS_DASHBOARD_BUILD_DRONE_PORT: '7070'
-  MDS_DASHBOARD_BUILD_SERVER_URL: ''
-  MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''
-  MDS_DASHBOARD_BUILD_MAPBOX_TOKEN: ''
-  MDS_DASHBOARD_BUILD_MAP_TOKEN: ''
-  MDS_DASHBOARD_BUILD_SOURCE_MAPS: 'false'
+  DASHBOARD_BUILD_GCS_PORT: '5030'
+  DASHBOARD_BUILD_DRONE_PORT: '7070'
+  DASHBOARD_BUILD_SERVER_URL: ''
+  DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''
+  DASHBOARD_BUILD_MAPBOX_TOKEN: ''
+  DASHBOARD_BUILD_MAP_TOKEN: ''
+  DASHBOARD_BUILD_SOURCE_MAPS: 'false'
 
 jobs:
   quality-gates:
@@ -145,13 +145,13 @@ jobs:
           REACT_APP_GIT_COMMIT: ${{ github.sha }}
           REACT_APP_GIT_BRANCH: ${{ github.event.inputs.prerelease_tag || github.ref_name }}
           REACT_APP_GIT_REPO: ${{ github.repository }}
-          REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}
-          REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}
-          REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}
-          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
-          REACT_APP_MAPBOX_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_TOKEN }}
-          REACT_APP_MAP_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAP_TOKEN }}
-          GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}
+          REACT_APP_GCS_PORT: ${{ env.DASHBOARD_BUILD_GCS_PORT }}
+          REACT_APP_DRONE_PORT: ${{ env.DASHBOARD_BUILD_DRONE_PORT }}
+          REACT_APP_MDS_SERVER_URL: ${{ env.DASHBOARD_BUILD_SERVER_URL }}
+          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
+          REACT_APP_MAPBOX_TOKEN: ${{ env.DASHBOARD_BUILD_MAPBOX_TOKEN }}
+          REACT_APP_MAP_TOKEN: ${{ env.DASHBOARD_BUILD_MAP_TOKEN }}
+          GENERATE_SOURCEMAP: ${{ env.DASHBOARD_BUILD_SOURCE_MAPS }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -195,8 +195,8 @@ jobs:
             --commit "$MDS_ARTIFACT_COMMIT" \
             --ref "$MDS_ARTIFACT_REF" \
             --ref-name "$MDS_ARTIFACT_REF_NAME" \
-            --gcs-port "$MDS_DASHBOARD_BUILD_GCS_PORT" \
-            --drone-port "$MDS_DASHBOARD_BUILD_DRONE_PORT"
+            --gcs-port "$DASHBOARD_BUILD_GCS_PORT" \
+            --drone-port "$DASHBOARD_BUILD_DRONE_PORT"
 
       - name: Upload dashboard deployment artifact
         uses: actions/upload-artifact@v7
@@ -420,13 +420,13 @@ jobs:
           REACT_APP_GIT_COMMIT: ${{ steps.release_commit.outputs.sha }}
           REACT_APP_GIT_BRANCH: ${{ steps.version_check.outputs.tag }}
           REACT_APP_GIT_REPO: ${{ github.repository }}
-          REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}
-          REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}
-          REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}
-          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
-          REACT_APP_MAPBOX_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_TOKEN }}
-          REACT_APP_MAP_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAP_TOKEN }}
-          GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}
+          REACT_APP_GCS_PORT: ${{ env.DASHBOARD_BUILD_GCS_PORT }}
+          REACT_APP_DRONE_PORT: ${{ env.DASHBOARD_BUILD_DRONE_PORT }}
+          REACT_APP_MDS_SERVER_URL: ${{ env.DASHBOARD_BUILD_SERVER_URL }}
+          REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}
+          REACT_APP_MAPBOX_TOKEN: ${{ env.DASHBOARD_BUILD_MAPBOX_TOKEN }}
+          REACT_APP_MAP_TOKEN: ${{ env.DASHBOARD_BUILD_MAP_TOKEN }}
+          GENERATE_SOURCEMAP: ${{ env.DASHBOARD_BUILD_SOURCE_MAPS }}
         run: |
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
@@ -472,8 +472,8 @@ jobs:
             --commit "$MDS_ARTIFACT_COMMIT" \
             --ref "$MDS_ARTIFACT_REF" \
             --ref-name "$MDS_ARTIFACT_REF_NAME" \
-            --gcs-port "$MDS_DASHBOARD_BUILD_GCS_PORT" \
-            --drone-port "$MDS_DASHBOARD_BUILD_DRONE_PORT"
+            --gcs-port "$DASHBOARD_BUILD_GCS_PORT" \
+            --drone-port "$DASHBOARD_BUILD_DRONE_PORT"
 
       - name: Upload stable dashboard deployment artifact
         if: steps.version_check.outputs.changed == 'true' && steps.version_check.outputs.prerelease != 'true'

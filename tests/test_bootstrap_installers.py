@@ -538,25 +538,25 @@ def test_release_workflow_retains_exact_dashboard_build_artifact():
     assert "files: ${{ runner.temp }}/mds-dashboard-release-assets/*" in workflow_text
     assert "fail_on_unmatched_files: true" in workflow_text
     assert workflow_text.count(
-        "REACT_APP_GCS_PORT: ${{ env.MDS_DASHBOARD_BUILD_GCS_PORT }}"
+        "REACT_APP_GCS_PORT: ${{ env.DASHBOARD_BUILD_GCS_PORT }}"
     ) == 2
     assert workflow_text.count(
-        "REACT_APP_DRONE_PORT: ${{ env.MDS_DASHBOARD_BUILD_DRONE_PORT }}"
+        "REACT_APP_DRONE_PORT: ${{ env.DASHBOARD_BUILD_DRONE_PORT }}"
     ) == 2
     assert workflow_text.count(
-        "REACT_APP_MDS_SERVER_URL: ${{ env.MDS_DASHBOARD_BUILD_SERVER_URL }}"
+        "REACT_APP_MDS_SERVER_URL: ${{ env.DASHBOARD_BUILD_SERVER_URL }}"
     ) == 2
     assert workflow_text.count(
-        "REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}"
+        "REACT_APP_MAPBOX_ACCESS_TOKEN: ${{ env.DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN }}"
     ) == 2
     assert workflow_text.count(
-        "GENERATE_SOURCEMAP: ${{ env.MDS_DASHBOARD_BUILD_SOURCE_MAPS }}"
+        "GENERATE_SOURCEMAP: ${{ env.DASHBOARD_BUILD_SOURCE_MAPS }}"
     ) == 2
     assert "app/dashboard/drone-dashboard/.env" not in workflow_text
-    assert "MDS_DASHBOARD_BUILD_SERVER_URL: ''" in workflow_text
-    assert "MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''" in workflow_text
-    assert "MDS_DASHBOARD_BUILD_MAPBOX_TOKEN: ''" in workflow_text
-    assert "MDS_DASHBOARD_BUILD_MAP_TOKEN: ''" in workflow_text
+    assert "DASHBOARD_BUILD_SERVER_URL: ''" in workflow_text
+    assert "DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN: ''" in workflow_text
+    assert "DASHBOARD_BUILD_MAPBOX_TOKEN: ''" in workflow_text
+    assert "DASHBOARD_BUILD_MAP_TOKEN: ''" in workflow_text
     assert workflow_text.index("npm run build:release") < workflow_text.index(
         "Package dashboard deployment artifact"
     )
@@ -607,13 +607,13 @@ def test_dashboard_build_artifact_packager_binds_complete_tree(tmp_path):
         cwd=REPO_ROOT,
         env={
             **os.environ,
-            "MDS_DASHBOARD_BUILD_GCS_PORT": "5040",
-            "MDS_DASHBOARD_BUILD_DRONE_PORT": "7080",
-            "MDS_DASHBOARD_BUILD_SERVER_URL": "https://gcs.example.invalid",
-            "MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN": "public-test-token",
-            "MDS_DASHBOARD_BUILD_MAPBOX_TOKEN": "",
-            "MDS_DASHBOARD_BUILD_MAP_TOKEN": "",
-            "MDS_DASHBOARD_BUILD_SOURCE_MAPS": "true",
+            "DASHBOARD_BUILD_GCS_PORT": "5040",
+            "DASHBOARD_BUILD_DRONE_PORT": "7080",
+            "DASHBOARD_BUILD_SERVER_URL": "https://gcs.example.invalid",
+            "DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN": "public-test-token",
+            "DASHBOARD_BUILD_MAPBOX_TOKEN": "",
+            "DASHBOARD_BUILD_MAP_TOKEN": "",
+            "DASHBOARD_BUILD_SOURCE_MAPS": "true",
         },
         text=True,
         capture_output=True,
@@ -939,13 +939,13 @@ EOF
         cat >"$tmpdir/app/dashboard/drone-dashboard/build/static/js/main.js" <<'EOF'
 console.log('built dashboard');
 EOF
-        MDS_DASHBOARD_BUILD_GCS_PORT=5030 \
-        MDS_DASHBOARD_BUILD_DRONE_PORT=7070 \
-        MDS_DASHBOARD_BUILD_SERVER_URL= \
-        MDS_DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN= \
-        MDS_DASHBOARD_BUILD_MAPBOX_TOKEN= \
-        MDS_DASHBOARD_BUILD_MAP_TOKEN= \
-        MDS_DASHBOARD_BUILD_SOURCE_MAPS=false \
+        DASHBOARD_BUILD_GCS_PORT=5030 \
+        DASHBOARD_BUILD_DRONE_PORT=7070 \
+        DASHBOARD_BUILD_SERVER_URL= \
+        DASHBOARD_BUILD_MAPBOX_ACCESS_TOKEN= \
+        DASHBOARD_BUILD_MAPBOX_TOKEN= \
+        DASHBOARD_BUILD_MAP_TOKEN= \
+        DASHBOARD_BUILD_SOURCE_MAPS=false \
           python3 "$tmpdir/tools/dashboard_build_artifact.py" package \
             --build-dir "$tmpdir/app/dashboard/drone-dashboard/build" \
             --package-lock "$tmpdir/app/dashboard/drone-dashboard/package-lock.json" \
