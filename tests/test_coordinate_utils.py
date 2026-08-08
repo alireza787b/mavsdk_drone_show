@@ -79,6 +79,24 @@ class TestLatlonToNe:
         assert east < -80  # Should be roughly -87 meters west
         assert east > -95
 
+    def test_invalid_latitude_raises(self):
+        from src.coordinate_utils import latlon_to_ne
+
+        with pytest.raises(ValueError, match="latitude"):
+            latlon_to_ne(91.0, 0.0, 0.0, 0.0)
+
+    def test_invalid_longitude_raises(self):
+        from src.coordinate_utils import latlon_to_ne
+
+        with pytest.raises(ValueError, match="longitude"):
+            latlon_to_ne(0.0, 181.0, 0.0, 0.0)
+
+    def test_invalid_origin_latitude_raises(self):
+        from src.coordinate_utils import latlon_to_ne
+
+        with pytest.raises(ValueError, match="origin"):
+            latlon_to_ne(0.0, 0.0, -91.0, 10.0)
+
 
 class TestGetExpectedPositionFromTrajectory:
     """Test get_expected_position_from_trajectory function"""
