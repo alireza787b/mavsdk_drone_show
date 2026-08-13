@@ -1609,14 +1609,15 @@ class DroneAPIServer:
             }
         except Exception as exc:
             timed_out = isinstance(exc, (TimeoutError, asyncio.TimeoutError))
+            error_detail = str(exc).strip() or exc.__class__.__name__
             return {
                 "hw_id": str(self.drone_config.hw_id),
                 "success": False,
                 "ready": False,
                 "summary": (
-                    f"Timed out waiting for live armability probe: {exc}"
+                    f"Timed out waiting for live armability probe: {error_detail}"
                     if timed_out
-                    else f"Live armability probe unavailable: {exc}"
+                    else f"Live armability probe unavailable: {error_detail}"
                 ),
                 "blockers": (
                     ["live armability probe timed out"]
@@ -1639,7 +1640,7 @@ class DroneAPIServer:
                     int((time.monotonic() - probe_started_monotonic) * 1000),
                 ),
                 "timestamp": int(time.time() * 1000),
-                "probe_error": str(exc),
+                "probe_error": error_detail,
             }
 
     async def _with_local_mavsdk_system(self, operation):

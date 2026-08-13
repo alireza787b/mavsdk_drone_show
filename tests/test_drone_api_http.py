@@ -814,8 +814,38 @@ class TestDroneState:
         assert result["success"] is False
         assert result["hw_id"] == "1"
         assert result["timed_out"] is True
-        assert "Timed out" in result["summary"]
+        assert result["summary"] == "Timed out waiting for live armability probe: TimeoutError"
+        assert result["probe_error"] == "TimeoutError"
+        drone_api_server.LiveArmabilityResponse.model_validate(result)
         wait_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_probe_live_armability_preserves_nonempty_timeout_detail(
+        self,
+        api_server,
+        monkeypatch,
+    ):
+        import src.drone_api_server as drone_api_server
+
+        async def _raise_timeout(_self, _grpc_port, _udp_port):
+            raise TimeoutError("MAVSDK transport startup exceeded its deadline")
+
+        monkeypatch.setattr(
+            drone_api_server.DroneAPIServer,
+            "_ensure_live_probe_server",
+            _raise_timeout,
+        )
+
+        result = await api_server._probe_live_armability(require_global_position=True)
+
+        assert result["success"] is False
+        assert result["timed_out"] is True
+        assert result["summary"] == (
+            "Timed out waiting for live armability probe: "
+            "MAVSDK transport startup exceeded its deadline"
+        )
+        assert result["probe_error"] == "MAVSDK transport startup exceeded its deadline"
+        drone_api_server.LiveArmabilityResponse.model_validate(result)
 
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
         """Test canonical drone-state endpoint when no data available"""
