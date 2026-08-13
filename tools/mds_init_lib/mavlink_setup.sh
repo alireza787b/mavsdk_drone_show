@@ -44,6 +44,10 @@ MAVLINK_SKIP="${MAVLINK_SKIP:-false}"
 MAVLINK_UART="${MAVLINK_UART:-}"
 MAVLINK_BAUD="${MAVLINK_BAUD:-57600}"
 MAVLINK_ENDPOINTS="${MAVLINK_ENDPOINTS:-}"
+# A remote push route is an explicit routing choice.  Never derive it from
+# GCS_IP: that value identifies the HTTP/control-plane GCS used for announce,
+# callbacks, and connectivity checks, and is not a MAVLink destination.
+MAVLINK_PUSH_ENDPOINT="${MAVLINK_PUSH_ENDPOINT:-}"
 MAVLINK_INPUT_TYPE="${MAVLINK_INPUT_TYPE:-uart}"
 MAVLINK_INPUT_PORT="${MAVLINK_INPUT_PORT:-14550}"
 MAVLINK_MANAGEMENT_MODE="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}}"
@@ -85,6 +89,62 @@ is_mavlink_fleet_managed_mode() {
 }
 
 MAVLINK_MANAGEMENT_MODE="$(normalize_mavlink_profile_mode "${MAVLINK_MANAGEMENT_MODE}" || printf 'local\n')"
+
+# Validate the dedicated remote push endpoint before handing it to the
+# pinned mavlink-anywhere configuration helper. Its endpoint parser accepts a
+# single IPv4 address or DNS hostname followed by a port; IPv6 is not supported
+# by this bootstrap contract yet.
+validate_mavlink_push_endpoint() {
+    local endpoint="${1:-}"
+    local host=""
+    local port=""
+
+    if [[ -z "${endpoint}" ]]; then
+        return 0
+    fi
+
+    if [[ "${endpoint}" != *:* || "${endpoint}" == *:*:* ]]; then
+        log_error "Invalid MAVLink push endpoint '${endpoint}'. Use an IPv4 address or DNS HOST:PORT."
+        return 1
+    fi
+    host="${endpoint%:*}"
+    port="${endpoint##*:}"
+    if [[ ! "${host}" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ || ! "${port}" =~ ^[0-9]{1,5}$ ]]; then
+        log_error "Invalid MAVLink push endpoint '${endpoint}'. Use an IPv4 address or DNS HOST:PORT."
+        return 1
+    fi
+
+    if (( 10#${port} < 1 || 10#${port} > 65535 )); then
+        log_error "Invalid MAVLink push endpoint port '${port}': expected 1-65535."
+        return 1
+    fi
+}
+
+# Return an existing endpoint list with the explicit push destination added
+# once.  When no push destination is configured, the input is returned byte
+# for byte so an explicitly supplied --mavlink-endpoints list keeps its prior
+# semantics.
+append_mavlink_push_endpoint() {
+    local endpoints="${1:-}"
+    local push_endpoint="${MAVLINK_PUSH_ENDPOINT:-}"
+
+    if [[ -z "${push_endpoint}" ]]; then
+        printf '%s\n' "${endpoints}"
+        return 0
+    fi
+
+    validate_mavlink_push_endpoint "${push_endpoint}" || return 1
+    if [[ ",${endpoints}," == *",${push_endpoint},"* ]]; then
+        printf '%s\n' "${endpoints}"
+        return 0
+    fi
+
+    if [[ -n "${endpoints}" ]]; then
+        printf '%s,%s\n' "${endpoints}" "${push_endpoint}"
+    else
+        printf '%s\n' "${push_endpoint}"
+    fi
+}
 
 # =============================================================================
 # MAVLINK-ROUTER STATUS CHECKS
@@ -735,7 +795,7 @@ display_input_method_menu() {
 
 # Display manual setup instructions
 display_mavlink_instructions() {
-    local gcs_ip="${1:-\${GCS_IP\}}"
+    local push_endpoint="${1:-not configured}"
 
     echo ""
     echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
@@ -762,7 +822,7 @@ display_mavlink_instructions() {
     echo -e "${CYAN}│${NC}       ${DIM}• 127.0.0.1:14569  (mavlink2rest)${NC}                                    ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}       ${DIM}• 127.0.0.1:12550  (Local telemetry)${NC}                                 ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}       ${DIM}• Default listener: device_ip:14550${NC}                                    ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}       ${DIM}• Optional push: ${gcs_ip}:24550  (GCS over VPN)${NC}                        ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}       ${DIM}• Optional explicit push: ${push_endpoint}${NC}                              ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}  ${BOLD}4. Verify installation:${NC}                                                  ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}     ${GREEN}sudo systemctl status mavlink-router${NC}                                   ${CYAN}│${NC}"
@@ -858,11 +918,11 @@ display_reboot_prompt() {
 
 # Run automatic MAVLink configuration
 run_mavlink_auto_config() {
-    local gcs_ip="${GCS_IP:-}"
     local uart_device baud_rate endpoints
 
     log_step "Starting auto-configuration..."
     MAVLINK_MANAGEMENT_MODE="fleet-merge"
+    validate_mavlink_push_endpoint "${MAVLINK_PUSH_ENDPOINT:-}" || return 1
 
     if is_raspberry_pi; then
         if check_serial_console_enabled || ! check_uart_enabled; then
@@ -890,10 +950,9 @@ run_mavlink_auto_config() {
     log_info "Using baud rate: $baud_rate"
 
     # Step 4: Build endpoints list
-    endpoints="$MDS_DEFAULT_ENDPOINTS"
-    if [[ -n "$gcs_ip" ]]; then
-        endpoints="${endpoints},${gcs_ip}:24550"
-        log_info "Added GCS endpoint: ${gcs_ip}:24550"
+    endpoints="$(append_mavlink_push_endpoint "$MDS_DEFAULT_ENDPOINTS")" || return 1
+    if [[ -n "${MAVLINK_PUSH_ENDPOINT:-}" ]]; then
+        log_info "Added explicit MAVLink push endpoint: ${MAVLINK_PUSH_ENDPOINT}"
     fi
 
     # Step 5: Run configuration
@@ -912,10 +971,16 @@ run_mavlink_auto_config() {
 
 run_mavlink_setup_phase() {
     local management_overrides_requested="false"
+    local configuration_overrides_requested="false"
 
     print_phase_header "2" "MAVLink Router Setup"
 
     set_led_state "NETWORK_INIT"
+
+    if [[ -n "${MAVLINK_PUSH_ENDPOINT:-}" && "${MAVLINK_AUTO:-false}" != "true" && -z "${MAVLINK_ENDPOINTS:-}" ]]; then
+        log_error "--mavlink-push-endpoint requires --mavlink-auto or an explicit --mavlink-endpoints list."
+        return 1
+    fi
 
     # Check for pending reboot from previous run
     if [[ "$(state_get_value 'pending_reboot')" == "true" ]]; then
@@ -934,14 +999,17 @@ run_mavlink_setup_phase() {
         if [[ "${MAVLINK_MANAGEMENT_SELECTION_EXPLICIT:-false}" == "true" || "${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT:-false}" == "true" || "${MAVLINK_ANYWHERE_REF_EXPLICIT:-false}" == "true" ]]; then
             management_overrides_requested="true"
         fi
+        if [[ -n "${MAVLINK_UART:-}" || -n "${MAVLINK_ENDPOINTS:-}" || -n "${MAVLINK_PUSH_ENDPOINT:-}" ]]; then
+            configuration_overrides_requested="true"
+        fi
 
         if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-            if [[ "${management_overrides_requested}" != "true" ]] && confirm "mavlink-router appears configured. Skip setup?" "y"; then
+            if [[ "${management_overrides_requested}" != "true" && "${configuration_overrides_requested}" != "true" ]] && confirm "mavlink-router appears configured. Skip setup?" "y"; then
                 return 0
             fi
         else
             # In non-interactive mode, skip if already configured
-            if [[ "${MAVLINK_AUTO:-false}" != "true" && "${management_overrides_requested}" != "true" ]]; then
+            if [[ "${MAVLINK_AUTO:-false}" != "true" && "${management_overrides_requested}" != "true" && "${configuration_overrides_requested}" != "true" ]]; then
                 log_info "Using existing mavlink-router configuration"
                 return 0
             fi
@@ -963,7 +1031,7 @@ run_mavlink_setup_phase() {
     fi
 
     # Handle headless configuration with CLI options
-    if [[ -n "${MAVLINK_UART:-}" ]] || [[ -n "${MAVLINK_ENDPOINTS:-}" ]]; then
+    if [[ -n "${MAVLINK_UART:-}" ]] || [[ -n "${MAVLINK_ENDPOINTS:-}" ]] || [[ -n "${MAVLINK_PUSH_ENDPOINT:-}" ]]; then
         log_info "Running headless configuration with CLI options"
         MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
@@ -972,9 +1040,7 @@ run_mavlink_setup_phase() {
         local endpoints="${MAVLINK_ENDPOINTS:-$MDS_DEFAULT_ENDPOINTS}"
         local input_type="${MAVLINK_INPUT_TYPE:-uart}"
 
-        if [[ -n "${GCS_IP:-}" ]] && [[ ! "$endpoints" =~ "${GCS_IP}" ]]; then
-            endpoints="${endpoints},${GCS_IP}:24550"
-        fi
+        endpoints="$(append_mavlink_push_endpoint "$endpoints")" || return 1
 
         clone_mavlink_anywhere || return 1
 
@@ -1055,11 +1121,6 @@ run_mavlink_setup_phase() {
             log_info "Selected: Interactive configuration"
             MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
-            # Prompt for GCS IP if not set
-            if [[ -z "${GCS_IP:-}" ]]; then
-                prompt_input "Enter GCS IP address (leave empty to skip)" "" "GCS_IP"
-            fi
-
             # Install if needed
             clone_mavlink_anywhere || return 1
             if ! check_mavlink_router_installed; then
@@ -1088,7 +1149,7 @@ run_mavlink_setup_phase() {
             # Manual setup - show instructions
             log_info "Selected: Manual setup"
             MAVLINK_MANAGEMENT_MODE="local"
-            display_mavlink_instructions "${GCS_IP:-}"
+            display_mavlink_instructions "${MAVLINK_PUSH_ENDPOINT:-not configured}"
 
             if [[ "${VERBOSE:-false}" == "true" ]]; then
                 display_serial_status

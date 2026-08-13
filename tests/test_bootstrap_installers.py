@@ -1176,6 +1176,142 @@ def test_mavlink_auto_config_applies_serial_fix_on_raspberry_pi():
     assert result.returncode == 0, result.stderr
 
 
+def test_mavlink_auto_config_does_not_derive_push_from_gcs_ip():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        capture_file="$(mktemp)"
+        trap 'rm -f "$capture_file"' EXIT
+        is_raspberry_pi() {{ return 1; }}
+        clone_mavlink_anywhere() {{ return 0; }}
+        check_mavlink_router_installed() {{ return 0; }}
+        detect_uart_device() {{ echo "/dev/ttyS0"; }}
+        run_mavlink_configure_headless() {{ printf '%s\n' "$3" >"$capture_file"; }}
+        verify_mavlink_service() {{ return 0; }}
+        GCS_IP="192.0.2.10"
+        MAVLINK_PUSH_ENDPOINT=""
+        run_mavlink_auto_config >/dev/null
+        [[ "$(cat "$capture_file")" == "$MDS_DEFAULT_ENDPOINTS" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavlink_auto_config_adds_only_explicit_push_endpoint():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        capture_file="$(mktemp)"
+        trap 'rm -f "$capture_file"' EXIT
+        is_raspberry_pi() {{ return 1; }}
+        clone_mavlink_anywhere() {{ return 0; }}
+        check_mavlink_router_installed() {{ return 0; }}
+        detect_uart_device() {{ echo "/dev/ttyS0"; }}
+        run_mavlink_configure_headless() {{ printf '%s\n' "$3" >"$capture_file"; }}
+        verify_mavlink_service() {{ return 0; }}
+        GCS_IP="192.0.2.10"
+        MAVLINK_PUSH_ENDPOINT="gcs.example:24550"
+        run_mavlink_auto_config >/dev/null
+        [[ "$(cat "$capture_file")" == "$MDS_DEFAULT_ENDPOINTS,gcs.example:24550" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavlink_headless_options_preserve_endpoint_list_and_honor_explicit_push():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        capture_file="$(mktemp)"
+        trap 'rm -f "$capture_file"' EXIT
+        print_phase_header() {{ :; }}
+        set_led_state() {{ :; }}
+        state_get_value() {{ :; }}
+        display_mavlink_status() {{ :; }}
+        check_mavlink_router_installed() {{ return 0; }}
+        check_mavlink_router_running() {{ return 0; }}
+        clone_mavlink_anywhere() {{ return 0; }}
+        detect_uart_device() {{ echo "/dev/ttyS0"; }}
+        run_mavlink_configure_headless() {{ printf '%s\n' "$3" >"$capture_file"; }}
+        verify_mavlink_service() {{ return 0; }}
+        NON_INTERACTIVE=true
+        MAVLINK_SKIP=false
+        MAVLINK_AUTO=false
+        MAVLINK_UART=""
+        MAVLINK_ENDPOINTS="127.0.0.1:14540,127.0.0.1:12550,192.0.2.77:24550"
+        MAVLINK_PUSH_ENDPOINT="192.0.2.77:24550"
+        GCS_IP="192.0.2.10"
+        run_mavlink_setup_phase >/dev/null
+        [[ "$(cat "$capture_file")" == "127.0.0.1:14540,127.0.0.1:12550,192.0.2.77:24550" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavlink_push_endpoint_rejects_ambiguous_or_invalid_values():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        ! validate_mavlink_push_endpoint "192.0.2.10"
+        ! validate_mavlink_push_endpoint "192.0.2.10:0"
+        ! validate_mavlink_push_endpoint "192.0.2.10:65536"
+        ! validate_mavlink_push_endpoint "one.example:24550,two.example:24550"
+        ! validate_mavlink_push_endpoint "bad host:24550"
+        ! validate_mavlink_push_endpoint "[2001:db8::1]:24550"
+        validate_mavlink_push_endpoint "gcs.example:24550"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavlink_auto_config_rejects_malformed_push_before_install_work():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        clone_mavlink_anywhere() {{ echo unexpected-clone; return 0; }}
+        MAVLINK_PUSH_ENDPOINT="bad endpoint:24550"
+        output="$(run_mavlink_auto_config 2>&1)" && exit 1
+        [[ "$output" != *unexpected-clone* ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavlink_push_endpoint_alone_does_not_overwrite_existing_configuration():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        print_phase_header() {{ :; }}
+        set_led_state() {{ :; }}
+        state_get_value() {{ :; }}
+        display_mavlink_status() {{ :; }}
+        clone_mavlink_anywhere() {{ echo unexpected-clone; return 0; }}
+        NON_INTERACTIVE=true
+        MAVLINK_SKIP=false
+        MAVLINK_AUTO=false
+        MAVLINK_UART=""
+        MAVLINK_ENDPOINTS=""
+        MAVLINK_PUSH_ENDPOINT="192.0.2.77:24550"
+        output="$(run_mavlink_setup_phase 2>&1)" && exit 1
+        [[ "$output" == *"requires --mavlink-auto or an explicit --mavlink-endpoints"* ]]
+        [[ "$output" != *unexpected-clone* ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_mavsdk_binary_name_resolution_supports_arm64_without_array_errors():
     result = run_bash(
         f"""

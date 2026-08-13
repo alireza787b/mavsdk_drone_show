@@ -121,19 +121,17 @@ For the first combined attempt:
 ## Separate Connectivity And Data-Use Item
 
 The reported `500 MB` 5G-plan consumption and router overheating are separate
-from the follower-control defect. The private deployment audit verified that
-`remote_gcs_4` was enabled and mirrored MAVLink to the VPS endpoint
-`100.82.207.49:24550`, while no UDP listener or consumer existed there. At an
-observed/expected `25–80 KB/s` per aircraft, that unused route can account for
-about `180–576 MB/hour` across two aircraft.
+from the follower-control defect. The deployment audit found an unused private
+push endpoint mirroring MAVLink to a remote host where no UDP listener or
+consumer existed. At an observed/expected `25–80 KB/s` per aircraft, that
+unused route can account for about `180–576 MB/hour` across two aircraft.
 
-The unused `remote_gcs_4` endpoint is therefore disabled in the private
+The unused private push endpoint is therefore disabled in the deployment
 profile and must remain disabled. This change is limited to that MAVLink route:
-the HTTP GCS IP remains unchanged, and QGC, RTK, MDS telemetry, commands, and
-recovery connectivity must be preserved. The route calculation establishes a
-credible contributor, but attribution of the carrier's entire reported total
-remains unproven until before/after interface and process counters are
-captured.
+the HTTP GCS address remains unchanged, and QGC, RTK, MDS telemetry, commands,
+and recovery connectivity must be preserved. The route calculation establishes
+a credible contributor, but attribution of the carrier's entire reported total
+remains unproven until before/after interface and process counters are captured.
 
 Apply the private fleet merge only while the aircraft are grounded, one node at
 a time on Monday. After each node, verify QGC MAVLink, RTK corrections, MDS
@@ -150,7 +148,7 @@ single point of swarm connectivity.
 - end-to-end SITL and supervised real-flight Smart Swarm acceptance
 - degraded-link/dropout and leader-failover drills
 - grounded one-node-at-a-time deployment and measured data-use verification for
-  the disabled private `remote_gcs_4` route
+  the disabled private push route
 - active-aircraft Offboard-loss parameter review
 - richer operator-visible capture/confidence/failover state
 - post-flight ULog and unified-log correlation against the video timeline

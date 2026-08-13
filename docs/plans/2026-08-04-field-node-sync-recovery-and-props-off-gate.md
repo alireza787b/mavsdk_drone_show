@@ -31,18 +31,18 @@ direct read-only node APIs. The temporary GCS diagnostic token was revoked
 after collection.
 
 - Production GCS:
-  - private checkout `/root/catchadrone_gcs`
+  - private production checkout (path intentionally omitted from public evidence)
   - branch `main`, clean
   - commit `2d6260d9069b3a77d5d6eaf324d8d0cb0213ddc7`
   - real mode, dashboard/API auth enabled, Simurgh action circuit breaker on
 - Drone 1:
-  - hardware ID 1, position ID 1, NetBird IP `100.82.72.33`
+  - hardware ID 1, position ID 1, private overlay address (redacted)
   - live heartbeat
   - branch `main`, clean, commit
     `2f8cefd556f9bd7adb47c6f5af020be41f0e717e`
   - 305 commits behind the GCS
 - Drone 2:
-  - hardware ID 2, position ID 2, NetBird IP `100.82.47.7`
+  - hardware ID 2, position ID 2, private overlay address (redacted)
   - live heartbeat
   - branch `main`, clean, same old commit `2f8cefd556f9bd7adb47c6f5af020be41f0e717e`
   - 305 commits behind the GCS

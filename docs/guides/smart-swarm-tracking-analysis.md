@@ -1,95 +1,75 @@
-# Smart Swarm Tracking Analysis
+# Two-Drone Smart Swarm Field Rehearsal
 
-This guide captures the operator-grade proof path for Smart Swarm follower tracking.
+`tools/analyze_smart_swarm_tracking.py` is the evidence-gated SITL rehearsal
+for the first two-aircraft field workflow. It intentionally targets H1 as the
+leader and H2 as the follower; it is not a general multi-drone benchmark.
 
-Use it when you need to answer a concrete question:
+The fixed topology is NED: H2 follows H1 at `+6 m north`, zero east, and zero
+vertical offset. The tool stages H2 from its live position into the runtime
+capture gate before starting Smart Swarm, so a dirty SITL launch layout does
+not silently become a misleading test.
 
-- does the follower still track the leader after Smart Swarm starts?
-- are body-frame and NED-frame leader jogs reflected in follower motion?
-- is the problem transport freshness or controller behavior?
+## Run
 
-## What It Measures
-
-The canonical tool is:
+Run on the validated Hetzner GCS host, with the GCS already in reconciled SITL
+mode and a two-drone SITL fleet online:
 
 ```bash
 venv/bin/python3 tools/analyze_smart_swarm_tracking.py \
   --base-url http://127.0.0.1:5030 \
-  --drone-ids 1 2 3 4 \
-  --leader-id 1 \
-  --follower-id 2 \
-  --output-dir /tmp/smart_swarm_tracking_run
+  --api-token-file /path/to/gcs-bearer-token \
+  --output-dir /mnt/HC_Volume_106468352/mds-validation/two-drone-swarm
 ```
 
-The tool uses the same immediate command path the dashboard uses for leader jogs:
+The bearer token is read from the file only. Do not put a raw token on the
+command line or in an environment variable. In a trusted lab deployment where
+the API is intentionally unauthenticated, omit `--api-token-file`.
 
-1. take off the selected cluster
-2. start Smart Swarm
-3. wait for formation lock
-4. dwell briefly so the formation finishes settling
-5. dispatch repeated jog-sized `PRECISION_MOVE` steps on the leader
-6. mix `body` and `ned` frames
-7. land and restore the baseline
+Before any command or temporary configuration write, the validator checks the
+runtime-status endpoint and refuses to run unless the running and configured
+modes both say `sitl` with no restart reconciliation pending. It never commits
+the temporary swarm resource to git.
 
-During that run it records one follower against the leader and assignment:
+## Sequence and safety gates
 
-- expected relative `N/E/D`
-- actual relative `N/E/D`
-- horizontal error
-- altitude error
-- leader/follower stream sequence data
-- leader path, expected follower path, and actual follower path
+1. Readiness and idle baseline for H1/H2.
+2. Snapshot the complete swarm resource, then apply the temporary H1/H2 NED
+   assignments with `commit=false`.
+3. Paired TAKEOFF and airborne altitude proof.
+4. Bounded H2 precision staging into the Smart Swarm capture tolerances.
+5. Fresh, independently advancing H1/H2 `/ws/swarm-state` samples.
+6. Smart Swarm start and stable formation proof.
+7. One small northward H1 precision jog; verify the global displacement and
+   that H2 remains in Smart Swarm and inside formation tolerance.
+8. Paired HOLD recovery, airborne proof, then paired LAND and idle proof.
 
-## Why This Tool Exists
+On every SITL failure path the tool attempts LAND for each armed selected
+drone, waits for both to be idle, and only then restores the complete saved
+swarm resource with `commit=false`. If grounded state cannot be verified, the
+restore is deferred and reported rather than mutating a live configuration.
 
-Generic operator telemetry is not the right surface for diagnosing Smart Swarm timing.
+## Evidence
 
-This tool samples the dedicated Smart Swarm websocket stream and lets you separate:
+The output directory contains a JSON summary, CSV samples, and plots:
 
-- frontend/browser delivery issues
-- GCS command acceptance/execution issues
-- leader-state freshness problems
-- actual follower-controller lag
+- `smart_swarm_tracking_summary.json` — ordered gates, command outcomes,
+  freshness evidence, cleanup/restore status, and honest PASS/FAIL result.
+- `smart_swarm_tracking_samples.csv` — relative N/E and **Up** deltas (altitude
+  is positive up), errors, sequence numbers, and sample age.
+- `smart_swarm_tracking_timeseries.png` — expected/actual relative N/E/Up and
+  horizontal/altitude error over the sequence.
+- `smart_swarm_tracking_relative.png` — follower relative plan-view track.
+- `smart_swarm_tracking_overlay.png` — leader and expected/actual follower
+  world paths.
+- `smart_swarm_tracking_3d.png` — the same paths with world Down as the third
+  axis.
 
-## Output Artifacts
+The plots are diagnostic evidence, not a flight-safety authorization. Review
+the JSON gates and command results first.
 
-The output directory contains:
+## Related guidance
 
-- `smart_swarm_tracking_summary.json`
-- `smart_swarm_tracking_samples.csv`
-- `smart_swarm_tracking_timeseries.png`
-- `smart_swarm_tracking_relative.png`
-- `smart_swarm_tracking_overlay.png`
-- `smart_swarm_tracking_3d.png`
-
-Read them this way:
-
-- `timeseries`: expected vs actual relative `N/E/D` plus horizontal/altitude error over time
-- `relative`: follower relative track against expected offset for each jog stage
-- `overlay`: leader path plus expected and actual follower paths in one 2D plan view
-- `3d`: same proof in 3D for quick sanity checks
-
-## Current Interpretation Rule
-
-If the cluster is stable before jogs start and the tracked follower remains in sub-meter horizontal error during repeated jog-sized leader steps, the old stale-poll failure mode is not the primary runtime problem anymore.
-
-At that point:
-
-- transport is good enough for the tested path
-- command flow is good enough for the tested path
-- remaining variance is primarily controller/settling behavior
-
-## Practical Notes
-
-- run the tool from the repo venv; it depends on the same Python stack the GCS uses
-- on a host machine, `requirements.txt` already includes `aiohttp` and `matplotlib`
-- let the formation settle before aggressive leader motion
-- test both `body` and `ned` leader moves
-- keep one follower fixed as the tracked subject for comparable plots
-- recreate the SITL fleet before reruns if the baseline looks dirty
-
-## Related Guides
-
-- [Smart Swarm Guide](../features/smart-swarm.md)
-- [SITL Validation Platform](sitl-validation-platform.md)
-- [SITL Comprehensive Guide](sitl-comprehensive.md)
+- [Smart Swarm](../features/smart-swarm.md)
+- [SITL comprehensive guide](sitl-comprehensive.md)
+- [SITL validation platform](sitl-validation-platform.md)
+- [Agent SITL audit loop](../superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)

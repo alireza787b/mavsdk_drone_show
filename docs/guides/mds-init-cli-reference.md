@@ -47,11 +47,12 @@ These parameters are required but can be provided interactively if omitted:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--mavlink-auto` | Managed routing path with recommended defaults: UART auto-detect, standard local fanout, optional GCS push when `--gcs-ip` is set | off |
+| `--mavlink-auto` | Managed routing path with recommended defaults: UART auto-detect and standard local fanout | off |
 | `--mavlink-skip` | Skip MAVLink routing setup entirely | off |
 | `--mavlink-uart DEVICE` | Explicit FC-facing serial device for headless UART setup | auto-detect in managed mode |
 | `--mavlink-baud RATE` | Serial baud rate for the MAVLink input | `57600` |
 | `--mavlink-endpoints LIST` | Comma-separated routed outputs | `127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550` |
+| `--mavlink-push-endpoint HOST:PORT` | Add one explicit device-side remote push output; requires `--mavlink-auto` or `--mavlink-endpoints` and is independent of `--gcs-ip` | off |
 | `--mavlink-input TYPE` | MAVLink input source for headless config: `uart` or `udp` | `uart` |
 | `--mavlink-input-port PORT` | UDP input port when `--mavlink-input udp` is used | `14550` |
 
@@ -196,6 +197,16 @@ sudo ./tools/mds_node_init.sh -d 1 \
 Managed defaults:
 ```bash
 sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y
+```
+
+The command above uses `192.0.2.75` only for the MDS control plane. If this
+node must continuously push MAVLink to a known remote consumer, opt in:
+
+```bash
+sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto \
+    --gcs-ip 192.0.2.75 \
+    --mavlink-push-endpoint 192.0.2.75:24550 \
+    -y
 ```
 
 Headless UART routing:

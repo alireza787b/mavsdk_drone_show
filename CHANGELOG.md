@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Changed
+- Real-node bootstrap now keeps the MDS `--gcs-ip` control-plane address
+  separate from full-rate MAVLink routing. A remote push route requires the
+  explicit `--mavlink-push-endpoint HOST:PORT` opt-in with auto configuration
+  or a complete explicit endpoint list; existing route sets are not rewritten
+  by a push-only invocation. The stock SITL GCS bridge remains unchanged.
+
 ## [5.5.118-smart-swarm-motion-safety] - 2026-08-13
 
 ### Added

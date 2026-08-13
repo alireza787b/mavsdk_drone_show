@@ -1,5 +1,5 @@
 {
-  "chunk_count": 777,
+  "chunk_count": 780,
   "chunks": [
     {
       "audience": "operator",
@@ -2061,7 +2061,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "content_hash": "ce83f94f3a1c2fdbc5ce1cc28b05633c9ba57fd59e39b21f1ecc1192c949ed91",
+      "content_hash": "9400533e31e1323e65a911ddac098dc6a28c1c7b8362efd68f450102af24e495",
       "heading": "Scenario 3: Full Setup with VPN and Static IP",
       "id": "mds.init_setup:020-01-scenario-3-full-setup-with-vpn-and-static-ip",
       "links": [],
@@ -2075,7 +2075,7 @@
         "companion",
         "bootstrap"
       ],
-      "text": "### Scenario 3: Full Setup with VPN and Static IP\n\n```bash\nsudo ./tools/mds_node_init.sh -d 5 \\\n --netbird-key \"YOUR_NETBIRD_SETUP_KEY\" \\\n --static-ip 192.168.1.105/24 \\\n --gateway 192.168.1.1 \\\n -y\n```\n\nNetBird is optional. For same-LAN or static-IP deployments, omit `--netbird-key` and use the node's reachable LAN IP for QGroundControl or for any explicit `--gcs-ip` push endpoint you intentionally configure.",
+      "text": "### Scenario 3: Full Setup with VPN and Static IP\n\n```bash\nsudo ./tools/mds_node_init.sh -d 5 \\\n --netbird-key \"YOUR_NETBIRD_SETUP_KEY\" \\\n --static-ip 192.168.1.105/24 \\\n --gateway 192.168.1.1 \\\n -y\n```\n\nNetBird is optional. For same-LAN or static-IP deployments, omit\n`--netbird-key` and use the node's reachable LAN IP for QGroundControl. If the\ntopology requires device-side push, configure its destination separately with\n`--mavlink-push-endpoint HOST:PORT`.",
       "title": "MDS init setup"
     },
     {
@@ -2201,7 +2201,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "content_hash": "e013a53b3140c39c775802ca55781b63ce0e6159ad2d8a2358a852b4bd4fe03e",
+      "content_hash": "6c3dc422f67a88ef68d80316c62aa13f222287c5b549c79322b7c29b12e243f5",
       "heading": "Configure MAVLink Routing",
       "id": "mds.init_setup:027-01-configure-mavlink-routing",
       "links": [],
@@ -2215,13 +2215,13 @@
         "companion",
         "bootstrap"
       ],
-      "text": "### Configure MAVLink Routing\n\nCurrent best practice:\n\n- use `mds_node_init.sh --mavlink-auto` for the default managed path\n- keep the managed `mavlink-anywhere` repo/ref/install defaults in\n `deployment/defaults.env`\n- use `/etc/mds/local.env` only for node-specific MAVLink ownership overrides\n when a board needs different runtime handling\n- interactive bootstrap lets the operator choose between recommended defaults, a guided `mavlink-anywhere` wizard, or fully manual routing\n- or provide explicit headless routing flags such as `--mavlink-uart` and\n `--mavlink-endpoints`\n- use `--mavlink-input udp --mavlink-input-port ...` when the node should ingest MAVLink from a network source instead of a serial FC link\n- use manual routing only when you intentionally manage `mavlink-anywhere`\n yourself\n\nManaged examples:\n\n```bash\nsudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y\n```\n\n```bash\nsudo ./tools/mds_node_init.sh \\\n -d 1 \\\n --mavlink-uart /dev/ttyS0 \\\n --mavlink-ref v3.0.10 \\\n --mavlink-endpoints \"127.0.0.1:14540,127.0.0.1:14569,192.0.2.75:24550\" \\\n -y\n```\n\n```bash\nsudo ./tools/mds_node_init.sh \\\n -d 1 \\\n --mavlink-input udp \\\n --mavlink-input-port 14550 \\\n --mavlink-endpoints \"127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550\" \\\n -y\n```\n\nIf you intentionally keep routing manual, bootstrap and enrollment still work.\nIn that case, manage `mavlink-anywhere` yourself and keep that routing profile\ndocumented for the fleet.\n\nManaged runtime ownership and local overrides:\n\n- `deployment/defaults.env`\n - `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_REF`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR`\n- `/etc/mds/local.env`\n - `MDS_MAVLINK_MANAGEMENT_MODE`\n - optional `MDS_MAVLINK_ANYWHERE_REPO_URL`\n - optional `MDS_MAVLINK_ANYWHERE_REF`\n - `MDS_MAVLINK_ANYWHERE_INSTALL_DIR`\n - `MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`\n - `MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD`\n\nAfter changing only the managed runtime ownership settings on an existing node:\n\n```bash\nsudo ./tools/reconcile_mavlink_runtime.sh apply --force\n```",
+      "text": "### Configure MAVLink Routing\n\nCurrent best practice:\n\n- use `mds_node_init.sh --mavlink-auto` for the default managed path\n- keep the managed `mavlink-anywhere` repo/ref/install defaults in\n `deployment/defaults.env`\n- use `/etc/mds/local.env` only for node-specific MAVLink ownership overrides\n when a board needs different runtime handling\n- interactive bootstrap lets the operator choose between recommended defaults, a guided `mavlink-anywhere` wizard, or fully manual routing\n- or provide explicit headless routing flags such as `--mavlink-uart` and\n `--mavlink-endpoints`\n- keep `--gcs-ip` for the MDS HTTP/control plane; add\n `--mavlink-push-endpoint HOST:PORT` only when the node must continuously\n push MAVLink to a known remote consumer\n- use `--mavlink-input udp --mavlink-input-port ...` when the node should ingest MAVLink from a network source instead of a serial FC link\n- use manual routing only when you intentionally manage `mavlink-anywhere`\n yourself\n\nManaged examples:\n\n```bash\nsudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y\n```\n\n```bash\nsudo ./tools/mds_node_init.sh \\\n -d 1 \\\n --mavlink-auto \\\n --gcs-ip 192.0.2.75 \\\n --mavlink-push-endpoint 192.0.2.75:24550 \\\n -y\n```\n\n```bash\nsudo ./tools/mds_node_init.sh \\\n -d 1 \\\n --mavlink-input udp \\\n --mavlink-input-port 14550 \\\n --mavlink-endpoints \"127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550\" \\\n -y\n```\n\nIf you intentionally keep routing manual, bootstrap and enrollment still work.\nIn that case, manage `mavlink-anywhere` yourself and keep that routing profile\ndocumented for the fleet.\n\nManaged runtime ownership and local overrides:\n\n- `deployment/defaults.env`\n - `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_REF`\n - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR`\n- `/etc/mds/local.env`\n - `MDS_MAVLINK_MANAGEMENT_MODE`\n - optional `MDS_MAVLINK_ANYWHERE_REPO_URL`\n - optional `MDS_MAVLINK_ANYWHERE_REF`\n - `MDS_MAVLINK_ANYWHERE_INSTALL_DIR`\n - `MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`\n - `MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD`\n\nAfter changing only the managed runtime ownership settings on an existing node:",
       "title": "MDS init setup"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "content_hash": "dd3ce04493da6a6e2c96ffb7327499e57fee87c9835d42f4248e0f28872c6b06",
+      "content_hash": "c3b8247488d7b76a35f2381bd06f07dc97a906ac98d9a1da48433f2fcddffdc0",
       "heading": "Configure MAVLink Routing",
       "id": "mds.init_setup:027-02-configure-mavlink-routing",
       "links": [],
@@ -2235,7 +2235,7 @@
         "companion",
         "bootstrap"
       ],
-      "text": "Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.\n\nIf you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wire the CM4 to the FC through **TELEM2** and expect PX4 to use:\n\n- `MAV_1_CONFIG = TELEM2 (102)`\n- `MAV_1_MODE = Onboard (2)`\n- `SER_TEL2_BAUD = 921600`\n\nIf you want the web dashboard reachable from the LAN or VPN, expose it explicitly:\n\n```bash\nsudo ./configure_mavlink_router.sh --install-dashboard \\\n --dashboard-listen 0.0.0.0:9070\n```",
+      "text": "```bash\nsudo ./tools/reconcile_mavlink_runtime.sh apply --force\n```\n\nCurrent `mavlink-anywhere` defaults include a device-side GCS listener on\n`14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP\non port 14550**. `--gcs-ip` does not create a full-rate route. Use\n`--mavlink-push-endpoint HOST:PORT` (or an explicitly managed endpoint profile)\nonly when you intentionally need remote push-mode delivery.\n\nIf you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wire the CM4 to the FC through **TELEM2** and expect PX4 to use:\n\n- `MAV_1_CONFIG = TELEM2 (102)`\n- `MAV_1_MODE = Onboard (2)`\n- `SER_TEL2_BAUD = 921600`\n\nIf you want the web dashboard reachable from the LAN or VPN, expose it explicitly:\n\n```bash\nsudo ./configure_mavlink_router.sh --install-dashboard \\\n --dashboard-listen 0.0.0.0:9070\n```",
       "title": "MDS init setup"
     },
     {
@@ -14578,7 +14578,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "ed1f1266c371c76b66d0e34a3bf2f094bafdd347998f0e25a1697387ca58d9e0",
+      "content_hash": "f1e07ba1dbba32b4466ba91bd2b01ccd3fbcb4d31c50de0c803c75f3b7e7edcd",
       "heading": "SITL/Docker Mode",
       "id": "mds.mavlink_routing_setup:004-01-sitl-docker-mode",
       "links": [],
@@ -14592,13 +14592,13 @@
         "routing",
         "setup"
       ],
-      "text": "### SITL/Docker Mode\n\nIn SITL mode, PX4 automatically streams MAVLink on two ports. MAVSDK connects directly to PX4, while other consumers receive data via the router:\n\n```\n PX4 SITL\n │\n ┌────────────────┴────────────────┐\n │ │\n ▼ ▼\n Port 14540 Port 14550\n (MAVSDK direct) (GCS output)\n │ │\n ▼ ▼\n ┌─────────────┐ ┌───────────────┐\n │ MAVSDK │ │mavlink-routerd│\n │ coordinator │ └───────┬───────┘\n └─────────────┘ │\n ┌────────────────┼────────────────┐\n │ │ │\n ▼ ▼ ▼\n ┌───────────┐ ┌───────────┐ ┌───────────┐\n │LocalMavlink│ │mavlink2rest│ │Remote GCS │\n │ :12550 │ │ :14569 │ │ :24550 │\n │(pymavlink)│ │(REST API) │ │ (QGC) │\n └───────────┘ └───────────┘ └───────────┘\n```",
+      "text": "### SITL/Docker Mode\n\nIn SITL mode, PX4 automatically streams MAVLink on two ports. MAVSDK connects directly to PX4, while other consumers receive data via the router:\n\n```\n PX4 SITL\n │\n ┌────────────────┴────────────────┐\n │ │\n ▼ ▼\n Port 14540 Port 14550\n (MAVSDK direct) (GCS output)\n │ │\n ▼ ▼\n ┌─────────────┐ ┌───────────────┐\n │ MAVSDK │ │mavlink-routerd│\n │ coordinator │ └───────┬───────┘\n └─────────────┘ │\n ┌────────────────┼────────────────┐\n │ │ │\n ▼ ▼ ▼\n ┌───────────┐ ┌───────────┐ ┌───────────┐\n │LocalMavlink│ │mavlink2rest│ │SITL GCS │\n │ :12550 │ │ :14569 │ │ :24550 │\n │(pymavlink)│ │(REST API) │ │bridge │\n └───────────┘ └───────────┘ └───────────┘\n```",
       "title": "MAVLink routing setup"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "0acc23e8d441abe46d4f620ad3a321d62b75f937f96c1256ed73d2905de274e6",
+      "content_hash": "76a543011f7f7e8103b0c710dff4a7b73b0213a4959e7f3c54decc2f745fb87f",
       "heading": "Real Hardware Mode",
       "id": "mds.mavlink_routing_setup:005-01-real-hardware-mode",
       "links": [],
@@ -14612,13 +14612,13 @@
         "routing",
         "setup"
       ],
-      "text": "### Real Hardware Mode\n\nFor real hardware, all MAVLink traffic flows through the router from the serial port:\n\n```\n Flight Controller (Pixhawk/PX4)\n │\n Serial UART\n │\n ┌─────────┴─────────┐\n │ mavlink-routerd │\n └─────────┬─────────┘\n │\n ┌────────────────────────┼────────────────────────┐\n │ │ │\n ▼ ▼ ▼\n┌─────────────┐ ┌─────────────────┐ ┌─────────────┐\n│ MAVSDK │ │ mavlink2rest │ │ GCS │\n│ :14540/UDP │ │ :14569/UDP │ │ :24550/UDP │\n└─────────────┘ └─────────────────┘ └─────────────┘\n │\n ▼\n┌─────────────────────┐\n│LocalMavlinkController│\n│ :12550/UDP │\n└─────────────────────┘\n```",
+      "text": "### Real Hardware Mode\n\nFor real hardware, all MAVLink traffic flows through the router from the serial port:\n\n```\n Flight Controller (Pixhawk/PX4)\n │\n Serial UART\n │\n ┌─────────┴─────────┐\n │ mavlink-routerd │\n └─────────┬─────────┘\n │\n ┌────────────────────────┼────────────────────────┐\n │ │ │\n ▼ ▼ ▼\n┌─────────────┐ ┌─────────────────┐ ┌─────────────┐\n│ MAVSDK │ │ mavlink2rest │ │Optional GCS │\n│ :14540/UDP │ │ :14569/UDP │ │ :24550/UDP │\n└─────────────┘ └─────────────────┘ └─────────────┘\n │\n ▼\n┌─────────────────────┐\n│LocalMavlinkController│\n│ :12550/UDP │\n└─────────────────────┘\n```",
       "title": "MAVLink routing setup"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "db34f2f658cfb180197754559a6b97d90177c9354c2204e00ccaa567ec024a0d",
+      "content_hash": "611f42cdf7880da0e223919895fe31a08c8ad637c72ab440f2004753ec19c3a4",
       "heading": "Port Reference",
       "id": "mds.mavlink_routing_setup:006-01-port-reference",
       "links": [],
@@ -14632,7 +14632,7 @@
         "routing",
         "setup"
       ],
-      "text": "## Port Reference\n\n| Port | Service | Direction | Description |\n|-------|-----------------------|-----------|--------------------------------------|\n| 14540 | MAVSDK | Local | Direct PX4 connection (SITL) or routed (real HW) |\n| 14550 | PX4 GCS Output / GCS Listen | Local / Network | PX4 SITL router input, or the default device-side GCS listener on real hardware |\n| 12550 | LocalMavlinkController| Local | pymavlink telemetry monitoring |\n| 14569 | mavlink2rest target | Local | Routed local endpoint for an optional mavlink2rest process |\n| 24550 | Remote GCS Push | Network | Optional push-mode QGroundControl endpoint over VPN/WAN |\n| 34550 | Router Listen | Network | Legacy server-side listen port |",
+      "text": "## Port Reference\n\n| Port | Service | Direction | Description |\n|-------|-----------------------|-----------|--------------------------------------|\n| 14540 | MAVSDK | Local | Direct PX4 connection (SITL) or routed (real HW) |\n| 14550 | PX4 GCS Output / GCS Listen | Local / Network | PX4 SITL router input, or the default device-side GCS listener on real hardware |\n| 12550 | LocalMavlinkController| Local | pymavlink telemetry monitoring |\n| 14569 | mavlink2rest target | Local | Routed local endpoint for an optional mavlink2rest process |\n| 24550 | GCS Bridge / Push | Network | Standard SITL bridge; optional push-mode endpoint on real nodes |\n| 34550 | Router Listen | Network | Legacy server-side listen port |",
       "title": "MAVLink routing setup"
     },
     {
@@ -14658,7 +14658,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "e591f984917fb3e7fad5da7f75ee90f0f5001ea14cffb6f261763a85ee50d92f",
+      "content_hash": "00b6fd4f724ad4941e290eeb001efa1a8fd5ad8ba1cbb9985d21caa9e0a713f7",
       "heading": "Option A: SITL/Docker Mode (Automatic)",
       "id": "mds.mavlink_routing_setup:008-01-option-a-sitl-docker-mode-automatic",
       "links": [],
@@ -14672,7 +14672,7 @@
         "routing",
         "setup"
       ],
-      "text": "### Option A: SITL/Docker Mode (Automatic)\n\nFor SITL containers, MAVLink routing is handled automatically by `startup_sitl.sh` which calls `tools/run_mavlink_router.sh`. No manual setup is required.\n\n**Key points for SITL:**\n- Docker SITL now standardizes on headless PX4 Gazebo Harmonic via `HEADLESS=1 make px4_sitl gz_x500`\n- PX4 SITL automatically streams to port 14540 for MAVSDK and to a GCS UDP port that is usually 14550\n- MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)\n- `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup\n- If runtime inspection shows a different live PX4 GCS port, startup logs a warning and falls back to the detected port so mixed/legacy SITL images still keep telemetry alive\n- Router takes the validated PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550\n- The stock SITL workflow does **not** auto-start `mavlink2rest`; `14569` is simply the routed local endpoint you would use if you add that process yourself\n- Remote GCS connects on port **24550** (not 14550)\n\nIf runtime inspection fails entirely, SITL falls back to `14550`. Advanced users can override detection explicitly:\n\n```bash\nexport MDS_PX4_GCS_PORT=14550\n```",
+      "text": "### Option A: SITL/Docker Mode (Automatic)\n\nFor SITL containers, MAVLink routing is handled automatically by `startup_sitl.sh` which calls `tools/run_mavlink_router.sh`. No manual setup is required.\n\n**Key points for SITL:**\n- Docker SITL now standardizes on headless PX4 Gazebo Harmonic via `HEADLESS=1 make px4_sitl gz_x500`\n- PX4 SITL automatically streams to port 14540 for MAVSDK and to a GCS UDP port that is usually 14550\n- MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)\n- `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup\n- If runtime inspection shows a different live PX4 GCS port, startup logs a warning and falls back to the detected port so mixed/legacy SITL images still keep telemetry alive\n- Router takes the validated PX4 GCS port and distributes it to `12550`,\n `14569`, and `GCS_IP:24550`. This is the intentional stock SITL bridge to\n the selected simulator GCS, not the real-node bootstrap behavior described\n below.\n- The stock SITL workflow does **not** auto-start `mavlink2rest`; `14569` is simply the routed local endpoint you would use if you add that process yourself\n- Remote GCS connects on port **24550** (not 14550)\n\nIf runtime inspection fails entirely, SITL falls back to `14550`. Advanced users can override detection explicitly:\n\n```bash\nexport MDS_PX4_GCS_PORT=14550\n```",
       "title": "MAVLink routing setup"
     },
     {
@@ -14838,7 +14838,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "eb7a1796a73f20fd173b28745434391de8e62bd42790cf69a5cd654bdc7d3a7d",
+      "content_hash": "27580d72a26a57c49e6ac72f7971594753ff9191b270812e5bbbbfd2ee49e2af",
       "heading": "Step 3: Configure Routing Endpoints",
       "id": "mds.mavlink_routing_setup:017-01-step-3-configure-routing-endpoints",
       "links": [],
@@ -14852,15 +14852,15 @@
         "routing",
         "setup"
       ],
-      "text": "#### Step 3: Configure Routing Endpoints\n\n```bash\nsudo ./configure_mavlink_router.sh\n```\n\nWhen prompted, enter:\n- **UART device**: `/dev/ttyS0` (Pi Zero/3/4) or `/dev/ttyAMA0` (older Pi)\n- **Baud rate**: must match the FC MAVLink serial port setting\n- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550`\n\n`mavlink-anywhere` automatically adds a default **server-mode** listener on `0.0.0.0:14550` for ground stations. This is the normal same-LAN / same-VPN workflow:\n\n- QGroundControl creates a UDP link to `<device-ip>:14550`\n- QGC sends first, so `mavlink-router` learns the active remote peer\n- No device-side pre-configuration of the GCS IP is required\n\nIf you also want an explicit push endpoint to a remote VPN GCS, add it as an extra UDP endpoint:\n\n```text\n127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:24550\n```\n\n**Important**: Always include the three local service endpoints:\n- `127.0.0.1:14540` - MAVSDK (coordinator.py)\n- `127.0.0.1:14569` - mavlink2rest\n- `127.0.0.1:12550` - LocalMavlinkController (pymavlink telemetry)\n\nAdd `GCS_IP:24550` only when you intentionally want device-side push to a known remote GCS.",
+      "text": "#### Step 3: Configure Routing Endpoints\n\n```bash\nsudo ./configure_mavlink_router.sh\n```\n\nWhen prompted, enter:\n- **UART device**: `/dev/ttyS0` (Pi Zero/3/4) or `/dev/ttyAMA0` (older Pi)\n- **Baud rate**: must match the FC MAVLink serial port setting\n- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550`\n\n`mavlink-anywhere` automatically adds a default **server-mode** listener on `0.0.0.0:14550` for ground stations. This is the normal same-LAN / same-VPN workflow:\n\n- QGroundControl creates a UDP link to `<device-ip>:14550`\n- QGC sends first, so `mavlink-router` learns the active remote peer\n- No device-side pre-configuration of the GCS IP is required\n\nFor deterministic device-side push to a remote GCS, follow\n[Optional Remote GCS Push Endpoints](#optional-remote-gcs-push-endpoints).\nDo not add a push route merely because the GCS has a reachable IP.\n\nKeep these required local service endpoints:\n\n- `127.0.0.1:14540` - MAVSDK (coordinator.py)\n- `127.0.0.1:12550` - LocalMavlinkController (pymavlink telemetry)\n\nAdd `127.0.0.1:14569` only when the optional `mavlink2rest` consumer is used,\nor retain it for compatibility with an existing validated deployment.",
       "title": "MAVLink routing setup"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "b8c69a3c7bd89ee802394f4fb232b8c64ea0cd0e64e5efecea636aca9a527d4f",
-      "heading": "RTK / QGroundControl Multi-Vehicle Notes",
-      "id": "mds.mavlink_routing_setup:018-01-rtk-qgroundcontrol-multi-vehicle-notes",
+      "content_hash": "da8acc856093e54939bece1bc199e5ddca7d6fc53a2bee186efbde5264c8c739",
+      "heading": "Optional Remote GCS Push Endpoints",
+      "id": "mds.mavlink_routing_setup:018-01-optional-remote-gcs-push-endpoints",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14872,7 +14872,67 @@
         "routing",
         "setup"
       ],
-      "text": "### RTK / QGroundControl Multi-Vehicle Notes\n\nPX4 RTK corrections are transported over MAVLink as `GPS_RTCM_DATA`.\nQGroundControl reads the base-station RTCM stream and sends those messages over\nthe active vehicle link. PX4 then forwards the RTCM payload to the rover GPS\nover the existing GPS data path; no dedicated RTCM serial channel is required on\nthe autopilot side once `GPS_RTCM_DATA` reaches PX4.\n\nFor a two-drone hardware test:\n\n- each flight controller must have a unique `MAV_SYS_ID` (`1` for HW1, `2` for\n HW2 is the simple MDS-aligned convention)\n- `MAV_SYS_ID` is reboot-required in PX4, so apply it before field testing\n- use MAVLink 2 end-to-end where possible; PX4 documentation notes RTK uplink\n is roughly 300 B/s with MAVLink 2 and higher with MAVLink 1\n- server-mode `14550` is enough when QGroundControl connects to each node IP\n and sends first\n- add explicit `GCS_IP:24550` push endpoints only when you want each node to\n push to a known GCS IP; do not add duplicate push endpoints blindly\n- if RTK does not converge, verify that QGC sees both vehicles as distinct\n system IDs and that RTCM traffic is visible on the MAVLink route\n\nReferences:\n\n- PX4 RTK GNSS/GPS integration:\n https://docs.px4.io/v1.15/en/advanced/rtk_gps.html\n- PX4 `MAV_SYS_ID` parameter:\n https://docs.px4.io/v1.15/en/advanced_config/parameter_reference.html#MAV_SYS_ID",
+      "text": "### Optional Remote GCS Push Endpoints\n\nThe default `Mode=server` listener on `<device-ip>:14550` is the preferred\nsame-LAN or same-VPN QGroundControl path. A `Mode=normal` remote endpoint is\ndifferent: the node continuously mirrors its MAVLink stream to the configured\naddress, even when no application is listening there. Use one only when the\nnetwork topology requires deterministic device-side push.\n\n| Management mode | Endpoint source of truth | How to change a push route |\n| --- | --- | --- |\n| `local` (default) | The node-local MAVLink Anywhere configuration; the effective router file is `/etc/mavlink-router/main.conf`. | Use the node-local dashboard/wizard. Record or export the endpoint before disabling it; re-add the same stable name, address, and port to restore it. |\n| `fleet-merge` | `config/fleet-profiles/mavlink-anywhere/profile.json` in the active fleet repo. Node hardware input remains local, and differently named local output endpoints are preserved. | Change the named endpoint's `enabled` value, then use Fleet Ops dry-run and confirmed apply. |\n| `fleet-strict` | The same repo baseline, with non-baseline output endpoints pruned. | Advanced/lab use only. Include every required output in the baseline before applying. |\n\n`deployment/defaults.env` owns the sidecar checkout, pinned ref, install path,\nand default management mode; it is not an endpoint list. Bootstrap flags create\nan initial router configuration, but they are not the steady-state source of\ntruth after enrollment. For a fleet-managed route, add an entry like this to\nthe baseline's `endpoints` array (alongside the required shared local outputs):\n\n```json\n{\n \"name\": \"remote_gcs\",\n \"type\": \"UdpEndpoint\",\n \"mode\": \"normal\",\n \"address\": \"192.0.2.75\",\n \"port\": 24550,\n \"category\": \"gcs\",\n \"enabled\": false\n}\n```\n\nEndpoint name is the fleet identity. Set `remote_gcs.enabled` to `true` to\nenable it, `false` to disable it without losing the intended route, and `true`\nagain to re-enable it. In `fleet-merge`, deleting the entry does **not** disable\na differently named local extra; the merge policy preserves local additions.",
+      "title": "MAVLink routing setup"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
+      "content_hash": "b3f1bffd65fa41227f6721d432df75bb01003957858695580e852c43b6183f62",
+      "heading": "Optional Remote GCS Push Endpoints",
+      "id": "mds.mavlink_routing_setup:018-02-optional-remote-gcs-push-endpoints",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavlink-routing-setup.md",
+      "resource_id": "mds.mavlink_routing_setup",
+      "route_hint": null,
+      "summary": "GCS and sidecar MAVLink routing setup and port expectations.",
+      "tags": [
+        "mavlink",
+        "routing",
+        "setup"
+      ],
+      "text": "New real-node bootstrap keeps the HTTP/control-plane `--gcs-ip` independent\nfrom full-rate MAVLink routing. `--mavlink-auto --gcs-ip HOST` configures the\nnormal local outputs and control-plane address without adding a push route. To\nrequest one explicitly during initial bootstrap, add\n`--mavlink-push-endpoint HOST:PORT` alongside `--mavlink-auto` (or supply it\nwith an explicit `--mavlink-endpoints` list). The push flag is rejected by\nitself so it cannot replace an already-running custom route set. An existing\ndeployment is not rewritten merely by updating MDS; inspect and change its\neffective route set through the chosen owner above. `--mavlink-endpoints` remains\nbackward-compatible and may\nstill include any complete, explicitly managed endpoint list.\n\nApplying a MAVLink profile restarts `mavlink-router` and briefly interrupts the\nvehicle link. This is an operator safety gate: do it only while all selected\naircraft are grounded and disarmed. Use Fleet Ops to preview the exact diff,\nthen apply to one node at a time. Do not assume the UI or API replaces this\ngrounded check. After each node, verify before continuing:\n\n- QGroundControl reconnects to the intended vehicle and no duplicate vehicle\n link appears;\n- RTK corrections and the expected fix state recover;\n- MDS telemetry, readiness, commands, and the recovery path remain healthy;\n- the effective route set contains only the intended listeners and push\n endpoints;\n- interface counters show the expected before/after data rate.\n\nStop the rollout if any check fails. Run a new dry-run after every baseline\nedit; do not reuse an earlier confirmation plan.\n\nAn explicit push endpoint carries the normal MAVLink stream, not just a health\nheartbeat. Approximate its one-way usage per node and endpoint as:\n\n```text\nMB/hour ≈ bytes/second × 3600 / 1,000,000\n```\n\nFor example, a measured `50 KB/s` route is about `180 MB/hour` for one endpoint\non one node. Multiply by the number of nodes and push endpoints. An unreachable\nUDP destination can still consume carrier data, so measure on the actual\ncellular/VPN interface rather than inferring usage from receiver logs.",
+      "title": "MAVLink routing setup"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
+      "content_hash": "c8bffa519efef9a9bbaa2e62c1dd5ac82a15be5573d89acb304a612da94653ce",
+      "heading": "Optional Remote GCS Push Endpoints",
+      "id": "mds.mavlink_routing_setup:018-03-optional-remote-gcs-push-endpoints",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavlink-routing-setup.md",
+      "resource_id": "mds.mavlink_routing_setup",
+      "route_hint": null,
+      "summary": "GCS and sidecar MAVLink routing setup and port expectations.",
+      "tags": [
+        "mavlink",
+        "routing",
+        "setup"
+      ],
+      "text": "MAVLink UDP routing is not a confidentiality or authentication boundary. Keep\nlisteners and push targets behind a trusted LAN or VPN and restrict them with\nthe host/network firewall. A reachable MAVLink peer may carry commands and RTK\ncorrections as well as telemetry. Keep the MAVLink Anywhere dashboard on its\ndefault loopback bind or expose it only through a protected VPN or SSH tunnel.",
+      "title": "MAVLink routing setup"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
+      "content_hash": "5a61fbc2213424da38338c542bf0a5039df8106ed986b914d110a933b87e41fe",
+      "heading": "RTK / QGroundControl Multi-Vehicle Notes",
+      "id": "mds.mavlink_routing_setup:019-01-rtk-qgroundcontrol-multi-vehicle-notes",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavlink-routing-setup.md",
+      "resource_id": "mds.mavlink_routing_setup",
+      "route_hint": null,
+      "summary": "GCS and sidecar MAVLink routing setup and port expectations.",
+      "tags": [
+        "mavlink",
+        "routing",
+        "setup"
+      ],
+      "text": "### RTK / QGroundControl Multi-Vehicle Notes\n\nPX4 RTK corrections are transported over MAVLink as `GPS_RTCM_DATA`.\nQGroundControl reads the base-station RTCM stream and sends those messages over\nthe active vehicle link. PX4 then forwards the RTCM payload to the rover GPS\nover the existing GPS data path; no dedicated RTCM serial channel is required on\nthe autopilot side once `GPS_RTCM_DATA` reaches PX4.\n\nFor a two-drone hardware test:\n\n- each flight controller must have a unique `MAV_SYS_ID` (`1` for HW1, `2` for\n HW2 is the simple MDS-aligned convention)\n- `MAV_SYS_ID` is reboot-required in PX4, so apply it before field testing\n- use MAVLink 2 end-to-end where possible; PX4 documentation notes RTK uplink\n is roughly 300 B/s with MAVLink 2 and higher with MAVLink 1\n- server-mode `14550` is enough when QGroundControl connects to each node IP\n and sends first\n- use the optional push workflow above only when each node must push to a known\n GCS endpoint; keep one stable route and do not add duplicates blindly\n- if RTK does not converge, verify that QGC sees both vehicles as distinct\n system IDs and that RTCM traffic is visible on the MAVLink route\n\nReferences:\n\n- PX4 RTK GNSS/GPS integration:\n https://docs.px4.io/v1.15/en/advanced/rtk_gps.html\n- PX4 `MAV_SYS_ID` parameter:\n https://docs.px4.io/v1.15/en/advanced_config/parameter_reference.html#MAV_SYS_ID",
       "title": "MAVLink routing setup"
     },
     {
@@ -14880,7 +14940,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "909259f837676ea8cc538f851021f1058db2283e9b275e3d7f67ce9453a9053b",
       "heading": "Holybro Pixhawk RPi CM4 Baseboard Note",
-      "id": "mds.mavlink_routing_setup:019-01-holybro-pixhawk-rpi-cm4-baseboard-note",
+      "id": "mds.mavlink_routing_setup:020-01-holybro-pixhawk-rpi-cm4-baseboard-note",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14900,7 +14960,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "7105b04cb4d0889a88a568fc7c9cf3dba04a6664645f7777a4065929eb7db0d7",
       "heading": "Step 4: Enable and Start Service",
-      "id": "mds.mavlink_routing_setup:020-01-step-4-enable-and-start-service",
+      "id": "mds.mavlink_routing_setup:021-01-step-4-enable-and-start-service",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14920,7 +14980,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "413e133ef384cd27ec83d5e694c5ebf529782404722683ac9f8db1008bd644e0",
       "heading": "Step 5: Verify Service is Running",
-      "id": "mds.mavlink_routing_setup:021-01-step-5-verify-service-is-running",
+      "id": "mds.mavlink_routing_setup:022-01-step-5-verify-service-is-running",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14940,7 +15000,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "13d0c3d4e6419622014211e5671ff010ba2137adeb94eb08eaa1c4b644c8ee0f",
       "heading": "Should show \"active (running)\"",
-      "id": "mds.mavlink_routing_setup:022-01-should-show-active-running",
+      "id": "mds.mavlink_routing_setup:023-01-should-show-active-running",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14960,7 +15020,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "7a68b13bccf709facad6fbd192207b8d6ca64d916ed04d57eed253204b827b0a",
       "heading": "Check logs for MAVLink activity",
-      "id": "mds.mavlink_routing_setup:023-01-check-logs-for-mavlink-activity",
+      "id": "mds.mavlink_routing_setup:024-01-check-logs-for-mavlink-activity",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14978,9 +15038,9 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "content_hash": "3149869aeed49ae513b0aad06478f7c4189b9006c0960f1d72bdfc19ffd8a2f0",
+      "content_hash": "365a55bf3b421121539f5c8a5f3e1ec91fd143f050158b2c2d4e6f011729f451",
       "heading": "Manual Configuration (Alternative)",
-      "id": "mds.mavlink_routing_setup:024-01-manual-configuration-alternative",
+      "id": "mds.mavlink_routing_setup:025-01-manual-configuration-alternative",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -14992,7 +15052,7 @@
         "routing",
         "setup"
       ],
-      "text": "## Manual Configuration (Alternative)\n\nIf you prefer manual configuration, create `/etc/mavlink-router/main.conf`.\nThe example below matches the Holybro Pixhawk RPi CM4 baseboard serial path (`TELEM2`/`921600`):\n\n```ini\n[General]\nTcpServerPort=5760\nReportStats=false\n\n[UartEndpoint uart]\nDevice=/dev/ttyS0\nBaud=921600\n\n[UdpEndpoint gcs_listen]\nMode=server\nAddress=0.0.0.0\nPort=14550\n\n[UdpEndpoint mavsdk]\nMode=normal\nAddress=127.0.0.1\nPort=14540\n\n[UdpEndpoint local_mavlink]\nMode=normal\nAddress=127.0.0.1\nPort=12550\n\n[UdpEndpoint mavlink2rest]\nMode=normal\nAddress=127.0.0.1\nPort=14569\n\n[UdpEndpoint gcs]\nMode=normal\nAddress=192.168.1.100\nPort=24550\n```\n\nReplace `192.168.1.100` with your actual remote GCS IP address only if you want push-mode delivery. For the built-in listener workflow, QGC should connect to the device IP on port **14550**.",
+      "text": "## Manual Configuration (Alternative)\n\nIf you prefer manual configuration, create `/etc/mavlink-router/main.conf`.\nThe example below matches the Holybro Pixhawk RPi CM4 baseboard serial path (`TELEM2`/`921600`):\n\n```ini\n[General]\nTcpServerPort=5760\nReportStats=false\n\n[UartEndpoint uart]\nDevice=/dev/ttyS0\nBaud=921600\n\n[UdpEndpoint gcs_listen]\nMode=server\nAddress=0.0.0.0\nPort=14550\n\n[UdpEndpoint mavsdk]\nMode=normal\nAddress=127.0.0.1\nPort=14540\n\n[UdpEndpoint local_mavlink]\nMode=normal\nAddress=127.0.0.1\nPort=12550\n\n[UdpEndpoint mavlink2rest]\nMode=normal\nAddress=127.0.0.1\nPort=14569\n```\n\nFor the built-in listener workflow, QGC should connect to the device IP on port\n**14550**. Add a `Mode=normal` remote block only through the canonical\n[optional push workflow](#optional-remote-gcs-push-endpoints) above.",
       "title": "MAVLink routing setup"
     },
     {
@@ -15000,7 +15060,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "76aced113667dbbc86577fe51c59ed4340732a4b81dd7beefe2956f2857568d7",
       "heading": "Dashboard Exposure",
-      "id": "mds.mavlink_routing_setup:025-01-dashboard-exposure",
+      "id": "mds.mavlink_routing_setup:026-01-dashboard-exposure",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15020,7 +15080,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "659a188b36f9c3262a28539e24c345df4edc9657f59b116b0a1d9887cf2e28e0",
       "heading": "Troubleshooting",
-      "id": "mds.mavlink_routing_setup:026-01-troubleshooting",
+      "id": "mds.mavlink_routing_setup:027-01-troubleshooting",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15040,7 +15100,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "4a406b8f1ad277f01cf2a7c59bed56e619100d71d8e09dad0c9830f554013f33",
       "heading": "No MAVLink Data",
-      "id": "mds.mavlink_routing_setup:027-01-no-mavlink-data",
+      "id": "mds.mavlink_routing_setup:028-01-no-mavlink-data",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15060,7 +15120,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "8072080bc2449970693b7d9ff509b4eb5268799fd4cca000c75fe8a3ff7ae8e2",
       "heading": "Permission Denied on Serial Port",
-      "id": "mds.mavlink_routing_setup:028-01-permission-denied-on-serial-port",
+      "id": "mds.mavlink_routing_setup:029-01-permission-denied-on-serial-port",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15080,7 +15140,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "ad04bfade0f0790820aca29b6833de7b29e4a06103ae5cf8978f0cc4ab40cec7",
       "heading": "Log out and back in for changes to take effect",
-      "id": "mds.mavlink_routing_setup:029-01-log-out-and-back-in-for-changes-to-take-effect",
+      "id": "mds.mavlink_routing_setup:030-01-log-out-and-back-in-for-changes-to-take-effect",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15100,7 +15160,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "4c990677345b831a394ffb52d9e7968d8ee02f1fb5d8cef9e0dba2ef90fc8244",
       "heading": "Service Won't Start",
-      "id": "mds.mavlink_routing_setup:030-01-service-won-t-start",
+      "id": "mds.mavlink_routing_setup:031-01-service-won-t-start",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15120,7 +15180,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "1411a9080beeb405580c0bdbcffd7e54028955024953135dcad856060befcae8",
       "heading": "Port Already in Use",
-      "id": "mds.mavlink_routing_setup:031-01-port-already-in-use",
+      "id": "mds.mavlink_routing_setup:032-01-port-already-in-use",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15140,7 +15200,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "4599921efcf1c257d2f66798599f2a1ff74017e44cd14dadda05cbd9a0c8d0ca",
       "heading": "QGroundControl Does Not Connect Even on the Same LAN",
-      "id": "mds.mavlink_routing_setup:032-01-qgroundcontrol-does-not-connect-even-on-the-same-lan",
+      "id": "mds.mavlink_routing_setup:033-01-qgroundcontrol-does-not-connect-even-on-the-same-lan",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15160,7 +15220,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "ccbbebd482d5612bde801c4a87c60097e09fa1ff77e5135ff1e1c6353fb520de",
       "heading": "coordinator.py Can't Connect to MAVSDK",
-      "id": "mds.mavlink_routing_setup:033-01-coordinator-py-can-t-connect-to-mavsdk",
+      "id": "mds.mavlink_routing_setup:034-01-coordinator-py-can-t-connect-to-mavsdk",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15180,7 +15240,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "ab1110637d9a6270fa4befc315e26019923d0fec7dbc52137b4fbdc9c204e011",
       "heading": "Migration Notes",
-      "id": "mds.mavlink_routing_setup:034-01-migration-notes",
+      "id": "mds.mavlink_routing_setup:035-01-migration-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",
@@ -15200,7 +15260,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
       "content_hash": "19fd5f9f9d00c0e1c73994bd81a0c688a98585f151e2a9cf624fe7d252a96ed0",
       "heading": "See Also",
-      "id": "mds.mavlink_routing_setup:035-01-see-also",
+      "id": "mds.mavlink_routing_setup:036-01-see-also",
       "links": [
         "https://github.com/alireza787b/mavlink-anywhere",
         "https://github.com/mavlink-router/mavlink-router"
@@ -15311,7 +15371,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "chunk_count": 37,
-      "content_hash": "00f316b4aef8f59333e85492d95bf4a9c8fc019b59d9f9550109efbb24d02b34",
+      "content_hash": "ba037f1974a6fa61284227bdbaddaced7d0df78f2e9ca0dcf87ef2b05109ee38",
       "id": "mds.init_setup",
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -15532,8 +15592,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown",
-      "chunk_count": 35,
-      "content_hash": "1d72a2b49a2a080211eb106ecc32673700782e7cf5b9930f302a5cff3e98dffe",
+      "chunk_count": 38,
+      "content_hash": "0be82b0db1f18777334aab9f82e27ecc575e1e9100b7b3b5ce45ebf9d6a6ca6b",
       "id": "mds.mavlink_routing_setup",
       "mime_type": "text/markdown",
       "path": "docs/guides/mavlink-routing-setup.md",

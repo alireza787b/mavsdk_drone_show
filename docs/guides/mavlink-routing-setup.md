@@ -28,9 +28,9 @@ In SITL mode, PX4 automatically streams MAVLink on two ports. MAVSDK connects di
                            │                │                │
                            ▼                ▼                ▼
                     ┌───────────┐    ┌───────────┐    ┌───────────┐
-                    │LocalMavlink│   │mavlink2rest│   │Remote GCS │
+                    │LocalMavlink│   │mavlink2rest│   │SITL GCS   │
                     │  :12550   │    │  :14569   │    │  :24550   │
-                    │(pymavlink)│    │(REST API) │    │   (QGC)   │
+                    │(pymavlink)│    │(REST API) │    │bridge     │
                     └───────────┘    └───────────┘    └───────────┘
 ```
 
@@ -51,7 +51,7 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
      │                        │                        │
      ▼                        ▼                        ▼
 ┌─────────────┐      ┌─────────────────┐      ┌─────────────┐
-│   MAVSDK    │      │  mavlink2rest   │      │     GCS     │
+│   MAVSDK    │      │  mavlink2rest   │      │Optional GCS │
 │ :14540/UDP  │      │   :14569/UDP    │      │ :24550/UDP  │
 └─────────────┘      └─────────────────┘      └─────────────┘
      │
@@ -70,7 +70,7 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
 | 14550 | PX4 GCS Output / GCS Listen | Local / Network | PX4 SITL router input, or the default device-side GCS listener on real hardware |
 | 12550 | LocalMavlinkController| Local     | pymavlink telemetry monitoring       |
 | 14569 | mavlink2rest target   | Local     | Routed local endpoint for an optional mavlink2rest process |
-| 24550 | Remote GCS Push       | Network   | Optional push-mode QGroundControl endpoint over VPN/WAN |
+| 24550 | GCS Bridge / Push     | Network   | Standard SITL bridge; optional push-mode endpoint on real nodes |
 | 34550 | Router Listen         | Network   | Legacy server-side listen port       |
 
 ## Setup Options
@@ -85,7 +85,10 @@ For SITL containers, MAVLink routing is handled automatically by `startup_sitl.s
 - MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)
 - `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup
 - If runtime inspection shows a different live PX4 GCS port, startup logs a warning and falls back to the detected port so mixed/legacy SITL images still keep telemetry alive
-- Router takes the validated PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550
+- Router takes the validated PX4 GCS port and distributes it to `12550`,
+  `14569`, and `GCS_IP:24550`. This is the intentional stock SITL bridge to
+  the selected simulator GCS, not the real-node bootstrap behavior described
+  below.
 - The stock SITL workflow does **not** auto-start `mavlink2rest`; `14569` is simply the routed local endpoint you would use if you add that process yourself
 - Remote GCS connects on port **24550** (not 14550)
 
@@ -163,18 +166,101 @@ When prompted, enter:
 - QGC sends first, so `mavlink-router` learns the active remote peer
 - No device-side pre-configuration of the GCS IP is required
 
-If you also want an explicit push endpoint to a remote VPN GCS, add it as an extra UDP endpoint:
+For deterministic device-side push to a remote GCS, follow
+[Optional Remote GCS Push Endpoints](#optional-remote-gcs-push-endpoints).
+Do not add a push route merely because the GCS has a reachable IP.
 
-```text
-127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:24550
-```
+Keep these required local service endpoints:
 
-**Important**: Always include the three local service endpoints:
 - `127.0.0.1:14540` - MAVSDK (coordinator.py)
-- `127.0.0.1:14569` - mavlink2rest
 - `127.0.0.1:12550` - LocalMavlinkController (pymavlink telemetry)
 
-Add `GCS_IP:24550` only when you intentionally want device-side push to a known remote GCS.
+Add `127.0.0.1:14569` only when the optional `mavlink2rest` consumer is used,
+or retain it for compatibility with an existing validated deployment.
+
+### Optional Remote GCS Push Endpoints
+
+The default `Mode=server` listener on `<device-ip>:14550` is the preferred
+same-LAN or same-VPN QGroundControl path. A `Mode=normal` remote endpoint is
+different: the node continuously mirrors its MAVLink stream to the configured
+address, even when no application is listening there. Use one only when the
+network topology requires deterministic device-side push.
+
+| Management mode | Endpoint source of truth | How to change a push route |
+| --- | --- | --- |
+| `local` (default) | The node-local MAVLink Anywhere configuration; the effective router file is `/etc/mavlink-router/main.conf`. | Use the node-local dashboard/wizard. Record or export the endpoint before disabling it; re-add the same stable name, address, and port to restore it. |
+| `fleet-merge` | `config/fleet-profiles/mavlink-anywhere/profile.json` in the active fleet repo. Node hardware input remains local, and differently named local output endpoints are preserved. | Change the named endpoint's `enabled` value, then use Fleet Ops dry-run and confirmed apply. |
+| `fleet-strict` | The same repo baseline, with non-baseline output endpoints pruned. | Advanced/lab use only. Include every required output in the baseline before applying. |
+
+`deployment/defaults.env` owns the sidecar checkout, pinned ref, install path,
+and default management mode; it is not an endpoint list. Bootstrap flags create
+an initial router configuration, but they are not the steady-state source of
+truth after enrollment. For a fleet-managed route, add an entry like this to
+the baseline's `endpoints` array (alongside the required shared local outputs):
+
+```json
+{
+  "name": "remote_gcs",
+  "type": "UdpEndpoint",
+  "mode": "normal",
+  "address": "192.0.2.75",
+  "port": 24550,
+  "category": "gcs",
+  "enabled": false
+}
+```
+
+Endpoint name is the fleet identity. Set `remote_gcs.enabled` to `true` to
+enable it, `false` to disable it without losing the intended route, and `true`
+again to re-enable it. In `fleet-merge`, deleting the entry does **not** disable
+a differently named local extra; the merge policy preserves local additions.
+
+New real-node bootstrap keeps the HTTP/control-plane `--gcs-ip` independent
+from full-rate MAVLink routing. `--mavlink-auto --gcs-ip HOST` configures the
+normal local outputs and control-plane address without adding a push route. To
+request one explicitly during initial bootstrap, add
+`--mavlink-push-endpoint HOST:PORT` alongside `--mavlink-auto` (or supply it
+with an explicit `--mavlink-endpoints` list). The push flag is rejected by
+itself so it cannot replace an already-running custom route set. An existing
+deployment is not rewritten merely by updating MDS; inspect and change its
+effective route set through the chosen owner above. `--mavlink-endpoints` remains
+backward-compatible and may
+still include any complete, explicitly managed endpoint list.
+
+Applying a MAVLink profile restarts `mavlink-router` and briefly interrupts the
+vehicle link. This is an operator safety gate: do it only while all selected
+aircraft are grounded and disarmed. Use Fleet Ops to preview the exact diff,
+then apply to one node at a time. Do not assume the UI or API replaces this
+grounded check. After each node, verify before continuing:
+
+- QGroundControl reconnects to the intended vehicle and no duplicate vehicle
+  link appears;
+- RTK corrections and the expected fix state recover;
+- MDS telemetry, readiness, commands, and the recovery path remain healthy;
+- the effective route set contains only the intended listeners and push
+  endpoints;
+- interface counters show the expected before/after data rate.
+
+Stop the rollout if any check fails. Run a new dry-run after every baseline
+edit; do not reuse an earlier confirmation plan.
+
+An explicit push endpoint carries the normal MAVLink stream, not just a health
+heartbeat. Approximate its one-way usage per node and endpoint as:
+
+```text
+MB/hour ≈ bytes/second × 3600 / 1,000,000
+```
+
+For example, a measured `50 KB/s` route is about `180 MB/hour` for one endpoint
+on one node. Multiply by the number of nodes and push endpoints. An unreachable
+UDP destination can still consume carrier data, so measure on the actual
+cellular/VPN interface rather than inferring usage from receiver logs.
+
+MAVLink UDP routing is not a confidentiality or authentication boundary. Keep
+listeners and push targets behind a trusted LAN or VPN and restrict them with
+the host/network firewall. A reachable MAVLink peer may carry commands and RTK
+corrections as well as telemetry. Keep the MAVLink Anywhere dashboard on its
+default loopback bind or expose it only through a protected VPN or SSH tunnel.
 
 ### RTK / QGroundControl Multi-Vehicle Notes
 
@@ -193,8 +279,8 @@ For a two-drone hardware test:
   is roughly 300 B/s with MAVLink 2 and higher with MAVLink 1
 - server-mode `14550` is enough when QGroundControl connects to each node IP
   and sends first
-- add explicit `GCS_IP:24550` push endpoints only when you want each node to
-  push to a known GCS IP; do not add duplicate push endpoints blindly
+- use the optional push workflow above only when each node must push to a known
+  GCS endpoint; keep one stable route and do not add duplicates blindly
 - if RTK does not converge, verify that QGC sees both vehicles as distinct
   system IDs and that RTCM traffic is visible on the MAVLink route
 
@@ -266,14 +352,11 @@ Port=12550
 Mode=normal
 Address=127.0.0.1
 Port=14569
-
-[UdpEndpoint gcs]
-Mode=normal
-Address=192.168.1.100
-Port=24550
 ```
 
-Replace `192.168.1.100` with your actual remote GCS IP address only if you want push-mode delivery. For the built-in listener workflow, QGC should connect to the device IP on port **14550**.
+For the built-in listener workflow, QGC should connect to the device IP on port
+**14550**. Add a `Mode=normal` remote block only through the canonical
+[optional push workflow](#optional-remote-gcs-push-endpoints) above.
 
 ### Dashboard Exposure
 

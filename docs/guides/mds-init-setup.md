@@ -330,7 +330,10 @@ sudo ./tools/mds_node_init.sh -d 5 \
     -y
 ```
 
-NetBird is optional. For same-LAN or static-IP deployments, omit `--netbird-key` and use the node's reachable LAN IP for QGroundControl or for any explicit `--gcs-ip` push endpoint you intentionally configure.
+NetBird is optional. For same-LAN or static-IP deployments, omit
+`--netbird-key` and use the node's reachable LAN IP for QGroundControl. If the
+topology requires device-side push, configure its destination separately with
+`--mavlink-push-endpoint HOST:PORT`.
 
 ### Scenario 4: Resume Interrupted Installation
 
@@ -402,6 +405,9 @@ Current best practice:
 - interactive bootstrap lets the operator choose between recommended defaults, a guided `mavlink-anywhere` wizard, or fully manual routing
 - or provide explicit headless routing flags such as `--mavlink-uart` and
   `--mavlink-endpoints`
+- keep `--gcs-ip` for the MDS HTTP/control plane; add
+  `--mavlink-push-endpoint HOST:PORT` only when the node must continuously
+  push MAVLink to a known remote consumer
 - use `--mavlink-input udp --mavlink-input-port ...` when the node should ingest MAVLink from a network source instead of a serial FC link
 - use manual routing only when you intentionally manage `mavlink-anywhere`
   yourself
@@ -415,9 +421,9 @@ sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y
 ```bash
 sudo ./tools/mds_node_init.sh \
   -d 1 \
-  --mavlink-uart /dev/ttyS0 \
-  --mavlink-ref v3.0.10 \
-  --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,192.0.2.75:24550" \
+  --mavlink-auto \
+  --gcs-ip 192.0.2.75 \
+  --mavlink-push-endpoint 192.0.2.75:24550 \
   -y
 ```
 
@@ -455,7 +461,11 @@ After changing only the managed runtime ownership settings on an existing node:
 sudo ./tools/reconcile_mavlink_runtime.sh apply --force
 ```
 
-Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.
+Current `mavlink-anywhere` defaults include a device-side GCS listener on
+`14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP
+on port 14550**. `--gcs-ip` does not create a full-rate route. Use
+`--mavlink-push-endpoint HOST:PORT` (or an explicitly managed endpoint profile)
+only when you intentionally need remote push-mode delivery.
 
 If you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wire the CM4 to the FC through **TELEM2** and expect PX4 to use:
 

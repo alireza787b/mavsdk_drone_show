@@ -111,6 +111,9 @@ MAVLINK_SKIP="false"
 MAVLINK_UART=""
 MAVLINK_BAUD="57600"
 MAVLINK_ENDPOINTS=""
+# Optional device-side push destination. This is intentionally separate from
+# GCS_IP, the HTTP/control-plane address used for announce and callbacks.
+MAVLINK_PUSH_ENDPOINT=""
 MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
 MAVLINK_MANAGEMENT_MODE="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}"
@@ -213,6 +216,8 @@ MAVLINK-ROUTER OPTIONS (NEW in v4.5):
     --mavlink-uart DEVICE       UART device (e.g., /dev/ttyS0)
     --mavlink-baud RATE         Baud rate (default: 57600)
     --mavlink-endpoints LIST    Comma-separated endpoints
+    --mavlink-push-endpoint E   Optional explicit remote push endpoint (HOST:PORT)
+                                Use with --mavlink-auto or --mavlink-endpoints
     --mavlink-input TYPE        Input type: uart (default) or udp
     --mavlink-input-port PORT   UDP input port (default: 14550)
     --mavlink-repo-url URL      Managed mavlink-anywhere repo URL override
@@ -271,8 +276,9 @@ EXAMPLES:
     # Install Smart Wi-Fi Manager and import a local profile
     sudo ./mds_node_init.sh -d 5 --connectivity-backend smart-wifi-manager --smart-wifi-config /tmp/profile.json -y
 
-    # Auto-configure mavlink-router with GCS IP (NEW)
-    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 192.0.2.75
+    # Auto-configure mavlink-router with an explicit remote push endpoint
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto \
+        --gcs-ip 192.0.2.75 --mavlink-push-endpoint 192.0.2.75:24550
 
     # Headless UART mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
@@ -323,7 +329,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,gcs-api-token-file:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,mavlink-repo-url:,mavlink-ref:,mavlink-install-dir:,mavlink-dashboard:,skip-mavlink-dashboard,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,gcs-api-token-file:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-push-endpoint:,mavlink-input:,mavlink-input-port:,mavlink-repo-url:,mavlink-ref:,mavlink-install-dir:,mavlink-dashboard:,skip-mavlink-dashboard,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -485,6 +491,10 @@ parse_args() {
                 MAVLINK_ENDPOINTS="$2"
                 shift 2
                 ;;
+            --mavlink-push-endpoint)
+                MAVLINK_PUSH_ENDPOINT="$2"
+                shift 2
+                ;;
             --mavlink-input)
                 MAVLINK_INPUT_TYPE="$2"
                 shift 2
@@ -585,7 +595,7 @@ parse_args() {
     export SMART_WIFI_MANAGER_INSTALL_DIR SMART_WIFI_MANAGER_DASHBOARD_LISTEN
     export SMART_WIFI_MANAGER_SKIP_DASHBOARD CONNECTIVITY_SELECTION_EXPLICIT
     export MAVSDK_VERSION MAVSDK_URL
-    export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
+    export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS MAVLINK_PUSH_ENDPOINT
     export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
     export MAVLINK_MANAGEMENT_MODE MAVLINK_ANYWHERE_REPO_URL MAVLINK_ANYWHERE_REF
     export MAVLINK_ANYWHERE_INSTALL_DIR MAVLINK_ANYWHERE_DASHBOARD_LISTEN MAVLINK_ANYWHERE_SKIP_DASHBOARD
