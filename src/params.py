@@ -2,8 +2,6 @@
 
 import math
 import os
-import struct
-from enum import Enum
 from pathlib import Path
 
 from mds_logging import get_logger
@@ -217,7 +215,14 @@ class Params:
     offline_swarm = _env_flag('MDS_LOCAL_SWARM_MODE', True)     # Read swarm.json locally by default
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
-    MAX_STALE_DURATION = 2.5          # Max time delay follower would still use the leader data
+    # Smart Swarm runtime policy. These are the single source of truth for
+    # transport freshness, formation admission, and follower motion shaping.
+    SMART_SWARM_CONTROL_RATE_HZ = 15.0
+    SMART_SWARM_HTTP_FALLBACK_RATE_HZ = 3.0
+    SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC = 2.0
+    SMART_SWARM_SOURCE_MAX_AGE_SEC = 0.75
+    SMART_SWARM_OWN_STATE_MAX_AGE_SEC = 0.75
+    SMART_SWARM_HARD_STALE_TIMEOUT_SEC = 2.5
     SMART_SWARM_LEADER_STATE_TIMEOUT_SEC = 1.0   # Per-request timeout for follower -> leader state fetches
     SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS swarm config refresh
     SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS leader-change notify
@@ -228,17 +233,29 @@ class Params:
     SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC = 0.25
     SMART_SWARM_STREAM_BACKOFF_MAX_SEC = 2.0
     SMART_SWARM_STREAM_PREDICT_GRACE_SEC = 1.0
-    SMART_SWARM_RECONFIG_TRANSITION_SEC = 1.0
     SMART_SWARM_USE_LOCAL_NED_WHEN_VALID = False
+    SMART_SWARM_POSITION_GAIN = 0.5
     SMART_SWARM_KV = 0.35
-    SMART_SWARM_MAX_ACCELERATION = 2.0
-    SMART_SWARM_MAX_JERK = 4.0
+    SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD = 1.0
+    SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S = 2.0
+    SMART_SWARM_MAX_VERTICAL_SPEED_M_S = 0.75
+    SMART_SWARM_MAX_ACCELERATION_M_S2 = 1.0
+    SMART_SWARM_MAX_JERK_M_S3 = 2.0
+    SMART_SWARM_MAX_COMMAND_DT_SEC = 0.1
+    SMART_SWARM_MAX_YAW_RATE_DEG_S = 30.0
+    SMART_SWARM_CAPTURE_HORIZONTAL_M = 2.0
+    SMART_SWARM_CAPTURE_VERTICAL_M = 1.5
+    SMART_SWARM_CAPTURE_STABLE_SEC = 1.0
+    SMART_SWARM_TRACKING_HORIZONTAL_M = 6.0
+    SMART_SWARM_TRACKING_VERTICAL_M = 3.0
+    SMART_SWARM_TARGET_STEP_HORIZONTAL_M = 2.0
+    SMART_SWARM_TARGET_STEP_VERTICAL_M = 1.5
     
     # how many failed polls before we elect
-    MAX_LEADER_UNREACHABLE_ATTEMPTS = 15
+    SMART_SWARM_MAX_LEADER_UNREACHABLE_ATTEMPTS = 15
 
     # minimum seconds between successive elections
-    LEADER_ELECTION_COOLDOWN = 30
+    SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC = 30.0
     SMART_SWARM_LEADER_LOSS_STRATEGY = "upstream_or_hold"
 
     
@@ -541,16 +558,6 @@ class Params:
     # Default: 5.0 seconds
     ORIGIN_FETCH_TIMEOUT_SEC = 5.0
 
-    # Smart Swarm Parameters
-    CONTROL_LOOP_FREQUENCY = 15       # Control loop frequency in Hz
-    LEADER_UPDATE_FREQUENCY = 3       # Legacy fallback leader update frequency in Hz
-    DATA_FRESHNESS_THRESHOLD = 0.75   # Data freshness threshold in seconds
-
-
-    CONFIG_UPDATE_INTERVAL = 2        # Periodic time for re-checking the swarm file (s)
-
-    ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
-
     # Logging Configuration
     MAX_LOG_FILES = 100  # Maximum number of log files to keep
 
@@ -609,16 +616,6 @@ class Params:
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
     FEEDFORWARD_ACCELERATION_ENABLED = False   # Enable feedforward acceleration setpoints
 
-    # PD Controller Gains
-    PD_KP = 0.5            # Proportional gain
-    PD_KD = 0.1            # Derivative gain
-    MAX_VELOCITY = 3.0     # Maximum velocity in m/s
-    SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD = 1.0  # Scale factor for leader velocity feedforward
-
-    # Low-Pass Filter Parameter
-    LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1
-    
-    
     # New parameters for pos_id auto-detection
     auto_detection_enabled = True  # Enable or disable auto-detection
     auto_detection_interval = 15  # Interval in seconds

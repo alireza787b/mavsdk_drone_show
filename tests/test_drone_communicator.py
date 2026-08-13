@@ -158,6 +158,7 @@ def test_get_swarm_state_exposes_realtime_fields():
     assert state["telemetry_timestamp_ms"] == 1234567890123
     assert state["source_frame"] == "local_ned"
     assert state["local_position_north"] == 1.2
+    assert state["local_position_timestamp_ms"] == 1234567890123
     assert state["altitude_source"] == "relative_home"
     assert state["yaw_rate_deg_s"] == 4.5
 

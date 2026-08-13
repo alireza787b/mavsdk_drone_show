@@ -2,6 +2,7 @@ import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConst
 import { getDroneReadinessModel } from './droneReadiness';
 import { formatDroneLabel } from './missionIdentityUtils';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
+import { buildSmartSwarmLaunchReadiness } from './smartSwarmLaunchReadiness';
 
 export const SWARM_RUNTIME_SCOPE = {
   DRONE: 'drone',
@@ -120,6 +121,8 @@ export function getSwarmRuntimeStartBlockerReason({
   selectedCluster,
   targetIds = [],
   targetDrones = [],
+  telemetryById = {},
+  nowMs = Date.now(),
   dirtyIds = [],
   pendingSyncIds = [],
 }) {
@@ -144,6 +147,25 @@ export function getSwarmRuntimeStartBlockerReason({
     .map((drone) => String(drone.hw_id));
   if (blockingTargetIds.length > 0) {
     return `Resolve follow-chain issues on ${formatRuntimeTargetList(blockingTargetIds)} before starting Smart Swarm.`;
+  }
+
+  const runtimeTargets = targetIds
+    .map((targetId) => telemetryById?.[String(targetId)])
+    .filter(Boolean);
+  const airborne = buildSmartSwarmLaunchReadiness({
+    drones: runtimeTargets,
+    targetMode: 'all',
+    referenceNowMs: nowMs,
+  });
+  if (runtimeTargets.length !== targetIds.length) {
+    return 'Wait for fresh telemetry from every targeted drone before starting Smart Swarm.';
+  }
+  if (airborne.unavailableIds.length > 0) {
+    return `Wait for a fresh live link from ${formatRuntimeTargetList(airborne.unavailableIds)} before starting Smart Swarm.`;
+  }
+  if (airborne.groundedIds.length > 0 || airborne.airborneCount !== targetIds.length) {
+    const blockedIds = airborne.groundedIds.length > 0 ? airborne.groundedIds : targetIds;
+    return `Launch and stabilize ${formatRuntimeTargetList(blockedIds)} before starting Smart Swarm.`;
   }
 
   const targetIdSet = getTargetIdSet(targetIds);

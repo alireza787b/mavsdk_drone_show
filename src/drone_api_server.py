@@ -325,6 +325,7 @@ class SwarmStateResponse(BaseModel):
     local_position_north: float = 0.0
     local_position_east: float = 0.0
     local_position_down: float = 0.0
+    local_position_timestamp_ms: int = 0
     local_velocity_north: float = 0.0
     local_velocity_east: float = 0.0
     local_velocity_down: float = 0.0
@@ -4294,7 +4295,11 @@ class DroneAPIServer:
                     'detail': f'Current state: {state_name}, mission: {self.drone_config.mission} ({detail_suffix})'
                 }
 
-        if mission_type in {Mission.HOLD.value, Mission.PRECISION_MOVE.value}:
+        if mission_type in {
+            Mission.HOLD.value,
+            Mission.PRECISION_MOVE.value,
+            Mission.SMART_SWARM.value,
+        }:
             mission_name = Mission(mission_type).name
             cached_admission = evaluate_cached_airborne_admission(
                 self.drone_config,

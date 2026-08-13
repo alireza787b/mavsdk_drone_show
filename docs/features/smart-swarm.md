@@ -146,7 +146,10 @@ The preview shows the saved follow chain, roles, and offsets for the current run
 Important operator rule:
 
 - formation plots are not live flight views
-- runtime start still performs final gating at command dispatch time
+- every targeted drone must have current telemetry and authoritative
+  armed/airborne evidence; MSL altitude is never treated as height above launch
+- runtime start performs the same final airborne admission again at command
+  dispatch time
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
 
 ## Slot Reassignment vs Spare Replacement
@@ -234,6 +237,12 @@ with HTTP fallback only when the realtime stream is unavailable.
 
 The current transport timing knobs are centralized in [params.py](../../src/params.py), including:
 
+- `SMART_SWARM_CONTROL_RATE_HZ`
+- `SMART_SWARM_HTTP_FALLBACK_RATE_HZ`
+- `SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC`
+- `SMART_SWARM_SOURCE_MAX_AGE_SEC`
+- `SMART_SWARM_OWN_STATE_MAX_AGE_SEC`
+- `SMART_SWARM_HARD_STALE_TIMEOUT_SEC`
 - `SMART_SWARM_LEADER_STATE_TIMEOUT_SEC`
 - `SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC`
 - `SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC`
@@ -244,19 +253,26 @@ The current transport timing knobs are centralized in [params.py](../../src/para
 - `SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC`
 - `SMART_SWARM_STREAM_BACKOFF_MAX_SEC`
 - `SMART_SWARM_STREAM_PREDICT_GRACE_SEC`
-- `SMART_SWARM_RECONFIG_TRANSITION_SEC`
 - `SMART_SWARM_USE_LOCAL_NED_WHEN_VALID`
+- `SMART_SWARM_POSITION_GAIN`
 - `SMART_SWARM_KV`
-- `SMART_SWARM_MAX_ACCELERATION`
-- `SMART_SWARM_MAX_JERK`
-- `MAX_LEADER_UNREACHABLE_ATTEMPTS`
-- `LEADER_ELECTION_COOLDOWN`
-- `MAX_STALE_DURATION`
-- `LEADER_UPDATE_FREQUENCY` (legacy HTTP fallback cadence)
-- `DATA_FRESHNESS_THRESHOLD`
-- `CONFIG_UPDATE_INTERVAL`
+- `SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD`
+- `SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S`
+- `SMART_SWARM_MAX_VERTICAL_SPEED_M_S`
+- `SMART_SWARM_MAX_ACCELERATION_M_S2`
+- `SMART_SWARM_MAX_JERK_M_S3`
+- `SMART_SWARM_MAX_COMMAND_DT_SEC`
+- `SMART_SWARM_MAX_YAW_RATE_DEG_S`
+- `SMART_SWARM_CAPTURE_*`
+- `SMART_SWARM_TRACKING_*`
+- `SMART_SWARM_TARGET_STEP_*`
+- `SMART_SWARM_MAX_LEADER_UNREACHABLE_ATTEMPTS`
+- `SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC`
+- `SMART_SWARM_LEADER_LOSS_STRATEGY`
 
-That keeps Smart Swarm timing policy in one place instead of scattering literals across runtime tasks.
+That keeps Smart Swarm motion, freshness, and failover policy in one place
+instead of scattering literals across runtime tasks. The former generic PD and
+low-pass-filter settings are not a second configuration path.
 
 ### Tracking proof workflow
 
@@ -275,7 +291,7 @@ That workflow captures:
 
 ### Current transport behavior and next-step roadmap
 
-What is true in the current validated branch:
+Current runtime contract:
 
 - follower-to-leader state is websocket-primary with bounded reconnect/backoff
 - follower-to-leader HTTP fallback is still available and intentionally kept
@@ -338,12 +354,22 @@ Leader-only failover notifications also now update only the `follow` field in GC
 
 ### Follower control behavior
 
-Follower control now does more than basic position-error chasing:
+Follower control now uses one stateful motion pipeline:
 
+- leader and own motion must pass identity, validity, finite-value, and
+  freshness checks before use
+- the follower must remain inside the smaller formation-capture envelope for a
+  stability dwell before any non-zero formation motion is authorized
 - leader-velocity feedforward is included in the target velocity command
 - leader body-frame offsets include yaw-rate-induced offset velocity
-- controller/filter state resets and blends when topology or offset config changes live
-- stale leader samples degrade through a predictive-grace ramp before hard failover
+- horizontal speed, vertical speed, acceleration, jerk, and yaw rate are shaped
+  from the first command after the zero Offboard seed
+- a delayed event-loop iteration cannot spend the whole scheduling delay as a
+  larger acceleration or yaw budget
+- topology/offset changes and implausible target jumps suspend motion and
+  require a new stable capture without discarding command continuity
+- stale leader confidence scales feedback and feedforward together before the
+  hard failover deadline
 
 That makes the controller better suited for:
 
@@ -364,11 +390,12 @@ If a follower loses its direct leader:
 Leader-loss handling now treats both cases as degraded leader health:
 
 - outright leader API fetch failures
-- leader telemetry that still responds but stops advancing `update_time`
+- leader transport that still responds while the authoritative motion-source
+  timestamp stops advancing
 
 This is safer than the older global “next numeric hw_id” fallback because it stays within the active follow chain instead of jumping across unrelated drones.
 
-Available policy values in [params.py](/opt/mavsdk_drone_show/src/params.py):
+Available policy values in [params.py](../../src/params.py):
 
 - `upstream_or_hold` - default, cluster-safe fallback
 - `hold` - always self-promote and hold
@@ -384,16 +411,23 @@ That prevents live leader changes from silently introducing a loop into the foll
 ## Runtime Guarantees Added In This Audit
 
 - dedicated leader-state stream at `WS /ws/swarm-state` with `GET /api/v1/swarm/state` fallback
-- millisecond telemetry freshness and stream sequence tracking instead of second-only `update_time`
+- expected leader identity, producer validity, finite motion values, and
+  millisecond source freshness are checked before a sample enters control
 - follower control waits for both own-state and leader-state lock before sending formation setpoints
 - leader-state prediction no longer double-counts elapsed time between measurements
 - follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
 - body-frame offsets include leader yaw-rate compensation
-- controller/filter state resets and blend ramps apply on live topology/offset/frame changes
+- startup and reconfiguration require bounded, stable formation capture; bad
+  staging commands exact zero instead of chasing the offset
+- the command sent to PX4 is limited from its first sample by separate
+  horizontal/vertical speed envelopes plus acceleration, jerk, and yaw rate
+- stale-data confidence applies to the complete motion request; target jumps,
+  tracking divergence, and invalid own state suspend formation motion
 - follower re-entry restarts offboard mode cleanly after leader-to-follower transitions
 - failed follower re-entry now retries instead of getting stuck half-switched
 - stale leader telemetry now participates in the same failover path as explicit request failures
-- runtime controls default to `Selected Drone`; cluster scope is opt-in
+- runtime controls default to `Selected Drone`; cluster scope is opt-in, and
+  every target requires fresh armed/airborne evidence
 - cluster-scoped start blockers now apply only to the targeted drones instead of unrelated unsaved edits elsewhere in the design page
 
 ## Files That Matter
@@ -402,7 +436,10 @@ That prevents live leader changes from silently introducing a loop into the foll
 
 - [smart_swarm.py](../../smart_swarm.py)
 - [failover.py](../../smart_swarm_src/failover.py)
-- [pd_controller.py](../../smart_swarm_src/pd_controller.py)
+- [follower_controller.py](../../smart_swarm_src/follower_controller.py)
+- [formation_guard.py](../../smart_swarm_src/formation_guard.py)
+- [motion_state_validity.py](../../smart_swarm_src/motion_state_validity.py)
+- [velocity_command_shaper.py](../../smart_swarm_src/velocity_command_shaper.py)
 - [params.py](../../src/params.py)
 - [local_mavlink_controller.py](../../src/local_mavlink_controller.py)
 - [drone_communicator.py](../../src/drone_communicator.py)
@@ -431,6 +468,13 @@ That prevents live leader changes from silently introducing a loop into the foll
 - In SITL, the default demo file is `swarm_sitl.json`; it currently defines 5 drones across two clusters.
 - Use swarm runtime controls when you want either a selected-drone override or an explicit cluster-level intent.
 - Use single-drone controls when you want a scoped override.
+- Stage each follower close to its configured offset before starting Smart
+  Swarm. A follower outside the capture envelope intentionally remains in
+  zero-velocity Offboard hold; do not expect it to cross the field to acquire
+  formation.
+- Do not weaken PX4 estimator, GNSS, arming, or Offboard-loss policy to make a
+  field test pass. Resolve the underlying readiness evidence and review the
+  active aircraft parameter profile deliberately.
 
 ## Recommended SITL Validation
 

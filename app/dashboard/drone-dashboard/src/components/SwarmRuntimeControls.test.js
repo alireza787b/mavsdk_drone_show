@@ -58,6 +58,27 @@ const viewModel = {
   ],
 };
 
+function buildAirborneTelemetry() {
+  const nowMs = Date.now();
+  return {
+    '1': {
+      hw_id: '1',
+      timestamp: nowMs,
+      heartbeat_last_seen: nowMs,
+      is_armed: true,
+      is_ready_to_arm: true,
+      readiness_status: 'ready',
+      relative_altitude_m: 5,
+      altitude_report: {
+        source: 'relative_home',
+        display_m: 5,
+        relative_home_m: 5,
+        stale: false,
+      },
+    },
+  };
+}
+
 describe('SwarmRuntimeControls', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -114,7 +135,7 @@ describe('SwarmRuntimeControls', () => {
           selectedDroneId="1"
           dirtyIds={[]}
           pendingSyncIds={[]}
-          telemetryById={{}}
+          telemetryById={buildAirborneTelemetry()}
         />
         <MonitorProbe />
       </CommandActivityProvider>

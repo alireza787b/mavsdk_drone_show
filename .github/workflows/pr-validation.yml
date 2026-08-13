@@ -84,6 +84,16 @@ jobs:
             tests/test_simurgh_tool_candidate_generator.py \
             tests/test_sitl_control_service.py \
             tests/test_sitl_control_client.py \
+            tests/test_smart_swarm_active_routes.py \
+            tests/test_smart_swarm_failover.py \
+            tests/test_smart_swarm_follower_controller.py \
+            tests/test_smart_swarm_formation_guard.py \
+            tests/test_smart_swarm_kalman.py \
+            tests/test_smart_swarm_motion_state_validity.py \
+            tests/test_smart_swarm_runtime_boundaries.py \
+            tests/test_smart_swarm_runtime_math.py \
+            tests/test_smart_swarm_target_switch.py \
+            tests/test_smart_swarm_velocity_command_shaper.py \
             tests/test_swarm_trajectory_mission.py \
             tests/test_ulog_job_handles.py \
             tests/test_ulog_service.py
@@ -113,8 +123,11 @@ jobs:
             src/components/SidebarMenu.test.js \
             src/components/DroneWidget.test.js \
             src/components/ExpandedDronePortal.test.js \
+            src/components/SwarmRuntimeControls.test.js \
             src/components/TacticalDroneCard.test.js \
             src/utilities/flightModeUtils.test.js \
+            src/utilities/smartSwarmLaunchReadiness.test.js \
+            src/utilities/swarmRuntimeUtils.test.js \
             src/App.test.js
           npm run build:release
 

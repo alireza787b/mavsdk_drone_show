@@ -1,7 +1,6 @@
 # smart_swarm_src/utils.py
 
 import math
-import time
 import navpy
 import requests
 import logging
@@ -69,31 +68,6 @@ def ned_to_lla(north, east, down, lat_ref, lon_ref, alt_ref):
         latlon_unit='deg', alt_unit='m', model='wgs84'
     )
     return lla[0], lla[1], lla[2]
-
-def is_data_fresh(update_time, threshold):
-    """
-    Checks if the data is fresh based on the current time and a threshold.
-
-    Args:
-        update_time (float): The timestamp of the last data update (seconds since epoch).
-        threshold (float): The freshness threshold in seconds.
-
-    Returns:
-        bool: True if data is fresh, False otherwise.
-    """
-    current_time = time.time()
-    return (current_time - update_time) <= threshold
-
-def get_current_timestamp():
-    """
-    Returns the current timestamp in seconds since the epoch.
-
-    Returns:
-        float: Current timestamp.
-    """
-    return time.time()
-
-
 
 def fetch_home_position(ip, port, endpoint):
     """

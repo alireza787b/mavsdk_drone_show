@@ -299,6 +299,7 @@ def mock_drone_communicator(mock_drone_config):
         "local_position_north": 0.5,
         "local_position_east": -0.3,
         "local_position_down": -5.2,
+        "local_position_timestamp_ms": 1732270245000,
         "local_velocity_north": 0.0,
         "local_velocity_east": 0.0,
         "local_velocity_down": 0.0,

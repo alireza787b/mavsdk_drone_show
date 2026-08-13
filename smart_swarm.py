@@ -8,77 +8,14 @@
 # Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
 # For commercial licensing, contact: p30planets@gmail.com
 
-"""
-===========================================================================
- Project: MavSDK Drone Show (smart_swarm)
- Repository: https://github.com/alireza787b/mavsdk_drone_show
- 
- Description:
-   This project implements a smart swarm control system using MAVSDK, designed
-   to operate drones in a coordinated formation. The system distinguishes
-   between leader and follower drones based on configuration JSON files. Followers
-   receive state updates from the leader, process these with a Kalman filter, and
-   compute velocity commands using a PD controller (with low-pass filtering).
-   The code is built using Python's asyncio framework for concurrent tasks such as
-   state updates, control loops, and dynamic configuration updates.
+"""Smart Swarm runtime orchestration for one MDS node.
 
- Features:
-   - Reads drone and swarm configuration from JSON files.
-   - Dynamically updates swarm configuration (role, formation offsets, etc.) during flight.
-   - Integrates a primary (telemetry API) and a fallback (HTTP API) source for fetching
-     the drone's GPS global origin.
-   - Manages MAVSDK server startup and logs its output asynchronously.
-   - Implements a robust offboard control loop with failsafe mechanisms.
-   - Uses detailed logging for all operations, including error handling and dynamic
-     configuration changes.
-   - Modular design: Separate functions for initialization, state updates, control loop,
-     failsafe procedures, and periodic configuration re-reads.
-
- Workflow:
-   1. Initialization:
-      - Read the hardware ID from the canonical runtime identity model.
-      - Load drone configuration from config.json and swarm configuration from swarm.json.
-      - Determine if the drone is operating as a Leader or Follower.
-      - Set formation offsets and body coordinate mode based on the swarm configuration.
-      - For followers, extract leader information and initialize a Kalman filter.
-   
-   2. MAVSDK Server & Drone Connection:
-      - Start the MAVSDK server and ensure it is running.
-      - Initialize the drone and perform pre-flight checks (global position and home position).
-      - Fetch the drone's home position using a primary (telemetry) and a fallback (HTTP) API.
-      - Set the reference position for NED coordinate conversion.
-   
-   3. Dynamic Configuration Update:
-      - A periodic task (update_swarm_config_periodically) re-reads the swarm config at a defined
-        interval to detect any configuration changes (role, offsets, etc.).
-      - On detecting changes:
-          * If switching from follower to leader, the follower tasks are cancelled.
-          * If switching from leader to follower, the appropriate follower tasks are started.
-          * Formation offsets and coordinate flags are updated accordingly.
-   
-   4. Control Loop & Failsafe:
-      - For followers, a control loop computes desired velocities based on the predicted leader state
-        and sends commands via offboard control.
-      - If leader data becomes stale or an error occurs, a failsafe procedure is activated.
-   
-   5. Shutdown:
-      - On termination, all periodic tasks and follower tasks are cleanly cancelled.
-      - The MAVSDK server is properly shutdown.
-
- Developer & Contact Information:
-   - Author: Alireza Ghaderi
-   - GitHub: https://github.com/alireza787b
-   - LinkedIn: https://www.linkedin.com/in/alireza787b
-   - Email: p30planets@gmail.com
-
- Notes:
-   - The project is part of the "mavsdk_drone_show" repository.
-   - Future improvements may include replacing the JSON-based configuration update with a
-     direct query to a Ground Control Station (GCS) endpoint.
-   - This file serves as the central orchestrator for the swarm behavior and leverages
-     several modules (e.g., Kalman filter, PD controller, LED controller) for a modular
-     and maintainable code base.
-===========================================================================
+The node resolves its saved GCS assignment, validates fresh leader and local
+motion evidence, converts the configured formation target into the follower's
+NED frame, and streams bounded commands through the cohesive follower motion
+controller. Formation admission, velocity shaping, and source validity live in
+focused ``smart_swarm_src`` modules; this file owns transport, MAVSDK lifecycle,
+role changes, and failover to explicit PX4 HOLD.
 """
 
 
@@ -93,13 +30,11 @@ import socket
 import psutil
 import argparse
 from typing import Optional
-from datetime import datetime
 from collections import namedtuple
 from mavsdk import System
-from mavsdk.offboard import PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw, OffboardError
+from mavsdk.offboard import VelocityBodyYawspeed, VelocityNedYaw, OffboardError
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
-import navpy
 import numpy as np  # Added for numerical computations
 
 from src.drone_config import ConfigLoader
@@ -110,16 +45,28 @@ from src.gcs_api_routes import (
 )
 from src.led_controller import LEDController
 from src.params import Params
+from src.gcs_auth_client import gcs_auth_headers
+from src.action_safety import (
+    AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
+    observe_authoritative_vehicle_state,
+)
 from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment
 import aiohttp 
 
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
-from smart_swarm_src.pd_controller import PDController  # New import
-from smart_swarm_src.low_pass_filter import LowPassFilter  # New import
 from smart_swarm_src.failover import choose_leader_loss_response
+from smart_swarm_src.follower_controller import FollowerMotionController
+from smart_swarm_src.formation_guard import FormationGuard
+from smart_swarm_src.motion_state_validity import (
+    validate_leader_motion_sample,
+    validate_own_motion_state,
+)
+from smart_swarm_src.velocity_command_shaper import (
+    NedVelocityCommandShaper,
+    VelocityCommandShapeError,
+)
 from smart_swarm_src.utils import (
     transform_body_to_nea,
-    is_data_fresh,
     fetch_home_position,
     lla_to_ned
 )
@@ -166,8 +113,9 @@ DRONE_INSTANCE = None  # MAVSDK drone instance
 FOLLOWER_TASKS = {}  # Dictionary to hold tasks for follower mode (leader update, state update, control loop)
 
 leader_unreachable_count = 0  # Initialize the counter for failed leader fetch attempts
-max_unreachable_attempts = Params.MAX_LEADER_UNREACHABLE_ATTEMPTS  # Set the max retries before leader election
+max_unreachable_attempts = Params.SMART_SWARM_MAX_LEADER_UNREACHABLE_ATTEMPTS
 LEADER_FAILOVER_IN_PROGRESS = False  # Prevent duplicate failover runs while leader health is degraded
+LAST_LEADER_SAMPLE_REJECTION_CODE = None
 
 # for leader-election cooldown
 last_election_time = 0.0
@@ -215,10 +163,12 @@ def get_drone_config_for_hw_id(hw_id):
 def reset_leader_tracking():
     """Drop leader-estimation state when the follow target changes."""
     global LEADER_STATE, LEADER_KALMAN_FILTER, leader_unreachable_count, LEADER_FAILOVER_IN_PROGRESS
+    global LAST_LEADER_SAMPLE_REJECTION_CODE
     LEADER_STATE.clear()
     LEADER_KALMAN_FILTER = LeaderKalmanFilter()
     leader_unreachable_count = 0
     LEADER_FAILOVER_IN_PROGRESS = False
+    LAST_LEADER_SAMPLE_REJECTION_CODE = None
 
 
 def bump_formation_config_version(reason: str):
@@ -340,10 +290,60 @@ def build_leader_measurement_from_sample(sample: dict):
 def apply_leader_state_sample(sample: dict, source: str) -> bool:
     """Apply one leader sample from WebSocket or HTTP fallback."""
     logger = logging.getLogger(__name__)
-    global LEADER_STATE, leader_unreachable_count
+    global LEADER_STATE, leader_unreachable_count, LAST_LEADER_SAMPLE_REJECTION_CODE
 
-    measurement_time = time.monotonic()
+    received_monotonic = time.monotonic()
     received_at_ms = int(time.time() * 1000)
+    use_local_ned = should_use_local_ned(sample)
+    validity = validate_leader_motion_sample(
+        sample,
+        expected_hw_id=LEADER_HW_ID,
+        use_local_ned=use_local_ned,
+        now_epoch_ms=received_at_ms,
+        max_source_age_sec=float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC),
+    )
+    if not validity.valid:
+        log = logger.warning if validity.code != LAST_LEADER_SAMPLE_REJECTION_CODE else logger.debug
+        log(
+            "Rejected leader motion sample via %s (%s): %s",
+            source,
+            validity.code,
+            validity.reason,
+        )
+        LAST_LEADER_SAMPLE_REJECTION_CODE = validity.code
+        return False
+
+    if LAST_LEADER_SAMPLE_REJECTION_CODE is not None:
+        logger.info("Leader motion source recovered via %s.", source)
+        LAST_LEADER_SAMPLE_REJECTION_CODE = None
+
+    source_timestamp_field = (
+        'local_position_timestamp_ms' if use_local_ned else 'global_position_timestamp_ms'
+    )
+    motion_source_timestamp_ms = int(sample[source_timestamp_field])
+    previous_motion_source_timestamp_ms = int(
+        LEADER_STATE.get('motion_source_timestamp_ms', 0) or 0
+    )
+    if (
+        previous_motion_source_timestamp_ms
+        and motion_source_timestamp_ms <= previous_motion_source_timestamp_ms
+    ):
+        logger.debug(
+            "Ignoring duplicate/out-of-order leader motion sample via %s (%s=%s <= %s).",
+            source,
+            source_timestamp_field,
+            motion_source_timestamp_ms,
+            previous_motion_source_timestamp_ms,
+        )
+        return False
+
+    source_update_monotonic = received_monotonic - float(validity.age_sec or 0.0)
+    # The existing estimator advances its state clock on every control-loop
+    # prediction, so delayed/out-of-sequence updates cannot be replayed at the
+    # producer timestamp. Keep estimator time monotonic at local receipt while
+    # using the independent source clock below for motion freshness/failover.
+    measurement_time = received_monotonic
+
     stream_seq = int(sample.get('stream_seq', 0) or 0)
     telemetry_timestamp_ms = int(sample.get('telemetry_timestamp_ms', 0) or 0)
 
@@ -368,6 +368,16 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
             stream_seq,
         )
 
+    source_time_boot_ms = int(sample.get('source_time_boot_ms', 0) or 0)
+    previous_boot_ms = int(LEADER_STATE.get('source_time_boot_ms', 0) or 0)
+    if source_time_boot_ms and previous_boot_ms and source_time_boot_ms < previous_boot_ms:
+        logger.warning(
+            "Leader PX4 boot clock rolled back from %sms to %sms; resetting estimator state.",
+            previous_boot_ms,
+            source_time_boot_ms,
+        )
+        reset_leader_tracking()
+
     measurement = build_leader_measurement_from_sample(sample)
     yaw_deg = float(sample.get('yaw_deg', sample.get('yaw', 0.0)))
     yaw_rate_deg_s = estimate_yaw_rate_deg_s(sample, measurement_time)
@@ -377,13 +387,16 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         **measurement,
         'yaw': yaw_deg,
         'yaw_rate_deg_s': yaw_rate_deg_s,
-        'update_time': measurement_time,
+        'update_time': source_update_monotonic,
+        'received_monotonic': received_monotonic,
         'stream_seq': stream_seq,
         'telemetry_timestamp_ms': telemetry_timestamp_ms,
         'received_at_ms': received_at_ms,
         'emitted_at_ms': int(sample.get('emitted_at_ms', received_at_ms) or received_at_ms),
         'sample_age_ms': sample_age_ms,
-        'source_time_boot_ms': int(sample.get('source_time_boot_ms', 0) or 0),
+        'source_time_boot_ms': source_time_boot_ms,
+        'motion_source_timestamp_ms': motion_source_timestamp_ms,
+        'source_age_sec': validity.age_sec,
         'transport': source,
     })
 
@@ -440,7 +453,11 @@ async def cancel_follower_tasks(logger):
     if not FOLLOWER_TASKS:
         return
 
+    current_task = asyncio.current_task()
     for task_name, task in list(FOLLOWER_TASKS.items()):
+        if task is current_task:
+            logger.debug("Follower task %s is completing its own transition.", task_name)
+            continue
         if not task.done():
             task.cancel()
         try:
@@ -485,6 +502,8 @@ async def ensure_follower_runtime(drone: System, logger, reason: str) -> bool:
         FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
     if _follower_task_missing('own_state_task'):
         FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
+    if _follower_task_missing('own_attitude_task'):
+        FOLLOWER_TASKS['own_attitude_task'] = asyncio.create_task(update_own_attitude(drone))
     if _follower_task_missing('control_task'):
         FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
     return True
@@ -546,46 +565,6 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
     publish_runtime_assignment(force_follow=new_leader_hw_id)
     logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
     return await ensure_follower_runtime(drone, logger, reason)
-
-# Legacy configure_logging function - now using shared one from drone_show_src.utils
-# def configure_logging():
-#     """
-#     Configures logging for the script, ensuring logs are written to a per-session file
-#     and displayed on the console. It also limits the number of log files.
-#     """
-#     # Create logs directory if it doesn't exist
-#     logs_directory = os.path.join("..", "logs", "smart_swarm_logs")
-#     os.makedirs(logs_directory, exist_ok=True)
-#
-#     # Configure the root logger
-#     root_logger = logging.getLogger()
-#     root_logger.setLevel(logging.DEBUG)
-#
-#     # Create formatter
-#     formatter = logging.Formatter(
-#         fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-#         datefmt="%Y-%m-%d %H:%M:%S"
-#     )
-#
-#     # Create console handler
-#     console_handler = logging.StreamHandler(sys.stdout)
-#     console_handler.setLevel(logging.DEBUG)  # Adjust as needed
-#     console_handler.setFormatter(formatter)
-#
-#     # Create file handler with per-session log file
-#     session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     log_filename = f"smart_swarm_{session_time}.log"
-#     log_file = os.path.join(logs_directory, log_filename)
-#     file_handler = logging.FileHandler(log_file)
-#     file_handler.setLevel(logging.DEBUG)
-#     file_handler.setFormatter(formatter)
-#
-#     # Add handlers to the root logger
-#     root_logger.addHandler(console_handler)
-#     root_logger.addHandler(file_handler)
-#
-#     # Limit the number of log files TODO!
-#     #limit_log_files(logs_directory, MAX_LOG_FILES)
 
 def read_config(filename: str):
     """
@@ -722,10 +701,16 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
 
     try:
         if active_session is None:
-            timeout = aiohttp.ClientTimeout(total=2)
-            active_session = aiohttp.ClientSession(timeout=timeout)
+            active_session = aiohttp.ClientSession()
 
-        async with active_session.get(state_url) as resp:
+        timeout = aiohttp.ClientTimeout(
+            total=float(Params.SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC)
+        )
+        async with active_session.get(
+            state_url,
+            headers=gcs_auth_headers(),
+            timeout=timeout,
+        ) as resp:
             resp.raise_for_status()
             api_data = await resp.json()
 
@@ -843,7 +828,6 @@ def check_mavsdk_server_running(port):
     Returns:
         tuple: (is_running (bool), pid (int or None))
     """
-    logger = logging.getLogger(__name__)
     for proc in psutil.process_iter(['pid', 'name']):
         try:
             for conn in proc.net_connections(kind='inet'):
@@ -959,7 +943,7 @@ async def update_swarm_config_periodically(drone):
                     session=session,
                 )
                 if not refreshed:
-                    await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)
+                    await asyncio.sleep(Params.SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC)
                     continue
 
                 # Grab this drone's new config
@@ -1030,7 +1014,7 @@ async def update_swarm_config_periodically(drone):
                 logger.exception(f"[Periodic Update] Error fetching/updating swarm config: {e}")
 
             # Wait before next poll
-            await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)
+            await asyncio.sleep(Params.SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC)
 
 
 
@@ -1053,9 +1037,11 @@ async def update_leader_state():
 
     async def consume_http_fallback(window_sec: float, target_version: int, target_hw_id: str | None, target_ip: str) -> None:
         global leader_unreachable_count
-        poll_interval = 1.0 / max(1.0, float(Params.LEADER_UPDATE_FREQUENCY))
+        poll_interval = 1.0 / max(1.0, float(Params.SMART_SWARM_HTTP_FALLBACK_RATE_HZ))
         end_time = time.monotonic() + max(window_sec, poll_interval)
-        timeout = aiohttp.ClientTimeout(total=1)
+        timeout = aiohttp.ClientTimeout(
+            total=float(Params.SMART_SWARM_LEADER_STATE_TIMEOUT_SEC)
+        )
         async with aiohttp.ClientSession(timeout=timeout) as session:
             while time.monotonic() < end_time:
                 if leader_stream_target_changed(target_version, target_hw_id, target_ip):
@@ -1093,10 +1079,9 @@ async def update_leader_state():
                     )
                 if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
                     logger.warning(
-                        "Leader fallback path degraded for %s attempts. Starting failover.",
+                        "Leader fallback path degraded for %s attempts; the control loop will hold zero and own failover timing.",
                         leader_unreachable_count,
                     )
-                    await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader fallback failures")
                 await asyncio.sleep(poll_interval)
 
     use_stream = bool(getattr(Params, "SMART_SWARM_USE_REALTIME_STREAM", True))
@@ -1153,10 +1138,9 @@ async def update_leader_state():
             await consume_http_fallback(backoff, target_version, target_hw_id, target_ip)
         elif leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
             logger.warning(
-                "Leader stream unavailable for %s attempts with no HTTP fallback. Starting failover.",
+                "Leader stream unavailable for %s attempts with no HTTP fallback; the control loop will own failover timing.",
                 leader_unreachable_count,
             )
-            await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader stream unavailable")
 
         await asyncio.sleep(backoff)
         backoff = min(max_backoff, max(backoff * 2.0, float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))))
@@ -1174,10 +1158,10 @@ async def elect_new_leader():
 
     now = time.time()
     # Cooldown guard
-    if now - last_election_time < Params.LEADER_ELECTION_COOLDOWN:
+    if now - last_election_time < Params.SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC:
         logging.getLogger(__name__).debug(
             f"Election skipped; only {now-last_election_time:.1f}s since last "
-            f"(<{Params.LEADER_ELECTION_COOLDOWN}s cooldown)."
+            f"(<{Params.SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC}s cooldown)."
         )
         return
     last_election_time = now
@@ -1259,7 +1243,14 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.patch(notify_url, json=payload) as resp:
+            async with session.patch(
+                notify_url,
+                json=payload,
+                headers=gcs_auth_headers(),
+                timeout=aiohttp.ClientTimeout(
+                    total=float(Params.SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC)
+                ),
+            ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
                 if data.get('status') == 'success':
@@ -1281,32 +1272,143 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
 
 async def update_own_state(drone: System):
     """
-    Periodically updates the own drone's state.
+    Keep the follower's own NED motion stream alive and timestamped.
     """
     logger = logging.getLogger(__name__)
     global OWN_STATE
-    try:
+    last_failure = None
+    backoff_sec = 0.25
+    while True:
         try:
-            await drone.telemetry.set_rate_position_velocity_ned(float(Params.CONTROL_LOOP_FREQUENCY))
+            await drone.telemetry.set_rate_position_velocity_ned(float(Params.SMART_SWARM_CONTROL_RATE_HZ))
         except Exception as exc:
             logger.debug("Could not raise own-state telemetry rate for Smart Swarm: %s", exc)
 
-        async for position_velocity in drone.telemetry.position_velocity_ned():
-            position = position_velocity.position
-            velocity = position_velocity.velocity
-            OWN_STATE['pos_n'] = position.north_m
-            OWN_STATE['pos_e'] = position.east_m
-            OWN_STATE['pos_d'] = position.down_m
-            OWN_STATE['vel_n'] = velocity.north_m_s
-            OWN_STATE['vel_e'] = velocity.east_m_s
-            OWN_STATE['vel_d'] = velocity.down_m_s
-            OWN_STATE['timestamp'] = time.time()
-    except Exception:
-        logger.exception("Error in updating own state")
+        try:
+            async for position_velocity in drone.telemetry.position_velocity_ned():
+                if last_failure is not None:
+                    logger.info("Own NED telemetry stream recovered.")
+                    last_failure = None
+                backoff_sec = 0.25
+                position = position_velocity.position
+                velocity = position_velocity.velocity
+                OWN_STATE['pos_n'] = position.north_m
+                OWN_STATE['pos_e'] = position.east_m
+                OWN_STATE['pos_d'] = position.down_m
+                OWN_STATE['vel_n'] = velocity.north_m_s
+                OWN_STATE['vel_e'] = velocity.east_m_s
+                OWN_STATE['vel_d'] = velocity.down_m_s
+                OWN_STATE['timestamp'] = time.time()
+                OWN_STATE['updated_monotonic'] = time.monotonic()
+            raise RuntimeError("own NED telemetry stream ended")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+            log = logger.warning if failure != last_failure else logger.debug
+            log("Own NED telemetry stream unavailable; retrying: %s", failure)
+            last_failure = failure
+            await asyncio.sleep(backoff_sec)
+            backoff_sec = min(2.0, backoff_sec * 2.0)
+
+
+async def update_own_attitude(drone: System):
+    """Keep a fresh yaw seed so Smart Swarm never steps to leader yaw."""
+    logger = logging.getLogger(__name__)
+    last_failure = None
+    backoff_sec = 0.25
+    while True:
+        try:
+            await drone.telemetry.set_rate_attitude_euler(
+                float(Params.SMART_SWARM_CONTROL_RATE_HZ)
+            )
+        except Exception as exc:
+            logger.debug("Could not raise own-yaw telemetry rate for Smart Swarm: %s", exc)
+
+        try:
+            async for attitude in drone.telemetry.attitude_euler():
+                if last_failure is not None:
+                    logger.info("Own yaw telemetry stream recovered.")
+                    last_failure = None
+                backoff_sec = 0.25
+                yaw_deg = float(attitude.yaw_deg)
+                if not np.isfinite(yaw_deg):
+                    logger.warning("Ignoring non-finite own yaw from PX4 telemetry.")
+                    continue
+                OWN_STATE['yaw_deg'] = yaw_deg
+                OWN_STATE['yaw_updated_monotonic'] = time.monotonic()
+            raise RuntimeError("own yaw telemetry stream ended")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+            log = logger.warning if failure != last_failure else logger.debug
+            log("Own yaw telemetry stream unavailable; retrying: %s", failure)
+            last_failure = failure
+            await asyncio.sleep(backoff_sec)
+            backoff_sec = min(2.0, backoff_sec * 2.0)
 
 # ----------------------------- #
 #          Control Loop         #
 # ----------------------------- #
+
+
+def _build_follower_motion_controller(seed_yaw_deg: float) -> FollowerMotionController:
+    """Build one controller from the centralized Smart Swarm policy."""
+    max_dt = float(Params.SMART_SWARM_MAX_COMMAND_DT_SEC)
+    return FollowerMotionController(
+        position_gain=float(Params.SMART_SWARM_POSITION_GAIN),
+        velocity_gain=float(Params.SMART_SWARM_KV),
+        leader_velocity_feedforward=float(Params.SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD),
+        max_yaw_rate_deg_s=float(Params.SMART_SWARM_MAX_YAW_RATE_DEG_S),
+        max_dt_s=max_dt,
+        seed_yaw_deg=seed_yaw_deg,
+        formation_guard=FormationGuard(
+            capture_horizontal_m=float(Params.SMART_SWARM_CAPTURE_HORIZONTAL_M),
+            capture_vertical_m=float(Params.SMART_SWARM_CAPTURE_VERTICAL_M),
+            capture_stable_sec=float(Params.SMART_SWARM_CAPTURE_STABLE_SEC),
+            tracking_horizontal_m=float(Params.SMART_SWARM_TRACKING_HORIZONTAL_M),
+            tracking_vertical_m=float(Params.SMART_SWARM_TRACKING_VERTICAL_M),
+            target_step_horizontal_m=float(Params.SMART_SWARM_TARGET_STEP_HORIZONTAL_M),
+            target_step_vertical_m=float(Params.SMART_SWARM_TARGET_STEP_VERTICAL_M),
+        ),
+        velocity_shaper=NedVelocityCommandShaper(
+            max_horizontal_speed_m_s=float(Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S),
+            max_vertical_speed_m_s=float(Params.SMART_SWARM_MAX_VERTICAL_SPEED_M_S),
+            max_acceleration_m_s2=float(Params.SMART_SWARM_MAX_ACCELERATION_M_S2),
+            max_jerk_m_s3=float(Params.SMART_SWARM_MAX_JERK_M_S3),
+            max_dt_s=max_dt,
+        ),
+    )
+
+
+def _leader_motion_confidence(leader_age_sec: float) -> float:
+    """Ramp the complete follower request to zero as leader motion ages."""
+    fresh_sec = float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC)
+    grace_sec = max(float(Params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC), 1e-3)
+    if leader_age_sec <= fresh_sec:
+        return 1.0
+    return max(0.0, 1.0 - ((leader_age_sec - fresh_sec) / grace_sec))
+
+
+def _fresh_own_yaw(snapshot: dict, current_time: float) -> float | None:
+    """Return a finite, fresh yaw seed from the follower's own PX4 stream."""
+    try:
+        yaw = float(snapshot.get('yaw_deg'))
+        updated = float(snapshot.get('yaw_updated_monotonic'))
+    except (TypeError, ValueError):
+        return None
+    age = current_time - updated
+    if (
+        not np.isfinite(yaw)
+        or not np.isfinite(updated)
+        or updated <= 0
+        or age < 0
+        or age > float(Params.SMART_SWARM_OWN_STATE_MAX_AGE_SEC)
+    ):
+        return None
+    return yaw
+
 
 async def control_loop(drone: System):
     """
@@ -1317,86 +1419,137 @@ async def control_loop(drone: System):
     """
     logger = logging.getLogger(__name__)
     global LEADER_KALMAN_FILTER
-    loop_interval = 1 / Params.CONTROL_LOOP_FREQUENCY
+    loop_interval = 1 / float(Params.SMART_SWARM_CONTROL_RATE_HZ)
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
 
-    stale_start_time = None
-    stale_duration_threshold = Params.MAX_STALE_DURATION  # seconds
-    predict_grace_threshold = float(getattr(Params, "SMART_SWARM_STREAM_PREDICT_GRACE_SEC", 1.0))
-    reconfig_transition_sec = float(getattr(Params, "SMART_SWARM_RECONFIG_TRANSITION_SEC", 1.0))
-
-    # Initialize PD controller and low-pass filter
-    kp = Params.PD_KP  # Proportional gain
-    kd = getattr(Params, "SMART_SWARM_KV", Params.PD_KD)  # Relative velocity gain
-    max_velocity = Params.MAX_VELOCITY  # Maximum allowed velocity (m/s)
-    alpha = Params.LOW_PASS_FILTER_ALPHA  # Smoothing factor for low-pass filter
-
-    pd_controller = PDController(
-        kp,
-        kd,
-        max_velocity,
-        max_acceleration=float(getattr(Params, "SMART_SWARM_MAX_ACCELERATION", 2.0)),
-        max_jerk=float(getattr(Params, "SMART_SWARM_MAX_JERK", 4.0)),
-    )
-    velocity_filter = LowPassFilter(alpha)
-
     previous_time = None
     state_gate_status = None
+    motion_status = None
     applied_config_version = FORMATION_CONFIG_VERSION
-    transition_started_at = None
+    controller = None
+    own_invalid_since = None
+    leader_missing_since = None
+    offboard_active = True
+
+    async def send_decision(decision):
+        await drone.offboard.set_velocity_ned(VelocityNedYaw(
+            float(decision.velocity_ned[0]),
+            float(decision.velocity_ned[1]),
+            float(decision.velocity_ned[2]),
+            float(decision.yaw_deg),
+        ))
 
     try:
         while True:
             current_time = time.monotonic()
-            dt = current_time - previous_time if previous_time else loop_interval
+            dt = max(1e-3, current_time - previous_time) if previous_time else loop_interval
             previous_time = current_time
 
-            own_state_ready = 'timestamp' in OWN_STATE
+            own_snapshot = dict(OWN_STATE)
+            own_validity = validate_own_motion_state(
+                own_snapshot,
+                updated_monotonic=own_snapshot.get('updated_monotonic'),
+                now_monotonic=current_time,
+                max_age_sec=float(Params.SMART_SWARM_OWN_STATE_MAX_AGE_SEC),
+            )
+            own_yaw = _fresh_own_yaw(own_snapshot, current_time)
+            own_state_ready = own_validity.valid and own_yaw is not None
             leader_state_ready = 'update_time' in LEADER_STATE
 
             if not own_state_ready:
                 if state_gate_status != 'own':
-                    logger.info("Follower waiting for own-state lock before sending setpoints.")
+                    logger.warning(
+                        "Follower motion suspended while own-state evidence is unavailable: %s",
+                        own_validity.reason if not own_validity.valid else "own yaw is unavailable or stale",
+                    )
                     state_gate_status = 'own'
+                if own_invalid_since is None:
+                    own_invalid_since = current_time
+                if controller is not None and offboard_active:
+                    decision = controller.suspend(dt_s=dt, reason="own motion state unavailable")
+                    await send_decision(decision)
+                if (
+                    offboard_active
+                    and own_invalid_since is not None
+                    and current_time - own_invalid_since > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
+                ):
+                    await execute_failsafe(drone, reason="own motion state remained stale")
+                    offboard_active = False
                 await asyncio.sleep(loop_interval)
                 continue
+
+            own_invalid_since = None
+            if controller is None:
+                controller = _build_follower_motion_controller(own_yaw)
 
             if not leader_state_ready:
                 if state_gate_status != 'leader':
-                    logger.info("Follower waiting for leader-state lock before sending setpoints.")
+                    logger.info("Follower holding zero while waiting for a valid leader-state lock.")
                     state_gate_status = 'leader'
+                if offboard_active:
+                    await send_decision(
+                        controller.suspend(dt_s=dt, reason="leader motion state unavailable")
+                    )
+                if leader_missing_since is None:
+                    leader_missing_since = current_time
+                elif (
+                    current_time - leader_missing_since
+                    > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
+                ):
+                    logger.warning(
+                        "No valid leader motion lock for %.3fs; leaving Offboard and starting failover.",
+                        current_time - leader_missing_since,
+                    )
+                    await handle_leader_unavailability(
+                        drone,
+                        logger,
+                        "initial leader motion unavailable",
+                    )
+                    if IS_LEADER:
+                        return
+                    leader_missing_since = current_time
+                    offboard_active = False
                 await asyncio.sleep(loop_interval)
                 continue
-
-            if state_gate_status is not None:
-                logger.info("Follower state lock acquired; resuming formation control.")
-                state_gate_status = None
 
             leader_age = current_time - float(LEADER_STATE['update_time'])
-            if leader_age > stale_duration_threshold:
-                if stale_start_time is None or (current_time - stale_start_time) >= loop_interval:
-                    logger.warning(
-                        "Leader data stale for %.3fs (threshold %.3fs). Starting failover.",
-                        leader_age,
-                        stale_duration_threshold,
-                    )
-                    await handle_leader_unavailability(drone, logger, "control-loop stale leader data")
-                    stale_start_time = current_time
+            if leader_age > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC):
+                logger.warning(
+                    "Leader motion stale for %.3fs; leaving Offboard and starting failover.",
+                    leader_age,
+                )
+                await handle_leader_unavailability(drone, logger, "control-loop stale leader motion")
+                if IS_LEADER:
+                    return
+                offboard_active = False
                 await asyncio.sleep(loop_interval)
                 continue
+
+            leader_missing_since = None
+            if not offboard_active:
+                if not await ensure_offboard_active_for_follower(
+                    drone,
+                    logger,
+                    "fresh motion evidence recovered",
+                ):
+                    await asyncio.sleep(loop_interval)
+                    continue
+                offboard_active = True
+                controller.reset_after_offboard_hold(seed_yaw_deg=own_yaw)
+
+            if state_gate_status is not None:
+                logger.info("Follower state lock acquired; beginning bounded formation capture.")
+                state_gate_status = None
 
             if applied_config_version != FORMATION_CONFIG_VERSION:
                 applied_config_version = FORMATION_CONFIG_VERSION
-                transition_started_at = current_time
-                pd_controller.reset()
-                velocity_filter.reset()
+                controller.require_new_capture()
                 logger.info(
-                    "Follower controller reset for formation reconfiguration (version=%s).",
+                    "Follower motion suspended for bounded formation reconfiguration (version=%s).",
                     applied_config_version,
                 )
 
-            stale_start_time = None
             predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
             leader_n = predicted_state[0]
             leader_e = predicted_state[1]
@@ -1428,57 +1581,43 @@ async def control_loop(drone: System):
             ])
 
             own_position = np.array([
-                OWN_STATE.get('pos_n', 0.0),
-                OWN_STATE.get('pos_e', 0.0),
-                OWN_STATE.get('pos_d', 0.0),
+                own_snapshot['pos_n'],
+                own_snapshot['pos_e'],
+                own_snapshot['pos_d'],
             ])
             own_velocity = np.array([
-                OWN_STATE.get('vel_n', 0.0),
-                OWN_STATE.get('vel_e', 0.0),
-                OWN_STATE.get('vel_d', 0.0),
+                own_snapshot['vel_n'],
+                own_snapshot['vel_e'],
+                own_snapshot['vel_d'],
             ])
             desired_position = np.array([desired_n, desired_e, desired_d])
-            position_error = desired_position - own_position
-            velocity_error = target_velocity - own_velocity
 
-            transition_scale = 1.0
-            if transition_started_at is not None and reconfig_transition_sec > 0:
-                transition_scale = min(1.0, (current_time - transition_started_at) / reconfig_transition_sec)
-                if transition_scale >= 1.0:
-                    transition_started_at = None
-
-            if leader_age > Params.DATA_FRESHNESS_THRESHOLD:
-                stale_blend = max(
-                    0.2,
-                    1.0 - ((leader_age - Params.DATA_FRESHNESS_THRESHOLD) / max(predict_grace_threshold, 1e-3))
-                )
-            else:
-                stale_blend = 1.0
-
-            gain_scale = min(transition_scale, stale_blend)
-            velocity_command = pd_controller.compute(
-                position_error,
-                dt,
-                velocity_error=velocity_error,
-                feedforward_velocity=target_velocity,
-                gain_scale=gain_scale,
+            decision = controller.compute(
+                desired_position_ned=desired_position,
+                own_position_ned=own_position,
+                leader_velocity_ned=target_velocity,
+                own_velocity_ned=own_velocity,
+                target_yaw_deg=leader_yaw,
+                confidence=_leader_motion_confidence(leader_age),
+                dt_s=dt,
+                now_s=current_time,
             )
-            filtered_velocity = velocity_filter.filter(velocity_command)
-
-            await drone.offboard.set_velocity_ned(VelocityNedYaw(
-                filtered_velocity[0],
-                filtered_velocity[1],
-                filtered_velocity[2],
-                leader_yaw
-            ))
+            await send_decision(decision)
+            if decision.status != motion_status:
+                log = (
+                    logger.warning
+                    if decision.status in {'waiting_geometry', 'target_jump', 'tracking_diverged'}
+                    else logger.info
+                )
+                log("Follower motion state: %s — %s", decision.status, decision.detail)
+                motion_status = decision.status
             logger.debug(
-                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs gain_scale=%.2f target=%s error=%s",
-                filtered_velocity,
-                leader_yaw,
+                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs confidence=%.2f requested=%s",
+                decision.velocity_ned,
+                decision.yaw_deg,
                 leader_age,
-                gain_scale,
-                target_velocity,
-                position_error,
+                decision.confidence,
+                decision.requested_velocity_ned,
             )
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:
@@ -1486,6 +1625,9 @@ async def control_loop(drone: System):
     except OffboardError as e:
         logger.error(f"Offboard error in control loop: {e}")
         await execute_failsafe(drone, reason="offboard error in control loop")
+    except (ValueError, VelocityCommandShapeError) as exc:
+        logger.error("Smart Swarm motion policy rejected a command: %s", exc)
+        await execute_failsafe(drone, reason="motion policy rejection")
     except Exception:
         logger.exception("Unexpected error in control loop")
         await execute_failsafe(drone, reason="unexpected control-loop error")
@@ -1496,7 +1638,7 @@ async def control_loop(drone: System):
 
 async def execute_failsafe(drone: System, reason: str = ""):
     """
-    Executes a failsafe procedure, such as holding position or landing.
+    Leave Offboard and command PX4 HOLD without a discontinuous zero setpoint.
 
     Args:
         drone (System): MAVSDK drone system instance.
@@ -1505,23 +1647,46 @@ async def execute_failsafe(drone: System, reason: str = ""):
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
     try:
-        # Hold position
-        await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
-        logger.info("Failsafe: Holding position%s.", f" ({reason})" if reason else "")
-    except OffboardError as e:
-        logger.error(f"Failsafe offboard error: {e}")
-        # Attempt to re-start offboard mode
-        try:
-            await drone.offboard.stop()
-            await drone.offboard.start()
-        except Exception:
-            logger.exception("Failed to restart offboard mode during failsafe.")
+        await drone.offboard.stop()
+        logger.info("Failsafe: Offboard stopped%s.", f" ({reason})" if reason else "")
+    except OffboardError as exc:
+        logger.warning("Failsafe could not stop Offboard cleanly: %s", exc)
     except Exception:
-        logger.exception("Unexpected error during failsafe procedure.")
+        logger.exception("Unexpected error while stopping Offboard during failsafe.")
+
+    try:
+        await drone.action.hold()
+        logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
+    except ActionError as exc:
+        logger.error("Failsafe HOLD command failed: %s", exc)
+    except Exception:
+        logger.exception("Unexpected error while commanding HOLD during failsafe.")
 
 # ----------------------------- #
 #       Drone Initialization    #
 # ----------------------------- #
+
+async def require_authoritative_airborne_state(drone: System):
+    """Repeat Smart Swarm's airborne gate from fresh MAVSDK streams."""
+    try:
+        admission_state = await observe_authoritative_vehicle_state(drone)
+    except Exception as exc:
+        raise RuntimeError(
+            "Smart Swarm was blocked because fresh armed, landed, and relative-altitude "
+            "telemetry could not be sampled immediately before runtime start."
+        ) from exc
+    if admission_state.airborne:
+        return admission_state
+
+    evidence = admission_state.as_dict()
+    raise RuntimeError(
+        "Smart Swarm requires fresh authoritative telemetry showing an armed IN_AIR "
+        f"vehicle at least {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f}m above home; "
+        f"observed armed={evidence.get('armed')}, "
+        f"landed_state={evidence.get('landed_state')}, "
+        f"relative_altitude_m={evidence.get('relative_altitude_m')}."
+    )
+
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def initialize_drone(start_offboard: bool = False):
@@ -1580,6 +1745,8 @@ async def initialize_drone(start_offboard: bool = False):
                 led_controller.set_color(255, 0, 0)  # Red
                 raise TimeoutError("Pre-flight checks timed out.")
             await asyncio.sleep(1)
+
+        await require_authoritative_airborne_state(drone)
 
         if start_offboard:
             logger.info("Starting offboard mode during initialization.")

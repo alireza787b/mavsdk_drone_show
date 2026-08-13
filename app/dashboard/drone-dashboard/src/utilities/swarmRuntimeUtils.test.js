@@ -20,6 +20,17 @@ describe('swarmRuntimeUtils', () => {
     { hw_id: 3, follow: 2, offset_x: 0, offset_y: 1, offset_z: 0, frame: 'body' },
   ];
   const nowMs = 1_774_290_000_000;
+  const airborneTelemetry = (id) => ({
+    hw_id: id,
+    timestamp: nowMs,
+    heartbeat_last_seen: nowMs,
+    is_armed: true,
+    altitude_report: {
+      source: 'relative_home',
+      relative_home_m: 5,
+      stale: false,
+    },
+  });
 
   test('resolveSwarmRuntimeTargets defaults to selected drone scope', () => {
     const viewModel = buildSwarmViewModel(assignments, config);
@@ -103,6 +114,8 @@ describe('swarmRuntimeUtils', () => {
       selectedCluster: cluster,
       targetIds,
       targetDrones,
+      telemetryById: Object.fromEntries(targetIds.map((id) => [id, airborneTelemetry(id)])),
+      nowMs,
       dirtyIds: ['99'],
       pendingSyncIds: [],
     })).toBe('');
@@ -113,8 +126,38 @@ describe('swarmRuntimeUtils', () => {
       selectedCluster: cluster,
       targetIds,
       targetDrones,
+      telemetryById: Object.fromEntries(targetIds.map((id) => [id, airborneTelemetry(id)])),
+      nowMs,
       dirtyIds: ['2'],
       pendingSyncIds: [],
+    })).toContain('Drone 2');
+  });
+
+  test('getSwarmRuntimeStartBlockerReason requires fresh airborne telemetry for every target', () => {
+    const viewModel = buildSwarmViewModel(assignments, config);
+    const { selectedDrone, cluster, targetIds } = resolveSwarmRuntimeTargets(
+      viewModel,
+      SWARM_RUNTIME_SCOPE.CLUSTER,
+      '3'
+    );
+    const targetDrones = targetIds.map((targetId) => viewModel.dronesById[targetId]);
+    const telemetryById = Object.fromEntries(
+      targetIds.map((id) => [id, airborneTelemetry(id)])
+    );
+    telemetryById['2'] = {
+      ...telemetryById['2'],
+      is_armed: false,
+      altitude_report: { source: 'relative_home', relative_home_m: 0, stale: false },
+    };
+
+    expect(getSwarmRuntimeStartBlockerReason({
+      scope: SWARM_RUNTIME_SCOPE.CLUSTER,
+      selectedDrone,
+      selectedCluster: cluster,
+      targetIds,
+      targetDrones,
+      telemetryById,
+      nowMs,
     })).toContain('Drone 2');
   });
 

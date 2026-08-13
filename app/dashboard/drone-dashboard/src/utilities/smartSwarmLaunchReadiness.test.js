@@ -9,21 +9,21 @@ describe('buildSmartSwarmLaunchReadiness', () => {
         update_time: now,
         heartbeat_last_seen: now,
         is_armed: false,
-        position_alt: 0.05,
+        altitude_report: { source: 'relative_home', relative_home_m: 0.05, stale: false },
       },
       {
         hw_id: '2',
         update_time: now,
         heartbeat_last_seen: now,
         is_armed: true,
-        position_alt: 2.5,
+        altitude_report: { source: 'relative_home', relative_home_m: 2.5, stale: false },
       },
       {
         hw_id: '3',
         update_time: now,
         heartbeat_last_seen: now,
         is_armed: true,
-        position_alt: 0.1,
+        altitude_report: { source: 'relative_home', relative_home_m: 0.1, stale: false },
       },
     ];
 
@@ -40,7 +40,7 @@ describe('buildSmartSwarmLaunchReadiness', () => {
     expect(readiness.minAirborneAltitudeM).toBe(SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M);
   });
 
-  test('ignores offline targets instead of misclassifying them as grounded', () => {
+  test('reports offline targets separately from grounded targets', () => {
     const now = Date.now();
     const drones = [
       {
@@ -48,14 +48,14 @@ describe('buildSmartSwarmLaunchReadiness', () => {
         update_time: now - 60_000,
         heartbeat_last_seen: now - 60_000,
         is_armed: false,
-        position_alt: 0,
+        altitude_report: { source: 'relative_home', relative_home_m: 0, stale: false },
       },
       {
         hw_id: '2',
         update_time: now,
         heartbeat_last_seen: now,
         is_armed: false,
-        position_alt: 0.05,
+        altitude_report: { source: 'relative_home', relative_home_m: 0.05, stale: false },
       },
     ];
 
@@ -67,5 +67,79 @@ describe('buildSmartSwarmLaunchReadiness', () => {
 
     expect(readiness.targetCount).toBe(2);
     expect(readiness.groundedIds).toEqual(['2']);
+    expect(readiness.unavailableIds).toEqual(['1']);
+  });
+
+  test('never treats absolute MSL altitude as airborne height', () => {
+    const now = Date.now();
+    const readiness = buildSmartSwarmLaunchReadiness({
+      drones: [{
+        hw_id: '1',
+        update_time: now,
+        heartbeat_last_seen: now,
+        is_armed: true,
+        position_alt: 1278,
+        altitude_report: {
+          source: 'absolute_msl',
+          display_m: 1278,
+          relative_home_m: null,
+          stale: false,
+        },
+      }],
+      referenceNowMs: now,
+    });
+
+    expect(readiness.airborneCount).toBe(0);
+    expect(readiness.groundedIds).toEqual(['1']);
+  });
+
+  test('accepts only a fresh home-relative altitude report', () => {
+    const now = Date.now();
+    const readiness = buildSmartSwarmLaunchReadiness({
+      drones: [{
+        hw_id: '1',
+        update_time: now,
+        heartbeat_last_seen: now,
+        is_armed: true,
+        altitude_report: {
+          source: 'relative_home',
+          display_m: 4,
+          relative_home_m: 4,
+          stale: false,
+        },
+      }],
+      referenceNowMs: now,
+    });
+
+    expect(readiness.airborneCount).toBe(1);
+    expect(readiness.groundedIds).toEqual([]);
+  });
+
+  test('matches the node airborne threshold at the 0.5 m boundary', () => {
+    const now = Date.now();
+    const base = {
+      update_time: now,
+      heartbeat_last_seen: now,
+      is_armed: true,
+    };
+    const readiness = buildSmartSwarmLaunchReadiness({
+      drones: [
+        {
+          ...base,
+          hw_id: '1',
+          altitude_report: { source: 'relative_home', relative_home_m: 0.49, stale: false },
+        },
+        {
+          ...base,
+          hw_id: '2',
+          altitude_report: { source: 'relative_home', relative_home_m: 0.5, stale: false },
+        },
+      ],
+      referenceNowMs: now,
+    });
+
+    expect(SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M).toBe(0.5);
+    expect(readiness.groundedIds).toEqual(['1']);
+    expect(readiness.airborneCount).toBe(1);
   });
 });

@@ -9,6 +9,37 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+## [5.5.118-smart-swarm-motion-safety] - 2026-08-13
+
+### Added
+- Smart Swarm follower motion now has focused, testable ownership for source
+  validity, formation capture/tracking envelopes, command shaping, and the
+  combined follower control law. Deterministic tests cover bad staging,
+  first-command continuity, stale data, reconfiguration, target jumps,
+  divergence, vertical limits, yaw-rate limits, and delayed control-loop
+  iterations.
+
+### Changed
+- Smart Swarm motion policy is centralized under explicit
+  `SMART_SWARM_*` settings. Horizontal and vertical speed, acceleration, jerk,
+  yaw rate, source age, own-state age, capture, tracking, and target-step
+  limits no longer share generic or legacy controller settings.
+- Dashboard and drone-side Smart Swarm admission now require current target
+  telemetry plus authoritative armed/airborne evidence. Dashboard airborne
+  checks use home-relative altitude rather than treating MSL altitude as height
+  above launch.
+
+### Fixed
+- A follower can no longer emit the old saturated first velocity command when
+  Smart Swarm starts or an assignment changes. Commands begin from the zero
+  Offboard seed and remain jerk-, acceleration-, horizontal-speed-,
+  vertical-speed-, and yaw-rate-limited through startup, suspension, and
+  reacquisition.
+- Smart Swarm now rejects wrong-leader, invalid, non-finite, stale, or frozen
+  motion samples before they enter control. Stale confidence scales the whole
+  motion request, including leader-velocity feedforward, and unsafe formation
+  geometry holds zero velocity until a stable recapture.
+
 ## [5.5.117-field-mode-altitude-gnss-readiness] - 2026-08-08
 
 ### Fixed

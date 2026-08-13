@@ -863,6 +863,7 @@ class TestDroneState:
         data = response.json()
         assert data["hw_id"] == 1
         assert data["source_frame"] == "local_ned"
+        assert data["local_position_timestamp_ms"] == 1732270245000
         assert data["telemetry_timestamp_ms"] == 1732270245000
         assert data["stream_seq"] == 7
 

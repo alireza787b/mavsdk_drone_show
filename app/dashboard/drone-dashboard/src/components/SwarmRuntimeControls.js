@@ -121,6 +121,7 @@ const SwarmRuntimeControls = ({
     selectedCluster,
     targetIds,
     targetDrones,
+    telemetryById,
     dirtyIds,
     pendingSyncIds,
   });
