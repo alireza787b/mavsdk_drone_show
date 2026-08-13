@@ -216,7 +216,18 @@ class FieldRehearsalClient(ValidationApiClient):
     def get_swarm(self) -> list[dict[str, Any]]:
         return self.get_swarm_resource()["assignments"]
 
+    def require_sitl_runtime(self) -> dict[str, Any]:
+        """Re-check the execution target immediately before every mutation.
+
+        The initial gate prevents an accidental REAL run.  Re-checking here
+        also closes the less obvious race where an operator changes/restarts
+        the GCS while a long rehearsal is in progress.
+        """
+
+        return fetch_and_require_sitl_runtime(self.base_url, client=self)
+
     def put_swarm_resource(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.require_sitl_runtime()
         response = self.put_json(f"{GCS_CONFIG_SWARM_ROUTE}?commit=false", payload)
         require(isinstance(response, dict), f"Unexpected swarm update response: {response!r}")
         return response
@@ -229,6 +240,7 @@ class FieldRehearsalClient(ValidationApiClient):
         *,
         extra_fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self.require_sitl_runtime()
         payload = {
             "mission_type": int(mission_type),
             "target_drone_ids": [str(target_id) for target_id in target_ids],
@@ -889,6 +901,9 @@ def land_armed_targets_and_wait_idle(
 ) -> dict[str, Any]:
     """Best-effort terminal safety action used by both success and failure paths."""
 
+    # Never send a cleanup flight command to a target whose mode changed to
+    # REAL while this SITL rehearsal was running.
+    client.require_sitl_runtime()
     telemetry = client.get_telemetry()
     armed_ids = [drone_id for drone_id in ids if telemetry.get(str(drone_id), {}).get("is_armed")]
     result: dict[str, Any] = {"armed_targets": armed_ids}

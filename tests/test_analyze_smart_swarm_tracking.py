@@ -135,6 +135,9 @@ def test_field_client_puts_swarm_with_commit_false():
         def __init__(self):
             self.calls = []
 
+        def require_sitl_runtime(self):
+            return {"mode": "sitl"}
+
         def put_json(self, path, payload, *, timeout_sec=None):
             self.calls.append((path, payload))
             return {"status": "success"}
@@ -238,6 +241,11 @@ def test_safety_cleanup_lands_only_armed_targets_then_waits_idle():
     class FakeClient:
         def __init__(self):
             self.submissions = []
+            self.sitl_checks = 0
+
+        def require_sitl_runtime(self):
+            self.sitl_checks += 1
+            return {"mode": "sitl"}
 
         def get_telemetry(self):
             return {"1": {"is_armed": True}, "2": {"is_armed": False}}
@@ -272,6 +280,7 @@ def test_safety_cleanup_lands_only_armed_targets_then_waits_idle():
     )
 
     assert client.submissions[0][1] == [1]
+    assert client.sitl_checks == 1
     assert order[0][0] == "command"
     assert order[1][0] == "idle"
     assert result["grounded_verified"] is True
