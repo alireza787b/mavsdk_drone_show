@@ -9,6 +9,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Added
+- A fail-closed two-drone Smart Swarm SITL rehearsal now reproduces the field
+  topology (`H1` leader, `H2` follower at `+6 m north` in NED), stages the
+  follower inside the capture gate, proves fresh independent streams, exercises
+  takeoff, leader jog, HOLD, and LAND, restores the complete prior assignment,
+  and emits checksummed JSON/CSV/plot evidence with unconditional cleanup.
+- The 2026-08-13 pre-field acceptance checkpoint records the passed exact
+  rehearsal, bounded tracking/smoothness measurements, correlated unified-log
+  and ULog evidence, non-blocking observability debt, and the explicit boundary
+  between SITL acceptance and real-aircraft flight authority.
+
 ### Changed
 - Dashboard deployment manifests can now identify a validated Hetzner build
   instead of falsely attributing every packaged build to GitHub Actions.

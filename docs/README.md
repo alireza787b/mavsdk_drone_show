@@ -64,6 +64,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[GCS Auth Guide](guides/gcs-auth.md)** - optional dashboard login, roles, token management, bootstrap flags, and SSH recovery
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
+- **[Two-drone Smart Swarm Pre-field Acceptance](plans/2026-08-13-two-drone-sitl-pre-field-acceptance-checkpoint.md)** - exact H1/H2 `+6 m north` SITL rehearsal, tracking evidence, log audit, cleanup proof, and real-flight boundary
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
 - **[Mission Planning Workspace](features/mission-planning-workspace.md)** - shared QuickScout and Swarm Trajectory planning rules, altitude/terrain doctrine, and job/error policy
 - **[Simurgh Operator](guides/simurgh-operator.md)** - dashboard assistant, provider, MCP, policy, and validation guide
