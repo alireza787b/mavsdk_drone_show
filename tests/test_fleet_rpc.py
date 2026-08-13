@@ -672,6 +672,39 @@ async def test_dispatch_attempts_every_committed_target_and_preserves_node_error
 
 
 @pytest.mark.asyncio
+async def test_launch_commit_http_timeout_covers_live_armability_revalidation():
+    from fleet_rpc import FleetRPCService
+
+    observed_timeout = {}
+
+    async def handler(request):
+        observed_timeout.update(request.extensions["timeout"])
+        return httpx.Response(
+            200,
+            request=request,
+            json={"status": "accepted", "command_id": "cmd-1", "hw_id": "1"},
+        )
+
+    params = _params(
+        GCS_COMMAND_HTTP_TIMEOUT_SEC=1.0,
+        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC=5.0,
+        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC=6.0,
+        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC=2.0,
+    )
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = FleetRPCService(params, client=client)
+    try:
+        await service.dispatch(
+            [{"hw_id": "1", "ip": "10.0.0.1"}],
+            {"mission_type": 10, "command_id": "cmd-1"},
+        )
+    finally:
+        await client.aclose()
+
+    assert observed_timeout["read"] == 13.0
+
+
+@pytest.mark.asyncio
 async def test_dispatch_rejects_ack_from_wrong_node_identity():
     from fleet_rpc import FleetRPCService
 

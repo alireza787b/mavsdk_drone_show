@@ -662,6 +662,16 @@ class FleetRPCService:
             0.2,
             float(getattr(self.params, "GCS_COMMAND_HTTP_TIMEOUT_SEC", 5.0)),
         )
+        if launch_preparation_required:
+            # The node revalidates live PX4 armability after atomically
+            # consuming the one-use launch token.  That commit-time probe has
+            # the same connect + health-stream budget as preparation, so the
+            # transport must not abandon a valid fail-closed response at the
+            # shorter generic command timeout.
+            request_timeout = max(
+                request_timeout,
+                calculate_live_armability_request_timeout(params=self.params),
+            )
         operation_deadline = float(
             operation_deadline_sec
             or getattr(
