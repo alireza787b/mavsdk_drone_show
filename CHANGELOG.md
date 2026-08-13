@@ -10,6 +10,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Changed
+- Dashboard deployment manifests can now identify a validated Hetzner build
+  instead of falsely attributing every packaged build to GitHub Actions.
 - Real-node bootstrap now keeps the MDS `--gcs-ip` control-plane address
   separate from full-rate MAVLink routing. A remote push route requires the
   explicit `--mavlink-push-endpoint HOST:PORT` opt-in with auto configuration

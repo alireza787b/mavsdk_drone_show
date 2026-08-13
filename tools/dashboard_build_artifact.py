@@ -17,6 +17,7 @@ from pathlib import Path
 
 MANIFEST_NAME = "mds-dashboard-build-manifest.json"
 ARTIFACT_TYPE = "mds-dashboard-build"
+SUPPORTED_BUILD_PROVIDERS = {"github-actions", "hetzner"}
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 BUILD_ENV_DEFAULTS = {
     "DASHBOARD_BUILD_GCS_PORT": "5030",
@@ -142,7 +143,10 @@ def write_manifest(args: argparse.Namespace) -> Path:
             "compile_inputs": compile_inputs_from_environment(),
         },
         "ci": {
-            "provider": "github-actions",
+            # ``ci`` is retained for schema-v1 compatibility.  The provider is
+            # explicit because validated artifacts may also be built on the
+            # dedicated Hetzner build host.
+            "provider": args.provider,
             "run_id": args.run_id,
             "run_attempt": args.run_attempt,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -246,7 +250,7 @@ def verify_manifest(args: argparse.Namespace) -> dict[str, object]:
         raise ValueError("dashboard artifact manifest is missing source/build/ci records")
     if not str(source.get("display_ref", "")).strip():
         raise ValueError("dashboard artifact manifest has no display ref")
-    if ci.get("provider") != "github-actions" or any(
+    if ci.get("provider") not in SUPPORTED_BUILD_PROVIDERS or any(
         not str(ci.get(name, "")).strip()
         for name in ("run_id", "run_attempt", "created_at")
     ):
@@ -336,6 +340,12 @@ def parse_args() -> argparse.Namespace:
     package_parser.add_argument("--display-ref", required=True)
     package_parser.add_argument("--run-id", required=True)
     package_parser.add_argument("--run-attempt", required=True)
+    package_parser.add_argument(
+        "--provider",
+        choices=sorted(SUPPORTED_BUILD_PROVIDERS),
+        default="github-actions",
+        help="Builder that produced the dashboard tree (default: github-actions)",
+    )
     package_parser.add_argument("--output-dir", type=Path, required=True)
 
     verify_parser = subparsers.add_parser(
@@ -352,7 +362,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     if args.command == "verify":
         return verify_manifest(args)
 
-    require_nonempty(args, ("display_ref", "run_id", "run_attempt"))
+    require_nonempty(args, ("display_ref", "run_id", "run_attempt", "provider"))
     build_dir = args.build_dir.resolve()
     output_dir = args.output_dir.resolve()
     if output_dir == build_dir or build_dir in output_dir.parents:

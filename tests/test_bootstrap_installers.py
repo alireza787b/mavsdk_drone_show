@@ -601,6 +601,8 @@ def test_dashboard_build_artifact_packager_binds_complete_tree(tmp_path):
             "123",
             "--run-attempt",
             "1",
+            "--provider",
+            "hetzner",
             "--output-dir",
             str(output_dir),
         ],
@@ -626,6 +628,7 @@ def test_dashboard_build_artifact_packager_binds_complete_tree(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["source"]["repository"] == "demo/private"
     assert manifest["source"]["commit"] == commit
+    assert manifest["ci"]["provider"] == "hetzner"
     assert manifest["build"]["file_count"] == 3
     assert len(manifest["build"]["tree_sha256"]) == 64
     assert manifest["build"]["compile_inputs"] == {

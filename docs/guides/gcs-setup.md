@@ -530,7 +530,7 @@ cd ~/mavsdk_drone_show/app
 | `--prod` | Production mode (optimized builds) |
 | `--dev` | Development mode (hot reload) |
 | `--rebuild` | Force rebuild React app |
-| `--require-prebuilt-dashboard` | Production only: verify the exact CI dashboard artifact and refuse local npm/build work |
+| `--require-prebuilt-dashboard` | Production only: verify an exact provenance-bound dashboard artifact and refuse npm/build work during startup |
 | `--status` | Show current status |
 | `-n` | Do NOT use tmux |
 | `--help` | Show all options |
@@ -547,7 +547,7 @@ cd ~/mavsdk_drone_show/app
 # Production with real drones
 ./linux_dashboard_start.sh --prod --real
 
-# Production with a verified CI-built dashboard; never build on this host
+# Production with a previously verified CI- or build-host artifact
 ./linux_dashboard_start.sh --prod --real --require-prebuilt-dashboard
 
 # Check status
@@ -558,12 +558,13 @@ cd ~/mavsdk_drone_show/app
 
 Use `--require-prebuilt-dashboard` on a production host where frontend builds
 are prohibited or too expensive. The release quality gate already compiles and
-tests the dashboard. It retains a seven-day artifact named
+tests the dashboard. A designated build host may package the same exact tree
+with `--provider hetzner`; both paths retain an artifact named
 `dashboard-build-<full-commit-sha>` containing:
 
 - `build/`, with no `.env`, dependency tree, source map, or credential file
 - `mds-dashboard-build-manifest.json`, binding the complete bundle tree to the
-  GitHub repository, full commit SHA, branch ref, product version, package
+  repository, builder provider, full commit SHA, branch ref, product version, package
   lock, compile-input profile, file count, and content hashes
 - `SHA256SUMS` for the compressed transfer archive
 
