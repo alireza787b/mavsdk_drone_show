@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import logging
+import os
+from pathlib import Path
+import signal
+import subprocess
 import sys
+import time
 import types
 from unittest.mock import Mock
 
 import pytest
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SIGNAL_HARNESS = REPO_ROOT / "tests" / "helpers" / "smart_swarm_signal_harness.py"
 
 
 class _FakeLeaderKalmanFilter:
@@ -289,10 +299,46 @@ async def test_execute_failsafe_stops_offboard_then_holds_without_raw_setpoint(
     )
     drone = types.SimpleNamespace(offboard=_Offboard(), action=_Action())
 
-    await swarm_runtime.execute_failsafe(drone, reason="test leader loss")
+    result = await swarm_runtime.execute_failsafe(drone, reason="test leader loss")
 
     assert events == ["offboard.stop", "action.hold"]
+    assert result.completed is True
     led.set_color.assert_called_once_with(255, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_handoff_attempts_hold_after_offboard_stop_timeout(
+    swarm_runtime,
+    monkeypatch,
+):
+    events = []
+
+    class _Offboard:
+        async def stop(self):
+            events.append("offboard.stop.started")
+            await asyncio.Event().wait()
+
+    class _Action:
+        async def hold(self):
+            events.append("action.hold")
+
+    monkeypatch.setattr(
+        swarm_runtime.LEDController,
+        "get_instance",
+        staticmethod(lambda: Mock()),
+    )
+    drone = types.SimpleNamespace(offboard=_Offboard(), action=_Action())
+
+    result = await swarm_runtime.execute_failsafe(
+        drone,
+        reason="test process shutdown",
+        operation_timeout_sec=0.01,
+    )
+
+    assert events == ["offboard.stop.started", "action.hold"]
+    assert result.offboard_stop_completed is False
+    assert result.hold_requested is True
+    assert result.completed is True
 
 
 @pytest.mark.asyncio
@@ -465,3 +511,162 @@ async def test_cancel_follower_tasks_does_not_cancel_or_await_calling_task(
     assert sibling.cancel_count == 1
     assert sibling.await_count == 1
     assert swarm_runtime.FOLLOWER_TASKS == {}
+
+
+@pytest.mark.asyncio
+async def test_runtime_shutdown_is_ordered_bounded_and_idempotent(
+    swarm_runtime,
+    monkeypatch,
+):
+    events = []
+
+    async def background_task(name):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            events.append(f"{name}.cancelled")
+
+    update_task = asyncio.create_task(background_task("config"))
+    leader_task = asyncio.create_task(background_task("leader"))
+    control_task = asyncio.create_task(background_task("control"))
+    await asyncio.sleep(0)
+    swarm_runtime.FOLLOWER_TASKS.update(
+        leader_update_task=leader_task,
+        control_task=control_task,
+    )
+
+    class _Offboard:
+        async def stop(self):
+            events.append("offboard.stop")
+
+    class _Action:
+        async def hold(self):
+            events.append("action.hold")
+
+    monkeypatch.setattr(
+        swarm_runtime.LEDController,
+        "get_instance",
+        staticmethod(lambda: Mock()),
+    )
+    monkeypatch.setattr(
+        swarm_runtime,
+        "stop_mavsdk_server",
+        lambda _server, timeout_sec: events.append("mavsdk.stop"),
+    )
+
+    lifecycle = swarm_runtime.SmartSwarmRuntimeLifecycle(
+        logging.getLogger(__name__),
+        cancel_follower_tasks=swarm_runtime.cancel_follower_tasks,
+        vehicle_handoff=swarm_runtime.execute_failsafe,
+        stop_mavsdk_server=swarm_runtime.stop_mavsdk_server,
+        shutdown_budget_sec=1.0,
+    )
+    lifecycle.drone = types.SimpleNamespace(offboard=_Offboard(), action=_Action())
+    lifecycle.mavsdk_server = object()
+    lifecycle.swarm_update_task = update_task
+
+    first_result = await lifecycle.shutdown("test SIGTERM")
+    second_result = await lifecycle.shutdown("duplicate shutdown")
+
+    assert first_result is True
+    assert second_result is True
+    assert events.count("offboard.stop") == 1
+    assert events.count("action.hold") == 1
+    assert events.count("mavsdk.stop") == 1
+    assert events.index("leader.cancelled") < events.index("offboard.stop")
+    assert events.index("control.cancelled") < events.index("offboard.stop")
+    assert events.index("offboard.stop") < events.index("action.hold")
+    assert events.index("action.hold") < events.index("mavsdk.stop")
+    assert swarm_runtime.FOLLOWER_TASKS == {}
+
+
+@pytest.mark.asyncio
+async def test_runtime_process_returns_false_when_hold_handoff_is_unconfirmed(
+    swarm_runtime,
+    monkeypatch,
+):
+    class _Offboard:
+        async def stop(self):
+            return None
+
+    class _Action:
+        async def hold(self):
+            raise RuntimeError("injected HOLD failure")
+
+    async def fake_runtime(lifecycle):
+        lifecycle.drone = types.SimpleNamespace(
+            offboard=_Offboard(),
+            action=_Action(),
+        )
+
+    monkeypatch.setattr(
+        swarm_runtime.LEDController,
+        "get_instance",
+        staticmethod(lambda: Mock()),
+    )
+    monkeypatch.setattr(swarm_runtime, "run_smart_swarm", fake_runtime)
+
+    completed = await swarm_runtime.run_smart_swarm_process(
+        logging.getLogger(__name__)
+    )
+
+    assert completed is False
+
+
+def test_shutdown_signal_handler_uses_first_signal_and_cancels_once(swarm_runtime):
+    callbacks = {}
+
+    class _Loop:
+        def add_signal_handler(self, handled_signal, callback, *args):
+            callbacks[handled_signal] = (callback, args)
+
+    class _Task:
+        cancel_count = 0
+
+        def cancel(self):
+            self.cancel_count += 1
+
+    task = _Task()
+    state, installed = swarm_runtime.install_shutdown_signal_handlers(
+        _Loop(),
+        task,
+        logging.getLogger(__name__),
+    )
+
+    callback, args = callbacks[signal.SIGTERM]
+    callback(*args)
+    repeated_callback, repeated_args = callbacks[signal.SIGINT]
+    repeated_callback(*repeated_args)
+
+    assert state.received_signal == "SIGTERM"
+    assert installed == [signal.SIGTERM, signal.SIGINT]
+    assert task.cancel_count == 1
+
+
+def test_real_sigterm_stops_setpoints_then_hands_vehicle_to_hold(tmp_path):
+    process = subprocess.Popen(
+        [sys.executable, str(SIGNAL_HARNESS), str(tmp_path)],
+        cwd=REPO_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+    )
+    deadline = time.monotonic() + 5.0
+    while not (tmp_path / "started").exists() and time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        time.sleep(0.01)
+
+    assert (tmp_path / "started").exists(), process.communicate(timeout=1)
+    process.send_signal(signal.SIGTERM)
+    stdout, stderr = process.communicate(timeout=5)
+
+    assert process.returncode == 0, (stdout, stderr)
+    result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    assert result["events"] == [
+        "control.cancelled",
+        "offboard.stop",
+        "action.hold",
+    ]

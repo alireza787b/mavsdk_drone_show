@@ -159,6 +159,23 @@ Configuration:
 - telemetry delay alone does not block writes if a fresh snapshot/write path is
   otherwise available
 - single writes and batch writes both default to readback verification
+- the reviewed multidrone field profile uses `COM_OF_LOSS_T=1.0` with
+  `COM_OBL_RC_ACT=3` (RTL): if the companion stops producing Offboard
+  setpoints, PX4 starts the configured RTL response after one second instead of
+  remaining in Offboard for the former 20-second loss window
+- never assume a repo profile is already active on an aircraft; while grounded
+  and disarmed, snapshot and diff each vehicle, review firmware-matched PX4
+  metadata, apply deliberately, and verify the readback before flight
+- `COM_RCL_EXCEPT`, `COM_RC_OVERRIDE`, `COM_ARM_WO_GPS`, and the Offboard-loss
+  pair are operational policy, not generic tuning values. Review their actual
+  values with the field operator; do not silently apply or relax them to make a
+  readiness error disappear
+- the multidrone profile's `COM_RCL_EXCEPT=7` intentionally exempts Mission,
+  Hold, and Offboard from the RC-loss failsafe. That may fit an autonomous
+  fleet, but it is not a universal first-flight policy: obtain explicit
+  operator acceptance and review RTL path separation before applying the whole
+  profile. For the two-aircraft field check, prefer a targeted, verified
+  Offboard-loss edit if that is the only approved difference.
 
 ## Operator Notes
 

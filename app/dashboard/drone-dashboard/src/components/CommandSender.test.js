@@ -5,6 +5,7 @@ import CommandSender from './CommandSender';
 import { CommandActivityProvider } from '../contexts/CommandActivityContext';
 import {
   buildLifecycleSnapshotFromStatus,
+  formatCommandTargetIssue,
   submitCommandWithLifecycleFeedback,
 } from '../utilities/commandLifecycleFeedback';
 import { getPrecisionMovePolicyResponse } from '../services/gcsApiService';
@@ -12,6 +13,7 @@ import { getActiveCommands, getRecentCommands } from '../services/droneApiServic
 
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
   buildLifecycleSnapshotFromStatus: jest.fn(),
+  formatCommandTargetIssue: jest.fn(),
   submitCommandWithLifecycleFeedback: jest.fn(),
 }));
 
@@ -73,6 +75,9 @@ const openCommandControl = () => {
 describe('CommandSender', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    formatCommandTargetIssue.mockImplementation((issue, options = {}) => (
+      `Drone ${issue.droneId}${options.includeStage ? ` \u00b7 ${issue.stageLabel}` : ''}: ${issue.reason}`
+    ));
     getActiveCommands.mockResolvedValue({ commands: [] });
     getRecentCommands.mockResolvedValue({ commands: [] });
     getPrecisionMovePolicyResponse.mockResolvedValue({
@@ -135,6 +140,9 @@ describe('CommandSender', () => {
         succeeded: 0,
         failed: 0,
       },
+      targetIssues: status.targetIssues || [],
+      targetIssueCount: status.targetIssueCount ?? (status.targetIssues || []).length,
+      targetIssuesOmitted: status.targetIssuesOmitted || 0,
       triggerTime: 0,
       canCancelMission: Number(status.mission_type) > 0 && Number(status.mission_type) < 100,
       updatedAtMs: status.updated_at || 0,
@@ -666,5 +674,92 @@ describe('CommandSender', () => {
     fireEvent.click(within(history).getByRole('button', { name: /show recent command history/i }));
     expect(within(history).getByText('Take Off')).toBeInTheDocument();
     expect(buildLifecycleSnapshotFromStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows a bounded target-issue list in the live command monitor', async () => {
+    submitCommandWithLifecycleFeedback.mockImplementation(async (_commandData, options = {}) => {
+      options.onSubmissionTracked?.({
+        commandId: 'cmd-live-target-issues',
+        commandLabel: 'Take Off',
+        missionType: 10,
+        targetDrones: ['1', '2', '3', '4', '5'],
+        targetLabel: '5 selected drones',
+        targetDescriptor: 'Selected drones: 1, 2, 3, 4, 5',
+        phase: 'preparing',
+        outcome: null,
+        isTerminal: false,
+        trackingIssue: null,
+        progress: {
+          stage: 'preparing',
+          label: 'Checking launch readiness',
+          message: 'Readiness checks found affected targets.',
+          ackPending: 5,
+          active: 0,
+          completed: 0,
+          remaining: 0,
+        },
+        acks: { expected: 5, accepted: 0, offline: 0, rejected: 0, errors: 0 },
+        executions: { expected: 0, succeeded: 0, failed: 0 },
+        targetIssues: ['1', '2', '3', '4'].map((droneId) => ({
+          droneId,
+          stage: 'preparation',
+          stageLabel: 'Readiness',
+          reason: `Readiness blocker ${droneId}`,
+        })),
+        targetIssueCount: 5,
+        targetIssuesOmitted: 1,
+        triggerTime: 0,
+        canCancelMission: false,
+        updatedAtMs: 1000,
+      });
+      return { accepted_for_tracking: true, command_id: 'cmd-live-target-issues' };
+    });
+
+    renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+
+    const issueGroup = await screen.findByRole('group', { name: 'Target command issues' });
+    expect(within(issueGroup).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(issueGroup).getByText('Drone 1 \u00b7 Readiness: Readiness blocker 1')).toBeInTheDocument();
+    expect(within(issueGroup).queryByText(/Readiness blocker 4/)).not.toBeInTheDocument();
+    expect(within(issueGroup).getByText('+2 more affected targets.')).toBeInTheDocument();
+    expect(formatCommandTargetIssue).toHaveBeenCalled();
+  });
+
+  it('keeps a concrete target reason in collapsed terminal command history', async () => {
+    getRecentCommands.mockResolvedValue({
+      commands: [{
+        command_id: 'cmd-recent-failed',
+        mission_name: 'Take Off',
+        mission_type: 10,
+        target_drones: ['1', '2'],
+        phase: 'terminal',
+        outcome: 'failed',
+        updated_at: 1000,
+        progress: {
+          stage: 'failed',
+          label: 'Failed',
+          message: 'No launch command was dispatched.',
+        },
+        targetIssues: [{
+          droneId: '2',
+          stage: 'preparation',
+          stageLabel: 'Readiness',
+          reason: 'Vertical position estimate is not settled.',
+        }],
+        targetIssueCount: 2,
+      }],
+    });
+
+    renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
+
+    const history = await screen.findByLabelText('Recent commands');
+    fireEvent.click(within(history).getByRole('button', { name: /show recent command history/i }));
+
+    expect(within(history).getByText(/Drone 2 \u00b7 Readiness: Vertical position estimate is not settled\./)).toBeInTheDocument();
+    expect(within(history).getByText(/\(\+1 more affected target\)/)).toBeInTheDocument();
   });
 });

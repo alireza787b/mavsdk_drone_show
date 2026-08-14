@@ -14,6 +14,10 @@ const MAX_POLL_ERRORS = 3;
 const DEFAULT_TRACK_TIMEOUT_MS = 120000;
 const DEFAULT_LATE_RECONCILIATION_WINDOW_MS = 30000;
 const DEFAULT_LATE_RECONCILIATION_POLL_INTERVAL_MS = 3000;
+const MAX_TARGET_ISSUES = 4;
+const MAX_ISSUE_REASON_LENGTH = 180;
+const MAX_ERROR_SUMMARY_LENGTH = 240;
+const MAX_TARGET_ID_LENGTH = 48;
 const DEFAULT_PROGRESS_LABELS = {
   preparing: 'Checking launch readiness',
   awaiting_ack: 'Collecting acknowledgments',
@@ -118,6 +122,204 @@ function buildUnclassifiedAckSummary(response) {
 function normalizeTargetDrones(commandData, response, status) {
   const candidates = status?.target_drones || response?.target_drones || commandData?.target_drone_ids || [];
   return Array.isArray(candidates) ? candidates.map((value) => String(value)) : [];
+}
+
+function normalizeBoundedText(value, maxLength) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const withoutControlCharacters = Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint < 32 || (codePoint >= 127 && codePoint <= 159) ? ' ' : character;
+  }).join('');
+  const normalized = withoutControlCharacters
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}\u2026`;
+}
+
+function normalizeIssueReason(...candidates) {
+  const reason = candidates.find((candidate) => (
+    typeof candidate === 'string' && candidate.trim().length > 0
+  ));
+  return normalizeBoundedText(reason, MAX_ISSUE_REASON_LENGTH);
+}
+
+function normalizeTargetId(value) {
+  return normalizeBoundedText(String(value ?? ''), MAX_TARGET_ID_LENGTH) || 'unknown';
+}
+
+function normalizeErrorCode(value) {
+  const code = normalizeBoundedText(value, 8).toUpperCase();
+  return /^E\d{3}$/.test(code) ? code : null;
+}
+
+function defaultPreparationReason(state) {
+  return state === 'unavailable'
+    ? 'Launch readiness could not be checked.'
+    : 'Launch readiness was blocked.';
+}
+
+function defaultAckReason(category, deliveryState) {
+  if (deliveryState === 'delivery_unknown') {
+    return 'Command delivery could not be confirmed.';
+  }
+  if (category === 'offline') {
+    return 'The target was offline during command delivery.';
+  }
+  if (category === 'rejected') {
+    return 'The target rejected command delivery.';
+  }
+  return 'Command delivery failed.';
+}
+
+function defaultExecutionReason(outcome) {
+  return outcome === 'superseded'
+    ? 'Execution was superseded by a newer command.'
+    : 'Command execution failed.';
+}
+
+function orderedDetailDroneIds(targetDrones, ...detailMaps) {
+  const ordered = [];
+  const seen = new Set();
+  const append = (value) => {
+    const droneId = String(value ?? '').trim();
+    if (!droneId || seen.has(droneId)) {
+      return;
+    }
+    seen.add(droneId);
+    ordered.push(droneId);
+  };
+
+  targetDrones.forEach(append);
+  detailMaps
+    .flatMap((details) => Object.keys(details || {}))
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+    .forEach(append);
+  return ordered;
+}
+
+function targetIssuePriority(issue) {
+  if (issue.stage === 'execution') {
+    return 0;
+  }
+  if (issue.stage === 'preparation' && issue.state === 'blocked') {
+    return 1;
+  }
+  if (issue.stage === 'acknowledgment' && ['rejected', 'error'].includes(issue.state)) {
+    return 2;
+  }
+  if (issue.stage === 'preparation') {
+    return 3;
+  }
+  return 4;
+}
+
+function selectTargetIssue(droneId, preparation, ack, execution) {
+  // A terminal execution success is stronger evidence than an earlier
+  // preparation or transport uncertainty. Do not keep showing a resolved
+  // target as failed when the tracker has authoritative completion evidence.
+  if (execution?.success === true) {
+    return null;
+  }
+
+  const candidates = [];
+  const normalizedDroneId = normalizeTargetId(droneId);
+  const preparationState = String(preparation?.state || '').toLowerCase();
+  if (preparation && preparationState && preparationState !== 'ready') {
+    candidates.push({
+      droneId: normalizedDroneId,
+      stage: 'preparation',
+      stageLabel: 'Readiness',
+      reason: normalizeIssueReason(
+        preparation.error_detail,
+        preparation.message,
+        defaultPreparationReason(preparationState),
+      ),
+      errorCode: normalizeErrorCode(preparation.error_code),
+      state: preparationState,
+    });
+  }
+
+  const ackCategory = String(ack?.category || ack?.status || '').toLowerCase();
+  const deliveryState = String(ack?.delivery_state || '').toLowerCase();
+  const ackFailed = ack && (
+    (ackCategory && ackCategory !== 'accepted')
+    || (deliveryState && !['accepted', 'accepted_via_execution'].includes(deliveryState))
+  );
+  if (ackFailed) {
+    candidates.push({
+      droneId: normalizedDroneId,
+      stage: 'acknowledgment',
+      stageLabel: 'Delivery',
+      reason: normalizeIssueReason(
+        ack.error_detail,
+        ack.message,
+        defaultAckReason(ackCategory, deliveryState),
+      ),
+      errorCode: normalizeErrorCode(ack.error_code),
+      state: deliveryState || ackCategory || 'failed',
+    });
+  }
+
+  const executionOutcome = String(execution?.outcome || '').toLowerCase();
+  if (execution?.success === false) {
+    candidates.push({
+      droneId: normalizedDroneId,
+      stage: 'execution',
+      stageLabel: 'Execution',
+      reason: normalizeIssueReason(
+        execution.error,
+        defaultExecutionReason(executionOutcome),
+      ),
+      errorCode: null,
+      state: executionOutcome || 'failed',
+    });
+  }
+
+  candidates.sort((left, right) => targetIssuePriority(left) - targetIssuePriority(right));
+  return candidates[0] || null;
+}
+
+function buildTargetIssueSummary(targetDrones, preparations, acks, executions) {
+  const preparationDetails = preparations?.details || {};
+  const ackDetails = acks?.details || {};
+  const executionDetails = executions?.details || {};
+  const issues = [];
+
+  orderedDetailDroneIds(
+    targetDrones,
+    preparationDetails,
+    ackDetails,
+    executionDetails,
+  ).forEach((droneId, targetOrder) => {
+    const issue = selectTargetIssue(
+      droneId,
+      preparationDetails[droneId],
+      ackDetails[droneId],
+      executionDetails[droneId],
+    );
+    if (issue) {
+      issues.push({ ...issue, targetOrder });
+    }
+  });
+
+  issues.sort((left, right) => (
+    targetIssuePriority(left) - targetIssuePriority(right)
+    || left.targetOrder - right.targetOrder
+  ));
+  const total = issues.length;
+  const items = issues.slice(0, MAX_TARGET_ISSUES).map(({ targetOrder, ...issue }) => issue);
+  return {
+    items,
+    total,
+    omitted: Math.max(0, total - items.length),
+  };
 }
 
 function countDetails(details) {
@@ -251,6 +453,29 @@ function buildLifecycleSnapshot({
 }) {
   const missionType = normalizeMissionType(commandData?.mission_type);
   const targetDrones = normalizeTargetDrones(commandData, response, status);
+  const targetIssueSummary = buildTargetIssueSummary(
+    targetDrones,
+    status?.preparations,
+    status?.acks,
+    status?.executions,
+  );
+  const preparations = status?.preparations
+    ? {
+      expected: Number(status.preparations.expected || 0),
+      received: Number(status.preparations.received || 0),
+      ready: Number(status.preparations.ready || 0),
+      blocked: Number(status.preparations.blocked || 0),
+      unavailable: Number(status.preparations.unavailable || 0),
+      policy: status.preparations.policy || null,
+    }
+    : {
+      expected: 0,
+      received: 0,
+      ready: 0,
+      blocked: 0,
+      unavailable: 0,
+      policy: null,
+    };
   const acks = status?.acks
     ? {
       expected: Number(status.acks.expected || 0),
@@ -275,7 +500,7 @@ function buildLifecycleSnapshot({
       failed: 0,
       active: 0,
       remaining: acks.accepted,
-  };
+    };
   const phase = status?.phase || null;
   const outcome = status?.outcome || null;
   const lateEvidence = buildLateEvidence(status, outcome || status?.status || null);
@@ -332,8 +557,13 @@ function buildLifecycleSnapshot({
     trackingIssue,
     lateEvidence,
     progress,
+    preparations,
     acks,
     executions,
+    targetIssues: targetIssueSummary.items,
+    targetIssueCount: targetIssueSummary.total,
+    targetIssuesOmitted: targetIssueSummary.omitted,
+    errorSummary: normalizeBoundedText(status?.error_summary, MAX_ERROR_SUMMARY_LENGTH) || null,
     triggerTime: Number(commandData?.trigger_time || 0),
     canCancelMission: missionType !== COMMAND_METADATA_BY_KEY.NONE.value
       && getCommandMetadata(missionType)?.kind === 'mission',
@@ -419,8 +649,57 @@ function buildTerminalSuffix(status) {
   return parts.length > 0 ? ` (${parts.join(', ')})` : '';
 }
 
+export function formatCommandTargetIssue(issue, { includeStage = false } = {}) {
+  if (!issue) {
+    return '';
+  }
+
+  const droneId = normalizeTargetId(issue.droneId);
+  const reason = normalizeIssueReason(issue.reason) || 'The command could not proceed on this target.';
+  const errorCode = normalizeErrorCode(issue.errorCode);
+  const reasonContainsCode = errorCode && reason.toUpperCase().includes(errorCode);
+  const reasonForDisplay = errorCode && !reasonContainsCode
+    ? reason.replace(/[.!?]+$/, '')
+    : reason;
+  const codeSuffix = errorCode && !reasonContainsCode ? ` (${errorCode})` : '';
+  const stageLabel = includeStage
+    ? normalizeBoundedText(issue.stageLabel, 24) || 'Target'
+    : '';
+  return `Drone ${droneId}${stageLabel ? ` \u00b7 ${stageLabel}` : ''}: ${reasonForDisplay}${codeSuffix}`;
+}
+
+function resolveTerminalReason(status) {
+  const backendSummary = normalizeBoundedText(status?.error_summary, MAX_ERROR_SUMMARY_LENGTH);
+  const targetDrones = Array.isArray(status?.target_drones)
+    ? status.target_drones.map((value) => String(value))
+    : [];
+  const targetIssueSummary = buildTargetIssueSummary(
+    targetDrones,
+    status?.preparations,
+    status?.acks,
+    status?.executions,
+  );
+
+  if (targetIssueSummary.items.length > 0) {
+    return {
+      message: formatCommandTargetIssue(targetIssueSummary.items[0]),
+      fromTarget: true,
+    };
+  }
+
+  return { message: backendSummary, fromTarget: false };
+}
+
+function asSentence(message) {
+  if (!message) {
+    return '';
+  }
+  return /[.!?]$/.test(message) ? message : `${message}.`;
+}
+
 function buildTerminalToast(status, commandLabel) {
   const summarySuffix = buildTerminalSuffix(status);
+  const terminalReason = resolveTerminalReason(status);
 
   switch (status?.outcome || status?.status) {
     case 'completed':
@@ -431,7 +710,9 @@ function buildTerminalToast(status, commandLabel) {
     case 'partial':
       return {
         level: 'warning',
-        message: `${commandLabel} completed with partial coverage${summarySuffix}.`,
+        message: terminalReason.message
+          ? `${commandLabel} completed with partial coverage${summarySuffix}. ${asSentence(terminalReason.message)}`
+          : `${commandLabel} completed with partial coverage${summarySuffix}.`,
       };
     case 'superseded':
       return {
@@ -446,13 +727,17 @@ function buildTerminalToast(status, commandLabel) {
     case 'timeout':
       return {
         level: 'warning',
-        message: status?.error_summary || `${commandLabel} tracking timed out; command delivery and final execution outcome are not confirmed.`,
+        message: terminalReason.fromTarget
+          ? `${commandLabel} tracking timed out; the final execution outcome is not confirmed. ${asSentence(terminalReason.message)}`
+          : terminalReason.message || `${commandLabel} tracking timed out; command delivery and final execution outcome are not confirmed.`,
       };
     case 'failed':
     default:
       return {
         level: 'error',
-        message: status?.error_summary || `${commandLabel} failed${summarySuffix}.`,
+        message: terminalReason.fromTarget
+          ? `${commandLabel} failed${summarySuffix}. ${asSentence(terminalReason.message)}`
+          : terminalReason.message || `${commandLabel} failed${summarySuffix}.`,
       };
   }
 }

@@ -14,7 +14,7 @@ _MIGRATED_FIELD_BASELINE = [
     ("UAVCAN_PUB_RTCM", "int", 1),
     ("MAV_PROTO_VER", "int", 2),
     ("COM_OBL_RC_ACT", "int", 3),
-    ("COM_OF_LOSS_T", "float", 20.0),
+    ("COM_OF_LOSS_T", "float", 1.0),
     ("COM_FLT_TIME_MAX", "int", 900),
     ("COM_FLTT_LOW_ACT", "int", 3),
     ("IMU_GYRO_NF0_FRQ", "float", 90.0),

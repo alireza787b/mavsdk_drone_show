@@ -4,7 +4,6 @@ import {
   FaBan,
   FaBroadcastTower,
   FaFileAlt,
-  FaProjectDiagram,
   FaQuestionCircle,
   FaRoute,
 } from 'react-icons/fa';
@@ -42,13 +41,6 @@ const MISSION_PRESENTATIONS = {
     summary: 'Run the imported custom CSV.',
     note: 'Use only for controlled protocol CSV runs.',
   },
-  [DRONE_MISSION_TYPES.SMART_SWARM]: {
-    icon: FaProjectDiagram,
-    category: 'Swarm',
-    cardLabel: 'Smart Swarm',
-    summary: 'Start the saved swarm topology.',
-    note: 'Confirm roles and offsets first.',
-  },
   [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: {
     icon: FaRoute,
     category: 'Route',
@@ -64,6 +56,14 @@ const MISSION_PRESENTATIONS = {
     note: 'Interrupt the current mission flow.',
   },
 };
+
+// Smart Swarm has topology, live-airborne, assignment-sync, cluster-scope,
+// and dedicated recovery semantics that the generic mission picker cannot
+// present coherently. Keep one operator path in Swarm Design while retaining
+// the typed API mission for automation and guarded integrations.
+const GENERIC_MISSION_DISPLAY_ORDER = DRONE_MISSION_DISPLAY_ORDER.filter(
+  (mission) => mission.value !== DRONE_MISSION_TYPES.SMART_SWARM,
+);
 
 const DEFAULT_MISSION_PRESENTATION = {
   icon: FaQuestionCircle,
@@ -200,26 +200,34 @@ const MissionTrigger = ({
   return (
     <div className="mission-trigger-container">
       {!selectedMission && (
-        <div className="mission-cards">
-          {DRONE_MISSION_DISPLAY_ORDER.map((mission) => {
-            const presentation = getMissionPresentation(mission.value);
-            const MissionIcon = presentation.icon;
+        <>
+          <div className="mission-cards">
+            {GENERIC_MISSION_DISPLAY_ORDER.map((mission) => {
+              const presentation = getMissionPresentation(mission.value);
+              const MissionIcon = presentation.icon;
 
-            return (
-              <MissionCard
-                key={mission.value}
-                missionType={mission.value}
-                icon={<MissionIcon aria-hidden="true" />}
-                category={presentation.category}
-                summary={presentation.summary}
-                note={presentation.note}
-                label={presentation.cardLabel || getCommandName(mission.value)}
-                onClick={() => handleMissionSelect(mission.value)}
-                isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
-              />
-            );
-          })}
-        </div>
+              return (
+                <MissionCard
+                  key={mission.value}
+                  missionType={mission.value}
+                  icon={<MissionIcon aria-hidden="true" />}
+                  category={presentation.category}
+                  summary={presentation.summary}
+                  note={presentation.note}
+                  label={presentation.cardLabel || getCommandName(mission.value)}
+                  onClick={() => handleMissionSelect(mission.value)}
+                  isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
+                />
+              );
+            })}
+          </div>
+          <p className="mission-trigger-guidance">
+            Start and recover live formations from{' '}
+            <a href="/swarm-design">Smart Swarm Runtime</a>, where topology,
+            exact cluster scope, live-airborne state, and Hold/Land/RTL controls
+            are reviewed together.
+          </p>
+        </>
       )}
 
       {selectedMission && selectedMission !== DRONE_MISSION_TYPES.NONE && (

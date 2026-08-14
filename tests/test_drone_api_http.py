@@ -2748,6 +2748,31 @@ class TestCommands:
         cancel_helper.assert_awaited_once()
         mock_drone_communicator.process_command.assert_not_called()
 
+    def test_cancel_command_preserves_unconfirmed_safety_handoff_failure(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        cancel_helper = AsyncMock(return_value=(False, "Vehicle safety handoff is unconfirmed."))
+        mock_drone_config.drone_setup = Mock(cancel_active_command=cancel_helper)
+        mock_drone_config.state = State.MISSION_EXECUTING.value
+        mock_drone_config.mission = Mission.SMART_SWARM.value
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": 0, "trigger_time": 0, "command_id": "cancel-unconfirmed"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert data["command_phase"] == "terminal"
+        assert data["command_outcome"] == "failed"
+        assert data["error_code"] == "E404"
+        assert "unconfirmed" in data["message"].lower()
+        mock_drone_communicator.process_command.assert_not_called()
+
 
 class TestPositionData:
     """Test position-related endpoints"""

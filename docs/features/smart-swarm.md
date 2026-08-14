@@ -118,6 +118,13 @@ Specific cluster selections in `Formation Analysis` also drive the cluster-scope
 
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
 
+The generic `Mission Trigger` deliberately does not offer Smart Swarm. There
+is one operator start path: open `Swarm Design`, review the saved topology and
+live target evidence, select the exact drone or cluster, then use
+`Smart Swarm Runtime`. The typed mission remains available to guarded
+automation, but it does not create a second dashboard workflow with weaker
+context.
+
 These runtime commands now publish into the same shared command lifecycle stream as `Command Control` and per-drone airborne overrides. That means the backend-backed live/recent command monitor can recover command context after refresh/navigation instead of keeping Smart Swarm runtime actions as toast-only events.
 
 Mixed-mission leader rule:
@@ -129,8 +136,10 @@ Mixed-mission leader rule:
   new show mission starts; follower drones keep their current Smart Swarm
   mission and continue tracking the leader as long as usable leader telemetry is
   still published
-- use `Cancel Mission`, `Hold`, `RTL`, or `Land` on the addressed drone when you
-  want to explicitly stop or recover the leader-side mission
+- prefer `Stop Swarm (Hold)`, `Land Swarm`, or `RTL Swarm` when you want to
+  recover a live formation; normal cancellation also performs a bounded
+  Offboard-to-HOLD handoff before its controller exits, but the dedicated
+  recovery controls communicate the operator's intent more clearly
 - if the leader changes, update the saved/runtime follow chain deliberately in
   Swarm Design instead of relying on implicit mission side effects
 
@@ -151,6 +160,11 @@ Important operator rule:
 - runtime start performs the same final airborne admission again at command
   dispatch time
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
+- a multi-drone Take Off is not physically atomic after dispatch: every node
+  repeats its own final readiness and ground checks, so one aircraft can still
+  reject while another accepts. For the first field validation, launch and
+  confirm each aircraft individually, let both settle in Hold, and only then
+  start the exact Smart Swarm cluster.
 
 ## Slot Reassignment vs Spare Replacement
 

@@ -61,6 +61,11 @@ from smart_swarm_src.motion_state_validity import (
     validate_leader_motion_sample,
     validate_own_motion_state,
 )
+from smart_swarm_src.runtime_shutdown import (
+    SmartSwarmRuntimeLifecycle,
+    VehicleHandoffResult,
+    install_shutdown_signal_handlers,
+)
 from smart_swarm_src.velocity_command_shaper import (
     NedVelocityCommandShaper,
     VelocityCommandShapeError,
@@ -454,12 +459,21 @@ async def cancel_follower_tasks(logger):
         return
 
     current_task = asyncio.current_task()
-    for task_name, task in list(FOLLOWER_TASKS.items()):
+    tasks = list(FOLLOWER_TASKS.items())
+
+    # Signal every sibling before awaiting any one of them. A single task with
+    # slow cancellation must never leave another control/setpoint producer
+    # running during the shutdown handoff.
+    for task_name, task in tasks:
         if task is current_task:
             logger.debug("Follower task %s is completing its own transition.", task_name)
             continue
         if not task.done():
             task.cancel()
+
+    for task_name, task in tasks:
+        if task is current_task:
+            continue
         try:
             await task
         except asyncio.CancelledError:
@@ -885,12 +899,13 @@ async def log_mavsdk_output(mavsdk_server):
     except Exception:
         logger.exception("Error while reading MAVSDK server stderr")
 
-def stop_mavsdk_server(mavsdk_server):
+def stop_mavsdk_server(mavsdk_server, timeout_sec: float = 5.0):
     """
     Stop the MAVSDK server instance.
 
     Args:
         mavsdk_server (subprocess.Popen): MAVSDK server subprocess.
+        timeout_sec: Grace period before the server is force-stopped.
     """
     logger = logging.getLogger(__name__)
     try:
@@ -898,7 +913,7 @@ def stop_mavsdk_server(mavsdk_server):
             logger.info("Stopping MAVSDK server...")
             mavsdk_server.terminate()
             try:
-                mavsdk_server.wait(timeout=5)
+                mavsdk_server.wait(timeout=max(0.01, float(timeout_sec)))
                 logger.info("MAVSDK server terminated gracefully.")
             except subprocess.TimeoutExpired:
                 logger.warning("MAVSDK server did not terminate gracefully. Killing it.")
@@ -1636,31 +1651,67 @@ async def control_loop(drone: System):
 #         Failsafe Function     #
 # ----------------------------- #
 
-async def execute_failsafe(drone: System, reason: str = ""):
+async def execute_failsafe(
+    drone: System,
+    reason: str = "",
+    *,
+    operation_timeout_sec: Optional[float] = None,
+) -> VehicleHandoffResult:
     """
     Leave Offboard and command PX4 HOLD without a discontinuous zero setpoint.
 
     Args:
         drone (System): MAVSDK drone system instance.
+        operation_timeout_sec: Optional bound applied independently to the
+            Offboard-stop and HOLD RPCs during process shutdown. Runtime
+            failsafe callers retain the normal MAVSDK behavior by omitting it.
     """
     logger = logging.getLogger(__name__)
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
+    offboard_stop_completed = False
+    hold_requested = False
+
+    async def await_operation(awaitable):
+        if operation_timeout_sec is None:
+            return await awaitable
+        return await asyncio.wait_for(
+            awaitable,
+            timeout=max(0.01, float(operation_timeout_sec)),
+        )
+
     try:
-        await drone.offboard.stop()
+        await await_operation(drone.offboard.stop())
+        offboard_stop_completed = True
         logger.info("Failsafe: Offboard stopped%s.", f" ({reason})" if reason else "")
+    except asyncio.TimeoutError:
+        logger.error(
+            "Failsafe timed out while stopping Offboard%s.",
+            f" ({reason})" if reason else "",
+        )
     except OffboardError as exc:
         logger.warning("Failsafe could not stop Offboard cleanly: %s", exc)
     except Exception:
         logger.exception("Unexpected error while stopping Offboard during failsafe.")
 
     try:
-        await drone.action.hold()
+        await await_operation(drone.action.hold())
+        hold_requested = True
         logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
+    except asyncio.TimeoutError:
+        logger.error(
+            "Failsafe timed out while commanding HOLD%s.",
+            f" ({reason})" if reason else "",
+        )
     except ActionError as exc:
         logger.error("Failsafe HOLD command failed: %s", exc)
     except Exception:
         logger.exception("Unexpected error while commanding HOLD during failsafe.")
+
+    return VehicleHandoffResult(
+        offboard_stop_completed=offboard_stop_completed,
+        hold_requested=hold_requested,
+    )
 
 # ----------------------------- #
 #       Drone Initialization    #
@@ -1763,7 +1814,7 @@ async def initialize_drone(start_offboard: bool = False):
 #         Main Runner           #
 # ----------------------------- #
 
-async def run_smart_swarm():
+async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     """
     Main function to run the smart swarm mode with dynamic configuration updates.
     """
@@ -1830,6 +1881,7 @@ async def run_smart_swarm():
     if mavsdk_server is None:
         logger.error("Failed to start MAVSDK server.")
         sys.exit(1)
+    lifecycle.mavsdk_server = mavsdk_server
 
     await asyncio.sleep(2)  # Allow server to initialize
 
@@ -1839,6 +1891,7 @@ async def run_smart_swarm():
 
     try:
         drone = await initialize_drone(start_offboard=False)
+        lifecycle.drone = drone
         global DRONE_INSTANCE
         DRONE_INSTANCE = drone
     except Exception:
@@ -1909,43 +1962,57 @@ async def run_smart_swarm():
 
     # Launch the periodic swarm configuration update task (applies to both roles)
     swarm_update_task = asyncio.create_task(update_swarm_config_periodically(drone))
+    lifecycle.swarm_update_task = swarm_update_task
     logger.info(f"[Main] Scheduled swarm_update_task: {swarm_update_task!r}")
 
     # --------------------------- #
     #         Main Loop         #
     # --------------------------- #
 
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received. Shutting down.")
-    finally:
-        # Cancel periodic update task
-        swarm_update_task.cancel()
-        try:
-            await swarm_update_task
-        except asyncio.CancelledError:
-            pass
-
-        # Cancel follower tasks if any exist
-        await cancel_follower_tasks(logger)
-
-        # Attempt safe shutdown of drone (e.g., stop offboard mode)
-        try:
-            # await drone.offboard.stop()
-            # await drone.action.disarm()
-            pass
-        except Exception:
-            logger.exception("Error during drone shutdown.")
-
-        if mavsdk_server:
-            stop_mavsdk_server(mavsdk_server)
+    while True:
+        await asyncio.sleep(1)
 
 
 # ----------------------------- #
 #             Main              #
 # ----------------------------- #
+
+
+async def run_smart_swarm_process(logger) -> bool:
+    """Run Smart Swarm and return whether its final vehicle handoff completed."""
+    lifecycle = SmartSwarmRuntimeLifecycle(
+        logger,
+        cancel_follower_tasks=cancel_follower_tasks,
+        vehicle_handoff=execute_failsafe,
+        stop_mavsdk_server=stop_mavsdk_server,
+        manager_grace_sec=Params.MISSION_PROCESS_STOP_GRACE_SEC,
+    )
+    loop = asyncio.get_running_loop()
+    process_task = asyncio.current_task()
+    signal_state, installed_signals = install_shutdown_signal_handlers(
+        loop,
+        process_task,
+        logger,
+    )
+
+    shutdown_completed = False
+    try:
+        try:
+            await run_smart_swarm(lifecycle)
+        except asyncio.CancelledError:
+            if signal_state.received_signal is None:
+                raise
+            logger.warning(
+                "Smart Swarm runtime accepted %s and is handing control back to PX4.",
+                signal_state.received_signal,
+            )
+    finally:
+        reason = signal_state.received_signal or "runtime exit"
+        shutdown_completed = await lifecycle.shutdown(reason)
+        for handled_signal in installed_signals:
+            loop.remove_signal_handler(handled_signal)
+    return shutdown_completed
+
 
 def main():
     """
@@ -1963,7 +2030,12 @@ def main():
     _logger = get_logger("smart_swarm")
 
     try:
-        asyncio.run(run_smart_swarm())
+        shutdown_completed = asyncio.run(run_smart_swarm_process(_logger))
+        if not shutdown_completed:
+            _logger.critical(
+                "Smart Swarm exited without a confirmed PX4 safety handoff."
+            )
+            sys.exit(2)
     except Exception:
         _logger.exception("Unhandled exception in main")
         sys.exit(1)

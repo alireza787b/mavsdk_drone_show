@@ -506,6 +506,128 @@ class TestProcessManagement:
         assert len(setup.running_processes) == 0
 
     @pytest.mark.asyncio
+    async def test_graceful_stop_preserves_helpers_until_controller_cleanup_finishes(self):
+        """The controller can use MAVSDK helpers before residual children are removed."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        events = []
+        process = Mock(pid=4321, returncode=None)
+        process.terminate.side_effect = lambda: events.append("controller.sigterm")
+
+        async def wait_for_cleanup():
+            events.append("controller.cleanup")
+            process.returncode = 0
+
+        process.wait = wait_for_cleanup
+        record = RunningMissionProcess(
+            process_key="smart_swarm.py:old",
+            script_name="smart_swarm.py",
+            process=process,
+            process_group_owned=True,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+
+        with patch("src.drone_setup.os.killpg") as kill_group:
+            kill_group.side_effect = lambda _pgid, _signal: events.append("helpers.sigkill")
+            summary = await setup.terminate_all_running_processes(reset_state=False)
+
+        assert events == [
+            "controller.sigterm",
+            "controller.cleanup",
+            "helpers.sigkill",
+        ]
+        process.kill.assert_not_called()
+        assert summary.graceful == 1
+        assert summary.killed == 0
+        assert summary.unresolved == 0
+
+    @pytest.mark.asyncio
+    async def test_nonzero_cooperative_exit_is_not_reported_as_graceful(self):
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        process = Mock(pid=4321, returncode=None)
+
+        async def wait_for_failed_cleanup():
+            process.returncode = 2
+            return 2
+
+        process.wait = wait_for_failed_cleanup
+        record = RunningMissionProcess(
+            process_key="smart_swarm.py:old",
+            script_name="smart_swarm.py",
+            process=process,
+            process_group_owned=True,
+        )
+        setup.running_processes[record.process_key] = record
+
+        with patch("src.drone_setup.os.killpg"):
+            summary = await setup.terminate_all_running_processes(reset_state=False)
+
+        assert summary.graceful == 0
+        assert summary.failed == 1
+        assert summary.unresolved == 0
+
+    @pytest.mark.asyncio
+    async def test_cancel_reports_unconfirmed_controller_handoff_as_failure(self):
+        from src.drone_setup import DroneSetup, ProcessStopSummary
+
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "cancel-command"
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), drone_config)
+        setup.running_processes["smart_swarm.py:old"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock(
+            return_value=ProcessStopSummary(attempted=1, failed=1)
+        )
+        setup._fail_pending_command = AsyncMock(return_value=(False, "handoff unconfirmed"))
+
+        result = await setup.cancel_active_command()
+
+        assert result == (False, "handoff unconfirmed")
+        setup._fail_pending_command.assert_awaited_once_with(
+            "Cancel stopped the local mission controller, but the vehicle safety "
+            "handoff was not confirmed. Use Hold, Land, RTL, or the RC and verify "
+            "the aircraft state before continuing."
+        )
+
+    @pytest.mark.asyncio
+    async def test_cancel_reports_timed_out_smart_swarm_sigkill_as_failure(self):
+        """Cancel must not claim success after Smart Swarm misses its Hold handoff."""
+        import signal
+
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock(trigger_sooner_seconds=4, MISSION_PROCESS_STOP_GRACE_SEC=0.01)
+        drone_config = create_mock_drone_config()
+        setup = DroneSetup(params, drone_config)
+        process = Mock(pid=4321, returncode=None)
+
+        async def wait_forever():
+            await asyncio.Event().wait()
+
+        process.wait = wait_forever
+        record = RunningMissionProcess(
+            process_key="smart_swarm.py:stuck",
+            script_name="smart_swarm.py",
+            process=process,
+            mission_type=Mission.SMART_SWARM.value,
+            process_group_owned=True,
+        )
+        setup.running_processes[record.process_key] = record
+        setup._fail_pending_command = AsyncMock(return_value=(False, "handoff unconfirmed"))
+
+        with patch("src.drone_setup.os.killpg") as kill_group:
+            result = await setup.cancel_active_command()
+
+        assert result == (False, "handoff unconfirmed")
+        process.terminate.assert_called_once_with()
+        kill_group.assert_called_once_with(4321, signal.SIGKILL)
+        assert record.forced_kill_cleanup_unconfirmed is True
+        setup._fail_pending_command.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_recovery_preemption_force_stops_stuck_controller_within_budget(self):
         """LAND/RTL/HOLD do not inherit the routine five-second shutdown grace."""
         from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
@@ -547,6 +669,42 @@ class TestProcessManagement:
         assert summary.unresolved == 0
         assert record.superseded is True
         assert not setup.running_processes
+
+    @pytest.mark.asyncio
+    async def test_recovery_preemption_force_stops_owned_group_after_short_grace(self):
+        """Recovery still wins if cooperative Smart Swarm cleanup exceeds its grace."""
+        import signal
+
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+
+        params = Mock(trigger_sooner_seconds=4, RECOVERY_PROCESS_STOP_GRACE_SEC=0.01)
+        setup = DroneSetup(params, create_mock_drone_config())
+        process = Mock(pid=4321, returncode=None)
+
+        async def wait_forever():
+            await asyncio.Event().wait()
+
+        process.wait = wait_forever
+        record = RunningMissionProcess(
+            process_key="smart_swarm.py:old",
+            script_name="smart_swarm.py",
+            process=process,
+            process_group_owned=True,
+        )
+        setup.running_processes[record.process_key] = record
+
+        with patch("src.drone_setup.os.killpg") as kill_group:
+            summary = await setup.terminate_all_running_processes(
+                reset_state=False,
+                mode=ProcessStopMode.RECOVERY,
+            )
+
+        process.terminate.assert_called_once_with()
+        process.kill.assert_not_called()
+        kill_group.assert_called_once_with(4321, signal.SIGKILL)
+        assert summary.graceful == 0
+        assert summary.killed == 1
+        assert summary.unresolved == 0
 
     @pytest.mark.asyncio
     async def test_emergency_preemption_skips_grace_period(self):

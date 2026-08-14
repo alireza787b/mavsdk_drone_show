@@ -191,6 +191,37 @@ remote endpoint is active.
 
 ## Required field gates
 
+### Post-rehearsal policy hardening — 2026-08-14
+
+The accepted flight trace exposed several operator-policy boundaries that are
+now explicit in the release candidate:
+
+- the `0.5 m` grounded/home-relative boundary, launch battery reserve, PX4
+  armability/global/home checks, and Smart Swarm capture/motion limits are not
+  relaxed. The field's earlier `~0.8 m` rejection was correct evidence of an
+  unsettled altitude estimate, not a reason to accept a wider ground state;
+- launch prepare/commit reuses one typed readiness observation only within its
+  identity-bound, policy-bound, maximum two-second evidence lease. A delayed
+  commit re-probes and fails closed, while an immediate commit no longer makes
+  the redundant second probe that timed out during the field session;
+- Smart Swarm has one dashboard start surface, unavailable targets block Start,
+  and the command monitor presents bounded per-aircraft preparation, delivery,
+  and execution reasons rather than only `all reachable failed`;
+- cooperative Smart Swarm cancellation stops setpoint producers, exits
+  Offboard, and requests Hold before the controller process exits. Dedicated
+  Hold/Land/RTL remains the clearest field recovery path; and
+- the reviewed autonomous field profile uses a one-second Offboard-loss delay
+  and RTL. The profile's existing RC-loss exemptions remain a separate
+  operator policy and must not be bulk-applied merely to change the timeout.
+
+The focused release-candidate validation passed 53 dashboard tests and 422
+backend/runtime/profile tests with one environment skip. The cooperative
+shutdown test sends a real SIGTERM to a subprocess and proves the ordered
+`setpoints stopped → Offboard stopped → Hold requested` handoff. The full
+two-drone SITL scenario below remains the accepted motion/recovery rehearsal;
+the release candidate must repeat its bounded SITL acceptance after deployment
+because the cancellation runtime changed afterward.
+
 Before paired real-aircraft Smart Swarm flight:
 
 - inspect both airframes, power systems, temperatures, propellers, RC/manual
@@ -198,12 +229,21 @@ Before paired real-aircraft Smart Swarm flight:
 - require current GCS/QGC/node connectivity and no unresolved sync warning;
 - require stable PX4 readiness on each aircraft, including GNSS/RTK, home,
   local/vertical position, and the absence of active preflight blockers;
+- while grounded and disarmed, read and record each aircraft's
+  `COM_OF_LOSS_T`, `COM_OBL_RC_ACT`, `COM_RCL_EXCEPT`, `COM_RC_OVERRIDE`, and
+  `COM_ARM_WO_GPS`. The reviewed repo profile uses a one-second Offboard-loss
+  delay followed by RTL, but it is not active until a deliberate diff/apply and
+  verified readback prove that it is;
 - stop if position or altitude estimates drift, a readiness gate flaps, the
   router overheats, or the control network is unstable;
-- first repeat takeoff/HOLD/LAND with one aircraft at a time and review its
-  return-position behavior;
+- repeat Take Off/HOLD/LAND with one aircraft at a time and review its
+  return-position behavior. Do not treat paired Take Off as atomic: each node
+  repeats final admission, so confirm H1 terminal and stable Hold before H2;
 - physically stage H2 approximately 6 m north of H1 with deliberate collision
   separation before paired takeoff; verify the saved NED topology in the UI;
+- start only from `Swarm Design` → `Smart Swarm Runtime` with `Selected
+  Cluster`, and confirm the dialog names exactly H1 and H2. Do not use the
+  generic mission picker or tactical-map shortcut for this first run;
 - keep a trained operator ready for immediate HOLD, LAND, RTL, or manual
   takeover, and keep the first leader movement small;
 - compare both PX4 ULogs and MDS command/unified logs after the run; and
@@ -215,11 +255,12 @@ decides whether the next phase can close.
 
 ## Release boundary
 
-No public SITL image rebuild is required for this checkpoint: the validated
-runtime controller was already present in the pinned image, while the new work
-is validator, guard, build-provenance, test, and documentation support. A later
-runtime filesystem, baked-dependency, startup-script, or packaged-asset change
-must follow the normal image release workflow.
+The original accepted rehearsal used the pinned image and exact synchronized
+runtime recorded above. Subsequent cancellation and Offboard-loss hardening
+changes the runtime/profile checkpoint, so its release must use the normal
+image/package workflow before a public image is described as containing those
+changes. Production nodes may receive the exact release through the documented
+startup sync path, but that does not relabel an older image.
 
 Related sources:
 

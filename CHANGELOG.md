@@ -23,11 +23,29 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Changed
 - Dashboard deployment manifests can now identify a validated Hetzner build
   instead of falsely attributing every packaged build to GitHub Actions.
+- The reviewed multidrone PX4 field profile reduces the Offboard-loss delay
+  from 20 seconds to 1 second while retaining RTL as the configured loss
+  action. Applying the profile remains a grounded, reviewed, per-aircraft
+  diff/readback operation; no live vehicle parameter is changed implicitly.
 - Real-node bootstrap now keeps the MDS `--gcs-ip` control-plane address
   separate from full-rate MAVLink routing. A remote push route requires the
   explicit `--mavlink-push-endpoint HOST:PORT` opt-in with auto configuration
   or a complete explicit endpoint list; existing route sets are not rewritten
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
+
+### Fixed
+- Launch prepare/commit now reuses the same typed, identity-bound readiness
+  observation only inside its maximum two-second evidence lease. Delayed work
+  still re-probes and fails closed, while an immediate valid commit no longer
+  starts a redundant second MAVSDK probe that could time out after preparation
+  had already passed.
+- Generic mission selection no longer exposes a second, under-informed Smart
+  Swarm start path. Live formations start from the dedicated runtime, and
+  command tracking preserves bounded per-aircraft preparation, acknowledgement,
+  and execution failure reasons for the operator.
+- Normal Smart Swarm cancellation now exits Offboard and establishes Hold
+  before reporting completion instead of relying on the PX4 Offboard-loss
+  timeout after its process is terminated.
 
 ## [5.5.118-smart-swarm-motion-safety] - 2026-08-13
 

@@ -125,6 +125,7 @@ class ProcessStopSummary:
     graceful: int = 0
     killed: int = 0
     already_stopped: int = 0
+    failed: int = 0
     unresolved: int = 0
     cleanup_unconfirmed: int = 0
 
@@ -371,10 +372,20 @@ class DroneSetup:
 
     @staticmethod
     def _signal_process(record: RunningMissionProcess, *, force: bool) -> bool:
-        """Signal one owned process group, falling back to its direct child."""
+        """Signal a controller cooperatively, or force-stop its whole group.
+
+        The graceful signal targets the Python controller first so it can use
+        managed helper processes (for example its MAVSDK server) to complete a
+        vehicle-safety handoff. If that bounded grace expires, SIGKILL still
+        targets the complete owned group and prevents stale child setpoints.
+        """
         process = record.process
         signal_number = signal.SIGKILL if force else signal.SIGTERM
-        if getattr(record, "process_group_owned", False) is True and getattr(process, "pid", None):
+        if (
+            force
+            and getattr(record, "process_group_owned", False) is True
+            and getattr(process, "pid", None)
+        ):
             try:
                 os.killpg(int(process.pid), signal_number)
                 return True
@@ -401,6 +412,30 @@ class DroneSetup:
                 "kill" if force else "terminate",
                 record.script_name,
                 getattr(process, "pid", "unknown"),
+                exc,
+            )
+            return False
+
+    @staticmethod
+    def _stop_process_group_remainders(record: RunningMissionProcess) -> bool:
+        """Remove helper descendants after their controller exits cleanly."""
+        process = record.process
+        if not (
+            getattr(record, "process_group_owned", False) is True
+            and getattr(process, "pid", None)
+        ):
+            return True
+        try:
+            # The session leader may already have exited, but its process
+            # group remains addressable while any helper is still alive.
+            os.killpg(int(process.pid), signal.SIGKILL)
+            return True
+        except ProcessLookupError:
+            return True
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error(
+                "Could not stop helper processes remaining after mission controller '%s' exited: %s",
+                record.script_name,
                 exc,
             )
             return False
@@ -452,10 +487,32 @@ class DroneSetup:
                         terminate_sent = self._signal_process(record, force=False)
                         if terminate_sent:
                             try:
-                                await self._wait_for_process(process, timeout=grace_seconds)
+                                return_code = await self._wait_for_process(
+                                    process,
+                                    timeout=grace_seconds,
+                                )
                                 stopped = True
-                                summary.graceful += 1
-                                logger.info("Mission controller '%s' stopped gracefully.", script_name)
+                                if return_code in {None, 0}:
+                                    summary.graceful += 1
+                                    logger.info(
+                                        "Mission controller '%s' stopped gracefully.",
+                                        script_name,
+                                    )
+                                else:
+                                    summary.failed += 1
+                                    logger.error(
+                                        "Mission controller '%s' stopped with exit code %s; "
+                                        "its cooperative safety cleanup was not confirmed.",
+                                        script_name,
+                                        return_code,
+                                    )
+                                if not self._stop_process_group_remainders(record):
+                                    summary.unresolved += 1
+                                    logger.critical(
+                                        "Mission controller '%s' exited, but one or more helper "
+                                        "processes could not be force-stopped.",
+                                        script_name,
+                                    )
                             except asyncio.TimeoutError:
                                 logger.warning(
                                     "Mission controller '%s' exceeded the %.2fs %s grace period.",
@@ -474,6 +531,7 @@ class DroneSetup:
                             if record.mission_type in {
                                 Mission.TAKE_OFF.value,
                                 Mission.TEST.value,
+                                Mission.SMART_SWARM.value,
                             }:
                                 record.forced_kill_cleanup_unconfirmed = True
                                 record.forced_stop_mode = mode.value
@@ -1180,7 +1238,7 @@ class DroneSetup:
                 if process_record.forced_kill_cleanup_unconfirmed:
                     superseded_error = (
                         "A newer command replaced this action, but the process was force-killed "
-                        "before TAKE_OFF/TEST safety cleanup could be confirmed. Keep clear of "
+                        "before its vehicle-safety cleanup could be confirmed. Keep clear of "
                         "the vehicle and use the primary recovery controls."
                     )
                     diagnostic_output = (
@@ -1297,7 +1355,7 @@ class DroneSetup:
             )
             if process_record.superseded:
                 superseded_error = (
-                    "Superseded and force-killed before TAKE_OFF/TEST safety cleanup "
+                    "Superseded and force-killed before vehicle-safety cleanup "
                     "could be confirmed. Keep clear of the vehicle and use the primary "
                     "recovery controls."
                     if process_record.forced_kill_cleanup_unconfirmed
@@ -1733,12 +1791,24 @@ class DroneSetup:
         this simply clears the queued mission state and reports a successful
         no-process completion for the cancel command itself.
         """
+        stop_summary = ProcessStopSummary()
         if self.running_processes:
-            await self.terminate_all_running_processes()
+            stop_summary = await self.terminate_all_running_processes()
 
         self.drone_config.mission = Mission.NONE.value
         self.drone_config.state = State.IDLE.value
         self.drone_config.trigger_time = 0
+        if (
+            stop_summary.failed
+            or stop_summary.killed
+            or stop_summary.unresolved
+            or stop_summary.cleanup_unconfirmed
+        ):
+            return await self._fail_pending_command(
+                "Cancel stopped the local mission controller, but the vehicle safety "
+                "handoff was not confirmed. Use Hold, Land, RTL, or the RC and verify "
+                "the aircraft state before continuing."
+            )
         return await self._complete_pending_command_without_process(message)
 
     def _reset_mission_state(self, success: bool):

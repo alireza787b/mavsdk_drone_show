@@ -1,7 +1,7 @@
 {
   "profile_id": "mds_multidrone_field_baseline",
   "name": "MDS Multidrone Field Baseline",
-  "description": "Reviewed multidrone field baseline. Apply only after diff review against the connected PX4 firmware.",
+  "description": "Reviewed autonomous multidrone field baseline. RC-loss exemptions require explicit operator acceptance; apply only after a firmware-matched diff review.",
   "recommended_scope": "fleet",
   "tags": ["field", "multidrone", "safety", "estimator"],
   "entries": [
@@ -12,7 +12,7 @@
     {"component_id": 1, "name": "UAVCAN_PUB_RTCM", "value_type": "int", "value": 1},
     {"component_id": 1, "name": "MAV_PROTO_VER", "value_type": "int", "value": 2},
     {"component_id": 1, "name": "COM_OBL_RC_ACT", "value_type": "int", "value": 3},
-    {"component_id": 1, "name": "COM_OF_LOSS_T", "value_type": "float", "value": 20.0},
+    {"component_id": 1, "name": "COM_OF_LOSS_T", "value_type": "float", "value": 1.0},
     {"component_id": 1, "name": "COM_FLT_TIME_MAX", "value_type": "int", "value": 900},
     {"component_id": 1, "name": "COM_FLTT_LOW_ACT", "value_type": "int", "value": 3},
     {"component_id": 1, "name": "IMU_GYRO_NF0_FRQ", "value_type": "float", "value": 90.0},

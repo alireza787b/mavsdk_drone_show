@@ -428,14 +428,14 @@ describe('MissionDetails Smart Swarm airborne gating', () => {
               update_time: Date.now(),
               heartbeat_last_seen: Date.now(),
               is_armed: false,
-              position_alt: 0.05,
+              altitude_report: { source: 'relative_home', relative_home_m: 0.05, stale: false },
             },
             {
               hw_id: '2',
               update_time: Date.now(),
               heartbeat_last_seen: Date.now(),
               is_armed: true,
-              position_alt: 4.2,
+              altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
             },
           ]}
           targetMode="selected"
@@ -454,5 +454,94 @@ describe('MissionDetails Smart Swarm airborne gating', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Take off grounded drones to 12 m' }));
     expect(onQuickTakeoffGrounded).toHaveBeenCalledWith(['1']);
+  });
+
+  test('blocks Smart Swarm when a selected target has no live telemetry', () => {
+    const now = Date.now();
+    useFetch.mockImplementation((routeKey) => {
+      if (routeKey === 'swarmLeaders') {
+        return {
+          data: { leaders: [1], follower_details: { 1: [2] } },
+          error: null,
+          loading: false,
+        };
+      }
+
+      return { data: null, error: null, loading: false };
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MissionDetails
+          {...baseProps}
+          missionType={DRONE_MISSION_TYPES.SMART_SWARM}
+          label="Smart Swarm"
+          drones={[
+            {
+              hw_id: '1',
+              update_time: now,
+              heartbeat_last_seen: now,
+              is_armed: true,
+              altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
+            },
+            {
+              hw_id: '2',
+              update_time: now - 60_001,
+              heartbeat_last_seen: now - 60_001,
+              is_armed: true,
+              altitude_report: { source: 'relative_home', relative_home_m: 4.1, stale: false },
+            },
+          ]}
+          targetMode="selected"
+          selectedDrones={['1', '2']}
+          referenceNowMs={now}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/1 targeted drone is unavailable \(H2\)/i)).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
+  });
+
+  test('blocks Smart Swarm when a selected target is missing from the fleet snapshot', () => {
+    const now = Date.now();
+    useFetch.mockImplementation((routeKey) => {
+      if (routeKey === 'swarmLeaders') {
+        return {
+          data: { leaders: [1], follower_details: { 1: [2] } },
+          error: null,
+          loading: false,
+        };
+      }
+
+      return { data: null, error: null, loading: false };
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MissionDetails
+          {...baseProps}
+          missionType={DRONE_MISSION_TYPES.SMART_SWARM}
+          label="Smart Swarm"
+          drones={[
+            {
+              hw_id: '1',
+              update_time: now,
+              heartbeat_last_seen: now,
+              is_armed: true,
+              altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
+            },
+          ]}
+          targetMode="selected"
+          selectedDrones={['1', '2']}
+          referenceNowMs={now}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/1 targeted drone is unavailable \(H2\)/i)).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
   });
 });

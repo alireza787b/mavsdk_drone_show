@@ -238,6 +238,7 @@ class LaunchPreparationConsumeStatus(str, Enum):
 class LaunchPreparationConsumeResult:
     status: LaunchPreparationConsumeStatus
     detail: str
+    readiness_valid_until_monotonic: float | None = None
 
     @property
     def consumed(self) -> bool:
@@ -249,6 +250,7 @@ class _StoredPreparation:
     binding: LaunchPreparationBinding
     expires_at_monotonic: float
     latest_post_barrier_trigger_time: float
+    readiness_valid_until_monotonic: float | None
 
 
 def calculate_launch_preparation_token_ttl_sec(*, params: Any) -> float:
@@ -345,10 +347,28 @@ class LaunchPreparationStore:
             # specific diagnostic under sustained malformed/replayed traffic.
             self._consumed.popitem(last=False)
 
-    def issue(self, binding: LaunchPreparationBinding) -> tuple[str, int]:
+    def issue(
+        self,
+        binding: LaunchPreparationBinding,
+        *,
+        readiness_valid_until_monotonic: float | None = None,
+    ) -> tuple[str, int]:
         now = float(self._monotonic())
         wall_now = float(self._wall_clock())
         expires_at = now + self._ttl_sec
+        if readiness_valid_until_monotonic is not None:
+            if (
+                type(readiness_valid_until_monotonic) not in {int, float}
+                or not math.isfinite(float(readiness_valid_until_monotonic))
+                or float(readiness_valid_until_monotonic) <= now
+            ):
+                raise ValueError(
+                    "readiness_valid_until_monotonic must be a finite future deadline"
+                )
+            readiness_valid_until_monotonic = min(
+                float(readiness_valid_until_monotonic),
+                expires_at,
+            )
         with self._lock:
             self._prune_locked(now)
             if len(self._active) >= self._max_records:
@@ -366,6 +386,7 @@ class LaunchPreparationStore:
                 # schedule. Bound that choice to the same short lease as the
                 # preparation authority.
                 latest_post_barrier_trigger_time=wall_now + self._ttl_sec,
+                readiness_valid_until_monotonic=readiness_valid_until_monotonic,
             )
         return token, max(1, int(self._ttl_sec * 1_000))
 
@@ -468,6 +489,7 @@ class LaunchPreparationStore:
         return LaunchPreparationConsumeResult(
             LaunchPreparationConsumeStatus.CONSUMED,
             "Launch preparation token consumed",
+            readiness_valid_until_monotonic=record.readiness_valid_until_monotonic,
         )
 
 

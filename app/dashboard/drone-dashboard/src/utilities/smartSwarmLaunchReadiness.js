@@ -26,7 +26,10 @@ function resolveHomeRelativeAltitude(drone) {
 
 function buildScopedTargets({ drones = [], targetMode = 'all', selectedDrones = [], targetDroneIds = [] }) {
   if (targetMode === 'all') {
-    return drones;
+    return {
+      targetDrones: drones,
+      missingTargetIds: [],
+    };
   }
 
   const scopedIds = new Set(
@@ -34,8 +37,17 @@ function buildScopedTargets({ drones = [], targetMode = 'all', selectedDrones = 
       .map((value) => normalizeId(value))
       .filter(Boolean),
   );
+  const targetDrones = drones.filter((drone) => scopedIds.has(normalizeId(drone?.[FIELD_NAMES.HW_ID])));
+  const observedIds = new Set(
+    targetDrones
+      .map((drone) => normalizeId(drone?.[FIELD_NAMES.HW_ID]))
+      .filter(Boolean),
+  );
 
-  return drones.filter((drone) => scopedIds.has(normalizeId(drone?.[FIELD_NAMES.HW_ID])));
+  return {
+    targetDrones,
+    missingTargetIds: [...scopedIds].filter((hwId) => !observedIds.has(hwId)),
+  };
 }
 
 export function buildSmartSwarmLaunchReadiness({
@@ -46,7 +58,7 @@ export function buildSmartSwarmLaunchReadiness({
   referenceNowMs = Date.now(),
   minAirborneAltitudeM = SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M,
 } = {}) {
-  const targetDrones = buildScopedTargets({
+  const { targetDrones, missingTargetIds } = buildScopedTargets({
     drones,
     targetMode,
     selectedDrones,
@@ -56,6 +68,15 @@ export function buildSmartSwarmLaunchReadiness({
   const groundedDrones = [];
   const unavailableDrones = [];
   let airborneCount = 0;
+
+  missingTargetIds.forEach((hwId) => {
+    const identity = getDroneDisplayIdentity({ [FIELD_NAMES.HW_ID]: hwId });
+    unavailableDrones.push({
+      hwId,
+      label: identity.primary,
+      runtimeLabel: 'Missing from fleet telemetry',
+    });
+  });
 
   targetDrones.forEach((drone) => {
     const runtimeStatus = getDroneRuntimeStatus(drone, referenceNowMs);
@@ -89,7 +110,7 @@ export function buildSmartSwarmLaunchReadiness({
   });
 
   return {
-    targetCount: targetDrones.length,
+    targetCount: targetDrones.length + missingTargetIds.length,
     airborneCount,
     groundedDrones,
     groundedIds: groundedDrones.map((drone) => drone.hwId),

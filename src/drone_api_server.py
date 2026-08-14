@@ -105,6 +105,7 @@ from src.command_admission import (
     AirborneAdmissionStatus,
     evaluate_cached_airborne_admission,
 )
+from src.action_safety import SAFETY_EVIDENCE_VALIDITY_MS
 from src.command_installation import (
     CommandInstallationRejected,
     CommandInstallationResult,
@@ -434,6 +435,41 @@ class LiveArmabilityResponse(LiveArmabilityTrustEnvelope):
     require_global_position: bool = True
     timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
     probe_error: Optional[str] = None
+
+
+def _bounded_readiness_lease_ms(
+    envelope: LiveArmabilityResponse,
+    *,
+    require_global_position: bool,
+) -> int:
+    """Return the reusable portion of one typed safety observation.
+
+    The node's safety SSOT defines a two-second maximum evidence lifetime.
+    Cross-check the transport's remaining lease against both that constant and
+    the observation's own declared interval so malformed or clock-skewed
+    metadata can only shorten authority, never extend it.
+    """
+
+    observation = envelope.observation
+    if (
+        not envelope.ready
+        or observation is None
+        or not observation.ready
+        or observation.require_global_position is not require_global_position
+    ):
+        return 0
+    observation_validity_ms = max(
+        0,
+        observation.valid_until_ms - observation.observed_at_ms,
+    )
+    return max(
+        0,
+        min(
+            envelope.remaining_valid_ms,
+            observation_validity_ms,
+            SAFETY_EVIDENCE_VALIDITY_MS,
+        ),
+    )
 
 
 class DroneHealthResponse(BaseModel):
@@ -1912,8 +1948,28 @@ class DroneAPIServer:
                 error_detail=preparation_result.detail,
             )
 
+        # Preparation already sampled the exact same command and vehicle. Reuse
+        # that authoritative observation only inside its short node-monotonic
+        # evidence lease. This avoids starting a second MAVSDK server/probe a
+        # few milliseconds later while preserving fail-closed revalidation for
+        # a delayed fleet barrier or commit.
+        prepared_readiness_deadline = (
+            preparation_result.readiness_valid_until_monotonic
+        )
+        if (
+            prepared_readiness_deadline is not None
+            and time.monotonic() < prepared_readiness_deadline
+        ):
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=True,
+                readiness_valid_until_monotonic=prepared_readiness_deadline,
+            )
+
         try:
             probe = await self._probe_live_armability(require_global_position=True)
+            probe_completed_monotonic = time.monotonic()
             envelope = LiveArmabilityResponse(**probe)
         except asyncio.CancelledError:
             raise
@@ -1942,6 +1998,19 @@ class DroneAPIServer:
                     "Commit-time readiness came from a different hardware identity"
                 ),
             )
+        if (
+            envelope.observation is None
+            or envelope.observation.require_global_position is not True
+        ):
+            return _LaunchCommitAdmission(
+                command=command,
+                launch_required=True,
+                authorized=False,
+                error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                error_detail=(
+                    "Commit-time readiness did not prove the required global-position policy"
+                ),
+            )
         if not envelope.ready:
             blockers = (
                 envelope.observation.blockers
@@ -1965,7 +2034,14 @@ class DroneAPIServer:
             launch_required=True,
             authorized=True,
             readiness_valid_until_monotonic=(
-                time.monotonic() + (envelope.remaining_valid_ms / 1_000.0)
+                probe_completed_monotonic
+                + (
+                    _bounded_readiness_lease_ms(
+                        envelope,
+                        require_global_position=True,
+                    )
+                    / 1_000.0
+                )
             ),
         )
 
@@ -2074,6 +2150,7 @@ class DroneAPIServer:
                 probe = await self._probe_live_armability(
                     require_global_position=request.require_global_position,
                 )
+                probe_completed_monotonic = time.monotonic()
                 envelope = LiveArmabilityResponse(**probe)
             except asyncio.CancelledError:
                 raise
@@ -2091,6 +2168,27 @@ class DroneAPIServer:
                         "error_detail": "No launch token was issued",
                     },
                 ) from exc
+
+            if envelope.hw_id != local_hw_id:
+                return LaunchPreparationResponse(
+                    status="rejected",
+                    command_id=command_id,
+                    target_hw_id=local_hw_id,
+                    mission_type=command.mission_type,
+                    immutable_payload_sha256=payload_digest,
+                    ready=False,
+                    summary="Launch readiness came from a different drone identity",
+                    preparation_token=None,
+                    token_ttl_ms=0,
+                    server_processing_ms=max(
+                        0,
+                        int((time.monotonic() - started) * 1_000),
+                    ),
+                    error_code=CommandErrorCode.TARGET_IDENTITY_MISMATCH.value,
+                    error_detail=(
+                        f"Expected hardware ID={local_hw_id}; observed hardware ID={envelope.hw_id}"
+                    ),
+                )
 
             if not envelope.ready:
                 return LaunchPreparationResponse(
@@ -2115,9 +2213,39 @@ class DroneAPIServer:
                     ),
                 )
 
+            if (
+                envelope.observation is None
+                or envelope.observation.require_global_position
+                != request.require_global_position
+            ):
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error_code": CommandErrorCode.PREFLIGHT_FAILED.value,
+                        "message": "Live launch readiness policy did not match the request",
+                        "error_detail": "No launch token was issued",
+                    },
+                )
+
             try:
                 binding = LaunchPreparationBinding.from_command(command)
-                token, token_ttl_ms = self._launch_preparation_store.issue(binding)
+                bounded_remaining_valid_ms = _bounded_readiness_lease_ms(
+                    envelope,
+                    require_global_position=request.require_global_position,
+                )
+                readiness_deadline = (
+                    probe_completed_monotonic
+                    + (bounded_remaining_valid_ms / 1_000.0)
+                    if (
+                        request.require_global_position
+                        and bounded_remaining_valid_ms > 0
+                    )
+                    else None
+                )
+                token, token_ttl_ms = self._launch_preparation_store.issue(
+                    binding,
+                    readiness_valid_until_monotonic=readiness_deadline,
+                )
             except (RuntimeError, TypeError, ValueError) as exc:
                 logger.warning(
                     "Launch preparation token could not be issued for command_id=%s: %s",
@@ -2464,7 +2592,11 @@ class DroneAPIServer:
                         command_id=command_id,
                         capability=command_report_capability,
                     )
-                    new_state, cancel_message = await self._cancel_active_or_pending_command(
+                    (
+                        new_state,
+                        cancel_message,
+                        cancel_completed,
+                    ) = await self._cancel_active_or_pending_command(
                         had_active_command=had_active_command,
                     )
                     command_committed = True
@@ -2484,13 +2616,23 @@ class DroneAPIServer:
                         mission_type=mission_type,
                         trigger_time=trigger_time,
                         message=cancel_message,
+                        error_code=(
+                            None
+                            if cancel_completed
+                            else CommandErrorCode.MISSION_SCRIPT_ERROR.value
+                        ),
+                        error_detail=(
+                            None
+                            if cancel_completed
+                            else "The cancel command ran, but its vehicle safety handoff is unconfirmed"
+                        ),
                         timestamp=timestamp,
                     )
                     return self._finalize_command_idempotency(
                         idempotency_record,
                         response,
-                        phase="completed",
-                        outcome="completed",
+                        phase="completed" if cancel_completed else "failed",
+                        outcome="completed" if cancel_completed else "failed",
                     )
 
                 # DroneCommunicator owns the one prepare -> artifact/config
@@ -4397,8 +4539,12 @@ class DroneAPIServer:
 
         return None
 
-    async def _cancel_active_or_pending_command(self, *, had_active_command: bool) -> Tuple[int, str]:
-        """Clear the current mission state and report a successful cancel command."""
+    async def _cancel_active_or_pending_command(
+        self,
+        *,
+        had_active_command: bool,
+    ) -> Tuple[int, str, bool]:
+        """Clear local mission state and preserve the cancel execution outcome."""
         message = (
             "Cancel command accepted; active mission cleared."
             if had_active_command
@@ -4407,14 +4553,16 @@ class DroneAPIServer:
         drone_setup = getattr(self.drone_config, 'drone_setup', None)
 
         if drone_setup and hasattr(drone_setup, 'cancel_active_command'):
-            await drone_setup.cancel_active_command(message)
+            cancel_completed, result_message = await drone_setup.cancel_active_command(message)
+            message = str(result_message or message)
         else:
             self.drone_config.mission = Mission.NONE.value
             self.drone_config.state = State.IDLE.value
             self.drone_config.trigger_time = 0
             self.drone_config.current_command_id = None
+            cancel_completed = True
 
-        return State.IDLE.value, message
+        return State.IDLE.value, message, bool(cancel_completed)
 
     def _build_acceptance_message(
         self,

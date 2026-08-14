@@ -70,6 +70,30 @@ describe('buildSmartSwarmLaunchReadiness', () => {
     expect(readiness.unavailableIds).toEqual(['1']);
   });
 
+  test('reports a selected target missing from the fleet snapshot as unavailable', () => {
+    const now = Date.now();
+    const readiness = buildSmartSwarmLaunchReadiness({
+      drones: [{
+        hw_id: '1',
+        update_time: now,
+        heartbeat_last_seen: now,
+        is_armed: true,
+        altitude_report: { source: 'relative_home', relative_home_m: 2.5, stale: false },
+      }],
+      targetMode: 'selected',
+      selectedDrones: ['1', '2'],
+      referenceNowMs: now,
+    });
+
+    expect(readiness.targetCount).toBe(2);
+    expect(readiness.airborneCount).toBe(1);
+    expect(readiness.unavailableDrones).toEqual([{
+      hwId: '2',
+      label: 'H2',
+      runtimeLabel: 'Missing from fleet telemetry',
+    }]);
+  });
+
   test('never treats absolute MSL altitude as airborne height', () => {
     const now = Date.now();
     const readiness = buildSmartSwarmLaunchReadiness({

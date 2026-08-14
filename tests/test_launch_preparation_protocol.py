@@ -44,6 +44,33 @@ def test_token_is_one_use_and_bound_to_exact_command_target_and_payload():
     assert store.consume(token, command).status is LaunchPreparationConsumeStatus.REPLAYED
 
 
+def test_token_carries_only_the_explicit_short_readiness_lease():
+    clock = _Clock()
+    store = LaunchPreparationStore(ttl_sec=60.0, monotonic=clock)
+    command = _launch_command()
+    token, _ = store.issue(
+        LaunchPreparationBinding.from_command(command),
+        readiness_valid_until_monotonic=clock.value + 2.0,
+    )
+
+    consumed = store.consume(token, command)
+
+    assert consumed.status is LaunchPreparationConsumeStatus.CONSUMED
+    assert consumed.readiness_valid_until_monotonic == 102.0
+
+
+@pytest.mark.parametrize("deadline", [100.0, float("nan"), "102"])
+def test_token_refuses_invalid_readiness_lease(deadline):
+    clock = _Clock()
+    store = LaunchPreparationStore(ttl_sec=60.0, monotonic=clock)
+
+    with pytest.raises(ValueError, match="readiness_valid_until_monotonic"):
+        store.issue(
+            LaunchPreparationBinding.from_command(_launch_command()),
+            readiness_valid_until_monotonic=deadline,
+        )
+
+
 @pytest.mark.parametrize(
     "changed",
     [

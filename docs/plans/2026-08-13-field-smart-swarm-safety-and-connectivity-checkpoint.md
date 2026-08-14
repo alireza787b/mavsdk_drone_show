@@ -98,8 +98,10 @@ Do not start the two-aircraft follower test until all required items are true:
    checks before the combined run
 6. estimator/GNSS/RTK evidence remains stable without relaxing PX4 or MDS gates
 7. the active aircraft Offboard-loss settings are reviewed deliberately; the
-   tracked field profile's `COM_OF_LOSS_T=20.0` is not changed by this slice and
-   must not be assumed to match the aircraft without verification
+   tracked field profile now uses `COM_OF_LOSS_T=1.0` with
+   `COM_OBL_RC_ACT=3` (RTL), but the profile must not be assumed to match either
+   aircraft without a grounded snapshot, deliberate diff, and verified
+   readback
 
 For the first combined attempt:
 

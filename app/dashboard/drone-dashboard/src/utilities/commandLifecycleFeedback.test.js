@@ -1,4 +1,7 @@
-import { submitCommandWithLifecycleFeedback } from './commandLifecycleFeedback';
+import {
+  buildLifecycleSnapshotFromStatus,
+  submitCommandWithLifecycleFeedback,
+} from './commandLifecycleFeedback';
 import { getCommandStatus, sendDroneCommand } from '../services/droneApiService';
 import { toast } from 'react-toastify';
 
@@ -593,6 +596,202 @@ describe('commandLifecycleFeedback', () => {
     expect(toast.error).toHaveBeenCalledWith('Drone 2 battery reserve is below policy.');
     expect(onTrackingComplete).toHaveBeenCalledWith(
       expect.objectContaining({ commandId: 'cmd-preflight-failed', isTerminal: true }),
+      expect.objectContaining({ outcome: 'failed' }),
+    );
+  });
+
+  it('projects per-target failures into a bounded sanitized issue summary', () => {
+    const longReason = `Vertical position estimate is not settled.\n${'x'.repeat(240)}`;
+    const preparationDetails = Object.fromEntries(
+      ['1', '2', '3', '4', '5', '6'].map((droneId) => [
+        droneId,
+        {
+          state: 'blocked',
+          error_code: droneId === '1' ? 'E202' : '<untrusted-code>',
+          error_detail: droneId === '1' ? longReason : `Readiness blocker on target ${droneId}`,
+          observation: { raw: 'must not be copied into the monitor' },
+        },
+      ]),
+    );
+
+    const snapshot = buildLifecycleSnapshotFromStatus({
+      command_id: 'cmd-bounded-target-issues',
+      mission_type: 10,
+      mission_name: 'TAKE_OFF',
+      target_drones: ['1', '2', '3', '4', '5', '6'],
+      phase: 'terminal',
+      outcome: 'failed',
+      error_summary: 'Launch was not dispatched under all-required policy.',
+      progress: { stage: 'failed', label: 'Failed', message: 'No launch command was dispatched.' },
+      preparations: {
+        expected: 6,
+        received: 6,
+        ready: 0,
+        blocked: 6,
+        unavailable: 0,
+        policy: 'all_required',
+        details: preparationDetails,
+      },
+      acks: { expected: 6, received: 0, accepted: 0, offline: 0, rejected: 0, errors: 0, details: {} },
+      executions: { expected: 0, succeeded: 0, failed: 0, details: {} },
+    });
+
+    expect(snapshot.targetIssueCount).toBe(6);
+    expect(snapshot.targetIssues).toHaveLength(4);
+    expect(snapshot.targetIssuesOmitted).toBe(2);
+    expect(snapshot.targetIssues[0]).toEqual(expect.objectContaining({
+      droneId: '1',
+      stage: 'preparation',
+      errorCode: 'E202',
+    }));
+    expect(snapshot.targetIssues[0].reason).not.toMatch(/[\n\r]/);
+    expect(snapshot.targetIssues[0].reason.length).toBeLessThanOrEqual(180);
+    expect(snapshot.targetIssues[0]).not.toHaveProperty('observation');
+    expect(snapshot.targetIssues[1].errorCode).toBeNull();
+    expect(snapshot.preparations).not.toHaveProperty('details');
+  });
+
+  it('uses the latest authoritative failure stage when one target has conflicting details', () => {
+    const snapshot = buildLifecycleSnapshotFromStatus({
+      command_id: 'cmd-conflicting-target-details',
+      mission_type: 10,
+      mission_name: 'TAKE_OFF',
+      target_drones: ['1'],
+      phase: 'terminal',
+      outcome: 'failed',
+      progress: { stage: 'failed', label: 'Failed', message: 'Execution failed.' },
+      preparations: {
+        expected: 1,
+        received: 1,
+        ready: 0,
+        blocked: 1,
+        unavailable: 0,
+        details: { '1': { state: 'blocked', error_detail: 'Earlier readiness blocker' } },
+      },
+      acks: {
+        expected: 1,
+        received: 1,
+        accepted: 0,
+        offline: 0,
+        rejected: 1,
+        errors: 0,
+        details: { '1': { category: 'rejected', error_detail: 'Later delivery rejection' } },
+      },
+      executions: {
+        expected: 1,
+        succeeded: 0,
+        failed: 1,
+        details: { '1': { success: false, error: 'Authoritative execution failure' } },
+      },
+    });
+
+    expect(snapshot.targetIssues).toEqual([
+      expect.objectContaining({
+        droneId: '1',
+        stage: 'execution',
+        reason: 'Authoritative execution failure',
+      }),
+    ]);
+  });
+
+  it('clears earlier transport uncertainty after authoritative execution success', () => {
+    const snapshot = buildLifecycleSnapshotFromStatus({
+      command_id: 'cmd-resolved-target-details',
+      mission_type: 10,
+      mission_name: 'TAKE_OFF',
+      target_drones: ['1'],
+      phase: 'terminal',
+      outcome: 'completed',
+      progress: { stage: 'completed', label: 'Completed', message: 'Execution completed.' },
+      preparations: {
+        expected: 1,
+        received: 1,
+        ready: 1,
+        blocked: 0,
+        unavailable: 0,
+        details: { '1': { state: 'ready' } },
+      },
+      acks: {
+        expected: 1,
+        received: 1,
+        accepted: 0,
+        offline: 0,
+        rejected: 0,
+        errors: 1,
+        details: { '1': { delivery_state: 'delivery_unknown' } },
+      },
+      executions: {
+        expected: 1,
+        succeeded: 1,
+        failed: 0,
+        details: { '1': { success: true } },
+      },
+    });
+
+    expect(snapshot.targetIssueCount).toBe(0);
+    expect(snapshot.targetIssues).toEqual([]);
+  });
+
+  it('keeps the strongest concrete issue per target and includes it in the terminal toast', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({
+      command_id: 'cmd-concrete-target-reason',
+      target_drones: ['1', '2'],
+    }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'cmd-concrete-target-reason',
+      mission_type: 10,
+      mission_name: 'TAKE_OFF',
+      target_drones: ['1', '2'],
+      phase: 'terminal',
+      outcome: 'failed',
+      error_summary: 'All reachable targets failed.',
+      progress: { stage: 'failed', label: 'Failed', message: 'All reachable targets failed.' },
+      preparations: {
+        expected: 2,
+        received: 2,
+        ready: 1,
+        blocked: 1,
+        unavailable: 0,
+        details: {
+          '1': { state: 'ready', message: 'Ready' },
+          '2': {
+            state: 'blocked',
+            error_code: 'E202',
+            error_detail: 'Vertical position error 0.84 m exceeds the 0.50 m launch gate.',
+          },
+        },
+      },
+      acks: {
+        expected: 2,
+        received: 0,
+        accepted: 0,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+        details: {},
+      },
+      executions: { expected: 0, succeeded: 0, failed: 0, details: {} },
+    });
+    const onTrackingComplete = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      { mission_type: 10, trigger_time: 0, target_drone_ids: ['1', '2'], uiMeta: { operatorLabel: 'Take Off' } },
+      { onTrackingComplete },
+    );
+    await flushMicrotasks();
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Take Off failed (0/2 succeeded). Drone 2: Vertical position error 0.84 m exceeds the 0.50 m launch gate (E202).',
+    );
+    expect(onTrackingComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetIssueCount: 1,
+        targetIssues: [expect.objectContaining({
+          droneId: '2',
+          stage: 'preparation',
+          reason: 'Vertical position error 0.84 m exceeds the 0.50 m launch gate.',
+        })],
+      }),
       expect.objectContaining({ outcome: 'failed' }),
     );
   });

@@ -17,6 +17,7 @@ import {
   getCommandName,
 } from '../constants/droneConstants';
 import {
+  formatCommandTargetIssue,
   submitCommandWithLifecycleFeedback,
 } from '../utilities/commandLifecycleFeedback';
 import {
@@ -39,6 +40,24 @@ import {
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+
+const MAX_VISIBLE_MONITOR_TARGET_ISSUES = 3;
+
+function getMonitorTargetIssues(monitor) {
+  const issues = Array.isArray(monitor?.targetIssues)
+    ? monitor.targetIssues.slice(0, MAX_VISIBLE_MONITOR_TARGET_ISSUES)
+    : [];
+  const reportedTotal = Number(monitor?.targetIssueCount);
+  const total = Number.isFinite(reportedTotal) && reportedTotal >= issues.length
+    ? reportedTotal
+    : issues.length;
+
+  return {
+    issues,
+    total,
+    omitted: Math.max(0, total - issues.length),
+  };
+}
 
 const CommandSender = ({
   drones,
@@ -381,6 +400,39 @@ const CommandSender = ({
 
     return null;
   }, [commandMonitor]);
+
+  const renderTargetIssues = (monitor, { compact = false } = {}) => {
+    const { issues, omitted, total } = getMonitorTargetIssues(monitor);
+    if (issues.length === 0) {
+      return null;
+    }
+
+    if (compact) {
+      const firstIssue = formatCommandTargetIssue(issues[0], { includeStage: true });
+      return (
+        <p className="command-monitor-history__issue">
+          <strong>Target issue:</strong> {firstIssue}
+          {total > 1 && ` (+${total - 1} more affected target${total - 1 === 1 ? '' : 's'})`}
+        </p>
+      );
+    }
+
+    return (
+      <div className="command-monitor__target-issues" role="group" aria-label="Target command issues">
+        <strong>Target issues</strong>
+        <ul>
+          {issues.map((issue, index) => (
+            <li key={`${issue?.droneId || 'unknown'}-${issue?.stage || 'target'}-${index}`}>
+              {formatCommandTargetIssue(issue, { includeStage: true })}
+            </li>
+          ))}
+        </ul>
+        {omitted > 0 && (
+          <span>+{omitted} more affected target{omitted === 1 ? '' : 's'}.</span>
+        )}
+      </div>
+    );
+  };
 
   const renderConfirmationDetails = () => {
     if (!currentCommandData) {
@@ -775,6 +827,7 @@ const CommandSender = ({
                         </span>
                       </div>
                       <p>{monitor.progress?.message}</p>
+                      {renderTargetIssues(monitor, { compact: true })}
                       <div className="command-monitor-history__meta">
                         <span>{monitor.targetLabel}</span>
                         <span>ID {monitor.commandId}</span>
@@ -864,6 +917,8 @@ const CommandSender = ({
                 : `Tracking updates are currently ${commandMonitor.trackingIssue === 'timeout' ? 'timed out' : 'unavailable'}. The last known command state remains visible here.`}
             </p>
           )}
+
+          {renderTargetIssues(commandMonitor)}
 
           <div className="command-monitor__metrics" role="list" aria-label="Command monitor metrics">
             {commandMonitorMetrics.map((metric) => (

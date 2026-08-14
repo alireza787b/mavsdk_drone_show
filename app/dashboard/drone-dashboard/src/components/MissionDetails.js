@@ -323,6 +323,19 @@ const MissionDetails = ({
         `${groundedCount} targeted drone${groundedCount === 1 ? ' is' : 's are'} not airborne yet (${groundedLabels}${overflow}). Launch them before starting Smart Swarm.`
       );
     }
+
+    if ((smartSwarmLaunchReadiness?.unavailableDrones?.length || 0) > 0) {
+      const unavailableCount = smartSwarmLaunchReadiness.unavailableDrones.length;
+      const unavailableLabels = smartSwarmLaunchReadiness.unavailableDrones
+        .slice(0, 4)
+        .map((drone) => drone.label)
+        .join(', ');
+      const overflow = unavailableCount > 4 ? ` +${unavailableCount - 4} more` : '';
+
+      smartSwarmBlockers.push(
+        `${unavailableCount} targeted drone${unavailableCount === 1 ? ' is' : 's are'} unavailable (${unavailableLabels}${overflow}). Restore live telemetry before starting Smart Swarm.`
+      );
+    }
   }
 
   if (

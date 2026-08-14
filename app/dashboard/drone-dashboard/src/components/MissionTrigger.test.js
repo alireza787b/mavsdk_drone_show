@@ -15,6 +15,20 @@ jest.mock('./MissionDetails', () => (props) => (
 ));
 
 describe('MissionTrigger', () => {
+  test('routes Smart Swarm starts to the dedicated runtime instead of the generic picker', () => {
+    render(
+      <MissionTrigger
+        missionTypes={DRONE_MISSION_TYPES}
+        onSendCommand={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Smart Swarm' })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Smart Swarm Runtime' })
+    ).toHaveAttribute('href', '/swarm-design');
+  });
+
   test('forces Custom CSV commands into explicit local mode', () => {
     const onSendCommand = jest.fn();
 

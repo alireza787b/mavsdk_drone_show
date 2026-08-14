@@ -80,10 +80,19 @@ Before sending commands, verify:
 - selected cards show `In` and intentionally excluded cards show `Out`
 - preflight has no unresolved blockers for the current target scope
 
+When a target rejects during preparation, delivery, or execution, the command
+monitor shows a bounded per-aircraft reason. Read that reason before retrying;
+do not repeat a command merely to force a green state. A fleet preparation
+barrier reduces partial launches, but final PX4 and node checks remain
+per-aircraft and cannot make physical takeoff atomic.
+
 Mission-specific reminders:
 
 - QuickScout launches from its own review dialog after the SAR package is
   computed. Monitor and abort/return controls remain in QuickScout.
+- Smart Swarm starts only from `Swarm Design` → `Smart Swarm Runtime`. Confirm
+  the exact selected cluster, live-airborne evidence, saved assignments, and
+  Formation Preview there; recover with its Hold, Land, or RTL controls.
 - Swarm Trajectory is prepared on the Swarm Trajectory page, but final Mission
   Type 4 dispatch still happens from Dashboard Mission Trigger after validation
   and readiness are clear.
