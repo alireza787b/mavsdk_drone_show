@@ -217,10 +217,44 @@ now explicit in the release candidate:
 The focused release-candidate validation passed 53 dashboard tests and 422
 backend/runtime/profile tests with one environment skip. The cooperative
 shutdown test sends a real SIGTERM to a subprocess and proves the ordered
-`setpoints stopped → Offboard stopped → Hold requested` handoff. The full
-two-drone SITL scenario below remains the accepted motion/recovery rehearsal;
-the release candidate must repeat its bounded SITL acceptance after deployment
-because the cancellation runtime changed afterward.
+`setpoints stopped → Offboard stopped → Hold requested` handoff.
+
+### Release-candidate repeat — 2026-08-14
+
+The exact two-aircraft scenario was repeated once on the synchronized release
+candidate that contains the readiness, command-reason, and cooperative
+Smart Swarm recovery changes. No admission, capture, tracking, or recovery gate
+was loosened. The validator recorded 492 samples and completed Take Off,
+bounded H2 staging, Smart Swarm, a `1 m` H1 north jog, HOLD, and LAND. It then
+proved zero active commands, both vehicles grounded/disarmed/idle, and exact
+swarm-resource restoration.
+
+Capture error remained within `0.235 m` horizontal and `0.043 m` vertical.
+During the deliberate leader jog, maximum formation error was `1.407 m`
+horizontal and `0.107 m` vertical. Using unique follower stream samples, the
+largest position-derived horizontal step was `0.145 m` and maximum horizontal
+speed was `1.423 m/s`, below the configured `2.0 m/s` limit. Independent leader
+and follower streams advanced with no stream-task error. The plots show a
+bounded capture response rather than a position discontinuity or sustained
+oscillation; as above, telemetry derivatives are not substituted for direct
+acceleration or jerk evidence.
+
+Both complete PX4 ULogs, unified logs, an online command-journal backup, the
+console transcript, JSON/CSV, and four plots were archived before the exact two
+SITL instances were removed. The root-only final archive SHA-256 is
+`b286a3782096dce9a4af48498e871afe8473ae6ef464fb204a2f4a6eae6bb37e`.
+REAL mode, the baseline environment hash, HTTP health, the dashboard, and zero
+SITL residue were independently re-established afterward; all temporary
+credentials were revoked and deleted.
+
+This repeat also exposed a pre-reconcile bootstrap gap before any simulated
+aircraft existed: the launcher did not propagate the registered
+`MDS_SITL_GCS_API_TOKEN_FILE` path into its explicit tmux environment. The
+launcher allowlist and regression were corrected in official commit
+`3f0c67df`; the complete 118-test bootstrap suite passes. Because that child
+changes launcher propagation only, release acceptance pairs this full flight
+trace with a targeted authenticated reconcile/cleanup proof on the final exact
+deployment rather than repeating the flight loop again.
 
 Before paired real-aircraft Smart Swarm flight:
 
