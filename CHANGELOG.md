@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- The GCS launcher now propagates `MDS_SITL_GCS_API_TOKEN_FILE` through its
+  explicit tmux environment allowlist, so authenticated SITL reconciliation
+  can mount the configured drone-scoped callback token without manual process
+  environment injection.
+
 ### Added
 - A fail-closed two-drone Smart Swarm SITL rehearsal now reproduces the field
   topology (`H1` leader, `H2` follower at `+6 m north` in NED), stages the
