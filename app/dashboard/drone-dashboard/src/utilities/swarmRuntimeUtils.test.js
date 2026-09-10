@@ -133,7 +133,7 @@ describe('swarmRuntimeUtils', () => {
     })).toContain('Drone 2');
   });
 
-  test('getSwarmRuntimeStartBlockerReason requires fresh airborne telemetry for every target', () => {
+  test('flight telemetry is advisory in the UI; aircraft admission remains authoritative', () => {
     const viewModel = buildSwarmViewModel(assignments, config);
     const { selectedDrone, cluster, targetIds } = resolveSwarmRuntimeTargets(
       viewModel,
@@ -158,7 +158,8 @@ describe('swarmRuntimeUtils', () => {
       targetDrones,
       telemetryById,
       nowMs,
-    })).toContain('Drone 2');
+      pendingSyncIds: targetIds,
+    })).toBe('');
   });
 
   test('getSwarmRuntimeTelemetrySummary reports ready, review, and waiting counts', () => {

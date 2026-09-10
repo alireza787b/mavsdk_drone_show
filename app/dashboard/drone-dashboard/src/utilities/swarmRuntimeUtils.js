@@ -2,7 +2,6 @@ import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConst
 import { getDroneReadinessModel } from './droneReadiness';
 import { formatDroneLabel } from './missionIdentityUtils';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
-import { buildSmartSwarmLaunchReadiness } from './smartSwarmLaunchReadiness';
 
 export const SWARM_RUNTIME_SCOPE = {
   DRONE: 'drone',
@@ -121,10 +120,7 @@ export function getSwarmRuntimeStartBlockerReason({
   selectedCluster,
   targetIds = [],
   targetDrones = [],
-  telemetryById = {},
-  nowMs = Date.now(),
   dirtyIds = [],
-  pendingSyncIds = [],
 }) {
   if (targetIds.length === 0) {
     return 'No valid swarm targets are available.';
@@ -149,36 +145,20 @@ export function getSwarmRuntimeStartBlockerReason({
     return `Resolve follow-chain issues on ${formatRuntimeTargetList(blockingTargetIds)} before starting Smart Swarm.`;
   }
 
-  const runtimeTargets = targetIds
-    .map((targetId) => telemetryById?.[String(targetId)])
-    .filter(Boolean);
-  const airborne = buildSmartSwarmLaunchReadiness({
-    drones: runtimeTargets,
-    targetMode: 'all',
-    referenceNowMs: nowMs,
-  });
-  if (runtimeTargets.length !== targetIds.length) {
-    return 'Wait for fresh telemetry from every targeted drone before starting Smart Swarm.';
-  }
-  if (airborne.unavailableIds.length > 0) {
-    return `Wait for a fresh live link from ${formatRuntimeTargetList(airborne.unavailableIds)} before starting Smart Swarm.`;
-  }
-  if (airborne.groundedIds.length > 0 || airborne.airborneCount !== targetIds.length) {
-    const blockedIds = airborne.groundedIds.length > 0 ? airborne.groundedIds : targetIds;
-    return `Launch and stabilize ${formatRuntimeTargetList(blockedIds)} before starting Smart Swarm.`;
-  }
-
   const targetIdSet = getTargetIdSet(targetIds);
+  if (targetDrones.some((drone) => Number(drone.follow) > 0 && !targetIdSet.has(String(drone.follow)))) {
+    return 'Select Cluster to include the follower’s saved leader chain.';
+  }
+  // Live flight-state evidence is displayed below, but only the node-side
+  // admission owns that decision. The session carries saved assignments, so
+  // a pending git sync is not a second runtime start gate either.
   const dirtyTargetIds = (Array.isArray(dirtyIds) ? dirtyIds : [])
     .map((value) => String(value))
     .filter((value) => targetIdSet.has(value));
-  const pendingTargetIds = (Array.isArray(pendingSyncIds) ? pendingSyncIds : [])
-    .map((value) => String(value))
-    .filter((value) => targetIdSet.has(value));
-  const targetedUnsavedIds = [...new Set([...dirtyTargetIds, ...pendingTargetIds])];
+  const targetedUnsavedIds = [...new Set(dirtyTargetIds)];
 
   if (targetedUnsavedIds.length > 0) {
-    return `Save or sync the targeted swarm assignments for ${formatRuntimeTargetList(targetedUnsavedIds)} before starting Smart Swarm.`;
+    return `Save the targeted swarm assignments for ${formatRuntimeTargetList(targetedUnsavedIds)} before starting Smart Swarm.`;
   }
 
   return '';

@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { FaBroadcastTower, FaChevronDown } from 'react-icons/fa';
 import CommandSender from '../components/CommandSender';
-import DashboardSmartSwarmStart from '../components/DashboardSmartSwarmStart';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
@@ -558,7 +557,6 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
         ref={commandDispatchRef}
         id="command-dispatch"
       >
-        <DashboardSmartSwarmStart drones={drones} />
         <CommandSender
           drones={drones}
           runtimeMode={runtimeMode}

@@ -43,6 +43,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Private-node startup sync retains configured SSH credentials through a
+  temporary boot network failure instead of falling back to anonymous HTTPS.
 - Smart Swarm runtime ownership is now session-scoped and inactive after
   shutdown or external takeover. The follower watches PX4 control authority so
   RC/QGC RTL or Land cannot be countermanded by MDS HOLD; existing upstream
@@ -52,8 +54,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   still re-probes and fails closed, while an immediate valid commit no longer
   starts a redundant second MAVSDK probe that could time out after preparation
   had already passed.
-- Generic mission selection no longer exposes a second, under-informed Smart
-  Swarm start path. Live formations start from the dedicated runtime, and
+- Smart Swarm has a saved-formation start card beside Drone Show, backed by
+  the same session contract as the dedicated runtime. It does not use the
+  generic scheduled mission form, and
   command tracking preserves bounded per-aircraft preparation, acknowledgement,
   and execution failure reasons for the operator.
 - Normal Smart Swarm cancellation now exits Offboard and establishes Hold

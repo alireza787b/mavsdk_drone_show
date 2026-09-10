@@ -57,9 +57,15 @@ class SwarmSessionRuntime:
             self.last_report_error = name
             return {"engage": False, "abort": False}
 
-    async def wait_for_cluster(self, hw_id, follow, revision):
+    async def wait_for_cluster(self, hw_id, follow, revision, *, authority=None):
         deadline = time.monotonic() + 30.0
         while time.monotonic() < deadline:
+            if authority is not None:
+                if authority.takeover_reason:
+                    raise RuntimeError(f"Smart Swarm start cancelled: {authority.takeover_reason}")
+                if not authority.has_fresh_mode() or authority.armed is not True:
+                    await asyncio.sleep(0.1)
+                    continue
             result = await self.report(hw_id, follow, revision)
             if result.get("abort"):
                 raise RuntimeError(result.get("reason", "Smart Swarm startup cancelled"))
@@ -67,3 +73,14 @@ class SwarmSessionRuntime:
                 return
             await asyncio.sleep(0.5)
         raise TimeoutError("Required swarm role did not acknowledge startup; no follower control engaged")
+
+    async def commit_recovery(self, hw_id, follow, revision):
+        url = f"http://{self.params.GCS_IP}:{self.params.gcs_api_port}/api/v1/command-reports/swarm-recovery"
+        headers = gcs_auth_headers({GCS_COMMAND_REPORT_CAPABILITY_HEADER: self.capability or ""})
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2)) as client:
+            async with client.post(url, headers=headers, json={
+                'command_id': self.command_id, 'hw_id': str(hw_id),
+                'follow': int(follow), 'revision': revision,
+            }) as response:
+                response.raise_for_status()
+                return (await response.json())['assignment']

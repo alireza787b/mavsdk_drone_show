@@ -28,6 +28,7 @@ DOC_PATHS = {"/docs", "/redoc", "/openapi.json"}
 MACHINE_ENDPOINTS = {
     ("GET", "/api/v1/config/swarm"),
     ("POST", "/api/v1/command-reports/swarm-runtime"),
+    ("POST", "/api/v1/command-reports/swarm-recovery"),
     ("GET", "/api/v1/origin/bootstrap"),
     ("POST", "/api/v1/fleet/heartbeats"),
     ("POST", "/api/v1/fleet/node-boot-status"),

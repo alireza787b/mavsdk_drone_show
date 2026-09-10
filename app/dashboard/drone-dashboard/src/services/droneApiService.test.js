@@ -29,6 +29,7 @@ import {
   postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
+  startSmartSwarmRuntime,
 } from './gcsApiService';
 
 jest.mock('./gcsApiService', () => ({
@@ -50,11 +51,23 @@ jest.mock('./gcsApiService', () => ({
   postGcsResource: jest.fn(),
   processSwarmTrajectoriesResponse: jest.fn(),
   submitCommandResponse: jest.fn(),
+  startSmartSwarmRuntime: jest.fn(),
 }));
 
 describe('droneApiService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('recovers a lost Smart Swarm start response with the exact same session key', async () => {
+    const request = { cluster_id: '1', revision: 'abc', excluded_hw_ids: [], idempotency_key: 'stable' };
+    startSmartSwarmRuntime.mockRejectedValueOnce({ code: 'ERR_NETWORK', request: {} })
+      .mockResolvedValueOnce({ data: { command_id: 'one-command', replayed: true } });
+    const result = await sendDroneCommand({ smart_swarm_start: request });
+    expect(result.command_id).toBe('one-command');
+    expect(startSmartSwarmRuntime).toHaveBeenCalledTimes(2);
+    expect(startSmartSwarmRuntime.mock.calls[0][0]).toBe(request);
+    expect(startSmartSwarmRuntime.mock.calls[1][0]).toBe(request);
   });
 
   it('delegates command submission to the centralized GCS service', async () => {

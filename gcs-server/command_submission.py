@@ -152,12 +152,6 @@ async def submit_tracked_command(
 ) -> CommandSubmissionReceipt:
     """Submit a tracked command using the canonical GCS lifecycle."""
     mission_type = command.mission_type
-    if command.smart_swarm is not None:
-        from src.smart_swarm_contract import topology_revision
-        if command.smart_swarm.revision != topology_revision(deps.load_swarm() or []):
-            raise HTTPException(409, "Swarm configuration changed; review the saved layout")
-        if set(command.target_drone_ids or []) != set(command.smart_swarm.expected_hw_ids):
-            raise HTTPException(400, "Smart Swarm session and dispatch targets must match")
     resolved_mission = deps.resolve_mission_type(mission_type)
     if resolved_mission is None or resolved_mission == deps.Mission.UNKNOWN:
         raise HTTPException(
@@ -205,6 +199,13 @@ async def submit_tracked_command(
         )
         if existing_command is not None:
             return build_replay_receipt(existing_command)
+
+    if command.smart_swarm is not None:
+        from src.smart_swarm_contract import topology_revision
+        if command.smart_swarm.revision != topology_revision(deps.load_swarm() or []):
+            raise HTTPException(409, "Swarm configuration changed; review the saved layout")
+        if set(command.target_drone_ids or []) != set(command.smart_swarm.expected_hw_ids):
+            raise HTTPException(400, "Smart Swarm session and dispatch targets must match")
 
     trigger_time = command.trigger_time
     operator_label = command.operator_label

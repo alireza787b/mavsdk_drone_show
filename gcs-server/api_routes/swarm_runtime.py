@@ -1,9 +1,10 @@
 """Normal and advanced UI use the same saved-cluster and runtime contract."""
 from fastapi import APIRouter, Header, HTTPException
-from src.smart_swarm_contract import SwarmStartRequest, SwarmRuntimeReport
+from src.smart_swarm_contract import SwarmStartRequest, SwarmRuntimeReport, SwarmRecoveryRequest
 from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
 from command_tracker import CommandCallbackAuthenticationError
 from smart_swarm_service import build_preview, start_cluster
+from swarm_recovery_service import apply_session_recovery
 
 
 def create_swarm_runtime_router(deps):
@@ -28,5 +29,11 @@ def create_swarm_runtime_router(deps):
             return await deps.get_command_tracker().record_swarm_runtime(payload, capability)
         except CommandCallbackAuthenticationError as exc:
             raise HTTPException(403, str(exc)) from exc
+
+    @router.post("/api/v1/command-reports/swarm-recovery")
+    async def recover(payload: SwarmRecoveryRequest, capability: str | None = Header(
+        None, alias=GCS_COMMAND_REPORT_CAPABILITY_HEADER,
+    )):
+        return await apply_session_recovery(deps, payload, capability)
 
     return router

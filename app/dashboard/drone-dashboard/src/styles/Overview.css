@@ -7,61 +7,6 @@
     max-width: 1680px;
 }
 
-.overview-smart-swarm-start {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-base);
-    margin-bottom: var(--spacing-base);
-    padding: var(--spacing-sm) var(--spacing-base);
-    border: 1px solid var(--color-primary-border);
-    border-radius: var(--border-radius-lg);
-    background: var(--color-surface-raised);
-    box-shadow: var(--shadow-base);
-}
-
-.overview-smart-swarm-start > div {
-    display: grid;
-    gap: var(--spacing-xs);
-    min-width: 0;
-}
-
-.overview-smart-swarm-start span {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-.overview-smart-swarm-start button {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    min-height: 2.25rem;
-    padding: 0.45rem 0.8rem;
-    border: 1px solid var(--color-primary);
-    border-radius: var(--border-radius-full);
-    background: var(--color-primary);
-    color: var(--color-text-on-primary, #fff);
-    font: inherit;
-    font-weight: var(--font-weight-semibold);
-    white-space: nowrap;
-}
-
-.overview-smart-swarm-start button:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-}
-
-@media (max-width: 640px) {
-    .overview-smart-swarm-start {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .overview-smart-swarm-start button {
-        justify-content: center;
-    }
-}
-
 .overview-header {
     margin-bottom: var(--spacing-base);
     padding: var(--spacing-sm);

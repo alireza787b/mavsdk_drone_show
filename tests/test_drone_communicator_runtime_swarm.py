@@ -40,6 +40,8 @@ def test_drone_communicator_prefers_runtime_swarm_assignment(monkeypatch, tmp_pa
             "offset_y": 6.0,
             "offset_z": 0.0,
             "frame": "body",
+            "active": True,
+            "session_id": "live-session",
         }
     )
 
@@ -49,3 +51,10 @@ def test_drone_communicator_prefers_runtime_swarm_assignment(monkeypatch, tmp_pa
     live_assignment = communicator._get_live_swarm_assignment()
 
     assert live_assignment["follow"] == 2
+
+
+def test_inactive_runtime_assignment_does_not_resurrect_previous_follow_mode(monkeypatch, tmp_path):
+    monkeypatch.setenv('MDS_SWARM_RUNTIME_ASSIGNMENT_PATH', str(tmp_path / 'assignment.json'))
+    write_runtime_swarm_assignment({'hw_id': 3, 'follow': 2, 'active': False, 'session_id': 'ended'})
+    communicator = DroneCommunicator(DummyDroneConfig(), DummyParams(), {})
+    assert communicator._get_live_swarm_assignment()['follow'] == 1

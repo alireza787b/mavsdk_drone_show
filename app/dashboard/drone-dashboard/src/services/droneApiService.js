@@ -126,19 +126,13 @@ const isAmbiguousSubmissionTransportFailure = (error) => {
 };
 
 export const sendDroneCommand = async (commandData, config = {}) => {
-  if (commandData?.smart_swarm_start) {
-    const response = await startSmartSwarmRuntime(commandData.smart_swarm_start, {
-      timeout: COMMAND_SUBMIT_TIMEOUT_MS,
-      ...config,
-    });
-    return response.data;
-  }
-  const payload = serializeCommandSubmission(commandData);
+  const swarmStart = commandData?.smart_swarm_start;
+  const payload = swarmStart || serializeCommandSubmission(commandData);
   const {
     recoverAmbiguousSubmission = true,
     ...requestConfig
   } = config;
-  const submit = () => submitCommandResponse(payload, {
+  const submit = () => (swarmStart ? startSmartSwarmRuntime : submitCommandResponse)(payload, {
       timeout: COMMAND_SUBMIT_TIMEOUT_MS,
       ...requestConfig,
     });

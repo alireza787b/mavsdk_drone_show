@@ -112,6 +112,12 @@ Good pattern:
 
 ### Private customer repo
 
+A temporary DNS/router outage during boot must keep the configured SSH
+transport and retry it. When `MDS_GIT_SSH_KEY_FILE` is configured, sync does
+not switch a private SSH URL to unauthenticated HTTPS after a failed probe.
+Check the actual boot sync result as well as the cached commit: serving the
+last known code is a recovery state, not confirmation of a successful fetch.
+
 Use the split below:
 
 - GCS:

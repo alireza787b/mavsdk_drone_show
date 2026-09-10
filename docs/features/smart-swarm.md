@@ -104,12 +104,15 @@ Important caveat:
 
 The normal field flow is intentionally short: take off using MDS, QGroundControl,
 or the RC, let the aircraft stabilize, then open `Overview` and click **Start
-Swarm**. MDS resolves the saved executable cluster and starts the complete
+Swarm** beside `Drone Show` in the mission cards. MDS resolves the saved executable cluster and starts the complete
 dependency-closed cluster. The takeoff does not have to come from MDS.
 
 MDS still performs authoritative node-side airborne, PX4, link, and
-configuration checks. These are not UI bypasses. If a follower is unavailable,
-one explicit confirmation may start a dependency-safe leader-only diagnostic;
+configuration checks. These are not UI bypasses. Dashboard telemetry age is
+advisory, not a second start gate. Start normally includes every displayed saved
+role, independently of the dashboard's generic selection checkboxes. If a
+follower is unavailable, `Start without…` offers one explicit confirmation
+for a dependency-safe partial formation;
 this is labelled partial and never silently called a full swarm. An unavailable
 leader cannot be bypassed because its descendants would be orphaned.
 
@@ -131,12 +134,12 @@ Specific cluster selections in `Formation Analysis` also drive the cluster-scope
 
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
 
-The generic `Mission Trigger` deliberately does not offer Smart Swarm. There
-is one operator start path: open `Swarm Design`, review the saved topology and
-live target evidence, select the exact drone or cluster, then use
-`Smart Swarm Runtime`. The typed mission remains available to guarded
-automation, but it does not create a second dashboard workflow with weaker
-context.
+The dashboard Smart Swarm card uses the same tracked session contract as the
+advanced runtime; it does not use the generic mission scheduling form. The
+advanced page remains the place for multiple clusters and recovery controls.
+Start requires a complete saved follow chain, so choose `Selected Cluster`
+when the selected drone is a follower; leader-only starts and per-drone
+recovery remain available.
 
 These runtime commands now publish into the same shared command lifecycle stream as `Command Control` and per-drone airborne overrides. That means the backend-backed live/recent command monitor can recover command context after refresh/navigation instead of keeping Smart Swarm runtime actions as toast-only events.
 
@@ -184,7 +187,10 @@ Important operator rule:
 Each start carries a command/session ID and saved-topology revision. Both roles
 acknowledge that session before the follower engages. Runtime status separates
 configured role from active role and reports `Starting`, `Active`, `Partial`,
-`Pilot takeover`, or `Stopped`.
+`Pilot takeover`, or `Stopped`. Missing runtime evidence is `Degraded` or
+`Unconfirmed`, never proof that the aircraft stopped. If one required role
+rejects startup, another role's process launch is not shown as a fully active
+formation. A retry after a lost HTTP response recovers the same command ID.
 
 The follower watches PX4 mode, armed state, and landed state. RC/QGC RTL, Land,
 or manual takeover stops follower setpoints and preserves the selected recovery
@@ -393,7 +399,14 @@ During flight, the runtime periodically refreshes assignments from GCS. Supporte
 
 When a drone transitions back into follower mode, the runtime now explicitly re-establishes offboard control and restarts any missing follower tasks instead of assuming the previous follower runtime is still healthy.
 
-Leader-only failover notifications also now update only the `follow` field in GCS, so a runtime leader change does not overwrite fresher operator-edited offsets or frame settings.
+Session-scoped failover writeback uses the node's own callback capability and
+a compare-before-save topology revision; it cannot edit another node or
+overwrite newer operator changes. NED offsets compose along skipped ancestor
+links (for example, `+6 m` plus `+6 m` stays `+12 m` from the upstream leader).
+Body-frame ancestor headings cannot be inferred reliably after that source
+is lost, so that recovery holds instead of guessing. A failed writeback keeps
+the local Hold assignment until the operator changes that slot or starts a
+new session; an unchanged saved assignment cannot silently restart following.
 
 ### Follower control behavior
 
@@ -427,8 +440,13 @@ Current default policy: `upstream_or_hold`
 
 If a follower loses its direct leader:
 
-- if the failed leader was itself following another leader, the follower adopts that upstream leader
+- if the failed leader was itself following another leader, the follower can
+  adopt that upstream leader after revision-safe writeback and NED offset
+  composition; fresh motion and bounded recapture are still required
 - if no safe upstream leader exists, the drone self-promotes to an independent leader and enters `HOLD`
+- if GCS writeback cannot be confirmed, the node holds locally; GCS reporting
+  is not itself flight authority, and a GCS outage alone does not trigger an
+  election while the direct leader stream remains healthy
 
 Leader-loss handling now treats both cases as degraded leader health:
 

@@ -58,6 +58,7 @@ import aiohttp
 
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
 from smart_swarm_src.failover import choose_leader_loss_response
+from smart_swarm_src.assignment_recovery import LocalRecoveryOverride, recovery_assignment
 from smart_swarm_src.follower_controller import FollowerMotionController
 from smart_swarm_src.formation_guard import FormationGuard
 from smart_swarm_src.motion_state_validity import (
@@ -103,6 +104,7 @@ SwarmConfig = namedtuple(
 HW_ID = None  # Hardware ID of the drone
 DRONE_CONFIG = {}  # Drone configurations from config.json
 SWARM_CONFIG = {}  # Swarm configurations from swarm.json
+RECOVERY_OVERRIDE = LocalRecoveryOverride()
 DRONE_STATE = {}  # Own drone's state
 LEADER_STATE = {}  # Leader drone's state
 OWN_STATE = {}  # Own drone's NED state
@@ -507,6 +509,8 @@ async def ensure_offboard_active_for_follower(drone: System, logger, reason: str
         if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.expect("OFFBOARD"):
             return False
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+            return False
         await drone.offboard.start()
         if CONTROL_AUTHORITY is not None:
             deadline = time.monotonic() + 3.0
@@ -520,7 +524,7 @@ async def ensure_offboard_active_for_follower(drone: System, logger, reason: str
         message = str(exc).lower()
         if "already" in message and "offboard" in message:
             logger.debug("Follower offboard control already active (%s).", reason)
-            return True
+            return CONTROL_AUTHORITY is None or CONTROL_AUTHORITY.owns_fresh_offboard()
         logger.error("Failed to start follower offboard control (%s): %s", reason, exc)
         return False
     except Exception as exc:
@@ -739,6 +743,14 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
 
         entries = api_data.get("assignments", api_data) if isinstance(api_data, dict) else api_data
         entries = normalize_topology(entries)  # reject malformed snapshots atomically
+        if source_label != "startup" and RECOVERY_OVERRIDE.assignment is not None:
+            # Compare parsed slots so JSON numeric/string ID formatting cannot
+            # accidentally clear the local recovery decision.
+            incoming = parse_swarm_entries(entries)
+            own_key = str(HW_ID)
+            if own_key in incoming:
+                incoming[own_key] = RECOVERY_OVERRIDE.resolve(incoming[own_key])
+            entries = list(incoming.values())
         if source_label == "startup" and RUNTIME_SESSION and RUNTIME_SESSION.snapshot:
             if topology_revision(entries) != RUNTIME_SESSION.snapshot.revision:
                 raise RuntimeError("Swarm configuration changed after command confirmation")
@@ -970,6 +982,9 @@ async def update_swarm_config_periodically(drone):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                if LEADER_FAILOVER_IN_PROGRESS:
+                    await asyncio.sleep(0.25)
+                    continue
                 logger.debug("[Periodic Update] Checking swarm configuration")
                 refreshed = await refresh_swarm_config_from_gcs(
                     logger,
@@ -1215,6 +1230,7 @@ async def elect_new_leader():
         failover["reason"],
     )
 
+    original = dict(SWARM_CONFIG[str(HW_ID)])
     if failover["action"] == "self_hold":
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
         bump_formation_config_version("leader loss self-hold")
@@ -1222,6 +1238,7 @@ async def elect_new_leader():
             await notify_gcs_of_leader_change(0)
         except Exception:
             logger.warning("GCS notify failed for self-promotion during failover.")
+        RECOVERY_OVERRIDE.remember(original, SWARM_CONFIG[str(HW_ID)])
         await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
         return
 
@@ -1230,15 +1247,22 @@ async def elect_new_leader():
         logger.warning("Failover did not resolve a leader candidate; entering HOLD mode.")
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
         bump_formation_config_version("leader loss no safe candidate")
+        RECOVERY_OVERRIDE.remember(original, SWARM_CONFIG[str(HW_ID)])
         await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
         return
 
     logger.info("Attempting failover to Drone %s.", new_leader)
-    SWARM_CONFIG[str(HW_ID)]['follow'] = int(new_leader)
-    bump_formation_config_version(f"leader failover to {new_leader}")
-
-    accepted = await notify_gcs_of_leader_change(new_leader)
+    try:
+        projected = recovery_assignment(HW_ID, new_leader, SWARM_CONFIG, strategy=strategy)
+        accepted = await notify_gcs_of_leader_change(new_leader)
+    except ValueError as exc:
+        logger.warning("%s", exc)
+        accepted = False
     if accepted and assign_leader_target(new_leader) is not None:
+        SWARM_CONFIG[str(HW_ID)] = projected
+        OFFSETS.update({axis: projected[f'offset_{axis}'] for axis in ('x', 'y', 'z')})
+        bump_formation_config_version(f"leader failover to {new_leader}")
+        RECOVERY_OVERRIDE.remember(original, projected)
         publish_runtime_assignment(SWARM_CONFIG.get(str(HW_ID), {}), force_follow=new_leader)
         logger.info("Leader failover committed: now following %s @ %s", new_leader, LEADER_IP)
         return
@@ -1253,6 +1277,7 @@ async def elect_new_leader():
         await notify_gcs_of_leader_change(0)
     except Exception:
         logger.warning("GCS notify failed while reverting to self-hold after failover rejection.")
+    RECOVERY_OVERRIDE.remember(original, SWARM_CONFIG[str(HW_ID)])
     await transition_to_leader_mode(DRONE_INSTANCE, logger, "failover commit rejected")
 
 
@@ -1265,6 +1290,20 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     Returns True if the GCS accepted the change, False otherwise.
     """
     logger = logging.getLogger(__name__)
+
+    if RUNTIME_SESSION and RUNTIME_SESSION.snapshot:
+        try:
+            # Self-hold callers have already updated the local follow field.
+            # Reconstruct the pre-recovery revision for compare-and-save.
+            entries = [dict(m) for m in SWARM_CONFIG.values()]
+            for entry in entries:
+                if str(entry['hw_id']) == str(HW_ID):
+                    entry['follow'] = int(LEADER_HW_ID or 0)
+            await RUNTIME_SESSION.commit_recovery(HW_ID, new_leader_hw_id, topology_revision(entries))
+            return True
+        except Exception as exc:
+            logger.warning("Session recovery write not accepted (%s); retaining local Hold if needed", type(exc).__name__)
+            return False
 
     gcs_ip = Params.GCS_IP
     notify_url = (
@@ -1692,13 +1731,19 @@ async def execute_failsafe(
             failsafe callers retain the normal MAVSDK behavior by omitting it.
     """
     logger = logging.getLogger(__name__)
-    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-        if not CONTROL_AUTHORITY.owns_fresh_offboard():
-            # No flight-mode RPC (including offboard.stop, which requests Hold)
-            # may countermand external RTL/Land/manual control or a disarm.
+    if CONTROL_AUTHORITY is not None:
+        if CONTROL_AUTHORITY.takeover_reason or CONTROL_AUTHORITY.never_requested_follower_control():
+            # Startup may fail before we own any control. In particular, a
+            # leader waiting for a missing follower must not interrupt its RC
+            # or QGC mission just because the startup barrier failed.
             logger.info("Preserving PX4 control during %s (%s).", reason, CONTROL_AUTHORITY.mode)
             return VehicleHandoffResult(False, False, control_preserved=True)
-    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.owns_fresh_offboard():
+        if not CONTROL_AUTHORITY.owns_fresh_offboard():
+            # Do not infer authority from an old mode sample. Stopping the
+            # producer/server leaves PX4's configured Offboard-loss action in
+            # charge; if the mode is unknown, report an unconfirmed handoff.
+            preserved = CONTROL_AUTHORITY.has_fresh_mode() and CONTROL_AUTHORITY.mode != "OFFBOARD"
+            return VehicleHandoffResult(False, False, control_preserved=preserved)
         CONTROL_AUTHORITY.expect("HOLD")
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
@@ -1872,12 +1917,12 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     config_filename = Params.config_file_name
     swarm_filename = Params.swarm_file_name
     read_config(config_filename)
-    read_swarm(swarm_filename)
     if RUNTIME_SESSION and RUNTIME_SESSION.snapshot:
         # Command-carried, hash-verified snapshot is the startup authority. A
         # temporary GCS outage never silently substitutes a stale disk file.
         replace_swarm_config([m.model_dump() for m in RUNTIME_SESSION.snapshot.assignments], "confirmed command")
     else:
+        read_swarm(swarm_filename)
         await refresh_swarm_config_from_gcs(logger, source_label="startup")
 
     # Get own drone configuration
@@ -1997,7 +2042,12 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
 
     # For followers, start the corresponding tasks and store them in FOLLOWER_TASKS
     if RUNTIME_SESSION:
-        await RUNTIME_SESSION.wait_for_cluster(HW_ID, swarm_config['follow'], topology_revision(list(SWARM_CONFIG.values())))
+        await RUNTIME_SESSION.wait_for_cluster(
+            HW_ID, swarm_config['follow'], topology_revision(list(SWARM_CONFIG.values())),
+            authority=CONTROL_AUTHORITY,
+        )
+    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+        raise RuntimeError(f"Smart Swarm start cancelled: {CONTROL_AUTHORITY.takeover_reason}")
     if not IS_LEADER:
         if not await ensure_follower_runtime(drone, logger, "startup"):
             logger.error("Failed to start follower runtime.")
@@ -2100,8 +2150,7 @@ async def run_smart_swarm_process(logger) -> bool:
             RUNTIME_PHASE = "takeover"
         elif RUNTIME_PHASE != "failed":
             RUNTIME_PHASE = "stopped"
-        publish_runtime_assignment(active=False)
-        clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id)
+        clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id, phase=RUNTIME_PHASE)
         RUNTIME_SESSION.phase = RUNTIME_PHASE
         RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or reason
         if HW_ID is not None and SWARM_CONFIG:
@@ -2113,6 +2162,7 @@ async def run_smart_swarm_process(logger) -> bool:
             await asyncio.gather(authority_task, return_exceptions=True)
         for handled_signal in installed_signals:
             loop.remove_signal_handler(handled_signal)
+        CONTROL_AUTHORITY = None
     return shutdown_completed
 
 

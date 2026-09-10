@@ -1781,6 +1781,12 @@ determine_git_url() {
         if run_git_command "$repo_url" ls-remote "$repo_url" -q >/dev/null 2>&1; then
             log_info "GIT-URL" "SSH connection successful"
             git_url="$repo_url"
+        elif git_ssh_auth_enabled || [[ "$repo_url" != git@github.com:* ]]; then
+            # A boot-time DNS/router interruption is not evidence that a
+            # private SSH repository became anonymously readable over HTTPS.
+            # Keep its configured transport for the bounded fetch retries.
+            log_warn "GIT-URL" "SSH probe unavailable; retaining configured SSH transport for retries"
+            git_url="$repo_url"
         else
             log_warn "GIT-URL" "SSH connection failed, falling back to HTTPS"
             git_url="https://github.com/${repo_url#git@github.com:}"

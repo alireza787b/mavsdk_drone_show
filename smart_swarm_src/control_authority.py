@@ -29,6 +29,13 @@ class ControlAuthority:
             self.internal_hold = True
         return True
 
+    def has_fresh_mode(self, *, now=None):
+        now = time.monotonic() if now is None else now
+        return self.mode is not None and 0 <= now - self.mode_at <= 2.5
+
+    def never_requested_follower_control(self):
+        return not self.follower_owned and self.pending_mode != "OFFBOARD"
+
     def update_mode(self, value, *, leader, now=None):
         now = time.monotonic() if now is None else now
         self.mode, self.mode_at = mode_name(value), now
@@ -46,7 +53,7 @@ class ControlAuthority:
         elif self.mode == "HOLD" and self.internal_hold:
             if self.pending_mode == "HOLD":
                 self.pending_mode = None
-        elif self.follower_owned and not (self.pending_mode and now < self.pending_until):
+        elif self.follower_owned:
             self.takeover_reason = f"Pilot/autopilot changed follower mode to {self.mode}"
         return self.takeover_reason
 
@@ -63,4 +70,4 @@ class ControlAuthority:
     def owns_fresh_offboard(self, *, now=None):
         now = time.monotonic() if now is None else now
         return (not self.takeover_reason and self.mode == "OFFBOARD"
-                and 0 <= now - self.mode_at <= 2.5 and self.armed is True)
+                and self.has_fresh_mode(now=now) and self.armed is True)

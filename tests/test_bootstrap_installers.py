@@ -438,6 +438,18 @@ def test_runtime_git_sync_prefers_explicit_https_repo_when_token_file_is_present
     assert result.returncode == 0, result.stderr
 
 
+def test_runtime_git_sync_keeps_private_ssh_transport_during_boot_network_failure():
+    result = run_bash(
+        f'''
+        source "{GIT_SYNC_SCRIPT}"
+        run_git_command() {{ return 128; }}
+        git_ssh_auth_enabled() {{ return 0; }}
+        [[ "$(determine_git_url "git@github.com:demo/private.git")" == "git@github.com:demo/private.git" ]]
+        '''
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_runtime_git_sync_https_auth_uses_askpass_token_file():
     result = run_bash(
         f"""

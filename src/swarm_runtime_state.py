@@ -67,7 +67,7 @@ def write_runtime_swarm_assignment(assignment: Optional[Dict[str, Any]]) -> None
     temp_path.replace(path)
 
 
-def clear_runtime_swarm_assignment(*, session_id: Optional[str] = None) -> bool:
+def clear_runtime_swarm_assignment(*, session_id: Optional[str] = None, phase: Optional[str] = None) -> bool:
     """Mark the runtime assignment inactive without deleting diagnostics.
 
     Readers can distinguish a saved topology from a live process after a
@@ -81,6 +81,8 @@ def clear_runtime_swarm_assignment(*, session_id: Optional[str] = None) -> bool:
         return False
     current = dict(current)
     current["active"] = False
+    if phase is not None:
+        current["phase"] = phase
     current["ended_at_ms"] = int(time.time() * 1000)
     write_runtime_swarm_assignment(current)
     return True

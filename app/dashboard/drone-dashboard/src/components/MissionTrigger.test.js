@@ -3,6 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import MissionTrigger from './MissionTrigger';
 import { DRONE_MISSION_TYPES } from '../constants/droneConstants';
 
+jest.mock('./DashboardSmartSwarmStart', () => () => <button>Start Smart Swarm</button>);
+
 jest.mock('./MissionCard', () => ({ label, onClick }) => (
   <button onClick={onClick}>{label}</button>
 ));
@@ -15,7 +17,7 @@ jest.mock('./MissionDetails', () => (props) => (
 ));
 
 describe('MissionTrigger', () => {
-  test('routes Smart Swarm starts to the dedicated runtime instead of the generic picker', () => {
+  test('shows one saved-formation start beside Drone Show instead of the generic schedule picker', () => {
     render(
       <MissionTrigger
         missionTypes={DRONE_MISSION_TYPES}
@@ -24,6 +26,10 @@ describe('MissionTrigger', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Smart Swarm' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Start Smart Swarm' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Drone Show' }).parentElement).toBe(
+      screen.getByRole('button', { name: 'Start Smart Swarm' }).parentElement,
+    );
     expect(
       screen.getByRole('link', { name: 'Smart Swarm Runtime' })
     ).toHaveAttribute('href', '/swarm-design');

@@ -30,7 +30,7 @@ def build_preview(deps):
                     timestamp *= 1000
             except (TypeError, ValueError):
                 timestamp = 0
-            available = 0 <= now_ms - timestamp <= 5000
+            available = state.get("telemetry_available") is not False and 0 <= now_ms - timestamp <= 5000
             member["available"] = available
             member["armed"] = state.get("is_armed")
             if not available:
@@ -45,8 +45,26 @@ def build_preview(deps):
 
 
 async def start_cluster(deps, request):
-    from command_submission import submit_tracked_command
+    from command_submission import submit_tracked_command, build_replay_receipt
     from schemas import SubmitCommandRequest
+
+    # A lost HTTP response must recover the same command even if the operator
+    # edited the layout or a node reconnected since the original acceptance.
+    existing = await deps.get_command_tracker().lookup_command_by_idempotency_key(request.idempotency_key)
+    if existing:
+        snapshot = existing.get("params", {}).get("smart_swarm") or {}
+        clusters = resolve_clusters(snapshot.get("assignments", []))
+        requested_cluster = request.cluster_id
+        if requested_cluster is None and len(clusters) == 1:
+            requested_cluster = clusters[0]["cluster_id"]
+        original_cluster = next((c for c in clusters if c["cluster_id"] == requested_cluster), None)
+        expected = (dependency_closed_targets(original_cluster["members"], request.excluded_hw_ids)
+                    if original_cluster else [])
+        if (existing.get("mission_type") != 2 or snapshot.get("revision") != request.revision
+            or set(snapshot.get("excluded_hw_ids", [])) != set(request.excluded_hw_ids)
+            or set(existing.get("target_drones", [])) != set(expected)):
+            raise HTTPException(409, "Idempotency key already belongs to a different command")
+        return build_replay_receipt(existing)
 
     preview = build_preview(deps)
     if request.revision != preview["revision"]:
@@ -67,7 +85,7 @@ async def start_cluster(deps, request):
         raise HTTPException(409, "No available leader and follow chain to start")
     # A stale GCS cache is advisory. With no explicit exclusions, send the
     # complete reviewed cluster and let each node check fresh flight evidence.
-    assignments = normalize_topology(deps.load_swarm() or [])
+    assignments = normalize_topology([member for c in preview["clusters"] for member in c["members"]])
     session = SmartSwarmSession(
         revision=preview["revision"], assignments=assignments,
         expected_hw_ids=targets, excluded_hw_ids=sorted(excluded),
@@ -89,12 +107,13 @@ def runtime_summary(params, targets, *, now_ms=None, terminal=False):
               and now_ms - reports[i]["received_at_ms"] <= 15000]
     takeover = [i for i in targets if reports.get(i, {}).get("phase") == "takeover"]
     if terminal:
-        state = "pilot_takeover" if takeover else "stopped"
+        confirmed_stop = all(reports.get(i, {}).get("phase") in {"takeover", "stopped", "failed"} for i in targets)
+        state = ("pilot_takeover" if takeover else "stopped") if confirmed_stop else "unconfirmed"
     elif len(active) == len(targets):
         state = "partial" if snapshot.get("excluded_hw_ids") else "active"
     elif takeover:
         state = "pilot_takeover"
-    elif active or any(r.get("phase") in {"holding", "failed"} for r in reports.values()):
+    elif active or any(r.get("phase") in {"active", "holding", "stopped", "failed"} for r in reports.values()):
         state = "degraded"
     else:
         state = "starting"

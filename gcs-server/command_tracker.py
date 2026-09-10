@@ -1517,6 +1517,14 @@ class CommandTracker:
             now = int(time.time() * 1000)
             reports = command.params.setdefault("_swarm_runtime", {})
             previous = reports.get(report.hw_id, {})
+            failed_targets = [hw for hw in command.target_drones if (
+                hw in command.executions
+                or reports.get(hw, {}).get("phase") in {"takeover", "stopped", "failed"}
+                or (hw in command.acks and command.acks[hw].category == "rejected")
+            )]
+            if report.phase == "ready" and failed_targets:
+                return {"engage": False, "abort": True,
+                        "reason": "Required swarm role stopped or rejected startup: " + ", ".join(failed_targets)}
             if report.sequence <= previous.get("sequence", -1):
                 return {"engage": bool(command.params.get("_swarm_engaged")), "abort": False}
             if not previous:
@@ -1524,7 +1532,7 @@ class CommandTracker:
                 expected_role = "leader" if member and member["follow"] == "0" else "follower"
                 if (not member or report.revision != snapshot["revision"]
                     or report.role != expected_role or report.follow != member["follow"]
-                    or report.phase != "ready"):
+                    or report.phase not in {"ready", "takeover", "stopped", "failed"}):
                     return {"engage": False, "abort": True, "reason": "Startup role/configuration mismatch"}
             reports[report.hw_id] = {**report.model_dump(exclude={"command_id", "hw_id"}),
                                      "received_at_ms": now}
@@ -1533,7 +1541,7 @@ class CommandTracker:
                 and now - reports[hw]["received_at_ms"] <= 15000
                 for hw in command.target_drones
             )
-            if all_ready:
+            if all_ready and not failed_targets:
                 command.params["_swarm_engaged"] = True
             # A per-target deadline prevents one healthy leader from extending
             # a missing follower's startup/heartbeat indefinitely.
@@ -1543,6 +1551,8 @@ class CommandTracker:
                     continue
                 item = reports.get(hw)
                 if item and item["phase"] not in {"takeover", "stopped", "failed"}:
+                    deadlines.append(item["received_at_ms"] + 15000)
+                elif item:
                     deadlines.append(item["received_at_ms"] + 15000)
                 else:
                     deadlines.append((command.submitted_at or now) + 45000)
@@ -2441,6 +2451,27 @@ class CommandTracker:
                 ("Terminal", command.error_summary or "Command reached a terminal state."),
             )
             stage = outcome
+
+        # Process creation is not evidence of active formation control. Keep
+        # the existing lifecycle stage, but present the live role evidence.
+        if persistent_smart_swarm and command.params.get("smart_swarm") and not self._is_terminal(command):
+            from smart_swarm_service import runtime_summary
+            swarm = runtime_summary(command.params, command.target_drones, now_ms=now_ms)
+            active = len(swarm["active_hw_ids"])
+            label = {
+                "starting": "Starting Smart Swarm",
+                "active": "Smart Swarm active",
+                "partial": "Partial Smart Swarm",
+                "degraded": "Smart Swarm needs attention",
+                "pilot_takeover": "Pilot/autopilot takeover",
+            }[swarm["state"]]
+            message = f"{active}/{len(command.target_drones)} role(s) confirm active control."
+            if swarm["excluded_hw_ids"]:
+                message += " Excluded: " + ", ".join(swarm["excluded_hw_ids"]) + "."
+            for hw, item in swarm["nodes"].items():
+                if item.get("detail") and item.get("phase") != "active":
+                    message += f" Drone {hw}: {item['detail'][:180]}"
+                    break
 
         return {
             "stage": stage,

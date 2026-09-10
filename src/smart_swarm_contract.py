@@ -108,3 +108,11 @@ class SwarmRuntimeReport(BaseModel):
     revision: str
     phase: Literal["ready", "active", "holding", "takeover", "stopped", "failed"]
     detail: str = Field(default="", max_length=500)
+
+
+class SwarmRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    command_id: str
+    hw_id: str = Field(pattern=r"^[1-9][0-9]*$")
+    revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    follow: int = Field(ge=0)

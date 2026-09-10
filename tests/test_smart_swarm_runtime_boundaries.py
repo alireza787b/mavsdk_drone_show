@@ -14,8 +14,10 @@ import sys
 import time
 import types
 from unittest.mock import Mock
+from unittest.mock import AsyncMock
 
 import pytest
+from smart_swarm_src.control_authority import ControlAuthority
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -103,6 +105,7 @@ def reset_swarm_runtime_state(swarm_runtime, monkeypatch):
     swarm_runtime.IS_LEADER = False
     swarm_runtime.OWN_STATE.clear()
     swarm_runtime.FOLLOWER_TASKS.clear()
+    monkeypatch.setattr(swarm_runtime, 'CONTROL_AUTHORITY', None)
     monkeypatch.setattr(
         swarm_runtime.Params,
         "SMART_SWARM_USE_LOCAL_NED_WHEN_VALID",
@@ -110,6 +113,34 @@ def reset_swarm_runtime_state(swarm_runtime, monkeypatch):
     )
     yield
     swarm_runtime.FOLLOWER_TASKS.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['HOLD', 'RETURN_TO_LAUNCH', 'LAND'])
+async def test_shutdown_without_follower_authority_preserves_pilot_mode(swarm_runtime, monkeypatch, mode):
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.update_mode(mode, leader=True)
+    monkeypatch.setattr(swarm_runtime, 'CONTROL_AUTHORITY', authority)
+    drone = types.SimpleNamespace(offboard=types.SimpleNamespace(stop=AsyncMock()),
+                                  action=types.SimpleNamespace(hold=AsyncMock()))
+    result = await swarm_runtime.execute_failsafe(drone, reason='startup rejected')
+    assert result.control_preserved
+    drone.offboard.stop.assert_not_awaited()
+    drone.action.hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pilot_takeover_during_zero_seed_prevents_offboard_start(swarm_runtime, monkeypatch):
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.update_mode('HOLD', leader=False)
+    monkeypatch.setattr(swarm_runtime, 'CONTROL_AUTHORITY', authority)
+    async def seed(_value):
+        authority.update_mode('RETURN_TO_LAUNCH', leader=False)
+    drone = types.SimpleNamespace(offboard=types.SimpleNamespace(set_velocity_body=seed, start=AsyncMock()))
+    assert not await swarm_runtime.ensure_offboard_active_for_follower(drone, logging.getLogger(__name__), 'test')
+    drone.offboard.start.assert_not_awaited()
 
 
 def _valid_global_sample(now_ms: int) -> dict:

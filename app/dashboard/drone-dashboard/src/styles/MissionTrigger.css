@@ -22,6 +22,26 @@
     align-items: stretch;
 }
 
+.mission-swarm-start {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    min-width: 0;
+}
+
+.mission-swarm-start .mission-card { flex: 1; }
+.mission-swarm-start small { color: var(--color-text-secondary); }
+.mission-card:disabled { cursor: not-allowed; opacity: 0.65; }
+.mission-swarm-partial {
+    background: transparent;
+    border: none;
+    color: var(--color-primary);
+    cursor: pointer;
+    text-align: left;
+    text-decoration: underline;
+    padding: var(--spacing-xs);
+}
+
 /* Smart Layout: Cancel mission spans full width automatically */
 .mission-cards .cancel-mission-card {
     grid-column: 1 / -1;

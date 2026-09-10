@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import MissionCard from './MissionCard';
+import DashboardSmartSwarmStart from './DashboardSmartSwarmStart';
 import MissionDetails from './MissionDetails';
 import {
   DRONE_MISSION_TYPES,
@@ -57,10 +58,8 @@ const MISSION_PRESENTATIONS = {
   },
 };
 
-// Smart Swarm has topology, live-airborne, assignment-sync, cluster-scope,
-// and dedicated recovery semantics that the generic mission picker cannot
-// present coherently. Keep one operator path in Swarm Design while retaining
-// the typed API mission for automation and guarded integrations.
+// Smart Swarm uses the saved-cluster session start, not the generic schedule
+// form. Its card remains beside the other missions and shares the runtime API.
 const GENERIC_MISSION_DISPLAY_ORDER = DRONE_MISSION_DISPLAY_ORDER.filter(
   (mission) => mission.value !== DRONE_MISSION_TYPES.SMART_SWARM,
 );
@@ -207,6 +206,7 @@ const MissionTrigger = ({
               const MissionIcon = presentation.icon;
 
               return (
+                <React.Fragment key={mission.value}>
                 <MissionCard
                   key={mission.value}
                   missionType={mission.value}
@@ -218,14 +218,13 @@ const MissionTrigger = ({
                   onClick={() => handleMissionSelect(mission.value)}
                   isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
                 />
+                {mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && <DashboardSmartSwarmStart />}
+                </React.Fragment>
               );
             })}
           </div>
           <p className="mission-trigger-guidance">
-            Start and recover live formations from{' '}
-            <a href="/swarm-design">Smart Swarm Runtime</a>, where topology,
-            exact cluster scope, live-airborne state, and Hold/Land/RTL controls
-            are reviewed together.
+            <a href="/swarm-design">Smart Swarm Runtime</a>: layout, cluster selection and Hold/Land/RTL.
           </p>
         </>
       )}

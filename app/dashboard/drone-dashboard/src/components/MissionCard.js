@@ -1,8 +1,9 @@
 import React from 'react';
 
-const MissionCard = ({ missionType, icon, category, label, summary, note, onClick, isCancel }) => (
+const MissionCard = ({ missionType, icon, category, label, summary, note, onClick, isCancel, disabled = false }) => (
   <button
     type="button"
+    disabled={disabled}
     className={`mission-card ${isCancel ? 'cancel-mission-card' : ''}`}
     onClick={() => onClick(missionType)}
     title={[label, summary, note].filter(Boolean).join(' ')}
