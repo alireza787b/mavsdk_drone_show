@@ -43,6 +43,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Opening the Smart Swarm mission card now shows a compact scenario/status
+  review instead of dispatching. Start requires a separate final confirmation
+  of the named drones and offsets; cancelling or backing out sends nothing.
 - Private-node startup sync retains configured SSH credentials through a
   temporary boot network failure instead of falling back to anonymous HTTPS.
 - Smart Swarm runtime ownership is now session-scoped and inactive after

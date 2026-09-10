@@ -103,8 +103,10 @@ Important caveat:
 ### 2. Normal Dashboard start
 
 The normal field flow is intentionally short: take off using MDS, QGroundControl,
-or the RC, let the aircraft stabilize, then open `Overview` and click **Start
-Swarm** beside `Drone Show` in the mission cards. MDS resolves the saved executable cluster and starts the complete
+or the RC, let the aircraft stabilize, then open `Overview` and select **Smart
+Swarm** beside `Drone Show`. Review the brief leader/offset/status summary,
+click **Start Smart Swarm**, then **Confirm start**. Opening the card never
+sends a command. MDS resolves the saved executable cluster and starts the complete
 dependency-closed cluster. The takeoff does not have to come from MDS.
 
 MDS still performs authoritative node-side airborne, PX4, link, and

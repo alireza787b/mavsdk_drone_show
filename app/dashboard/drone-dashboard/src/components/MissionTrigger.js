@@ -218,7 +218,9 @@ const MissionTrigger = ({
                   onClick={() => handleMissionSelect(mission.value)}
                   isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
                 />
-                {mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && <DashboardSmartSwarmStart />}
+                {mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && (
+                  <DashboardSmartSwarmStart onReview={() => handleMissionSelect(DRONE_MISSION_TYPES.SMART_SWARM)} />
+                )}
                 </React.Fragment>
               );
             })}
@@ -229,7 +231,11 @@ const MissionTrigger = ({
         </>
       )}
 
-      {selectedMission && selectedMission !== DRONE_MISSION_TYPES.NONE && (
+      {selectedMission === DRONE_MISSION_TYPES.SMART_SWARM && (
+        <DashboardSmartSwarmStart review onBack={handleBack} />
+      )}
+
+      {selectedMission && selectedMission !== DRONE_MISSION_TYPES.NONE && selectedMission !== DRONE_MISSION_TYPES.SMART_SWARM && (
         (() => {
           const presentation = getMissionPresentation(selectedMission);
           const MissionIcon = presentation.icon;

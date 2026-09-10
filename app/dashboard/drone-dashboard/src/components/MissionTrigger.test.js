@@ -3,7 +3,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import MissionTrigger from './MissionTrigger';
 import { DRONE_MISSION_TYPES } from '../constants/droneConstants';
 
-jest.mock('./DashboardSmartSwarmStart', () => () => <button>Start Smart Swarm</button>);
+jest.mock('./DashboardSmartSwarmStart', () => ({ review, onReview, onBack }) => review
+  ? <div>Swarm review<button onClick={onBack}>Back to missions</button></div>
+  : <button onClick={onReview}>Smart Swarm</button>);
 
 jest.mock('./MissionCard', () => ({ label, onClick }) => (
   <button onClick={onClick}>{label}</button>
@@ -25,10 +27,9 @@ describe('MissionTrigger', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: 'Smart Swarm' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Start Smart Swarm' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Smart Swarm' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Drone Show' }).parentElement).toBe(
-      screen.getByRole('button', { name: 'Start Smart Swarm' }).parentElement,
+      screen.getByRole('button', { name: 'Smart Swarm' }).parentElement,
     );
     expect(
       screen.getByRole('link', { name: 'Smart Swarm Runtime' })
@@ -55,6 +56,17 @@ describe('MissionTrigger', () => {
         use_global_setpoints: false,
       })
     );
+  });
+
+  test('Smart Swarm opens its short review with a working back path, not dispatch', () => {
+    const onSendCommand = jest.fn();
+    render(<MissionTrigger onSendCommand={onSendCommand} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Smart Swarm' }));
+    expect(screen.getByText('Swarm review')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Drone Show' })).not.toBeInTheDocument();
+    expect(onSendCommand).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to missions' }));
+    expect(screen.getByRole('button', { name: 'Drone Show' })).toBeInTheDocument();
   });
 
   test('includes strict synchronized execution policy for swarm trajectory dispatch', () => {

@@ -95,7 +95,7 @@ For a first dashboard-driven Smart Swarm run after SITL launch:
 1. open `Overview` and confirm the target drones show `READY` with live telemetry
 2. open `Swarm Design` and review the saved follow chain / cluster layout
 3. take off and stabilize the aircraft by MDS, QGC, or RC
-4. return to `Overview` and click the compact `Start Swarm` action; it uses the saved executable cluster
+4. select `Smart Swarm` on `Overview`, review its short formation/status summary, then `Start Smart Swarm` and `Confirm start`
 5. use `Smart Swarm Runtime` for advanced scope and recovery controls (`Stop Swarm (Hold)`, `Land Swarm`, or `RTL Swarm`)
 
 The validated 5-drone Smart Swarm acceptance flow is documented in the Smart
