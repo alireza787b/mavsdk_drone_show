@@ -489,6 +489,14 @@ export async function postGcsResource(routeOrPath, payload = {}, config = {}) {
   return axios.post(buildGcsUrl(routeOrPath), payload, withGcsAuthConfig(config, 'POST'));
 }
 
+export async function getSmartSwarmRuntimePreview(config = {}) {
+  return fetchGcsResource('/api/v1/swarm/runtime/preview', config);
+}
+
+export async function startSmartSwarmRuntime(payload, config = {}) {
+  return postGcsResource('/api/v1/swarm/runtime/start', payload, config);
+}
+
 function withGcsFetchConfig(config = {}, method = 'POST') {
   const authConfig = withGcsAuthConfig(config, method);
   return {

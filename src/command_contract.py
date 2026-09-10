@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.enums import Mission, resolve_executable_mission
+from src.smart_swarm_contract import SmartSwarmSession
 
 
 class CommandOrigin(BaseModel):
@@ -332,6 +333,7 @@ class CommandPayloadRequest(BaseModel):
         None,
         description="Typed relative-move payload for PRECISION_MOVE",
     )
+    smart_swarm: Optional[SmartSwarmSession] = None
 
     @field_validator("mission_type", mode="before")
     @classmethod
@@ -345,6 +347,8 @@ class CommandPayloadRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_mission_payload(self) -> "CommandPayloadRequest":
+        if self.smart_swarm is not None and self.mission_type != Mission.SMART_SWARM.value:
+            raise ValueError("smart_swarm is only valid for SMART_SWARM")
         if self.mission_type == Mission.TEST.value:
             if self.ground_test_safety is None:
                 raise ValueError(

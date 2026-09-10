@@ -22,6 +22,7 @@ import {
   postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
+  startSmartSwarmRuntime,
 } from './gcsApiService';
 import { extractApiErrorMessage } from './apiError';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
@@ -125,6 +126,13 @@ const isAmbiguousSubmissionTransportFailure = (error) => {
 };
 
 export const sendDroneCommand = async (commandData, config = {}) => {
+  if (commandData?.smart_swarm_start) {
+    const response = await startSmartSwarmRuntime(commandData.smart_swarm_start, {
+      timeout: COMMAND_SUBMIT_TIMEOUT_MS,
+      ...config,
+    });
+    return response.data;
+  }
   const payload = serializeCommandSubmission(commandData);
   const {
     recoverAmbiguousSubmission = true,

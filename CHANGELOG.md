@@ -15,6 +15,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   environment injection.
 
 ### Added
+- Smart Swarm now has a compact Dashboard start action that resolves the saved
+  executable cluster, carries a revision/session snapshot, and reports role
+  acknowledgements before follower engagement. A single explicit partial-start
+  confirmation is available only for an unavailable dependency-safe follower.
 - A fail-closed two-drone Smart Swarm SITL rehearsal now reproduces the field
   topology (`H1` leader, `H2` follower at `+6 m north` in NED), stages the
   follower inside the capture gate, proves fresh independent streams, exercises
@@ -39,6 +43,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Smart Swarm runtime ownership is now session-scoped and inactive after
+  shutdown or external takeover. The follower watches PX4 control authority so
+  RC/QGC RTL or Land cannot be countermanded by MDS HOLD; existing upstream
+  leader-loss election remains the sole failover policy.
 - Launch prepare/commit now reuses the same typed, identity-bound readiness
   observation only inside its maximum two-second evidence lease. Delayed work
   still re-probes and fails closed, while an immediate valid commit no longer

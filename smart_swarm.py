@@ -50,7 +50,10 @@ from src.action_safety import (
     AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
     observe_authoritative_vehicle_state,
 )
-from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment
+from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment, clear_runtime_swarm_assignment
+from src.smart_swarm_contract import normalize_topology, topology_revision
+from smart_swarm_src.control_authority import ControlAuthority
+from smart_swarm_src.session_runtime import SwarmSessionRuntime
 import aiohttp 
 
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
@@ -201,7 +204,14 @@ def leader_stream_target_changed(expected_version, expected_hw_id, expected_ip) 
     )
 
 
-def publish_runtime_assignment(entry=None, *, force_follow=None):
+RUNTIME_SESSION = None
+CONTROL_AUTHORITY = None
+RUNTIME_PHASE = "ready"
+RUNTIME_DETAIL = ""
+CONFIG_REFRESH_ERROR = None
+
+
+def publish_runtime_assignment(entry=None, *, force_follow=None, active=True):
     """Publish the active Smart Swarm assignment for local telemetry/API readers."""
     logger = logging.getLogger(__name__)
 
@@ -217,7 +227,10 @@ def publish_runtime_assignment(entry=None, *, force_follow=None):
             HW_ID,
             source,
             force_follow=force_follow,
+            session_id=RUNTIME_SESSION.command_id if RUNTIME_SESSION else None,
+            active=active,
         )
+        payload.update(phase=RUNTIME_PHASE, detail=RUNTIME_DETAIL)
         write_runtime_swarm_assignment(payload)
         logger.debug("Published runtime swarm assignment: %s", payload)
     except Exception as exc:
@@ -366,7 +379,7 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         return False
 
     if stream_seq and previous_seq and stream_seq > (previous_seq + 1):
-        logger.warning(
+        logger.debug(
             "Leader sample gap detected via %s: seq advanced from %s to %s.",
             source,
             previous_seq,
@@ -491,8 +504,16 @@ def _follower_task_missing(task_name: str) -> bool:
 async def ensure_offboard_active_for_follower(drone: System, logger, reason: str) -> bool:
     """Start follower offboard mode if it is not already active."""
     try:
+        if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.expect("OFFBOARD"):
+            return False
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         await drone.offboard.start()
+        if CONTROL_AUTHORITY is not None:
+            deadline = time.monotonic() + 3.0
+            while not CONTROL_AUTHORITY.owns_fresh_offboard():
+                if CONTROL_AUTHORITY.takeover_reason or time.monotonic() > deadline:
+                    return False
+                await asyncio.sleep(0.05)
         logger.info("Follower offboard control active (%s).", reason)
         return True
     except OffboardError as exc:
@@ -527,6 +548,8 @@ async def handle_leader_unavailability(drone: System, logger, reason: str):
     """Run one failover sequence at a time when leader health is lost."""
     global LEADER_FAILOVER_IN_PROGRESS
 
+    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+        return
     if LEADER_FAILOVER_IN_PROGRESS:
         logger.debug("Leader failover already in progress (%s).", reason)
         return
@@ -543,25 +566,10 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
     """Stop follower control and leave the vehicle in an explicit leader-safe HOLD state."""
     global IS_LEADER
 
+    await execute_failsafe(drone, reason=reason)
     IS_LEADER = True
     assign_leader_target(0)
     await cancel_follower_tasks(logger)
-
-    try:
-        await drone.offboard.stop()
-        logger.info("Stopped offboard control while switching to leader mode (%s).", reason)
-    except OffboardError as exc:
-        logger.debug("Offboard was not active during leader transition (%s): %s", reason, exc)
-    except Exception as exc:
-        logger.warning("Failed to stop offboard during leader transition (%s): %s", reason, exc)
-
-    try:
-        await drone.action.hold()
-        logger.info("Drone transitioned to leader mode and entered HOLD (%s).", reason)
-    except ActionError as exc:
-        logger.warning("Failed to command HOLD during leader transition (%s): %s", reason, exc)
-    except Exception as exc:
-        logger.warning("Unexpected error while entering HOLD during leader transition (%s): %s", reason, exc)
 
     publish_runtime_assignment(force_follow=0)
 
@@ -709,6 +717,7 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
     Returns True when the GCS snapshot was fetched and applied, False when the
     local swarm file remains in effect.
     """
+    global CONFIG_REFRESH_ERROR
     state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}{GCS_CONFIG_SWARM_ROUTE}"
     owns_session = session is None
     active_session = session
@@ -729,18 +738,28 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
             api_data = await resp.json()
 
         entries = api_data.get("assignments", api_data) if isinstance(api_data, dict) else api_data
+        entries = normalize_topology(entries)  # reject malformed snapshots atomically
+        if source_label == "startup" and RUNTIME_SESSION and RUNTIME_SESSION.snapshot:
+            if topology_revision(entries) != RUNTIME_SESSION.snapshot.revision:
+                raise RuntimeError("Swarm configuration changed after command confirmation")
         replace_swarm_config(
             entries,
             source_name=f"GCS API ({source_label})",
             announce_level=logging.INFO if source_label == "startup" else logging.DEBUG,
         )
+        if CONFIG_REFRESH_ERROR:
+            logger.info("Swarm configuration refresh recovered")
+        CONFIG_REFRESH_ERROR = None
         return True
     except Exception as exc:
-        logger.warning(
+        failure = f"{type(exc).__name__}: {exc}"
+        log = logger.warning if failure != CONFIG_REFRESH_ERROR else logger.debug
+        log(
             "[%s] Failed to refresh swarm configuration from GCS; continuing with local swarm file. Error: %s",
             source_label,
             exc,
         )
+        CONFIG_REFRESH_ERROR = failure
         return False
     finally:
         if owns_session and active_session is not None:
@@ -1433,7 +1452,7 @@ async def control_loop(drone: System):
         drone (System): MAVSDK drone system instance.
     """
     logger = logging.getLogger(__name__)
-    global LEADER_KALMAN_FILTER
+    global LEADER_KALMAN_FILTER, RUNTIME_PHASE, RUNTIME_DETAIL
     loop_interval = 1 / float(Params.SMART_SWARM_CONTROL_RATE_HZ)
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
@@ -1448,6 +1467,8 @@ async def control_loop(drone: System):
     offboard_active = True
 
     async def send_decision(decision):
+        if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.owns_fresh_offboard():
+            return
         await drone.offboard.set_velocity_ned(VelocityNedYaw(
             float(decision.velocity_ned[0]),
             float(decision.velocity_ned[1]),
@@ -1457,6 +1478,8 @@ async def control_loop(drone: System):
 
     try:
         while True:
+            if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+                return
             current_time = time.monotonic()
             dt = max(1e-3, current_time - previous_time) if previous_time else loop_interval
             previous_time = current_time
@@ -1618,6 +1641,8 @@ async def control_loop(drone: System):
                 now_s=current_time,
             )
             await send_decision(decision)
+            RUNTIME_PHASE = "active" if decision.tracking_allowed else "holding"
+            RUNTIME_DETAIL = decision.detail
             if decision.status != motion_status:
                 log = (
                     logger.warning
@@ -1667,6 +1692,14 @@ async def execute_failsafe(
             failsafe callers retain the normal MAVSDK behavior by omitting it.
     """
     logger = logging.getLogger(__name__)
+    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+        if not CONTROL_AUTHORITY.owns_fresh_offboard():
+            # No flight-mode RPC (including offboard.stop, which requests Hold)
+            # may countermand external RTL/Land/manual control or a disarm.
+            logger.info("Preserving PX4 control during %s (%s).", reason, CONTROL_AUTHORITY.mode)
+            return VehicleHandoffResult(False, False, control_preserved=True)
+    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.owns_fresh_offboard():
+        CONTROL_AUTHORITY.expect("HOLD")
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
     offboard_stop_completed = False
@@ -1695,6 +1728,8 @@ async def execute_failsafe(
         logger.exception("Unexpected error while stopping Offboard during failsafe.")
 
     try:
+        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+            return VehicleHandoffResult(offboard_stop_completed, False, control_preserved=True)
         await await_operation(drone.action.hold())
         hold_requested = True
         logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
@@ -1820,7 +1855,8 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     """
     logger = logging.getLogger(__name__)
     global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
-    global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS
+    global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS, RUNTIME_PHASE, RUNTIME_DETAIL
+    global CONTROL_AUTHORITY
 
     # --------------------------- #
     #      Initialization         #
@@ -1837,7 +1873,12 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     swarm_filename = Params.swarm_file_name
     read_config(config_filename)
     read_swarm(swarm_filename)
-    await refresh_swarm_config_from_gcs(logger, source_label="startup")
+    if RUNTIME_SESSION and RUNTIME_SESSION.snapshot:
+        # Command-carried, hash-verified snapshot is the startup authority. A
+        # temporary GCS outage never silently substitutes a stale disk file.
+        replace_swarm_config([m.model_dump() for m in RUNTIME_SESSION.snapshot.assignments], "confirmed command")
+    else:
+        await refresh_swarm_config_from_gcs(logger, source_label="startup")
 
     # Get own drone configuration
     hw_id_str = str(HW_ID)
@@ -1859,7 +1900,7 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     OFFSETS['z'] = swarm_config['offset_z']
     FRAME = swarm_config['frame']
     logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Frame: {FRAME}")
-    publish_runtime_assignment(swarm_config)
+    publish_runtime_assignment(swarm_config, active=False)
 
     # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
     if not IS_LEADER:
@@ -1894,6 +1935,8 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
         lifecycle.drone = drone
         global DRONE_INSTANCE
         DRONE_INSTANCE = drone
+        CONTROL_AUTHORITY = ControlAuthority()
+        lifecycle.authority_task = asyncio.create_task(watch_control_authority(drone))
     except Exception:
         logger.error("Failed to initialize drone.")
         sys.exit(1)
@@ -1953,12 +1996,15 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     # --------------------------- #
 
     # For followers, start the corresponding tasks and store them in FOLLOWER_TASKS
+    if RUNTIME_SESSION:
+        await RUNTIME_SESSION.wait_for_cluster(HW_ID, swarm_config['follow'], topology_revision(list(SWARM_CONFIG.values())))
     if not IS_LEADER:
         if not await ensure_follower_runtime(drone, logger, "startup"):
             logger.error("Failed to start follower runtime.")
             sys.exit(1)
     else:
         logger.info("No follower tasks started as drone is in Leader mode.")
+        RUNTIME_PHASE = "active"
 
     # Launch the periodic swarm configuration update task (applies to both roles)
     swarm_update_task = asyncio.create_task(update_swarm_config_periodically(drone))
@@ -1970,7 +2016,44 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     # --------------------------- #
 
     while True:
+        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+            RUNTIME_PHASE = "takeover"
+            RUNTIME_DETAIL = CONTROL_AUTHORITY.takeover_reason
+            break
+        for task_name, task in list(FOLLOWER_TASKS.items()):
+            if task.done() and not IS_LEADER and not LEADER_FAILOVER_IN_PROGRESS:
+                raise RuntimeError(f"Follower task ended unexpectedly: {task_name}")
+        publish_runtime_assignment()
+        if RUNTIME_SESSION:
+            RUNTIME_SESSION.phase = "active" if IS_LEADER else RUNTIME_PHASE
+            RUNTIME_SESSION.detail = RUNTIME_DETAIL
+            follow = 0 if IS_LEADER else LEADER_HW_ID
+            await RUNTIME_SESSION.report(HW_ID, follow, topology_revision(list(SWARM_CONFIG.values())))
         await asyncio.sleep(1)
+
+
+async def watch_control_authority(drone):
+    """Independent of follower tasks so elections cannot remove the watcher."""
+    async def consume(factory, update):
+        while True:
+            try:
+                async for value in factory():
+                    update(value)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logging.getLogger(__name__).debug("PX4 authority stream unavailable", exc_info=True)
+            await asyncio.sleep(0.25)
+    tasks = [asyncio.create_task(consume(drone.telemetry.flight_mode,
+                lambda value: CONTROL_AUTHORITY.update_mode(value, leader=IS_LEADER))),
+             asyncio.create_task(consume(drone.telemetry.armed, CONTROL_AUTHORITY.update_armed)),
+             asyncio.create_task(consume(drone.telemetry.landed_state, CONTROL_AUTHORITY.update_landed))]
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ----------------------------- #
@@ -1980,6 +2063,10 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
 
 async def run_smart_swarm_process(logger) -> bool:
     """Run Smart Swarm and return whether its final vehicle handoff completed."""
+    global RUNTIME_SESSION, CONTROL_AUTHORITY, RUNTIME_PHASE
+    RUNTIME_SESSION = SwarmSessionRuntime(Params, logger)
+    CONTROL_AUTHORITY = None
+    RUNTIME_PHASE = "ready"
     lifecycle = SmartSwarmRuntimeLifecycle(
         logger,
         cancel_follower_tasks=cancel_follower_tasks,
@@ -2009,6 +2096,21 @@ async def run_smart_swarm_process(logger) -> bool:
     finally:
         reason = signal_state.received_signal or "runtime exit"
         shutdown_completed = await lifecycle.shutdown(reason)
+        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+            RUNTIME_PHASE = "takeover"
+        elif RUNTIME_PHASE != "failed":
+            RUNTIME_PHASE = "stopped"
+        publish_runtime_assignment(active=False)
+        clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id)
+        RUNTIME_SESSION.phase = RUNTIME_PHASE
+        RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or reason
+        if HW_ID is not None and SWARM_CONFIG:
+            await RUNTIME_SESSION.report(HW_ID, 0 if IS_LEADER else (LEADER_HW_ID or 0),
+                                         topology_revision(list(SWARM_CONFIG.values())))
+        authority_task = getattr(lifecycle, "authority_task", None)
+        if authority_task is not None:
+            authority_task.cancel()
+            await asyncio.gather(authority_task, return_exceptions=True)
         for handled_signal in installed_signals:
             loop.remove_signal_handler(handled_signal)
     return shutdown_completed

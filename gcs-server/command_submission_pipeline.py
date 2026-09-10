@@ -288,6 +288,8 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
         processed_dir=work.tracking_processed_dir,
         shapes_dir=work.tracking_shapes_dir,
     )
+    if work.command_data.get("smart_swarm"):
+        tracking_timeout_ms = 45000  # bounded role startup; runtime reports renew per-node leases
     timeout_at_ms = int(time.time() * 1000) + max(1, int(tracking_timeout_ms))
     if not await tracker.update_deadline_before_dispatch(work.command_id, timeout_at_ms):
         return

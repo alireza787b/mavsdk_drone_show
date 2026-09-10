@@ -128,6 +128,7 @@ from api_routes.simurgh import create_simurgh_router
 from api_routes.sitl_control import create_sitl_control_router
 from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
+from api_routes.swarm_runtime import create_swarm_runtime_router
 from api_routes.swarm_trajectory import create_swarm_trajectory_router
 from show_management import (
     CUSTOM_SHOW_REQUIRED_COLUMNS,
@@ -998,6 +999,7 @@ app.include_router(create_simurgh_router(sys.modules[__name__]), responses=DEFAU
 app.include_router(create_sitl_control_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_static_assets_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_swarm_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_swarm_runtime_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_swarm_trajectory_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)

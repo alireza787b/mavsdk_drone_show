@@ -1496,6 +1496,63 @@ class CommandTracker:
         command.updated_at = timestamp
         return True
 
+    async def record_swarm_runtime(self, report, callback_capability=None):
+        """Accept role evidence/leases, not merely subprocess creation.
+
+        The startup barrier coordinates roles before followers engage. Once
+        engaged, GCS reachability is observation only: node-local failover
+        remains the flight authority and this route never elects a leader.
+        """
+        async with self._lock:
+            command = self._commands.get(report.command_id)
+            if command is None or not self._callback_capability_matches_locked(
+                command, report.hw_id, callback_capability,
+            ):
+                raise CommandCallbackAuthenticationError("Command callback authentication failed")
+            snapshot = command.params.get("smart_swarm")
+            if command.mission_type != 2 or not snapshot:
+                return {"engage": False, "abort": True, "reason": "No tracked swarm session"}
+            if self._is_terminal(command):
+                return {"engage": False, "abort": True, "reason": "Session tracking ended"}
+            now = int(time.time() * 1000)
+            reports = command.params.setdefault("_swarm_runtime", {})
+            previous = reports.get(report.hw_id, {})
+            if report.sequence <= previous.get("sequence", -1):
+                return {"engage": bool(command.params.get("_swarm_engaged")), "abort": False}
+            if not previous:
+                member = next((m for m in snapshot["assignments"] if m["hw_id"] == report.hw_id), None)
+                expected_role = "leader" if member and member["follow"] == "0" else "follower"
+                if (not member or report.revision != snapshot["revision"]
+                    or report.role != expected_role or report.follow != member["follow"]
+                    or report.phase != "ready"):
+                    return {"engage": False, "abort": True, "reason": "Startup role/configuration mismatch"}
+            reports[report.hw_id] = {**report.model_dump(exclude={"command_id", "hw_id"}),
+                                     "received_at_ms": now}
+            all_ready = all(
+                reports.get(hw, {}).get("phase") in {"ready", "active", "holding"}
+                and now - reports[hw]["received_at_ms"] <= 15000
+                for hw in command.target_drones
+            )
+            if all_ready:
+                command.params["_swarm_engaged"] = True
+            # A per-target deadline prevents one healthy leader from extending
+            # a missing follower's startup/heartbeat indefinitely.
+            deadlines = []
+            for hw in command.target_drones:
+                if hw in command.executions:
+                    continue
+                item = reports.get(hw)
+                if item and item["phase"] not in {"takeover", "stopped", "failed"}:
+                    deadlines.append(item["received_at_ms"] + 15000)
+                else:
+                    deadlines.append((command.submitted_at or now) + 45000)
+            if deadlines:
+                command.timeout_at = min(deadlines)
+            command.updated_at = now
+            await self._persist_command_locked(command, event_type="swarm_runtime", hw_ids=[report.hw_id],
+                                              event_data={"phase": report.phase, "role": report.role})
+            return {"engage": bool(command.params.get("_swarm_engaged")), "abort": False}
+
     async def record_execution_start(
         self,
         command_id: str,
@@ -2421,6 +2478,7 @@ class CommandTracker:
         late_execution_starts_snapshot = dict(command.late_execution_starts)
         late_executions_snapshot = dict(command.late_executions)
 
+        from smart_swarm_service import runtime_summary
         return {
             'command_id': command.command_id,
             'idempotency_key': command.idempotency_key,
@@ -2428,6 +2486,8 @@ class CommandTracker:
             'mission_name': command.mission_name,
             'target_drones': list(command.target_drones),  # Copy list too
             'params': dict(command.params),  # Copy dict
+            'swarm_runtime': runtime_summary(command.params, command.target_drones,
+                                              terminal=self._is_terminal(command)),
             'status': command.status.value,
             'phase': command.phase.value,
             'outcome': command.outcome.value if command.outcome else None,

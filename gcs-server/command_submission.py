@@ -152,6 +152,12 @@ async def submit_tracked_command(
 ) -> CommandSubmissionReceipt:
     """Submit a tracked command using the canonical GCS lifecycle."""
     mission_type = command.mission_type
+    if command.smart_swarm is not None:
+        from src.smart_swarm_contract import topology_revision
+        if command.smart_swarm.revision != topology_revision(deps.load_swarm() or []):
+            raise HTTPException(409, "Swarm configuration changed; review the saved layout")
+        if set(command.target_drone_ids or []) != set(command.smart_swarm.expected_hw_ids):
+            raise HTTPException(400, "Smart Swarm session and dispatch targets must match")
     resolved_mission = deps.resolve_mission_type(mission_type)
     if resolved_mission is None or resolved_mission == deps.Mission.UNKNOWN:
         raise HTTPException(
@@ -283,6 +289,62 @@ async def submit_tracked_command(
         actual_targets = drones
 
     target_hw_ids = [str(drone["hw_id"]) for drone in actual_targets]
+
+    # Every Smart Swarm launch, including the advanced Swarm page and API
+    # clients, receives the same immutable session snapshot.  The dashboard
+    # quick-start endpoint supplies an explicit snapshot when it has shown a
+    # partial-availability confirmation; ordinary callers are bound here
+    # after target resolution so they cannot accidentally run against a
+    # later-edited topology.  This is a session/identity boundary only: the
+    # node still performs the authoritative airborne and PX4 checks.
+    if resolved_mission == deps.Mission.SMART_SWARM and command.smart_swarm is None:
+        from src.smart_swarm_contract import (
+            SmartSwarmSession,
+            normalize_topology,
+            topology_revision,
+        )
+
+        try:
+            assignments = normalize_topology(deps.load_swarm() or [])
+            assignment_ids = {member["hw_id"] for member in assignments}
+        except (TypeError, ValueError, KeyError) as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Saved Smart Swarm layout is invalid; no command was dispatched: {exc}",
+            ) from exc
+
+        missing_assignments = sorted(set(target_hw_ids) - assignment_ids, key=int)
+        if missing_assignments:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Smart Swarm target is not present in the saved layout: "
+                    + ", ".join(missing_assignments)
+                ),
+            )
+        expected = set(target_hw_ids)
+        orphaned_followers = sorted([
+            member["hw_id"]
+            for member in assignments
+            if member["hw_id"] in expected
+            and member["follow"] != "0"
+            and member["follow"] not in expected
+        ], key=int)
+        if orphaned_followers:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Smart Swarm target selection omits a required upstream leader: "
+                    + ", ".join(orphaned_followers)
+                ),
+            )
+        session = SmartSwarmSession(
+            revision=topology_revision(assignments),
+            assignments=assignments,
+            expected_hw_ids=target_hw_ids,
+        )
+        command_data["smart_swarm"] = session.model_dump(mode="json")
+        dispatch_payload["smart_swarm"] = command_data["smart_swarm"]
     if resolved_mission == deps.Mission.SWARM_TRAJECTORY and normalized_target_ids:
         try:
             status_payload = deps.swarm_trajectory_service.get_processing_status_payload()["status"]

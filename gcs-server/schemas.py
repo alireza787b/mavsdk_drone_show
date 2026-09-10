@@ -2253,6 +2253,7 @@ class CommandStatusResponse(BaseModel):
     mission_name: str = Field(..., description="Human-readable mission name")
     target_drones: List[str] = Field(..., description="Target drone hardware IDs")
     params: Dict[str, Any] = Field(default_factory=dict, description="Command parameters")
+    swarm_runtime: Optional[Dict[str, Any]] = None
     status: CommandStatus = Field(..., description="Current command status")
     phase: CommandPhase = Field(..., description="Operational phase separating ACK collection from actual execution")
     outcome: Optional[CommandOutcome] = Field(None, description="Terminal outcome when the command has finished")

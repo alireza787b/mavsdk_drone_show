@@ -19,13 +19,14 @@ class VehicleHandoffResult:
 
     offboard_stop_completed: bool
     hold_requested: bool
+    control_preserved: bool = False
 
     @property
     def completed(self) -> bool:
         # A PX4-accepted HOLD is the authoritative mode handoff and is also
         # valid when Offboard was already inactive. The separate stop field
         # preserves truthful diagnostics for the preceding best-effort RPC.
-        return self.hold_requested
+        return self.hold_requested or self.control_preserved
 
 
 @dataclass
@@ -166,6 +167,8 @@ class SmartSwarmRuntimeLifecycle:
                     "was established (%s).",
                     reason,
                 )
+            elif handoff.control_preserved:
+                self.logger.info("Smart Swarm stopped without changing external PX4 control (%s).", reason)
             elif handoff.offboard_stop_completed:
                 self.logger.info(
                     "Smart Swarm cooperative shutdown completed: setpoint tasks stopped, "

@@ -3,6 +3,8 @@
 
 import asyncio
 import os
+import json
+import tempfile
 import signal
 import shlex
 import subprocess
@@ -919,6 +921,7 @@ class DroneSetup:
 
             action_result_read_fd = None
             action_result_write_fd = None
+            swarm_context = None
             try:
                 process_kwargs = {
                     "stdout": asyncio.subprocess.PIPE,
@@ -928,6 +931,17 @@ class DroneSetup:
                     # setpoints after the Python parent exits.
                     "start_new_session": True,
                 }
+                if mission_type == Mission.SMART_SWARM.value:
+                    swarm_context = tempfile.TemporaryFile(mode="w+")
+                    json.dump({"command_id": command_id,
+                               "capability": self._get_command_report_capability(command_id),
+                               "session": getattr(self.drone_config, "smart_swarm_request", None)}, swarm_context)
+                    swarm_context.flush()
+                    swarm_context.seek(0)
+                    child_env = os.environ.copy()
+                    child_env["MDS_SWARM_CONTEXT_FD"] = str(swarm_context.fileno())
+                    process_kwargs["env"] = child_env
+                    process_kwargs["pass_fds"] = (swarm_context.fileno(),)
                 # actions.py owns a versioned terminal-result contract.  Keep
                 # it separate from human/logging stdout and stderr so native
                 # LED/SPI diagnostics cannot mask a PX4 command result.
@@ -958,6 +972,8 @@ class DroneSetup:
                 if action_result_write_fd is not None:
                     os.close(action_result_write_fd)
                     action_result_write_fd = None
+                if swarm_context is not None:
+                    swarm_context.close()
                 process_key = self._build_process_key(script_name, command_id)
                 process_record = RunningMissionProcess(
                     process_key=process_key,
@@ -980,6 +996,8 @@ class DroneSetup:
                     state=State.MISSION_EXECUTING.value,
                 )
             except Exception as e:
+                if swarm_context is not None:
+                    swarm_context.close()
                 for result_fd in (action_result_write_fd, action_result_read_fd):
                     if result_fd is not None:
                         try:

@@ -86,6 +86,7 @@ class DroneState:
         self.quickscout_waypoints_file: Optional[str] = None
         self.quickscout_return_behavior: Optional[str] = None
         self.precision_move_request_file: Optional[str] = None
+        self.smart_swarm_request: Optional[Dict[str, Any]] = None
 
         # Phase 2: Auto Global Origin Correction flags
         self.auto_global_origin: Optional[bool] = None

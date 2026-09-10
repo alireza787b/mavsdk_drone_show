@@ -238,6 +238,15 @@ class DroneConfig:
         self._state.precision_move_request_file = value
 
     @property
+    def smart_swarm_request(self) -> Optional[Dict[str, Any]]:
+        """Immutable Smart Swarm session snapshot for the active command."""
+        return self._state.smart_swarm_request
+
+    @smart_swarm_request.setter
+    def smart_swarm_request(self, value: Optional[Dict[str, Any]]):
+        self._state.smart_swarm_request = value
+
+    @property
     def auto_global_origin(self) -> Optional[bool]:
         return self._state.auto_global_origin
 

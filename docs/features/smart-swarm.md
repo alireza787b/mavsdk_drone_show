@@ -100,7 +100,20 @@ Important caveat:
 - that can mean continued following, upstream reassignment, or self-hold, depending on topology and live health
 - so command scope stays local, but topology side effects can still propagate through the follow chain
 
-### 2. Swarm runtime commands
+### 2. Normal Dashboard start
+
+The normal field flow is intentionally short: take off using MDS, QGroundControl,
+or the RC, let the aircraft stabilize, then open `Overview` and click **Start
+Swarm**. MDS resolves the saved executable cluster and starts the complete
+dependency-closed cluster. The takeoff does not have to come from MDS.
+
+MDS still performs authoritative node-side airborne, PX4, link, and
+configuration checks. These are not UI bypasses. If a follower is unavailable,
+one explicit confirmation may start a dependency-safe leader-only diagnostic;
+this is labelled partial and never silently called a full swarm. An unavailable
+leader cannot be bypassed because its descendants would be orphaned.
+
+### 3. Advanced Swarm runtime commands
 
 Use the `Smart Swarm Runtime` panel on the `Swarm Design` page when the intent is live Smart Swarm control:
 
@@ -165,6 +178,22 @@ Important operator rule:
   reject while another accepts. For the first field validation, launch and
   confirm each aircraft individually, let both settle in Hold, and only then
   start the exact Smart Swarm cluster.
+
+### Runtime ownership and leader changes
+
+Each start carries a command/session ID and saved-topology revision. Both roles
+acknowledge that session before the follower engages. Runtime status separates
+configured role from active role and reports `Starting`, `Active`, `Partial`,
+`Pilot takeover`, or `Stopped`.
+
+The follower watches PX4 mode, armed state, and landed state. RC/QGC RTL, Land,
+or manual takeover stops follower setpoints and preserves the selected recovery
+mode; MDS never countercommands it with HOLD. This watcher does not elect
+leaders. Existing `upstream_or_hold` remains the single leader-loss policy:
+after its bounded loss window it follows the cycle-safe upstream leader, or
+self-promotes and holds. User-edited leader changes use the same transition
+path. Runtime assignment files carry session ownership and become inactive on
+shutdown, landing, takeover, and restart.
 
 ## Slot Reassignment vs Spare Replacement
 
