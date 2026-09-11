@@ -38,6 +38,7 @@ from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_START_ROUTE,
 )
 from src.gcs_auth_client import gcs_auth_headers
+from src.swarm_runtime_state import read_runtime_swarm_assignment
 
 logger = get_logger("drone_setup")
 
@@ -61,6 +62,10 @@ class RunningMissionProcess:
     action_result_read_fd: Optional[int] = None
     forced_kill_cleanup_unconfirmed: bool = False
     forced_stop_mode: Optional[str] = None
+    # Smart Swarm on a leader is a cluster role/session publisher, not the
+    # vehicle-control owner.  Leader-side jog/show processes may coexist with
+    # it; follower-side missions still preempt their local swarm controller.
+    role_session: bool = False
     # A process key is intentionally human-readable and may be reused by a
     # duplicate command delivery.  State ownership therefore uses a separate
     # opaque token so a late monitor can never mistake a replacement record
@@ -870,7 +875,7 @@ class DroneSetup:
         A background task `_monitor_script_process` will watch its completion.
         """
         async with self.process_lock:
-            if self._active_mission_owner_token is not None:
+            if self._active_mission_owner_token is not None and not self._can_overlap_leader_role_session():
                 message = (
                     "Another mission process still owns execution state; "
                     "the new subprocess was not launched."
@@ -984,6 +989,7 @@ class DroneSetup:
                     trigger_time=command_claim.trigger_time,
                     process_group_owned=True,
                     action_result_read_fd=action_result_read_fd,
+                    role_session=(mission_type == Mission.SMART_SWARM.value),
                 )
                 self.running_processes[process_key] = process_record
                 self._active_mission_owner_token = process_record.ownership_token
@@ -1039,6 +1045,26 @@ class DroneSetup:
 
         # Return immediately - do NOT block on process.communicate()
         return (True, f"Started mission script '{script_name}' asynchronously.")
+
+    def _active_leader_role_session(self) -> bool:
+        """Return whether this node owns a live leader role publisher."""
+        try:
+            assignment = read_runtime_swarm_assignment(active_only=True) or {}
+            return (
+                str(assignment.get("hw_id")) == str(getattr(self.drone_config, "hw_id", ""))
+                and int(assignment.get("follow", 0) or 0) == 0
+            )
+        except (TypeError, ValueError):
+            return False
+
+    def _can_overlap_leader_role_session(self) -> bool:
+        """Allow a vehicle-control action to coexist only with a leader session."""
+        if not self._active_leader_role_session():
+            return False
+        return any(
+            record.role_session and record.mission_type == Mission.SMART_SWARM.value
+            for record in self.running_processes.values()
+        )
 
     async def _acquire_command_state_transaction_lock(self) -> None:
         """Acquire the cross-thread state lock without orphaning a waiter.
@@ -2099,9 +2125,12 @@ class DroneSetup:
             logger.debug("Conditions NOT met for Standard Drone Show.")
             return (False, "Conditions not met for Standard Drone Show.")
 
-        if self.running_processes:
+        preserve_leader_session = self._can_overlap_leader_role_session()
+        if self.running_processes and not preserve_leader_session:
             logger.info("Standard Drone Show requested while another mission is running. Interrupting active mission scripts.")
             await self.terminate_all_running_processes(reset_state=False)
+        elif preserve_leader_session:
+            logger.info("Starting leader Drone Show while preserving the active Smart Swarm role session.")
 
         real_trigger_time = self._prepare_mission_start("Standard Drone Show")
 
@@ -2112,7 +2141,10 @@ class DroneSetup:
 
         action = self._build_offboard_action(real_trigger_time, Mission.DRONE_SHOW_FROM_CSV.value)
         logger.info(f"Starting Standard Drone Show using '{main_offboard_executer}'.")
-        return await self.execute_mission_script(main_offboard_executer, action)
+        return await self.execute_mission_script(
+            main_offboard_executer,
+            action,
+        )
 
     async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.CUSTOM_CSV_DRONE_SHOW."""
@@ -2120,9 +2152,12 @@ class DroneSetup:
             logger.debug("Conditions NOT met for Custom CSV Drone Show.")
             return (False, "Conditions not met for Custom CSV Drone Show.")
 
-        if self.running_processes:
+        preserve_leader_session = self._can_overlap_leader_role_session()
+        if self.running_processes and not preserve_leader_session:
             logger.info("Custom Drone Show requested while another mission is running. Interrupting active mission scripts.")
             await self.terminate_all_running_processes(reset_state=False)
+        elif preserve_leader_session:
+            logger.info("Starting leader Custom Drone Show while preserving the active Smart Swarm role session.")
 
         real_trigger_time = self._prepare_mission_start("Custom Drone Show")
 
@@ -2143,7 +2178,10 @@ class DroneSetup:
             custom_csv=custom_csv_file_name
         )
         logger.info(f"Starting Custom Drone Show with '{custom_csv_file_name}' using '{main_offboard_executer}'.")
-        return await self.execute_mission_script(main_offboard_executer, action)
+        return await self.execute_mission_script(
+            main_offboard_executer,
+            action,
+        )
 
     async def _execute_hover_test(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.HOVER_TEST."""
@@ -2388,7 +2426,10 @@ class DroneSetup:
             action_args,
             current_time,
             earlier_trigger_time,
-            interrupt_mode=ProcessStopMode.RECOVERY,
+            interrupt_mode=(
+                None if self._can_overlap_leader_role_session()
+                else ProcessStopMode.RECOVERY
+            ),
         )
 
     # --------------------- LOGGING HELPERS ----------------------

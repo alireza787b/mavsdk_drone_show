@@ -1,9 +1,9 @@
-"""Stateful formation-capture and tracking envelopes for Smart Swarm.
+"""Stateful geometry admission for Smart Swarm.
 
-The guard owns *whether* formation tracking may produce a non-zero command.
-Velocity shaping remains a separate concern.  Keeping those responsibilities
-separate makes a bad initial layout, a large telemetry jump, or sustained
-tracking divergence stop motion without hiding the underlying evidence.
+Geometry admission is deliberately not a small-distance gate.  A follower may
+smoothly acquire a valid formation from a large separation; the motion
+controller owns the speed/acceleration envelope.  This module only rejects
+invalid data or geometry outside the configured operational envelope.
 """
 
 from __future__ import annotations
@@ -46,6 +46,8 @@ class FormationGuard:
         tracking_vertical_m: float,
         target_step_horizontal_m: float,
         target_step_vertical_m: float,
+        acquisition_horizontal_m: float | None = None,
+        acquisition_vertical_m: float | None = None,
     ) -> None:
         values = {
             "capture_horizontal_m": capture_horizontal_m,
@@ -55,14 +57,24 @@ class FormationGuard:
             "tracking_vertical_m": tracking_vertical_m,
             "target_step_horizontal_m": target_step_horizontal_m,
             "target_step_vertical_m": target_step_vertical_m,
+            "acquisition_horizontal_m": (
+                acquisition_horizontal_m
+                if acquisition_horizontal_m is not None
+                else max(float(tracking_horizontal_m) * 100.0, 500.0)
+            ),
+            "acquisition_vertical_m": (
+                acquisition_vertical_m
+                if acquisition_vertical_m is not None
+                else max(float(tracking_vertical_m) * 100.0, 100.0)
+            ),
         }
         normalized = {name: float(value) for name, value in values.items()}
         if not all(math.isfinite(value) and value > 0 for value in normalized.values()):
             raise ValueError("formation guard limits must be finite and greater than zero")
-        if normalized["tracking_horizontal_m"] < normalized["capture_horizontal_m"]:
-            raise ValueError("tracking horizontal envelope must include the capture envelope")
-        if normalized["tracking_vertical_m"] < normalized["capture_vertical_m"]:
-            raise ValueError("tracking vertical envelope must include the capture envelope")
+        if normalized["acquisition_horizontal_m"] < normalized["tracking_horizontal_m"]:
+            raise ValueError("acquisition horizontal envelope must include tracking envelope")
+        if normalized["acquisition_vertical_m"] < normalized["tracking_vertical_m"]:
+            raise ValueError("acquisition vertical envelope must include tracking envelope")
 
         self.capture_horizontal_m = normalized["capture_horizontal_m"]
         self.capture_vertical_m = normalized["capture_vertical_m"]
@@ -71,10 +83,12 @@ class FormationGuard:
         self.tracking_vertical_m = normalized["tracking_vertical_m"]
         self.target_step_horizontal_m = normalized["target_step_horizontal_m"]
         self.target_step_vertical_m = normalized["target_step_vertical_m"]
+        self.acquisition_horizontal_m = normalized["acquisition_horizontal_m"]
+        self.acquisition_vertical_m = normalized["acquisition_vertical_m"]
         self.reset()
 
     def reset(self) -> None:
-        """Require a new stable capture after startup or reconfiguration."""
+        """Return to acquisition without forcing a zero command."""
         self._captured = False
         self._capture_started_at: float | None = None
         self._last_target: tuple[float, float, float] | None = None
@@ -90,12 +104,13 @@ class FormationGuard:
         *,
         now_s: float,
     ) -> FormationGuardDecision:
-        """Return whether the current target is safe to track.
+        """Return whether the current geometry may be controlled smoothly.
 
-        A rejected target resets capture.  Tracking can resume only after the
-        aircraft is again inside the smaller capture envelope for the complete
-        stability dwell.  The caller should keep streaming a shaped zero
-        velocity while ``tracking_allowed`` is false.
+        The old implementation treated the small capture envelope as a hard
+        admission gate.  That left a valid but distant follower permanently
+        stationary.  ``tracking_allowed`` now means that the geometry is
+        valid and inside the configured operational envelope; ``status``
+        distinguishes acquisition from settled tracking for the operator.
         """
         try:
             desired = _ned_vector(desired_position_ned, "desired position")
@@ -113,43 +128,33 @@ class FormationGuard:
         horizontal_error = math.hypot(error_n, error_e)
         vertical_error = abs(error_d)
 
-        if self._captured and self._last_target is not None:
-            step_n = desired[0] - self._last_target[0]
-            step_e = desired[1] - self._last_target[1]
-            step_d = desired[2] - self._last_target[2]
-            horizontal_step = math.hypot(step_n, step_e)
-            vertical_step = abs(step_d)
-            if (
-                horizontal_step > self.target_step_horizontal_m
-                or vertical_step > self.target_step_vertical_m
-            ):
-                self.reset()
-                return FormationGuardDecision(
-                    False,
-                    "target_jump",
-                    (
-                        "Formation target changed implausibly between samples "
-                        f"(horizontal {horizontal_step:.2f}m, vertical {vertical_step:.2f}m)."
-                    ),
-                    horizontal_error,
-                    vertical_error,
-                )
+        # Target samples can legitimately move by more than one loop period
+        # during a leader jog.  The controller filters and shapes that change;
+        # rejecting it here would recreate the hard-stop bug.
+        self._last_target = desired
 
-        if self._captured and (
-            horizontal_error > self.tracking_horizontal_m
-            or vertical_error > self.tracking_vertical_m
+        if (
+            horizontal_error > self.acquisition_horizontal_m
+            or vertical_error > self.acquisition_vertical_m
         ):
             self.reset()
             return FormationGuardDecision(
                 False,
-                "tracking_diverged",
+                "unsafe_geometry",
                 (
-                    "Formation tracking left the safe envelope "
+                    "Formation geometry is outside the configured operational envelope "
                     f"(horizontal {horizontal_error:.2f}m, vertical {vertical_error:.2f}m)."
                 ),
                 horizontal_error,
                 vertical_error,
             )
+
+        if self._captured and (
+            horizontal_error > self.tracking_horizontal_m
+            or vertical_error > self.tracking_vertical_m
+        ):
+            self._captured = False
+            self._capture_started_at = None
 
         if not self._captured:
             inside_capture = (
@@ -159,11 +164,11 @@ class FormationGuard:
             if not inside_capture:
                 self._capture_started_at = None
                 return FormationGuardDecision(
-                    False,
-                    "waiting_geometry",
+                    True,
+                    "acquiring",
                     (
-                        "Follower is outside the formation capture envelope "
-                        f"(horizontal {horizontal_error:.2f}m, vertical {vertical_error:.2f}m)."
+                        "Follower is smoothly acquiring the formation "
+                        f"(horizontal error {horizontal_error:.2f}m, vertical error {vertical_error:.2f}m)."
                     ),
                     horizontal_error,
                     vertical_error,
@@ -175,7 +180,7 @@ class FormationGuard:
             dwell = max(0.0, now - self._capture_started_at)
             if dwell < self.capture_stable_sec:
                 return FormationGuardDecision(
-                    False,
+                    True,
                     "settling",
                     (
                         "Formation geometry is inside the capture envelope and settling "

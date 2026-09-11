@@ -2462,10 +2462,13 @@ class CommandTracker:
                 "starting": "Starting Smart Swarm",
                 "active": "Smart Swarm active",
                 "partial": "Partial Smart Swarm",
-                "degraded": "Smart Swarm needs attention",
-                "pilot_takeover": "Pilot/autopilot takeover",
+                "leader_motion": "Leader moving — swarm listening",
+                "degraded": "Smart Swarm — check status",
+                "pilot_takeover": "Smart Swarm paused by pilot",
             }[swarm["state"]]
-            message = f"{active}/{len(command.target_drones)} role(s) confirm active control."
+            message = f"{active}/{len(command.target_drones)} role(s) reporting."
+            if swarm.get("leader_session_active"):
+                message += " Leader movement does not end the swarm session."
             if swarm["excluded_hw_ids"]:
                 message += " Excluded: " + ", ".join(swarm["excluded_hw_ids"]) + "."
             for hw, item in swarm["nodes"].items():

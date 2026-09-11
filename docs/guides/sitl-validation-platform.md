@@ -36,11 +36,15 @@ The current reusable validators cover:
 - `actions`
   - TAKEOFF, HOLD, completed `PRECISION_MOVE`, interrupted `PRECISION_MOVE -> HOLD`, targeted RTL override, remaining-drone LAND, and idle cleanup
 - `smart_swarm`
-  - takeoff, cluster start, settle, reassignment, leader RTL, follower hold, and assignment restore
+  - takeoff, large-separation automatic acquisition, reassignment, leader jog
+    while the role session remains active, leader RTL, follower hold, and
+    assignment restore
 - `swarm_trajectory`
   - deterministic short-profile generation, processing, launch, formation validation, and cleanup
 - `integrated_runtime`
-  - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm Trajectory override, HOLD supersession, leader Precision Move, and clean restore/land
+  - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm
+    Trajectory/Precision Move override without ending the leader role session,
+    follower-side override release, HOLD supersession, and clean restore/land
 - `quickscout`
   - deterministic `last_known_point` plan, targeted launch acceptance, airborne confirmation for targeted drones, non-target idle confirmation when applicable, HOLD, honest `replan_required` resume behavior, abort/end behavior, and clean fleet reset
 - `ulog`

@@ -416,16 +416,19 @@ Follower control now uses one stateful motion pipeline:
 
 - leader and own motion must pass identity, validity, finite-value, and
   freshness checks before use
-- the follower must remain inside the smaller formation-capture envelope for a
-  stability dwell before any non-zero formation motion is authorized
+- the follower may enter a formation from a large valid separation; the
+  controller reports an `acquiring` phase and closes the error with bounded
+  speed, acceleration, and jerk
 - leader-velocity feedforward is included in the target velocity command
 - leader body-frame offsets include yaw-rate-induced offset velocity
 - horizontal speed, vertical speed, acceleration, jerk, and yaw rate are shaped
   from the first command after the zero Offboard seed
 - a delayed event-loop iteration cannot spend the whole scheduling delay as a
   larger acceleration or yaw budget
-- topology/offset changes and implausible target jumps suspend motion and
-  require a new stable capture without discarding command continuity
+- topology/offset changes and leader jog-sized target changes are filtered and
+  shaped without a binary zero-velocity capture gate
+- a small position deadband and hysteresis prevent GPS noise from producing
+  oscillating or wavy commands
 - stale leader confidence scales feedback and feedforward together before the
   hard failover deadline
 
@@ -480,12 +483,14 @@ That prevents live leader changes from silently introducing a loop into the foll
 - leader-state prediction no longer double-counts elapsed time between measurements
 - follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
 - body-frame offsets include leader yaw-rate compensation
-- startup and reconfiguration require bounded, stable formation capture; bad
-  staging commands exact zero instead of chasing the offset
+- startup and reconfiguration use an explicit `acquiring` phase rather than
+  requiring manual staging at the offset; invalid data or geometry outside the
+  configured operational envelope still fails closed
 - the command sent to PX4 is limited from its first sample by separate
   horizontal/vertical speed envelopes plus acceleration, jerk, and yaw rate
-- stale-data confidence applies to the complete motion request; target jumps,
-  tracking divergence, and invalid own state suspend formation motion
+- stale-data confidence applies to the complete motion request; invalid own
+  state or unsafe geometry suspends motion, while valid target jumps and
+  tracking divergence return through bounded acquisition
 - follower re-entry restarts offboard mode cleanly after leader-to-follower transitions
 - failed follower re-entry now retries instead of getting stuck half-switched
 - stale leader telemetry now participates in the same failover path as explicit request failures
@@ -531,10 +536,14 @@ That prevents live leader changes from silently introducing a loop into the foll
 - In SITL, the default demo file is `swarm_sitl.json`; it currently defines 5 drones across two clusters.
 - Use swarm runtime controls when you want either a selected-drone override or an explicit cluster-level intent.
 - Use single-drone controls when you want a scoped override.
-- Stage each follower close to its configured offset before starting Smart
-  Swarm. A follower outside the capture envelope intentionally remains in
-  zero-velocity Offboard hold; do not expect it to cross the field to acquire
-  formation.
+- Followers may start away from their configured offsets. Smart Swarm first
+  reports `Acquiring` and moves them toward the formation through the shared
+  speed/acceleration/jerk shaper. Operators must still keep the formation
+  inside the configured flight/geofence envelope.
+- RC, jog, Precision Move, and Drone Show actions on a leader do not end its
+  Smart Swarm role session. RTL, Land, Stop Swarm, or a configured terminal
+  mode ends the session. An incompatible mission sent to a follower releases
+  that follower only and reports the change to the cluster.
 - Do not weaken PX4 estimator, GNSS, arming, or Offboard-loss policy to make a
   field test pass. Resolve the underlying readiness evidence and review the
   active aircraft parameter profile deliberately.

@@ -15,6 +15,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   environment injection.
 
 ### Added
+- Smart Swarm now performs bounded automatic formation acquisition from a
+  large valid separation. A filtered, deadbanded, smoothly saturated follower
+  controller prevents GPS-noise oscillation while preserving speed,
+  acceleration, jerk, freshness, and geofence limits.
 - Smart Swarm now has a compact Dashboard start action that resolves the saved
   executable cluster, carries a revision/session snapshot, and reports role
   acknowledgements before follower engagement. A single explicit partial-start
@@ -43,6 +47,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Leader-side RC, jog, Precision Move, and Drone Show actions no longer
+  terminate the Smart Swarm role session. Followers continue listening to the
+  leader; RTL, Land, Stop Swarm, or an incompatible follower mission still
+  performs an explicit session transition.
 - Opening the Smart Swarm mission card now shows a compact scenario/status
   review instead of dispatching. Start requires a separate final confirmation
   of the named drones and offsets; cancelling or backing out sends nothing.
@@ -94,8 +102,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   reacquisition.
 - Smart Swarm now rejects wrong-leader, invalid, non-finite, stale, or frozen
   motion samples before they enter control. Stale confidence scales the whole
-  motion request, including leader-velocity feedforward, and unsafe formation
-  geometry holds zero velocity until a stable recapture.
+  motion request, including leader-velocity feedforward; valid distant geometry
+  enters the bounded acquisition controller instead of a permanent zero gate.
 
 ## [5.5.117-field-mode-altitude-gnss-readiness] - 2026-08-08
 

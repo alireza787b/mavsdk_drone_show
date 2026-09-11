@@ -15,7 +15,7 @@ export const SWARM_RUNTIME_ACTIONS = {
     label: 'Start Smart Swarm',
     operatorLabel: 'Start Smart Swarm',
     tone: 'primary',
-    description: 'Start live Smart Swarm following for the current scope.',
+    description: 'Start following. It does not arm or take off.',
   },
   STOP_HOLD: {
     key: 'STOP_HOLD',
@@ -23,7 +23,7 @@ export const SWARM_RUNTIME_ACTIONS = {
     label: 'Stop Swarm (Hold)',
     operatorLabel: 'Stop Smart Swarm (Hold)',
     tone: 'secondary',
-    description: 'Exit active following and command the selected drones to hold position.',
+    description: 'Pause following and hold the selected drones.',
   },
   LAND: {
     key: 'LAND',

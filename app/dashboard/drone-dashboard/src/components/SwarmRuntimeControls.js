@@ -202,7 +202,7 @@ const SwarmRuntimeControls = ({
         <div>
           <span className="swarm-selection-panel__eyebrow">Runtime Control</span>
           <h2>Smart Swarm Runtime</h2>
-          <p>Target selected drone or executable cluster, then send explicit runtime actions.</p>
+          <p>Review the scope, start following, then use Hold, Land, or RTL when needed.</p>
         </div>
         <div className="swarm-runtime-panel__badges">
           <StatusBadge tone={targetIds.length > 0 ? 'info' : 'warning'}>
@@ -401,8 +401,8 @@ const SwarmRuntimeControls = ({
             <p>{targetSummary}</p>
             <ul>
               <li>{targetIds.length} target drone{targetIds.length === 1 ? '' : 's'} in this scope</li>
-              <li>Single-drone actions do not stop Smart Swarm on other drones.</li>
-              <li>Cluster actions affect the currently resolved executable cluster.</li>
+              <li>Leader jog and manual movement keep the swarm session active.</li>
+              <li>Land, RTL, or Stop Swarm ends following for the selected scope.</li>
             </ul>
           </div>
         )}

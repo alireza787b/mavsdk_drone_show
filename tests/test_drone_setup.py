@@ -1151,6 +1151,27 @@ class TestScriptExecution:
         called_command = list(mock_exec.await_args.args)
         assert called_command[2:] == ['--mission-id', 'mission-1', '--hw-id', '1']
 
+    def test_leader_role_session_can_coexist_with_vehicle_action(self):
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["smart_swarm.py:session"] = RunningMissionProcess(
+            process_key="smart_swarm.py:session",
+            script_name="smart_swarm.py",
+            process=Mock(),
+            mission_type=Mission.SMART_SWARM.value,
+            role_session=True,
+        )
+
+        with patch(
+            "src.drone_setup.read_runtime_swarm_assignment",
+            return_value={"hw_id": "1", "follow": 0},
+        ):
+            assert setup._can_overlap_leader_role_session() is True
+
 
 @pytest.mark.unit
 @pytest.mark.mission

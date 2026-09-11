@@ -77,6 +77,11 @@ class FollowerMotionController:
         seed_yaw_deg: float,
         formation_guard: FormationGuard,
         velocity_shaper: NedVelocityCommandShaper,
+        position_deadband_m: float = 0.12,
+        vertical_deadband_m: float = 0.10,
+        position_filter_time_constant_s: float = 0.35,
+        position_softening_m: float = 4.0,
+        vertical_softening_m: float = 2.0,
     ) -> None:
         self.position_gain = self._nonnegative(position_gain, "position_gain")
         self.velocity_gain = self._nonnegative(velocity_gain, "velocity_gain")
@@ -89,9 +94,27 @@ class FollowerMotionController:
             "max_yaw_rate_deg_s",
         )
         self.max_dt_s = self._positive(max_dt_s, "max_dt_s")
+        self.position_deadband_m = self._nonnegative(
+            position_deadband_m, "position_deadband_m"
+        )
+        self.vertical_deadband_m = self._nonnegative(
+            vertical_deadband_m, "vertical_deadband_m"
+        )
+        self.position_filter_time_constant_s = self._positive(
+            position_filter_time_constant_s,
+            "position_filter_time_constant_s",
+        )
+        self.position_softening_m = self._positive(
+            position_softening_m, "position_softening_m"
+        )
+        self.vertical_softening_m = self._positive(
+            vertical_softening_m, "vertical_softening_m"
+        )
         self.formation_guard = formation_guard
         self.velocity_shaper = velocity_shaper
         self._yaw_deg = _normalize_yaw_deg(seed_yaw_deg)
+        self._filtered_position_error = np.zeros(3, dtype=float)
+        self._has_filtered_position_error = False
 
     @staticmethod
     def _positive(value: float, label: str) -> float:
@@ -124,10 +147,14 @@ class FollowerMotionController:
         self.formation_guard.reset()
         self.velocity_shaper.reset()
         self._yaw_deg = _normalize_yaw_deg(seed_yaw_deg)
+        self._filtered_position_error = np.zeros(3, dtype=float)
+        self._has_filtered_position_error = False
 
     def suspend(self, *, dt_s: float, reason: str) -> FollowerControlDecision:
         """Smoothly approach zero velocity and retain the current yaw command."""
         self.formation_guard.reset()
+        self._filtered_position_error = np.zeros(3, dtype=float)
+        self._has_filtered_position_error = False
         command = self.velocity_shaper.shape((0.0, 0.0, 0.0), dt_s)
         return FollowerControlDecision(
             velocity_ned=command,
@@ -165,10 +192,13 @@ class FollowerMotionController:
         )
         if guard.tracking_allowed:
             position_error = desired_position - own_position
+            position_error = self._filter_position_error(position_error, dt_s)
+            position_error = self._apply_deadband(position_error)
+            position_term = self._smooth_position_term(position_error)
             velocity_error = leader_velocity - own_velocity
             raw_request = (
                 self.leader_velocity_feedforward * leader_velocity
-                + self.position_gain * position_error
+                + position_term
                 + self.velocity_gain * velocity_error
             )
             requested = motion_confidence * raw_request
@@ -180,6 +210,57 @@ class FollowerMotionController:
         command = self.velocity_shaper.shape(requested, dt_s)
         self._yaw_deg = self._shape_yaw(yaw_request, dt_s)
         return self._decision(command, requested, guard, motion_confidence)
+
+    def _filter_position_error(
+        self,
+        position_error: np.ndarray,
+        dt_s: float,
+    ) -> np.ndarray:
+        """Low-pass target motion so a noisy GPS sample cannot steer sharply."""
+        dt = min(self._positive(dt_s, "dt_s"), self.max_dt_s)
+        alpha = min(1.0, dt / self.position_filter_time_constant_s)
+        if not self._has_filtered_position_error:
+            self._filtered_position_error = position_error.copy()
+            self._has_filtered_position_error = True
+        else:
+            self._filtered_position_error += alpha * (
+                position_error - self._filtered_position_error
+            )
+        return self._filtered_position_error.copy()
+
+    def _apply_deadband(self, position_error: np.ndarray) -> np.ndarray:
+        result = position_error.copy()
+        horizontal = float(np.linalg.norm(result[:2]))
+        if horizontal <= self.position_deadband_m:
+            result[:2] = 0.0
+        if abs(float(result[2])) <= self.vertical_deadband_m:
+            result[2] = 0.0
+        return result
+
+    def _smooth_position_term(self, position_error: np.ndarray) -> np.ndarray:
+        """Map distance to a bounded feedback term without a hard knee."""
+        horizontal = float(np.linalg.norm(position_error[:2]))
+        horizontal_term = np.zeros(2, dtype=float)
+        if horizontal > 0.0:
+            horizontal_scale = math.tanh(horizontal / self.position_softening_m)
+            horizontal_term = (
+                self.position_gain
+                * self.position_softening_m
+                * horizontal_scale
+                * position_error[:2]
+                / horizontal
+            )
+
+        vertical = float(position_error[2])
+        vertical_term = 0.0
+        if vertical != 0.0:
+            vertical_term = (
+                self.position_gain
+                * self.vertical_softening_m
+                * math.tanh(abs(vertical) / self.vertical_softening_m)
+                * math.copysign(1.0, vertical)
+            )
+        return np.array([horizontal_term[0], horizontal_term[1], vertical_term])
 
     def _shape_yaw(self, target_yaw_deg: float, dt_s: float) -> float:
         dt = self._positive(dt_s, "dt_s")

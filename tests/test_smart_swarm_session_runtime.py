@@ -47,7 +47,7 @@ async def test_all_roles_acknowledge_before_engagement_and_active_needs_real_rep
     assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'starting'
     assert (await report('2'))['engage'] is True
     await report('1', 'active', 2)
-    assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'degraded'
+    assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'leader_motion'
     await report('2', 'active', 2)
     assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'active'
 

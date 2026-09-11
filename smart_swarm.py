@@ -1444,6 +1444,8 @@ def _build_follower_motion_controller(seed_yaw_deg: float) -> FollowerMotionCont
             tracking_vertical_m=float(Params.SMART_SWARM_TRACKING_VERTICAL_M),
             target_step_horizontal_m=float(Params.SMART_SWARM_TARGET_STEP_HORIZONTAL_M),
             target_step_vertical_m=float(Params.SMART_SWARM_TARGET_STEP_VERTICAL_M),
+            acquisition_horizontal_m=float(Params.SMART_SWARM_ACQUISITION_HORIZONTAL_M),
+            acquisition_vertical_m=float(Params.SMART_SWARM_ACQUISITION_VERTICAL_M),
         ),
         velocity_shaper=NedVelocityCommandShaper(
             max_horizontal_speed_m_s=float(Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S),
@@ -1452,6 +1454,13 @@ def _build_follower_motion_controller(seed_yaw_deg: float) -> FollowerMotionCont
             max_jerk_m_s3=float(Params.SMART_SWARM_MAX_JERK_M_S3),
             max_dt_s=max_dt,
         ),
+        position_deadband_m=float(Params.SMART_SWARM_POSITION_DEADBAND_M),
+        vertical_deadband_m=float(Params.SMART_SWARM_VERTICAL_DEADBAND_M),
+        position_filter_time_constant_s=float(
+            Params.SMART_SWARM_POSITION_FILTER_TIME_CONSTANT_SEC
+        ),
+        position_softening_m=float(Params.SMART_SWARM_POSITION_SOFTENING_M),
+        vertical_softening_m=float(Params.SMART_SWARM_VERTICAL_SOFTENING_M),
     )
 
 
@@ -1680,12 +1689,12 @@ async def control_loop(drone: System):
                 now_s=current_time,
             )
             await send_decision(decision)
-            RUNTIME_PHASE = "active" if decision.tracking_allowed else "holding"
+            RUNTIME_PHASE = decision.status if decision.tracking_allowed else "holding"
             RUNTIME_DETAIL = decision.detail
             if decision.status != motion_status:
                 log = (
                     logger.warning
-                    if decision.status in {'waiting_geometry', 'target_jump', 'tracking_diverged'}
+                    if decision.status in {'unsafe_geometry', 'invalid'}
                     else logger.info
                 )
                 log("Follower motion state: %s — %s", decision.status, decision.detail)

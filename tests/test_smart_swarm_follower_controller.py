@@ -56,12 +56,12 @@ def _capture(controller) -> None:
 
 
 @pytest.mark.parametrize("own", [(0, 0, -10), (-6, 0, -10), (6, 0, -6)])
-def test_bad_initial_geometry_commands_exact_zero(own) -> None:
+def test_distant_initial_geometry_is_smoothly_acquired(own) -> None:
     decision = _step(_controller(), own=own)
 
-    assert decision.tracking_allowed is False
-    assert np.array_equal(decision.requested_velocity_ned, np.zeros(3))
-    assert np.array_equal(decision.velocity_ned, np.zeros(3))
+    assert decision.tracking_allowed is True
+    assert np.linalg.norm(decision.requested_velocity_ned) > 0.0
+    assert np.linalg.norm(decision.velocity_ned) > 0.0
 
 
 def test_first_motion_after_capture_is_jerk_limited() -> None:
@@ -122,7 +122,7 @@ def test_reconfiguration_suspends_and_brakes_without_command_jump() -> None:
         now=13.0,
     )
 
-    assert decision.tracking_allowed is False
+    assert decision.tracking_allowed is True
     assert np.linalg.norm(decision.velocity_ned - before) <= 1.0 * DT + 1e-9
 
 
@@ -140,8 +140,33 @@ def test_suspension_brakes_and_reacquisition_requires_new_dwell() -> None:
     reacquired = _step(controller, now=14.0)
 
     assert suspended.status == "suspended"
-    assert reacquired.status == "settling"
-    assert reacquired.tracking_allowed is False
+    assert reacquired.status in {"settling", "acquiring"}
+    assert reacquired.tracking_allowed is True
+
+
+def test_small_position_noise_is_inside_deadband() -> None:
+    controller = _controller()
+    _capture(controller)
+    decision = _step(
+        controller,
+        desired=(6.08, 0.04, -10.05),
+        own=(6.0, 0.0, -10.0),
+        now=11.0 + DT,
+    )
+    assert np.linalg.norm(decision.requested_velocity_ned) < 0.05
+
+
+def test_large_error_is_bounded_by_smooth_feedback() -> None:
+    controller = _controller()
+    decision = _step(
+        controller,
+        desired=(106.0, 0.0, -10.0),
+        own=(0.0, 0.0, -10.0),
+        now=10.0,
+    )
+    assert decision.status == "acquiring"
+    assert decision.requested_velocity_ned[0] < 3.0
+    assert np.linalg.norm(decision.velocity_ned) <= 2.0
 
 
 def test_yaw_is_rate_limited_from_measured_seed() -> None:
