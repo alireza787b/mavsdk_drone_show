@@ -144,8 +144,9 @@ function GlobeControlBox({
             checked={showGrid}
             onChange={() => setShowGrid(!showGrid)}
           />
-          Grid
+          Local metric grid
         </label>
+        <p className="globe-control-box__hint">North/east reference for field spacing and offsets.</p>
       </div>
       <div className="control-section drone-toggles">
         <h5>Visible Drones</h5>

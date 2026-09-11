@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
 import { OrbitControls, Stars } from '@react-three/drei';
@@ -14,6 +14,7 @@ import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
+import { interpolateGlobePosition } from '../utilities/globeMotion';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = 'dodgerblue';
@@ -25,6 +26,7 @@ const DEFAULT_CAMERA_POSITION = [12, 10, 12];
 const CAMERA_FIT_PADDING = 6;
 const CAMERA_FIT_SCALE = 1.32;
 const MIN_CAMERA_FIT_DISTANCE = 9;
+const GRID_SUBDIVISIONS = 80;
 
 const resolveMarkerColor = (candidate, fallback = DEFAULT_DRONE_MARKER_COLOR) => {
   const normalized = String(candidate || '').trim();
@@ -254,6 +256,35 @@ Drone.propTypes = {
 
 const MemoizedDrone = React.memo(Drone);
 
+const MetricReferenceGrid = ({ visible }) => {
+  const gridRef = useRef(null);
+  const themeColors = getPlotThemeColors();
+
+  useEffect(() => {
+    const material = gridRef.current?.material;
+    if (!material) return;
+    material.transparent = true;
+    material.opacity = 0.34;
+    material.depthWrite = false;
+    material.color = new Color(themeColors.grid);
+    material.needsUpdate = true;
+  }, [themeColors.grid]);
+
+  if (!visible) return null;
+  return (
+    <gridHelper
+      ref={gridRef}
+      args={[WORLD_SIZE, GRID_SUBDIVISIONS, themeColors.grid, themeColors.grid]}
+      position={[0, -0.05, 0]}
+      userData={{ referenceFrame: 'local-metric-north-east' }}
+    />
+  );
+};
+
+MetricReferenceGrid.propTypes = {
+  visible: PropTypes.bool.isRequired,
+};
+
 
 
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
@@ -314,6 +345,8 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const controlsRef = useRef();
   const didInitialCameraFitRef = useRef(false);
+  const displayedPositionsRef = useRef(new Map());
+  const [displayedPositions, setDisplayedPositions] = useState({});
 
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -396,6 +429,63 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     }
   }, [drones, referencePoint]);
 
+  const rawConvertedDrones = useMemo(() => (referencePoint && drones?.length
+    ? (() => {
+      const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
+      return drones.map((drone) => {
+        const noMapFix = drone.noMapFix || !hasUsableGeoPosition(drone.position);
+        const hwId = String(drone[FIELD_NAMES.HW_ID]);
+        return {
+          ...drone,
+          geoPosition: drone.position,
+          identityLabel: formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], hwId, `H${hwId}`),
+          noMapFix,
+          position: buildDisplayPosition(drone, referencePoint, noFixDrones),
+        };
+      });
+    })()
+    : []), [drones, referencePoint]);
+
+  useEffect(() => {
+    const activeIds = new Set(rawConvertedDrones.map((drone) => String(drone[FIELD_NAMES.HW_ID])));
+    displayedPositionsRef.current.forEach((_, id) => {
+      if (!activeIds.has(id)) displayedPositionsRef.current.delete(id);
+    });
+    rawConvertedDrones.forEach((drone) => {
+      const id = String(drone[FIELD_NAMES.HW_ID]);
+      if (!displayedPositionsRef.current.has(id)) {
+        displayedPositionsRef.current.set(id, [...drone.position]);
+      }
+    });
+  }, [rawConvertedDrones]);
+
+  useEffect(() => {
+    let frameId;
+    let previousTime = performance.now();
+    const tick = (now) => {
+      const deltaSeconds = (now - previousTime) / 1000;
+      previousTime = now;
+      let changed = false;
+      rawConvertedDrones.forEach((drone) => {
+        const id = String(drone[FIELD_NAMES.HW_ID]);
+        const current = displayedPositionsRef.current.get(id) || drone.position;
+        const next = interpolateGlobePosition(current, drone.position, deltaSeconds);
+        if (next.some((value, index) => Math.abs(value - current[index]) > 0.001)) {
+          displayedPositionsRef.current.set(id, next);
+          changed = true;
+        }
+      });
+      if (changed) {
+        const nextPositions = {};
+        displayedPositionsRef.current.forEach((position, id) => { nextPositions[id] = position; });
+        setDisplayedPositions(nextPositions);
+      }
+      frameId = window.requestAnimationFrame(tick);
+    };
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [rawConvertedDrones]);
+
   const focusOnDrones = useCallback(() => {
     if (drones?.length && referencePoint) {
       const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
@@ -468,19 +558,10 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     return <LoadingSpinner />;
   }
 
-  const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
-  const convertedDrones = drones.map((drone) => {
-    const noMapFix = drone.noMapFix || !hasUsableGeoPosition(drone.position);
-    const displayPosition = buildDisplayPosition(drone, referencePoint, noFixDrones);
-    const hwId = String(drone[FIELD_NAMES.HW_ID]);
-    return {
-      ...drone,
-      geoPosition: drone.position,
-      identityLabel: formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], hwId, `H${hwId}`),
-      noMapFix,
-      position: displayPosition,
-    };
-  });
+  const convertedDrones = rawConvertedDrones.map((drone) => ({
+    ...drone,
+    position: displayedPositions[String(drone[FIELD_NAMES.HW_ID])] || drone.position,
+  }));
   const selectedDrone = convertedDrones.find(
     (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
   ) || null;
@@ -525,7 +606,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
           drones={convertedDrones.filter((drone) => droneVisibility[drone[FIELD_NAMES.HW_ID]])}
           onScreenAnchors={setScreenAnchors}
         />
-        {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
+        <MetricReferenceGrid visible={showGrid} />
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
 
       </Canvas>

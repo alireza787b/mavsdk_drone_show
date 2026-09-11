@@ -54,6 +54,25 @@ parameter-writing CLI to migrate.
 
 ---
 
+## Smart Swarm: Investigate intermittent SITL mission-process exit
+
+**Priority:** Medium
+**Status:** Deferred — not a hardware handoff blocker; requires a reproducible fresh-SITL trace
+
+**Problem:** The 2026-09-11 follow rehearsal accepted Smart Swarm on both
+vehicles, but the follower-side `smart_swarm.py` process later exited with
+return code 1. The coordinator retained the failure evidence, but the current
+field handoff does not depend on SITL being left running.
+
+**Solution:** Reproduce from a clean two-vehicle SITL pair and inspect the full
+Python traceback and WebSocket lifecycle before changing mission logic. Add a
+regression test for the actual failure once its root cause is identified; do
+not mask it with a generic retry or a relaxed operator gate.
+
+**Evidence:** `/root/mds-evidence/20260911-follow-failure/drone-2/coordinator.log`
+
+---
+
 ## Configuration: Central pull-based config service
 
 **Priority:** Low
