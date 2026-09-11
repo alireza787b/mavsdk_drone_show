@@ -27,6 +27,10 @@ IGNORED_UNCOMMITTED_PATHS = {
     '.mds_sitl_image_build.env',
     '.mds_px4_source_provenance.env',
     '.mds_px4_submodules.txt',
+    # Runtime fleet topology is deliberately edited outside the software
+    # release. It must not make an otherwise identical node appear code-dirty.
+    'config_sitl.json',
+    'swarm_sitl.json',
 }
 
 
