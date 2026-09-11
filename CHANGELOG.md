@@ -47,6 +47,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Removed duplicate leader Kalman filtering from Smart Swarm after SITL log
+  replay exposed phantom forward velocity following a leader stop. Bounded
+  projection of PX4's fused state now feeds the single noise/smoothness path.
 - Missing drone git reports now display an unconfirmed software version rather
   than reusing a previous container's commit as a current sync mismatch.
 - Smart Swarm reserves braking room before velocity saturation, preventing

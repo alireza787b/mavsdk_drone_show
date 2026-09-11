@@ -56,7 +56,7 @@ from smart_swarm_src.control_authority import ControlAuthority
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 import aiohttp 
 
-from smart_swarm_src.kalman_filter import LeaderKalmanFilter
+from smart_swarm_src.leader_motion import project_leader_motion
 from smart_swarm_src.failover import choose_leader_loss_response
 from smart_swarm_src.assignment_recovery import LocalRecoveryOverride, recovery_assignment
 from smart_swarm_src.follower_controller import FollowerMotionController
@@ -113,7 +113,6 @@ OFFSETS = {'x': 0.0, 'y': 0.0, 'z': 0.0}  # Offsets from the leader
 FRAME = "ned"  # Coordinate frame for offsets: "ned" or "body"
 LEADER_HW_ID = None  # Hardware ID of the leader drone
 LEADER_IP = None  # IP address of the leader drone
-LEADER_KALMAN_FILTER = None  # Kalman filter instance for leader state estimation
 LEADER_HOME_POS = None  # Home position of the leader drone
 OWN_HOME_POS = None  # Home position of own drone
 REFERENCE_POS = None  # Reference position (latitude, longitude, altitude)
@@ -172,10 +171,9 @@ def get_drone_config_for_hw_id(hw_id):
 
 def reset_leader_tracking():
     """Drop leader-estimation state when the follow target changes."""
-    global LEADER_STATE, LEADER_KALMAN_FILTER, leader_unreachable_count, LEADER_FAILOVER_IN_PROGRESS
+    global LEADER_STATE, leader_unreachable_count, LEADER_FAILOVER_IN_PROGRESS
     global LAST_LEADER_SAMPLE_REJECTION_CODE
     LEADER_STATE.clear()
-    LEADER_KALMAN_FILTER = LeaderKalmanFilter()
     leader_unreachable_count = 0
     LEADER_FAILOVER_IN_PROGRESS = False
     LAST_LEADER_SAMPLE_REJECTION_CODE = None
@@ -358,10 +356,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         return False
 
     source_update_monotonic = received_monotonic - float(validity.age_sec or 0.0)
-    # The existing estimator advances its state clock on every control-loop
-    # prediction, so delayed/out-of-sequence updates cannot be replayed at the
-    # producer timestamp. Keep estimator time monotonic at local receipt while
-    # using the independent source clock below for motion freshness/failover.
+    # Receipt time is used only for yaw-rate differencing. Position prediction
+    # remains anchored to the authoritative source age, without a second EKF.
     measurement_time = received_monotonic
 
     stream_seq = int(sample.get('stream_seq', 0) or 0)
@@ -420,7 +416,6 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         'transport': source,
     })
 
-    LEADER_KALMAN_FILTER.update(measurement, measurement_time)
     leader_unreachable_count = 0
     logger.debug(
         "Leader sample via %s applied: seq=%s age_ms=%s frame=%s pos=(%.2f, %.2f, %.2f) vel=(%.2f, %.2f, %.2f)",
@@ -996,7 +991,7 @@ async def update_swarm_config_periodically(drone):
     NOTE: Requires Params.GCS_IP and Params.gcs_api_port to be set.
     """
     global SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME
-    global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
+    global LEADER_HW_ID, LEADER_IP, FOLLOWER_TASKS
     global HW_ID
 
     logger = logging.getLogger(__name__)
@@ -1234,7 +1229,7 @@ async def elect_new_leader():
     """
     global last_election_time
     global SWARM_CONFIG, LEADER_HW_ID, LEADER_IP
-    global leader_unreachable_count, LEADER_KALMAN_FILTER
+    global leader_unreachable_count
     global IS_LEADER, FOLLOWER_TASKS, DRONE_INSTANCE
 
     now = time.time()
@@ -1528,7 +1523,7 @@ async def control_loop(drone: System):
         drone (System): MAVSDK drone system instance.
     """
     logger = logging.getLogger(__name__)
-    global LEADER_KALMAN_FILTER, RUNTIME_PHASE, RUNTIME_DETAIL
+    global RUNTIME_PHASE, RUNTIME_DETAIL
     loop_interval = 1 / float(Params.SMART_SWARM_CONTROL_RATE_HZ)
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
@@ -1666,7 +1661,9 @@ async def control_loop(drone: System):
                     applied_config_version,
                 )
 
-            predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
+            predicted_state = project_leader_motion(
+                LEADER_STATE, now_s=current_time,
+                max_prediction_s=float(Params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC))
             leader_n = predicted_state[0]
             leader_e = predicted_state[1]
             leader_d = predicted_state[2]
@@ -1945,7 +1942,7 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     Main function to run the smart swarm mode with dynamic configuration updates.
     """
     logger = logging.getLogger(__name__)
-    global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
+    global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME, LEADER_HW_ID, LEADER_IP
     global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS, RUNTIME_PHASE, RUNTIME_DETAIL
     global CONTROL_AUTHORITY
 
@@ -1993,7 +1990,7 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Frame: {FRAME}")
     publish_runtime_assignment(swarm_config, active=False)
 
-    # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
+    # Followers consume the leader's authoritative PX4 estimate.
     if not IS_LEADER:
         LEADER_HW_ID = normalize_hw_id(swarm_config['follow'])
         leader_config = get_drone_config_for_hw_id(LEADER_HW_ID)
@@ -2001,7 +1998,6 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
             logger.error(f"Leader configuration for HW_ID {LEADER_HW_ID} not found.")
             sys.exit(1)
         LEADER_IP = leader_config['ip']
-        LEADER_KALMAN_FILTER = LeaderKalmanFilter()
     else:
         logger.info("Operating in Leader mode.")
 

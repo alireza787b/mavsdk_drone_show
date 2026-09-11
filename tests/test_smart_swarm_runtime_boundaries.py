@@ -24,41 +24,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SIGNAL_HARNESS = REPO_ROOT / "tests" / "helpers" / "smart_swarm_signal_harness.py"
 
 
-class _FakeLeaderKalmanFilter:
-    """Minimal estimator double used to exercise the runtime integration path."""
-
-    def __init__(self):
-        self.updates = []
-        self.last_update_time = None
-
-    def update(self, measurement, measurement_time):
-        if self.last_update_time is not None and measurement_time <= self.last_update_time:
-            return
-        self.updates.append((dict(measurement), measurement_time))
-        self.last_update_time = measurement_time
-
-    def predict(self, current_time):
-        if not self.updates:
-            return [0.0] * 6
-        self.last_update_time = current_time
-        measurement = self.updates[-1][0]
-        return [
-            measurement["pos_n"],
-            measurement["pos_e"],
-            measurement["pos_d"],
-            measurement["vel_n"],
-            measurement["vel_e"],
-            measurement["vel_d"],
-        ]
-
-
 @pytest.fixture(scope="module")
 def swarm_runtime():
     """Import the runtime with light doubles for optional node dependencies."""
 
     module_names = (
         "smart_swarm",
-        "smart_swarm_src.kalman_filter",
         "psutil",
         "tenacity",
     )
@@ -69,12 +40,9 @@ def swarm_runtime():
     tenacity_stub.retry = lambda *_args, **_kwargs: lambda function: function
     tenacity_stub.stop_after_attempt = lambda *_args, **_kwargs: object()
     tenacity_stub.wait_fixed = lambda *_args, **_kwargs: object()
-    kalman_stub = types.ModuleType("smart_swarm_src.kalman_filter")
-    kalman_stub.LeaderKalmanFilter = _FakeLeaderKalmanFilter
 
     sys.modules["psutil"] = psutil_stub
     sys.modules["tenacity"] = tenacity_stub
-    sys.modules["smart_swarm_src.kalman_filter"] = kalman_stub
     sys.modules.pop("smart_swarm", None)
 
     runtime = importlib.import_module("smart_swarm")
@@ -99,7 +67,6 @@ def reset_swarm_runtime_state(swarm_runtime, monkeypatch):
         "longitude": 8.545594,
         "altitude": 488.0,
     }
-    swarm_runtime.LEADER_KALMAN_FILTER = _FakeLeaderKalmanFilter()
     swarm_runtime.leader_unreachable_count = 3
     swarm_runtime.LAST_LEADER_SAMPLE_REJECTION_CODE = None
     swarm_runtime.IS_LEADER = False
@@ -202,15 +169,12 @@ def test_apply_leader_state_sample_accepts_fresh_authoritative_global_motion(
 
     assert accepted is True
     assert swarm_runtime.LEADER_STATE["source_frame"] == "global_lla_ned"
-    # Runtime age is anchored to the producer's motion timestamp, while the
-    # estimator keeps a monotonic local receipt clock.
+    # Runtime prediction and freshness share the producer's motion timestamp.
     assert swarm_runtime.LEADER_STATE["update_time"] == pytest.approx(41.9)
     assert swarm_runtime.LEADER_STATE["received_monotonic"] == pytest.approx(42.0)
     assert swarm_runtime.LEADER_STATE["stream_seq"] == 7
     assert swarm_runtime.LEADER_STATE["source_age_sec"] == pytest.approx(0.1)
     assert swarm_runtime.leader_unreachable_count == 0
-    assert len(swarm_runtime.LEADER_KALMAN_FILTER.updates) == 1
-    assert swarm_runtime.LEADER_KALMAN_FILTER.updates[0][1] == pytest.approx(42.0)
 
 
 def test_apply_leader_state_sample_rejects_frozen_motion_timestamp_on_fresh_packet(
@@ -242,10 +206,9 @@ def test_apply_leader_state_sample_rejects_frozen_motion_timestamp_on_fresh_pack
     assert swarm_runtime.apply_leader_state_sample(repeated, "websocket") is False
     assert swarm_runtime.LEADER_STATE["stream_seq"] == 7
     assert swarm_runtime.LEADER_STATE["pos_n"] == pytest.approx(0.0, abs=1e-6)
-    assert len(swarm_runtime.LEADER_KALMAN_FILTER.updates) == 1
 
 
-def test_new_source_motion_updates_estimator_after_intervening_prediction(
+def test_new_source_motion_replaces_sample_after_intervening_prediction(
     swarm_runtime,
     monkeypatch,
 ):
@@ -263,15 +226,15 @@ def test_new_source_motion_updates_estimator_after_intervening_prediction(
         _valid_global_sample(now_ms),
         "websocket",
     )
-    swarm_runtime.LEADER_KALMAN_FILTER.predict(42.1)
+    swarm_runtime.project_leader_motion(swarm_runtime.LEADER_STATE, now_s=42.1, max_prediction_s=1)
 
     clock.update(epoch_ms=now_ms + 200, monotonic=42.2)
     newer = _valid_global_sample(now_ms + 200)
     newer.update(stream_seq=8, position_lat=47.397752)
 
     assert swarm_runtime.apply_leader_state_sample(newer, "websocket")
-    assert len(swarm_runtime.LEADER_KALMAN_FILTER.updates) == 2
-    assert swarm_runtime.LEADER_KALMAN_FILTER.updates[-1][1] == pytest.approx(42.2)
+    assert swarm_runtime.LEADER_STATE['stream_seq'] == 8
+    assert swarm_runtime.LEADER_STATE['update_time'] == pytest.approx(42.1)
 
 
 @pytest.mark.parametrize(
@@ -309,7 +272,6 @@ def test_apply_leader_state_sample_rejects_untrusted_motion_without_mutating_sta
 
     assert accepted is False
     assert swarm_runtime.LEADER_STATE == {"sentinel": "unchanged"}
-    assert swarm_runtime.LEADER_KALMAN_FILTER.updates == []
     assert swarm_runtime.LAST_LEADER_SAMPLE_REJECTION_CODE == expected_code
 
 

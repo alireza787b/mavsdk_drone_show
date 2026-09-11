@@ -336,7 +336,7 @@ That workflow captures:
 - expected follower `N/E/D` from leader state plus offsets
 - actual follower `N/E/D`
 - repeated jog-sized leader moves
-- mixed `body` and `ned` frame commands
+- explicit NED offsets and leader jogs (body-frame transforms also have unit tests)
 - JSON, CSV, and plot artifacts for later review
 
 ### Current transport behavior and next-step roadmap
@@ -479,7 +479,11 @@ That prevents live leader changes from silently introducing a loop into the foll
 - expected leader identity, producer validity, finite motion values, and
   millisecond source freshness are checked before a sample enters control
 - follower control waits for both own-state and leader-state lock before sending formation setpoints
-- leader-state prediction no longer double-counts elapsed time between measurements
+- leader prediction uses the validated PX4 fused position/velocity directly,
+  extrapolates only over a bounded source-age horizon, and never advances the
+  measurement clock. The redundant slow Kalman filter was removed after log
+  replay showed residual forward velocity and a false forward target after
+  the leader stopped. The single downstream controller owns noise smoothing
 - follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
 - body-frame offsets include leader yaw-rate compensation
 - startup and reconfiguration use an explicit `acquiring` phase rather than
