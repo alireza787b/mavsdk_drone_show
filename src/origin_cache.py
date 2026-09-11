@@ -27,6 +27,7 @@ Version: 3.8 (Phase 2)
 """
 
 import json
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -39,6 +40,23 @@ CACHE_DIR = Path.home() / '.mavsdk_drone_show'
 CACHE_FILE = CACHE_DIR / 'origin_cache.json'
 
 logger = get_logger("origin_cache")
+
+
+def _validate_origin_coords(origin_data) -> bool:
+    """Return True if lat/lon/alt are finite floats in WGS84-usable ranges."""
+    if not isinstance(origin_data, dict):
+        return False
+    try:
+        lat = float(origin_data['lat'])
+        lon = float(origin_data['lon'])
+        alt = float(origin_data['alt'])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) for v in (lat, lon, alt)):
+        return False
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return False
+    return True
 
 
 def save_origin_to_cache(origin_data: Dict) -> bool:
@@ -64,6 +82,10 @@ def save_origin_to_cache(origin_data: Dict) -> bool:
         True
     """
     try:
+        if not _validate_origin_coords(origin_data):
+            logger.warning("Refusing to cache origin with invalid lat/lon/alt")
+            return False
+
         # Ensure cache directory exists
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -107,6 +129,10 @@ def load_origin_from_cache() -> Optional[Dict]:
         required_fields = ['lat', 'lon', 'alt']
         if not all(field in origin_data for field in required_fields):
             logger.warning("Cache file missing required fields, ignoring")
+            return None
+
+        if not _validate_origin_coords(origin_data):
+            logger.warning("Cache file has invalid lat/lon/alt, ignoring")
             return None
 
         logger.debug(f"Loaded origin from cache: lat={origin_data['lat']:.6f}, "
