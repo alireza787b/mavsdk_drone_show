@@ -936,6 +936,11 @@ class DroneSetup:
                     # setpoints after the Python parent exits.
                     "start_new_session": True,
                 }
+                child_env = os.environ.copy()
+                child_env.pop("MDS_BORROW_MAVSDK_SERVER", None)
+                if mission_type != Mission.SMART_SWARM.value and self._can_overlap_leader_role_session():
+                    child_env["MDS_BORROW_MAVSDK_SERVER"] = "1"
+                process_kwargs["env"] = child_env
                 if mission_type == Mission.SMART_SWARM.value:
                     swarm_context = tempfile.TemporaryFile(mode="w+")
                     json.dump({"command_id": command_id,
@@ -943,7 +948,6 @@ class DroneSetup:
                                "session": getattr(self.drone_config, "smart_swarm_request", None)}, swarm_context)
                     swarm_context.flush()
                     swarm_context.seek(0)
-                    child_env = os.environ.copy()
                     child_env["MDS_SWARM_CONTEXT_FD"] = str(swarm_context.fileno())
                     process_kwargs["env"] = child_env
                     process_kwargs["pass_fds"] = (swarm_context.fileno(),)
@@ -952,7 +956,6 @@ class DroneSetup:
                 # LED/SPI diagnostics cannot mask a PX4 command result.
                 if os.path.basename(script_path) == "actions.py":
                     action_result_read_fd, action_result_write_fd = os.pipe()
-                    child_env = os.environ.copy()
                     child_env[ACTION_RESULT_FD_ENV] = str(action_result_write_fd)
                     process_kwargs.update(
                         env=child_env,
@@ -1060,6 +1063,8 @@ class DroneSetup:
     def _can_overlap_leader_role_session(self) -> bool:
         """Allow a vehicle-control action to coexist only with a leader session."""
         if not self._active_leader_role_session():
+            return False
+        if any(not record.role_session for record in self.running_processes.values()):
             return False
         return any(
             record.role_session and record.mission_type == Mission.SMART_SWARM.value
@@ -2125,7 +2130,7 @@ class DroneSetup:
             logger.debug("Conditions NOT met for Standard Drone Show.")
             return (False, "Conditions not met for Standard Drone Show.")
 
-        preserve_leader_session = self._can_overlap_leader_role_session()
+        preserve_leader_session = self._active_leader_role_session()
         if self.running_processes and not preserve_leader_session:
             logger.info("Standard Drone Show requested while another mission is running. Interrupting active mission scripts.")
             await self.terminate_all_running_processes(reset_state=False)
@@ -2152,7 +2157,7 @@ class DroneSetup:
             logger.debug("Conditions NOT met for Custom CSV Drone Show.")
             return (False, "Conditions not met for Custom CSV Drone Show.")
 
-        preserve_leader_session = self._can_overlap_leader_role_session()
+        preserve_leader_session = self._active_leader_role_session()
         if self.running_processes and not preserve_leader_session:
             logger.info("Custom Drone Show requested while another mission is running. Interrupting active mission scripts.")
             await self.terminate_all_running_processes(reset_state=False)
@@ -2427,7 +2432,7 @@ class DroneSetup:
             current_time,
             earlier_trigger_time,
             interrupt_mode=(
-                None if self._can_overlap_leader_role_session()
+                None if self._active_leader_role_session()
                 else ProcessStopMode.RECOVERY
             ),
         )

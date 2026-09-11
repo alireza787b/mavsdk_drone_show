@@ -1537,7 +1537,7 @@ class CommandTracker:
             reports[report.hw_id] = {**report.model_dump(exclude={"command_id", "hw_id"}),
                                      "received_at_ms": now}
             all_ready = all(
-                reports.get(hw, {}).get("phase") in {"ready", "active", "holding"}
+                reports.get(hw, {}).get("phase") in {"ready", "active", "acquiring", "settling", "tracking", "tracking_degraded", "holding"}
                 and now - reports[hw]["received_at_ms"] <= 15000
                 for hw in command.target_drones
             )
@@ -2460,15 +2460,17 @@ class CommandTracker:
             active = len(swarm["active_hw_ids"])
             label = {
                 "starting": "Starting Smart Swarm",
-                "active": "Smart Swarm active",
+                "active": "Following",
+                "acquiring": "Joining formation",
+                "settling": "Settling into formation",
+                "holding": "Following paused",
+                "tracking_degraded": "Waiting for fresh leader data",
                 "partial": "Partial Smart Swarm",
                 "leader_motion": "Leader moving — swarm listening",
                 "degraded": "Smart Swarm — check status",
                 "pilot_takeover": "Smart Swarm paused by pilot",
             }[swarm["state"]]
             message = f"{active}/{len(command.target_drones)} role(s) reporting."
-            if swarm.get("leader_session_active"):
-                message += " Leader movement does not end the swarm session."
             if swarm["excluded_hw_ids"]:
                 message += " Excluded: " + ", ".join(swarm["excluded_hw_ids"]) + "."
             for hw, item in swarm["nodes"].items():

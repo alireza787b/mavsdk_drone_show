@@ -47,7 +47,7 @@ async def test_all_roles_acknowledge_before_engagement_and_active_needs_real_rep
     assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'starting'
     assert (await report('2'))['engage'] is True
     await report('1', 'active', 2)
-    assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'leader_motion'
+    assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'degraded'
     await report('2', 'active', 2)
     assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == 'active'
 
@@ -109,9 +109,39 @@ def test_leader_manual_modes_and_internal_failover_hold_are_not_takeover():
     assert authority.expect('OFFBOARD')
 
 
+def test_role_change_does_not_claim_an_action_offboard_session():
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.update_mode('OFFBOARD', leader=True)
+    # Assignment changed, but the existing action is still finishing.
+    authority.update_mode('OFFBOARD', leader=False)
+    assert not authority.owns_fresh_offboard()
+    authority.update_mode('HOLD', leader=False)
+    assert authority.takeover_reason is None
+    authority.expect('OFFBOARD')
+    authority.update_mode('OFFBOARD', leader=False)
+    assert authority.owns_fresh_offboard()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('phase, summary', [
+    ('acquiring', 'acquiring'), ('settling', 'settling'),
+    ('tracking', 'active'), ('tracking_degraded', 'tracking_degraded'),
+    ('holding', 'holding'),
+])
+async def test_live_follower_progress_survives_report_contract(phase, summary):
+    tracker, cid, report = await tracked_session()
+    await report('1')
+    await report('2')
+    await report('1', 'active', 2)
+    await report('2', phase, 2)
+    assert runtime_summary(tracker._commands[cid].params, ['1', '2'])['state'] == summary
+
+
 def test_stale_mode_cannot_authorize_follower_control():
     authority = ControlAuthority()
     authority.update_armed(True)
+    authority.expect('OFFBOARD', now=10)
     authority.update_mode('OFFBOARD', leader=False, now=10)
     assert authority.owns_fresh_offboard(now=12)
     assert not authority.owns_fresh_offboard(now=13)

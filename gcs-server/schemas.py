@@ -880,6 +880,7 @@ class GitStatusResponse(BaseModel):
     total_drones: int = Field(..., ge=0, description="Total drones")
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
     needs_sync_count: int = Field(..., ge=0, description="Drones needing sync")
+    unknown_count: int = Field(0, ge=0, description="Online drones whose software revision is unconfirmed")
     gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
     sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")

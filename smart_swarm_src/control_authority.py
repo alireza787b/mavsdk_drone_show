@@ -46,8 +46,8 @@ class ControlAuthority:
             # Position/Hold/Mission on the leader is NOT follower takeover.
             self.follower_owned = False
         elif self.mode == "OFFBOARD":
-            self.follower_owned = True
             if self.pending_mode == "OFFBOARD":
+                self.follower_owned = True
                 self.pending_mode = None
                 self.internal_hold = False
         elif self.mode == "HOLD" and self.internal_hold:
@@ -69,5 +69,5 @@ class ControlAuthority:
 
     def owns_fresh_offboard(self, *, now=None):
         now = time.monotonic() if now is None else now
-        return (not self.takeover_reason and self.mode == "OFFBOARD"
+        return (not self.takeover_reason and self.follower_owned and self.mode == "OFFBOARD"
                 and self.has_fresh_mode(now=now) and self.armed is True)

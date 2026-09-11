@@ -103,7 +103,7 @@ def runtime_summary(params, targets, *, now_ms=None, terminal=False):
     if not snapshot:
         return None
     reports = params.get("_swarm_runtime", {})
-    live_phases = {"active", "acquiring", "settling", "tracking_degraded", "holding"}
+    live_phases = {"active", "acquiring", "settling", "tracking", "tracking_degraded", "holding"}
     active = [i for i in targets if reports.get(i, {}).get("phase") in live_phases
               and now_ms - reports[i]["received_at_ms"] <= 15000]
     takeover = [i for i in targets if reports.get(i, {}).get("phase") == "takeover"]
@@ -117,12 +117,12 @@ def runtime_summary(params, targets, *, now_ms=None, terminal=False):
         confirmed_stop = all(reports.get(i, {}).get("phase") in {"takeover", "stopped", "failed"} for i in targets)
         state = ("pilot_takeover" if takeover else "stopped") if confirmed_stop else "unconfirmed"
     elif len(active) == len(targets):
-        state = "partial" if snapshot.get("excluded_hw_ids") else "active"
-    elif leader_session_active and not takeover:
-        # A leader-side jog/show changes vehicle control ownership, not the
-        # cluster role session.  Keep the operator state truthful without
-        # turning that expected transition into an alarm.
-        state = "leader_motion"
+        phases = {reports[i]["phase"] for i in targets}
+        state = ("holding" if "holding" in phases else
+                 "tracking_degraded" if "tracking_degraded" in phases else
+                 "acquiring" if "acquiring" in phases else
+                 "settling" if "settling" in phases else
+                 "partial" if snapshot.get("excluded_hw_ids") else "active")
     elif takeover:
         state = "pilot_takeover"
     elif active or any(r.get("phase") in {"active", "holding", "stopped", "failed"} for r in reports.values()):

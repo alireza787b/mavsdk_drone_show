@@ -160,3 +160,28 @@ def test_reset_without_seed_returns_to_exact_zero_state():
 
     assert np.array_equal(shaper.velocity_ned, np.zeros(3))
     assert np.array_equal(shaper.acceleration_ned, np.zeros(3))
+
+
+def test_reset_rejects_outward_acceleration_without_braking_reserve():
+    shaper = _shaper()
+    with pytest.raises(VelocityCommandShapeError, match="braking reserve"):
+        shaper.reset(seed_velocity_ned=(3, 0, 0), seed_acceleration_ned=(1, 0, 0))
+    assert np.array_equal(shaper.velocity_ned, np.zeros(3))
+
+
+def test_field_limits_sustained_saturation_turns_and_jitter():
+    shaper = _shaper(max_horizontal_speed_m_s=2.0, max_vertical_speed_m_s=0.75,
+                     max_acceleration_m_s2=1.0, max_jerk_m_s3=2.0)
+    rng = np.random.default_rng(911)
+    for i in range(5000):
+        dt = float(rng.uniform(0.02, 0.1))
+        angle = 0.08 * i if i > 1500 else 0.17
+        request = [5 * np.cos(angle), 5 * np.sin(angle), np.sin(i * 0.02)]
+        previous = shaper.velocity_ned
+        previous_a = shaper.acceleration_ned
+        command = shaper.shape(request, dt)
+        a = (command - previous) / dt
+        assert np.linalg.norm(command[:2]) <= 2 + 1e-9
+        assert abs(command[2]) <= 0.75 + 1e-9
+        assert np.linalg.norm(a) <= 1 + 1e-9
+        assert np.linalg.norm(a - previous_a) / dt <= 2 + 1e-7

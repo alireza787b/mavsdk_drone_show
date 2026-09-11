@@ -466,11 +466,17 @@ def assign_leader_target(new_leader_hw_id):
     return leader_cfg
 
 
+FOLLOWER_MOTION_LEASE = None
+
+
 async def cancel_follower_tasks(logger):
     """Cancel follower-mode tasks without leaking unfinished coroutines."""
-    global FOLLOWER_TASKS
+    global FOLLOWER_TASKS, FOLLOWER_MOTION_LEASE
 
     if not FOLLOWER_TASKS:
+        if FOLLOWER_MOTION_LEASE is not None:
+            FOLLOWER_MOTION_LEASE.release()
+            FOLLOWER_MOTION_LEASE = None
         return
 
     current_task = asyncio.current_task()
@@ -496,6 +502,9 @@ async def cancel_follower_tasks(logger):
         except Exception:
             logger.exception("Follower task %s exited with an error during cancellation", task_name)
     FOLLOWER_TASKS.clear()
+    if FOLLOWER_MOTION_LEASE is not None:
+        FOLLOWER_MOTION_LEASE.release()
+        FOLLOWER_MOTION_LEASE = None
 
 
 def _follower_task_missing(task_name: str) -> bool:
@@ -505,6 +514,12 @@ def _follower_task_missing(task_name: str) -> bool:
 
 async def ensure_offboard_active_for_follower(drone: System, logger, reason: str) -> bool:
     """Start follower offboard mode if it is not already active."""
+    global FOLLOWER_MOTION_LEASE
+    from src.mavsdk_server_ownership import MotionControlLease
+    if FOLLOWER_MOTION_LEASE is None:
+        FOLLOWER_MOTION_LEASE = MotionControlLease.acquire(Params.DEFAULT_GRPC_PORT)
+        if FOLLOWER_MOTION_LEASE is None:
+            return False
     try:
         if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.expect("OFFBOARD"):
             return False
@@ -550,7 +565,7 @@ async def ensure_follower_runtime(drone: System, logger, reason: str) -> bool:
 
 async def handle_leader_unavailability(drone: System, logger, reason: str):
     """Run one failover sequence at a time when leader health is lost."""
-    global LEADER_FAILOVER_IN_PROGRESS
+    global LEADER_FAILOVER_IN_PROGRESS, RUNTIME_PHASE, RUNTIME_DETAIL
 
     if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
         return
@@ -559,6 +574,7 @@ async def handle_leader_unavailability(drone: System, logger, reason: str):
         return
 
     LEADER_FAILOVER_IN_PROGRESS = True
+    RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Leader unavailable; recovering the follow chain"
     try:
         await execute_failsafe(drone, reason=reason)
         await elect_new_leader()
@@ -580,7 +596,7 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
 
 async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, reason: str):
     """Start follower-mode tasks against a validated leader target."""
-    global IS_LEADER
+    global IS_LEADER, RUNTIME_PHASE, RUNTIME_DETAIL
 
     leader_cfg = assign_leader_target(new_leader_hw_id)
     if leader_cfg is None:
@@ -590,6 +606,18 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
     IS_LEADER = False
     publish_runtime_assignment(force_follow=new_leader_hw_id)
     logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
+    # Publishing the follower assignment prevents admission of another leader
+    # action. An already-running borrowed action keeps movement authority until
+    # its cleanup completes. Do not seed Offboard or replace its commands.
+    RUNTIME_PHASE = "holding"
+    RUNTIME_DETAIL = "Waiting for the current movement to finish"
+    from src.mavsdk_server_ownership import MotionControlLease
+    global FOLLOWER_MOTION_LEASE
+    if FOLLOWER_MOTION_LEASE is None:
+        FOLLOWER_MOTION_LEASE = MotionControlLease.acquire(Params.DEFAULT_GRPC_PORT)
+        if FOLLOWER_MOTION_LEASE is None:
+            return False
+    RUNTIME_DETAIL = "Joining formation"
     return await ensure_follower_runtime(drone, logger, reason)
 
 def read_config(filename: str):
@@ -1025,6 +1053,10 @@ async def update_swarm_config_periodically(drone):
                             await transition_to_leader_mode(drone, logger, "config update")
                         else:
                             await transition_to_follower_mode(drone, new_leader, logger, "config update")
+                    elif not new_is_leader and _follower_task_missing('control_task'):
+                        # A role change can wait behind a leader action. Retry
+                        # against the latest assignment, not a stale queued one.
+                        await transition_to_follower_mode(drone, new_leader, logger, "pending role change")
 
                     # Handle leader change if drone is a follower
                     if not new_is_leader:
@@ -1442,10 +1474,6 @@ def _build_follower_motion_controller(seed_yaw_deg: float) -> FollowerMotionCont
             capture_stable_sec=float(Params.SMART_SWARM_CAPTURE_STABLE_SEC),
             tracking_horizontal_m=float(Params.SMART_SWARM_TRACKING_HORIZONTAL_M),
             tracking_vertical_m=float(Params.SMART_SWARM_TRACKING_VERTICAL_M),
-            target_step_horizontal_m=float(Params.SMART_SWARM_TARGET_STEP_HORIZONTAL_M),
-            target_step_vertical_m=float(Params.SMART_SWARM_TARGET_STEP_VERTICAL_M),
-            acquisition_horizontal_m=float(Params.SMART_SWARM_ACQUISITION_HORIZONTAL_M),
-            acquisition_vertical_m=float(Params.SMART_SWARM_ACQUISITION_VERTICAL_M),
         ),
         velocity_shaper=NedVelocityCommandShaper(
             max_horizontal_speed_m_s=float(Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S),
@@ -1544,6 +1572,7 @@ async def control_loop(drone: System):
             leader_state_ready = 'update_time' in LEADER_STATE
 
             if not own_state_ready:
+                RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Waiting for fresh vehicle position"
                 if state_gate_status != 'own':
                     logger.warning(
                         "Follower motion suspended while own-state evidence is unavailable: %s",
@@ -1570,6 +1599,7 @@ async def control_loop(drone: System):
                 controller = _build_follower_motion_controller(own_yaw)
 
             if not leader_state_ready:
+                RUNTIME_PHASE, RUNTIME_DETAIL = "tracking_degraded", "Waiting for fresh leader position"
                 if state_gate_status != 'leader':
                     logger.info("Follower holding zero while waiting for a valid leader-state lock.")
                     state_gate_status = 'leader'
@@ -1689,8 +1719,9 @@ async def control_loop(drone: System):
                 now_s=current_time,
             )
             await send_decision(decision)
-            RUNTIME_PHASE = decision.status if decision.tracking_allowed else "holding"
-            RUNTIME_DETAIL = decision.detail
+            RUNTIME_PHASE = ("tracking_degraded" if decision.confidence < 1.0 else decision.status) if decision.tracking_allowed else "holding"
+            RUNTIME_DETAIL = ("Leader data delayed; slowing smoothly"
+                              if RUNTIME_PHASE == "tracking_degraded" else decision.detail)
             if decision.status != motion_status:
                 log = (
                     logger.warning
@@ -1712,13 +1743,19 @@ async def control_loop(drone: System):
         logger.info("Control loop cancelled.")
     except OffboardError as e:
         logger.error(f"Offboard error in control loop: {e}")
+        RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Paused: Offboard command failed; restart following when ready."
         await execute_failsafe(drone, reason="offboard error in control loop")
+        await asyncio.Event().wait()
     except (ValueError, VelocityCommandShapeError) as exc:
         logger.error("Smart Swarm motion policy rejected a command: %s", exc)
+        RUNTIME_PHASE, RUNTIME_DETAIL = "holding", f"Paused: motion controller error ({exc}); restart following when ready."
         await execute_failsafe(drone, reason="motion policy rejection")
+        await asyncio.Event().wait()
     except Exception:
         logger.exception("Unexpected error in control loop")
+        RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Paused: internal controller error; restart following when ready."
         await execute_failsafe(drone, reason="unexpected control-loop error")
+        await asyncio.Event().wait()
 
 # ----------------------------- #
 #         Failsafe Function     #
@@ -2013,12 +2050,8 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
     except Exception as e:
         logger.warning(f"Telemetry GPS origin request failed: {e}")
 
-    own_ip = '127.0.0.1'
-    fallback_origin = fetch_home_position(own_ip, Params.drone_api_port, Params.get_drone_gps_origin_URI)
-    if fallback_origin is not None:
-        logger.info(f"Retrieved GPS global origin from fallback API: {fallback_origin}")
-    else:
-        logger.warning("Fallback API did not return a valid GPS global origin.")
+    if telemetry_origin is None:
+        fallback_origin = fetch_home_position('127.0.0.1', Params.drone_api_port, Params.get_drone_gps_origin_URI)
 
     if telemetry_origin is not None:
         OWN_HOME_POS = telemetry_origin
@@ -2122,7 +2155,7 @@ async def watch_control_authority(drone):
 
 async def run_smart_swarm_process(logger) -> bool:
     """Run Smart Swarm and return whether its final vehicle handoff completed."""
-    global RUNTIME_SESSION, CONTROL_AUTHORITY, RUNTIME_PHASE
+    global RUNTIME_SESSION, CONTROL_AUTHORITY, RUNTIME_PHASE, RUNTIME_DETAIL
     RUNTIME_SESSION = SwarmSessionRuntime(Params, logger)
     CONTROL_AUTHORITY = None
     RUNTIME_PHASE = "ready"
@@ -2152,6 +2185,9 @@ async def run_smart_swarm_process(logger) -> bool:
                 "Smart Swarm runtime accepted %s and is handing control back to PX4.",
                 signal_state.received_signal,
             )
+        except Exception as exc:
+            RUNTIME_PHASE, RUNTIME_DETAIL = "failed", str(exc)[:500]
+            raise
     finally:
         reason = signal_state.received_signal or "runtime exit"
         shutdown_completed = await lifecycle.shutdown(reason)
@@ -2161,7 +2197,7 @@ async def run_smart_swarm_process(logger) -> bool:
             RUNTIME_PHASE = "stopped"
         clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id, phase=RUNTIME_PHASE)
         RUNTIME_SESSION.phase = RUNTIME_PHASE
-        RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or reason
+        RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or (RUNTIME_DETAIL if RUNTIME_PHASE == "failed" else reason)
         if HW_ID is not None and SWARM_CONFIG:
             await RUNTIME_SESSION.report(HW_ID, 0 if IS_LEADER else (LEADER_HW_ID or 0),
                                          topology_revision(list(SWARM_CONFIG.values())))

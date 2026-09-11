@@ -1686,6 +1686,11 @@ def start_mavsdk_server(udp_port: int):
     """
     logger = logging.getLogger(__name__)
     try:
+        from src.mavsdk_server_ownership import borrow_mavsdk_server
+        borrowed = borrow_mavsdk_server(Params.DEFAULT_GRPC_PORT, udp_port)
+        if borrowed is not None:
+            logger.info("Using leader session MAVSDK server (PID: %s).", borrowed.pid)
+            return borrowed
         # Check if MAVSDK server is already running
         is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
@@ -1825,6 +1830,10 @@ def stop_mavsdk_server(mavsdk_server):
     Args:
         mavsdk_server (subprocess.Popen): MAVSDK server subprocess.
     """
+    from src.mavsdk_server_ownership import BorrowedMavsdkServer
+    if isinstance(mavsdk_server, BorrowedMavsdkServer):
+        mavsdk_server.release()
+        return
     logger = logging.getLogger(__name__)
     try:
         if mavsdk_server.poll() is None:

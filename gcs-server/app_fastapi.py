@@ -450,12 +450,17 @@ class BackgroundServices:
 
                         if response.status_code == 200:
                             data = response.json()
+                            data["last_check"] = int(time.time() * 1000)
                             with data_lock_git_status:
                                 git_status_data_all_drones[hw_id] = data
+                        else:
+                            with data_lock_git_status:
+                                git_status_data_all_drones[hw_id] = {"status": "unknown"}
 
                     except Exception as e:
-                        # Silent failure
-                        pass
+                        # A previous container's commit is not current evidence.
+                        with data_lock_git_status:
+                            git_status_data_all_drones[hw_id] = {"status": "unknown"}
 
                 # Git status polls less frequently
                 await asyncio.sleep(Params.git_poll_interval)

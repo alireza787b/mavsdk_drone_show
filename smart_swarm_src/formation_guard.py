@@ -3,7 +3,7 @@
 Geometry admission is deliberately not a small-distance gate.  A follower may
 smoothly acquire a valid formation from a large separation; the motion
 controller owns the speed/acceleration envelope.  This module only rejects
-invalid data or geometry outside the configured operational envelope.
+non-finite data. Capture thresholds describe progress, not permission to move.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def _ned_vector(values: Sequence[float], label: str) -> tuple[float, float, floa
 
 
 class FormationGuard:
-    """Require safe capture geometry and reject implausible target changes."""
+    """Describe formation acquisition and settling without a distance gate."""
 
     def __init__(
         self,
@@ -44,8 +44,8 @@ class FormationGuard:
         capture_stable_sec: float,
         tracking_horizontal_m: float,
         tracking_vertical_m: float,
-        target_step_horizontal_m: float,
-        target_step_vertical_m: float,
+        target_step_horizontal_m: float | None = None,
+        target_step_vertical_m: float | None = None,
         acquisition_horizontal_m: float | None = None,
         acquisition_vertical_m: float | None = None,
     ) -> None:
@@ -55,43 +55,24 @@ class FormationGuard:
             "capture_stable_sec": capture_stable_sec,
             "tracking_horizontal_m": tracking_horizontal_m,
             "tracking_vertical_m": tracking_vertical_m,
-            "target_step_horizontal_m": target_step_horizontal_m,
-            "target_step_vertical_m": target_step_vertical_m,
-            "acquisition_horizontal_m": (
-                acquisition_horizontal_m
-                if acquisition_horizontal_m is not None
-                else max(float(tracking_horizontal_m) * 100.0, 500.0)
-            ),
-            "acquisition_vertical_m": (
-                acquisition_vertical_m
-                if acquisition_vertical_m is not None
-                else max(float(tracking_vertical_m) * 100.0, 100.0)
-            ),
         }
         normalized = {name: float(value) for name, value in values.items()}
         if not all(math.isfinite(value) and value > 0 for value in normalized.values()):
             raise ValueError("formation guard limits must be finite and greater than zero")
-        if normalized["acquisition_horizontal_m"] < normalized["tracking_horizontal_m"]:
-            raise ValueError("acquisition horizontal envelope must include tracking envelope")
-        if normalized["acquisition_vertical_m"] < normalized["tracking_vertical_m"]:
-            raise ValueError("acquisition vertical envelope must include tracking envelope")
 
         self.capture_horizontal_m = normalized["capture_horizontal_m"]
         self.capture_vertical_m = normalized["capture_vertical_m"]
         self.capture_stable_sec = normalized["capture_stable_sec"]
         self.tracking_horizontal_m = normalized["tracking_horizontal_m"]
         self.tracking_vertical_m = normalized["tracking_vertical_m"]
-        self.target_step_horizontal_m = normalized["target_step_horizontal_m"]
-        self.target_step_vertical_m = normalized["target_step_vertical_m"]
-        self.acquisition_horizontal_m = normalized["acquisition_horizontal_m"]
-        self.acquisition_vertical_m = normalized["acquisition_vertical_m"]
+        # Legacy step/acquisition arguments remain accepted for older callers only.
+        # Neither argument can reject a finite target or change motion policy.
         self.reset()
 
     def reset(self) -> None:
         """Return to acquisition without forcing a zero command."""
         self._captured = False
         self._capture_started_at: float | None = None
-        self._last_target: tuple[float, float, float] | None = None
 
     @property
     def captured(self) -> bool:
@@ -109,7 +90,7 @@ class FormationGuard:
         The old implementation treated the small capture envelope as a hard
         admission gate.  That left a valid but distant follower permanently
         stationary.  ``tracking_allowed`` now means that the geometry is
-        valid and inside the configured operational envelope; ``status``
+        numerically valid; ``status``
         distinguishes acquisition from settled tracking for the operator.
         """
         try:
@@ -131,20 +112,13 @@ class FormationGuard:
         # Target samples can legitimately move by more than one loop period
         # during a leader jog.  The controller filters and shapes that change;
         # rejecting it here would recreate the hard-stop bug.
-        self._last_target = desired
 
-        if (
-            horizontal_error > self.acquisition_horizontal_m
-            or vertical_error > self.acquisition_vertical_m
-        ):
+        if not math.isfinite(horizontal_error) or not math.isfinite(vertical_error):
             self.reset()
             return FormationGuardDecision(
                 False,
-                "unsafe_geometry",
-                (
-                    "Formation geometry is outside the configured operational envelope "
-                    f"(horizontal {horizontal_error:.2f}m, vertical {vertical_error:.2f}m)."
-                ),
+                "invalid",
+                "Formation error is non-finite.",
                 horizontal_error,
                 vertical_error,
             )
@@ -191,7 +165,6 @@ class FormationGuard:
                 )
             self._captured = True
 
-        self._last_target = desired
         return FormationGuardDecision(
             True,
             "tracking",

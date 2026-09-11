@@ -1171,6 +1171,11 @@ class TestScriptExecution:
             return_value={"hw_id": "1", "follow": 0},
         ):
             assert setup._can_overlap_leader_role_session() is True
+            setup.running_processes['actions.py:jog'] = RunningMissionProcess(
+                process_key='actions.py:jog', script_name='actions.py', process=Mock(),
+                mission_type=Mission.PRECISION_MOVE.value)
+            assert setup._active_leader_role_session() is True
+            assert setup._can_overlap_leader_role_session() is False
 
 
 @pytest.mark.unit

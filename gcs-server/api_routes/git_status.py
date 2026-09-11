@@ -266,7 +266,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 connectivity_runtime=connectivity_runtime,
                 git_sync_runtime=git_sync_runtime,
                 env_runtime=env_runtime,
-                last_check=int(time.time() * 1000),
+                last_check=raw_data.get("last_check", 0),
                 last_sync=None,
             )
 
@@ -276,12 +276,14 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
         if actionable_online_hw_ids is None or hw_id in actionable_online_hw_ids
     ]
     synced_count = len([status for status in actionable_statuses if status.in_sync_with_gcs])
+    unknown_count = sum(status.status == GitStatus.UNKNOWN for status in actionable_statuses)
 
     return GitStatusResponse(
         git_status=transformed_git_status,
         total_drones=len(transformed_git_status),
         synced_count=synced_count,
-        needs_sync_count=len(actionable_statuses) - synced_count,
+        needs_sync_count=len(actionable_statuses) - synced_count - unknown_count,
+        unknown_count=unknown_count,
         gcs_status=gcs_status,
         sync_in_progress=deps._sync_state["active"],
         timestamp=int(time.time() * 1000),

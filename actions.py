@@ -355,6 +355,10 @@ def stop_mavsdk_server(mavsdk_server):
     """
     Gracefully stops the MAVSDK server if it's still running.
     """
+    from src.mavsdk_server_ownership import BorrowedMavsdkServer
+    if isinstance(mavsdk_server, BorrowedMavsdkServer):
+        mavsdk_server.release()
+        return
     if mavsdk_server and mavsdk_server.poll() is None:
         logger.info("Stopping MAVSDK server...")
         mavsdk_server.terminate()
@@ -400,6 +404,11 @@ def start_mavsdk_server(grpc_port, udp_port):
     Starts or restarts the MAVSDK server, ensuring any previously running server
     on the same gRPC port is stopped first. Returns the subprocess.Popen instance.
     """
+    from src.mavsdk_server_ownership import borrow_mavsdk_server
+    borrowed = borrow_mavsdk_server(grpc_port, udp_port)
+    if borrowed is not None:
+        logger.info("Using leader session MAVSDK server (PID: %s).", borrowed.pid)
+        return borrowed
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
         logger.info(f"MAVSDK server already running on port {grpc_port}, terminating it.")

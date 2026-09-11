@@ -2,8 +2,8 @@
 """Rehearse and plot the two-drone Smart Swarm field workflow in SITL.
 
 The validator deliberately mirrors the first field test: H1 is the leader, H2 is
-staged six metres north in NED, both take off, Smart Swarm starts, H1 makes one
-small northward jog, the pair is recovered with Hold, and both land.  It uses the
+assigned six metres north in NED, both take off, Smart Swarm acquires the offset,
+H1 makes repeated northward jogs, the pair is recovered with Hold, and both land. It uses the
 same guarded command API as the dashboard and the follower's real high-rate
 Smart Swarm WebSocket path.
 
@@ -23,6 +23,7 @@ import math
 import os
 import sys
 import time
+import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,7 @@ from src.gcs_api_routes import (  # noqa: E402
     GCS_COMMANDS_ROUTE,
     GCS_CONFIG_SWARM_ROUTE,
     GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
 )
 from tools.runtime_validation_support import (  # noqa: E402
     ValidationApiClient,
@@ -177,10 +179,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--north-offset-m", type=float, default=6.0, help="Follower NED north offset from leader")
     parser.add_argument("--formation-horizontal-tolerance", type=float, default=1.5)
     parser.add_argument("--formation-altitude-tolerance", type=float, default=0.6)
-    parser.add_argument("--staging-horizontal-tolerance", type=float, default=0.75)
-    parser.add_argument("--staging-altitude-tolerance", type=float, default=0.5)
-    parser.add_argument("--max-staging-horizontal-m", type=float, default=15.0)
-    parser.add_argument("--max-staging-vertical-m", type=float, default=2.0)
     parser.add_argument("--stability-samples", type=int, default=3)
     parser.add_argument("--max-smart-swarm-velocity", type=float, default=3.0)
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0)
@@ -189,6 +187,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stream-min-advances", type=int, default=3)
     parser.add_argument("--stream-timeout-sec", type=float, default=15.0)
     parser.add_argument("--jog-north-m", type=float, default=1.0, help="Small H1 northward field-rehearsal jog")
+    parser.add_argument("--repeat-jogs", type=int, default=2, help="Exercise leader motion ownership repeatedly")
     parser.add_argument("--jog-position-tolerance", type=float, default=0.75)
     parser.add_argument("--post-command-settle-sec", type=float, default=3.0)
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for JSON/CSV/plots")
@@ -255,6 +254,18 @@ class FieldRehearsalClient(ValidationApiClient):
         )
         log(f"COMMAND {operator_label}: id={response['command_id']} targets={target_ids}")
         return response
+
+    def start_saved_swarm(self, ids):
+        """Use the dashboard's session contract, not the legacy raw mission."""
+        self.require_sitl_runtime()
+        preview = self.get_json("/api/v1/swarm/runtime/preview")
+        cluster = next((c for c in preview["clusters"]
+                        if {m["hw_id"] for m in c["members"]} == {str(i) for i in ids}), None)
+        require(cluster is not None, "Saved cluster differs from the test targets")
+        return self.post_json("/api/v1/swarm/runtime/start", {
+            "cluster_id": cluster["cluster_id"], "revision": preview["revision"],
+            "idempotency_key": str(uuid.uuid4()),
+        })
 
 
 def build_two_drone_ned_assignments(
@@ -954,14 +965,7 @@ async def main_async() -> int:
     )
     require(float(args.north_offset_m) > 0.0, "Follower north offset must be positive")
     require(float(args.jog_north_m) > 0.0, "Leader jog must be positive north")
-    require(
-        float(args.staging_horizontal_tolerance) < DEFAULT_CAPTURE_HORIZONTAL_M,
-        "Staging horizontal tolerance must stay inside the runtime capture gate",
-    )
-    require(
-        float(args.staging_altitude_tolerance) < DEFAULT_CAPTURE_VERTICAL_M,
-        "Staging altitude tolerance must stay inside the runtime capture gate",
-    )
+    require(1 <= args.repeat_jogs <= 10, "Repeat jogs must be between 1 and 10")
 
     results: dict[str, Any] = {
         "base_url": args.base_url,
@@ -1049,56 +1053,10 @@ async def main_async() -> int:
         )
 
         tracked_assignment = {"hw_id": follower_id, **target_assignments[follower_id]}
-        staging_telemetry = client.get_telemetry()
-        pre_stage_geometry, staging_payload = build_staging_move(
-            staging_telemetry[str(leader_id)],
-            staging_telemetry[str(follower_id)],
-            tracked_assignment,
-            max_horizontal_m=float(args.max_staging_horizontal_m),
-            max_vertical_m=float(args.max_staging_vertical_m),
-        )
-        results["pre_stage_geometry"] = pre_stage_geometry
-        if (
-            pre_stage_geometry["horizontal_error"] > float(args.staging_horizontal_tolerance)
-            or pre_stage_geometry["altitude_error"] > float(args.staging_altitude_tolerance)
-        ):
-            staging_command = client.submit_command(
-                PRECISION_MOVE,
-                [follower_id],
-                "Stage H2 North of H1 Before Smart Swarm",
-                extra_fields=staging_payload,
-            )
-            staging_status = wait_for_command(
-                client,
-                staging_command["command_id"],
-                terminal=True,
-                timeout=180,
-            )
-            require(
-                staging_status.get("status") == "completed",
-                f"Follower staging failed: {command_summary(staging_status)}",
-            )
-            require_full_acceptance(staging_status, 1, "Follower capture staging")
-            require_full_execution(staging_status, 1, "Follower capture staging")
-            results["staging_command"] = command_summary(staging_status)
-            results["staging_move"] = staging_payload["precision_move"]
-        else:
-            results["staging_command"] = {"status": "not_required"}
-
-        staging_samples = max(
-            int(args.stability_samples),
-            int(math.ceil(DEFAULT_CAPTURE_STABLE_SEC / 0.5)) + 1,
-        )
-        results["staged_geometry"] = wait_geometry(
-            client,
-            leader_id,
-            follower_id,
-            tracked_assignment,
-            horizontal_tolerance=float(args.staging_horizontal_tolerance),
-            altitude_tolerance=float(args.staging_altitude_tolerance),
-            stability_samples=staging_samples,
-            timeout=60,
-        )
+        initial_telemetry = client.get_telemetry()
+        results["pre_swarm_geometry"] = formation_error(
+            initial_telemetry[str(leader_id)], initial_telemetry[str(follower_id)],
+            tracked_assignment)
 
         tracked_telemetry = client.get_telemetry()
         leader_ip = str(tracked_telemetry[str(leader_id)]["ip"])
@@ -1146,11 +1104,10 @@ async def main_async() -> int:
 
         stage_ref["name"] = "smart_swarm_capture"
         command = await asyncio.to_thread(
-            client.submit_command,
-            SMART_SWARM,
+            client.start_saved_swarm,
             ids,
-            "Two-Drone Field Rehearsal Smart Swarm Start",
         )
+        swarm_command_id = command["command_id"]
         log(f"SMART SWARM START: ids={ids}")
         swarm_start = await asyncio.to_thread(
             wait_for_command,
@@ -1239,6 +1196,39 @@ async def main_async() -> int:
             max_age_ms=int(args.stream_max_age_ms),
             timeout_sec=float(args.stream_timeout_sec),
         )
+
+        results["repeated_jogs"] = []
+        for jog_index in range(1, args.repeat_jogs):
+            stage_ref["name"] = f"leader_north_jog_{jog_index + 1}"
+            jog_command = await asyncio.to_thread(
+                client.submit_command, PRECISION_MOVE, [leader_id],
+                "Repeated Leader Jog", extra_fields=jog_payload)
+            jog_status = await asyncio.to_thread(
+                wait_for_command, client, jog_command["command_id"],
+                terminal=True, timeout=180)
+            require(jog_status.get("status") == "completed", "Repeated leader jog failed")
+            require_full_execution(jog_status, 1, "Repeated leader jog")
+            geometry = await asyncio.to_thread(
+                wait_geometry, client, leader_id, follower_id, tracked_assignment,
+                horizontal_tolerance=float(args.formation_horizontal_tolerance),
+                altitude_tolerance=float(args.formation_altitude_tolerance),
+                stability_samples=int(args.stability_samples), timeout=120)
+            evidence = await wait_for_advancing_fresh_streams(
+                latest_states, stream_task_map, ["leader", "follower"],
+                min_advances=int(args.stream_min_advances),
+                max_age_ms=int(args.stream_max_age_ms),
+                timeout_sec=float(args.stream_timeout_sec))
+            results["repeated_jogs"].append({"command": command_summary(jog_status),
+                                             "formation": geometry, "streams": evidence})
+
+        session_evidence = client.get_json(
+            GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=swarm_command_id))
+        runtime_evidence = session_evidence.get("swarm_runtime") or {}
+        require(runtime_evidence.get("state") in {"active", "settling"},
+                f"Following is not confirmed after leader actions: {runtime_evidence}")
+        require(set(runtime_evidence.get("active_hw_ids", [])) == {str(i) for i in ids},
+                "Not all swarm roles are still reporting after leader actions")
+        results["post_actions_session"] = runtime_evidence
 
         stage_ref["name"] = "hold_recovery"
         hold_command = await asyncio.to_thread(

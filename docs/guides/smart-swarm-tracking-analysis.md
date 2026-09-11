@@ -5,9 +5,8 @@ for the first two-aircraft field workflow. It intentionally targets H1 as the
 leader and H2 as the follower; it is not a general multi-drone benchmark.
 
 The fixed topology is NED: H2 follows H1 at `+6 m north`, zero east, and zero
-vertical offset. The tool stages H2 from its live position into the runtime
-capture gate before starting Smart Swarm, so a dirty SITL launch layout does
-not silently become a misleading test.
+vertical offset. Smart Swarm acquires that offset from H2's actual takeoff
+position; no precision-move prestaging hides an acquisition defect.
 
 ## Run
 
@@ -36,11 +35,13 @@ the temporary swarm resource to git.
 2. Snapshot the complete swarm resource, then apply the temporary H1/H2 NED
    assignments with `commit=false`.
 3. Paired TAKEOFF and airborne altitude proof.
-4. Bounded H2 precision staging into the Smart Swarm capture tolerances.
+4. Record initial formation error without moving H2 separately.
 5. Fresh, independently advancing H1/H2 `/ws/swarm-state` samples.
-6. Smart Swarm start and stable formation proof.
-7. One small northward H1 precision jog; verify the global displacement and
-   that H2 remains in Smart Swarm and inside formation tolerance.
+6. Smart Swarm start through the dashboard's saved-cluster/session API and
+   stable formation proof.
+7. Repeated northward H1 precision jogs; verify displacement, H2 reacquisition,
+   fresh streams, and continuing reports from both roles. Defaults are two
+   1 m jogs; use `--jog-north-m 8 --repeat-jogs 2` to exercise longer catch-up.
 8. Paired HOLD recovery, airborne proof, then paired LAND and idle proof.
 
 On every SITL failure path the tool attempts LAND for each armed selected

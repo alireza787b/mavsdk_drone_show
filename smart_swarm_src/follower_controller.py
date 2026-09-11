@@ -231,10 +231,11 @@ class FollowerMotionController:
     def _apply_deadband(self, position_error: np.ndarray) -> np.ndarray:
         result = position_error.copy()
         horizontal = float(np.linalg.norm(result[:2]))
-        if horizontal <= self.position_deadband_m:
-            result[:2] = 0.0
-        if abs(float(result[2])) <= self.vertical_deadband_m:
-            result[2] = 0.0
+        if horizontal > 0:
+            result[:2] *= max(0.0, horizontal - self.position_deadband_m) / horizontal
+        result[2] = math.copysign(
+            max(0.0, abs(float(result[2])) - self.vertical_deadband_m), result[2]
+        )
         return result
 
     def _smooth_position_term(self, position_error: np.ndarray) -> np.ndarray:

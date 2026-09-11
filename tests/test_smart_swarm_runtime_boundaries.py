@@ -143,6 +143,28 @@ async def test_pilot_takeover_during_zero_seed_prevents_offboard_start(swarm_run
     drone.offboard.start.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_follower_handover_waits_for_action_motion_lease(swarm_runtime, monkeypatch, tmp_path):
+    from src.mavsdk_server_ownership import MotionControlLease
+    monkeypatch.setattr("src.mavsdk_server_ownership.tempfile.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(swarm_runtime, 'FOLLOWER_MOTION_LEASE', None)
+    borrowed = MotionControlLease.acquire(swarm_runtime.Params.DEFAULT_GRPC_PORT)
+    drone = types.SimpleNamespace(offboard=types.SimpleNamespace(
+        set_velocity_body=AsyncMock(), start=AsyncMock()))
+    try:
+        assert not await swarm_runtime.ensure_offboard_active_for_follower(
+            drone, logging.getLogger(__name__), 'role change')
+        drone.offboard.set_velocity_body.assert_not_awaited()
+        drone.offboard.start.assert_not_awaited()
+        borrowed.release()
+        assert await swarm_runtime.ensure_offboard_active_for_follower(
+            drone, logging.getLogger(__name__), 'role change retry')
+        drone.offboard.start.assert_awaited_once()
+    finally:
+        borrowed.release()
+        await swarm_runtime.cancel_follower_tasks(logging.getLogger(__name__))
+
+
 def _valid_global_sample(now_ms: int) -> dict:
     return {
         "hw_id": 1,

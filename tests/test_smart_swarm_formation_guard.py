@@ -75,7 +75,7 @@ def test_tracking_divergence_returns_to_acquisition() -> None:
     assert decision.tracking_allowed is True
 
 
-def test_geometry_outside_operational_envelope_fails_closed() -> None:
+def test_legacy_distance_limit_does_not_reject_finite_geometry() -> None:
     guard = FormationGuard(
         capture_horizontal_m=2.0,
         capture_vertical_m=1.0,
@@ -87,9 +87,9 @@ def test_geometry_outside_operational_envelope_fails_closed() -> None:
         acquisition_horizontal_m=20.0,
         acquisition_vertical_m=10.0,
     )
-    decision = guard.evaluate((30.0, 0.0, 0.0), (0.0, 0.0, 0.0), now_s=1.0)
-    assert decision.status == "unsafe_geometry"
-    assert decision.tracking_allowed is False
+    decision = guard.evaluate((30000.0, 0.0, 2000.0), (0.0, 0.0, 0.0), now_s=1.0)
+    assert decision.status == "acquiring"
+    assert decision.tracking_allowed is True
 
 
 def test_non_finite_target_fails_closed() -> None:

@@ -22,7 +22,7 @@ const SyncWarningBanner = () => {
       const data = response.data;
       setSyncData(data);
 
-      const newCount = data.needs_sync_count || 0;
+      const newCount = (data.needs_sync_count || 0) + (data.unknown_count || 0);
       // Re-show banner if needs_sync_count increased (new drones went out of sync)
       if (newCount > 0 && newCount !== lastNeedsSyncCountRef.current) {
         setDismissed(false);
@@ -42,7 +42,7 @@ const SyncWarningBanner = () => {
   }, [fetchGitStatus]);
 
   // Don't show if no data, dismissed, or no sync needed
-  if (!syncData || dismissed || !syncData.needs_sync_count || syncData.needs_sync_count === 0) {
+  if (!syncData || dismissed || !(syncData.needs_sync_count || syncData.unknown_count)) {
     return null;
   }
 
@@ -51,7 +51,9 @@ const SyncWarningBanner = () => {
       <div className="sync-warning-content">
         <span className="sync-warning-icon" aria-hidden="true"><FaExclamationTriangle /></span>
         <span className="sync-warning-text">
-          {syncData.needs_sync_count} of {syncData.total_drones} drone{syncData.total_drones !== 1 ? 's' : ''} out of sync with GCS
+          {syncData.needs_sync_count > 0
+            ? `${syncData.needs_sync_count} of ${syncData.total_drones} drones out of sync with GCS`
+            : `Software version unconfirmed for ${syncData.unknown_count} drone${syncData.unknown_count === 1 ? '' : 's'}`}
         </span>
         <Link className="sync-warning-action is-primary" to="/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1">
           <FaSyncAlt aria-hidden="true" />

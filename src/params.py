@@ -248,13 +248,6 @@ class Params:
     SMART_SWARM_CAPTURE_STABLE_SEC = 1.0
     SMART_SWARM_TRACKING_HORIZONTAL_M = 6.0
     SMART_SWARM_TRACKING_VERTICAL_M = 3.0
-    # Acquisition is bounded by the operational/geofence envelope, not by
-    # the small settled-formation envelope.  These defaults support a real
-    # field recovery from a distant but valid initial placement.
-    SMART_SWARM_ACQUISITION_HORIZONTAL_M = 500.0
-    SMART_SWARM_ACQUISITION_VERTICAL_M = 100.0
-    SMART_SWARM_TARGET_STEP_HORIZONTAL_M = 2.0
-    SMART_SWARM_TARGET_STEP_VERTICAL_M = 1.5
     SMART_SWARM_POSITION_DEADBAND_M = 0.12
     SMART_SWARM_VERTICAL_DEADBAND_M = 0.10
     SMART_SWARM_POSITION_FILTER_TIME_CONSTANT_SEC = 0.35

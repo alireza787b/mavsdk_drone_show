@@ -104,6 +104,10 @@ class NedVelocityCommandShaper:
                 "seed_acceleration_ned exceeds max_acceleration_m_s2"
             )
 
+        self._require_speed_within_envelope(
+            self._braking_endpoint(velocity, acceleration), "seed braking reserve"
+        )
+
         self._velocity = velocity.copy()
         self._acceleration = acceleration.copy()
 
@@ -183,6 +187,32 @@ class NedVelocityCommandShaper:
             next_acceleration,
             self.max_acceleration_m_s2,
         )
+        # Keep a braking reserve in velocity space, not merely a valid next
+        # sample. This remains conservative across changing loop intervals.
+        # Braking follows a straight segment inside the convex speed cylinder.
+        def viable(candidate):
+            next_v = velocity + candidate * effective_dt
+            stop_v = self._braking_endpoint(next_v, candidate)
+            return all(
+                np.linalg.norm(v[:2]) <= self.max_horizontal_speed_m_s
+                and abs(v[2]) <= self.max_vertical_speed_m_s
+                for v in (next_v, stop_v)
+            )
+
+        if not viable(next_acceleration):
+            brake = self._move_towards(acceleration, self._ZERO, jerk_step)
+            if not viable(brake):
+                raise VelocityCommandShapeError("continuity seed has no braking reserve")
+            # Both accelerations satisfy the convex acceleration/jerk limits.
+            # Find a viable interpolation from the guaranteed braking option.
+            low, high = 0.0, 1.0
+            for _ in range(40):
+                mid = (low + high) / 2.0
+                if viable(brake + mid * (next_acceleration - brake)):
+                    low = mid
+                else:
+                    high = mid
+            next_acceleration = brake + low * (next_acceleration - brake)
         next_velocity = velocity + next_acceleration * effective_dt
 
         if not np.all(np.isfinite(next_velocity)) or not np.all(np.isfinite(next_acceleration)):
@@ -287,6 +317,19 @@ class NedVelocityCommandShaper:
             )
         )
         return clipped
+
+    def _braking_endpoint(self, velocity: np.ndarray, acceleration: np.ndarray) -> np.ndarray:
+        """Conservative velocity endpoint when jerk reduces acceleration to zero.
+
+        The continuous triangular braking area is enlarged by a half maximum
+        sample interval. This reserves room before saturation, including when
+        the next loop interval differs. Braking stays on the segment between
+        the current velocity and this endpoint, inside the convex speed limits.
+        """
+        return velocity + acceleration * (
+            float(np.linalg.norm(acceleration)) / (2.0 * self.max_jerk_m_s3)
+            + self.max_dt_s / 2.0
+        )
 
     def _require_speed_within_envelope(self, velocity: np.ndarray, name: str) -> None:
         horizontal_norm = float(np.linalg.norm(velocity[:2]))

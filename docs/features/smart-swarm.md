@@ -316,7 +316,6 @@ The current transport timing knobs are centralized in [params.py](../../src/para
 - `SMART_SWARM_MAX_YAW_RATE_DEG_S`
 - `SMART_SWARM_CAPTURE_*`
 - `SMART_SWARM_TRACKING_*`
-- `SMART_SWARM_TARGET_STEP_*`
 - `SMART_SWARM_MAX_LEADER_UNREACHABLE_ATTEMPTS`
 - `SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC`
 - `SMART_SWARM_LEADER_LOSS_STRATEGY`
@@ -427,8 +426,8 @@ Follower control now uses one stateful motion pipeline:
   larger acceleration or yaw budget
 - topology/offset changes and leader jog-sized target changes are filtered and
   shaped without a binary zero-velocity capture gate
-- a small position deadband and hysteresis prevent GPS noise from producing
-  oscillating or wavy commands
+- a filtered, continuous position deadband reduces corrections driven by small
+  GPS noise; velocity damping and the shared command shaper limit oscillation
 - stale leader confidence scales feedback and feedforward together before the
   hard failover deadline
 
@@ -484,12 +483,12 @@ That prevents live leader changes from silently introducing a loop into the foll
 - follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
 - body-frame offsets include leader yaw-rate compensation
 - startup and reconfiguration use an explicit `acquiring` phase rather than
-  requiring manual staging at the offset; invalid data or geometry outside the
-  configured operational envelope still fails closed
+  requiring manual staging at the offset. No finite distance or target-step
+  threshold rejects formation acquisition; invalid numeric state remains rejected
 - the command sent to PX4 is limited from its first sample by separate
   horizontal/vertical speed envelopes plus acceleration, jerk, and yaw rate
 - stale-data confidence applies to the complete motion request; invalid own
-  state or unsafe geometry suspends motion, while valid target jumps and
+  state suspends motion, while valid target jumps and
   tracking divergence return through bounded acquisition
 - follower re-entry restarts offboard mode cleanly after leader-to-follower transitions
 - failed follower re-entry now retries instead of getting stuck half-switched
@@ -544,6 +543,26 @@ That prevents live leader changes from silently introducing a loop into the foll
   Smart Swarm role session. RTL, Land, Stop Swarm, or a configured terminal
   mode ends the session. An incompatible mission sent to a follower releases
   that follower only and reports the change to the cluster.
+- Leader actions borrow the session's MAVSDK server and never terminate it.
+  One OS-held motion lease prevents a follower role change from issuing
+  setpoints while that action is finishing. Role changes retry against the
+  latest assignment; Stop/RTL/Land and pilot takeover retain precedence.
+- Hover, small corrections, acquisition, and turns use the same controller:
+  filtered position error, continuous deadband, smooth bounded feedback,
+  leader velocity feedforward, velocity damping, then speed/acceleration/jerk
+  shaping. The shaper reserves braking room before reaching a speed limit;
+  saturation is normal operation, not a reason to terminate following.
+- `Joining formation`, `Settling into formation`, `Following`, and
+  `Following paused` describe actual follower reports. An active leader cannot
+  hide a missing follower report. An unexpected control failure holds and
+  remains reported until the operator stops/restarts the session.
+- Deadbands trade small residual position error for quieter hovering. Tune
+  `SMART_SWARM_POSITION_DEADBAND_M`, `SMART_SWARM_VERTICAL_DEADBAND_M`, the
+  position-filter time constant, gains, and motion limits together using flight
+  logs. Noisy-hover and lagged-plant tests are regression evidence, not proof
+  against every GNSS disturbance or aircraft dynamic. This is not collision
+  avoidance: large acquisition paths must still be clear, and PX4 geofences
+  and estimator failsafes are unchanged.
 - Do not weaken PX4 estimator, GNSS, arming, or Offboard-loss policy to make a
   field test pass. Resolve the underlying readiness evidence and review the
   active aircraft parameter profile deliberately.

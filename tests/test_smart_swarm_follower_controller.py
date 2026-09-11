@@ -207,3 +207,62 @@ def test_control_loop_stall_does_not_expand_velocity_or_yaw_step() -> None:
 
     assert stalled.velocity_ned == pytest.approx(normal.velocity_ned)
     assert stalled.yaw_deg == pytest.approx(normal.yaw_deg)
+
+
+@pytest.mark.parametrize("initial_distance", [0.0, 0.3, 100.0, 600.0])
+def test_noisy_closed_loop_acquires_and_settles_without_hover_oscillation(initial_distance):
+    """Lagged velocity plant, not an assertion about arbitrary real aircraft."""
+    controller = _controller()
+    rng = np.random.default_rng(481)
+    position = np.array([-initial_distance, 0.0, 0.0])
+    velocity = np.zeros(3)
+    positions, velocities = [], []
+    for index in range(int((initial_distance / 1.4 + 60.0) / DT)):
+        decision = _step(
+            controller,
+            desired=rng.normal(0.0, 0.025, 3),
+            own=position,
+            leader_velocity=rng.normal(0.0, 0.01, 3),
+            own_velocity=velocity + rng.normal(0.0, 0.01, 3),
+            now=index * DT,
+        )
+        assert decision.tracking_allowed
+        velocity += (decision.velocity_ned - velocity) * (DT / 0.25)
+        position += velocity * DT
+        positions.append(position.copy())
+        velocities.append(velocity.copy())
+    assert np.linalg.norm(position) < 0.25
+    assert np.max(np.ptp(np.array(positions[-300:]), axis=0)) < 0.15
+    assert np.max(np.linalg.norm(velocities[-300:], axis=1)) < 0.1
+
+
+@pytest.mark.parametrize("plant_lag", [0.15, 0.5])
+def test_turns_reversals_and_tiny_moves_use_one_continuous_controller(plant_lag):
+    controller = _controller()
+    rng = np.random.default_rng(912)
+    position, velocity, target = np.zeros(3), np.zeros(3), np.zeros(3)
+    previous_command, previous_acceleration = np.zeros(3), np.zeros(3)
+    # Abrupt leader velocity changes intentionally stress feedforward shaping.
+    stages = [(20, (1, 0, 0)), (15, (0, 1, -0.2)),
+              (20, (-1, -1, 0.2)), (35, (0, 0, 0)),
+              (4, (0.1, 0, 0)), (40, (0, 0, 0))]
+    now = 0.0
+    for duration, leader_velocity in stages:
+        for _ in range(int(duration / DT)):
+            now += DT
+            target += np.array(leader_velocity) * DT
+            decision = _step(controller, desired=target + rng.normal(0, 0.05, 3),
+                             own=position, own_velocity=velocity + rng.normal(0, 0.02, 3),
+                             leader_velocity=np.array(leader_velocity) + rng.normal(0, 0.02, 3),
+                             now=now)
+            acceleration = (decision.velocity_ned - previous_command) / DT
+            assert np.linalg.norm(acceleration) <= 1.0 + 1e-8
+            assert np.linalg.norm(acceleration - previous_acceleration) / DT <= 2.0 + 1e-7
+            assert np.linalg.norm(decision.velocity_ned[:2]) <= 2.0 + 1e-9
+            assert abs(decision.velocity_ned[2]) <= 0.75 + 1e-9
+            previous_command, previous_acceleration = decision.velocity_ned, acceleration
+            velocity += (decision.velocity_ned - velocity) * (DT / plant_lag)
+            position += velocity * DT
+        if leader_velocity == (0, 0, 0):
+            assert np.linalg.norm(position - target) < 0.3
+            assert np.linalg.norm(velocity) < 0.1

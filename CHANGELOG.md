@@ -15,18 +15,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   environment injection.
 
 ### Added
-- Smart Swarm now performs bounded automatic formation acquisition from a
+- Smart Swarm now performs smooth automatic formation acquisition from a
   large valid separation. A filtered, deadbanded, smoothly saturated follower
-  controller prevents GPS-noise oscillation while preserving speed,
+  controller reduces GPS-noise corrections while preserving speed,
   acceleration, jerk, freshness, and geofence limits.
 - Smart Swarm now has a compact Dashboard start action that resolves the saved
   executable cluster, carries a revision/session snapshot, and reports role
   acknowledgements before follower engagement. A single explicit partial-start
   confirmation is available only for an unavailable dependency-safe follower.
 - A fail-closed two-drone Smart Swarm SITL rehearsal now reproduces the field
-  topology (`H1` leader, `H2` follower at `+6 m north` in NED), stages the
-  follower inside the capture gate, proves fresh independent streams, exercises
-  takeoff, leader jog, HOLD, and LAND, restores the complete prior assignment,
+  topology (`H1` leader, `H2` follower at `+6 m north` in NED), acquires the
+  formation without prestaging, proves fresh independent streams, exercises
+  takeoff, repeated leader jogs, HOLD, and LAND, restores the complete prior assignment,
   and emits checksummed JSON/CSV/plot evidence with unconditional cleanup.
 - The 2026-08-13 pre-field acceptance checkpoint records the passed exact
   rehearsal, bounded tracking/smoothness measurements, correlated unified-log
@@ -47,6 +47,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   by a push-only invocation. The stock SITL GCS bridge remains unchanged.
 
 ### Fixed
+- Missing drone git reports now display an unconfirmed software version rather
+  than reusing a previous container's commit as a current sync mismatch.
+- Smart Swarm reserves braking room before velocity saturation, preventing
+  normal sustained/turning requests from exhausting the jerk-continuous speed
+  envelope. Continuous deadbands cover noisy hover and small corrections using
+  the same controller as long acquisition; finite separation is not a gate.
+- Follower acquisition/tracking/holding reports now pass the GCS contract and
+  cannot be hidden by a healthy leader. Leader actions borrow the session's
+  MAVSDK connection; an exclusive motion lease serializes follower handover.
 - Leader-side RC, jog, Precision Move, and Drone Show actions no longer
   terminate the Smart Swarm role session. Followers continue listening to the
   leader; RTL, Land, Stop Swarm, or an incompatible follower mission still
