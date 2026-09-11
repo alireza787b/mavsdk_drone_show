@@ -423,6 +423,17 @@ class TestGetLocalGitShortStatus:
         assert result['branch'] == 'main-candidate'
 
 
+def test_detached_checkout_normalizes_non_origin_remote_branch():
+    from functions.git_manager import resolve_current_git_branch
+    def execute(command, **kwargs):
+        if command[1] == 'for-each-ref':
+            return 'official/main\n'
+        if command[-1] == 'HEAD' and command[1] == 'rev-parse':
+            return 'HEAD'
+        return ''
+    assert resolve_current_git_branch(execute) == 'main'
+
+
 class TestGetRemoteGitStatus:
     """Test remote git status fetching"""
 

@@ -75,7 +75,9 @@ def resolve_current_git_branch(
         cwd=cwd,
     ) or ''
     remote_refs = [
-        normalize_branch_name(line)
+        # These are exclusively refs/remotes, so the first component is the
+        # remote name (not necessarily origin). Preserve feature/foo suffixes.
+        normalize_branch_name(line.strip().split('/', 1)[-1])
         for line in remote_refs_output.splitlines()
         if line.strip() and not line.strip().endswith('/HEAD')
     ]
