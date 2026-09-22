@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm now defaults to bounded Hold/recovery without automatic leader
+  promotion. Stable fresh data can resume following within the recovery window;
+  expiration requires explicit Stop/Start. Pilot takeover remains authoritative,
+  and automatic recovery no longer overwrites the saved formation.
+
 - The GCS launcher now propagates `MDS_SITL_GCS_API_TOKEN_FILE` through its
   explicit tmux environment allowlist, so authenticated SITL reconciliation
   can mount the configured drone-scoped callback token without manual process

@@ -2968,6 +2968,12 @@ class TestGitStatus:
         assert data['git_sync_runtime']['recovery_action'] == 'none'
         assert data['env_runtime']['registry_hash'] == 'abc123'
         assert data['env_runtime']['configured_node_key_count'] == 5
+        assert data['smart_swarm_policy'] == {
+            'leader_loss_strategy': drone_api_server.Params.SMART_SWARM_LEADER_LOSS_STRATEGY,
+            'recovery_wait_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
+            'recovery_stable_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
+            'hard_stale_sec': drone_api_server.Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+        }
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""

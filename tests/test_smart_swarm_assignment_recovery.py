@@ -68,4 +68,12 @@ async def test_recovery_auth_and_revision_protect_other_nodes_and_operator_edits
     result = await apply_session_recovery(deps, request, capabilities['3'])
     assert result['assignment']['follow'] == 1
     assert result['assignment']['offset_x'] == 12
-    assert saved[0][1]['follow'] == '1'
+    assert result['persisted'] is False
+    assert not saved
+    assert assignments[2]['follow'] == '2'
+
+    deps.Params.SMART_SWARM_LEADER_LOSS_STRATEGY = 'hold_recover'
+    with pytest.raises(HTTPException) as caught:
+        await apply_session_recovery(deps, request, capabilities['3'])
+    assert caught.value.status_code == 409
+    assert not saved

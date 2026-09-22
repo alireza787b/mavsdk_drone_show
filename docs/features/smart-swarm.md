@@ -197,9 +197,23 @@ formation. A retry after a lost HTTP response recovers the same command ID.
 The follower watches PX4 mode, armed state, and landed state. RC/QGC RTL, Land,
 or manual takeover stops follower setpoints and preserves the selected recovery
 mode; MDS never countercommands it with HOLD. This watcher does not elect
-leaders. Existing `upstream_or_hold` remains the single leader-loss policy:
-after its bounded loss window it follows the cycle-safe upstream leader, or
-self-promotes and holds. User-edited leader changes use the same transition
+leaders. The default `hold_recover` policy retains the assigned leader: after
+the existing hard-stale limit it requests PX4 Hold, waits up to 10 seconds for
+one continuous second of fresh leader/own-state evidence and confirmed internal
+Hold, then smoothly reacquires. If the window expires, following remains paused
+even if data returns later. Use **Stop Swarm (Hold)**, then **Start Smart Swarm**
+for the complete formation to retry. This does not arm or take off. Pilot mode
+changes, RTL, landing and disarming cancel automatic recovery.
+
+Automatic promotion is disabled by default. Advanced deployment settings in
+`/etc/mds/local.env` are `MDS_SMART_SWARM_LEADER_LOSS_STRATEGY=hold_recover`,
+`MDS_SMART_SWARM_LEADER_RECOVERY_WAIT_SEC=10`, and
+`MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC=1`. These are not dashboard switches.
+Change them only while grounded and restart the affected runtime. For deliberate
+multi-level failover, set the strategy to `upstream_or_hold` consistently on GCS
+and nodes; after the recovery window it follows a cycle-safe upstream leader,
+or self-promotes and holds. Automatic recovery never saves a new formation.
+User-edited leader changes use the same transition
 path. Runtime assignment files carry session ownership and become inactive on
 shutdown, landing, takeover, and restart.
 
@@ -400,12 +414,12 @@ During flight, the runtime periodically refreshes assignments from GCS. Supporte
 
 When a drone transitions back into follower mode, the runtime now explicitly re-establishes offboard control and restarts any missing follower tasks instead of assuming the previous follower runtime is still healthy.
 
-Session-scoped failover writeback uses the node's own callback capability and
-a compare-before-save topology revision; it cannot edit another node or
-overwrite newer operator changes. NED offsets compose along skipped ancestor
+Session-scoped failover validation uses the node's own callback capability and
+a topology revision check. It never writes canonical `swarm.json`; only an
+explicit operator save changes the next mission's plan. NED offsets compose along skipped ancestor
 links (for example, `+6 m` plus `+6 m` stays `+12 m` from the upstream leader).
 Body-frame ancestor headings cannot be inferred reliably after that source
-is lost, so that recovery holds instead of guessing. A failed writeback keeps
+is lost, so that recovery holds instead of guessing. A failed validation keeps
 the local Hold assignment until the operator changes that slot or starts a
 new session; an unchanged saved assignment cannot silently restart following.
 

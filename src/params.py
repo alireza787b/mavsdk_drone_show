@@ -259,7 +259,21 @@ class Params:
 
     # minimum seconds between successive elections
     SMART_SWARM_LEADER_ELECTION_COOLDOWN_SEC = 30.0
-    SMART_SWARM_LEADER_LOSS_STRATEGY = "upstream_or_hold"
+    # Safe default: retain the assigned leader through a bounded Hold/recovery
+    # window, then remain paused. Legacy election is an explicit opt-in.
+    SMART_SWARM_LEADER_LOSS_STRATEGY = os.getenv(
+        "MDS_SMART_SWARM_LEADER_LOSS_STRATEGY", "hold_recover"
+    ).strip().lower()
+    if SMART_SWARM_LEADER_LOSS_STRATEGY not in {
+        "hold_recover", "upstream_or_hold", "next_hw_id", "hold"
+    }:
+        SMART_SWARM_LEADER_LOSS_STRATEGY = "hold_recover"
+    SMART_SWARM_LEADER_RECOVERY_WAIT_SEC = _safe_float(
+        os.getenv("MDS_SMART_SWARM_LEADER_RECOVERY_WAIT_SEC", "10"), 10.0
+    )
+    SMART_SWARM_LEADER_RECOVERY_STABLE_SEC = _safe_float(
+        os.getenv("MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC", "1"), 1.0
+    )
 
     
     csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)

@@ -668,6 +668,7 @@ class DroneGitStatusResponse(BaseModel):
     git_auth_health_summary: str = ""
     git_auth_health_issues: List[str] = Field(default_factory=list)
     mavlink_runtime: Optional[DroneManagedMavlinkRuntimeResponse] = None
+    smart_swarm_policy: Dict[str, Any] = Field(default_factory=dict)
     connectivity_runtime: Optional[DroneManagedConnectivityRuntimeResponse] = None
     git_sync_runtime: Optional[DroneGitSyncRuntimeResponse] = None
     env_runtime: Optional[DroneEnvRuntimeResponse] = None
@@ -2905,6 +2906,12 @@ class DroneAPIServer:
                 'git_auth_health_summary': git_report.get('git_auth_health_summary', ''),
                 'git_auth_health_issues': git_report.get('git_auth_health_issues', []),
                 'mavlink_runtime': build_mavlink_runtime_summary(Path(BASE_DIR)),
+                'smart_swarm_policy': {
+                    'leader_loss_strategy': Params.SMART_SWARM_LEADER_LOSS_STRATEGY,
+                    'recovery_wait_sec': Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
+                    'recovery_stable_sec': Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
+                    'hard_stale_sec': Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+                },
                 'connectivity_runtime': build_connectivity_runtime_summary(Path(BASE_DIR)),
                 'git_sync_runtime': read_git_sync_runtime_summary(),
                 'env_runtime': build_node_env_summary_safe(),

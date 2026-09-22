@@ -324,6 +324,11 @@ Notes:
 
 **Endpoint:** `GET /api/v1/git/status`
 
+The response also includes `smart_swarm_policy`: the running leader-loss strategy,
+recovery wait/stability times, and hard-stale threshold. Use this read-only
+evidence after a code/settings update; a matching Git revision alone does not
+prove which environment overrides a running node loaded.
+
 **Description:** Get current git status of drone repository
 
 **Response:**

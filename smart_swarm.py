@@ -57,6 +57,7 @@ from smart_swarm_src.session_runtime import SwarmSessionRuntime
 import aiohttp 
 
 from smart_swarm_src.leader_motion import project_leader_motion
+from smart_swarm_src.leader_recovery import LeaderRecoveryWindow
 from smart_swarm_src.failover import choose_leader_loss_response
 from smart_swarm_src.assignment_recovery import LocalRecoveryOverride, recovery_assignment
 from smart_swarm_src.follower_controller import FollowerMotionController
@@ -559,20 +560,69 @@ async def ensure_follower_runtime(drone: System, logger, reason: str) -> bool:
 
 
 async def handle_leader_unavailability(drone: System, logger, reason: str):
-    """Run one failover sequence at a time when leader health is lost."""
+    """Protective Hold, bounded reacquisition, then explicit opt-in failover.
+
+    False leaves the caller paused until Stop/Start or pilot takeover. Merely
+    receiving a late packet must not silently resume an expired session.
+    """
     global LEADER_FAILOVER_IN_PROGRESS, RUNTIME_PHASE, RUNTIME_DETAIL
 
     if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-        return
+        return False
     if LEADER_FAILOVER_IN_PROGRESS:
         logger.debug("Leader failover already in progress (%s).", reason)
-        return
+        return False
 
     LEADER_FAILOVER_IN_PROGRESS = True
-    RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Leader unavailable; recovering the follow chain"
+    RUNTIME_PHASE, RUNTIME_DETAIL = "holding", "Holding — waiting for fresh leader data"
     try:
-        await execute_failsafe(drone, reason=reason)
-        await elect_new_leader()
+        window = LeaderRecoveryWindow(
+            started_at=time.monotonic(),
+            wait_sec=float(Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC),
+            stable_sec=float(Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC),
+        )
+        await execute_failsafe(drone, reason=reason, operation_timeout_sec=2.0)
+        target_version = FORMATION_CONFIG_VERSION
+        while True:
+            now = time.monotonic()
+            own = dict(OWN_STATE)
+            own_valid = validate_own_motion_state(
+                own, updated_monotonic=own.get('updated_monotonic'),
+                now_monotonic=now,
+                max_age_sec=float(Params.SMART_SWARM_OWN_STATE_MAX_AGE_SEC),
+            ).valid and _fresh_own_yaw(own, now) is not None
+            leader_age = now - float(LEADER_STATE.get('update_time', float('-inf')))
+            authority = CONTROL_AUTHORITY
+            hold_confirmed = bool(
+                authority is not None and authority.internal_hold
+                and authority.has_fresh_mode(now=now) and authority.mode == "HOLD"
+                and authority.armed is True and authority.landed == "IN_AIR"
+            )
+            outcome = window.observe(
+                now=now,
+                ready=(hold_confirmed and own_valid
+                       and 0 <= leader_age <= float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC)),
+                cancelled=bool(
+                    authority is None or authority.takeover_reason
+                    or FORMATION_CONFIG_VERSION != target_version
+                ),
+            )
+            if outcome == "recovered":
+                RUNTIME_PHASE, RUNTIME_DETAIL = "acquiring", "Leader data recovered — rejoining smoothly"
+                logger.info("Leader data stable again; retaining assigned leader %s.", LEADER_HW_ID)
+                return True
+            if outcome == "cancelled":
+                return False
+            if outcome == "expired":
+                break
+            await asyncio.sleep(0.1)
+        if Params.SMART_SWARM_LEADER_LOSS_STRATEGY != "hold_recover":
+            await elect_new_leader()
+            return True
+        RUNTIME_PHASE = "holding"
+        RUNTIME_DETAIL = "Paused — leader unavailable. Stop Swarm, then Start to retry. Formation unchanged."
+        logger.warning("Leader recovery window expired; follower paused, saved formation unchanged.")
+        return False
     finally:
         LEADER_FAILOVER_IN_PROGRESS = False
 
@@ -1313,7 +1363,7 @@ async def elect_new_leader():
     
 async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     """
-    Notify the GCS of our updated leader by patching our canonical swarm assignment.
+    Ask the GCS to validate a session-only recovery assignment.
     Returns True if the GCS accepted the change, False otherwise.
     """
     logger = logging.getLogger(__name__)
@@ -1612,13 +1662,15 @@ async def control_loop(drone: System):
                         "No valid leader motion lock for %.3fs; leaving Offboard and starting failover.",
                         current_time - leader_missing_since,
                     )
-                    await handle_leader_unavailability(
+                    recovered = await handle_leader_unavailability(
                         drone,
                         logger,
                         "initial leader motion unavailable",
                     )
                     if IS_LEADER:
                         return
+                    if not recovered:
+                        await asyncio.Event().wait()
                     leader_missing_since = current_time
                     offboard_active = False
                 await asyncio.sleep(loop_interval)
@@ -1630,9 +1682,11 @@ async def control_loop(drone: System):
                     "Leader motion stale for %.3fs; leaving Offboard and starting failover.",
                     leader_age,
                 )
-                await handle_leader_unavailability(drone, logger, "control-loop stale leader motion")
+                recovered = await handle_leader_unavailability(drone, logger, "control-loop stale leader motion")
                 if IS_LEADER:
                     return
+                if not recovered:
+                    await asyncio.Event().wait()
                 offboard_active = False
                 await asyncio.sleep(loop_interval)
                 continue

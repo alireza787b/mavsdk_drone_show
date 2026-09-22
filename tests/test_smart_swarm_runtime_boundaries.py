@@ -489,6 +489,57 @@ async def test_control_loop_fails_over_when_initial_leader_lock_never_arrives(
     assert failover_calls == ["initial leader motion unavailable"]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('scenario', ['recover', 'lost', 'own_stale', 'takeover', 'changed_mode', 'election'])
+async def test_leader_recovery_holds_without_rewriting_roles(swarm_runtime, monkeypatch, scenario):
+    runtime = swarm_runtime
+    clock = {'now': 100.0}
+    original_sleep = asyncio.sleep
+    authority = ControlAuthority()
+    authority.follower_owned = True
+    authority.armed = True
+    authority.landed = 'IN_AIR'
+    authority.internal_hold = True
+    authority.update_mode('HOLD', leader=False, now=100)
+    monkeypatch.setattr(runtime, 'CONTROL_AUTHORITY', authority)
+    monkeypatch.setattr(runtime, 'LEADER_FAILOVER_IN_PROGRESS', False)
+    monkeypatch.setattr(runtime.time, 'monotonic', lambda: clock['now'])
+    monkeypatch.setattr(runtime.Params, 'SMART_SWARM_LEADER_RECOVERY_WAIT_SEC', 3.0)
+    monkeypatch.setattr(runtime.Params, 'SMART_SWARM_LEADER_RECOVERY_STABLE_SEC', 1.0)
+    monkeypatch.setattr(runtime.Params, 'SMART_SWARM_LEADER_LOSS_STRATEGY',
+                        'upstream_or_hold' if scenario == 'election' else 'hold_recover')
+    hold, elect = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(runtime, 'execute_failsafe', hold)
+    monkeypatch.setattr(runtime, 'elect_new_leader', elect)
+    def samples():
+        now = clock['now']
+        runtime.OWN_STATE.update(pos_n=0, pos_e=0, pos_d=-5,
+            vel_n=0, vel_e=0, vel_d=0, yaw_deg=0,
+            updated_monotonic=0 if scenario == 'own_stale' else now,
+            yaw_updated_monotonic=now)
+        authority.update_mode('HOLD', leader=False, now=now)
+        if now >= 100.5 and scenario not in {'lost', 'election'}:
+            runtime.LEADER_STATE['update_time'] = now
+        if now >= 100.8 and scenario in {'takeover', 'changed_mode'}:
+            authority.update_mode('RTL' if scenario == 'takeover' else 'POSITION', leader=False, now=now)
+    async def sleep(seconds):
+        clock['now'] += seconds
+        samples()
+        await original_sleep(0)
+    samples()
+    monkeypatch.setattr(runtime.asyncio, 'sleep', sleep)
+    result = await runtime.handle_leader_unavailability(object(), logging.getLogger(__name__), 'test loss')
+    assert result is (scenario in {'recover', 'election'})
+    hold.assert_awaited_once()
+    assert elect.await_count == (1 if scenario == 'election' else 0)
+    assert runtime.LEADER_HW_ID == '1'
+    assert runtime.IS_LEADER is False
+    assert not runtime.LEADER_FAILOVER_IN_PROGRESS
+    if scenario in {'lost', 'own_stale'}:
+        assert runtime.RUNTIME_PHASE == 'holding'
+        assert 'Stop Swarm' in runtime.RUNTIME_DETAIL
+
+
 class _AwaitableTaskProbe:
     def __init__(self):
         self.cancel_count = 0

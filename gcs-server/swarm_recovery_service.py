@@ -1,9 +1,8 @@
-"""Narrow per-node, capability-authorized failover writeback, not an election."""
+"""Validate session-only failover; automatic recovery never saves the plan."""
 import hmac
 
 from fastapi import HTTPException
 
-from api_routes.swarm import _apply_swarm_assignment_patch
 from smart_swarm_src.assignment_recovery import recovery_assignment
 from smart_swarm_src.failover import choose_leader_loss_response
 from src.smart_swarm_contract import normalize_topology, topology_revision
@@ -30,7 +29,9 @@ async def apply_session_recovery(deps, request, capability):
     own = assignments.get(request.hw_id)
     if own is None:
         raise HTTPException(409, 'Swarm assignment removed')
-    strategy = getattr(deps.Params, 'SMART_SWARM_LEADER_LOSS_STRATEGY', 'upstream_or_hold')
+    strategy = getattr(deps.Params, 'SMART_SWARM_LEADER_LOSS_STRATEGY', 'hold_recover')
+    if strategy == 'hold_recover':
+        raise HTTPException(409, 'Automatic leader changes disabled; retain assignment and hold')
     if request.follow:
         choice = choose_leader_loss_response(request.hw_id, own['follow'], assignments, strategy)
         if choice['action'] != 'follow' or choice['leader_hw_id'] != str(request.follow):
@@ -39,5 +40,8 @@ async def apply_session_recovery(deps, request, capability):
         assignment = recovery_assignment(request.hw_id, request.follow, assignments, strategy=strategy)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    updated = _apply_swarm_assignment_patch(deps, int(request.hw_id), assignment)
-    return {'status': 'success', 'assignment': updated}
+    deps.log_system_event(
+        f"Session recovery validated for hw_id={request.hw_id}: follow={request.follow}; saved formation unchanged",
+        "WARNING", "swarm",
+    )
+    return {'status': 'success', 'assignment': assignment, 'persisted': False}
