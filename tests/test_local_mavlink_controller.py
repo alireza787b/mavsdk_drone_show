@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from types import SimpleNamespace
+import pytest
 from unittest.mock import Mock
 
 from pymavlink import mavutil
@@ -497,3 +498,18 @@ def test_process_attitude_tracks_yaw_rate(mock_drone_config):
 
     assert mock_drone_config.yaw > 0
     assert mock_drone_config.yaw_rate_deg_s > 28.0
+    assert mock_drone_config.attitude_timestamp_ms > 0
+
+
+@pytest.mark.parametrize("yaw", [None, float('nan'), float('inf')])
+def test_invalid_attitude_does_not_refresh_heading_age(mock_drone_config, yaw):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.attitude_timestamp_ms = 123
+    controller.process_attitude(SimpleNamespace(yaw=yaw, yawspeed=0.5))
+    assert mock_drone_config.attitude_timestamp_ms == 123
+
+
+def test_invalid_yaw_rate_is_unavailable_not_nan_or_fake_zero(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    controller.process_attitude(SimpleNamespace(yaw=1.0, yawspeed=float('nan')))
+    assert mock_drone_config.yaw_rate_deg_s is None

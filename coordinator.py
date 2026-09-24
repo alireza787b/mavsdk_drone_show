@@ -198,6 +198,7 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function that continuously schedules missions.
     Notifies the systemd watchdog and logs state changes (not every tick).
     """
+    drone_setup_instance.bind_mission_event_loop()
     # Track last state to implement change-based logging
     last_mission = None
     last_state = None

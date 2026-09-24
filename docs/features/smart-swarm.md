@@ -452,19 +452,50 @@ That makes the controller better suited for:
 - in-flight role changes and offset edits
 - mixed-quality links where short jitter bursts should not immediately create a topology event
 
+### Motion profile and heading freshness
+
+The default horizontal follower ceiling is **5 m/s**; vertical speed remains
+**0.75 m/s**, acceleration **1 m/s²**, and jerk **2 m/s³**. Position gain (0.5),
+velocity damping (0.35), unit velocity feedforward, deadbands, and prediction
+horizon are unchanged. A higher ceiling provides headroom behind a moving
+leader; it does not turn a large stationary position error into a full-speed
+charge. Position correction retains its smooth saturation.
+
+Do not treat 5 m/s as a leader test-speed target. Start with gentle translation
+and stops, leaving space for braking: 5 m/s at 1 m/s² needs at least 12.5 m
+even before jerk ramp, telemetry delay, or aircraft dynamics. Close formations
+need slower leader manoeuvres. In body frame, rotation consumes the same speed
+budget as translation (`speed = yaw rate × offset radius`); at 6 m, 30°/s
+alone needs about 3.14 m/s. Start body-frame testing with slow yaw in place,
+then gentle combined movement. Offset changes use the existing smooth command
+path; there is no collision avoidance.
+
+For a tested deployment-specific profile, set the horizontal speed,
+acceleration, and jerk overrides in [local.env.template](../../tools/local.env.template)
+and restart MDS. Invalid/non-finite/non-positive values fall back to defaults.
+`GET /api/v1/git/status` exposes the effective limits under `smart_swarm_policy`.
+PX4 estimator, preflight, and aircraft limits are not relaxed by these settings.
+
+Both position and heading must have fresh source timestamps. The swarm stream
+and HTTP fallback carry `attitude_timestamp_ms`, refreshed only by valid
+ATTITUDE messages, independently of position and heartbeat traffic. Old or
+missing heading uses the same delayed-source Hold/recovery path, not a new
+operator gate. Update **both nodes** before testing; an old leader without this
+field cannot provide validated heading. Yaw-rate fallback uses heading-source
+time and handles wraparound, not network arrival intervals. Detailed control
+logs include own/target positions and velocity so tracking error can be
+distinguished from command saturation; enable normal PX4 position/estimator
+ULog topics as well before diagnosing real aircraft dynamics.
+
 ### Leader-loss handling
 
-Current default policy: `upstream_or_hold`
-
-If a follower loses its direct leader:
-
-- if the failed leader was itself following another leader, the follower can
-  adopt that upstream leader after revision-safe writeback and NED offset
-  composition; fresh motion and bounded recapture are still required
-- if no safe upstream leader exists, the drone self-promotes to an independent leader and enters `HOLD`
-- if GCS writeback cannot be confirmed, the node holds locally; GCS reporting
-  is not itself flight authority, and a GCS outage alone does not trigger an
-  election while the direct leader stream remains healthy
+Current default policy: `hold_recover`. Delayed motion data first reduces
+following speed. After 2.5 seconds without a fresh usable source, the follower
+enters Hold, keeps its assigned role, and waits up to 10 seconds for recovery.
+One second of stable fresh leader/own data and retained control authority is
+required to rejoin smoothly. If that window expires, it stays paused; use
+**Stop Swarm**, then **Start Smart Swarm** to retry. RTL, Land, disarm, or pilot
+takeover cancels automatic recovery. This never changes the saved formation.
 
 Leader-loss handling now treats both cases as degraded leader health:
 
@@ -472,13 +503,17 @@ Leader-loss handling now treats both cases as degraded leader health:
 - leader transport that still responds while the authoritative motion-source
   timestamp stops advancing
 
-This is safer than the older global “next numeric hw_id” fallback because it stays within the active follow chain instead of jumping across unrelated drones.
-
 Available policy values in [params.py](../../src/params.py):
 
-- `upstream_or_hold` - default, cluster-safe fallback
-- `hold` - always self-promote and hold
+- `hold_recover` - default, bounded recovery without promotion
+- `upstream_or_hold` - opt-in ancestor recovery with composed NED offsets;
+  if no usable upstream leader exists, self-promote locally and Hold
+- `hold` - legacy self-promotion and Hold, not automatic rejoin
 - `next_hw_id` - legacy deterministic behavior, kept only for controlled compatibility
+
+These optional role changes are session-scoped, not saved-plan edits. Set
+`MDS_SMART_SWARM_LEADER_LOSS_STRATEGY` in the existing runtime environment;
+there is no additional dashboard safety-mode switch.
 
 Cycle protection is enforced in two places:
 

@@ -9,6 +9,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm's horizontal follower ceiling is now 5 m/s, with existing
+  1 m/s² acceleration, 2 m/s³ jerk, gains, vertical limit, and hover filtering
+  retained. Validated environment overrides and node policy readback support
+  deployment-specific motion limits without editing source.
+- Leader heading carries an independent ATTITUDE timestamp through streaming
+  and HTTP fallback. Fresh position traffic cannot hide a stale heading;
+  yaw-rate fallback uses source time and control logs expose tracking state.
+- Stop Swarm cancellation now runs on the mission subprocess owner's event
+  loop, preserving safety-handoff reporting and cleanup if the API request
+  is cancelled. This fixes cross-loop failures after SIGTERM.
+
 - Smart Swarm now defaults to bounded Hold/recovery without automatic leader
   promotion. Stable fresh data can resume following within the recovery window;
   expiration requires explicit Stop/Start. Pilot takeover remains authoritative,

@@ -44,6 +44,7 @@ def build_drone_config(follow_value=1):
         baro_timestamp_ms=1234567890123,
         position_source="global_position_int",
         yaw_rate_deg_s=4.5,
+        attitude_timestamp_ms=1234567890110,
         local_position_ned={
             "time_boot_ms": 4567,
             "timestamp_ms": 1234567890123,
@@ -161,6 +162,7 @@ def test_get_swarm_state_exposes_realtime_fields():
     assert state["local_position_timestamp_ms"] == 1234567890123
     assert state["altitude_source"] == "relative_home"
     assert state["yaw_rate_deg_s"] == 4.5
+    assert state["attitude_timestamp_ms"] == 1234567890110
 
 
 def _command_params(*, sim_mode, command_runtime_dir=None):

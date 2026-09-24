@@ -160,6 +160,10 @@ class DroneSetup:
 
         # Track currently running processes {process_key: RunningMissionProcess}
         self.running_processes = {}
+        # The scheduler owns asyncio subprocess transports and their process
+        # lock. API requests arrive on a separate loop and must hand process
+        # cancellation back to this loop instead of awaiting process.wait().
+        self._mission_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.process_lock = asyncio.Lock()  # Ensures concurrency safety around process operations
         self.pending_command_reports = []
         self.command_report_lock = asyncio.Lock()
@@ -875,6 +879,7 @@ class DroneSetup:
         A background task `_monitor_script_process` will watch its completion.
         """
         async with self.process_lock:
+            self.bind_mission_event_loop()
             if self._active_mission_owner_token is not None and not self._can_overlap_leader_role_session():
                 message = (
                     "Another mission process still owns execution state; "
@@ -1832,7 +1837,45 @@ class DroneSetup:
         )
         return (True, message)
 
+    def bind_mission_event_loop(self) -> None:
+        """Register the loop that schedules and owns mission subprocesses."""
+        loop = asyncio.get_running_loop()
+        owner = self._mission_event_loop
+        if owner is not None and owner is not loop and (
+            owner.is_running() or self.running_processes
+        ):
+            raise RuntimeError("Mission execution is already owned by another event loop")
+        self._mission_event_loop = loop
+
     async def cancel_active_command(self, message: str = "Cancel command completed.") -> tuple:
+        """Run cancellation on the mission loop, even when called by the API."""
+        owner = self._mission_event_loop
+        if owner is None or owner is asyncio.get_running_loop():
+            return await self._cancel_active_command_on_mission_loop(message)
+        if not owner.is_running():
+            if self.running_processes:
+                raise RuntimeError("Mission event loop stopped while a process is active")
+            return await self._cancel_active_command_on_mission_loop(message)
+
+        # The API holds the command-state transaction lock while this is
+        # pending. Shield the owner-loop work so request cancellation cannot
+        # release that lock halfway through a SIGTERM and state/report update.
+        owner_result = asyncio.run_coroutine_threadsafe(
+            self._cancel_active_command_on_mission_loop(message), owner
+        )
+        cancelled = False
+        while True:
+            try:
+                result = await asyncio.shield(asyncio.wrap_future(owner_result))
+                if cancelled:
+                    raise asyncio.CancelledError
+                return result
+            except asyncio.CancelledError:
+                if owner_result.done():
+                    raise
+                cancelled = True
+
+    async def _cancel_active_command_on_mission_loop(self, message: str) -> tuple:
         """
         Complete a cancel/clear command without launching a subprocess.
 

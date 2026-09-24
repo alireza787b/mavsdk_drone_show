@@ -315,7 +315,8 @@ class SwarmStateResponse(BaseModel):
     velocity_down: float
     yaw: float
     yaw_deg: float
-    yaw_rate_deg_s: float = 0.0
+    yaw_rate_deg_s: Optional[float] = None
+    attitude_timestamp_ms: int = 0
     telemetry_timestamp_ms: int = 0
     stream_seq: int = 0
     global_position_valid: bool = False
@@ -2911,6 +2912,10 @@ class DroneAPIServer:
                     'recovery_wait_sec': Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
                     'recovery_stable_sec': Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
                     'hard_stale_sec': Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+                    'max_horizontal_speed_m_s': Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S,
+                    'max_vertical_speed_m_s': Params.SMART_SWARM_MAX_VERTICAL_SPEED_M_S,
+                    'max_acceleration_m_s2': Params.SMART_SWARM_MAX_ACCELERATION_M_S2,
+                    'max_jerk_m_s3': Params.SMART_SWARM_MAX_JERK_M_S3,
                 },
                 'connectivity_runtime': build_connectivity_runtime_summary(Path(BASE_DIR)),
                 'git_sync_runtime': read_git_sync_runtime_summary(),

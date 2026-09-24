@@ -295,6 +295,14 @@ class DroneConfig:
         self._state.yaw_rate_deg_s = value
 
     @property
+    def attitude_timestamp_ms(self) -> int:
+        return self._state.attitude_timestamp_ms
+
+    @attitude_timestamp_ms.setter
+    def attitude_timestamp_ms(self, value: int):
+        self._state.attitude_timestamp_ms = value
+
+    @property
     def telemetry_timestamp_ms(self) -> int:
         return self._state.telemetry_timestamp_ms
 

@@ -179,6 +179,17 @@ def validate_leader_motion_sample(
     if not _finite_number(_yaw_value(sample)):
         return _decision(False, "motion_value_invalid", "Leader yaw is not finite.", source)
 
+    attitude = _validate_epoch_source_timestamp(
+        sample.get("attitude_timestamp_ms"),
+        now_epoch_ms=now_epoch_ms,
+        max_source_age_sec=max_source_age_sec,
+        source="attitude",
+        field_name="attitude_timestamp_ms",
+        max_future_skew_sec=max_future_skew_sec,
+    )
+    if not attitude.valid:
+        return attitude
+
     if use_local_ned:
         if sample.get("source_frame") != "local_ned":
             return _decision(

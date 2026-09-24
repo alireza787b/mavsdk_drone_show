@@ -4,12 +4,79 @@ import pytest
 from smart_swarm_src.follower_controller import FollowerMotionController
 from smart_swarm_src.formation_guard import FormationGuard
 from smart_swarm_src.velocity_command_shaper import NedVelocityCommandShaper
+from smart_swarm_src.utils import transform_body_to_nea
 
 
 DT = 1.0 / 15.0
 
 
-def _controller() -> FollowerMotionController:
+def test_five_metre_profile_accelerates_brakes_and_reverses_continuously():
+    controller = _controller(max_horizontal_speed=5.0)
+    velocity = np.zeros(3)
+    acceleration = np.zeros(3)
+    peak = 0.0
+    for i in range(900):
+        target = (1000, 0, -10) if i < 250 else ((6, 0, -10) if i < 550 else (-1000, 0, -10))
+        leader_velocity = (5, 0, 0) if i < 250 else ((0, 0, 0) if i < 550 else (-5, 0, 0))
+        decision = _step(controller, desired=target, leader_velocity=leader_velocity,
+                         own_velocity=velocity, now=10+i*DT)
+        new_velocity = decision.velocity_ned
+        new_acceleration = (new_velocity - velocity) / DT
+        assert np.linalg.norm(new_velocity[:2]) <= 5.0 + 1e-8
+        assert abs(new_velocity[2]) <= 0.75 + 1e-8
+        assert np.linalg.norm(new_acceleration) <= 1.0 + 1e-8
+        assert np.linalg.norm(new_acceleration - acceleration) / DT <= 2.0 + 1e-7
+        assert decision.tracking_allowed  # Distance never aborts acquisition.
+        if i == 549:
+            assert np.linalg.norm(new_velocity) < 0.05
+        peak = max(peak, new_velocity[0])
+        velocity, acceleration = new_velocity.copy(), new_acceleration
+    assert peak > 4.5
+    assert velocity[0] < -4.5
+
+
+def test_five_metre_profile_tracks_field_leader_speed_without_speed_saturation():
+    controller = _controller(max_horizontal_speed=5.0)
+    velocity = np.zeros(3)
+    for i in range(300):
+        decision = _step(controller, leader_velocity=(3.71, 0, 0),
+                         own_velocity=velocity, now=10+i*DT)
+        velocity = decision.velocity_ned
+    assert velocity[0] == pytest.approx(3.71, abs=0.02)
+
+
+def test_five_metre_profile_keeps_noisy_hover_quiet():
+    controller = _controller(max_horizontal_speed=5.0)
+    for i in range(300):
+        noise = 0.08 * np.sin(i * 1.7)
+        decision = _step(controller, desired=(6+noise, noise, -10+noise), now=10+i*DT)
+        assert np.linalg.norm(decision.velocity_ned) < 1e-8
+
+
+def test_body_offset_turns_share_translation_envelope_without_command_jumps():
+    controller = _controller(max_horizontal_speed=5.0)
+    velocity = np.zeros(3)
+    acceleration = np.zeros(3)
+    own = np.array([6.0, 0.0, -10.0])
+    for i in range(600):
+        yaw = i * DT * 5.0  # Slow first-test yaw; six-metre body offset.
+        north, east = transform_body_to_nea(6.0, 0.0, yaw)
+        omega = np.deg2rad(5.0)
+        desired = np.array([3.71*i*DT+north, east, -10.0])
+        decision = _step(controller, desired=desired, own=own,
+                         leader_velocity=(3.71-east*omega, north*omega, 0.0),
+                         own_velocity=velocity, yaw=yaw, now=10+i*DT)
+        new_velocity = decision.velocity_ned
+        new_acceleration = (new_velocity-velocity) / DT
+        assert np.linalg.norm(new_velocity[:2]) <= 5.0 + 1e-8
+        assert np.linalg.norm(new_acceleration) <= 1.0 + 1e-8
+        assert np.linalg.norm(new_acceleration-acceleration)/DT <= 2.0 + 1e-7
+        assert decision.tracking_allowed
+        own += new_velocity*DT
+        velocity, acceleration = new_velocity.copy(), new_acceleration
+
+
+def _controller(max_horizontal_speed=2.0) -> FollowerMotionController:
     return FollowerMotionController(
         position_gain=0.5,
         velocity_gain=0.35,
@@ -27,7 +94,7 @@ def _controller() -> FollowerMotionController:
             target_step_vertical_m=1.5,
         ),
         velocity_shaper=NedVelocityCommandShaper(
-            max_horizontal_speed_m_s=2.0,
+            max_horizontal_speed_m_s=max_horizontal_speed,
             max_vertical_speed_m_s=0.75,
             max_acceleration_m_s2=1.0,
             max_jerk_m_s3=2.0,

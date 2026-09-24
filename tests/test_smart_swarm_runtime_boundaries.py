@@ -143,6 +143,7 @@ def _valid_global_sample(now_ms: int) -> dict:
         "velocity_down": 0.1,
         "yaw_deg": 25.0,
         "yaw_rate_deg_s": 2.0,
+        "attitude_timestamp_ms": now_ms - 100,
         "global_position_valid": True,
         "global_position_timestamp_ms": now_ms - 100,
         "telemetry_timestamp_ms": now_ms - 50,
@@ -286,6 +287,27 @@ def test_leader_motion_confidence_has_full_ramp_and_zero_regions(
     assert swarm_runtime._leader_motion_confidence(1.25) == pytest.approx(0.5)
     assert swarm_runtime._leader_motion_confidence(1.75) == pytest.approx(0.0)
     assert swarm_runtime._leader_motion_confidence(10.0) == pytest.approx(0.0)
+
+
+def test_yaw_rate_fallback_uses_attitude_clock_and_wraps_heading(swarm_runtime):
+    swarm_runtime.LEADER_STATE.update(yaw=359.0, attitude_timestamp_ms=1000,
+                                     update_time=99.0)
+    sample = dict(yaw_deg=1.0, attitude_timestamp_ms=1200, yaw_rate_deg_s=float('nan'))
+    assert swarm_runtime.estimate_yaw_rate_deg_s(sample, 200.0) == pytest.approx(10.0)
+    sample['attitude_timestamp_ms'] = 1000
+    assert swarm_runtime.estimate_yaw_rate_deg_s(sample, 201.0) == 0.0
+
+
+def test_fresh_position_with_old_heading_does_not_replace_leader(swarm_runtime, monkeypatch):
+    now_ms = 1_800_000_000_000
+    monkeypatch.setattr(swarm_runtime, 'time', types.SimpleNamespace(
+        time=lambda: now_ms / 1000.0, monotonic=lambda: 42.0))
+    sample = _valid_global_sample(now_ms)
+    assert swarm_runtime.apply_leader_state_sample(sample, 'websocket')
+    previous = dict(swarm_runtime.LEADER_STATE)
+    sample.update(attitude_timestamp_ms=now_ms - 10_000, stream_seq=8)
+    assert not swarm_runtime.apply_leader_state_sample(sample, 'http')
+    assert swarm_runtime.LEADER_STATE == previous
 
 
 @pytest.mark.asyncio
@@ -520,6 +542,7 @@ async def test_leader_recovery_holds_without_rewriting_roles(swarm_runtime, monk
         authority.update_mode('HOLD', leader=False, now=now)
         if now >= 100.5 and scenario not in {'lost', 'election'}:
             runtime.LEADER_STATE['update_time'] = now
+            runtime.LEADER_STATE['attitude_update_time'] = now
         if now >= 100.8 and scenario in {'takeover', 'changed_mode'}:
             authority.update_mode('RTL' if scenario == 'takeover' else 'POSITION', leader=False, now=now)
     async def sleep(seconds):

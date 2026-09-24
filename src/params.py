@@ -69,6 +69,15 @@ def _env_flag(name: str, default: bool) -> bool:
     return default
 
 
+def _positive_env_float(name: str, default: float) -> float:
+    """Load a motion limit without allowing non-finite/disabled envelopes."""
+    value = _safe_float(os.environ.get(name, str(default)), default)
+    if not math.isfinite(value) or value <= 0:
+        logger.warning("Invalid positive motion limit %s=%r; using %s", name, value, default)
+        return default
+    return value
+
+
 # Fleet Ops verification starts immediately after asynchronous UPDATE_CODE
 # dispatch, so its budget covers the node's complete sync/reconcile/restart
 # lifecycle rather than only the final git-status request. Keep this default in
@@ -237,10 +246,13 @@ class Params:
     SMART_SWARM_POSITION_GAIN = 0.5
     SMART_SWARM_KV = 0.35
     SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD = 1.0
-    SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S = 2.0
+    SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S = _positive_env_float(
+        'MDS_SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S', 5.0)
     SMART_SWARM_MAX_VERTICAL_SPEED_M_S = 0.75
-    SMART_SWARM_MAX_ACCELERATION_M_S2 = 1.0
-    SMART_SWARM_MAX_JERK_M_S3 = 2.0
+    SMART_SWARM_MAX_ACCELERATION_M_S2 = _positive_env_float(
+        'MDS_SMART_SWARM_MAX_ACCELERATION_M_S2', 1.0)
+    SMART_SWARM_MAX_JERK_M_S3 = _positive_env_float(
+        'MDS_SMART_SWARM_MAX_JERK_M_S3', 2.0)
     SMART_SWARM_MAX_COMMAND_DT_SEC = 0.1
     SMART_SWARM_MAX_YAW_RATE_DEG_S = 30.0
     SMART_SWARM_CAPTURE_HORIZONTAL_M = 2.0

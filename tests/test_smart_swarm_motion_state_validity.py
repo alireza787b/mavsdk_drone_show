@@ -11,6 +11,16 @@ from smart_swarm_src.motion_state_validity import (
 NOW_MS = 1_800_000_000_000
 
 
+@pytest.mark.parametrize('timestamp', [None, 0, NOW_MS - 10_000, NOW_MS + 1000])
+@pytest.mark.parametrize('local', [False, True])
+def test_fresh_position_cannot_refresh_missing_or_stale_heading(timestamp, local):
+    sample = (_local_sample if local else _global_sample)(attitude_timestamp_ms=timestamp)
+    result = (_validate_local if local else _validate_global)(sample)
+    assert not result.valid
+    assert result.source == 'attitude'
+    assert 'attitude_timestamp_ms' in result.reason
+
+
 def _global_sample(**overrides):
     sample = {
         "hw_id": 1,
@@ -21,6 +31,7 @@ def _global_sample(**overrides):
         "velocity_east": -0.2,
         "velocity_down": 0.0,
         "yaw_deg": 42.0,
+        "attitude_timestamp_ms": NOW_MS - 100,
         "global_position_valid": True,
         "global_position_timestamp_ms": NOW_MS - 100,
         "source_frame": "local_ned",
@@ -39,6 +50,7 @@ def _local_sample(**overrides):
         "local_velocity_east": -0.2,
         "local_velocity_down": 0.0,
         "yaw_deg": 42.0,
+        "attitude_timestamp_ms": NOW_MS - 100,
         "source_frame": "local_ned",
         "source_time_boot_ms": 54_321,
         "local_position_timestamp_ms": NOW_MS - 100,

@@ -24,6 +24,7 @@ import sys
 import logging
 import time
 import asyncio
+import math
 import csv
 import subprocess
 import socket
@@ -252,18 +253,19 @@ def estimate_yaw_rate_deg_s(sample: dict, measurement_time: float) -> float:
     streamed = sample.get("yaw_rate_deg_s", None)
     if streamed is not None:
         try:
-            return float(streamed)
+            if math.isfinite(float(streamed)):
+                return float(streamed)
         except (TypeError, ValueError):
             pass
 
     previous_yaw = LEADER_STATE.get("yaw")
-    previous_time = LEADER_STATE.get("update_time")
+    previous_time = LEADER_STATE.get("attitude_timestamp_ms")
     current_yaw = float(sample.get("yaw_deg", sample.get("yaw", 0.0)))
 
     if previous_yaw is None or previous_time is None:
         return 0.0
 
-    dt = measurement_time - previous_time
+    dt = (float(sample['attitude_timestamp_ms']) - previous_time) / 1000.0
     if dt <= 0:
         return 0.0
 
@@ -357,8 +359,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         return False
 
     source_update_monotonic = received_monotonic - float(validity.age_sec or 0.0)
-    # Receipt time is used only for yaw-rate differencing. Position prediction
-    # remains anchored to the authoritative source age, without a second EKF.
+    # Position prediction remains anchored to position-source age. Heading
+    # differencing uses its own source clock, never transport jitter.
     measurement_time = received_monotonic
 
     stream_seq = int(sample.get('stream_seq', 0) or 0)
@@ -404,6 +406,9 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         **measurement,
         'yaw': yaw_deg,
         'yaw_rate_deg_s': yaw_rate_deg_s,
+        'attitude_timestamp_ms': int(sample['attitude_timestamp_ms']),
+        'attitude_update_time': received_monotonic - max(
+            0.0, (received_at_ms - int(sample['attitude_timestamp_ms'])) / 1000.0),
         'update_time': source_update_monotonic,
         'received_monotonic': received_monotonic,
         'stream_seq': stream_seq,
@@ -591,7 +596,9 @@ async def handle_leader_unavailability(drone: System, logger, reason: str):
                 now_monotonic=now,
                 max_age_sec=float(Params.SMART_SWARM_OWN_STATE_MAX_AGE_SEC),
             ).valid and _fresh_own_yaw(own, now) is not None
-            leader_age = now - float(LEADER_STATE.get('update_time', float('-inf')))
+            leader_age = now - min(
+                float(LEADER_STATE.get('update_time', float('-inf'))),
+                float(LEADER_STATE.get('attitude_update_time', float('-inf'))))
             authority = CONTROL_AUTHORITY
             hold_confirmed = bool(
                 authority is not None and authority.internal_hold
@@ -1676,7 +1683,9 @@ async def control_loop(drone: System):
                 await asyncio.sleep(loop_interval)
                 continue
 
-            leader_age = current_time - float(LEADER_STATE['update_time'])
+            leader_age = current_time - min(
+                float(LEADER_STATE['update_time']),
+                float(LEADER_STATE.get('attitude_update_time', float('-inf'))))
             if leader_age > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC):
                 logger.warning(
                     "Leader motion stale for %.3fs; leaving Offboard and starting failover.",
@@ -1711,7 +1720,7 @@ async def control_loop(drone: System):
                 applied_config_version = FORMATION_CONFIG_VERSION
                 controller.require_new_capture()
                 logger.info(
-                    "Follower motion suspended for bounded formation reconfiguration (version=%s).",
+                    "Follower smoothly acquiring updated formation (version=%s).",
                     applied_config_version,
                 )
 
@@ -1782,12 +1791,17 @@ async def control_loop(drone: System):
                 log("Follower motion state: %s — %s", decision.status, decision.detail)
                 motion_status = decision.status
             logger.debug(
-                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs confidence=%.2f requested=%s",
+                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs confidence=%.2f requested=%s own_pos=%s own_vel=%s target_pos=%s error_xy=%.3f error_z=%.3f",
                 decision.velocity_ned,
                 decision.yaw_deg,
                 leader_age,
                 decision.confidence,
                 decision.requested_velocity_ned,
+                own_position,
+                own_velocity,
+                desired_position,
+                decision.horizontal_error_m,
+                decision.vertical_error_m,
             )
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:

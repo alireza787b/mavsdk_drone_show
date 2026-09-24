@@ -1,5 +1,6 @@
 #src\local_mavlink_controller.py
 import logging
+import math
 import threading
 import time
 from collections import OrderedDict
@@ -804,9 +805,15 @@ class LocalMavlinkController:
         """
         Process the ATTITUDE message and update the yaw value.
         """
-        if msg.yaw is not None:
+        if msg.yaw is not None and math.isfinite(msg.yaw):
             self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
-            self.drone_config.yaw_rate_deg_s = float(getattr(msg, 'yawspeed', 0.0) or 0.0) * (180.0 / 3.141592653589793)
+            yaw_rate = getattr(msg, 'yawspeed', None)
+            self.drone_config.yaw_rate_deg_s = (
+                math.degrees(yaw_rate) if yaw_rate is not None and math.isfinite(yaw_rate) else None
+            )
+            # Only ATTITUDE may refresh heading age. Position/heartbeat traffic
+            # must not make an old body-frame heading look current.
+            self.drone_config.attitude_timestamp_ms = int(time.time() * 1000)
             self.log_debug(f"Updated yaw to: {self.drone_config.yaw}")
         else:
             logging.error('Received ATTITUDE message with invalid data')
