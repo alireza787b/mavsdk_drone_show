@@ -326,6 +326,9 @@ Notes:
 
 The response also includes `smart_swarm_policy`: the running leader-loss strategy,
 recovery wait/stability times, and hard-stale threshold. Use this read-only
+evidence together with its horizontal/vertical speed, acceleration, and jerk
+limits (`max_horizontal_speed_m_s`, `max_vertical_speed_m_s`,
+`max_acceleration_m_s2`, `max_jerk_m_s3`). Use the effective running values as
 evidence after a code/settings update; a matching Git revision alone does not
 prove which environment overrides a running node loaded.
 
@@ -515,6 +518,16 @@ environment settings, GCS routes, MCP tools, and error mapping.
 ---
 
 ### 9. Get Swarm Data
+
+The live motion routes are `GET /api/v1/swarm/state` and `WS /ws/swarm-state`.
+They carry independent `global_position_timestamp_ms` and
+`attitude_timestamp_ms` (companion receipt epoch milliseconds). Only a valid
+ATTITUDE message refreshes heading age; heartbeat/position traffic does not.
+`yaw_rate_deg_s` is nullable when unavailable, allowing the follower to derive
+rate from successive heading-source timestamps. Both transports preserve the
+same fields. Smart Swarm requires fresh finite position and heading; mixed
+versions missing the attitude timestamp must be synchronized before testing.
+See [Smart Swarm motion policy](../features/smart-swarm.md#motion-profile-and-heading-freshness).
 
 **Endpoint:** `GET /api/v1/swarm/config`
 
