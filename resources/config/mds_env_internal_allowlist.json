@@ -3,18 +3,6 @@
   "description": "Process-only MDS_* variables that are intentionally not operator-editable registry entries.",
   "rules": [
     {
-      "pattern": "MDS_BORROW_MAVSDK_SERVER",
-      "domain": "runtime",
-      "scope": "process",
-      "reason": "Mission-supervisor child-process ownership hint; never an operator setting."
-    },
-    {
-      "pattern": "MDS_SWARM_CONTEXT_FD",
-      "domain": "runtime",
-      "scope": "process",
-      "reason": "Inherited session-context file descriptor supplied by the mission supervisor, not a persisted setting."
-    },
-    {
       "pattern": "MDS_ASKPASS_*",
       "domain": "git",
       "scope": "process",
@@ -52,6 +40,18 @@
     }
   ],
   "keys": [
+    {
+      "name": "MDS_BORROW_MAVSDK_SERVER",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Mission-supervisor child-process ownership hint; never an operator setting."
+    },
+    {
+      "name": "MDS_SWARM_CONTEXT_FD",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited session-context file descriptor supplied by the mission supervisor, not a persisted setting."
+    },
     {
       "name": "MDS_ACTION_RESULT",
       "domain": "runtime",
