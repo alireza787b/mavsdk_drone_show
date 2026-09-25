@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm runtime confirmations now name their exact targets and explain
+  Hold/Land/RTL behavior. Ambiguous or stale cluster selections fail closed,
+  staged formation edits cannot silently retarget recovery commands, and
+  targets changing during confirmation require a fresh review.
 - Smart Swarm's horizontal follower ceiling is now 5 m/s, with existing
   1 m/s² acceleration, 2 m/s³ jerk, gains, vertical limit, and hover filtering
   retained. Validated environment overrides and node policy readback support

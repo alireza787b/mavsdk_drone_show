@@ -217,6 +217,12 @@ function SwarmDesign() {
     () => buildSwarmViewModel(workingAssignments, configData),
     [configData, workingAssignments]
   );
+  // Runtime recovery targets must reflect the saved formation, not a staged
+  // role/cluster edit that has never reached the aircraft.
+  const runtimeViewModel = useMemo(
+    () => buildSwarmViewModel(baselineAssignments, configData),
+    [baselineAssignments, configData]
+  );
   const dirtyIds = useMemo(
     () => getDirtyAssignmentIds(workingAssignments, baselineAssignments),
     [baselineAssignments, workingAssignments]
@@ -961,7 +967,7 @@ function SwarmDesign() {
       </section>
 
       <SwarmRuntimeControls
-        viewModel={viewModel}
+        viewModel={runtimeViewModel}
         selectedDroneId={selectedDroneId}
         selectedClusterId={selectedClusterId}
         dirtyIds={dirtyIds}

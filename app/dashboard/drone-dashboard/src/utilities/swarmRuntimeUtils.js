@@ -23,7 +23,7 @@ export const SWARM_RUNTIME_ACTIONS = {
     label: 'Stop Swarm (Hold)',
     operatorLabel: 'Stop Smart Swarm (Hold)',
     tone: 'secondary',
-    description: 'Pause following and hold the selected drones.',
+    description: 'End following and command PX4 Hold; airborne state is required.',
   },
   LAND: {
     key: 'LAND',
@@ -39,7 +39,7 @@ export const SWARM_RUNTIME_ACTIONS = {
     label: 'RTL Swarm',
     operatorLabel: 'RTL Swarm',
     tone: 'warning',
-    description: 'Override the current swarm behavior and return the selected drones to launch.',
+    description: 'End following and command each selected drone to use its PX4 Return settings.',
   },
 };
 
@@ -79,7 +79,18 @@ export function resolveSwarmRuntimeTargets(
     };
   }
 
-  const selectedDrone = (selectedDroneId && dronesById[selectedDroneId]) || drones[0];
+  // An explicit selection that disappeared must not silently become drone 1.
+  const selectedDrone = selectedDroneId ? (dronesById[selectedDroneId] || null) : drones[0];
+
+  if (!selectedDrone) {
+    return {
+      selectedDrone: null,
+      cluster: null,
+      targetIds: [],
+      scopeLabel: 'Selected drone is unavailable',
+      targetSummary: 'Select a current drone before issuing a Smart Swarm command.',
+    };
+  }
 
   if (scope === SWARM_RUNTIME_SCOPE.DRONE) {
     return {
@@ -91,12 +102,12 @@ export function resolveSwarmRuntimeTargets(
     };
   }
 
+  // "All" and a stale/invalid explicit cluster are never command targets.
+  // With no explicit cluster, only the selected drone's saved cluster qualifies.
+  const clusterId = selectedClusterId || selectedDrone.clusterId;
   const selectedCluster = clusters.find(
-    (candidate) => candidate.id === selectedClusterId && candidate.type === 'cluster'
-  )
-    || clusters.find((candidate) => candidate.id === selectedDrone?.clusterId && candidate.type === 'cluster')
-    || clusters.find((candidate) => candidate.type === 'cluster')
-    || null;
+    (candidate) => candidate.id === clusterId && candidate.type === 'cluster'
+  ) || null;
 
   const targetIds = selectedCluster?.drones?.map((drone) => drone.hw_id) || [];
   const count = targetIds.length;
@@ -110,7 +121,7 @@ export function resolveSwarmRuntimeTargets(
       : `${selectedDrone?.title || 'Selected drone'} has no valid executable cluster`,
     targetSummary: selectedCluster
       ? `${selectedCluster.subtitle} · ${count} target drone${count === 1 ? '' : 's'}`
-      : 'Resolve follow-chain warnings before sending cluster-scoped Smart Swarm commands.',
+      : 'Select an executable cluster before sending cluster-scoped Smart Swarm commands.',
   };
 }
 

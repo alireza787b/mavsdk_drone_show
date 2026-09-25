@@ -86,8 +86,16 @@ describe('swarmRuntimeUtils', () => {
 
     expect(resolveSwarmRuntimeTargets(invalidViewModel, SWARM_RUNTIME_SCOPE.CLUSTER, '1')).toMatchObject({
       targetIds: [],
-      targetSummary: 'Resolve follow-chain warnings before sending cluster-scoped Smart Swarm commands.',
+      targetSummary: 'Select an executable cluster before sending cluster-scoped Smart Swarm commands.',
     });
+  });
+
+  test('ambiguous, stale, and missing explicit selections never target another drone or cluster', () => {
+    const viewModel = buildSwarmViewModel(assignments, config);
+
+    expect(resolveSwarmRuntimeTargets(viewModel, SWARM_RUNTIME_SCOPE.CLUSTER, '2', 'all').targetIds).toEqual([]);
+    expect(resolveSwarmRuntimeTargets(viewModel, SWARM_RUNTIME_SCOPE.CLUSTER, '2', 'missing').targetIds).toEqual([]);
+    expect(resolveSwarmRuntimeTargets(viewModel, SWARM_RUNTIME_SCOPE.DRONE, 'missing').targetIds).toEqual([]);
   });
 
   test('buildSwarmRuntimeCommand returns the canonical selected-target envelope', () => {
@@ -96,6 +104,13 @@ describe('swarmRuntimeUtils', () => {
       trigger_time: 0,
       target_drone_ids: ['2', '3'],
       operator_label: 'Stop Smart Swarm (Hold)',
+    });
+    expect(buildSwarmRuntimeCommand(SWARM_RUNTIME_ACTIONS.LAND.key, ['1', '2']).mission_type).toBe(101);
+    expect(buildSwarmRuntimeCommand(SWARM_RUNTIME_ACTIONS.RTL.key, ['1', '2'])).toEqual({
+      mission_type: 104,
+      trigger_time: 0,
+      target_drone_ids: ['1', '2'],
+      operator_label: 'RTL Swarm',
     });
   });
 

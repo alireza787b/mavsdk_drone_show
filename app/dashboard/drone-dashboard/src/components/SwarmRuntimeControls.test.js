@@ -41,6 +41,18 @@ const leaderDrone = {
   frame: 'ned',
 };
 
+const followerDrone = {
+  hw_id: '2',
+  title: 'Follower 2',
+  clusterId: 'cluster-1',
+  role: 'follower',
+  warnings: [],
+  hasBlockingWarnings: false,
+  follow: '1',
+  frame: 'ned',
+  offsetSummary: 'North +6.0 m',
+};
+
 const viewModel = {
   drones: [leaderDrone],
   dronesById: {
@@ -56,6 +68,19 @@ const viewModel = {
       drones: [leaderDrone],
     },
   ],
+};
+
+const twoDroneViewModel = {
+  drones: [leaderDrone, followerDrone],
+  dronesById: { '1': leaderDrone, '2': followerDrone },
+  clusters: [{
+    id: 'cluster-1',
+    type: 'cluster',
+    title: 'Cluster 1',
+    subtitle: 'Leader and follower',
+    leaderId: '1',
+    drones: [leaderDrone, followerDrone],
+  }],
 };
 
 function buildAirborneTelemetry() {
@@ -147,5 +172,87 @@ describe('SwarmRuntimeControls', () => {
     await waitFor(() => {
       expect(screen.getByText('Monitor: Start Smart Swarm')).toBeInTheDocument();
     });
+  });
+
+  it('defaults to one drone and requires an explicit cluster choice for both-drone RTL', async () => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'rtl-1' });
+    render(
+      <CommandActivityProvider>
+        <SwarmRuntimeControls viewModel={twoDroneViewModel} selectedDroneId="1" selectedClusterId="cluster-1" />
+      </CommandActivityProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
+    expect(within(screen.getByRole('dialog')).getByText(/1 target drone: Leader 1/)).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /use selected cluster runtime scope/i }));
+    fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/2 target drones: Leader 1/)).toHaveTextContent('Follower 2 (Drone 2)');
+    expect(within(dialog).getByText(/do not return as a coordinated formation/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: /rtl swarm/i }));
+
+    await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ mission_type: 104, target_drone_ids: ['1', '2'] }),
+      expect.any(Object)
+    ));
+  });
+
+  it('refuses to dispatch when confirmed targets change after the review opened', async () => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'rtl-2' });
+    const { rerender } = render(
+      <CommandActivityProvider>
+        <SwarmRuntimeControls viewModel={twoDroneViewModel} selectedDroneId="1" selectedClusterId="cluster-1" />
+      </CommandActivityProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
+    rerender(
+      <CommandActivityProvider>
+        <SwarmRuntimeControls viewModel={twoDroneViewModel} selectedDroneId="2" selectedClusterId="cluster-1" />
+      </CommandActivityProvider>
+    );
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /rtl swarm/i }));
+
+    expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['Stop Swarm (Hold)', 102, /must be airborne/i],
+    ['Land Swarm', 101, /land at its current position/i],
+  ])('confirms and dispatches %s to the exact selected cluster', async (label, missionType, explanation) => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'recovery-1' });
+    const onReviewSelection = jest.fn();
+    const onOpenMissionConfig = jest.fn();
+    render(
+      <CommandActivityProvider>
+        <SwarmRuntimeControls
+          viewModel={twoDroneViewModel}
+          selectedDroneId="1"
+          selectedClusterId="cluster-1"
+          onReviewSelection={onReviewSelection}
+          onOpenMissionConfig={onOpenMissionConfig}
+        />
+      </CommandActivityProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /use selected cluster runtime scope/i }));
+    fireEvent.click(screen.getByRole('button', { name: /review leader/i }));
+    fireEvent.click(screen.getByRole('button', { name: /mission config \(leader\)/i }));
+    expect(onReviewSelection).toHaveBeenCalledWith('1');
+    expect(onOpenMissionConfig).toHaveBeenCalledWith('1');
+
+    const actionName = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    fireEvent.click(screen.getByRole('button', { name: actionName }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(explanation)).toBeInTheDocument();
+    expect(within(dialog).getByText(/2 target drones: Leader 1/)).toHaveTextContent('Follower 2 (Drone 2)');
+    fireEvent.click(within(dialog).getByRole('button', { name: actionName }));
+
+    await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ mission_type: missionType, target_drone_ids: ['1', '2'] }),
+      expect.any(Object)
+    ));
   });
 });

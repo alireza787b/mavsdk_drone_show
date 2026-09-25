@@ -93,7 +93,7 @@ const SwarmRuntimeControls = ({
 }) => {
   const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
   const [pendingActionKey, setPendingActionKey] = useState(null);
-  const [confirmActionKey, setConfirmActionKey] = useState(null);
+  const [confirmRequest, setConfirmRequest] = useState(null);
   const { commandLifecycleCallbacks } = useCommandActivity();
 
   const {
@@ -148,7 +148,7 @@ const SwarmRuntimeControls = ({
     SWARM_RUNTIME_ACTIONS.LAND,
     SWARM_RUNTIME_ACTIONS.RTL,
   ];
-  const confirmAction = confirmActionKey ? SWARM_RUNTIME_ACTIONS[confirmActionKey] : null;
+  const confirmAction = confirmRequest ? SWARM_RUNTIME_ACTIONS[confirmRequest.actionKey] : null;
 
   const handleAction = (actionKey) => {
     const action = SWARM_RUNTIME_ACTIONS[actionKey];
@@ -166,31 +166,53 @@ const SwarmRuntimeControls = ({
       return;
     }
 
-    setConfirmActionKey(actionKey);
+    setConfirmRequest({
+      actionKey,
+      scope,
+      scopeLabel,
+      targetSummary,
+      targetIds: [...targetIds],
+      targetNames: targetDrones.map((drone) => {
+        const hardwareLabel = formatDroneLabel(drone.hw_id);
+        return drone.title === hardwareLabel ? hardwareLabel : `${drone.title} (${hardwareLabel})`;
+      }),
+    });
   };
 
   const submitConfirmedAction = async () => {
     const action = confirmAction;
-    const actionKey = confirmActionKey;
-    if (!action || !actionKey) {
+    const request = confirmRequest;
+    if (!action || !request) {
       return;
     }
 
-    setConfirmActionKey(null);
-    setPendingActionKey(actionKey);
+    setConfirmRequest(null);
+    if (scope !== request.scope || targetIds.join(',') !== request.targetIds.join(',')) {
+      toast.error('Smart Swarm targets changed. Review the scope and confirm again.');
+      return;
+    }
+    if (request.actionKey === 'START' && startBlockerReason) {
+      toast.error(startBlockerReason);
+      return;
+    }
+
+    setPendingActionKey(request.actionKey);
     try {
-      const commandData = buildSwarmRuntimeCommand(actionKey, targetIds);
+      const commandData = buildSwarmRuntimeCommand(request.actionKey, request.targetIds);
       commandData.uiMeta = {
         operatorLabel: action.operatorLabel,
-        targetLabel: scopeLabel,
-        targetDescriptor: targetSummary,
+        targetLabel: request.scopeLabel,
+        targetDescriptor: request.targetSummary,
       };
       await submitCommandWithLifecycleFeedback(commandData, {
         ...commandLifecycleCallbacks,
       });
     } catch (error) {
       console.error(`Failed to submit ${action.label}:`, error);
-      toast.error(`Failed to submit ${action.label}.`);
+      const detail = error?.response?.data?.detail;
+      toast.error(typeof detail === 'string' && detail.trim()
+        ? `${action.label} was not submitted: ${detail}`
+        : `${action.label} was not submitted. Check the GCS connection and try again.`);
     } finally {
       setPendingActionKey(null);
     }
@@ -208,7 +230,7 @@ const SwarmRuntimeControls = ({
           <StatusBadge tone={targetIds.length > 0 ? 'info' : 'warning'}>
             {targetIds.length} target{targetIds.length === 1 ? '' : 's'}
           </StatusBadge>
-          {startBlockerReason ? <StatusBadge tone="danger">Blocked</StatusBadge> : <StatusBadge tone="success">Ready</StatusBadge>}
+          {startBlockerReason ? <StatusBadge tone="danger">Start blocked</StatusBadge> : <StatusBadge tone="success">Start available</StatusBadge>}
         </div>
       </div>
 
@@ -267,7 +289,12 @@ const SwarmRuntimeControls = ({
         ) : null}
         {hasAnalysisOnlySelection ? (
           <div className="swarm-runtime-target__note">
-            &quot;All executable clusters&quot; is analysis-only. Cluster runtime scope falls back to the selected drone&apos;s executable cluster, or the first executable cluster if none is selected.
+            &quot;All executable clusters&quot; is analysis-only. Choose one executable cluster before sending a cluster-scoped command.
+          </div>
+        ) : null}
+        {scope === SWARM_RUNTIME_SCOPE.CLUSTER && selectedClusterId && selectedClusterId !== 'all' && !selectedCluster ? (
+          <div className="swarm-runtime-target__note warning">
+            This analysis cluster is not an executable saved cluster. Select a saved cluster before sending a cluster command.
           </div>
         ) : null}
         {hasExplicitClusterOverride ? (
@@ -395,22 +422,25 @@ const SwarmRuntimeControls = ({
 
       <ConfirmDialog
         open={Boolean(confirmAction)}
-        title={confirmAction ? `${confirmAction.label} ${scopeLabel}?` : 'Confirm Smart Swarm action'}
+        title={confirmAction ? `${confirmAction.label} ${confirmRequest.scopeLabel}?` : 'Confirm Smart Swarm action'}
         message={(
           <div className="swarm-confirm-summary">
-            <p>{targetSummary}</p>
+            <p>{confirmRequest?.targetSummary}</p>
             <ul>
-              <li>{targetIds.length} target drone{targetIds.length === 1 ? '' : 's'} in this scope</li>
-              <li>Leader jog and manual movement keep the swarm session active.</li>
-              <li>Land, RTL, or Stop Swarm ends following for the selected scope.</li>
+              <li>{confirmRequest?.targetIds.length} target drone{confirmRequest?.targetIds.length === 1 ? '' : 's'}: {confirmRequest?.targetNames.join(', ')}</li>
+              {confirmRequest?.actionKey === 'START' && <li>Starts following only; it does not arm or take off.</li>}
+              {confirmRequest?.actionKey === 'STOP_HOLD' && <li>Ends following and commands PX4 Hold. Each selected drone must be airborne; start Smart Swarm again to resume following.</li>}
+              {confirmRequest?.actionKey === 'LAND' && <li>Ends following and commands each selected drone to land at its current position.</li>}
+              {confirmRequest?.actionKey === 'RTL' && <li>Ends following and commands each selected drone to use its own PX4 Return settings. They do not return as a coordinated formation and may climb or take different paths.</li>}
+              {confirmRequest?.actionKey === 'RTL' && <li>MDS RTL requires a working link and PX4 return readiness. Keep the radios available for takeover.</li>}
             </ul>
           </div>
         )}
         confirmLabel={confirmAction?.label || 'Confirm'}
         busy={pendingActionKey !== null}
-        tone={confirmActionKey === 'LAND' ? 'danger' : 'neutral'}
+        tone={confirmRequest?.actionKey === 'LAND' ? 'danger' : 'neutral'}
         onConfirm={submitConfirmedAction}
-        onCancel={() => setConfirmActionKey(null)}
+        onCancel={() => setConfirmRequest(null)}
       />
     </section>
   );

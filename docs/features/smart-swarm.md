@@ -133,6 +133,22 @@ The runtime panel supports:
 - `Selected Cluster`
 
 Specific cluster selections in `Formation Analysis` also drive the cluster-scoped runtime target. The `All executable clusters` option is analysis-only and does not issue one command across the full fleet.
+The runtime panel defaults to `Selected Drone`, so choose `Selected Cluster`
+and verify the named target list in the confirmation when both aircraft should
+receive Hold, Land, or RTL. An ambiguous, stale, or non-executable cluster
+selection blocks cluster commands instead of silently choosing another cluster.
+The runtime preview/targets use the saved assignment; unsaved formation edits
+do not silently change a recovery target set.
+
+`Stop Swarm (Hold)` ends following and commands PX4 Hold on each selected
+airborne drone; resuming requires an explicit Start. `Land Swarm` commands each
+selected drone to land at its current position. `RTL Swarm` ends following and
+commands each selected drone's own PX4 Return mode. It is **not** a coordinated
+formation return: PX4 may climb, choose different paths/destinations, or reject
+Return if its position/home requirements are unmet. MDS recovery commands
+require a working data link and per-aircraft acceptance, so monitor the tracked
+result for every target and keep the RC takeover path available. Review each
+aircraft's RTL configuration and landing separation before flight.
 
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
 
