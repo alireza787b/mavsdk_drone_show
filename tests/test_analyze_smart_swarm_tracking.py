@@ -1,11 +1,14 @@
 import asyncio
 import copy
 import time
+from types import SimpleNamespace
 
 import pytest
 
 from tools.analyze_smart_swarm_tracking import (
     FieldRehearsalClient,
+    cluster_motion_confirmed,
+    measured_jog_speed,
     build_precision_move_payload,
     build_staging_move,
     build_temporary_swarm_resource,
@@ -17,6 +20,21 @@ from tools.analyze_smart_swarm_tracking import (
     restore_swarm_resource,
     wait_for_advancing_fresh_streams,
 )
+
+
+def test_motion_requires_all_role_acknowledgements_not_mission_ids():
+    assert not cluster_motion_confirmed({'state': 'starting', 'active_hw_ids': ['1', '2']}, [1, 2])
+    assert not cluster_motion_confirmed({'state': 'active', 'active_hw_ids': ['1']}, [1, 2])
+    assert cluster_motion_confirmed({'state': 'settling', 'active_hw_ids': ['2', '1']}, [1, 2])
+
+
+def test_jog_speed_uses_full_windows_and_excludes_capture_and_land():
+    def sample(t, n, stage='leader_north_jog'):
+        return SimpleNamespace(stage=stage, sample_time_s=t, leader_world_n=n, leader_world_e=0)
+    assert measured_jog_speed([sample(0, 0), sample(.5, 3)]) is None
+    rows = [sample(0, 0), sample(.5, 3), sample(1, 6), sample(1.5, 9), sample(2, 12)]
+    rows.append(sample(3, 100, 'land'))
+    assert measured_jog_speed(rows) == pytest.approx(6)
 
 
 @pytest.mark.parametrize('speed', [1.0, 3.0, 5.0])

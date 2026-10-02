@@ -119,6 +119,34 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def cluster_motion_confirmed(runtime: dict[str, Any], ids: list[int]) -> bool:
+    """Telemetry mission IDs alone do not acknowledge the session barrier."""
+    return (runtime.get("state") in {"active", "settling"}
+            and set(runtime.get("active_hw_ids", [])) == {str(i) for i in ids})
+
+
+def measured_jog_speed(records: list[TrackingSample], *, window_sec: float = 1.0) -> float | None:
+    """Maximum window-averaged horizontal speed, not an instantaneous sensor speed.
+
+    Use a one-second window to avoid interpreting repeated/quantized position
+    samples as physical acceleration. Short moves may have no complete window.
+    """
+    maximum = None
+    for stage in {r.stage for r in records if r.stage.startswith("leader_north_jog")}:
+        rows = [r for r in records if r.stage == stage]
+        start = 0
+        for end in range(1, len(rows)):
+            while start + 1 < end and rows[end].sample_time_s - rows[start + 1].sample_time_s >= window_sec:
+                start += 1
+            dt = rows[end].sample_time_s - rows[start].sample_time_s
+            if dt < window_sec:
+                continue
+            speed = math.hypot(rows[end].leader_world_n - rows[start].leader_world_n,
+                               rows[end].leader_world_e - rows[start].leader_world_e) / dt
+            maximum = speed if maximum is None else max(maximum, speed)
+    return maximum
+
+
 def latlon_to_ne(lat_deg: float, lon_deg: float, ref_lat_deg: float, ref_lon_deg: float) -> tuple[float, float]:
     lat_scale = 111_320.0
     lon_scale = 111_320.0 * math.cos(math.radians(ref_lat_deg))
@@ -951,6 +979,7 @@ async def main_async() -> int:
         wait_formation,
         wait_idle_reset,
         wait_mission,
+        wait_for,
     )
 
     args = parse_args()
@@ -1147,6 +1176,13 @@ async def main_async() -> int:
         )
 
         stage_ref["name"] = "leader_north_jog"
+        def active_cluster():
+            status = client.get_json(GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=swarm_command_id))
+            runtime = status.get("swarm_runtime") or {}
+            return runtime if cluster_motion_confirmed(runtime, ids) else False
+        results["pre_jog_session"] = await asyncio.to_thread(
+            wait_for, active_cluster, label="both swarm roles confirmed before leader jog",
+            timeout=45, interval=0.5)
         jog_start = client.get_telemetry()[str(leader_id)]
         jog_payload = build_precision_move_payload("ned", north=float(args.jog_north_m), speed_m_s=float(args.jog_speed_m_s))
         jog_command = await asyncio.to_thread(
@@ -1377,6 +1413,22 @@ async def main_async() -> int:
                     "max_altitude_error_m": max(record.altitude_error for record in stage_records),
                 }
             results["stage_metrics"] = stage_metrics
+            measured_speed = measured_jog_speed(records)
+            tolerance = max(0.3, float(args.jog_speed_m_s) * 0.2)
+            results["jog_speed_evidence"] = {
+                "requested_m_s": float(args.jog_speed_m_s),
+                "max_one_second_position_speed_m_s": measured_speed,
+                "overspeed_tolerance_m_s": tolerance,
+            }
+            if measured_speed is not None and measured_speed > float(args.jog_speed_m_s) + tolerance:
+                results["jog_speed_evidence"]["result"] = "FAIL"
+                results["jog_speed_evidence"]["reason"] = "Measured jog exceeded requested speed; not a controlled-speed tracking validation"
+                if exit_code == 0:
+                    exit_code = 1
+                    results["result"] = "FAIL"
+                    results["error"] = results["jog_speed_evidence"]["reason"]
+            else:
+                results["jog_speed_evidence"]["result"] = "NO_COMPLETE_WINDOW" if measured_speed is None else "PASS"
         except Exception as artifact_exc:
             results["artifact_error"] = str(artifact_exc)
             if exit_code == 0:

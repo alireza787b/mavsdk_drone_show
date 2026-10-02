@@ -29,6 +29,14 @@ hover, NED/body offsets and 80/300 ms delayed samples. It records error,
 separation, hover speed and commanded braking. A failing result remains a
 failing result: do not loosen its thresholds or label it flight-ready.
 
+The initial 2026-10-02 synthetic comparison passed all faster-braking and
+lower-RMS checks. However, at 5 m/s with 300 ms delayed samples it fell below
+the comparison's 2 m separation floor (NED 1.52 m; body 1.72 m) and exceeded
+the final 0.05 m/s hover criterion. This is a model sensitivity result, not a
+measured F550 separation or an operational collision guarantee. The candidate
+remains opt-in and is not cleared for that maneuver/delay combination; retain
+the current aircraft profile until the failed envelope has been resolved.
+
 For the live two-drone rehearsal, first require reconciled SITL and isolated
 configuration. The existing tool accepts explicit leader jog speed:
 
@@ -42,6 +50,14 @@ Repeat at 1 and 5 m/s and inspect measured leader speed; a requested jog speed
 is not proof it was achieved. Validate cancellation, RTL, pilot takeover and
 formation restoration separately. Preserve adequate maneuver/braking space;
 a fixed offset does not ensure separation during transient tracking error.
+
+The first PX4 SITL rehearsal exposed an existing Precision Move speed-contract
+defect: its final position target plus velocity feed-forward exceeded the jog
+request (approximately 11 m/s for a 3 m/s request over 25 m). Do not use long
+jogs as controlled-speed validation or field maneuvers until that runner is
+corrected. The rehearsal now waits for both role acknowledgements and rejects
+overspeed measurements rather than confusing command completion with tracking
+acceptance. See the [evidence checkpoint](../plans/2026-10-02-responsive-swarm-evidence-and-rollout.md).
 
 ## Navigation diagnostics, not shared sensor calibration
 

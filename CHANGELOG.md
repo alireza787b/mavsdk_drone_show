@@ -16,6 +16,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   rehearsal tools distinguish command responsiveness from aircraft clearance.
 - A logging-only Navigation Diagnostics PX4 profile enables boot-to-shutdown
   navigation capture without applying unrelated estimator or failsafe changes.
+- The SITL tracking rehearsal waits for both Swarm role acknowledgements before
+  moving the leader and reports measured jog overspeed as a validation failure.
 
 - Smart Swarm runtime confirmations now name their exact targets and explain
   Hold/Land/RTL behavior. Ambiguous or stale cluster selections fail closed,
