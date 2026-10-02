@@ -24,6 +24,48 @@ def test_default_seed_matches_zero_offboard_command_and_acceleration():
 
     assert np.array_equal(shaper.velocity_ned, np.zeros(3))
     assert np.array_equal(shaper.acceleration_ned, np.zeros(3))
+    assert shaper.limiting_factors == ()
+
+
+def test_limiter_diagnostics_are_bounded_and_preserve_last_good_state():
+    shaper = _shaper()
+    shaper.shape([100, 0, 100], 1)
+    assert {'horizontal_speed', 'vertical_speed', 'dt', 'jerk'} <= set(shaper.limiting_factors)
+    before = shaper.limiting_factors
+    with pytest.raises(VelocityCommandShapeError):
+        shaper.shape([np.nan, 0, 0], .1)
+    assert shaper.limiting_factors == before
+    shaper.reset()
+    assert shaper.limiting_factors == ()
+
+
+@pytest.mark.parametrize('speed', [1.0, 3.0, 5.0])
+def test_responsive_profile_brakes_faster_without_discontinuities(speed):
+    def brake(accel_limit, jerk_limit):
+        shaper = _shaper(max_horizontal_speed_m_s=6,
+                         max_vertical_speed_m_s=1.25,
+                         max_acceleration_m_s2=accel_limit,
+                         max_jerk_m_s3=jerk_limit,
+                         seed_velocity_ned=(speed, 0, 0))
+        previous = shaper.velocity_ned
+        acceleration = shaper.acceleration_ned
+        travel = 0.0
+        for i in range(300):
+            command = shaper.shape((0, 0, 0), 1/15)
+            next_acceleration = (command-previous)*15
+            assert np.linalg.norm(next_acceleration) <= accel_limit+1e-8
+            assert np.linalg.norm(next_acceleration-acceleration)*15 <= jerk_limit+1e-7
+            assert command[0] >= -1e-8
+            travel += command[0]/15
+            if np.linalg.norm(command) < .05:
+                return (i+1)/15, travel
+            previous, acceleration = command, next_acceleration
+        pytest.fail('Shaper did not settle')
+
+    conservative = brake(1, 2)
+    responsive = brake(3, 6)
+    assert responsive[0] < conservative[0]
+    assert responsive[1] < conservative[1]
 
 
 def test_first_large_request_is_jerk_and_acceleration_limited_from_zero():

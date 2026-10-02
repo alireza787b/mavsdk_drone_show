@@ -19,6 +19,17 @@ from tools.analyze_smart_swarm_tracking import (
 )
 
 
+@pytest.mark.parametrize('speed', [1.0, 3.0, 5.0])
+def test_rehearsal_jog_uses_explicit_speed(speed):
+    assert build_precision_move_payload('ned', north=40, speed_m_s=speed)['precision_move']['speed_m_s'] == speed
+
+
+@pytest.mark.parametrize('speed', [0.0, -1.0, 5.1, float('nan'), float('inf')])
+def test_rehearsal_jog_rejects_invalid_speed(speed):
+    with pytest.raises(ValueError):
+        build_precision_move_payload('ned', speed_m_s=speed)
+
+
 def test_two_drone_assignments_are_exact_h1_h2_ned_topology():
     assignments = build_two_drone_ned_assignments(1, 2, 6.0)
 

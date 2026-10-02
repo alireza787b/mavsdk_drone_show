@@ -1778,7 +1778,9 @@ async def control_loop(drone: System):
                 dt_s=dt,
                 now_s=current_time,
             )
+            send_started = time.monotonic()
             await send_decision(decision)
+            send_duration = time.monotonic() - send_started
             RUNTIME_PHASE = ("tracking_degraded" if decision.confidence < 1.0 else decision.status) if decision.tracking_allowed else "holding"
             RUNTIME_DETAIL = ("Leader data delayed; slowing smoothly"
                               if RUNTIME_PHASE == "tracking_degraded" else decision.detail)
@@ -1791,7 +1793,7 @@ async def control_loop(drone: System):
                 log("Follower motion state: %s — %s", decision.status, decision.detail)
                 motion_status = decision.status
             logger.debug(
-                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs confidence=%.2f requested=%s own_pos=%s own_vel=%s target_pos=%s error_xy=%.3f error_z=%.3f",
+                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs confidence=%.2f requested=%s own_pos=%s own_vel=%s target_pos=%s error_xy=%.3f error_z=%.3f own_age=%.3fs heading_age=%.3fs receipt_age=%.3fs loop_dt=%.3fs send_duration=%.3fs limits=%s transport=%s seq=%s source_boot_ms=%s",
                 decision.velocity_ned,
                 decision.yaw_deg,
                 leader_age,
@@ -1802,6 +1804,15 @@ async def control_loop(drone: System):
                 desired_position,
                 decision.horizontal_error_m,
                 decision.vertical_error_m,
+                own_validity.age_sec,
+                max(0.0, current_time - LEADER_STATE.get('attitude_update_time', current_time)),
+                max(0.0, current_time - LEADER_STATE.get('received_monotonic', current_time)),
+                dt,
+                send_duration,
+                ','.join(decision.limiting_factors) or 'none',
+                LEADER_STATE.get('transport', 'unknown'),
+                LEADER_STATE.get('stream_seq', 0),
+                LEADER_STATE.get('source_time_boot_ms', 0),
             )
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:

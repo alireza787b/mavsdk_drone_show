@@ -187,11 +187,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stream-min-advances", type=int, default=3)
     parser.add_argument("--stream-timeout-sec", type=float, default=15.0)
     parser.add_argument("--jog-north-m", type=float, default=1.0, help="Small H1 northward field-rehearsal jog")
+    parser.add_argument("--jog-speed-m-s", type=float, default=1.0, help="Leader jog speed, up to the Precision Move ceiling")
     parser.add_argument("--repeat-jogs", type=int, default=2, help="Exercise leader motion ownership repeatedly")
     parser.add_argument("--jog-position-tolerance", type=float, default=0.75)
     parser.add_argument("--post-command-settle-sec", type=float, default=3.0)
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for JSON/CSV/plots")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not math.isfinite(args.jog_speed_m_s) or not 0 < args.jog_speed_m_s <= Params.PRECISION_MOVE_MAX_SPEED_MPS:
+        parser.error("--jog-speed-m-s must be finite, positive and within the Precision Move ceiling")
+    return args
 
 
 class FieldRehearsalClient(ValidationApiClient):
@@ -327,7 +331,9 @@ def canonical_assignment(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_precision_move_payload(frame: str, *, north: float = 0.0, east: float = 0.0, forward: float = 0.0, right: float = 0.0, up: float = 0.0) -> dict[str, Any]:
+def build_precision_move_payload(frame: str, *, north: float = 0.0, east: float = 0.0, forward: float = 0.0, right: float = 0.0, up: float = 0.0, speed_m_s: float = 1.0) -> dict[str, Any]:
+    if not math.isfinite(speed_m_s) or not 0 < speed_m_s <= Params.PRECISION_MOVE_MAX_SPEED_MPS:
+        raise ValueError("Jog speed must be finite, positive and within the Precision Move ceiling")
     translation: dict[str, float]
     if frame == "body":
         translation = {"forward": float(forward), "right": float(right), "up": float(up)}
@@ -339,7 +345,7 @@ def build_precision_move_payload(frame: str, *, north: float = 0.0, east: float 
             "frame": frame,
             "translation_m": translation,
             "yaw": {"mode": "hold_current"},
-            "speed_m_s": 1.0,
+            "speed_m_s": float(speed_m_s),
             "timeout_sec": 90.0,
         }
     }
@@ -1142,7 +1148,7 @@ async def main_async() -> int:
 
         stage_ref["name"] = "leader_north_jog"
         jog_start = client.get_telemetry()[str(leader_id)]
-        jog_payload = build_precision_move_payload("ned", north=float(args.jog_north_m))
+        jog_payload = build_precision_move_payload("ned", north=float(args.jog_north_m), speed_m_s=float(args.jog_speed_m_s))
         jog_command = await asyncio.to_thread(
             client.submit_command,
             PRECISION_MOVE,

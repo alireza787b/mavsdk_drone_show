@@ -9,6 +9,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm adds a validated vertical-speed environment override, an opt-in
+  responsive motion-profile candidate, and bounded debug diagnostics for
+  shaping limits, freshness and command timing. Stock gains/limits and PX4
+  arming checks remain unchanged. Offline model and speed-selectable SITL
+  rehearsal tools distinguish command responsiveness from aircraft clearance.
+- A logging-only Navigation Diagnostics PX4 profile enables boot-to-shutdown
+  navigation capture without applying unrelated estimator or failsafe changes.
+
 - Smart Swarm runtime confirmations now name their exact targets and explain
   Hold/Land/RTL behavior. Ambiguous or stale cluster selections fail closed,
   staged formation edits cannot silently retarget recovery commands, and

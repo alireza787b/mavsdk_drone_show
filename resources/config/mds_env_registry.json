@@ -103,6 +103,28 @@
       "owner": "flight-runtime"
     },
     {
+      "name": "MDS_SMART_SWARM_MAX_VERTICAL_SPEED_M_S",
+      "title": "Follower vertical speed ceiling (m/s)",
+      "scope": "node",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/local.env",
+      "value_type": "float",
+      "default": 0.75,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "node_service",
+      "apply_action": "restart_node_service",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/features/smart-swarm.md",
+      "consumers": ["src/params.py"],
+      "notes": "Symmetric climb/descent ceiling. Match aircraft capability and validate with acceleration and jerk while grounded.",
+      "owner": "flight-runtime"
+    },
+    {
       "name": "MDS_SMART_SWARM_MAX_ACCELERATION_M_S2",
       "title": "Follower acceleration limit (m/s²)",
       "scope": "node",

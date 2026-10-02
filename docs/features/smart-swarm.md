@@ -486,11 +486,29 @@ alone needs about 3.14 m/s. Start body-frame testing with slow yaw in place,
 then gentle combined movement. Offset changes use the existing smooth command
 path; there is no collision avoidance.
 
-For a tested deployment-specific profile, set the horizontal speed,
+For a tested deployment-specific profile, set the horizontal/vertical speed,
 acceleration, and jerk overrides in [local.env.template](../../tools/local.env.template)
 and restart MDS. Invalid/non-finite/non-positive values fall back to defaults.
 `GET /api/v1/git/status` exposes the effective limits under `smart_swarm_policy`.
 PX4 estimator, preflight, and aircraft limits are not relaxed by these settings.
+
+The [responsive candidate](../../deployment/examples/smart-swarm-responsive.env)
+uses 6 m/s horizontal, 1.25 m/s vertical, 3 m/s² acceleration and 6 m/s³ jerk.
+It is opt-in and is **not a field-approved 5 m/s leader envelope**. Syncing the
+example alone does not enable it; review and merge its keys into each grounded
+node's local environment, restart, and verify policy readback. Keep gains,
+deadbands and filtering unchanged while comparing it to stock. A 6 m/s ceiling
+provides headroom behind 5 m/s translation, but body rotation consumes that
+headroom too. The same continuous shaper handles braking and hover.
+
+Debug control records include limiting factors, own-state receive age, separate
+heading and leader receipt age, loop interval and command-send duration. Own
+age measures local receipt, not IMU acquisition; send duration measures the
+MAVSDK call, not PX4 execution. Leader source age includes source production,
+transport/queuing and clock offset. None alone is pure radio latency.
+
+See [responsive flight preparation](../guides/smart-swarm-responsive-flight.md)
+for comparisons, navigation logging, remaining limitations and deployment.
 
 Both position and heading must have fresh source timestamps. The swarm stream
 and HTTP fallback carry `attitude_timestamp_ms`, refreshed only by valid

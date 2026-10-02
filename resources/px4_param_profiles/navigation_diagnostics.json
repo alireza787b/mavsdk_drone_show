@@ -1,0 +1,11 @@
+{
+  "profile_id": "navigation_diagnostics",
+  "name": "Navigation Diagnostics (temporary boot logging)",
+  "description": "Grounded, firmware-reviewed diagnostic capture: default navigation plus system-identification topics, from boot to shutdown. Check SD space, restart, and verify actual topics. Restore SDLOG_MODE=0 afterward; this changes logging only, not calibration or arming checks.",
+  "recommended_scope": "selected",
+  "tags": ["diagnostics", "logging", "navigation"],
+  "entries": [
+    {"component_id": 1, "name": "SDLOG_PROFILE", "value_type": "int", "value": 9},
+    {"component_id": 1, "name": "SDLOG_MODE", "value_type": "int", "value": 2}
+  ]
+}

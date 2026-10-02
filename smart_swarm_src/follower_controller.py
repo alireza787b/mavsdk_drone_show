@@ -61,6 +61,7 @@ class FollowerControlDecision:
     confidence: float
     horizontal_error_m: float | None = None
     vertical_error_m: float | None = None
+    limiting_factors: tuple[str, ...] = ()
 
 
 class FollowerMotionController:
@@ -164,6 +165,7 @@ class FollowerMotionController:
             status="suspended",
             detail=reason,
             confidence=0.0,
+            limiting_factors=self.velocity_shaper.limiting_factors,
         )
 
     def compute(
@@ -293,4 +295,5 @@ class FollowerMotionController:
             confidence=confidence,
             horizontal_error_m=guard.horizontal_error_m,
             vertical_error_m=guard.vertical_error_m,
+            limiting_factors=self.velocity_shaper.limiting_factors,
         )

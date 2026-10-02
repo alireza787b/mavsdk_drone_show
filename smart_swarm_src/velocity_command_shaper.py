@@ -63,6 +63,7 @@ class NedVelocityCommandShaper:
 
         self._velocity = self._ZERO.copy()
         self._acceleration = self._ZERO.copy()
+        self._limiting_factors: tuple[str, ...] = ()
         self.reset(
             seed_velocity_ned=seed_velocity_ned,
             seed_acceleration_ned=seed_acceleration_ned,
@@ -77,6 +78,11 @@ class NedVelocityCommandShaper:
     def acceleration_ned(self) -> np.ndarray:
         """Return a copy of the acceleration associated with the last command."""
         return self._acceleration.copy()
+
+    @property
+    def limiting_factors(self) -> tuple[str, ...]:
+        """Bounded diagnostics for the last successfully shaped command."""
+        return self._limiting_factors
 
     def reset(
         self,
@@ -110,6 +116,7 @@ class NedVelocityCommandShaper:
 
         self._velocity = velocity.copy()
         self._acceleration = acceleration.copy()
+        self._limiting_factors = ()
 
     def shape(self, requested_velocity_ned: Iterable[float], dt_s: float) -> np.ndarray:
         """Return the next safe NED velocity command.
@@ -129,6 +136,13 @@ class NedVelocityCommandShaper:
         dt = self._positive_finite(dt_s, "dt_s")
         effective_dt = min(dt, self.max_dt_s)
         target = self._clip_speed(requested)
+        limits = []
+        if np.linalg.norm(requested[:2]) > self.max_horizontal_speed_m_s:
+            limits.append("horizontal_speed")
+        if abs(requested[2]) > self.max_vertical_speed_m_s:
+            limits.append("vertical_speed")
+        if dt > self.max_dt_s:
+            limits.append("dt")
 
         velocity = self._velocity
         acceleration = self._acceleration
@@ -200,6 +214,7 @@ class NedVelocityCommandShaper:
             )
 
         if not viable(next_acceleration):
+            limits.append("braking_reserve")
             brake = self._move_towards(acceleration, self._ZERO, jerk_step)
             if not viable(brake):
                 raise VelocityCommandShapeError("continuity seed has no braking reserve")
@@ -242,6 +257,11 @@ class NedVelocityCommandShaper:
 
         self._velocity = next_velocity.copy()
         self._acceleration = actual_acceleration.copy()
+        if np.linalg.norm(actual_acceleration) >= self.max_acceleration_m_s2 - self._TOLERANCE:
+            limits.append("acceleration")
+        if np.linalg.norm(actual_acceleration - acceleration) >= jerk_step - self._TOLERANCE:
+            limits.append("jerk")
+        self._limiting_factors = tuple(limits)
         return next_velocity.copy()
 
     @classmethod
