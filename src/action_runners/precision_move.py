@@ -24,6 +24,7 @@ from src.command_contract import (
 )
 from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
 from src.params import Params
+from smart_swarm_src.velocity_command_shaper import NedVelocityCommandShaper
 
 
 LOCAL_API_TIMEOUT_SEC = 1.0
@@ -39,6 +40,9 @@ class LocalMoveSnapshot:
     is_armed: bool
     telemetry_available: bool
     flight_mode: str | None
+    north_velocity_m_s: float = 0.0
+    east_velocity_m_s: float = 0.0
+    down_velocity_m_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,9 @@ def _read_local_move_snapshot(timeout: float = LOCAL_API_TIMEOUT_SEC) -> LocalMo
         is_armed=bool(drone_state.get("is_armed")),
         telemetry_available=bool(drone_state.get("telemetry_available", True)),
         flight_mode=str(drone_state.get("flight_mode")) if drone_state.get("flight_mode") is not None else None,
+        north_velocity_m_s=float(local_position["vx"]),
+        east_velocity_m_s=float(local_position["vy"]),
+        down_velocity_m_s=float(local_position["vz"]),
     )
 
 
@@ -177,7 +184,9 @@ def _build_velocity_vector(
     if distance_m <= 1e-9:
         return 0.0, 0.0, 0.0
 
-    commanded_speed = min(max_speed_m_s, max(0.2, distance_m))
+    # Proportional approach naturally goes to zero; a minimum speed would
+    # continually push through a small target and defeat arrival settling.
+    commanded_speed = min(max_speed_m_s, distance_m)
     scale = commanded_speed / distance_m
     return (
         north_error_m * scale,
@@ -315,6 +324,15 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
     settle_started_at: float | None = None
     deadline = time.monotonic() + timeout_sec
     offboard_started = False
+    shaper = NedVelocityCommandShaper(
+        max_horizontal_speed_m_s=max_speed_m_s,
+        max_vertical_speed_m_s=min(max_speed_m_s, Params.PRECISION_MOVE_MAX_VERTICAL_SPEED_MPS),
+        max_total_speed_m_s=max_speed_m_s,
+        max_acceleration_m_s2=Params.PRECISION_MOVE_MAX_ACCELERATION_MPS2,
+        max_jerk_m_s3=Params.PRECISION_MOVE_MAX_JERK_MPS3,
+        max_dt_s=control_period_sec,
+    )
+    previous_control_time = time.monotonic()
 
     try:
         await _start_offboard_with_retry(
@@ -327,9 +345,11 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
         )
         offboard_started = True
 
-        _, position_cls, velocity_cls = _load_offboard_types()
+        _, _, velocity_cls = _load_offboard_types()
         while time.monotonic() < deadline:
             snapshot = await asyncio.to_thread(_read_local_move_snapshot)
+            if not snapshot.telemetry_available or not snapshot.is_armed:
+                raise ValueError("precision_move lost armed, live local telemetry")
             north_error_m = target.north_m - snapshot.north_m
             east_error_m = target.east_m - snapshot.east_m
             down_error_m = target.down_m - snapshot.down_m
@@ -344,12 +364,20 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
                 down_error_m,
                 max_speed_m_s,
             )
-            await drone.offboard.set_position_velocity_ned(
-                position_cls(target.north_m, target.east_m, target.down_m, target.yaw_deg),
-                velocity_cls(*velocity_vector, target.yaw_deg),
-            )
+            control_time = time.monotonic()
+            command = shaper.shape(velocity_vector, max(1e-6, control_time - previous_control_time))
+            previous_control_time = control_time
+            # One outer position loop, one bounded velocity command. A distant
+            # PX4 position target would add an unbounded position correction
+            # to this velocity and invalidate the requested-speed contract.
+            await drone.offboard.set_velocity_ned(velocity_cls(*command, target.yaw_deg))
 
-            if position_error_m <= position_tolerance_m and yaw_error_deg <= yaw_tolerance_deg:
+            measured_speed = math.sqrt(snapshot.north_velocity_m_s ** 2 +
+                                       snapshot.east_velocity_m_s ** 2 + snapshot.down_velocity_m_s ** 2)
+            command_speed = math.sqrt(sum(float(v) ** 2 for v in command))
+            if (position_error_m <= position_tolerance_m and yaw_error_deg <= yaw_tolerance_deg
+                    and measured_speed <= Params.PRECISION_MOVE_SETTLE_SPEED_MPS
+                    and command_speed <= Params.PRECISION_MOVE_SETTLE_SPEED_MPS):
                 if settle_started_at is None:
                     settle_started_at = time.monotonic()
                 elif (time.monotonic() - settle_started_at) >= settle_time_sec:
@@ -361,10 +389,7 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
         else:
             raise TimeoutError("precision_move timed out before converging within tolerance")
 
-        await drone.offboard.set_position_velocity_ned(
-            position_cls(target.north_m, target.east_m, target.down_m, target.yaw_deg),
-            velocity_cls(0.0, 0.0, 0.0, target.yaw_deg),
-        )
+        await drone.offboard.set_velocity_ned(velocity_cls(0.0, 0.0, 0.0, target.yaw_deg))
         await asyncio.sleep(min(0.25, control_period_sec))
 
         if request.hold_mode == PrecisionMoveHoldMode.PX4_HOLD:
@@ -380,7 +405,7 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
             target.yaw_deg,
         )
         return
-    except Exception:
+    except BaseException:
         if offboard_started:
             await _safe_stop_offboard(drone, logger)
         raise

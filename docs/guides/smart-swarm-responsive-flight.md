@@ -4,7 +4,7 @@
 
 The opt-in [motion profile](../../deployment/examples/smart-swarm-responsive.env)
 is a candidate for smoother, more responsive follower motion: 6 m/s horizontal,
-1.25 m/s vertical, 3 m/s² acceleration, 6 m/s³ jerk. Stock remains 5 / 0.75 / 1 / 2.
+1.25 m/s vertical, 4 m/s² acceleration, 8 m/s³ jerk. Stock remains 5 / 0.75 / 1 / 2.
 Position gain 0.5, velocity damping 0.35, filtering 0.35 s, deadbands, prediction,
 saved roles and Hold/recovery remain unchanged. There is no calibration bypass,
 new normal-flight UI gate, automatic leader promotion or collision avoidance.
@@ -29,13 +29,15 @@ hover, NED/body offsets and 80/300 ms delayed samples. It records error,
 separation, hover speed and commanded braking. A failing result remains a
 failing result: do not loosen its thresholds or label it flight-ready.
 
-The initial 2026-10-02 synthetic comparison passed all faster-braking and
+The initial 2026-10-02 **3 m/s² / 6 m/s³** synthetic comparison passed all faster-braking and
 lower-RMS checks. However, at 5 m/s with 300 ms delayed samples it fell below
 the comparison's 2 m separation floor (NED 1.52 m; body 1.72 m) and exceeded
 the final 0.05 m/s hover criterion. This is a model sensitivity result, not a
 measured F550 separation or an operational collision guarantee. The candidate
-remains opt-in and is not cleared for that maneuver/delay combination; retain
-the current aircraft profile until the failed envelope has been resolved.
+was not cleared for that maneuver/delay combination. The revised 4 / 8
+candidate passed those same model checks with unchanged gains. It remains
+opt-in pending measured PX4 SITL and actual-airframe validation; a synthetic
+pass is not evidence of an operational separation guarantee.
 
 For the live two-drone rehearsal, first require reconciled SITL and isolated
 configuration. The existing tool accepts explicit leader jog speed:
@@ -54,8 +56,14 @@ a fixed offset does not ensure separation during transient tracking error.
 The first PX4 SITL rehearsal exposed an existing Precision Move speed-contract
 defect: its final position target plus velocity feed-forward exceeded the jog
 request (approximately 11 m/s for a 3 m/s request over 25 m). Do not use long
-jogs as controlled-speed validation or field maneuvers until that runner is
-corrected. The rehearsal now waits for both role acknowledgements and rejects
+jogs from the affected revisions as controlled-speed validation or field maneuvers.
+The corrected runner uses bounded, acceleration/jerk-shaped velocity-only
+translation; only the initial hold seed uses a position reference. Its
+requested speed bounds the full 3D command magnitude, with a separate vertical
+cap. Arrival requires low commanded and measured speed as well as position/yaw
+tolerance. Precision Move uses 2 m/s² acceleration, 4 m/s³ jerk and 1.25 m/s
+vertical ceiling, independently of the follower profile. The rehearsal waits
+for both role acknowledgements and rejects
 overspeed measurements rather than confusing command completion with tracking
 acceptance. See the [evidence checkpoint](../plans/2026-10-02-responsive-swarm-evidence-and-rollout.md).
 

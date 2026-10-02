@@ -42,6 +42,7 @@ class NedVelocityCommandShaper:
         max_dt_s: float,
         seed_velocity_ned: Iterable[float] = (0.0, 0.0, 0.0),
         seed_acceleration_ned: Iterable[float] = (0.0, 0.0, 0.0),
+        max_total_speed_m_s: float | None = None,
     ) -> None:
         self.max_horizontal_speed_m_s = self._positive_finite(
             max_horizontal_speed_m_s,
@@ -60,6 +61,8 @@ class NedVelocityCommandShaper:
             "max_jerk_m_s3",
         )
         self.max_dt_s = self._positive_finite(max_dt_s, "max_dt_s")
+        self.max_total_speed_m_s = (None if max_total_speed_m_s is None else
+                                   self._positive_finite(max_total_speed_m_s, "max_total_speed_m_s"))
 
         self._velocity = self._ZERO.copy()
         self._acceleration = self._ZERO.copy()
@@ -143,6 +146,8 @@ class NedVelocityCommandShaper:
             limits.append("vertical_speed")
         if dt > self.max_dt_s:
             limits.append("dt")
+        if self.max_total_speed_m_s is not None and np.linalg.norm(requested) > self.max_total_speed_m_s:
+            limits.append("total_speed")
 
         velocity = self._velocity
         acceleration = self._acceleration
@@ -210,6 +215,7 @@ class NedVelocityCommandShaper:
             return all(
                 np.linalg.norm(v[:2]) <= self.max_horizontal_speed_m_s
                 and abs(v[2]) <= self.max_vertical_speed_m_s
+                and (self.max_total_speed_m_s is None or np.linalg.norm(v) <= self.max_total_speed_m_s)
                 for v in (next_v, stop_v)
             )
 
@@ -336,6 +342,8 @@ class NedVelocityCommandShaper:
                 self.max_vertical_speed_m_s,
             )
         )
+        if self.max_total_speed_m_s is not None:
+            clipped = self._limit_norm(clipped, self.max_total_speed_m_s)
         return clipped
 
     def _braking_endpoint(self, velocity: np.ndarray, acceleration: np.ndarray) -> np.ndarray:
@@ -352,6 +360,8 @@ class NedVelocityCommandShaper:
         )
 
     def _require_speed_within_envelope(self, velocity: np.ndarray, name: str) -> None:
+        if self.max_total_speed_m_s is not None and np.linalg.norm(velocity) > self.max_total_speed_m_s + self._TOLERANCE:
+            raise VelocityCommandShapeError(f"{name} exceeds max_total_speed_m_s")
         horizontal_norm = float(np.linalg.norm(velocity[:2]))
         if horizontal_norm > self.max_horizontal_speed_m_s + self._TOLERANCE:
             raise VelocityCommandShapeError(

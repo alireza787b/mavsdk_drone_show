@@ -25,6 +25,7 @@ from src.action_runners.base import ActionExecutionContext, ActionInvocation
 from src.action_runners.precision_move import (
     LocalMoveSnapshot,
     _body_to_ned_translation,
+    _build_velocity_vector,
     _wait_until_hold_mode,
     precision_move,
 )
@@ -58,6 +59,9 @@ class _DummyOffboard:
 
     async def set_position_velocity_ned(self, position, velocity):
         self.commands.append((position, velocity))
+
+    async def set_velocity_ned(self, velocity):
+        self.commands.append((None, velocity))
 
     async def start(self):
         self.started = True
@@ -156,13 +160,26 @@ async def test_precision_move_converges_and_hands_off_to_hold(monkeypatch):
     assert drone.offboard.started is True
     assert drone.offboard.stopped is True
     final_position, final_velocity = drone.offboard.commands[-1]
-    assert final_position.north_m == pytest.approx(-4.0)
-    assert final_position.east_m == pytest.approx(2.0)
-    assert final_position.down_m == pytest.approx(-3.0)
-    assert final_position.yaw_deg == pytest.approx(120.0)
+    assert final_position is None
+    # Only the initial local hold carries a position reference; translation
+    # never sends the final target into PX4's parallel position correction.
+    assert all(position is None for position, _ in drone.offboard.commands[1:])
+    assert final_velocity.yaw_deg == pytest.approx(120.0)
     assert final_velocity.north_m_s == pytest.approx(0.0)
     assert final_velocity.east_m_s == pytest.approx(0.0)
     assert final_velocity.down_m_s == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("speed", [1.0, 3.0, 5.0])
+def test_precision_move_speed_bounds_long_and_diagonal_requests(speed):
+    import math
+    velocity = _build_velocity_vector(100, -40, 25, speed)
+    assert math.sqrt(sum(v*v for v in velocity)) == pytest.approx(speed)
+
+
+def test_precision_move_has_no_minimum_speed_oscillation_near_target():
+    assert _build_velocity_vector(.01, 0, 0, 5) == pytest.approx((.01, 0, 0))
+    assert _build_velocity_vector(0, 0, 0, 5) == (0, 0, 0)
 
 
 @pytest.mark.asyncio
@@ -172,3 +189,21 @@ async def test_precision_move_requires_payload():
 
     with pytest.raises(ValueError, match="requires --request-json or --request-file"):
         await precision_move(context, invocation)
+
+
+@pytest.mark.asyncio
+async def test_precision_move_cancellation_stops_offboard(monkeypatch):
+    monkeypatch.setattr("src.action_runners.precision_move._read_local_move_snapshot",
+                        lambda: LocalMoveSnapshot(0, 0, -2, 0, True, True, "OFFBOARD"))
+    monkeypatch.setattr("src.action_runners.precision_move._read_local_relative_altitude", lambda: 2)
+    monkeypatch.setattr("src.action_runners.precision_move._load_offboard_types",
+                        lambda: (_DummyOffboardError, _DummyPositionNedYaw, _DummyVelocityNedYaw))
+    drone = _DummyDrone()
+    async def cancel(_velocity):
+        raise asyncio.CancelledError()
+    drone.offboard.set_velocity_ned = cancel
+    invocation = ActionInvocation(action="precision_move", request_payload={
+        "frame": "ned", "translation_m": {"north": 40}, "speed_m_s": 5})
+    with pytest.raises(asyncio.CancelledError):
+        await precision_move(ActionExecutionContext(drone=drone, hw_id="1", logger=MagicMock()), invocation)
+    assert drone.offboard.stopped

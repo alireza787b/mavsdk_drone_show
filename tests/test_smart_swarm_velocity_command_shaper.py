@@ -1,4 +1,21 @@
 import numpy as np
+
+
+def test_optional_total_speed_envelope_preserves_derivative_limits_on_diagonal_turns():
+    from smart_swarm_src.velocity_command_shaper import NedVelocityCommandShaper
+    shaper = NedVelocityCommandShaper(max_horizontal_speed_m_s=5, max_vertical_speed_m_s=5,
+                                     max_total_speed_m_s=5, max_acceleration_m_s2=2,
+                                     max_jerk_m_s3=4, max_dt_s=.1)
+    previous = np.zeros(3)
+    previous_acc = np.zeros(3)
+    for target in [(8, 8, 8), (-8, 0, 8), (0, -8, -8), (0, 0, 0)]:
+        for _ in range(150):
+            command = shaper.shape(target, .1)
+            acc = (command-previous)/.1
+            assert np.linalg.norm(command) <= 5+1e-8
+            assert np.linalg.norm(acc) <= 2+1e-8
+            assert np.linalg.norm(acc-previous_acc)/.1 <= 4+1e-8
+            previous, previous_acc = command, acc
 import pytest
 
 from smart_swarm_src.velocity_command_shaper import (

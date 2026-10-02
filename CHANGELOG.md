@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Precision Move now uses bounded velocity-only translation, with acceleration/
+  jerk shaping and measured-speed arrival settling. This prevents PX4 position
+  correction from exceeding the requested jog-speed command. The responsive
+  follower candidate increases acceleration/jerk to 4/8 without changing gains.
 - Smart Swarm adds a validated vertical-speed environment override, an opt-in
   responsive motion-profile candidate, and bounded debug diagnostics for
   shaping limits, freshness and command timing. Stock gains/limits and PX4

@@ -58,9 +58,11 @@ def braking(profile, speed):
     raise RuntimeError('Braking did not settle')
 
 
-def synthetic_tracking(profile, speed, *, body=False, delay=.08, plant_tau=.6):
+def synthetic_tracking(profile, speed, *, body=False, delay=.08, plant_tau=.6,
+                       position_gain=.5, velocity_gain=.35, position_filter_s=.35):
     controller = FollowerMotionController(
-        position_gain=.5, velocity_gain=.35, leader_velocity_feedforward=1,
+        position_gain=position_gain, velocity_gain=velocity_gain, leader_velocity_feedforward=1,
+        position_filter_time_constant_s=position_filter_s,
         max_yaw_rate_deg_s=30, max_dt_s=.1, seed_yaw_deg=0,
         formation_guard=FormationGuard(capture_horizontal_m=2, capture_vertical_m=1.5,
                                       capture_stable_sec=1, tracking_horizontal_m=6, tracking_vertical_m=3),

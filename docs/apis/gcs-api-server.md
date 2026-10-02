@@ -1609,6 +1609,13 @@ Use this endpoint to rehydrate command monitors after a dashboard refresh/naviga
 #### `GET /api/v1/commands/policy/precision-move`
 Retrieve the live runtime defaults and safety envelope for the Precision Move action.
 
+Translation uses velocity-only Offboard commands, not a final position target
+with velocity feed-forward. `speed_m_s` bounds the full 3D command magnitude;
+vertical speed, acceleration and jerk are separately limited. Actual aircraft
+speed can differ transiently and must be measured. Success requires position,
+yaw, measured speed and commanded speed within tolerance for the settle time,
+then hands off to PX4 Hold. Gains/limits are independent of Smart Swarm.
+
 **Response:**
 ```json
 {
@@ -1623,6 +1630,10 @@ Retrieve the live runtime defaults and safety envelope for the Precision Move ac
   "limits": {
     "max_translation_m": 100.0,
     "max_speed_m_s": 5.0,
+    "max_vertical_speed_m_s": 1.25,
+    "max_acceleration_m_s2": 2.0,
+    "max_jerk_m_s3": 4.0,
+    "settle_speed_m_s": 0.1,
     "min_position_tolerance_m": 0.05,
     "max_timeout_sec": 180.0,
     "min_airborne_altitude_m": 0.3,

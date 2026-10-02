@@ -174,7 +174,7 @@ class PrecisionMoveRequest(BaseModel):
     speed_m_s: Optional[float] = Field(
         None,
         gt=0,
-        description="Requested approach speed in metres per second",
+        description="Maximum requested 3D velocity-command magnitude in metres per second",
     )
     position_tolerance_m: Optional[float] = Field(
         None,

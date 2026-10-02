@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_profile_comparison_uses_registered_stock_and_repo_example():
     values = profiles(ROOT / 'deployment/examples/smart-swarm-responsive.env')
     assert values['stock']['max_vertical_speed_m_s'] == .75
-    assert values['responsive']['max_jerk_m_s3'] == 6
+    assert values['responsive']['max_jerk_m_s3'] == 8
     for speed in (1, 3, 5):
         old, _ = braking(values['stock'], speed)
         new, _ = braking(values['responsive'], speed)

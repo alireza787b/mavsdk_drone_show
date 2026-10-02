@@ -35,4 +35,4 @@ def test_responsive_profile_loads_in_fresh_process():
         [sys.executable, '-c', 'from src.params import Params as P; print(P.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S, P.SMART_SWARM_MAX_VERTICAL_SPEED_M_S, P.SMART_SWARM_MAX_ACCELERATION_M_S2, P.SMART_SWARM_MAX_JERK_M_S3)'],
         cwd=root, env=env, capture_output=True, text=True, check=True,
     )
-    assert result.stdout.strip().splitlines()[-1] == '6.0 1.25 3.0 6.0'
+    assert result.stdout.strip().splitlines()[-1] == '6.0 1.25 4.0 8.0'

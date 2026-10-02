@@ -493,7 +493,7 @@ and restart MDS. Invalid/non-finite/non-positive values fall back to defaults.
 PX4 estimator, preflight, and aircraft limits are not relaxed by these settings.
 
 The [responsive candidate](../../deployment/examples/smart-swarm-responsive.env)
-uses 6 m/s horizontal, 1.25 m/s vertical, 3 m/s² acceleration and 6 m/s³ jerk.
+uses 6 m/s horizontal, 1.25 m/s vertical, 4 m/s² acceleration and 8 m/s³ jerk.
 It is opt-in and is **not a field-approved 5 m/s leader envelope**. Syncing the
 example alone does not enable it; review and merge its keys into each grounded
 node's local environment, restart, and verify policy readback. Keep gains,
