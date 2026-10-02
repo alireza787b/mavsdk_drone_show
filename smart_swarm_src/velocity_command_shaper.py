@@ -208,7 +208,8 @@ class NedVelocityCommandShaper:
         )
         # Keep a braking reserve in velocity space, not merely a valid next
         # sample. This remains conservative across changing loop intervals.
-        # Braking follows a straight segment inside the convex speed cylinder.
+        # Braking follows a straight segment inside the convex speed envelope
+        # (cylinder, optionally intersected with a total-speed sphere).
         def viable(candidate):
             next_v = velocity + candidate * effective_dt
             stop_v = self._braking_endpoint(next_v, candidate)

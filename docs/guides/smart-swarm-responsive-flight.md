@@ -69,6 +69,8 @@ The rehearsal waits
 for both role acknowledgements and rejects
 overspeed measurements rather than confusing command completion with tracking
 acceptance. See the [evidence checkpoint](../plans/2026-10-02-responsive-swarm-evidence-and-rollout.md).
+The subsequent correction and measured results are in the
+[Precision Move validation checkpoint](../plans/2026-10-02-precision-move-speed-fix-and-responsive-validation.md).
 
 ## Navigation diagnostics, not shared sensor calibration
 
