@@ -179,20 +179,21 @@ def _build_velocity_vector(
     east_error_m: float,
     down_error_m: float,
     max_speed_m_s: float,
+    own_velocity_ned: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> tuple[float, float, float]:
-    distance_m = math.sqrt((north_error_m ** 2) + (east_error_m ** 2) + (down_error_m ** 2))
-    if distance_m <= 1e-9:
+    # A damped outer position loop must account for existing motion before
+    # the jerk shaper/aircraft can brake. Pure unit-gain distance feedback
+    # begins braking too late at speed; a floor also defeats hover settling.
+    raw = tuple(Params.PRECISION_MOVE_POSITION_GAIN * error -
+                Params.PRECISION_MOVE_VELOCITY_DAMPING_GAIN * velocity
+                for error, velocity in zip((north_error_m, east_error_m, down_error_m), own_velocity_ned))
+    if not all(math.isfinite(v) for v in raw):
+        raise ValueError("precision_move requires finite local position and velocity")
+    magnitude = math.sqrt(sum(v*v for v in raw))
+    if magnitude <= 1e-9:
         return 0.0, 0.0, 0.0
-
-    # Proportional approach naturally goes to zero; a minimum speed would
-    # continually push through a small target and defeat arrival settling.
-    commanded_speed = min(max_speed_m_s, distance_m)
-    scale = commanded_speed / distance_m
-    return (
-        north_error_m * scale,
-        east_error_m * scale,
-        down_error_m * scale,
-    )
+    scale = min(1.0, max_speed_m_s / magnitude)
+    return tuple(v * scale for v in raw)
 
 
 def _load_offboard_types():
@@ -363,6 +364,7 @@ async def precision_move(context: ActionExecutionContext, invocation: ActionInvo
                 east_error_m,
                 down_error_m,
                 max_speed_m_s,
+                (snapshot.north_velocity_m_s, snapshot.east_velocity_m_s, snapshot.down_velocity_m_s),
             )
             control_time = time.monotonic()
             command = shaper.shape(velocity_vector, max(1e-6, control_time - previous_control_time))

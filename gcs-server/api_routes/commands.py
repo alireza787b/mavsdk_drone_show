@@ -51,6 +51,8 @@ def _build_precision_move_policy_payload(params: Any) -> dict[str, Any]:
             "max_acceleration_m_s2": float(getattr(params, "PRECISION_MOVE_MAX_ACCELERATION_MPS2", 2.0)),
             "max_jerk_m_s3": float(getattr(params, "PRECISION_MOVE_MAX_JERK_MPS3", 4.0)),
             "settle_speed_m_s": float(getattr(params, "PRECISION_MOVE_SETTLE_SPEED_MPS", 0.1)),
+            "position_gain": float(getattr(params, "PRECISION_MOVE_POSITION_GAIN", 0.5)),
+            "velocity_damping_gain": float(getattr(params, "PRECISION_MOVE_VELOCITY_DAMPING_GAIN", 0.35)),
             "min_position_tolerance_m": float(
                 getattr(params, "PRECISION_MOVE_MIN_POSITION_TOLERANCE_M", 0.05)
             ),

@@ -62,7 +62,10 @@ translation; only the initial hold seed uses a position reference. Its
 requested speed bounds the full 3D command magnitude, with a separate vertical
 cap. Arrival requires low commanded and measured speed as well as position/yaw
 tolerance. Precision Move uses 2 m/s² acceleration, 4 m/s³ jerk and 1.25 m/s
-vertical ceiling, independently of the follower profile. The rehearsal waits
+vertical ceiling, independently of the follower profile.
+The outer approach uses position gain 0.5 and measured-velocity damping 0.35,
+so it begins braking before arrival rather than merely capping cruise speed.
+The rehearsal waits
 for both role acknowledgements and rejects
 overspeed measurements rather than confusing command completion with tracking
 acceptance. See the [evidence checkpoint](../plans/2026-10-02-responsive-swarm-evidence-and-rollout.md).

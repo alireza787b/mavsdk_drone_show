@@ -2330,6 +2330,8 @@ class PrecisionMovePolicyLimits(BaseModel):
     max_acceleration_m_s2: float = Field(..., gt=0, description="Maximum command acceleration magnitude")
     max_jerk_m_s3: float = Field(..., gt=0, description="Maximum command jerk magnitude")
     settle_speed_m_s: float = Field(..., gt=0, description="Maximum commanded/measured speed for arrival settling")
+    position_gain: float = Field(..., gt=0, description="Outer position-to-velocity approach gain")
+    velocity_damping_gain: float = Field(..., ge=0, description="Measured velocity damping for approach/braking")
     min_position_tolerance_m: float = Field(..., gt=0, description="Minimum allowed position tolerance in metres")
     max_timeout_sec: float = Field(..., gt=0, description="Maximum allowed action timeout in seconds")
     min_airborne_altitude_m: float = Field(..., gt=0, description="Minimum relative altitude required before the move is allowed")

@@ -1634,6 +1634,8 @@ then hands off to PX4 Hold. Gains/limits are independent of Smart Swarm.
     "max_acceleration_m_s2": 2.0,
     "max_jerk_m_s3": 4.0,
     "settle_speed_m_s": 0.1,
+    "position_gain": 0.5,
+    "velocity_damping_gain": 0.35,
     "min_position_tolerance_m": 0.05,
     "max_timeout_sec": 180.0,
     "min_airborne_altitude_m": 0.3,

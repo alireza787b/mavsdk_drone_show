@@ -178,8 +178,15 @@ def test_precision_move_speed_bounds_long_and_diagonal_requests(speed):
 
 
 def test_precision_move_has_no_minimum_speed_oscillation_near_target():
-    assert _build_velocity_vector(.01, 0, 0, 5) == pytest.approx((.01, 0, 0))
+    assert _build_velocity_vector(.01, 0, 0, 5) == pytest.approx((.005, 0, 0))
     assert _build_velocity_vector(0, 0, 0, 5) == (0, 0, 0)
+
+
+def test_precision_move_damping_brakes_existing_motion_before_arrival():
+    assert _build_velocity_vector(5, 0, 0, 5, (5, 0, 0))[0] == pytest.approx(.75)
+    assert _build_velocity_vector(0, 0, 0, 5, (1, 0, 0))[0] < 0
+    with pytest.raises(ValueError, match="finite"):
+        _build_velocity_vector(1, 0, 0, 5, (float('nan'), 0, 0))
 
 
 @pytest.mark.asyncio

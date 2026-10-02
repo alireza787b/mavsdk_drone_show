@@ -217,6 +217,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jog-north-m", type=float, default=1.0, help="Small H1 northward field-rehearsal jog")
     parser.add_argument("--jog-speed-m-s", type=float, default=1.0, help="Leader jog speed, up to the Precision Move ceiling")
     parser.add_argument("--repeat-jogs", type=int, default=2, help="Exercise leader motion ownership repeatedly")
+    parser.add_argument("--alternate-jogs", action="store_true", help="Alternate north/south jogs to measure stops and reversals")
     parser.add_argument("--jog-position-tolerance", type=float, default=0.75)
     parser.add_argument("--post-command-settle-sec", type=float, default=3.0)
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for JSON/CSV/plots")
@@ -1242,9 +1243,12 @@ async def main_async() -> int:
         results["repeated_jogs"] = []
         for jog_index in range(1, args.repeat_jogs):
             stage_ref["name"] = f"leader_north_jog_{jog_index + 1}"
+            repeated_payload = build_precision_move_payload(
+                "ned", north=float(args.jog_north_m) * (-1 if args.alternate_jogs and jog_index % 2 else 1),
+                speed_m_s=float(args.jog_speed_m_s))
             jog_command = await asyncio.to_thread(
                 client.submit_command, PRECISION_MOVE, [leader_id],
-                "Repeated Leader Jog", extra_fields=jog_payload)
+                "Repeated Leader Jog", extra_fields=repeated_payload)
             jog_status = await asyncio.to_thread(
                 wait_for_command, client, jog_command["command_id"],
                 terminal=True, timeout=180)
