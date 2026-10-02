@@ -121,6 +121,15 @@ formation convergence, MDS Stop for both, airborne Hold with missions cleared,
 landing and restoration. It is a low-speed functional test, not a dynamic
 separation guarantee. New test-tool checks passed 22 targeted tests on Hetzner.
 
+The corrected 5 m/s rehearsal confirmed both roles before moving, retained an
+active Swarm session after the leader action, and completed Hold/landing with
+both grounded. It correctly ended **FAIL** because measured maximum
+one-second-average leader speed was 11.57 m/s, not 5 m/s (maximum transient
+formation error 26.56 m). Artifact folder: `sitl5-confirmed`. This isolates the
+startup ordering problem to the first rehearsal but leaves the actual
+Precision Move speed-contract defect unresolved. Further live speed sweeps
+were stopped rather than collecting additional invalid acceptance runs.
+
 Private Hetzner evidence (not committed, no credentials):
 
 - `/mnt/HC_Volume_106468352/mds-evidence/field-20260927/analysis-20260927/`
