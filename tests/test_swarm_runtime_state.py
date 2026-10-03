@@ -69,3 +69,32 @@ def test_build_runtime_swarm_assignment_force_follow_overrides_source():
 
     assert assignment["follow"] == 0
     assert assignment["offset_x"] == 25.0
+
+
+def test_build_runtime_swarm_assignment_rejects_nonfinite_offsets():
+    assignment = build_runtime_swarm_assignment(
+        9,
+        {
+            "follow": 1,
+            "offset_x": float("inf"),
+            "offset_y": "nan",
+            "offset_z": "-inf",
+            "frame": "ned",
+        },
+    )
+
+    assert assignment["offset_x"] == 0.0
+    assert assignment["offset_y"] == 0.0
+    assert assignment["offset_z"] == 0.0
+    assert assignment["frame"] == "ned"
+    assert assignment["hw_id"] == 9
+
+
+def test_build_runtime_swarm_assignment_keeps_finite_mixed_offsets():
+    assignment = build_runtime_swarm_assignment(
+        1,
+        {"offset_x": 1.25, "offset_y": "0", "offset_z": -3.5, "frame": "body"},
+    )
+    assert assignment["offset_x"] == 1.25
+    assert assignment["offset_y"] == 0.0
+    assert assignment["offset_z"] == -3.5
