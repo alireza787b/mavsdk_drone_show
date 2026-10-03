@@ -45,6 +45,29 @@ describe('getDroneReadinessModel', () => {
     expect(result.warnings[0].source).toBe('link');
   });
 
+  it('keeps an armable PX4 warning dispatchable while showing caution', () => {
+    const drone = {
+      [FIELD_NAMES.IS_READY_TO_ARM]: true,
+      [FIELD_NAMES.READINESS_STATUS]: 'warning',
+      [FIELD_NAMES.READINESS_SUMMARY]: 'GPS quality is marginal',
+      [FIELD_NAMES.PREFLIGHT_BLOCKERS]: [],
+      [FIELD_NAMES.PREFLIGHT_WARNINGS]: [{
+        source: 'px4',
+        severity: 'warning',
+        message: 'GPS quality is marginal',
+      }],
+      [FIELD_NAMES.STATUS_MESSAGES]: [],
+      [FIELD_NAMES.READINESS_CHECKS]: [],
+    };
+
+    const result = getDroneReadinessModel(drone, { level: 'online' });
+
+    expect(result.isReady).toBe(true);
+    expect(result.status).toBe('warning');
+    expect(result.blockers).toHaveLength(0);
+    expect(result.warnings[0].message).toBe('GPS quality is marginal');
+  });
+
   it('falls back to unknown when link is stale and no recent readiness snapshot exists', () => {
     const nowMs = Date.now();
     const drone = {

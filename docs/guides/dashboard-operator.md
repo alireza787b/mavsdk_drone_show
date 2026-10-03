@@ -80,6 +80,19 @@ Before sending commands, verify:
 - selected cards show `In` and intentionally excluded cards show `Out`
 - preflight has no unresolved blockers for the current target scope
 
+The command surface uses one operational status strip. `READY` means all
+selected aircraft are armable; `READY · CAUTION` means PX4/MDS has an advisory
+warning but no active blocker; `NOT READY` means at least one target is
+blocked. Click a metric only when you need the affected aircraft and reason.
+The normal view intentionally omits diagnostic prose; the confirmation dialog
+and command monitor contain delivery/execution detail when it matters.
+
+GNSS terminology is deliberately kept separate. Horizontal and vertical drift
+are rates (m/s) calculated by PX4 while stationary, while position uncertainty
+is expressed in metres. MDS does not reinterpret one as the other or silently
+relax PX4 drift, heading, estimator, or arming checks. An amber advisory is
+context, not permission to bypass a PX4 preflight failure.
+
 When a target rejects during preparation, delivery, or execution, the command
 monitor shows a bounded per-aircraft reason. Read that reason before retrying;
 do not repeat a command merely to force a green state. A fleet preparation

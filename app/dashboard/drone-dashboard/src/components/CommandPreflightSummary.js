@@ -101,6 +101,14 @@ const CommandPreflightSummary = ({
           detail: readiness.statusLabel,
           state: readiness.status === 'blocked' ? 'danger' : 'warning',
         });
+      } else if (readiness.warnings.length > 0) {
+        exceptions.push({
+          key: `readiness-warning-${hwId}`,
+          group: 'readiness',
+          label: identity.primary,
+          detail: readiness.warnings[0].message,
+          state: 'warning',
+        });
       }
 
       if (!droneGitStatus?.commit || !gcsGitStatus?.commit) {
@@ -168,8 +176,8 @@ const CommandPreflightSummary = ({
       label: 'Readiness',
       value: `${summary.counts.ready}/${summary.counts.configured}`,
       detail: `${summary.counts.review} review · ${summary.counts.blocked} blocked`,
-      state: summary.counts.blocked > 0 ? 'danger' : summary.counts.review > 0 ? 'warning' : 'good',
-      tooltip: `${summary.counts.ready} targets are ready, ${summary.counts.review} need review, and ${summary.counts.blocked} are blocked for launch or dispatch.`,
+      state: summary.counts.blocked > 0 ? 'danger' : summary.exceptions.some((exception) => exception.group === 'readiness' && exception.state === 'warning') ? 'warning' : 'good',
+      tooltip: `${summary.counts.ready} targets are ready, ${summary.counts.review} need review, and ${summary.counts.blocked} are blocked for launch or dispatch. Advisory warnings do not block an armable target.`,
       exceptionCount: metricExceptionCounts.readiness || 0,
     },
     {
@@ -196,6 +204,16 @@ const CommandPreflightSummary = ({
   const displayedExceptions = activeExceptionGroup
     ? summary.exceptions.filter((exception) => exception.group === activeExceptionGroup)
     : summary.exceptions;
+  const hasReadinessBlocker = summary.counts.blocked > 0;
+  const hasReadinessCaution = summary.exceptions.some(
+    (exception) => exception.group === 'readiness' && exception.state === 'warning',
+  );
+  const overallState = hasReadinessBlocker ? 'danger' : hasReadinessCaution ? 'warning' : 'good';
+  const overallLabel = hasReadinessBlocker
+    ? 'NOT READY'
+    : hasReadinessCaution
+      ? 'READY · CAUTION'
+      : 'READY';
 
   const handleMetricClick = (metric) => {
     if (!metric.exceptionCount) {
@@ -209,8 +227,12 @@ const CommandPreflightSummary = ({
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div className="command-preflight__header-copy">
-          <h3>Preflight</h3>
+          <h3>Flight readiness</h3>
           <div className="command-preflight__header-meta">
+            <span className={`command-preflight__state command-preflight__state--${overallState}`}>
+              <span className="command-preflight__state-dot" aria-hidden="true" />
+              {overallLabel}
+            </span>
             <span className="command-preflight__header-pill">{targetSummaryLabel || 'Current scope'}</span>
             <span className="command-preflight__header-pill command-preflight__header-pill--secondary">
               {clockOffsetLabel ? `Scheduler ${clockOffsetLabel}` : 'Scheduler aligned'}

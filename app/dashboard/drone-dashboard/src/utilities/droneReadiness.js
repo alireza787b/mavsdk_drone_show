@@ -139,7 +139,13 @@ export function getDroneReadinessModel(drone, runtimeStatus = null) {
     recentMessages,
     checks,
     issueCount,
-    isReady: status === 'ready' && visibleBlockers.length === 0,
+    // PX4 can report an armable vehicle with advisory warnings. Keep that
+    // distinction visible in `status`, but do not turn an armable vehicle into
+    // a dispatch blocker. Blockers, unknown link state, and an explicit false
+    // PX4 armability flag still fail closed.
+    isReady: (status === 'ready' || status === 'warning')
+      && visibleBlockers.length === 0
+      && drone?.[FIELD_NAMES.IS_READY_TO_ARM] === true,
     updatedAt: Number(drone?.[FIELD_NAMES.PREFLIGHT_LAST_UPDATE]) || null,
   };
 }

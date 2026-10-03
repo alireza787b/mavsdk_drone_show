@@ -245,6 +245,17 @@
     color: var(--color-primary);
 }
 
+.command-sender-container .command-tabs {
+    border-radius: 0.45rem;
+    box-shadow: none;
+}
+
+.command-sender-container .command-tab {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.8rem;
+    font-size: var(--font-size-sm);
+}
+
 .command-sender-container .command-tab__icon,
 .command-sender-container .command-tab__text {
     color: inherit;
@@ -1002,6 +1013,45 @@
     color: var(--color-text-secondary);
 }
 
+/* One high-signal readiness state for the operator's first glance. */
+.command-preflight__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 1.85rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.06em;
+}
+
+.command-preflight__state-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.command-preflight__state--good {
+    color: var(--color-success);
+    border-color: var(--color-success-border);
+    background: var(--color-success-light);
+}
+
+.command-preflight__state--warning {
+    color: var(--color-warning);
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-light);
+}
+
+.command-preflight__state--danger {
+    color: var(--color-danger);
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-light);
+}
+
 .command-preflight__clock-label,
 .command-preflight__clock-value,
 .command-preflight__metric-label,
@@ -1036,6 +1086,24 @@
     text-align: left;
     appearance: none;
     cursor: pointer;
+}
+
+.command-preflight__metric {
+    min-height: 4.6rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.45rem;
+}
+
+.command-preflight__metric strong {
+    font-size: 1.25rem;
+    letter-spacing: -0.01em;
+}
+
+.command-preflight__metric small {
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .command-preflight__metric:hover:not(:disabled) {

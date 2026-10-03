@@ -9,6 +9,12 @@ Position gain 0.5, velocity damping 0.35, filtering 0.35 s, deadbands, predictio
 saved roles and Hold/recovery remain unchanged. There is no calibration bypass,
 new normal-flight UI gate, automatic leader promotion or collision avoidance.
 
+The dashboard may show `READY · CAUTION` for an armable vehicle carrying a PX4
+advisory warning. This is an operator-facing status distinction only. A PX4
+`Preflight Fail`, estimator failure, heading failure, stale/unknown link, or
+other blocker remains `NOT READY`; the responsive profile does not override
+those checks.
+
 Increasing jerk makes acceleration respond sooner; increasing acceleration
 shortens the subsequent braking ramp. Neither fixes missing leader data, and
 neither guarantees that the aircraft immediately follows the requested velocity.

@@ -218,6 +218,47 @@
     overflow: hidden;
 }
 
+/* Dispatch choices are controls, not documentation cards. Keep the decision
+ * surface compact and leave operational detail to the review/confirmation. */
+.mission-trigger-container .mission-cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 0.6rem;
+}
+
+.mission-trigger-container .mission-card {
+    min-height: 5.25rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.45rem;
+    box-shadow: none;
+    gap: 0.45rem;
+}
+
+.mission-trigger-container .mission-card__header {
+    gap: 0.45rem;
+    align-items: center;
+}
+
+.mission-trigger-container .mission-card .mission-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.4rem;
+    font-size: 0.9rem;
+}
+
+.mission-trigger-container .mission-card__eyebrow {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.65rem;
+}
+
+.mission-trigger-container .mission-card .mission-name {
+    font-size: var(--font-size-base);
+}
+
+.mission-trigger-container .mission-card .mission-summary {
+    font-size: var(--font-size-xs);
+    -webkit-line-clamp: 1;
+}
+
 /* Notification */
 .notification {
     background: linear-gradient(135deg, var(--color-success-light), var(--color-bg-secondary));

@@ -9,6 +9,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Flight dispatch now presents a compact operational readiness strip with
+  explicit `READY`, `READY · CAUTION`, and `NOT READY` states. Armable PX4
+  advisory warnings remain dispatchable and visible in amber; real blockers,
+  stale telemetry, and unknown state still fail closed. Mission choices and
+  Smart Swarm controls use denser operator-focused cards with details deferred
+  to review/confirmation and command monitoring. No PX4 navigation thresholds
+  or EKF checks were relaxed; GNSS drift-rate and position uncertainty remain
+  separate measurements.
+
 - Precision Move now uses bounded velocity-only translation, with acceleration/
   jerk shaping and measured-speed arrival settling. This prevents PX4 position
   correction from exceeding the requested jog-speed command. The responsive
