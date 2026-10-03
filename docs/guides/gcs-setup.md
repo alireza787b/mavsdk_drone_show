@@ -664,6 +664,21 @@ When using the constrained GCS self-update path:
 
 ### Managing the Services
 
+On installed field/customer hosts, run the GCS under the persistent
+`mds-field-gcs.service` unit. It starts the dashboard and API after network
+availability and returns automatically after a VPS reboot:
+
+```bash
+sudo systemctl enable --now mds-field-gcs.service
+sudo systemctl status mds-field-gcs.service
+curl -fsS http://127.0.0.1:5030/health
+```
+
+The unit uses `/etc/mds/gcs.env` and the repository launcher as its single
+configuration source. Do not start a second gunicorn or dashboard process on
+the same ports. A transient `systemd-run` or tmux process is suitable only for
+temporary development/SITL sessions and will not provide reboot persistence.
+
 ```bash
 # View running services (tmux)
 tmux attach -t MDS-GCS
