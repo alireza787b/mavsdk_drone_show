@@ -186,3 +186,25 @@ class TestGetExpectedPositionFromTrajectory:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+def test_get_expected_position_rejects_nonfinite_first_waypoint(tmp_path):
+    """Fail closed when trajectory first px/py is nan/inf."""
+    import math
+    from src.coordinate_utils import get_expected_position_from_trajectory
+
+    traj_dir = tmp_path / "shapes" / "swarm" / "processed"
+    traj_dir.mkdir(parents=True)
+    csv_path = traj_dir / "Drone 1.csv"
+    csv_path.write_text("t,px,py,pz\n0,nan,1.0,0\n", encoding="utf-8")
+    north, east = get_expected_position_from_trajectory(1, base_dir=str(tmp_path))
+    assert north is None and east is None
+
+    csv_path.write_text("t,px,py,pz\n0,inf,2.0,0\n", encoding="utf-8")
+    north, east = get_expected_position_from_trajectory(1, base_dir=str(tmp_path))
+    assert north is None and east is None
+
+    csv_path.write_text("t,px,py,pz\n0,1.5,2.5,0\n", encoding="utf-8")
+    north, east = get_expected_position_from_trajectory(1, base_dir=str(tmp_path))
+    assert north == 1.5 and east == 2.5
+    assert math.isfinite(north) and math.isfinite(east)
+
