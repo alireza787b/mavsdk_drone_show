@@ -13,6 +13,7 @@ import requests
 import threading
 import time
 import logging
+import math
 from typing import Any, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -82,7 +83,7 @@ def _normalize_heartbeat_first_seen(value):
     except (TypeError, ValueError):
         return None
 
-    if numeric_value <= 0:
+    if not math.isfinite(numeric_value) or numeric_value <= 0:
         return None
 
     if numeric_value < 1_000_000_000_000:
