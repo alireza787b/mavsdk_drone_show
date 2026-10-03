@@ -164,6 +164,26 @@ cd ~/mavsdk_drone_show
    sudo ./tools/mds_node_init.sh --resume
    ```
 
+### Issue: `mavsdk_server` fails with `GLIBC_2.xx not found`
+
+**Symptom:**
+
+```text
+./mavsdk_server: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
+```
+
+**Cause:** The prebuilt server binary was linked against a newer glibc than the
+host provides (common on Ubuntu 20.04 with a newer standalone build).
+
+**Solution:** Prefer the binary shipped with the `mavsdk` Python package, an
+official MAVSDK release built for your OS, or a newer base image/container.
+Do not force-upgrade system glibc on field companions.
+
+Full runbook (including `ldd` checks and SITL packaging pointers):
+[mavsdk-server-glibc-troubleshooting.md](./mavsdk-server-glibc-troubleshooting.md)
+and upstream issue
+[#21](https://github.com/alireza787b/mavsdk_drone_show/issues/21).
+
 ### Issue: MAVSDK download fails
 
 **Symptom:**
