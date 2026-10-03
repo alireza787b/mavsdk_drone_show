@@ -126,3 +126,30 @@ def test_build_network_info_handles_missing_nmcli(monkeypatch):
     assert payload["ethernet"] is None
     assert payload["primary_link"] is None
     assert payload["internet"]["reachable"] is False
+
+
+def test_env_float_rejects_non_finite(monkeypatch):
+    import math
+
+    monkeypatch.setenv("MDS_TEST_ENV_FLOAT", "nan")
+    assert network_status._env_float("MDS_TEST_ENV_FLOAT", 1.5) == 1.5
+
+    monkeypatch.setenv("MDS_TEST_ENV_FLOAT", "inf")
+    assert network_status._env_float("MDS_TEST_ENV_FLOAT", 2.0, minimum=0.2) == 2.0
+
+    monkeypatch.setenv("MDS_TEST_ENV_FLOAT", "-inf")
+    assert network_status._env_float("MDS_TEST_ENV_FLOAT", 3.0, minimum=1.0) == 3.0
+
+    monkeypatch.setenv("MDS_TEST_ENV_FLOAT", "0.05")
+    assert network_status._env_float("MDS_TEST_ENV_FLOAT", 1.0, minimum=0.2) == 0.2
+
+
+def test_env_int_rejects_non_finite_and_overflow(monkeypatch):
+    monkeypatch.setenv("MDS_TEST_ENV_INT", "nan")
+    assert network_status._env_int("MDS_TEST_ENV_INT", 7) == 7
+
+    monkeypatch.setenv("MDS_TEST_ENV_INT", "inf")
+    assert network_status._env_int("MDS_TEST_ENV_INT", 8, minimum=1) == 8
+
+    monkeypatch.setenv("MDS_TEST_ENV_INT", "4.2")
+    assert network_status._env_int("MDS_TEST_ENV_INT", 0, minimum=1) == 4
