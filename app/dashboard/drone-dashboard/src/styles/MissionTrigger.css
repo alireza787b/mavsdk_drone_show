@@ -41,6 +41,21 @@
 }
 .mission-swarm-review h3, .mission-swarm-review p { margin: 0; }
 .mission-swarm-review header span, .mission-swarm-review small, .mission-swarm-review__hint { color: var(--color-text-secondary); }
+.mission-swarm-review__cluster-select {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+.mission-swarm-review__cluster-select select {
+    min-width: 12rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    color: var(--color-text-primary);
+    background: var(--color-surface-inset);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-sm);
+}
 .mission-swarm-review__roles { list-style: none; padding: 0; margin: 0; }
 .mission-swarm-review__roles li {
     display: grid;

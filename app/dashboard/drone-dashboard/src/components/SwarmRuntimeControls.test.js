@@ -176,7 +176,7 @@ describe('SwarmRuntimeControls', () => {
     });
   });
 
-  it('defaults to one drone and requires an explicit cluster choice for both-drone RTL', async () => {
+  it('defaults to the complete saved cluster for both-drone RTL', async () => {
     submitCommandWithLifecycleFeedback.mockResolvedValue({ accepted_for_tracking: true, command_id: 'rtl-1' });
     render(
       <CommandActivityProvider>
@@ -184,11 +184,6 @@ describe('SwarmRuntimeControls', () => {
       </CommandActivityProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
-    expect(within(screen.getByRole('dialog')).getByText(/1 target drone: Leader 1/)).toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }));
-
-    fireEvent.click(screen.getByRole('button', { name: /use selected cluster runtime scope/i }));
     fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/2 target drones: Leader 1/)).toHaveTextContent('Follower 2 (Drone 2)');
@@ -212,7 +207,21 @@ describe('SwarmRuntimeControls', () => {
     fireEvent.click(screen.getByRole('button', { name: /rtl swarm/i }));
     rerender(
       <CommandActivityProvider>
-        <SwarmRuntimeControls viewModel={twoDroneViewModel} selectedDroneId="2" selectedClusterId="cluster-1" />
+        <SwarmRuntimeControls
+          viewModel={{
+            ...twoDroneViewModel,
+            clusters: [{
+              id: 'cluster-2',
+              type: 'cluster',
+              title: 'Cluster 2',
+              subtitle: 'Leader only',
+              leaderId: '1',
+              drones: [leaderDrone],
+            }],
+          }}
+          selectedDroneId="1"
+          selectedClusterId="cluster-2"
+        />
       </CommandActivityProvider>
     );
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /rtl swarm/i }));
@@ -239,7 +248,6 @@ describe('SwarmRuntimeControls', () => {
       </CommandActivityProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /use selected cluster runtime scope/i }));
     fireEvent.click(screen.getByRole('button', { name: /review leader/i }));
     fireEvent.click(screen.getByRole('button', { name: /mission config \(leader\)/i }));
     expect(onReviewSelection).toHaveBeenCalledWith('1');

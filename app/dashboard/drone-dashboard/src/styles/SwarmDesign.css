@@ -88,7 +88,23 @@
 .swarm-runtime-scope {
   display: inline-flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-base);
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+}
+
+.swarm-runtime-scope strong {
+  color: var(--color-text-primary);
+}
+
+.swarm-runtime-scope__label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .swarm-runtime-target {

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 
 from command_submission import submit_tracked_command
 from command_submission_coordinator import CommandSubmissionCoordinator
@@ -19,7 +20,7 @@ from schemas import SubmitCommandRequest
 from tests.helpers.fake_fleet_rpc import FakeFleetRPC
 
 
-def _submission_deps(*, dispatch=None, estimate=None, preparation=None):
+def _submission_deps(*, dispatch=None, estimate=None, preparation=None, fleet_config=None, swarm=None):
     params = SimpleNamespace(
         sim_mode=False,
         GCS_COMMAND_SUBMISSION_CONCURRENCY=4,
@@ -39,7 +40,8 @@ def _submission_deps(*, dispatch=None, estimate=None, preparation=None):
         get_command_tracker=lambda: tracker,
         get_command_submission_coordinator=lambda: coordinator,
         get_fleet_rpc_service=lambda: fleet_rpc,
-        load_config=lambda: [{"hw_id": "1", "pos_id": 1, "ip": "127.0.0.1"}],
+        load_config=lambda: fleet_config or [{"hw_id": "1", "pos_id": 1, "ip": "127.0.0.1"}],
+        load_swarm=lambda: swarm or [],
         load_origin=lambda: None,
         resolve_mission_type=resolve_mission_type,
         mission_requires_launch_armability_probe=mission_requires_launch_armability_probe,
@@ -61,6 +63,53 @@ def _submission_deps(*, dispatch=None, estimate=None, preparation=None):
         log_system_error=lambda *_args, **_kwargs: None,
     )
     return deps, tracker, coordinator
+
+
+@pytest.mark.asyncio
+async def test_smart_swarm_rejects_leader_only_target_scope():
+    deps, _tracker, _coordinator = _submission_deps(
+        fleet_config=[
+            {"hw_id": "1", "pos_id": 1, "ip": "127.0.0.1"},
+            {"hw_id": "2", "pos_id": 2, "ip": "127.0.0.2"},
+        ],
+        swarm=[
+            {"hw_id": 1, "follow": 0},
+            {"hw_id": 2, "follow": 1, "offset_x": 6},
+        ],
+    )
+
+    with pytest.raises(HTTPException, match="complete saved cluster"):
+        await submit_tracked_command(deps, SubmitCommandRequest(
+            mission_type=Mission.SMART_SWARM.value,
+            target_drone_ids=["1"],
+            idempotency_key="smart-swarm-leader-only",
+        ))
+
+
+@pytest.mark.asyncio
+async def test_smart_swarm_accepts_complete_cluster_target_scope():
+    deps, tracker, coordinator = _submission_deps(
+        fleet_config=[
+            {"hw_id": "1", "pos_id": 1, "ip": "127.0.0.1"},
+            {"hw_id": "2", "pos_id": 2, "ip": "127.0.0.2"},
+        ],
+        swarm=[
+            {"hw_id": 1, "follow": 0},
+            {"hw_id": 2, "follow": 1, "offset_x": 6},
+        ],
+    )
+    await coordinator.start()
+    try:
+        receipt = await submit_tracked_command(deps, SubmitCommandRequest(
+            mission_type=Mission.SMART_SWARM.value,
+            target_drone_ids=["1", "2"],
+            idempotency_key="smart-swarm-complete-cluster",
+        ))
+        status = await tracker.get_status(receipt.command_id)
+        assert status["target_drones"] == ["1", "2"]
+        assert status["params"]["smart_swarm"]["expected_hw_ids"] == ["1", "2"]
+    finally:
+        await coordinator.stop()
 
 
 async def _wait_for_phase(tracker, command_id, phase, timeout=1.0):

@@ -37,6 +37,7 @@ export default function DashboardSmartSwarmStart({ review = false, onReview, onB
   const [previewError, setPreviewError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [selectedClusterId, setSelectedClusterId] = useState(null);
   const inFlight = useRef(false);
   const { commandLifecycleCallbacks } = useCommandActivity();
 
@@ -62,9 +63,23 @@ export default function DashboardSmartSwarmStart({ review = false, onReview, onB
   }, []);
 
   const clusters = Array.isArray(preview?.clusters) ? preview.clusters : [];
+  const executableClusters = clusters.filter((candidate) => (
+    Array.isArray(candidate?.members) && candidate.members.length > 0
+  ));
+  useEffect(() => {
+    if (executableClusters.length === 0) {
+      setSelectedClusterId(null);
+      return;
+    }
+    if (!executableClusters.some((candidate) => candidate.cluster_id === selectedClusterId)) {
+      setSelectedClusterId(executableClusters[0].cluster_id);
+    }
+  }, [executableClusters, selectedClusterId]);
   // Opening the card never dispatches. Review -> Start -> Confirm is shared
   // with the other operator mission flows, without a second flight policy.
-  const cluster = clusters.length === 1 ? clusters[0] : null;
+  const cluster = executableClusters.find((candidate) => candidate.cluster_id === selectedClusterId)
+    || executableClusters[0]
+    || null;
   const unavailable = cluster?.partial_exclusion_hw_ids || [];
   const onlineCount = cluster?.members?.filter((m) => !unavailable.includes(m.hw_id)).length || 0;
   const requestConfirmation = (partial = false) => {
@@ -116,7 +131,7 @@ export default function DashboardSmartSwarmStart({ review = false, onReview, onB
         summary={previewError || (cluster
           ? `Leader ${cluster.cluster_id} · Drones ${cluster.members.map((m) => m.hw_id).join(', ')}`
           : clusters.length > 1
-            ? `${clusters.length} formations — choose one in Smart Swarm Runtime.`
+            ? `${clusters.length} formations · first cluster ready to review`
             : preview ? 'Save a formation in Swarm Design first.' : 'Loading saved formation…')}
         note="Review the formation before starting. Clicking this card sends no command."
         onClick={onReview}
@@ -129,6 +144,23 @@ export default function DashboardSmartSwarmStart({ review = false, onReview, onB
         <h3>Smart Swarm</h3>
         <span>{cluster ? `${cluster.members.length} drones · saved formation` : 'Formation review'}</span>
       </header>
+      {executableClusters.length > 1 && (
+        <label className="mission-swarm-review__cluster-select">
+          <span>Formation</span>
+          <select
+            aria-label="Smart Swarm formation"
+            value={cluster?.cluster_id || ''}
+            onChange={(event) => setSelectedClusterId(event.target.value)}
+            disabled={loading}
+          >
+            {executableClusters.map((candidate) => (
+              <option key={candidate.cluster_id} value={candidate.cluster_id}>
+                Cluster {candidate.cluster_id} · {candidate.members.length} drones
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {previewError && <p role="status">{previewError}</p>}
       {!preview && !previewError && <p role="status">Loading saved formation…</p>}
       {preview && !cluster && (

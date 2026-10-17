@@ -226,6 +226,9 @@ Important operator rule:
   This is a shared MDS ground-height tolerance, not a GNSS drift-rate or
   position-uncertainty threshold; PX4 preflight checks remain authoritative.
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
+- normal Smart Swarm starts are cluster-first: the page opens the first executable
+  saved cluster and shows the full leader/follower roster before confirmation;
+  a leader-only target is rejected before dispatch
 - a multi-drone Take Off is not physically atomic after dispatch: every node
   repeats its own final readiness and ground checks, so one aircraft can still
   reject while another accepts. For the first field validation, launch and

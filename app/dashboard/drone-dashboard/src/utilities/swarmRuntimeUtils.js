@@ -102,12 +102,20 @@ export function resolveSwarmRuntimeTargets(
     };
   }
 
-  // "All" and a stale/invalid explicit cluster are never command targets.
-  // With no explicit cluster, only the selected drone's saved cluster qualifies.
-  const clusterId = selectedClusterId || selectedDrone.clusterId;
-  const selectedCluster = clusters.find(
-    (candidate) => candidate.id === clusterId && candidate.type === 'cluster'
-  ) || null;
+  // Cluster scope is the safe operator default. If the page has no explicit
+  // cluster selection, use the first executable saved cluster rather than
+  // silently narrowing the command to the selected leader.
+  const executableClusters = clusters.filter(
+    (candidate) => candidate?.type === 'cluster' && Array.isArray(candidate.drones)
+      && candidate.drones.length > 0
+  );
+  const explicitCluster = selectedClusterId && selectedClusterId !== 'all'
+    ? executableClusters.find((candidate) => candidate.id === selectedClusterId)
+    : null;
+  const selectedDroneCluster = selectedDrone?.clusterId
+    ? executableClusters.find((candidate) => candidate.id === selectedDrone.clusterId)
+    : null;
+  const selectedCluster = explicitCluster || selectedDroneCluster || executableClusters[0] || null;
 
   const targetIds = selectedCluster?.drones?.map((drone) => drone.hw_id) || [];
   const count = targetIds.length;

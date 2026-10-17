@@ -79,11 +79,21 @@ test('shows fetch failure instead of an endless loading label', async () => {
   expect(screen.getByRole('button', { name: 'Start Smart Swarm' })).toBeDisabled();
 });
 
-test('does not silently choose the first of multiple clusters', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { ...preview, clusters: [...preview.clusters, { cluster_id: '3' }] } });
+test('defaults to the first complete cluster and allows an explicit switch', async () => {
+  fetchGcsResource.mockResolvedValue({ data: {
+    ...preview,
+    clusters: [...preview.clusters, {
+      cluster_id: '3',
+      members: [{ hw_id: '3', follow: '0', available: true, armed: false }],
+    }],
+  } });
   render(<DashboardSmartSwarmStart review />);
-  await screen.findByText('Choose a formation in Swarm Design');
-  expect(screen.getByRole('button', { name: 'Start Smart Swarm' })).toBeDisabled();
+  const selector = await screen.findByRole('combobox', { name: 'Smart Swarm formation' });
+  expect(selector).toHaveValue('1');
+  expect(screen.getByText('Follow Drone 1 · 6 m north · same height')).toBeInTheDocument();
+  fireEvent.change(selector, { target: { value: '3' } });
+  expect(screen.getByText('Leader · stays under your control')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Start Smart Swarm' })).not.toBeDisabled();
 });
 
 test('does not submit a confirmation after the reviewed formation changed', async () => {

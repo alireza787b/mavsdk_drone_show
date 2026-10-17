@@ -302,6 +302,7 @@ async def submit_tracked_command(
         from src.smart_swarm_contract import (
             SmartSwarmSession,
             normalize_topology,
+            resolve_clusters,
             topology_revision,
         )
 
@@ -321,6 +322,28 @@ async def submit_tracked_command(
                 detail=(
                     "Smart Swarm target is not present in the saved layout: "
                     + ", ".join(missing_assignments)
+                ),
+            )
+        clusters = resolve_clusters(assignments)
+        target_set = set(target_hw_ids)
+        matching_cluster = next(
+            (
+                cluster for cluster in clusters
+                if target_set == {member["hw_id"] for member in cluster["members"]}
+            ),
+            None,
+        )
+        if matching_cluster is None:
+            cluster_summary = ", ".join(
+                f"{cluster['cluster_id']} ({len(cluster['members'])} drones)"
+                for cluster in clusters
+            ) or "none"
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Smart Swarm requires a complete saved cluster; selected targets "
+                    f"{', '.join(target_hw_ids)} do not match one cluster. "
+                    f"Available clusters: {cluster_summary}."
                 ),
             )
         expected = set(target_hw_ids)

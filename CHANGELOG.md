@@ -13,6 +13,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   relative to home for Take Off and the ground arm/disarm test. Fresh evidence,
   landed/disarmed requirements, airborne thresholds and PX4 checks are unchanged.
 
+- Smart Swarm operation is now cluster-first. The UI defaults to the first
+  complete saved cluster, keeps single-drone scope out of the normal workflow,
+  and the GCS rejects leader-only Smart Swarm target sets before dispatch.
+
 - Smart Swarm Runtime adds Sequential Return with a configurable RTL interval
   (10 seconds by default), named order confirmation, recoverable queue status
   and cancellation of pending dispatches. It confirms Hold before sending

@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import {
-  FaCrosshairs,
   FaPauseCircle,
   FaPlay,
   FaPlaneArrival,
-  FaProjectDiagram,
   FaHome,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import SequentialReturnControl from './SequentialReturnControl';
 
 import {
-  ActionIconButton,
   ConfirmDialog,
   StatusBadge,
 } from './ui/OperatorPrimitives';
@@ -92,7 +89,9 @@ const SwarmRuntimeControls = ({
   onReviewSelection = null,
   onOpenMissionConfig = null,
 }) => {
-  const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
+  // Cluster scope is the normal operator path. Single-drone scope remains
+  // supported by the resolver for diagnostics, but is never the default.
+  const [scope] = useState(SWARM_RUNTIME_SCOPE.CLUSTER);
   const [pendingActionKey, setPendingActionKey] = useState(null);
   const [confirmRequest, setConfirmRequest] = useState(null);
   const { commandLifecycleCallbacks } = useCommandActivity();
@@ -225,7 +224,7 @@ const SwarmRuntimeControls = ({
         <div>
           <span className="swarm-selection-panel__eyebrow">Runtime Control</span>
           <h2>Smart Swarm Runtime</h2>
-          <p>Review the scope, start following, then use Hold, Land, or RTL when needed.</p>
+          <p>Start the saved cluster after both drones are airborne.</p>
         </div>
         <div className="swarm-runtime-panel__badges">
           <StatusBadge tone={targetIds.length > 0 ? 'info' : 'warning'}>
@@ -235,25 +234,10 @@ const SwarmRuntimeControls = ({
         </div>
       </div>
 
-      <div className="swarm-runtime-scope">
-        <ActionIconButton
-          icon={<FaCrosshairs />}
-          label="Use selected drone runtime scope"
-          onClick={() => setScope(SWARM_RUNTIME_SCOPE.DRONE)}
-          active={scope === SWARM_RUNTIME_SCOPE.DRONE}
-          tone="info"
-        >
-          Selected Drone
-        </ActionIconButton>
-        <ActionIconButton
-          icon={<FaProjectDiagram />}
-          label="Use selected cluster runtime scope"
-          onClick={() => setScope(SWARM_RUNTIME_SCOPE.CLUSTER)}
-          active={scope === SWARM_RUNTIME_SCOPE.CLUSTER}
-          tone="info"
-        >
-          Selected Cluster
-        </ActionIconButton>
+      <div className="swarm-runtime-scope" aria-label="Smart Swarm target scope">
+        <span className="swarm-runtime-scope__label">Target</span>
+        <strong>{selectedCluster?.title || 'Saved cluster'}</strong>
+        <span>Complete formation · {targetIds.length} drone{targetIds.length === 1 ? '' : 's'}</span>
       </div>
 
       <div className="swarm-runtime-target">
