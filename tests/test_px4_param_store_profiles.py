@@ -130,3 +130,45 @@ def test_repo_loader_exposes_exact_migrated_multidrone_field_baseline():
         for entry in profile.entries
     ] == _MIGRATED_FIELD_BASELINE
     assert all(entry.component_id == 1 for entry in profile.entries)
+
+
+def test_velocity_response_trial_is_selected_only_and_does_not_change_other_layers():
+    params = SimpleNamespace(PX4_PARAMETER_PROFILE_DIR=str(
+        Path(__file__).resolve().parents[1] / "resources" / "px4_param_profiles"
+    ))
+    profile = get_repo_profile(params, "horizontal_velocity_response_trial")
+    assert profile.recommended_scope == "selected"
+    assert [(entry.name, entry.value) for entry in profile.entries] == [("MPC_XY_VEL_P_ACC", 2.2)]
+    assert "trial" in profile.tags
+
+
+@pytest.mark.parametrize(
+    "profile_id, expected_values",
+    [
+        ("routine_flight_logging", {"SDLOG_PROFILE": 1, "SDLOG_MODE": 0}),
+        ("navigation_diagnostics", {"SDLOG_PROFILE": 9, "SDLOG_MODE": 2}),
+    ],
+)
+def test_repo_logging_profiles_are_discoverable_and_only_change_logging(
+    profile_id, expected_values
+):
+    repo_root = Path(__file__).resolve().parents[1]
+    params = SimpleNamespace(
+        PX4_PARAMETER_PROFILE_DIR=str(repo_root / "resources" / "px4_param_profiles")
+    )
+
+    profiles = list_repo_profiles(params)
+    profile = get_repo_profile(params, profile_id)
+
+    assert profile is not None
+    assert any(
+        summary.profile_id == profile_id and summary.entry_count == 2
+        for summary in profiles.profiles
+    )
+    assert profile.recommended_scope == "selected"
+    assert len(profile.entries) == 2
+    assert {entry.name: entry.value for entry in profile.entries} == expected_values
+    assert all(
+        entry.component_id == 1 and entry.value_type == "int"
+        for entry in profile.entries
+    )

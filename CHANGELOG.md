@@ -9,6 +9,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm Runtime adds Sequential Return with a configurable RTL interval
+  (10 seconds by default), named order confirmation, recoverable queue status
+  and cancellation of pending dispatches. It confirms Hold before sending
+  tracked per-aircraft PX4 RTL commands. Timed returns may overlap; no altitude
+  layering, collision-avoidance planner or aircraft parameter change is implied.
+  Pilot/failsafe state changes, command failures, new MDS flight commands and
+  GCS restarts stop pending dispatches.
+- A selected-aircraft Horizontal Velocity Response Trial profile exposes the
+  evidence-led `MPC_XY_VEL_P_ACC=2.2` candidate for isolated airframe testing.
+  It changes no other gains/checks and is neither automatically applied nor
+  described as hardware-validated.
+
 - Flight dispatch now presents a compact operational readiness strip with
   explicit `READY`, `READY · CAUTION`, and `NOT READY` states. Armable PX4
   advisory warnings remain dispatchable and visible in amber; real blockers,
@@ -29,6 +41,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   rehearsal tools distinguish command responsiveness from aircraft clearance.
 - A logging-only Navigation Diagnostics PX4 profile enables boot-to-shutdown
   navigation capture without applying unrelated estimator or failsafe changes.
+- A Routine Flight Logging PX4 profile restores both `SDLOG_PROFILE=1` and
+  `SDLOG_MODE=0` after diagnostics. Guidance distinguishes armed-only routine
+  capture from temporary boot logging; neither profile changes flight checks
+  or control gains.
 - The SITL tracking rehearsal waits for both Swarm role acknowledgements before
   moving the leader and reports measured jog overspeed as a validation failure.
 

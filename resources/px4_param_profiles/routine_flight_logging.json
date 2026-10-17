@@ -1,0 +1,11 @@
+{
+  "profile_id": "routine_flight_logging",
+  "name": "Routine Flight Logging",
+  "description": "Logging-only restoration after diagnostics: default flight topics, armed-to-disarm recording. Review against the installed firmware, apply while grounded and disarmed, restart and verify readback and next-flight topic coverage. Does not capture the stationary pre-arm interval or change calibration, control gains or arming checks.",
+  "recommended_scope": "selected",
+  "tags": ["logging", "flight"],
+  "entries": [
+    {"component_id": 1, "name": "SDLOG_PROFILE", "value_type": "int", "value": 1},
+    {"component_id": 1, "name": "SDLOG_MODE", "value_type": "int", "value": 0}
+  ]
+}

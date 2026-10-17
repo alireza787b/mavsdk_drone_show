@@ -234,6 +234,41 @@
   border-style: dashed;
 }
 
+.swarm-sequential-return {
+  margin-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border-primary);
+  padding-top: var(--spacing-md);
+}
+
+.swarm-sequential-return__toolbar,
+.swarm-sequential-return__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.swarm-sequential-return__toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  color: var(--color-text-secondary);
+}
+
+.swarm-sequential-return__toolbar input {
+  width: 5rem;
+  padding: var(--spacing-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+}
+
+.swarm-sequential-return__status {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
 .swarm-runtime-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -152,6 +152,34 @@ aircraft's RTL configuration and landing separation before flight.
 
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
 
+### Sequential Return
+
+On the same runtime panel, select the drone or cluster, set **RTL interval**
+(default **10 seconds**, range 1–300 seconds), then **Sequential Return**.
+The confirmation lists the exact aircraft order and relative dispatch times.
+MDS ends following and confirms Hold on all selected aircraft, then dispatches
+each aircraft's normal PX4 RTL in that order. The interval is a minimum between
+RTL submissions; delayed confirmation can extend it. It does **not** wait for
+each landing. Return paths can overlap: this mode spaces commands and does not
+plan collision-free trajectories or assign altitude layers. Each aircraft keeps
+its own PX4 return altitude, home/rally destination, descent and failsafes.
+
+The GCS owns the queue, so navigating away or refreshing the browser does not
+stop it. The panel recovers its status after refresh. **Cancel remaining** stops
+pending commands; an already-issued Hold or RTL continues. A newer MDS flight
+command affecting a participating aircraft cancels the pending queue. Before
+each RTL, fresh telemetry must still show that waiting aircraft armed in Hold;
+pilot takeover, disarming or missing telemetry stops the remaining queue.
+Command rejection or unconfirmed execution also stops it, with the reason shown.
+Use the existing command monitor for each individual Hold/RTL result.
+
+A GCS shutdown/restart interrupts the remaining queue and never silently
+resumes it. Aircraft already in RTL continue under PX4; aircraft still waiting
+remain under PX4 Hold/failsafe control. The final status **RTL commands started**
+does not claim that the aircraft have landed. Plan battery reserve for the
+waiting interval as well as each return flight. This initial version adds no
+formation, leader-election, PX4 parameter or estimator changes.
+
 The dashboard Smart Swarm card uses the same tracked session contract as the
 advanced runtime; it does not use the generic mission scheduling form. The
 advanced page remains the place for multiple clusters and recovery controls.

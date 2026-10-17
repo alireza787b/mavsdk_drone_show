@@ -5,6 +5,7 @@ from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
 from command_tracker import CommandCallbackAuthenticationError
 from smart_swarm_service import build_preview, start_cluster
 from swarm_recovery_service import apply_session_recovery
+from sequential_return_service import SequentialReturnRequest
 
 
 def create_swarm_runtime_router(deps):
@@ -20,6 +21,22 @@ def create_swarm_runtime_router(deps):
     @router.post("/api/v1/swarm/runtime/start", status_code=202)
     async def start(request: SwarmStartRequest):
         return await start_cluster(deps, request)
+
+    @router.get("/api/v1/swarm/runtime/sequential-return")
+    async def latest_return():
+        return deps.sequential_return_service.latest()
+
+    @router.post("/api/v1/swarm/runtime/sequential-return", status_code=202)
+    async def sequential_return(request: SequentialReturnRequest):
+        return await deps.sequential_return_service.start(request)
+
+    @router.get("/api/v1/swarm/runtime/sequential-return/{return_id}")
+    async def return_status(return_id: str):
+        return deps.sequential_return_service.get(return_id)
+
+    @router.post("/api/v1/swarm/runtime/sequential-return/{return_id}/cancel")
+    async def cancel_return(return_id: str):
+        return await deps.sequential_return_service.cancel(return_id)
 
     @router.post("/api/v1/command-reports/swarm-runtime")
     async def report(payload: SwarmRuntimeReport, capability: str | None = Header(

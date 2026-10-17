@@ -1,0 +1,77 @@
+import React from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import SequentialReturnControl from './SequentialReturnControl';
+import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
+
+jest.mock('../services/gcsApiService', () => ({
+  fetchGcsResource: jest.fn(), postGcsResource: jest.fn(),
+}));
+
+const props = { targetIds: ['1', '2'], targetNames: ['Leader', 'Follower'] };
+const waiting = {
+  return_id: 'return-1', state: 'waiting', target_drone_ids: ['1', '2'],
+  delay_sec: 10, next_hw_id: '2', commands: [{ hw_id: '1', command_id: 'rtl-1' }],
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  fetchGcsResource.mockResolvedValue({ data: null });
+  postGcsResource.mockResolvedValue({ data: waiting });
+});
+
+test('defaults to 10 seconds, opening sends nothing, confirmation names order', async () => {
+  render(<SequentialReturnControl {...props} />);
+  expect(screen.getByLabelText('Seconds between RTL commands')).toHaveValue(10);
+  fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByText('Leader · first')).toBeInTheDocument();
+  expect(within(dialog).getByText('Follower · +10 s')).toBeInTheDocument();
+  expect(postGcsResource).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Start return' }));
+  await waitFor(() => expect(postGcsResource).toHaveBeenCalledWith(
+    '/api/v1/swarm/runtime/sequential-return',
+    expect.objectContaining({ target_drone_ids: ['1', '2'], delay_sec: 10 }),
+  ));
+  expect(await screen.findByText('1/2 RTL commands issued')).toBeInTheDocument();
+});
+
+test('editable interval and changed targets require a fresh review', async () => {
+  const { rerender } = render(<SequentialReturnControl {...props} />);
+  fireEvent.change(screen.getByLabelText('Seconds between RTL commands'), { target: { value: '20' } });
+  fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+  expect(within(screen.getByRole('dialog')).getByText('Follower · +20 s')).toBeInTheDocument();
+  rerender(<SequentialReturnControl targetIds={['2']} targetNames={['Follower']} />);
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start return' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Selection changed');
+  expect(postGcsResource).not.toHaveBeenCalled();
+});
+
+test('refresh recovers the running queue and cancellation targets its identity', async () => {
+  fetchGcsResource.mockResolvedValue({ data: waiting });
+  render(<SequentialReturnControl {...props} />);
+  const cancel = await screen.findByRole('button', { name: 'Cancel remaining' });
+  expect(screen.getByRole('button', { name: /sequential return/i })).toBeDisabled();
+  fireEvent.click(cancel);
+  await waitFor(() => expect(postGcsResource).toHaveBeenCalledWith(
+    '/api/v1/swarm/runtime/sequential-return/return-1/cancel',
+  ));
+});
+
+test('a lost response reuses the same request identity on retry', async () => {
+  postGcsResource.mockRejectedValueOnce(new Error('lost response')).mockResolvedValueOnce({ data: waiting });
+  render(<SequentialReturnControl {...props} />);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start return' }));
+    await waitFor(() => expect(postGcsResource).toHaveBeenCalledTimes(attempt + 1));
+    if (attempt === 0) await screen.findByRole('alert');
+  }
+  expect(postGcsResource.mock.calls[0][1].idempotency_key).toBe(postGcsResource.mock.calls[1][1].idempotency_key);
+});
+
+test('invalid interval cannot dispatch', async () => {
+  render(<SequentialReturnControl {...props} />);
+  fireEvent.change(screen.getByLabelText('Seconds between RTL commands'), { target: { value: '0' } });
+  expect(screen.getByRole('button', { name: /sequential return/i })).toBeDisabled();
+  await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
+});

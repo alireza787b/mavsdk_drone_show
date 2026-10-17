@@ -479,6 +479,12 @@ async def submit_tracked_command(
                 )
             return build_replay_receipt(tracked_status)
 
+        return_service = getattr(deps, "sequential_return_service", None)
+        if (return_service is not None
+                and resolved_mission not in {deps.Mission.TEST_LED, deps.Mission.UPDATE_CODE}
+                and not return_service.owns_current_task()):
+            await return_service.supersede(target_hw_ids)
+
         dispatch_payload["command_id"] = command_id
         work = TrackedSubmissionWork(
             deps=deps,

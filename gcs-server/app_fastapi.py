@@ -129,6 +129,7 @@ from api_routes.sitl_control import create_sitl_control_router
 from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
 from api_routes.swarm_runtime import create_swarm_runtime_router
+from sequential_return_service import SequentialReturnService
 from api_routes.swarm_trajectory import create_swarm_trajectory_router
 from show_management import (
     CUSTOM_SHOW_REQUIRED_COLUMNS,
@@ -922,6 +923,8 @@ async def lifespan(app: FastAPI):
 
     await fleet_rpc_service.start()
     await command_submission_coordinator.start()
+    global sequential_return_service
+    sequential_return_service = SequentialReturnService(sys.modules[__name__])
 
     # Start background services even with an empty manifest so runtime fleet
     # changes can reconcile in-process without requiring a backend restart.
@@ -938,6 +941,7 @@ async def lifespan(app: FastAPI):
     log_system_event("GCS FastAPI server shutting down...", "INFO", "shutdown")
     # Command preparation may still need FleetRPC while it drains, so stop it
     # before closing shared transports and background services.
+    await sequential_return_service.close()
     await command_submission_coordinator.stop()
     await background_puller.stop()
     await background_services.stop()

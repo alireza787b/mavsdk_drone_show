@@ -1,0 +1,10 @@
+{
+  "profile_id": "horizontal_velocity_response_trial",
+  "name": "Horizontal Velocity Response Trial",
+  "description": "Optional single-aircraft response trial motivated by the October 4 flight: MPC_XY_VEL_P_ACC 2.2 instead of the captured 1.8. This candidate is not hardware-validated or automatically applied. Snapshot the actual aircraft values, review the firmware diff, apply grounded, then compare isolated gentle starts, stops, reversals and hover. Keep I/D, MDS shaping and estimator settings fixed; restore the snapshot if oscillation or overshoot increases.",
+  "recommended_scope": "selected",
+  "tags": ["control", "trial"],
+  "entries": [
+    {"component_id": 1, "name": "MPC_XY_VEL_P_ACC", "value_type": "float", "value": 2.2}
+  ]
+}

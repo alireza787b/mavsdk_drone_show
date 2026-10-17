@@ -283,6 +283,11 @@ For a two-drone hardware test:
   GCS endpoint; keep one stable route and do not add duplicates blindly
 - if RTK does not converge, verify that QGC sees both vehicles as distinct
   system IDs and that RTCM traffic is visible on the MAVLink route
+- verify the fix state on **each rover**, not just the QGC base-station status:
+  fix type `4` is DGPS, `5` is RTK float, and `6` is RTK fixed. A connected
+  base or a good satellite count does not mean both aircraft have RTK fixed.
+  If correction delivery is uncertain, check the base output, each MAVLink
+  path, and rover reception before changing GPS/EKF parameters.
 
 References:
 

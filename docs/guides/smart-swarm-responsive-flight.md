@@ -88,8 +88,14 @@ restart and verify a boot ULog really contains local/global position, GNSS,
 estimator status/innovations, setpoints, mode/commands and sensor data. The
 default set may not include every diagnostic topic on every firmware: explicitly
 capture missing check-status topics using that firmware's supported mechanism.
-After the diagnostic session restore `SDLOG_MODE=0`; retain 9, or use the lean
-default profile 1 after review, rather than returning to navigation-blind 8.
+After the diagnostic session use **Routine Flight Logging** in the same PX4
+parameter page to restore **both** `SDLOG_PROFILE=1` and `SDLOG_MODE=0` while
+grounded and disarmed, then restart and verify readback. Restoring mode alone
+leaves the extra system-identification topics enabled. The routine profile
+retains default flight topics but does not record the pre-arm interval; verify
+next-flight topic coverage against the installed firmware. Boot logging can
+produce large files during long powered ground waits. See the
+[logging profile reference](../../resources/px4_param_profiles/README.md).
 
 Stationary GNSS drift/heading warnings require a stationary outdoor capture:
 per-rover fix and correction status, receiver selection/blending, GNSS reported

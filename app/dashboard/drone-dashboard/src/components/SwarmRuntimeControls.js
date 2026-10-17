@@ -9,6 +9,7 @@ import {
   FaHome,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import SequentialReturnControl from './SequentialReturnControl';
 
 import {
   ActionIconButton,
@@ -419,6 +420,14 @@ const SwarmRuntimeControls = ({
           );
         })}
       </div>
+
+      <SequentialReturnControl
+        targetIds={targetIds}
+        targetNames={targetDrones.map((drone) => {
+          const label = formatDroneLabel(drone.hw_id);
+          return drone.title === label ? label : `${drone.title} (${label})`;
+        })}
+      />
 
       <ConfirmDialog
         open={Boolean(confirmAction)}

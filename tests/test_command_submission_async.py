@@ -2,6 +2,7 @@ import asyncio
 import time
 from contextlib import nullcontext
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -127,6 +128,30 @@ async def test_submit_returns_tracker_id_before_slow_dispatch_completes():
     assert status["timeout_at"] > status["created_at"]
     assert status["observed_at"] >= status["updated_at"]
     await coordinator.stop()
+
+
+@pytest.mark.asyncio
+async def test_explicit_flight_command_supersedes_return_queue_but_owned_dispatch_does_not():
+    deps, _, coordinator = _submission_deps()
+    deps.sequential_return_service = SimpleNamespace(
+        owns_current_task=lambda: False, supersede=AsyncMock(),
+    )
+    await coordinator.start()
+    try:
+        await submit_tracked_command(deps, SubmitCommandRequest(
+            mission_type=Mission.HOLD.value, target_drone_ids=["1"],
+            idempotency_key="sequential-return:operator-cannot-spoof-ownership",
+        ))
+        deps.sequential_return_service.supersede.assert_awaited_once_with(["1"])
+        deps.sequential_return_service.supersede.reset_mock()
+        deps.sequential_return_service.owns_current_task = lambda: True
+        await submit_tracked_command(deps, SubmitCommandRequest(
+            mission_type=Mission.RETURN_RTL.value, target_drone_ids=["1"],
+            idempotency_key="owned-return",
+        ))
+        deps.sequential_return_service.supersede.assert_not_awaited()
+    finally:
+        await coordinator.stop()
 
 
 @pytest.mark.asyncio

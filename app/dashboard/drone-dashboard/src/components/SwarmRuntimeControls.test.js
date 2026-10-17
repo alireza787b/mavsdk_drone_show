@@ -6,6 +6,8 @@ import { CommandActivityProvider, useCommandActivity } from '../contexts/Command
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
 
+jest.mock('./SequentialReturnControl', () => () => <div data-testid="sequential-return" />);
+
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
   submitCommandWithLifecycleFeedback: jest.fn(),
 }));

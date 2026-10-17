@@ -148,6 +148,23 @@ Example reconcile request:
 
 ---
 
+### Sequential Smart Swarm Return
+
+- `POST /api/v1/swarm/runtime/sequential-return`: start or recover an idempotent
+  interval-based return queue (202). Body: `target_drone_ids` in dispatch order,
+  `delay_sec` (default 10, 1–300 seconds), `idempotency_key`.
+- `GET /api/v1/swarm/runtime/sequential-return`: latest queue, or `null`.
+- `GET /api/v1/swarm/runtime/sequential-return/{return_id}`: queue status.
+- `POST /api/v1/swarm/runtime/sequential-return/{return_id}/cancel`: cancel
+  commands not yet issued; already-issued commands continue.
+
+One queue runs at a time. Reusing a key with different order/delay returns 409.
+Hold and per-aircraft RTL use the canonical command lifecycle; their command IDs
+are returned in `hold_command_id` and `commands`. Queue states are `holding`,
+`dispatching`, `waiting`, `dispatched`, `cancelled`, `interrupted`, `failed`.
+`dispatched` means RTL commands started, not landings completed. GCS restarts
+never resume pending dispatches. See [operator semantics](../features/smart-swarm.md#sequential-return).
+
 ### PX4 Parameters
 
 The PX4 parameter subsystem is a dedicated GCS-orchestrated workflow. The dashboard should talk only to GCS, and GCS fans out to drone-local MAVSDK param access when a fresh snapshot is needed.
