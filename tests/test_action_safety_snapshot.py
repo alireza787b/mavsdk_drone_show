@@ -252,3 +252,43 @@ def test_recovery_airborne_gate_rejects_incomplete_evidence():
 
     assert snapshot.complete is False
     assert snapshot.airborne_for_recovery is False
+
+
+@pytest.mark.parametrize(
+    ("relative_altitude_m", "expected"),
+    [(-1.001, False), (-1.0, True), (-0.8, True), (0.0, True),
+     (0.8, True), (1.0, True), (1.001, False)],
+)
+def test_ground_disarmed_gate_allows_one_metre_home_height_tolerance(
+    relative_altitude_m, expected,
+):
+    snapshot = SafetySnapshot.from_values(
+        armed=False,
+        landed_state="ON_GROUND",
+        relative_altitude_m=relative_altitude_m,
+    )
+
+    assert snapshot.safe_ground_disarmed is expected
+
+
+@pytest.mark.parametrize(
+    ("armed", "landed_state", "relative_altitude_m", "errors"),
+    [
+        (True, "ON_GROUND", 0.8, None),
+        (False, "IN_AIR", 0.8, None),
+        (False, "UNKNOWN", 0.8, None),
+        (False, "ON_GROUND", None, {"relative_altitude_m": "timeout"}),
+        (False, "ON_GROUND", 0.8, {"relative_altitude_m": "stale"}),
+    ],
+)
+def test_ground_height_tolerance_preserves_required_state_evidence(
+    armed, landed_state, relative_altitude_m, errors,
+):
+    snapshot = SafetySnapshot.from_values(
+        armed=armed,
+        landed_state=landed_state,
+        relative_altitude_m=relative_altitude_m,
+        errors=errors,
+    )
+
+    assert snapshot.safe_ground_disarmed is False

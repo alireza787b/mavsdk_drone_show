@@ -221,6 +221,10 @@ Important operator rule:
   armed/airborne evidence; MSL altitude is never treated as height above launch
 - runtime start performs the same final airborne admission again at command
   dispatch time
+- Take Off and the ground arm/disarm test allow a reported height within
+  ±1.0 m of home, while still requiring fresh, disarmed, `ON_GROUND` evidence.
+  This is a shared MDS ground-height tolerance, not a GNSS drift-rate or
+  position-uncertainty threshold; PX4 preflight checks remain authoritative.
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
 - a multi-drone Take Off is not physically atomic after dispatch: every node
   repeats its own final readiness and ground checks, so one aircraft can still

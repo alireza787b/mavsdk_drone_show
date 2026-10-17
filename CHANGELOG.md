@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Shared MDS ground-state validation now tolerates ±1.0 m reported height
+  relative to home for Take Off and the ground arm/disarm test. Fresh evidence,
+  landed/disarmed requirements, airborne thresholds and PX4 checks are unchanged.
+
 - Smart Swarm Runtime adds Sequential Return with a configurable RTL interval
   (10 seconds by default), named order confirmation, recoverable queue status
   and cancellation of pending dispatches. It confirms Hold before sending
