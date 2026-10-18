@@ -7,6 +7,11 @@ import json
 import tempfile
 import time
 from pathlib import Path
+import sys
+from urllib.parse import urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.runtime_validation_support import ValidationApiClient, fetch_and_require_sitl_runtime
 
 from probe_dashboard_mission_ui import CDPClient, launch_chrome, open_page_target, wait_for_chrome
 
@@ -18,6 +23,14 @@ def main():
     parser.add_argument('--chrome', default='/usr/bin/google-chrome')
     parser.add_argument('--api-port', type=int, help='Isolated validation API override (this browser only)')
     args = parser.parse_args()
+    target = urlsplit(args.base_url)
+    api_base = f'{target.scheme}://{target.hostname}:{args.api_port or 5030}'
+    api = ValidationApiClient(api_base)
+    # A buggy button must never turn a screenshot probe into a hardware flight.
+    fetch_and_require_sitl_runtime(api_base, client=api)
+    def command_ids():
+        return {item['command_id'] for item in api.get_json('/api/v1/commands/recent?limit=100').get('commands', [])}
+    before = command_ids()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     results = []
     for index, viewport in enumerate(('desktop', 'mobile')):
@@ -73,6 +86,7 @@ def main():
                     client.close()
                 process.terminate()
                 process.wait(timeout=15)
+    assert command_ids() == before, 'Opening/cancelling reviews unexpectedly created a command'
     (args.output_dir / 'ui-summary.json').write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))
 
