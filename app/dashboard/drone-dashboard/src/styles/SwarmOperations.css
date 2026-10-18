@@ -56,7 +56,8 @@
 .swarm-ops [role='alert'] { color: var(--color-warning-text); margin: 0; }
 @media (max-width: 600px) {
   .swarm-ops__roster li { grid-template-columns: 1fr auto; }
-  .swarm-ops__roster li > span { grid-column: 1 / -1; grid-row: 2; }
+  .swarm-ops__roster li > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .swarm-ops__roster li > :nth-child(3) { grid-column: 2; grid-row: 1; justify-self: end; }
   .swarm-ops__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .swarm-ops__actions button { padding: var(--spacing-xs); font-size: var(--font-size-sm); }
 }
