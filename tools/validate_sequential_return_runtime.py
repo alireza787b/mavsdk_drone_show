@@ -71,7 +71,17 @@ def run(args):
         wait(lambda _: command_complete(report["takeoff_command_id"]), "Takeoff completed")
         wait(lambda states: all(states.get(i, {}).get("is_armed") is True
                                and float(states[i].get("relative_altitude_m") or 0) > 3 for i in ids), "Both airborne")
-        report["swarm_command_id"] = submit(2)
+        def start_saved_cluster():
+            preview = client.get_json('/api/v1/swarm/runtime/preview')
+            cluster = next((c for c in preview['clusters']
+                            if {m['hw_id'] for m in c['members']} == set(ids)), None)
+            require(cluster is not None, 'Requested drones must match one saved cluster')
+            return client.post_json('/api/v1/swarm/runtime/start', {
+                'cluster_id': cluster['cluster_id'], 'revision': preview['revision'],
+                'excluded_hw_ids': [], 'idempotency_key': f'return-validation-{uuid.uuid4()}',
+            })['command_id']
+
+        report["swarm_command_id"] = start_saved_cluster()
 
         def roles_started(_):
             status = client.get_json(f"/api/v1/commands/{report['swarm_command_id']}")
@@ -79,6 +89,29 @@ def run(args):
             return len((status.get("swarm_runtime") or {}).get("active_hw_ids", [])) == len(ids)
 
         wait(roles_started, "Both Smart Swarm roles reporting")
+        if getattr(args, 'exercise_operator_flow', False):
+            # A bounded leader jog exercises following, then the explicit
+            # Stop / Start workflow. Never used until SITL mode was verified.
+            baseline = telemetry()
+            leader = ids[0]
+            follower = ids[1]
+            jog = client.post_json('/api/v1/commands', {
+                'mission_type': 112, 'target_drone_ids': [leader], 'trigger_time': 0,
+                'idempotency_key': f'return-validation-{uuid.uuid4()}',
+                'precision_move': {'frame': 'ned', 'translation_m': {'north': 3, 'east': 0, 'up': 0},
+                                   'speed_m_s': 1.0, 'timeout_sec': 60},
+            })['command_id']
+            report['jog_command_id'] = jog
+            wait(lambda _: command_complete(jog), 'Leader jog completed')
+            initial_lat = float(baseline[follower]['position_lat'])
+            wait(lambda states: abs(float(states[follower]['position_lat']) - initial_lat) * 111_320 > 1,
+                 'Follower moved with leader', timeout=60)
+            stop_id = submit(102)
+            report['hold_command_id'] = stop_id
+            wait(lambda _: command_complete(stop_id), 'Stop following completed')
+            report['first_swarm_command_id'] = report['swarm_command_id']
+            report['swarm_command_id'] = start_saved_cluster()
+            wait(roles_started, 'Both roles rejoined after explicit restart')
         # Record a brief stable interval before exercising the recovery control.
         for _ in range(10):
             telemetry()
@@ -156,6 +189,8 @@ if __name__ == "__main__":
     parser.add_argument("--drone-ids", nargs="+", required=True)
     parser.add_argument("--delay-sec", type=float, default=10)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument('--exercise-operator-flow', action='store_true',
+                        help='Also validate leader jog, follower motion and explicit Stop/Start in SITL')
     args = parser.parse_args()
     require(1 <= args.delay_sec <= 300, "Interval must be 1–300 seconds")
     run(args)

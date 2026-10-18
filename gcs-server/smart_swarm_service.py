@@ -18,11 +18,14 @@ def build_preview(deps):
     with deps.telemetry_lock:
         telemetry = {str(k): dict(v) for k, v in deps.telemetry_data_all_drones.items()}
     now_ms = int(time.time() * 1000)
+    config_loader = getattr(deps, 'load_config', None)
+    fleet = {str(item['hw_id']): item for item in (config_loader() or [])} if callable(config_loader) else {}
     clusters = resolve_clusters(assignments)
     for cluster in clusters:
         unavailable = []
         for member in cluster["members"]:
             state = telemetry.get(member["hw_id"], {})
+            member['callsign'] = fleet.get(member['hw_id'], {}).get('callsign')
             timestamp = state.get("telemetry_timestamp_ms") or state.get("update_time") or 0
             try:
                 timestamp = float(timestamp)
@@ -33,6 +36,18 @@ def build_preview(deps):
             available = state.get("telemetry_available") is not False and 0 <= now_ms - timestamp <= 5000
             member["available"] = available
             member["armed"] = state.get("is_armed")
+            # Advisory presentation only: node-side live admission remains authoritative.
+            member['relative_altitude_m'] = state.get('relative_altitude_m')
+            member['altitude_report'] = state.get('altitude_report')
+            member['flight_mode'] = state.get('flight_mode')
+            member['landed_state'] = state.get('landed_state')
+            member['readiness_summary'] = state.get('readiness_summary')
+            member['readiness_status'] = state.get('readiness_status')
+            member['battery_remaining'] = state.get('battery_remaining')
+            member['position_lat'] = state.get('position_lat')
+            member['position_long'] = state.get('position_long')
+            member['position_alt'] = state.get('position_alt')
+            member['global_position_valid'] = state.get('global_position_valid')
             if not available:
                 unavailable.append(member["hw_id"])
         cluster["unavailable_hw_ids"] = unavailable
@@ -41,7 +56,8 @@ def build_preview(deps):
             set(m["hw_id"] for m in cluster["members"]) - set(cluster["available_hw_ids"]),
             key=int,
         )
-    return {"revision": topology_revision(assignments), "clusters": clusters}
+    return {"revision": topology_revision(assignments), "clusters": clusters,
+            "runtime_mode": 'SITL' if getattr(getattr(deps, 'Params', None), 'sim_mode', False) else 'REAL'}
 
 
 async def start_cluster(deps, request):

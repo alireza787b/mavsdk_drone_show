@@ -60,6 +60,7 @@ const { GIT_REPO } = require('../version');
 
 const renderPage = () => render(
   <MemoryRouter
+    initialEntries={['/swarm-design?tab=formation']}
     future={{
       v7_startTransition: true,
       v7_relativeSplatPath: true,
@@ -110,11 +111,13 @@ describe('SwarmDesign', () => {
     });
 
     expect(screen.getByRole('list', { name: 'Smart Swarm topology summary' })).toBeInTheDocument();
-    expect(screen.getByTestId('swarm-runtime-controls')).toBeInTheDocument();
+    expect(screen.queryByTestId('swarm-runtime-controls')).not.toBeInTheDocument();
     expect(screen.getByTestId('swarm-graph')).toBeInTheDocument();
     const exportButtons = screen.getAllByRole('button', { name: /export smart swarm assignments as csv/i });
     expect(exportButtons.length).toBeGreaterThan(0);
     exportButtons.forEach((button) => expect(button).toBeEnabled());
+    fireEvent.click(screen.getByRole('tab', { name: 'Operate' }));
+    expect(screen.getByTestId('swarm-runtime-controls')).toBeInTheDocument();
   });
 
   test('commits pending swarm sync once and gives operator progress feedback', async () => {

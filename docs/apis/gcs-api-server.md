@@ -150,6 +150,15 @@ Example reconcile request:
 
 ### Sequential Smart Swarm Return
 
+`GET /api/v1/swarm/runtime/preview` supplies the saved topology revision,
+clusters, runtime mode and advisory per-member telemetry to both operation
+surfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,
+`excluded_hw_ids` and `idempotency_key`; the revision binds the reviewed layout.
+Generic mission-2 submissions must match one complete saved cluster. Explicit
+session payloads are checked too: only a dependency-closed, currently unavailable
+exclusion set permits partial start. Incomplete scope is rejected with HTTP 409,
+not silently expanded or dispatched. Aircraft-side live admission is unchanged.
+
 - `POST /api/v1/swarm/runtime/sequential-return`: start or recover an idempotent
   interval-based return queue (202). Body: `target_drone_ids` in dispatch order,
   `delay_sec` (default 10, 1–300 seconds), `idempotency_key`.

@@ -291,6 +291,21 @@ async def submit_tracked_command(
 
     target_hw_ids = [str(drone["hw_id"]) for drone in actual_targets]
 
+    if resolved_mission == deps.Mission.SMART_SWARM:
+        from smart_swarm_service import build_preview
+        from smart_swarm_targets import validate_cluster_targets
+        try:
+            preview = build_preview(deps)
+            assignments = [member for cluster in preview['clusters'] for member in cluster['members']]
+            validate_cluster_targets(
+                assignments, target_hw_ids,
+                excluded=command.smart_swarm.excluded_hw_ids if command.smart_swarm else (),
+                unavailable=[member['hw_id'] for cluster in preview['clusters']
+                             for member in cluster['members'] if not member['available']],
+            )
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+
     # Every Smart Swarm launch, including the advanced Swarm page and API
     # clients, receives the same immutable session snapshot.  The dashboard
     # quick-start endpoint supplies an explicit snapshot when it has shown a
@@ -302,7 +317,6 @@ async def submit_tracked_command(
         from src.smart_swarm_contract import (
             SmartSwarmSession,
             normalize_topology,
-            resolve_clusters,
             topology_revision,
         )
 
@@ -322,28 +336,6 @@ async def submit_tracked_command(
                 detail=(
                     "Smart Swarm target is not present in the saved layout: "
                     + ", ".join(missing_assignments)
-                ),
-            )
-        clusters = resolve_clusters(assignments)
-        target_set = set(target_hw_ids)
-        matching_cluster = next(
-            (
-                cluster for cluster in clusters
-                if target_set == {member["hw_id"] for member in cluster["members"]}
-            ),
-            None,
-        )
-        if matching_cluster is None:
-            cluster_summary = ", ".join(
-                f"{cluster['cluster_id']} ({len(cluster['members'])} drones)"
-                for cluster in clusters
-            ) or "none"
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "Smart Swarm requires a complete saved cluster; selected targets "
-                    f"{', '.join(target_hw_ids)} do not match one cluster. "
-                    f"Available clusters: {cluster_summary}."
                 ),
             )
         expected = set(target_hw_ids)

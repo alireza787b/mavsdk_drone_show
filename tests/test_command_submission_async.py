@@ -112,6 +112,32 @@ async def test_smart_swarm_accepts_complete_cluster_target_scope():
         await coordinator.stop()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('excluded,unavailable,accepted', [([], False, False), (['2'], False, False), (['2'], True, True)])
+async def test_explicit_session_cannot_bypass_complete_cluster_or_partial_review(excluded, unavailable, accepted):
+    from src.smart_swarm_contract import SmartSwarmSession, normalize_topology, topology_revision
+    layout = normalize_topology([{'hw_id': 1, 'follow': 0}, {'hw_id': 2, 'follow': 1}])
+    deps, tracker, coordinator = _submission_deps(
+        fleet_config=[{'hw_id': '1', 'pos_id': 1, 'ip': '127.0.0.1'},
+                      {'hw_id': '2', 'pos_id': 2, 'ip': '127.0.0.2'}], swarm=layout)
+    deps.telemetry_data_all_drones = {'1': {'telemetry_timestamp_ms': int(time.time() * 1000)}}
+    if not unavailable:
+        deps.telemetry_data_all_drones['2'] = {'telemetry_timestamp_ms': int(time.time() * 1000)}
+    command = SubmitCommandRequest(mission_type=2, target_drone_ids=['1'],
+        smart_swarm=SmartSwarmSession(revision=topology_revision(layout), assignments=layout,
+                                     expected_hw_ids=['1'], excluded_hw_ids=excluded))
+    await coordinator.start()
+    try:
+        if accepted:
+            receipt = await submit_tracked_command(deps, command)
+            assert (await tracker.get_status(receipt.command_id))['target_drones'] == ['1']
+        else:
+            with pytest.raises(HTTPException):
+                await submit_tracked_command(deps, command)
+    finally:
+        await coordinator.stop()
+
+
 async def _wait_for_phase(tracker, command_id, phase, timeout=1.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

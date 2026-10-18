@@ -82,7 +82,7 @@ export function resolveSwarmRuntimeTargets(
   // An explicit selection that disappeared must not silently become drone 1.
   const selectedDrone = selectedDroneId ? (dronesById[selectedDroneId] || null) : drones[0];
 
-  if (!selectedDrone) {
+  if (!selectedDrone && scope === SWARM_RUNTIME_SCOPE.DRONE) {
     return {
       selectedDrone: null,
       cluster: null,
@@ -112,10 +112,7 @@ export function resolveSwarmRuntimeTargets(
   const explicitCluster = selectedClusterId && selectedClusterId !== 'all'
     ? executableClusters.find((candidate) => candidate.id === selectedClusterId)
     : null;
-  const selectedDroneCluster = selectedDrone?.clusterId
-    ? executableClusters.find((candidate) => candidate.id === selectedDrone.clusterId)
-    : null;
-  const selectedCluster = explicitCluster || selectedDroneCluster || executableClusters[0] || null;
+  const selectedCluster = selectedClusterId ? (explicitCluster || null) : (executableClusters[0] || null);
 
   const targetIds = selectedCluster?.drones?.map((drone) => drone.hw_id) || [];
   const count = targetIds.length;

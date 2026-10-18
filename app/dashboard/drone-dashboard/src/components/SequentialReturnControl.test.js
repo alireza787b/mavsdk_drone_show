@@ -75,3 +75,17 @@ test('invalid interval cannot dispatch', async () => {
   expect(screen.getByRole('button', { name: /sequential return/i })).toBeDisabled();
   await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
 });
+
+test('compact Return reviews interval and rejects a changed formation', async () => {
+  const { rerender } = render(<SequentialReturnControl {...props} compact contextKey="old" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+  expect(screen.getByRole('spinbutton', { name: 'Return interval' })).toHaveValue(10);
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Return interval' }), { target: { value: '0' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Start return' }));
+  expect(postGcsResource).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Return interval' }), { target: { value: '10' } });
+  rerender(<SequentialReturnControl {...props} compact contextKey="new" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Start return' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Selection changed');
+  expect(postGcsResource).not.toHaveBeenCalled();
+});

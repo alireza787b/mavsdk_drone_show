@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
   FaDownload,
@@ -30,10 +30,8 @@ import {
   PageShell,
   StatusBadge,
 } from '../components/ui/OperatorPrimitives';
-import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
 import {
-  GCS_ROUTE_KEYS,
   getFleetConfigResponse,
   getSwarmConfigResponse,
   getUnifiedGitStatusResponse,
@@ -187,8 +185,8 @@ function SwarmSaveProgress({ progress }) {
 }
 
 function SwarmDesign() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('drone') ? 'formation' : 'operate');
   const cardRefs = useRef({});
   const handledRouteDroneRef = useRef('');
 
@@ -211,17 +209,10 @@ function SwarmDesign() {
   const [localSwarmCommitPending, setLocalSwarmCommitPending] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
-  const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
 
   const viewModel = useMemo(
     () => buildSwarmViewModel(workingAssignments, configData),
     [configData, workingAssignments]
-  );
-  // Runtime recovery targets must reflect the saved formation, not a staged
-  // role/cluster edit that has never reached the aircraft.
-  const runtimeViewModel = useMemo(
-    () => buildSwarmViewModel(baselineAssignments, configData),
-    [baselineAssignments, configData]
   );
   const dirtyIds = useMemo(
     () => getDirtyAssignmentIds(workingAssignments, baselineAssignments),
@@ -824,11 +815,11 @@ function SwarmDesign() {
       className="swarm-design-page"
       eyebrow="Smart swarm"
       title="Smart Swarm"
-      subtitle="Formation roles, offsets, and git-backed fleet publish."
+      subtitle={tab === 'operate' ? 'Live formation control.' : 'Saved roles and offsets.'}
       icon={<FaProjectDiagram />}
       docsRoute="/swarm-design"
-      status={<StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge>}
-      actions={(
+      status={tab === 'formation' ? <StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge> : null}
+      actions={tab === 'formation' && (
         <PageActionBar
           className="swarm-design-actions"
           primary={[
@@ -913,6 +904,15 @@ function SwarmDesign() {
       )}
     >
 
+      <div role="tablist" aria-label="Swarm workspace" className="swarm-workspace-tabs">
+        <button type="button" role="tab" aria-selected={tab === 'operate'} onClick={() => setTab('operate')}>Operate</button>
+        <button type="button" role="tab" aria-selected={tab === 'formation'} onClick={() => setTab('formation')}>Formation{hasStagedChanges ? ' •' : ''}</button>
+      </div>
+      {tab === 'operate' && <section role="tabpanel" aria-label="Operate">
+        <SwarmRuntimeControls />
+      </section>}
+      <section role="tabpanel" aria-label="Formation" hidden={tab !== 'formation'}>
+
       <IdentityDoctrineStrip surface="swarm-design" className="identity-doctrine-strip--compact" />
 
       <MetricStrip label="Smart Swarm topology summary" items={summaryItems} />
@@ -965,17 +965,6 @@ function SwarmDesign() {
           </OperatorNotice>
         )}
       </section>
-
-      <SwarmRuntimeControls
-        viewModel={runtimeViewModel}
-        selectedDroneId={selectedDroneId}
-        selectedClusterId={selectedClusterId}
-        dirtyIds={dirtyIds}
-        pendingSyncIds={pendingSyncIds}
-        telemetryById={telemetryById}
-        onReviewSelection={(droneId) => handleSelectDrone(droneId)}
-        onOpenMissionConfig={(droneId) => navigate(`/mission-config?drone=${droneId}&edit=1`)}
-      />
 
       <div className="swarm-operations-layout">
         <section className="swarm-panel swarm-panel--assignments">
@@ -1168,6 +1157,7 @@ function SwarmDesign() {
         />
       </section>
 
+      </section>
       <ConfirmDialog
         open={Boolean(confirmDialog)}
         title={confirmDialog?.title || 'Confirm Smart Swarm action'}

@@ -103,10 +103,16 @@ Mission-specific reminders:
 
 - QuickScout launches from its own review dialog after the SAR package is
   computed. Monitor and abort/return controls remain in QuickScout.
-- Smart Swarm can start from the dashboard Smart Swarm card or `Swarm Design` →
-  `Smart Swarm Runtime`. Use the latter for explicit one-drone/cluster scope
-  and Hold, Land, or RTL recovery. The runtime panel defaults to one selected
-  drone; choose a cluster and verify the named targets before a group recovery.
+- Smart Swarm opens the same controls on Overview and `Smart Swarm` → `Operate`:
+  **Takeoff**, **Start Swarm**, **Return**. Each is separate and confirms exact
+  aircraft. The first saved cluster is initially selected; inspection and general
+  dashboard selections never retarget swarm controls. A disappeared selection
+  requires choosing again. `Formation` contains assignments and publishing.
+- Return defaults to Sequential RTL, 10 seconds between commands. The confirmation
+  shows order and interval; paths may overlap. `Other actions` provides Land here,
+  immediate RTL and explicit individual-aircraft recovery. `Cancel remaining`
+  cancels pending returns only, not aircraft already returning. Issued commands
+  and observed landings are different states. Do not interpret unknown as landed.
 - Swarm Trajectory is prepared on the Swarm Trajectory page, but final Mission
   Type 4 dispatch still happens from Dashboard Mission Trigger after validation
   and readiness are clear.

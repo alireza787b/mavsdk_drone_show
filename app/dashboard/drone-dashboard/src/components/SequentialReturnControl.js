@@ -12,7 +12,8 @@ const LABELS = {
   interrupted: 'Queue interrupted', failed: 'Return queue stopped',
 };
 
-export default function SequentialReturnControl({ targetIds, targetNames }) {
+export default function SequentialReturnControl({ targetIds, targetNames, compact = false,
+  contextKey = '', aircraftStates = {}, validateReview = null }) {
   const [delay, setDelay] = useState(10);
   const [confirmation, setConfirmation] = useState(null);
   const [job, setJob] = useState(null);
@@ -47,8 +48,9 @@ export default function SequentialReturnControl({ targetIds, targetNames }) {
 
   const start = async () => {
     const reviewed = confirmation;
+    if (!reviewed || !Number.isFinite(reviewed.delay) || reviewed.delay < 1 || reviewed.delay > 300) return;
     setConfirmation(null);
-    if (reviewed.targetIds.join(',') !== targetIds.join(',')) {
+    if (reviewed.targetIds.join(',') !== targetIds.join(',') || reviewed.contextKey !== contextKey) {
       setError('Selection changed. Review the return order again.');
       return;
     }
@@ -63,6 +65,7 @@ export default function SequentialReturnControl({ targetIds, targetNames }) {
     setBusy(true);
     setError('');
     try {
+      if (validateReview) await validateReview();
       const response = await postGcsResource(ROUTE, pendingRequest.current.payload);
       setJob(response.data);
       pendingRequest.current = null;
@@ -90,20 +93,20 @@ export default function SequentialReturnControl({ targetIds, targetNames }) {
   return (
     <div className="swarm-sequential-return">
       <div className="swarm-sequential-return__toolbar">
-        <label>
+        {!compact && <label>
           RTL interval
           <span>
             <input type="number" aria-label="Seconds between RTL commands" min="1" max="300"
               step="1" value={delay} disabled={active || busy}
               onChange={(event) => setDelay(event.target.value)} /> s
           </span>
-        </label>
-        <button type="button" className="swarm-runtime-action warning"
+        </label>}
+        <button type="button" className={compact ? 'operator-button operator-button--ghost' : 'swarm-runtime-action warning'}
           disabled={busy || active || targetIds.length === 0 || !validDelay || pollError}
-          onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay) })}>
+          onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay), contextKey })}>
           <span className="swarm-runtime-action__icon"><FaHome /></span>
-          <span className="swarm-runtime-action__copy"><strong>Sequential Return</strong>
-            <small>RTL in the displayed order, {delay || '—'} s apart</small></span>
+          {compact ? 'Return' : <span className="swarm-runtime-action__copy"><strong>Sequential Return</strong>
+            <small>RTL in the displayed order, {delay || '—'} s apart</small></span>}
         </button>
       </div>
       {job && (
@@ -114,23 +117,30 @@ export default function SequentialReturnControl({ targetIds, targetNames }) {
           <span>{job.commands.length}/{job.target_drone_ids.length} RTL commands issued</span>
           {job.next_hw_id && <span>Next: {job.next_hw_id}</span>}
           {active && <button type="button" disabled={busy} onClick={cancel}>Cancel remaining</button>}
+          {active && <small>Issued RTL continues.</small>}
           {['failed', 'cancelled', 'interrupted'].includes(job.state) && <span>{job.message}</span>}
           {job.commands.map((command) => (
-            <span key={command.hw_id}>Drone {command.hw_id} · RTL issued</span>
+            <span key={command.hw_id}>Drone {command.hw_id} · {aircraftStates[command.hw_id] === 'Grounded'
+              ? 'Landed / disarmed' : (!aircraftStates[command.hw_id] || aircraftStates[command.hw_id] === 'Unknown')
+                ? 'State unknown · RTL issued' : 'RTL issued'}</span>
           ))}
         </div>
       )}
       {pollError && <p role="alert">Return status unavailable. Pending commands may continue on the GCS.</p>}
       {error && <p role="alert">{error}</p>}
-      <ConfirmDialog open={Boolean(confirmation)} title="Sequential Return" confirmLabel="Start return"
+      <ConfirmDialog open={Boolean(confirmation)} title="Sequential RTL" confirmLabel="Start return"
         onCancel={() => setConfirmation(null)} onConfirm={start} busy={busy}
         message={confirmation && (
           <div className="swarm-confirm-summary">
-            <p>Stop following and Hold, then send RTL {confirmation.delay} s apart.</p>
+            <label>Interval <input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
+              onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</label>
+            <p>Hold, then RTL · {confirmation.delay} s between commands.</p>
             <ol>{confirmation.targetNames.map((name, index) => (
               <li key={confirmation.targetIds[index]}>{name} · {index === 0 ? 'first' : `+${index * confirmation.delay} s`}</li>
             ))}</ol>
-            <p>Each drone uses its own PX4 return height and destination. Returns can overlap; check that the routes are clear.</p>
+            <p>Paths may overlap. Each aircraft uses its PX4 return settings.</p>
+            <details><summary>Return heights</summary>Unavailable here; verify each aircraft’s configured PX4 RTL height.</details>
+            {(!Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300) && <p role="alert">Use an interval from 1 to 300 s.</p>}
           </div>
         )} />
     </div>
@@ -140,4 +150,8 @@ export default function SequentialReturnControl({ targetIds, targetNames }) {
 SequentialReturnControl.propTypes = {
   targetIds: PropTypes.arrayOf(PropTypes.string).isRequired,
   targetNames: PropTypes.arrayOf(PropTypes.string).isRequired,
+  compact: PropTypes.bool,
+  contextKey: PropTypes.string,
+  aircraftStates: PropTypes.object,
+  validateReview: PropTypes.func,
 };

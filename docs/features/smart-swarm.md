@@ -207,6 +207,27 @@ Mixed-mission leader rule:
 
 ### Formation preview and live readiness
 
+Overview and the dedicated **Operate** tab share one saved-cluster control panel:
+**Takeoff → Start Swarm → Return** are separate confirmed actions, never a combined
+automatic mission. The first saved cluster is the initial default. The runtime
+selection is retained for this GCS/mode browser session and is independent of
+drone inspection, formation plots and general dashboard dispatch selection.
+If the selected cluster disappears, select again; MDS never substitutes another.
+The **Formation** tab holds editing, graphs, imports, exports and publishing.
+
+Return defaults to **Sequential RTL · 10 s** with the order and interval in its
+confirmation. This is timed dispatch, not collision avoidance or waiting for
+each aircraft to land. Paths may overlap. Immediate RTL, Land here and explicit
+individual-aircraft recovery are in **Other actions**. **Stop following** commands
+Hold and requires an explicit start to resume. Aircraft already in RTL continue
+when **Cancel remaining** cancels pending work.
+
+The preview is advisory, not proof of PX4 acceptance. Armed does not mean
+airborne; missing/stale evidence is unknown. Confirmations bind the saved
+formation revision and targets. Full starts use the cluster-start API;
+partial starts are an explicit advanced exception using current unavailable
+dependency exclusions. Supplied session snapshots cannot bypass cluster scope.
+
 The `Smart Swarm Runtime` panel intentionally separates:
 
 - saved formation preview

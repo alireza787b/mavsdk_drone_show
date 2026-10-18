@@ -1,5 +1,9 @@
 @import './DesignTokens.css';
 
+.swarm-workspace-tabs { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-base); border-bottom: 1px solid var(--color-border-primary); }
+.swarm-workspace-tabs button { min-height: 44px; padding: var(--spacing-sm) var(--spacing-lg); border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.swarm-workspace-tabs button[aria-selected='true'] { border-bottom-color: var(--color-primary); color: var(--color-text-primary); }
+
 .swarm-design-page {
   min-height: 100vh;
   background:

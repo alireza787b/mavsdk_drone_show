@@ -544,6 +544,7 @@ function buildLifecycleSnapshot({
     missionType,
     missionName: response?.mission_name || status?.mission_name || commandLabel,
     targetDrones,
+    swarmRuntime: status?.swarm_runtime || null,
     targetLabel: commandData?.uiMeta?.targetLabel || (targetDrones.length > 0
       ? `${targetDrones.length} selected drone${targetDrones.length === 1 ? '' : 's'}`
       : 'All configured drones'),

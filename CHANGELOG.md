@@ -9,6 +9,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Overview and Smart Swarm Operate share compact Takeoff, Start Swarm and Return
+  controls. Cluster scope is independent of inspection, confirmations bind the
+  saved revision, and Return defaults to the existing 10-second sequential queue.
+  Formation editing has a separate tab. Explicit session payloads can no longer
+  bypass full-cluster/partial-availability validation. No PX4 or motion gains change.
+
 - Shared MDS ground-state validation now tolerates ±1.0 m reported height
   relative to home for Take Off and the ground arm/disarm test. Fresh evidence,
   landed/disarmed requirements, airborne thresholds and PX4 checks are unchanged.
