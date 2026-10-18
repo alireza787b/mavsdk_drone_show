@@ -40,6 +40,9 @@
 .swarm-ops__roster small { grid-column: 1 / -1; color: var(--color-warning-text); }
 .swarm-ops__secondary { font-size: var(--font-size-sm); }
 .swarm-ops__advanced { border-top: 1px solid var(--color-border-primary); padding-top: var(--spacing-sm); }
+.swarm-ops__inspection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm) var(--spacing-lg); padding: var(--spacing-md); border-block: 1px solid var(--color-border-primary); }
+.swarm-ops__inspection span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.swarm-ops__attention { margin: 0; padding: var(--spacing-sm) var(--spacing-md); color: var(--color-warning); border-left: 3px solid var(--color-warning); background: var(--color-bg-primary); }
 .swarm-ops__actions > button, .swarm-ops__actions > .swarm-sequential-return { flex: 1; }
 .swarm-ops .swarm-sequential-return__toolbar > button { width: 100%; }
 .swarm-ops__actions > .swarm-sequential-return { display: contents; }
@@ -52,7 +55,6 @@
 .swarm-ops__confirmation label { display: grid; gap: var(--spacing-xs); }
 .swarm-ops__confirmation input { max-width: 8rem; }
 .swarm-ops__confirmation small { color: var(--color-text-secondary); }
-.swarm-ops__map { height: min(55vh, 32rem); min-height: 18rem; position: relative; overflow: hidden; }
 .swarm-ops [role='alert'] { color: var(--color-warning-text); margin: 0; }
 @media (max-width: 600px) {
   .swarm-ops__roster li { grid-template-columns: 1fr auto; }

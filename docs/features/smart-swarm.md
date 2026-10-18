@@ -66,6 +66,36 @@ Validator note:
 
 ## Operator Model
 
+### Design Swarm workflow
+
+The **Design Swarm** tab is the saved-plan editor. The relationship diagram is
+not a live map: it shows the saved leader/follower chain only. Select an
+aircraft, choose the aircraft it follows, then set its spacing reference and
+three signed metre offsets. `Compass` keeps North/East/Up axes fixed;
+`Leader heading` follows the leader's Forward/Right/Up axes.
+
+The normal operator path is:
+
+1. select an aircraft in the plan;
+2. set `Follows` and spacing;
+3. select **Publish** when the plan is ready for fleet sync;
+4. use **Operate** for flight commands.
+
+`Save draft` stores the plan on the GCS only. **Publish** saves, commits and
+pushes it when repository write access is available. These are separate from
+aircraft boot synchronization; the page reports each outcome independently.
+Import, export and revert remain available under the secondary actions.
+
+### Managed Return
+
+**Managed Return** is the operator-facing sequential RTL action. It first
+requests Hold, then sends native PX4 RTL commands in the displayed order at the
+configured interval (10 seconds by default). The interval is between command
+issuance, not between landings. Return paths may overlap and each aircraft uses
+its configured PX4 return height and home position; the dialog does not invent
+or override those values. Globe remains the geographic view; the Swarm page
+uses a compact relationship/status diagram instead.
+
 ### Design save workflow
 
 The `Swarm Design` page separates local assignment saves from fleet-wide Git

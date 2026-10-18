@@ -1,4 +1,4 @@
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { FaBookOpen, FaEllipsisH, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
@@ -6,6 +6,7 @@ import { FaBookOpen, FaEllipsisH, FaExclamationTriangle, FaInfoCircle, FaTimes }
 import { buildDocsUrl, getRouteDoc } from '../../config/routeDocs';
 import { GIT_BRANCH, GIT_REPO } from '../../version';
 import '../../styles/OperatorPrimitives.css';
+import '../../styles/OperatorConsole.css';
 
 const TONES = ['neutral', 'info', 'success', 'warning', 'danger', 'muted'];
 const SIZES = ['sm', 'md', 'lg'];
@@ -370,10 +371,40 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   tone = 'neutral',
   busy = false,
+  appearance = 'default',
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }) {
   const titleId = useId();
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousFocus = document.activeElement;
+    const panel = panelRef.current;
+    const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
+      .filter((element) => !element.disabled && !element.closest('[hidden]'));
+    // Start on Cancel, never on the flight-command confirmation.
+    (panel.querySelector('[data-dialog-cancel]') || panel).focus();
+    const trapFocus = (event) => {
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) { event.preventDefault(); panel.focus(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !items.includes(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !items.includes(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    panel.addEventListener('keydown', trapFocus);
+    return () => {
+      panel.removeEventListener('keydown', trapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -401,7 +432,7 @@ export function ConfirmDialog({
 
   return ReactDOM.createPortal(
     <div
-      className="operator-confirm-dialog"
+      className={`operator-confirm-dialog${appearance === 'console' ? ' operator-console' : ''}`}
       role="presentation"
       onMouseDown={(event) => {
         if (!busy && event.target === event.currentTarget) {
@@ -410,6 +441,8 @@ export function ConfirmDialog({
       }}
     >
       <section
+        ref={panelRef}
+        tabIndex={-1}
         className={`operator-confirm-dialog__panel operator-confirm-dialog__panel--${tone}`}
         role="dialog"
         aria-modal="true"
@@ -429,14 +462,14 @@ export function ConfirmDialog({
         </header>
         <div className="operator-confirm-dialog__message">{message}</div>
         <footer className="operator-confirm-dialog__actions">
-          <button type="button" className="operator-button operator-button--ghost" onClick={onCancel} disabled={busy}>
+          <button type="button" data-dialog-cancel className="operator-button operator-button--ghost" onClick={onCancel} disabled={busy}>
             {cancelLabel}
           </button>
           <button
             type="button"
             className={`operator-button operator-button--${tone === 'danger' ? 'danger' : 'primary'}`}
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
           >
             {busy ? 'Working...' : confirmLabel}
           </button>
@@ -455,6 +488,8 @@ ConfirmDialog.propTypes = {
   cancelLabel: PropTypes.string,
   tone: PropTypes.oneOf(['neutral', 'danger']),
   busy: PropTypes.bool,
+  appearance: PropTypes.oneOf(['default', 'console']),
+  confirmDisabled: PropTypes.bool,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
 };

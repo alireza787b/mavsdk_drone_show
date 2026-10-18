@@ -22,7 +22,7 @@ beforeEach(() => {
 test('defaults to 10 seconds, opening sends nothing, confirmation names order', async () => {
   render(<SequentialReturnControl {...props} />);
   expect(screen.getByLabelText('Seconds between RTL commands')).toHaveValue(10);
-  fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+  fireEvent.click(screen.getByRole('button', { name: /managed return/i }));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByText('Leader · first')).toBeInTheDocument();
   expect(within(dialog).getByText('Follower · +10 s')).toBeInTheDocument();
@@ -38,7 +38,7 @@ test('defaults to 10 seconds, opening sends nothing, confirmation names order', 
 test('editable interval and changed targets require a fresh review', async () => {
   const { rerender } = render(<SequentialReturnControl {...props} />);
   fireEvent.change(screen.getByLabelText('Seconds between RTL commands'), { target: { value: '20' } });
-  fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+  fireEvent.click(screen.getByRole('button', { name: /managed return/i }));
   expect(within(screen.getByRole('dialog')).getByText('Follower · +20 s')).toBeInTheDocument();
   rerender(<SequentialReturnControl targetIds={['2']} targetNames={['Follower']} />);
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start return' }));
@@ -50,7 +50,7 @@ test('refresh recovers the running queue and cancellation targets its identity',
   fetchGcsResource.mockResolvedValue({ data: waiting });
   render(<SequentialReturnControl {...props} />);
   const cancel = await screen.findByRole('button', { name: 'Cancel remaining' });
-  expect(screen.getByRole('button', { name: /sequential return/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /managed return/i })).toBeDisabled();
   fireEvent.click(cancel);
   await waitFor(() => expect(postGcsResource).toHaveBeenCalledWith(
     '/api/v1/swarm/runtime/sequential-return/return-1/cancel',
@@ -61,7 +61,7 @@ test('a lost response reuses the same request identity on retry', async () => {
   postGcsResource.mockRejectedValueOnce(new Error('lost response')).mockResolvedValueOnce({ data: waiting });
   render(<SequentialReturnControl {...props} />);
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    fireEvent.click(screen.getByRole('button', { name: /sequential return/i }));
+    fireEvent.click(screen.getByRole('button', { name: /managed return/i }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start return' }));
     await waitFor(() => expect(postGcsResource).toHaveBeenCalledTimes(attempt + 1));
     if (attempt === 0) await screen.findByRole('alert');
@@ -72,13 +72,13 @@ test('a lost response reuses the same request identity on retry', async () => {
 test('invalid interval cannot dispatch', async () => {
   render(<SequentialReturnControl {...props} />);
   fireEvent.change(screen.getByLabelText('Seconds between RTL commands'), { target: { value: '0' } });
-  expect(screen.getByRole('button', { name: /sequential return/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /managed return/i })).toBeDisabled();
   await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
 });
 
 test('compact Return reviews interval and rejects a changed formation', async () => {
   const { rerender } = render(<SequentialReturnControl {...props} compact contextKey="old" />);
-  fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Managed Return' }));
   expect(screen.getByRole('spinbutton', { name: 'Return interval' })).toHaveValue(10);
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Return interval' }), { target: { value: '0' } });
   fireEvent.click(screen.getByRole('button', { name: 'Start return' }));

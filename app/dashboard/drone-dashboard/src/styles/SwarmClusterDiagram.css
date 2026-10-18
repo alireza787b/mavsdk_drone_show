@@ -1,0 +1,26 @@
+.swarm-diagram { list-style: none; margin: 0; padding: var(--spacing-base) 0; display: grid; gap: var(--spacing-md); }
+.swarm-diagram li { position: relative; margin-left: calc(var(--swarm-depth) * var(--spacing-xl)); min-width: 0; }
+.swarm-diagram__branch::before {
+  content: ''; position: absolute; left: calc(-1 * var(--spacing-base)); top: calc(-1 * var(--spacing-md));
+  width: var(--spacing-base); height: calc(50% + var(--spacing-md));
+  border-left: 1px solid var(--color-border-primary); border-bottom: 1px solid var(--color-border-primary);
+}
+.swarm-diagram__node {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm) var(--spacing-lg);
+  width: 100%; max-width: 44rem; min-height: 72px; padding: var(--spacing-md);
+  border: 1px solid var(--color-border-primary); border-left: 3px solid var(--color-text-tertiary);
+  border-radius: var(--console-corner, 2px); background: var(--color-bg-secondary); color: var(--color-text-primary);
+  text-align: left; cursor: pointer;
+}
+.swarm-diagram__node.is-selected { border-color: var(--color-primary); background: var(--color-primary-light); }
+.swarm-diagram__identity { display: grid; gap: var(--spacing-xs); min-width: 0; flex: 1 1 10rem; overflow-wrap: anywhere; }
+.swarm-diagram__identity > span, .swarm-diagram__relationship { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.swarm-diagram__state { font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
+.swarm-diagram__state.is-success { color: var(--color-success); }
+.swarm-diagram__state.is-warning { color: var(--color-warning); }
+.swarm-diagram__state.is-danger { color: var(--color-danger); }
+.swarm-diagram__state.is-info { color: var(--color-info); }
+@media (max-width: 600px) {
+  .swarm-diagram li { margin-left: calc(min(var(--swarm-depth), 3) * var(--spacing-base)); }
+  .swarm-diagram__node { gap: var(--spacing-xs) var(--spacing-sm); }
+}

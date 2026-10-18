@@ -110,9 +110,9 @@ describe('SwarmDesign', () => {
       expect(unwrapSwarmConfigPayload).toHaveBeenCalled();
     });
 
-    expect(screen.getByRole('list', { name: 'Smart Swarm topology summary' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Cluster aircraft' })).toBeInTheDocument();
     expect(screen.queryByTestId('swarm-runtime-controls')).not.toBeInTheDocument();
-    expect(screen.getByTestId('swarm-graph')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Swarm plan' })).toBeInTheDocument();
     const exportButtons = screen.getAllByRole('button', { name: /export smart swarm assignments as csv/i });
     expect(exportButtons.length).toBeGreaterThan(0);
     exportButtons.forEach((button) => expect(button).toBeEnabled());
@@ -144,7 +144,8 @@ describe('SwarmDesign', () => {
     renderPage();
 
     const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
-    expect(commitButton).toBeEnabled();
+    // Pending fleet entries are a publishable plan; wait for the async preview to settle.
+    await waitFor(() => expect(commitButton).toBeEnabled());
 
     fireEvent.click(commitButton);
     const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
@@ -208,8 +209,8 @@ describe('SwarmDesign', () => {
 
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: /edit 2/i }));
-    const saveButton = screen.getByRole('button', { name: /save smart swarm draft on this gcs/i });
+    fireEvent.click(await screen.findByRole('button', { name: 'Drone 2' }));
+    const saveButton = screen.getAllByRole('button', { name: /save smart swarm draft on this gcs/i })[0];
     expect(saveButton).toBeEnabled();
 
     fireEvent.click(saveButton);
@@ -218,7 +219,7 @@ describe('SwarmDesign', () => {
 
     await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: false }));
     expect((await screen.findAllByText(/publish is available now/i)).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /publish smart swarm assignment changes/i })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: /publish smart swarm assignment changes/i })[0]).toBeEnabled();
   });
 
   test('keeps publish available when swarm json is saved but not committed', async () => {

@@ -91,7 +91,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
   };
 
   return (
-    <div className="swarm-sequential-return">
+    <div className="swarm-sequential-return operator-console">
       <div className="swarm-sequential-return__toolbar">
         {!compact && <label>
           RTL interval
@@ -105,7 +105,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
           disabled={busy || active || targetIds.length === 0 || !validDelay || pollError}
           onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay), contextKey })}>
           <span className="swarm-runtime-action__icon"><FaHome /></span>
-          {compact ? 'Return' : <span className="swarm-runtime-action__copy"><strong>Sequential Return</strong>
+          {compact ? 'Managed Return' : <span className="swarm-runtime-action__copy"><strong>Managed Return</strong>
             <small>RTL in the displayed order, {delay || '—'} s apart</small></span>}
         </button>
       </div>
@@ -128,21 +128,22 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
       )}
       {pollError && <p role="alert">Return status unavailable. Pending commands may continue on the GCS.</p>}
       {error && <p role="alert">{error}</p>}
-      <ConfirmDialog open={Boolean(confirmation)} title="Sequential RTL" confirmLabel="Start return"
+      <ConfirmDialog appearance="console" open={Boolean(confirmation)} title="Managed Return" confirmLabel="Start return"
+        confirmDisabled={!confirmation || !Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300}
         onCancel={() => setConfirmation(null)} onConfirm={start} busy={busy}
-        message={confirmation && (
+        message={confirmation ? (
           <div className="swarm-confirm-summary">
-            <label>Interval <input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
+            <p>Stops following, then sends each aircraft home in order.</p>
+            <label>Time between returns (s) <input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
               onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</label>
-            <p>Hold, then RTL · {confirmation.delay} s between commands.</p>
-            <ol>{confirmation.targetNames.map((name, index) => (
+            <ol className="swarm-return-order" aria-label="Return order">{confirmation.targetNames.map((name, index) => (
               <li key={confirmation.targetIds[index]}>{name} · {index === 0 ? 'first' : `+${index * confirmation.delay} s`}</li>
             ))}</ol>
-            <p>Paths may overlap. Each aircraft uses its PX4 return settings.</p>
-            <details><summary>Return heights</summary>Unavailable here; verify each aircraft’s configured PX4 RTL height.</details>
+            <p>Return paths may overlap.</p>
+            <details><summary>Return settings</summary>Each aircraft uses its configured PX4 return height and home position. Heights are unavailable here. The next return starts after the interval, not after the previous landing.</details>
             {(!Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300) && <p role="alert">Use an interval from 1 to 300 s.</p>}
           </div>
-        )} />
+        ) : ''} />
     </div>
   );
 }

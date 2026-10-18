@@ -1,0 +1,51 @@
+/* Opt-in operational surface; unrelated workspaces keep their current appearance. */
+.operator-console {
+  --console-corner: 2px;
+  --console-control-height: 44px;
+}
+.operator-console :is(.operator-button, .operator-action-icon-button, .operator-status-badge,
+  .operator-docs-link, .operator-card, .operator-page-shell__icon, .operator-notice,
+  .operator-confirm-dialog__panel, .operator-confirm-dialog__close) {
+  border-radius: var(--console-corner);
+  box-shadow: none;
+}
+.operator-console :is(button, input, select) { font: inherit; }
+.operator-console :is(input, select) {
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--console-control-height);
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--console-corner);
+}
+.operator-console :is(button, input, select, summary, a):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.operator-console :is(.operator-button, .operator-action-icon-button) {
+  min-height: var(--console-control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+.operator-console label { display: grid; gap: var(--spacing-xs); }
+.operator-console .operator-confirm-dialog__panel { width: min(100%, 38rem); }
+.operator-console .operator-confirm-dialog__actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-bg-primary);
+}
+.operator-console .operator-confirm-dialog__message { line-height: 1.5; }
+.operator-console .operator-confirm-dialog__message :is(input, select) { width: 100%; }
+.operator-console .operator-confirm-dialog__message small { display: block; color: var(--color-text-secondary); }
+.operator-console .operator-confirm-dialog__message ul { padding-left: var(--spacing-lg); }
+.operator-console .operator-confirm-dialog__message li { margin-block: var(--spacing-sm); }
+.operator-console details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: var(--spacing-sm); }
+.operator-console .operator-confirm-dialog__message [role='alert'] { color: var(--color-danger); }
+@media (max-width: 600px) {
+  .operator-console .operator-confirm-dialog__actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .operator-console .operator-confirm-dialog__actions button { min-width: 0; padding: var(--spacing-sm); }
+}

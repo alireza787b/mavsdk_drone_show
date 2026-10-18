@@ -7,8 +7,9 @@ import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycl
 import { memberFlightState, memberLabel, movementSummary, takeoffTargets } from '../utilities/swarmOperationModel';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
+import SwarmClusterDiagram from './SwarmClusterDiagram';
+import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
 import '../styles/SwarmOperations.css';
-const LiveMap = React.lazy(() => import('./GlobeMapView'));
 
 const PREVIEW = '/api/v1/swarm/runtime/preview';
 const EMPTY_CLUSTERS = [];
@@ -18,7 +19,7 @@ const RUNTIME_LABELS = { starting: 'Starting', active: 'Following', acquiring: '
   holding: 'Holding', partial: 'Partial', tracking_degraded: 'Link delayed', degraded: 'Degraded',
   pilot_takeover: 'Pilot takeover', stopped: 'Stopped', unconfirmed: 'Unconfirmed' };
 
-export default function SwarmOperations({ showMap = false }) {
+export default function SwarmOperations() {
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [previewError, setPreviewError] = useState(false);
@@ -28,7 +29,7 @@ export default function SwarmOperations({ showMap = false }) {
   const [busy, setBusy] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [individual, setIndividual] = useState('');
-  const [mapSelection, setMapSelection] = useState(null);
+  const [inspectedId, setInspectedId] = useState(null);
   const submitting = useRef(false);
   const { commandLifecycleCallbacks, commandMonitors = [] } = useCommandActivity();
 
@@ -67,6 +68,7 @@ export default function SwarmOperations({ showMap = false }) {
   const ids = members.map((m) => m.hw_id);
   const names = members.map(memberLabel);
   const states = Object.fromEntries(members.map((m) => [m.hw_id, memberFlightState(m)]));
+  const inspected = members.find((m) => m.hw_id === inspectedId);
   const airborne = members.filter((m) => ['Airborne', 'Taking off', 'Returning', 'Landing'].includes(states[m.hw_id])).length;
   const grounded = members.filter((m) => states[m.hw_id] === 'Grounded').length;
   const monitor = commandMonitors.find((m) => m.missionType === 2
@@ -80,6 +82,8 @@ export default function SwarmOperations({ showMap = false }) {
   const status = previewError ? 'Telemetry delayed' : runtimeLabel
     || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;
+  const nodeStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
+    swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor) })]));
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
@@ -131,7 +135,7 @@ export default function SwarmOperations({ showMap = false }) {
   const contextKey = `${selection.id}:${preview?.revision}`;
 
   return (
-    <section className="swarm-ops" aria-label="Swarm operations">
+    <section className="swarm-ops operator-console" aria-label="Swarm operations">
       <header className="swarm-ops__header">
         <div><h3>Swarm</h3><label>
           <select aria-label="Swarm formation" value={cluster?.cluster_id || ''} disabled={busy}
@@ -142,13 +146,17 @@ export default function SwarmOperations({ showMap = false }) {
         </label></div>
         <StatusBadge tone={previewError || (runtimeLabel && runtimeLabel !== 'Following') ? 'warning' : 'neutral'}>{status}</StatusBadge>
       </header>
-      <ul className="swarm-ops__roster" aria-label="Cluster aircraft">
-        {members.map((m) => <li key={m.hw_id}>
-          <strong>{memberLabel(m)}</strong><span>{movementSummary(m)}</span>
-          <StatusBadge tone={states[m.hw_id] === 'Unknown' ? 'warning' : 'neutral'}>{states[m.hw_id]}</StatusBadge>
-          {m.readiness_status === 'blocked' && m.readiness_summary && <small role="status">{m.readiness_summary}</small>}
-        </li>)}
-      </ul>
+      <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
+        statuses={Object.fromEntries(members.map((m) => [m.hw_id, { ...nodeStatuses[m.hw_id],
+          label: `${states[m.hw_id]} · ${nodeStatuses[m.hw_id].label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }]))} />
+      {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
+        <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
+        {inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
+        <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
+      </div>}
+      {members.some((m) => m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
+        {members.filter((m) => m.readiness_status === 'blocked').map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
+      </p>}
       <div className="swarm-ops__actions">
         <button type="button" className={`operator-button ${grounded === members.length ? 'operator-button--primary' : 'operator-button--ghost'}`}
           disabled={busy || !cluster || !takeoffTargets(members).length} onClick={() => review('takeoff')}><FaArrowUp aria-hidden="true" /> Takeoff</button>
@@ -160,7 +168,8 @@ export default function SwarmOperations({ showMap = false }) {
       <div className="swarm-ops__secondary">
         {canStop && <button type="button" className="operator-button operator-button--ghost" disabled={busy} onClick={() => review('hold')}><FaPause aria-hidden="true" /> Stop following</button>}
         <button type="button" className="operator-button operator-button--ghost" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /> Other actions</button>
-        <a href="/swarm-design?tab=formation">Formation</a>
+        <a href="/swarm-design?tab=formation">Design Swarm</a>
+        <a href="/globe-view">Globe</a>
       </div>
       {advanced && <div className="swarm-ops__advanced">
         <label>Recovery targets <select aria-label="Recovery targets" value={individual} onChange={(e) => setIndividual(e.target.value)}>
@@ -171,14 +180,8 @@ export default function SwarmOperations({ showMap = false }) {
       </div>}
       {!cluster && preview && <p role="status">{clusters.length ? 'Select a saved formation.' : <a href="/swarm-design?tab=formation">Create a formation</a>}</p>}
       {error && <p role="alert">{error}</p>}
-      {showMap && members.length > 0 && <div className="swarm-ops__map" aria-label="Live cluster positions">
-        <React.Suspense fallback={<span>Loading map…</span>}><LiveMap
-          drones={members.map((m) => ({ ...m,
-            position: [Number(m.position_lat || 0), Number(m.position_long || 0), Number(m.position_alt || 0)],
-            noMapFix: !m.available || m.global_position_valid !== true,
-          }))} selectedDroneId={mapSelection} onSelectDrone={setMapSelection} /></React.Suspense>
-      </div>}
-      <ConfirmDialog open={Boolean(confirmation)} title={confirmation ? LABELS[confirmation.action] : 'Confirm'}
+      <ConfirmDialog appearance="console" open={Boolean(confirmation)} title={confirmation ? LABELS[confirmation.action] : 'Confirm'}
+        confirmDisabled={confirmation?.action === 'takeoff' && !validHeight}
         confirmLabel={confirmation ? `Confirm ${LABELS[confirmation.action]}` : 'Confirm'} busy={busy}
         onCancel={() => !busy && setConfirmation(null)} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">

@@ -252,8 +252,8 @@ function getOffsetAxisLabels(frame) {
       x: 'Forward',
       y: 'Right',
       z: 'Up',
-      frameLabel: 'Leader body frame',
-      frameDescription: 'Offsets move with the leader heading.',
+      frameLabel: 'Leader heading',
+      frameDescription: 'Spacing moves with the leader heading.',
     };
   }
 
@@ -261,8 +261,8 @@ function getOffsetAxisLabels(frame) {
     x: 'North',
     y: 'East',
     z: 'Up',
-    frameLabel: 'Geographic frame',
-    frameDescription: 'Offsets stay aligned to the North/East axes.',
+    frameLabel: 'Compass',
+    frameDescription: 'Spacing stays aligned to North/East axes.',
   };
 }
 

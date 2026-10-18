@@ -93,7 +93,7 @@ const DroneCard = forwardRef(function DroneCard(
         aria-expanded={isExpanded}
       >
         <div className="swarm-drone-card__header-main">
-          <div className="swarm-drone-card__eyebrow">Smart Swarm Assignment</div>
+          <div className="swarm-drone-card__eyebrow">Aircraft plan</div>
           <div className="swarm-drone-card__title-row">
             <h3>{drone.title}</h3>
             <span className="swarm-drone-card__slot-pill">{drone.subtitle}</span>
@@ -178,17 +178,17 @@ const DroneCard = forwardRef(function DroneCard(
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">
                 <FaLink />
-                Leader link
+                Follows
                 <span
                   className="swarm-drone-card__field-help"
-                  data-help="Follow chains reference drone hardware IDs, not show slots."
-                  aria-label="Follow chains reference drone hardware IDs, not show slots."
+                  data-help="Choose the aircraft this one follows."
+                  aria-label="Choose the aircraft this one follows."
                 >
                   <FaInfoCircle aria-hidden="true" />
                 </span>
               </span>
               <select value={followValue} onChange={handleFollowChange}>
-                <option value="0">Independent leader</option>
+                <option value="0">No leader (pilot controlled)</option>
                 {followOptions
                   .filter((option) => option.value !== drone.hw_id)
                   .map((option) => (
@@ -202,7 +202,7 @@ const DroneCard = forwardRef(function DroneCard(
             <label className="swarm-drone-card__field">
               <span className="swarm-drone-card__field-label">
                 <FaSatelliteDish />
-                Offset frame
+                Spacing reference
                 <span
                   className="swarm-drone-card__field-help"
                   data-help={drone.frameDescription}
@@ -216,8 +216,8 @@ const DroneCard = forwardRef(function DroneCard(
                 onChange={handleFrameChange}
                 disabled={isIndependentLeader}
               >
-                <option value="ned">Geographic (North / East / Up)</option>
-                <option value="body">Leader body (Forward / Right / Up)</option>
+                <option value="ned">Compass (North / East / Up)</option>
+                <option value="body">Leader heading (Forward / Right / Up)</option>
               </select>
             </label>
           </div>

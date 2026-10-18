@@ -4,27 +4,21 @@ import { useSearchParams } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
   FaDownload,
-  FaExclamationTriangle,
-  FaLayerGroup,
   FaProjectDiagram,
   FaSave,
   FaSearch,
-  FaSyncAlt,
   FaUndo,
   FaUpload,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import DroneCard from '../components/DroneCard';
-import DroneGraph from '../components/DroneGraph';
-import SwarmPlots from '../components/SwarmPlots';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
+import SwarmClusterDiagram from '../components/SwarmClusterDiagram';
 import ClusterScopeBar from '../components/ClusterScopeBar';
-import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import {
   ActionIconButton,
   ConfirmDialog,
   EmptyState,
-  MetricStrip,
   OperatorNotice,
   PageActionBar,
   PageShell,
@@ -48,10 +42,7 @@ import {
   normalizeSwarmAssignment,
   toSwarmApiPayload,
 } from '../utilities/swarmDesignUtils';
-import { formatDroneLabel } from '../utilities/missionIdentityUtils';
 import {
-  DRONE_SEARCH_HELP_TEXT,
-  DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
 
@@ -186,7 +177,7 @@ function SwarmSaveProgress({ progress }) {
 
 function SwarmDesign() {
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('drone') ? 'formation' : 'operate');
+  const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('tab') === 'design' || searchParams.get('drone') ? 'formation' : 'operate');
   const cardRefs = useRef({});
   const handledRouteDroneRef = useRef('');
 
@@ -273,10 +264,6 @@ function SwarmDesign() {
 
   const filteredDroneIds = useMemo(
     () => new Set(filteredClusters.flatMap((cluster) => cluster.drones.map((drone) => drone.hw_id))),
-    [filteredClusters]
-  );
-  const visibleDroneCount = useMemo(
-    () => filteredClusters.reduce((count, cluster) => count + cluster.drones.length, 0),
     [filteredClusters]
   );
 
@@ -404,7 +391,7 @@ function SwarmDesign() {
       return;
     }
 
-    targetNode.scrollIntoView({
+    targetNode.scrollIntoView?.({
       behavior: 'smooth',
       block: 'center',
     });
@@ -481,9 +468,6 @@ function SwarmDesign() {
     }
   };
 
-  const handleToggleExpand = (droneId) => {
-    setExpandedDroneId((currentId) => currentId === droneId ? null : droneId);
-  };
 
   const handleImport = (event) => {
     const file = event.target.files?.[0];
@@ -763,38 +747,6 @@ function SwarmDesign() {
     });
   };
 
-  const summaryItems = [
-    {
-      icon: <FaLayerGroup />,
-      label: 'Drones',
-      value: viewModel.summary.totalDrones,
-      tone: 'neutral',
-    },
-    {
-      icon: <FaProjectDiagram />,
-      label: 'Clusters',
-      value: viewModel.summary.clusterCount,
-      tone: 'neutral',
-    },
-    {
-      icon: <FaSyncAlt />,
-      label: 'Relay Leaders',
-      value: viewModel.summary.relayLeaderCount,
-      tone: 'warning',
-    },
-    {
-      icon: <FaSave />,
-      label: 'Staged Changes',
-      value: dirtyIds.length,
-      tone: dirtyIds.length > 0 ? 'info' : 'neutral',
-    },
-    {
-      icon: <FaExclamationTriangle />,
-      label: 'Attention',
-      value: viewModel.summary.attentionCount,
-      tone: viewModel.summary.attentionCount > 0 ? 'danger' : 'success',
-    },
-  ];
   const pageStatusTone = saving
     ? 'info'
     : hasBlockingIssues || hasIncompleteInputs
@@ -815,7 +767,7 @@ function SwarmDesign() {
       className="swarm-design-page"
       eyebrow="Smart swarm"
       title="Smart Swarm"
-      subtitle={tab === 'operate' ? 'Live formation control.' : 'Saved roles and offsets.'}
+      subtitle={tab === 'operate' ? 'Live formation control.' : 'Set who follows whom and where.'}
       icon={<FaProjectDiagram />}
       docsRoute="/swarm-design"
       status={tab === 'formation' ? <StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge> : null}
@@ -823,20 +775,6 @@ function SwarmDesign() {
         <PageActionBar
           className="swarm-design-actions"
           primary={[
-            <ActionIconButton
-              key="update"
-              icon={<FaSyncAlt />}
-              label="Save Smart Swarm draft on this GCS"
-              onClick={() => confirmAndSave(false)}
-              tone="info"
-              active={saving && saveOperation === 'update'}
-              aria-busy={saving && saveOperation === 'update'}
-              className={saving && saveOperation === 'update' ? 'is-busy' : ''}
-              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
-              data-help="Save swarm.json on this GCS only. Publish next when the formation is ready for fleet sync."
-            >
-              {saving && saveOperation === 'update' ? 'Saving' : 'Save Draft'}
-            </ActionIconButton>,
             <ActionIconButton
               key="commit"
               icon={<FaCloudUploadAlt />}
@@ -870,6 +808,20 @@ function SwarmDesign() {
               <span className="operator-action-icon-button__text">Import</span>
               <input type="file" accept=".json,.csv" onChange={handleImport} />
             </label>,
+            <ActionIconButton
+              key="update"
+              icon={<FaSave />}
+              label="Save Smart Swarm draft on this GCS"
+              onClick={() => confirmAndSave(false)}
+              tone="info"
+              active={saving && saveOperation === 'update'}
+              aria-busy={saving && saveOperation === 'update'}
+              className={saving && saveOperation === 'update' ? 'is-busy' : ''}
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
+              data-help="Save this draft on the GCS only. Publish when the plan is ready for fleet sync."
+            >
+              {saving && saveOperation === 'update' ? 'Saving' : 'Save draft'}
+            </ActionIconButton>,
             <ActionIconButton
               key="json"
               icon={<FaDownload />}
@@ -906,17 +858,17 @@ function SwarmDesign() {
 
       <div role="tablist" aria-label="Swarm workspace" className="swarm-workspace-tabs">
         <button type="button" role="tab" aria-selected={tab === 'operate'} onClick={() => setTab('operate')}>Operate</button>
-        <button type="button" role="tab" aria-selected={tab === 'formation'} onClick={() => setTab('formation')}>Formation{hasStagedChanges ? ' •' : ''}</button>
+        <button type="button" role="tab" aria-selected={tab === 'formation'} onClick={() => setTab('formation')}>Design Swarm{hasStagedChanges ? ' •' : ''}</button>
       </div>
       {tab === 'operate' && <section role="tabpanel" aria-label="Operate">
         <SwarmRuntimeControls />
       </section>}
-      <section role="tabpanel" aria-label="Formation" hidden={tab !== 'formation'}>
-
-      <IdentityDoctrineStrip surface="swarm-design" className="identity-doctrine-strip--compact" />
-
-      <MetricStrip label="Smart Swarm topology summary" items={summaryItems} />
-
+      <section role="tabpanel" aria-label="Design Swarm" hidden={tab !== 'formation'} className="swarm-design-workspace operator-console">
+      <div className="swarm-design-summary">
+        <span>{viewModel.summary.totalDrones} aircraft</span>
+        <span>{viewModel.summary.clusterCount} cluster{viewModel.summary.clusterCount === 1 ? '' : 's'}</span>
+        <span>{dirtyIds.length ? `${dirtyIds.length} unsaved` : 'Plan saved'}</span>
+      </div>
       <SwarmSaveProgress progress={saveProgress} />
 
       <section className="swarm-status-strip">
@@ -966,196 +918,44 @@ function SwarmDesign() {
         )}
       </section>
 
-      <div className="swarm-operations-layout">
-        <section className="swarm-panel swarm-panel--assignments">
-          <div className="swarm-panel__header">
-            <div>
-              <h2>Assignments</h2>
-            </div>
+      <div className="swarm-design-toolbar">
+        <label className="swarm-search-field">
+          <FaSearch aria-hidden="true" />
+          <span className="sr-only">Find aircraft</span>
+          <input type="search" placeholder="Find aircraft" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+        </label>
+        {clusterScopeOptions.length > 1 && <ClusterScopeBar label="Cluster" options={clusterScopeOptions} selectedId={clusterScope} onSelect={setClusterScope} />}
+      </div>
 
-            <label className="swarm-search-field">
-              <FaSearch />
-              <input
-                type="search"
-                placeholder={DRONE_SEARCH_PLACEHOLDER}
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="swarm-panel__subheader">
-            <span>{visibleDroneCount} of {viewModel.summary.totalDrones} drones visible</span>
-            <span>{dirtyIds.length} staged</span>
-          </div>
-
-          {clusterScopeOptions.length > 1 && (
-            <ClusterScopeBar
-              label="Cluster scope"
-              options={clusterScopeOptions}
-              selectedId={clusterScope}
-              onSelect={setClusterScope}
-              summary="Top-leader scopes keep large swarm audits readable without changing saved topology."
-            />
-          )}
-
-          <div className="swarm-cluster-stack">
-            {filteredClusters.length === 0 && (
-              <EmptyState
-                title="No matching drones"
-                detail={`Try a different term or a scoped query like pos 1-5, hw 2,4, or a callsign. ${DRONE_SEARCH_HELP_TEXT}`}
-                className="swarm-empty-state"
-              />
-            )}
-
-            {filteredClusters.map((cluster) => (
-              <section
-                key={cluster.id}
-                className={`swarm-cluster-section ${cluster.type === 'attention' ? 'attention' : ''}`}
-              >
-                <header className="swarm-cluster-section__header">
-                  <div>
-                    <h3>{cluster.title}</h3>
-                    <p>{cluster.subtitle}</p>
-                  </div>
-
-                  <div className="swarm-cluster-section__stats">
-                    <span>{cluster.counts.total} drones</span>
-                    <span>{cluster.counts.relayLeaders} relay</span>
-                    <span>{cluster.counts.followers} followers</span>
-                    {cluster.warningCount > 0 && <span>{cluster.warningCount} attention</span>}
-                  </div>
-                </header>
-
-                <div className="swarm-card-list">
-                  {cluster.drones.map((drone) => {
-                    const rawAssignment = workingAssignments.find((assignment) => String(assignment.hw_id) === drone.hw_id) || drone;
-
-                    return (
-                      <DroneCard
-                        key={drone.hw_id}
-                        ref={(node) => {
-                          if (node) {
-                            cardRefs.current[drone.hw_id] = node;
-                          } else {
-                            delete cardRefs.current[drone.hw_id];
-                          }
-                        }}
-                        drone={drone}
-                        draftAssignment={rawAssignment}
-                        followOptions={viewModel.followOptions}
-                        onSelect={(droneId) => handleSelectDrone(droneId)}
-                        onToggleExpand={handleToggleExpand}
-                        onAssignmentChange={handleAssignmentChange}
-                        isSelected={selectedDroneId === drone.hw_id}
-                        isExpanded={expandedDroneId === drone.hw_id}
-                        isDirty={dirtyIdSet.has(drone.hw_id)}
-                      />
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        </section>
-
+      <div className="swarm-design-editor-layout">
         <section className="swarm-panel swarm-panel--graph">
           <div className="swarm-panel__header">
             <div>
-              <h2>Topology</h2>
+              <h2>Swarm plan</h2>
+              <p>Click an aircraft to edit its place in the chain.</p>
             </div>
           </div>
+          <SwarmClusterDiagram members={filteredClusters.flatMap((cluster) => cluster.drones)} selectedId={selectedDroneId}
+            onSelect={(droneId) => handleSelectDrone(droneId, { fromGraph: true })} dirtyIds={dirtyIds} />
+          {filteredClusters.length === 0 && <EmptyState title="No matching aircraft" detail="Clear the search to see the saved swarm plan." />}
+        </section>
 
-          <div className="swarm-graph-panel">
-            <div className="swarm-graph-stage">
-              <DroneGraph
-                swarmData={viewModel.drones}
-                selectedDroneId={selectedDroneId}
-                onSelectDrone={(droneId) => handleSelectDrone(droneId, { fromGraph: true })}
-              />
-            </div>
-
-            <div className="swarm-graph-legend">
-              <span className="legend-item leader">Top leader</span>
-              <span className="legend-item relay">Relay leader</span>
-              <span className="legend-item follower">Follower</span>
-              <span className="legend-item arrow-flow">Leader to follower</span>
-              <span className="legend-item line-solid">Geographic offset</span>
-              <span className="legend-item line-dashed">Body-relative offset</span>
-            </div>
-
-            <div className="swarm-selection-panel">
-              {selectedDrone ? (
-                <>
-                  <div className="swarm-selection-panel__header">
-                    <div>
-                      <span className="swarm-selection-panel__eyebrow">Selected Drone</span>
-                      <h3>{selectedDrone.title}</h3>
-                      {selectedDrone.alias && <p className="swarm-selection-panel__alias">{selectedDrone.aliasLabel || 'Alias'}: {selectedDrone.alias}</p>}
-                    </div>
-                    <span className={`swarm-role-badge ${selectedDrone.role}`}>{selectedDrone.roleLabel}</span>
-                  </div>
-
-                  <dl className="swarm-selection-panel__details">
-                    <div>
-                      <dt>Show Slot</dt>
-                      <dd>{selectedDrone.pos_id}</dd>
-                    </div>
-                    <div>
-                      <dt>Follow Target</dt>
-                      <dd>{selectedDrone.follow === '0' ? 'Independent leader' : formatDroneLabel(selectedDrone.follow)}</dd>
-                    </div>
-                    <div>
-                      <dt>Offset Frame</dt>
-                      <dd>{selectedDrone.frameLabel}</dd>
-                    </div>
-                    <div>
-                      <dt>Relative Offset</dt>
-                      <dd>{selectedDrone.offsetSummary}</dd>
-                    </div>
-                    <div>
-                      <dt>Direct Followers</dt>
-                      <dd>{selectedDrone.directFollowerCount}</dd>
-                    </div>
-                  </dl>
-
-                  {selectedDrone.warnings.length > 0 && (
-                    <div className="swarm-selection-panel__warnings">
-                      {selectedDrone.warnings.map((warning) => (
-                        <div key={`${selectedDrone.hw_id}-${warning.code}`} className={`selection-warning ${warning.severity}`}>
-                          <FaExclamationTriangle />
-                          <span>{warning.message}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <EmptyState
-                  title="No drone selected"
-                  detail="Select a graph node or assignment card to inspect its details."
-                  className="swarm-empty-state compact"
-                />
-              )}
-            </div>
-          </div>
+        <section className="swarm-panel swarm-panel--assignments">
+          <div className="swarm-panel__header"><div><h2>Aircraft plan</h2><p>Set the leader and spacing for the selected aircraft.</p></div></div>
+          {selectedDrone ? <DroneCard
+            ref={(node) => { if (node) cardRefs.current[selectedDrone.hw_id] = node; }}
+            drone={selectedDrone}
+            draftAssignment={workingAssignments.find((assignment) => String(assignment.hw_id) === selectedDrone.hw_id) || selectedDrone}
+            followOptions={viewModel.followOptions}
+            onSelect={handleSelectDrone}
+            onToggleExpand={() => setExpandedDroneId(selectedDrone.hw_id)}
+            onAssignmentChange={handleAssignmentChange}
+            isSelected
+            isExpanded
+            isDirty={dirtyIdSet.has(selectedDrone.hw_id)}
+          /> : <EmptyState title="Select an aircraft" detail="Choose an aircraft in the plan to edit it." />}
         </section>
       </div>
-
-      <section className="swarm-panel swarm-panel--plots">
-        <div className="swarm-panel__header">
-          <div>
-            <h2>Formation Preview</h2>
-          </div>
-        </div>
-
-        <SwarmPlots
-          swarmData={workingAssignments}
-          configData={configData}
-          selectedClusterId={selectedClusterId}
-          onSelectedClusterChange={setSelectedClusterId}
-        />
-      </section>
 
       </section>
       <ConfirmDialog
@@ -1165,6 +965,7 @@ function SwarmDesign() {
         confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
         busy={saving}
         onConfirm={() => confirmDialog?.onConfirm?.()}
+        appearance="console"
         onCancel={() => setConfirmDialog(null)}
       />
     </PageShell>

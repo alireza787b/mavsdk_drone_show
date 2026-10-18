@@ -9,6 +9,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm workspace now uses a flat operator-console presentation. The former
+  Formation tab is **Design Swarm**: a compact saved relationship diagram and
+  one selected-aircraft editor replace the repeated assignment/topology/plot
+  panels. Publish is the primary plan action; draft save, import, export and
+  revert remain secondary and report repository state separately from aircraft
+  synchronization. Operate replaces the embedded map with a non-geographic
+  leader/follower status diagram, and Return is labelled **Managed Return**.
+  Dialog fields, focus handling, mobile layout and navigation use the same
+  console treatment. Flight commands and PX4 behaviour are unchanged.
+
 - Overview and Smart Swarm Operate share compact Takeoff, Start Swarm and Return
   controls. Cluster scope is independent of inspection, confirmations bind the
   saved revision, and Return defaults to the existing 10-second sequential queue.
