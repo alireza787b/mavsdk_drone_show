@@ -70,11 +70,13 @@ export default function SwarmOperations({ showMap = false }) {
   const airborne = members.filter((m) => ['Airborne', 'Taking off', 'Returning', 'Landing'].includes(states[m.hw_id])).length;
   const grounded = members.filter((m) => states[m.hw_id] === 'Grounded').length;
   const monitor = commandMonitors.find((m) => m.missionType === 2
-    && m.targetDrones?.length === ids.length && ids.every((id) => m.targetDrones.includes(id)));
+    && m.targetDrones?.length > 0 && m.targetDrones.every((id) => ids.includes(id)));
   const runtime = monitor?.swarmRuntime;
   const liveRuntime = !previewError && runtime && !monitor?.trackingIssue
     && Date.now() - monitor.updatedAtMs < 15000;
-  const runtimeLabel = liveRuntime ? RUNTIME_LABELS[runtime.state] : null;
+  const runtimeLabel = liveRuntime ? (monitor.targetDrones.length < ids.length
+    ? `Partial · ${runtime.active_hw_ids?.length || 0}/${ids.length} engaged`
+    : RUNTIME_LABELS[runtime.state]) : null;
   const status = previewError ? 'Telemetry delayed' : runtimeLabel
     || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;

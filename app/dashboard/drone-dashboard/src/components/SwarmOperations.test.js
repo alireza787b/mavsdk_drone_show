@@ -5,7 +5,8 @@ import { fetchGcsResource } from '../services/gcsApiService';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 jest.mock('../services/gcsApiService', () => ({ fetchGcsResource: jest.fn() }));
 jest.mock('../utilities/commandLifecycleFeedback', () => ({ submitCommandWithLifecycleFeedback: jest.fn() }));
-jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: {}, commandMonitors: [] }) }));
+const mockMonitors = [];
+jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: {}, commandMonitors: mockMonitors }) }));
 jest.mock('./SequentialReturnControl', () => ({ targetIds, compact }) => <button>Return {compact ? targetIds.join(',') : 'legacy'}</button>);
 const preview = { runtime_mode: 'SITL', revision: 'revision', clusters: [{ cluster_id: '1', members: [
   { hw_id: '1', follow: '0', available: true, armed: false, frame: 'ned' },
@@ -13,6 +14,7 @@ const preview = { runtime_mode: 'SITL', revision: 'revision', clusters: [{ clust
 ], partial_exclusion_hw_ids: [] }] };
 beforeEach(() => {
   jest.clearAllMocks(); sessionStorage.clear();
+  mockMonitors.length = 0;
   fetchGcsResource.mockResolvedValue({ data: preview });
   submitCommandWithLifecycleFeedback.mockResolvedValue({ command_id: 'test' });
 });
@@ -74,4 +76,15 @@ test('single-drone recovery requires the explicit advanced selector', async () =
   fireEvent.change(screen.getByRole('combobox', { name: 'Recovery targets' }), { target: { value: '2' } });
   fireEvent.click(screen.getByRole('button', { name: 'Land here' }));
   expect(within(screen.getByRole('dialog')).getByText('Drone 2')).toBeInTheDocument();
+});
+
+test('partial engagement is never labelled full following and normal Stop remains cluster-scoped', async () => {
+  mockMonitors.push({ missionType: 2, targetDrones: ['1'], isTerminal: false,
+    updatedAtMs: Date.now(), swarmRuntime: { state: 'active', active_hw_ids: ['1'] } });
+  await mounted();
+  expect(screen.getByText('Partial · 1/2 engaged')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Recovery targets' }), { target: { value: '2' } });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Stop following' })[0]);
+  expect(within(screen.getByRole('dialog')).getByText('Drone 1 · Drone 2')).toBeInTheDocument();
 });
