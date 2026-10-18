@@ -45,6 +45,18 @@
 .operator-console .operator-confirm-dialog__message li { margin-block: var(--spacing-sm); }
 .operator-console details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: var(--spacing-sm); }
 .operator-console .operator-confirm-dialog__message [role='alert'] { color: var(--color-danger); }
+
+/* Navigation is part of the operator console, not decorative application chrome. */
+.modern-sidebar-wrapper {
+  background: var(--color-bg-primary);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: none;
+}
+.modern-sidebar-wrapper::before { height: 2px; background: var(--color-primary); }
+.modern-sidebar-wrapper .sidebar-toggle,
+.modern-sidebar-wrapper .version,
+.modern-sidebar-wrapper .sidebar-runtime-badge { border-radius: 2px; box-shadow: none; }
+.modern-sidebar-wrapper .sidebar-toggle { width: 38px; height: 38px; }
 @media (max-width: 600px) {
   .operator-console .operator-confirm-dialog__actions { display: grid; grid-template-columns: 1fr 1fr; }
   .operator-console .operator-confirm-dialog__actions button { min-width: 0; padding: var(--spacing-sm); }

@@ -5,6 +5,9 @@
 .swarm-workspace-tabs button[aria-selected='true'] { border-bottom-color: var(--color-primary); color: var(--color-text-primary); }
 
 .swarm-design-page .operator-page-shell__header { align-items: start; }
+.swarm-design-page { background: var(--color-bg-canvas); }
+.swarm-design-page :is(.swarm-panel, .swarm-status-card, .swarm-cluster-section, .swarm-drone-card,
+  .operator-notice, .operator-card) { border-radius: 2px; box-shadow: none; background: var(--color-bg-secondary); }
 .swarm-design-page .operator-page-shell__copy p { max-width: 36rem; }
 .swarm-design-page .swarm-design-actions :is(.operator-action-icon-button, .swarm-action-file-button) { border-radius: 2px; box-shadow: none; }
 .swarm-design-page .swarm-design-actions .operator-page-action-bar__primary { border: 0; padding: 0; background: transparent; }
