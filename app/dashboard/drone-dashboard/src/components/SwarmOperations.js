@@ -141,14 +141,18 @@ export default function SwarmOperations() {
   const runtimeLabel = liveRuntime ? (monitor.targetDrones.length < ids.length
     ? `Partial · ${runtime.active_hw_ids?.length || 0}/${ids.length} engaged`
     : RUNTIME_LABELS[runtime.state]) : null;
-  const status = previewError ? 'Telemetry delayed' : runtimeLabel
-    || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;
   const nodeStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
     swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor) })]));
   const heldScope = Boolean(holdReceipt && holdReceipt.clusterId === cluster?.cluster_id);
   const holdMonitor = heldScope
     ? commandMonitors.find((m) => m.commandId === holdReceipt.commandId) : null;
+  const holdStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
+    holdNodeStatus({ ...member, available: member.available && !previewError }, holdMonitor?.executionDetails?.[member.hw_id])]));
+  const holdConfirmed = Object.values(holdStatuses).filter((node) => node.label !== 'Hold unconfirmed').length;
+  const status = previewError ? 'Telemetry delayed' : heldScope
+    ? `Hold · ${holdConfirmed}/${members.length} confirmed` : runtimeLabel
+      || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
@@ -306,7 +310,7 @@ export default function SwarmOperations() {
       </header>
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
         statuses={Object.fromEntries(members.map((m) => {
-          const node = heldScope ? holdNodeStatus({ ...m, available: m.available && !previewError }, holdMonitor?.executionDetails?.[m.hw_id]) : nodeStatuses[m.hw_id];
+          const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
           return [m.hw_id, { ...node,
             label: `${heldScope ? '' : `${states[m.hw_id]} · `}${node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
         }))} />
