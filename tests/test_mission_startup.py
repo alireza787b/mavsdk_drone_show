@@ -171,6 +171,28 @@ async def test_takeoff_probe_never_latches_separate_global_and_home_successes():
 
 
 @pytest.mark.asyncio
+async def test_takeoff_waits_for_missing_landed_sample_instead_of_battery_fast_rejection():
+    from src.enums import Mission
+    drone = _connected_drone()
+    drone.telemetry.health = _health_stream([_health()])
+    drone.telemetry.battery = _battery_stream([_battery()])
+    drone.telemetry.armed = _health_stream([False])
+    subscriptions = 0
+    async def landed_state():
+        nonlocal subscriptions
+        subscriptions += 1
+        if subscriptions == 1:
+            return
+        yield SimpleNamespace(name='ON_GROUND')
+    drone.telemetry.landed_state = landed_state
+    result = await mission_startup.probe_offboard_armability(
+        drone, require_global_position=True, mission_type=Mission.TAKE_OFF.value, timeout=0.1,
+    )
+    assert result['ready'] is True
+    assert subscriptions == 2
+
+
+@pytest.mark.asyncio
 async def test_takeoff_arm_retry_rechecks_native_ground(mocker, monkeypatch):
     from src.enums import Mission
     drone = _connected_drone()

@@ -505,6 +505,7 @@ async def probe_offboard_armability(
                 and snapshot.connection_live is True
                 and not snapshot.connection_interrupted
                 and result["battery"].get("sample_received")
+                and not result["battery"].get("ready")
             ):
                 # A current low/invalid battery estimate is an actionable
                 # blocker, not a condition improved by replaying the same
