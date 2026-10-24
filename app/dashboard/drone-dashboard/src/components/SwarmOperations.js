@@ -15,6 +15,7 @@ import '../styles/SwarmOperations.css';
 
 const PREVIEW = '/api/v1/swarm/runtime/preview';
 const EMPTY_CLUSTERS = [];
+const EMPTY_MEMBERS = [];
 const LABELS = { takeoff: 'Takeoff', start: 'Start Swarm', hold: 'Stop following', land: 'Land here', rtl: 'Immediate RTL' };
 const TYPES = { takeoff: 10, start: 2, hold: 102, land: 101, rtl: 104 };
 const RUNTIME_LABELS = { starting: 'Starting', active: 'Following', acquiring: 'Joining formation', settling: 'Settling',
@@ -126,7 +127,7 @@ export default function SwarmOperations() {
   // A disappeared explicit cluster is intentionally NOT replaced by another.
   const cluster = selection.key === storageKey
     ? clusters.find((item) => item.cluster_id === selection.id) : null;
-  const members = cluster?.members || [];
+  const members = cluster?.members || EMPTY_MEMBERS;
   const ids = members.map((m) => m.hw_id);
   const names = members.map(memberLabel);
   const states = Object.fromEntries(members.map((m) => [m.hw_id, memberFlightState(m)]));
