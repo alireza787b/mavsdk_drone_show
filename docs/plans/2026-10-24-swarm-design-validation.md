@@ -69,3 +69,27 @@ firewall rule were stopped/removed. Production services were left unchanged.
 - Grounded hardware version/configuration verification before a subsequent field test.
 
 No PX4 parameters, controller gains, flight limits or Simurgh behavior changed.
+
+## Production UI review deployment
+
+At the user's subsequent request, the validated frontend and matching GCS API
+were deployed to the existing production service for visual review. The client
+checkout is on local review branch `review/swarm-design-20261024`, commit
+`596f94900`; official/client release branches and the aircraft update channel
+were not promoted. The retained deployment baseline is `2e1951d66`.
+
+Production verification confirmed exactly SCOUT and NET-LEADER, unchanged fleet,
+formation and GCS environment file hashes, no active commands, working revision
+and design-status APIs, and actual authenticated Top/3D rendering with zero
+browser errors, server errors or attempted writes. Aircraft were offline.
+
+Rollback build and deployment evidence are under
+`/root/mds-swarm-design-review-20261024/`. Old fingerprinted static assets were
+retained for already-open browser tabs. The temporary read-only verification
+credential was revoked after checking.
+
+This is a temporary review deployment, not aircraft/field release approval.
+The existing boot Git-sync policy still follows client `main`; rebooting or
+running code sync before release integration can revert the review backend.
+Do not treat this review branch as the long-term deployment policy. Complete
+official/client release integration after UI feedback before a reboot or field test.
