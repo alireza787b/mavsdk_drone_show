@@ -105,6 +105,7 @@ from src.command_admission import (
     AirborneAdmissionStatus,
     evaluate_cached_airborne_admission,
 )
+from src.smart_swarm_admission import SmartSwarmStartAdmission, evaluate_smart_swarm_start_admission
 from src.action_safety import SAFETY_EVIDENCE_VALIDITY_MS
 from src.command_installation import (
     CommandInstallationRejected,
@@ -234,6 +235,7 @@ class ReadinessMessageResponse(BaseModel):
 class DroneStateResponse(BaseModel):
     """Drone state response"""
     pos_id: Any
+    smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
     detected_pos_id: Any
     state: int
     mission: Any
@@ -2047,8 +2049,7 @@ class DroneAPIServer:
             ),
         )
 
-    @staticmethod
-    def _serialize_drone_state_payload(drone_state: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_drone_state_payload(self, drone_state: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize raw communicator state into the canonical HTTP/WebSocket payload shape."""
         payload = dict(drone_state)
         server_time_ms = int(time.time() * 1000)
@@ -2067,6 +2068,11 @@ class DroneAPIServer:
             payload['timestamp'] = server_time_ms
 
         payload['server_time'] = server_time_ms
+        payload['smart_swarm_start_admission'] = evaluate_smart_swarm_start_admission(
+            self.drone_config,
+            max_age_sec=self.params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC,
+            now_ms=server_time_ms,
+        ).model_dump()
         return DroneStateResponse.model_validate(payload).model_dump()
 
     @staticmethod
@@ -4432,6 +4438,13 @@ class DroneAPIServer:
         Returns dict with 'valid', 'message', 'error_code', and optionally 'detail'.
         """
         current_state = self.drone_config.state
+
+        if mission_type == Mission.SMART_SWARM.value:
+            admission = evaluate_smart_swarm_start_admission(
+                self.drone_config, max_age_sec=self.params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC,
+            )
+            return {'valid': admission.status == 'ready', 'message': admission.message,
+                    'error_code': admission.error_code, 'detail': admission.reason_code}
 
         # Emergency commands always allowed
         if mission_type == Mission.KILL_TERMINATE.value:

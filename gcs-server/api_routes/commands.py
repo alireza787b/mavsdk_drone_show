@@ -162,6 +162,15 @@ def create_command_router(deps: Any) -> APIRouter:
             timestamp=int(time.time() * 1000),
         )
 
+    @router.get("/api/v1/commands/lookup", response_model=CommandSubmissionReceipt, tags=["Commands"])
+    async def lookup_command(idempotency_key: str = Query(..., min_length=1, max_length=200)):
+        """Recover a lost receipt without submitting or creating a command."""
+        from command_submission import build_replay_receipt
+        command = await deps.get_command_tracker().lookup_command_by_idempotency_key(idempotency_key)
+        if command is None:
+            raise HTTPException(404, 'No tracked command found; review before confirming Start again')
+        return build_replay_receipt(command)
+
     @router.get("/api/v1/commands/{command_id}", response_model=CommandStatusResponse, tags=["Commands"])
     async def get_command_status(command_id: str = PathParam(..., description="Command UUID")):
         """Get detailed status of a specific command."""

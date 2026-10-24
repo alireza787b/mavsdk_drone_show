@@ -1023,8 +1023,12 @@ async function trackCommandLifecycle(
 
 export async function submitCommandWithLifecycleFeedback(commandData, options = {}) {
   const response = await sendDroneCommand(commandData);
+  return trackCommandReceipt(commandData, response, options);
+}
+
+export function trackCommandReceipt(commandData, response, options = {}) {
   if (response?.accepted_for_tracking !== true || !response?.command_id) {
-    throw new Error('GCS returned an invalid command-submission receipt');
+    throw Object.assign(new Error('Command receipt unconfirmed'), { code: 'COMMAND_RECEIPT_UNCONFIRMED' });
   }
   const commandLabel = formatCommandLabel(commandData, response);
   const submissionToast = buildSubmissionToastMessage(commandData, response);

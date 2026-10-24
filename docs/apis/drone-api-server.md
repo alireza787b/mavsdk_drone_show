@@ -163,6 +163,13 @@ http://drone-ip:7070/openapi.json
 
 Readiness fields:
 - `is_ready_to_arm` remains the simple compatibility boolean.
+- `smart_swarm_start_admission` is a read-only node decision shared with
+  Smart Swarm command admission: `hw_id`, `status` (`ready`, `waiting`,
+  `blocked`, `unknown`), `reason_code`, `message`, `observed_at_ms`,
+  `valid_for_ms`, and optional `error_code`. It reflects action ownership and
+  existing fresh airborne evidence, not a reservation or proof of engagement.
+  HTTP and WebSocket state snapshots expose the same field. Missing fields
+  from older nodes are unknown to a Start review, not implicitly ready.
 - `readiness_status` and `readiness_summary` are the operator-facing verdict.
 - `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
 - `gps_raw_valid` is raw GPS evidence from `GPS_RAW_INT`; it does not prove the drone has a usable mappable position.

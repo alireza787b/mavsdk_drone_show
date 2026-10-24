@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FaArrowUp, FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
 import { fetchGcsResource } from '../services/gcsApiService';
+import { isAmbiguousSubmissionTransportFailure } from '../services/droneApiService';
 import { getBackendURL } from '../config/apiConfig';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
-import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
 import { memberFlightState, memberLabel, movementSummary, takeoffTargets } from '../utilities/swarmOperationModel';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
+import { swarmStartReadiness, swarmStartValidUntil } from '../utilities/swarmStartReadiness';
 import '../styles/SwarmOperations.css';
 
 const PREVIEW = '/api/v1/swarm/runtime/preview';
@@ -30,7 +32,12 @@ export default function SwarmOperations() {
   const [advanced, setAdvanced] = useState(false);
   const [individual, setIndividual] = useState('');
   const [inspectedId, setInspectedId] = useState(null);
+  const [startCheck, setStartCheck] = useState(null);
+  const [pendingStart, setPendingStart] = useState(null);
   const submitting = useRef(false);
+  const startSubmitting = useRef(false);
+  const busyOwner = useRef(null);
+  const scope = useRef(null);
   const { commandLifecycleCallbacks, commandMonitors = [] } = useCommandActivity();
 
   useEffect(() => {
@@ -48,6 +55,55 @@ export default function SwarmOperations() {
   }, []);
 
   const storageKey = preview ? `mds-swarm:${getBackendURL()}:${preview.runtime_mode || 'unknown'}` : null;
+  const pendingKey = storageKey ? `${storageKey}:pending-start` : null;
+  useEffect(() => {
+    if (!pendingKey) return;
+    scope.current = pendingKey;
+    setConfirmation(null);
+    setError('');
+    setPendingStart(null);
+    try {
+      const pending = JSON.parse(sessionStorage.getItem(pendingKey));
+      if (pending?.reviewed?.action === 'start'
+          && pending.reviewed.key === pending.command?.smart_swarm_start?.idempotency_key) setPendingStart(pending);
+    } catch (_) { /* live command history remains available if browser storage is disabled */ }
+  }, [pendingKey]);
+  const rememberPending = (pending, key = pendingKey) => {
+    if (scope.current === key) setPendingStart(pending);
+    try {
+      if (pending) sessionStorage.setItem(key, JSON.stringify(pending));
+      else sessionStorage.removeItem(key);
+    } catch (_) { /* storage is optional */ }
+  };
+
+  useEffect(() => {
+    setStartCheck(null);
+    if (confirmation?.action !== 'start' || (pendingStart && !pendingStart.needsReview)) return undefined;
+    let live = true;
+    let pollTimer;
+    let expiryTimer;
+    const check = async () => {
+      const requestedAt = Date.now();
+      try {
+        const { data } = await fetchGcsResource(PREVIEW, { params: { cluster_id: confirmation.clusterId, check_start: true } });
+        if (!live) return;
+        if (data.revision !== confirmation.revision) {
+          setError('Formation changed. Review the targets again.');
+          setStartCheck(null);
+          return;
+        }
+        const decisions = data.start_admissions || {};
+        // Subtract the entire request transit without comparing host clocks.
+        const until = swarmStartValidUntil(confirmation.targets, decisions, requestedAt);
+        setStartCheck({ decisions, until });
+        clearTimeout(expiryTimer);
+        expiryTimer = setTimeout(() => live && setStartCheck(null), Math.max(0, until - Date.now()));
+      } catch (_) { if (live) setStartCheck(null); }
+      finally { if (live) pollTimer = setTimeout(check, 1000); }
+    };
+    check();
+    return () => { live = false; clearTimeout(pollTimer); clearTimeout(expiryTimer); };
+  }, [confirmation, pendingStart]);
   const clusters = preview?.clusters || EMPTY_CLUSTERS;
   useEffect(() => {
     if (!storageKey || selection.key === storageKey) return;
@@ -87,6 +143,7 @@ export default function SwarmOperations() {
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
+    if (action === 'start' && pendingStart) { setConfirmation(pendingStart.reviewed); return; }
     let targets = action === 'takeoff' ? takeoffTargets(members) : ids;
     if (individualRecovery && ids.includes(individual) && ['hold', 'land', 'rtl'].includes(action)) targets = [individual];
     targets = targets.filter((id) => !excluded.includes(id));
@@ -96,8 +153,12 @@ export default function SwarmOperations() {
       clusterId: cluster.cluster_id, key: `swarm-${Date.now()}-${Math.random().toString(16).slice(2)}` });
   };
   const freshReview = async (reviewed) => {
-    const response = await fetchGcsResource(PREVIEW);
+    const requestedAt = Date.now();
+    const requestedScope = scope.current;
+    const response = await fetchGcsResource(PREVIEW, reviewed.action === 'start'
+      ? { params: { cluster_id: reviewed.clusterId, check_start: true } } : {});
     const current = response.data;
+    if (requestedScope !== scope.current) throw new Error('Operation context changed.');
     const currentCluster = current.clusters.find((c) => c.cluster_id === reviewed.clusterId);
     if (current.revision !== reviewed.revision || !currentCluster
         || selection.id !== reviewed.clusterId) throw new Error('Formation changed. Review the targets again.');
@@ -105,17 +166,43 @@ export default function SwarmOperations() {
       const targets = takeoffTargets(currentCluster.members);
       if (targets.join(',') !== reviewed.targets.join(',')) throw new Error('Flight state changed. Review takeoff targets again.');
     }
+    if (reviewed.action === 'start') {
+      const decisions = current.start_admissions;
+      const check = swarmStartReadiness(reviewed.targets, decisions,
+        swarmStartValidUntil(reviewed.targets, decisions, requestedAt));
+      if (!check.ready) throw new Error(check.label);
+    }
     setPreview(current);
     return true;
   };
   const send = async () => {
-    if (!confirmation || submitting.current || (confirmation.action === 'takeoff' && !validHeight)) return;
+    if (!confirmation || (confirmation.action === 'takeoff' && !validHeight)) return;
+    const submitLock = confirmation.action === 'start' ? startSubmitting : submitting;
+    if (submitLock.current) return;
+    const checkingPending = pendingStart && !pendingStart.needsReview;
+    if (confirmation.action === 'start' && !checkingPending
+        && !swarmStartReadiness(confirmation.targets, startCheck?.decisions, startCheck?.until || 0).ready) return;
     const reviewed = confirmation;
-    submitting.current = true;
+    const sendScope = pendingKey;
+    const operation = {};
+    busyOwner.current = operation;
+    submitLock.current = true;
+    let posted = false;
     setBusy(true);
     try {
+      if (reviewed.action === 'start' && checkingPending) {
+        const { data } = await fetchGcsResource('/api/v1/commands/lookup', {
+          params: { idempotency_key: reviewed.key },
+        });
+        if (scope.current !== sendScope) return;
+        trackCommandReceipt(pendingStart.command, data, commandLifecycleCallbacks);
+        rememberPending(null, sendScope);
+        if (busyOwner.current === operation) setConfirmation(null);
+        return;
+      }
       await freshReview(reviewed);
-      const command = { mission_type: TYPES[reviewed.action], trigger_time: 0,
+      if (scope.current !== sendScope) return;
+      let command = { mission_type: TYPES[reviewed.action], trigger_time: 0,
         target_drone_ids: reviewed.targets, idempotency_key: reviewed.key,
         uiMeta: { operatorLabel: LABELS[reviewed.action], targetLabel: `Cluster ${reviewed.clusterId}` } };
       if (reviewed.action === 'takeoff') command.takeoff_altitude = Number(height);
@@ -123,16 +210,39 @@ export default function SwarmOperations() {
         cluster_id: reviewed.clusterId, revision: reviewed.revision,
         excluded_hw_ids: reviewed.excluded, idempotency_key: reviewed.key,
       };
+      if (reviewed.action === 'start') {
+        command = pendingStart?.command || command;
+        rememberPending({ reviewed, command }, sendScope);
+      }
+      posted = true;
       await submitCommandWithLifecycleFeedback(command, commandLifecycleCallbacks);
-      setConfirmation(null);
+      if (reviewed.action === 'start') rememberPending(null, sendScope);
+      if (scope.current !== sendScope) return;
+      if (busyOwner.current === operation) setConfirmation(null);
     } catch (exc) {
+      if (scope.current !== sendScope) return;
+      if (reviewed.action === 'start' && checkingPending) {
+        if (exc?.response?.status === 404) {
+          rememberPending({ ...pendingStart, needsReview: true }, sendScope);
+          setError('Command not found. Review before confirming Start again.');
+        } else setError('Command status unavailable. Check again.');
+        return;
+      }
       const detail = exc?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : exc.message || 'Command not confirmed. Check aircraft status.');
-    } finally { submitting.current = false; setBusy(false); }
+      const uncertain = reviewed.action === 'start' && isAmbiguousSubmissionTransportFailure(exc);
+      if (reviewed.action === 'start' && !uncertain && (posted || !pendingStart)) rememberPending(null, sendScope);
+      if (busyOwner.current !== operation) return;
+      setError(uncertain ? 'Start status unconfirmed. Check the same command.'
+        : typeof detail === 'string' ? detail : detail?.message || exc.message || 'Command not confirmed. Check aircraft status.');
+    } finally {
+      submitLock.current = false;
+      if (busyOwner.current === operation) { busyOwner.current = null; setBusy(false); }
+    }
   };
   const exclusions = cluster?.partial_exclusion_hw_ids || [];
   const canStop = Boolean(monitor && !monitor.isTerminal);
   const contextKey = `${selection.id}:${preview?.revision}`;
+  const startReadiness = swarmStartReadiness(confirmation?.targets || [], startCheck?.decisions, startCheck?.until || 0);
 
   return (
     <section className="swarm-ops operator-console" aria-label="Swarm operations">
@@ -180,15 +290,28 @@ export default function SwarmOperations() {
       </div>}
       {!cluster && preview && <p role="status">{clusters.length ? 'Select a saved formation.' : <a href="/swarm-design?tab=formation">Create a formation</a>}</p>}
       {error && <p role="alert">{error}</p>}
+      {pendingStart && !confirmation && <button className="operator-button" type="button" disabled={startSubmitting.current} onClick={() => setConfirmation(pendingStart.reviewed)}>{pendingStart.needsReview ? 'Review Start' : 'Check Start command'}</button>}
       <ConfirmDialog appearance="console" open={Boolean(confirmation)} title={confirmation ? LABELS[confirmation.action] : 'Confirm'}
-        confirmDisabled={confirmation?.action === 'takeoff' && !validHeight}
-        confirmLabel={confirmation ? `Confirm ${LABELS[confirmation.action]}` : 'Confirm'} busy={busy}
-        onCancel={() => !busy && setConfirmation(null)} onConfirm={send}
+        confirmDisabled={(confirmation?.action === 'takeoff' && !validHeight)
+          || (confirmation?.action === 'start' && (!pendingStart || pendingStart.needsReview) && !startReadiness.ready)}
+        confirmLabel={confirmation?.action === 'start' && pendingStart && !pendingStart.needsReview ? 'Check command' : confirmation ? `Confirm ${LABELS[confirmation.action]}` : 'Confirm'} busy={busy}
+        allowDismissWhileBusy={confirmation?.action === 'start'}
+        cancelLabel={busy && confirmation?.action === 'start' ? 'Close' : 'Cancel'}
+        onCancel={() => {
+          if (!busy || confirmation?.action === 'start') {
+            busyOwner.current = null;
+            setBusy(false);
+            setConfirmation(null);
+          }
+        }} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">
           <strong>{confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })).join(' · ')}</strong>
           {confirmation.action === 'takeoff' && <label>Takeoff height <input type="number" min="0.1" step="1" aria-label="Takeoff height" value={height} onChange={(e) => setHeight(e.target.value)} /> m
             {!validHeight && <span role="alert">Enter a positive height.</span>}<small>Takeoff only · following stays off.</small></label>}
-          {confirmation.action === 'start' && <ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {m.frame === 'body' ? 'Body' : 'NED'}</li>)}</ul>}
+          {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
+            {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
+            {busy && <small>Closing does not cancel the command.</small>}
+            <ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {m.frame === 'body' ? 'Body' : 'NED'}</li>)}</ul></>}
           {confirmation.excluded.length > 0 && <p>Partial formation · excludes Drone {confirmation.excluded.join(', ')}.</p>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}
           {confirmation.action === 'land' && <p>Land at current positions.</p>}

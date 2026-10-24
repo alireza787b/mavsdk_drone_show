@@ -1397,6 +1397,16 @@ async def test_one_meter_takeoff_returns_truthful_terminal_state(mocker):
 
 
 @pytest.mark.asyncio
+async def test_takeoff_success_has_no_indicator_sleep_even_without_leds(mocker):
+    setup = _prepare_takeoff(mocker)
+    mocker.patch('actions._optional_led_controller', return_value=None)
+    await actions.takeoff(setup.drone, 10)
+    # Only pre-command preparation sleeps remain, never post-success blinks.
+    assert all(call.args != (0.2,) for call in actions.asyncio.sleep.await_args_list)
+    assert actions._LAST_FINAL_VEHICLE_STATE['landed_state'] == 'IN_AIR'
+
+
+@pytest.mark.asyncio
 async def test_takeoff_waits_through_transition_before_terminal_success(mocker):
     setup = _prepare_takeoff(
         mocker,

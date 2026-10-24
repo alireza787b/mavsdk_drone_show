@@ -9,6 +9,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm Start reviews now use the same node-owned admission decision
+  as command acceptance, showing a compact Finishing takeoff/Checking/Ready
+  status without queued automatic engagement. Cluster submissions recheck all
+  targets before dispatch; required-role rejection takes precedence over
+  legacy LED diagnostics. Uncertain Start submissions retain their original
+  identity across browser refresh. Take Off no longer retains action ownership
+  for optional success-blink sleeps. Gains, PX4 parameters and recovery policy
+  are unchanged.
+
 - Swarm workspace now uses a flat operator-console presentation. The former
   Formation tab is **Design Swarm**: a compact saved relationship diagram and
   one selected-aircraft editor replace the repeated assignment/topology/plot

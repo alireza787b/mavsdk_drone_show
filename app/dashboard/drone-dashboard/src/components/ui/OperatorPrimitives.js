@@ -371,6 +371,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   tone = 'neutral',
   busy = false,
+  allowDismissWhileBusy = false,
   appearance = 'default',
   confirmDisabled = false,
   onConfirm,
@@ -413,7 +414,7 @@ export function ConfirmDialog({
 
     const previousOverflow = document.body.style.overflow;
     const handleEscape = (event) => {
-      if (event.key === 'Escape' && !busy) {
+      if (event.key === 'Escape' && (!busy || allowDismissWhileBusy)) {
         onCancel();
       }
     };
@@ -424,7 +425,7 @@ export function ConfirmDialog({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [busy, onCancel, open]);
+  }, [busy, allowDismissWhileBusy, onCancel, open]);
 
   if (!open) {
     return null;
@@ -435,7 +436,7 @@ export function ConfirmDialog({
       className={`operator-confirm-dialog${appearance === 'console' ? ' operator-console' : ''}`}
       role="presentation"
       onMouseDown={(event) => {
-        if (!busy && event.target === event.currentTarget) {
+        if ((!busy || allowDismissWhileBusy) && event.target === event.currentTarget) {
           onCancel();
         }
       }}
@@ -454,7 +455,7 @@ export function ConfirmDialog({
             type="button"
             className="operator-confirm-dialog__close"
             onClick={onCancel}
-            disabled={busy}
+            disabled={busy && !allowDismissWhileBusy}
             aria-label="Close confirmation dialog"
           >
             <FaTimes aria-hidden="true" />
@@ -462,7 +463,7 @@ export function ConfirmDialog({
         </header>
         <div className="operator-confirm-dialog__message">{message}</div>
         <footer className="operator-confirm-dialog__actions">
-          <button type="button" data-dialog-cancel className="operator-button operator-button--ghost" onClick={onCancel} disabled={busy}>
+          <button type="button" data-dialog-cancel className="operator-button operator-button--ghost" onClick={onCancel} disabled={busy && !allowDismissWhileBusy}>
             {cancelLabel}
           </button>
           <button
@@ -482,6 +483,7 @@ export function ConfirmDialog({
 
 ConfirmDialog.propTypes = {
   open: PropTypes.bool.isRequired,
+  allowDismissWhileBusy: PropTypes.bool,
   title: PropTypes.string.isRequired,
   message: PropTypes.node.isRequired,
   confirmLabel: PropTypes.string,

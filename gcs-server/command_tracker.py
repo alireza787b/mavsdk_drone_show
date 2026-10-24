@@ -2478,6 +2478,10 @@ class CommandTracker:
                     message += f" Drone {hw}: {item['detail'][:180]}"
                     break
 
+        startup_failure = self._swarm_start_failure(command)
+        if startup_failure:
+            label, message = 'Swarm not started', startup_failure
+
         return {
             "stage": stage,
             "label": label,
@@ -2497,6 +2501,17 @@ class CommandTracker:
             "remaining": remaining,
             "scheduled_trigger_time": scheduled_trigger_time,
         }
+
+    @staticmethod
+    def _swarm_start_failure(command):
+        if command.mission_type != 2 or command.params.get('_swarm_engaged'):
+            return None
+        for hw in command.target_drones:
+            ack = command.acks.get(hw)
+            if ack is not None and ack.category == 'rejected':
+                reason = ack.message or 'Start rejected'
+                return f'Swarm not started — {reason[:180]} · Drone {hw}'
+        return None
 
     def _command_to_dict(self, command: TrackedCommand) -> Dict[str, Any]:
         """Convert TrackedCommand to dictionary.
@@ -2683,7 +2698,7 @@ class CommandTracker:
             },
 
             'progress': self._build_progress_summary(command),
-            'error_summary': command.error_summary
+            'error_summary': self._swarm_start_failure(command) or command.error_summary
         }
 
 

@@ -91,6 +91,10 @@ class FakeFleetRPC:
             "results": results,
         }
 
+    async def review_swarm_start(self, drones):
+        return {str(d['hw_id']): dict(hw_id=str(d['hw_id']), status='ready',
+            reason_code='ready', message='Ready', observed_at_ms=1, valid_for_ms=10000) for d in drones}
+
     async def prepare_launch(
         self,
         drones: list[dict[str, Any]],

@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from command_tracker import CommandTracker, CommandCallbackAuthenticationError
 from smart_swarm_service import build_preview, runtime_summary, start_cluster
+from swarm_start_readiness import require_start_admissions
 from smart_swarm_src.control_authority import ControlAuthority
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 from src.smart_swarm_contract import (
@@ -20,6 +21,50 @@ from src.smart_swarm_contract import (
 def snapshot():
     members = normalize_topology([{'hw_id': 1, 'follow': 0}, {'hw_id': 2, 'follow': 1, 'offset_x': 6}])
     return SmartSwarmSession(assignments=members, revision=topology_revision(members), expected_hw_ids=['1', '2'])
+
+
+@pytest.mark.asyncio
+async def test_review_blocks_known_partial_start_before_any_dispatch():
+    rpc = SimpleNamespace(review_swarm_start=AsyncMock(return_value={
+        '1': {'hw_id':'1','status':'waiting','message':'Finishing takeoff'},
+        '2': {'hw_id':'2','status':'ready','message':'Ready'},
+    }))
+    deps = SimpleNamespace(get_fleet_rpc_service=lambda:rpc)
+    with pytest.raises(HTTPException) as caught:
+        await require_start_admissions(deps, [{'hw_id':'1'},{'hw_id':'2'}])
+    assert caught.value.detail['dispatched'] is False
+    assert 'Finishing takeoff · Drone 1' in caught.value.detail['message']
+
+
+@pytest.mark.asyncio
+async def test_cluster_failure_cause_precedes_legacy_led_output():
+    tracker, cid, report = await tracked_session()
+    await tracker.record_ack(cid, '1', category='rejected', message='Finishing takeoff', error_code='E203')
+    # A rejected required role blocks the existing barrier before Offboard.
+    assert (await report('2'))['abort']
+    status = await tracker.get_status(cid)
+    assert 'Finishing takeoff · Drone 1' in status['error_summary']
+    assert status['progress']['label'] == 'Swarm not started'
+
+
+@pytest.mark.asyncio
+async def test_lookup_lost_receipt_is_read_only_even_when_nothing_was_submitted():
+    from fastapi import FastAPI
+    import httpx
+    from api_routes.commands import create_command_router
+    tracker = CommandTracker()
+    deps = SimpleNamespace(get_command_tracker=lambda: tracker)
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+        missing = await client.get('/api/v1/commands/lookup', params={'idempotency_key':'lost'})
+        assert missing.status_code == 404
+        assert not tracker._commands
+        created = await tracker.create_or_replay_command(2, ['1','2'], {}, idempotency_key='lost')
+        found = await client.get('/api/v1/commands/lookup', params={'idempotency_key':'lost'})
+        assert found.status_code == 200
+        assert found.json()['command_id'] == created.command_id
+        assert len(tracker._commands) == 1
 
 
 async def tracked_session():

@@ -6,15 +6,24 @@ from command_tracker import CommandCallbackAuthenticationError
 from smart_swarm_service import build_preview, start_cluster
 from swarm_recovery_service import apply_session_recovery
 from sequential_return_service import SequentialReturnRequest
+from swarm_start_readiness import read_start_admissions
 
 
 def create_swarm_runtime_router(deps):
     router = APIRouter(tags=["Smart Swarm"])
 
     @router.get("/api/v1/swarm/runtime/preview")
-    async def preview():
+    async def preview(cluster_id: str | None = None, check_start: bool = False):
         try:
-            return build_preview(deps)
+            result = build_preview(deps)
+            if check_start:
+                cluster = next((c for c in result['clusters'] if c['cluster_id'] == cluster_id), None)
+                if cluster is None:
+                    raise HTTPException(409, 'Select a saved formation')
+                ids = {m['hw_id'] for m in cluster['members']}
+                drones = [d for d in deps.load_config() if str(d['hw_id']) in ids]
+                result['start_admissions'] = await read_start_admissions(deps, drones)
+            return result
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 

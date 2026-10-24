@@ -27,9 +27,11 @@ from command_execution_policy import (
 from src.enums import CommandErrorCode, CommandResultCategory, Mission
 from src.live_armability_utils import calculate_live_armability_request_timeout
 from src.drone_api_routes import (
+    DRONE_STATE_ROUTE,
     DRONE_LAUNCH_PREPARATION_ROUTE,
     DRONE_SWARM_STATE_ROUTE,
 )
+from src.smart_swarm_admission import SmartSwarmStartAdmission
 from target_command_payloads import validate_per_target_payloads
 from src.command_execution_contract import mission_requires_launch_armability_probe
 from src.launch_preparation_protocol import (
@@ -196,6 +198,46 @@ class FleetRPCService:
         if self._client is None:  # pragma: no cover - defensive lifecycle guard
             raise RuntimeError("Fleet RPC client failed to initialize")
         return self._client
+
+    async def review_swarm_start(self, drones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Read the node's existing admission decision; never reserve or command."""
+        client = await self._client_or_start()
+        timeout = max(0.2, float(getattr(self.params, 'GCS_COMMAND_HTTP_TIMEOUT_SEC', 5)))
+
+        def unavailable(drone):
+            return SmartSwarmStartAdmission(hw_id=_normalize_drone_id(drone), status='unknown',
+                reason_code='readiness_unavailable', message='Checking aircraft',
+                observed_at_ms=int(time.time() * 1000)).model_dump()
+
+        async def read(drone):
+            started = time.monotonic()
+            try:
+                response = await client.get(
+                    f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_STATE_ROUTE}", timeout=timeout)
+                response.raise_for_status()
+                decision = SmartSwarmStartAdmission.model_validate(response.json().get('smart_swarm_start_admission'))
+                if decision.hw_id != _normalize_drone_id(drone):
+                    return unavailable(drone)
+                value = decision.model_dump()
+                # Source validity minus our complete round-trip; never compare
+                # the GCS wall clock with a companion's clock.
+                remaining = max(0, decision.valid_for_ms - int((time.monotonic() - started) * 1000))
+                value['valid_for_ms'] = remaining
+                value['_expires_monotonic'] = time.monotonic() + remaining / 1000
+                return value
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                return unavailable(drone)
+
+        values = await self._bounded_map(drones, read, recovery=False,
+            deadline_sec=timeout, deadline_result=unavailable)
+        for drone in drones:
+            key = _normalize_drone_id(drone)
+            value = values.setdefault(key, unavailable(drone))
+            expires = value.pop('_expires_monotonic', time.monotonic())
+            value['valid_for_ms'] = max(0, int((expires - time.monotonic()) * 1000))
+            if value['status'] == 'ready' and not value['valid_for_ms']:
+                values[key] = unavailable(drone)
+        return values
 
     async def _bounded_map(
         self,

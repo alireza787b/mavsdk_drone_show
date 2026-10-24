@@ -409,6 +409,10 @@ async def submit_tracked_command(
                 detail="Unsafe Swarm Trajectory target set. " + "; ".join(formatted_issues[:4]),
             )
 
+    if resolved_mission == deps.Mission.SMART_SWARM:
+        from swarm_start_readiness import require_start_admissions
+        await require_start_admissions(deps, actual_targets)
+
     mission_type_int = resolved_mission.value
     launch_preparation_required = deps.mission_requires_launch_armability_probe(resolved_mission)
     tracking_skybrush_dir = deps.skybrush_dir

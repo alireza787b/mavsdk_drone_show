@@ -157,7 +157,27 @@ surfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,
 Generic mission-2 submissions must match one complete saved cluster. Explicit
 session payloads are checked too: only a dependency-closed, currently unavailable
 exclusion set permits partial start. Incomplete scope is rejected with HTTP 409,
-not silently expanded or dispatched. Aircraft-side live admission is unchanged.
+not silently expanded or dispatched.
+
+`GET /api/v1/swarm/runtime/preview?cluster_id=1&check_start=true` adds
+`start_admissions`, keyed by hardware ID, from bounded parallel node-state
+reads for that cluster only. Ordinary background previews perform no node
+RPC. The GCS verifies node identity and subtracts its monotonic transit time
+from each node's `valid_for_ms`; it does not compare clocks across hosts.
+Missing/old-node responses are unknown. This read never arms or reserves.
+All new mission-2 submissions repeat this review before any dispatch. A known
+ineligible target returns HTTP 409 with `detail.message`, `start_admissions`
+and `dispatched=false`. Idempotent replay lookup happens first, so a lost
+receipt can recover its existing command even after aircraft state changes.
+Final transactional node admission and the required-role barrier remain
+authoritative; a successful review cannot guarantee later acceptance.
+
+`GET /api/v1/commands/lookup?idempotency_key=...` performs read-only receipt
+recovery (200 existing `CommandSubmissionReceipt`, 404 absent). It never
+creates or dispatches a command. An absent receipt is not proof that an
+in-flight request cannot arrive; the UI retains the original identity and
+requires fresh review plus explicit confirmation to submit again. Ambiguous
+5xx/invalid receipts remain unresolved unless nondispatch is authoritative.
 
 - `POST /api/v1/swarm/runtime/sequential-return`: start or recover an idempotent
   interval-based return queue (202). Body: `target_drone_ids` in dispatch order,

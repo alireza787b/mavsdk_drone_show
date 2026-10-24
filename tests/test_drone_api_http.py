@@ -61,6 +61,7 @@ def _set_fresh_airborne_state(mock_drone_config, *, relative_altitude_m=5.0):
     mock_drone_config.global_position_timestamp_ms = now_ms
     mock_drone_config.relative_altitude_m = relative_altitude_m
     mock_drone_config.px4_home_position_set = True
+    mock_drone_config.custom_mode = (4 << 16) | (3 << 24)
 
 
 def _ready_launch_probe(hw_id="1"):
@@ -2973,6 +2974,10 @@ class TestGitStatus:
             'recovery_wait_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
             'recovery_stable_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
             'hard_stale_sec': drone_api_server.Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+            'max_horizontal_speed_m_s': drone_api_server.Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S,
+            'max_vertical_speed_m_s': drone_api_server.Params.SMART_SWARM_MAX_VERTICAL_SPEED_M_S,
+            'max_acceleration_m_s2': drone_api_server.Params.SMART_SWARM_MAX_ACCELERATION_M_S2,
+            'max_jerk_m_s3': drone_api_server.Params.SMART_SWARM_MAX_JERK_M_S3,
         }
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):

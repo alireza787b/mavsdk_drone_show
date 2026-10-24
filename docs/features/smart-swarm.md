@@ -139,6 +139,26 @@ click **Start Smart Swarm**, then **Confirm start**. Opening the card never
 sends a command. MDS resolves the saved executable cluster and starts the complete
 dependency-closed cluster. The takeoff does not have to come from MDS.
 
+The Start review reads each selected aircraft's own admission decision. A
+single status shows `Checking aircraft`, `Finishing takeoff`, a named blocker,
+or `Ready`. Confirmation enables when every reviewed target is eligible;
+it never automatically sends Start when readiness changes. Optional LED
+indication does not delay Take Off completion. Manual/QGC takeoff remains
+supported without requiring an earlier MDS Take Off command.
+
+Confirmation repeats the node review before dispatch; node acceptance and the
+existing required-role barrier still handle a state change after that review.
+This is not a distributed reservation or atomic flight guarantee. A delayed
+completion callback does not override fresh node action state. Missing or
+stale evidence is not Ready. If a submission response is lost, `Check command`
+performs read-only receipt lookup, never a command submission. An absent
+receipt requires fresh review and explicit confirmation, retaining the same
+Start identity. The browser retains an unresolved Start in session
+storage so refresh can recover that same command. Stop/Hold, Land, RTL and
+pilot takeover do not wait for this review machinery. A busy Start dialog can
+be closed to reach recovery controls; closing the display does not cancel an
+already-confirmed command. Pending intent is scoped to that backend/runtime.
+
 MDS still performs authoritative node-side airborne, PX4, link, and
 configuration checks. These are not UI bypasses. Dashboard telemetry age is
 advisory, not a second start gate. Start normally includes every displayed saved

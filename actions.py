@@ -1631,13 +1631,9 @@ async def takeoff(drone, altitude):
             final_vehicle_state=final_vehicle_state,
         ) from primary_error
 
-    # Indicate success with green blinks
-    for _ in range(3):
-        _safe_led_call(led_controller, "set_color", 0, 255, 0)
-        await asyncio.sleep(0.2)
-        _safe_led_call(led_controller, "turn_off")
-        await asyncio.sleep(0.2)
-    _safe_led_call(led_controller, "turn_off")
+    # Optional indication must not retain flight-action ownership after the
+    # authoritative airborne confirmation (including on nodes without LEDs).
+    _safe_led_call(led_controller, "set_color", 0, 255, 0)
     logger.info("Takeoff successful.")
 
 async def land(drone):

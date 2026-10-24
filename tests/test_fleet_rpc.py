@@ -7,6 +7,23 @@ import httpx
 import pytest
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('identity,status', [('1','ready'),('2','unknown')])
+async def test_swarm_review_verifies_node_identity_without_dispatch(identity, status):
+    from fleet_rpc import FleetRPCService
+    seen = []
+    async def respond(request):
+        seen.append(request.method)
+        return httpx.Response(200, json={'smart_swarm_start_admission':{
+            'hw_id':identity,'status':'ready','reason_code':'ready','message':'Ready',
+            'observed_at_ms':100,'valid_for_ms':10000}})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        service = FleetRPCService(_params(),client=client)
+        result = await service.review_swarm_start(_drones(1))
+        assert result['1']['status'] == status
+        assert seen == ['GET']
+
+
 def _params(**overrides):
     values = {
         "drone_api_port": 7070,

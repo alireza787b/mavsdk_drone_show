@@ -114,8 +114,12 @@ export const serializeCommandSubmission = (commandData = {}) => {
   return serialized;
 };
 
-const isAmbiguousSubmissionTransportFailure = (error) => {
-  if (!error || error.response || error.code === 'ERR_CANCELED') {
+export const isAmbiguousSubmissionTransportFailure = (error) => {
+  if (!error) return false;
+  if (error.response?.data?.detail?.dispatched === false) return false;
+  if (error.response) return error.response.status >= 500 || error.response.status === 408;
+  if (error.code === 'COMMAND_RECEIPT_UNCONFIRMED') return true;
+  if (error.code === 'ERR_CANCELED') {
     return false;
   }
   return Boolean(
