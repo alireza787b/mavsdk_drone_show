@@ -9,6 +9,7 @@ from collections import deque
 from mavsdk.action import ActionError
 
 from src.action_safety import (
+    ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
     SAFETY_EVIDENCE_VALIDITY_MS,
     SafetyFieldEvidence,
     SafetySnapshot,
@@ -408,7 +409,12 @@ async def probe_offboard_armability(
     if mission_type == Mission.TAKE_OFF.value:
         require_global_position = True
     wait_timeout = float(timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0))
-    sample_timeout = float(getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5))
+    # Sampling a set of native streams is not a health-poll interval. Closing
+    # subscriptions every 0.5 s can repeatedly miss 1 Hz landed/battery updates.
+    # Reuse the coherent-observation budget; complete samples return early and
+    # the outer launch deadline remains authoritative.
+    sample_timeout = max(ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+        float(getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5)))
     stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
     minimum_battery_percent = _launch_battery_minimum_percent(logger)
 

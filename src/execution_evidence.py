@@ -30,7 +30,7 @@ class ActionResultEvidence(BaseModel):
         # Reuse the child-result decoder rather than inventing a looser copy
         # of its field, nesting and size policy at the HTTP boundary.
         decode_terminal_result(json.dumps(
-            self.model_dump(), ensure_ascii=False, allow_nan=False,
+            self.model_dump(), ensure_ascii=False, allow_nan=False, separators=(",", ":"),
         ).encode("utf-8"))
         return self
 

@@ -8,6 +8,16 @@ from src.enums import Mission
 from src.execution_evidence import ActionResultEvidence
 
 
+def test_http_evidence_accepts_the_exact_bounded_child_wire_payload():
+    import json
+    from src.action_result_protocol import make_terminal_result, encode_terminal_result
+    result = make_terminal_result(success=False, code='PX4_HEALTH_NOT_READY',
+        phase='preflight', operator_message='Not ready', retryable=True,
+        evidence={f'field_{index}': 'x' * 256 for index in range(16)})
+    document = json.loads(encode_terminal_result(result))
+    assert ActionResultEvidence.model_validate(document).code == 'PX4_HEALTH_NOT_READY'
+
+
 def failed_action():
     return {
         "schema_version": 1, "success": False,

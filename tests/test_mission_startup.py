@@ -193,6 +193,26 @@ async def test_takeoff_waits_for_missing_landed_sample_instead_of_battery_fast_r
 
 
 @pytest.mark.asyncio
+async def test_takeoff_observation_does_not_starve_native_streams_at_health_poll_interval(monkeypatch):
+    from src.enums import Mission
+    monkeypatch.setattr(mission_startup.Params, 'OFFBOARD_ARM_HEALTH_POLL_SEC', 0.01)
+    drone = _connected_drone()
+    drone.telemetry.health = _health_stream([_health()])
+    drone.telemetry.armed = _health_stream([False])
+    async def battery():
+        await asyncio.sleep(0.04)
+        yield _battery()
+    async def landed():
+        await asyncio.sleep(0.03)
+        yield SimpleNamespace(name='ON_GROUND')
+    drone.telemetry.battery = battery
+    drone.telemetry.landed_state = landed
+    result = await mission_startup.probe_offboard_armability(
+        drone, require_global_position=True, mission_type=Mission.TAKE_OFF.value, timeout=0.1)
+    assert result['ready'] is True
+
+
+@pytest.mark.asyncio
 async def test_takeoff_arm_retry_rechecks_native_ground(mocker, monkeypatch):
     from src.enums import Mission
     drone = _connected_drone()
