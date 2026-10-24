@@ -12,6 +12,7 @@
 .swarm-design-page .operator-page-shell__icon { border:0; border-radius:0; background:transparent; }
 .swarm-design-page .operator-page-shell__header { margin-bottom:12px; }
 .swarm-design-workspace { display:grid; gap:12px; }
+.swarm-design-workspace[hidden] { display:none!important; }
 .swarm-design-summary { display:flex; gap:24px; color:var(--color-text-secondary); font-size:.8rem; }
 .swarm-action-file-button { display:inline-flex; cursor:pointer; }
 .swarm-action-file-button input { display:none; }

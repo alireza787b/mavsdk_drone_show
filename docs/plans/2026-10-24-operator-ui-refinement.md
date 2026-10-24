@@ -19,6 +19,9 @@
   flight controls, secondary actions behind a small header overflow. Historical
   return jobs no longer remain as banners; active/unconfirmed work stays visible.
   New dispatch summaries expire after 10 seconds; dismissal never cancels commands.
+- Corrected a CSS rule that overrode the Design tab's `hidden` attribute and
+  exposed its editor beneath Operate. Production browser validation explicitly
+  checks that the editor is not visible after switching to Operate.
 - Shared layout: one application gutter, full available width, available-height
   workspace variable, local scrolling instead of root clipping. Corrected fixed
   Mission Config columns, map/log/editor sizing, dialogs and sidebar layouts.
