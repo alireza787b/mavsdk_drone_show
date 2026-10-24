@@ -11,6 +11,18 @@ from typing import Any, Iterable
 from src.gcs_api_routes import GCS_SYSTEM_RUNTIME_STATUS_ROUTE
 
 
+class ValidationHttpError(RuntimeError):
+    """Keep structured rejection evidence available without parsing messages."""
+
+    def __init__(self, status_code: int, body: str):
+        self.status_code = status_code
+        try:
+            self.payload = json.loads(body)
+        except (TypeError, ValueError):
+            self.payload = None
+        super().__init__(f'HTTP {status_code}: {body}')
+
+
 def read_bearer_token_file(path: Path | str | None) -> str:
     """Load an API bearer token from a file without supporting raw token inputs."""
 
@@ -80,7 +92,7 @@ class ValidationApiClient:
             except Exception:
                 body_text = ""
             detail = body_text or str(getattr(exc, "reason", "") or "request failed")
-            raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
+            raise ValidationHttpError(exc.code, detail) from exc
         except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
             raise RuntimeError(
                 f"{str(method).upper()} {path} failed against {self.base_url}: {exc}"

@@ -1,10 +1,9 @@
 import asyncio
 import copy
 import time
-import io
 import json
-import urllib.error
 from types import SimpleNamespace
+from tools.runtime_validation_support import ValidationHttpError
 
 import pytest
 
@@ -35,7 +34,7 @@ def test_handoff_probe_requires_explicit_nondispatch_and_resolves_cluster():
             return {'start_admissions':{'7':{'reason_code':'finishing_takeoff'}}}
         def start_saved_swarm(self, ids):
             assert ids == [7,8]
-            raise urllib.error.HTTPError('http://test',409,'Conflict',{},io.BytesIO(json.dumps({'detail':{'dispatched':False}}).encode()))
+            raise ValidationHttpError(409,json.dumps({'detail':{'dispatched':False}}))
     assert verify_takeoff_start_handoff(Client(), [7,8])['rejection']['detail']['dispatched'] is False
 
 

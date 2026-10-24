@@ -24,7 +24,6 @@ import os
 import sys
 import time
 import uuid
-import urllib.error
 from urllib.parse import urlencode
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -65,6 +64,7 @@ from src.gcs_api_routes import (  # noqa: E402
 )
 from tools.runtime_validation_support import (  # noqa: E402
     ValidationApiClient,
+    ValidationHttpError,
     fetch_and_require_sitl_runtime,
     write_json_report,
 )
@@ -317,9 +317,9 @@ def verify_takeoff_start_handoff(client, ids, *, timeout=20):
         if any(decisions.get(str(hw), {}).get('reason_code') == 'finishing_takeoff' for hw in ids):
             try:
                 client.start_saved_swarm(ids)
-            except urllib.error.HTTPError as exc:
-                payload = json.loads(exc.read())
-                require(exc.code == 409 and payload.get('detail', {}).get('dispatched') is False,
+            except ValidationHttpError as exc:
+                payload = exc.payload or {}
+                require(exc.status_code == 409 and payload.get('detail', {}).get('dispatched') is False,
                         f'Unexpected early Start rejection: {payload}')
                 return {'review': decisions, 'rejection': payload}
             raise RuntimeError('Early Start dispatched despite known unfinished Take Off')
