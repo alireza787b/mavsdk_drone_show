@@ -8,9 +8,9 @@ jest.mock('@react-three/drei', () => {
   const React = require('react');
   return {
     Html: () => null, Line: () => null, OrbitControls: () => null,
-    TransformControls: React.forwardRef(({ onMouseDown, onMouseUp, onObjectChange, position, children }, ref) => {
+    TransformControls: React.forwardRef(({ onMouseDown, onMouseUp, onObjectChange, object, children }, ref) => {
       React.useImperativeHandle(ref, () => ({ object: { position: { x: 5, y: 8, z: -10 } }, reset: mockReset }));
-      return <div data-testid="gizmo" data-position={JSON.stringify(position)}>
+      return <div data-testid="gizmo" data-explicit-object={Boolean(object)} data-has-children={Boolean(children)}>
         <button onClick={onMouseDown}>Begin</button><button onClick={onObjectChange}>Move</button>
         <button onClick={onMouseUp}>End</button>{children}
       </div>;
@@ -30,7 +30,9 @@ beforeEach(() => jest.clearAllMocks());
 
 test('3D handles use the aircraft position, convert axes and emit only deliberate drag edits', () => {
   const callbacks = setup();
-  expect(screen.getByTestId('gizmo').dataset.position).toBe('[2,3,-6]');
+  expect(screen.getByText('Aircraft').parentElement.getAttribute('position')).toBe('2,3,-6');
+  expect(screen.getByTestId('gizmo').dataset.explicitObject).toBe('true');
+  expect(screen.getByTestId('gizmo').dataset.hasChildren).toBe('false');
   fireEvent.click(screen.getByText('Move'));
   expect(callbacks.onAssignmentChange).not.toHaveBeenCalled();
   fireEvent.click(screen.getByText('Begin'));

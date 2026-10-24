@@ -24,6 +24,7 @@ function Aircraft({ label, selected, leader, colors, onSelect }) {
 
 export function EditableAircraft({ assignment, position, parentPosition, previewHeadings, onAssignmentChange, onEditBegin, onEditEnd, plane = 'horizontal', children }) {
   const transform = useRef();
+  const aircraft = useRef();
   const dragging = useRef(false);
   const callbacks = useRef({ onEditBegin, onEditEnd });
   callbacks.current = { onEditBegin, onEditEnd };
@@ -51,7 +52,10 @@ export function EditableAircraft({ assignment, position, parentPosition, preview
     };
   }, []);
 
-  return <TransformControls ref={transform} mode="translate" space="world" size={0.8} position={toScene(position)}
+  // Keep attachment stable while draft/history updates rerender the aircraft.
+  // Drei detaches when its children identity changes, clearing the active axis.
+  return <><group ref={aircraft} position={toScene(position)}>{children}</group>
+  <TransformControls ref={transform} object={aircraft} mode="translate" space="world" size={0.8}
     showX={plane !== 'north-up'} showY={plane !== 'horizontal'} showZ={plane !== 'east-up'}
     onMouseDown={() => { dragging.current = true; callbacks.current.onEditBegin?.(); }}
     onMouseUp={() => finish(false)}
@@ -60,9 +64,8 @@ export function EditableAircraft({ assignment, position, parentPosition, preview
       onAssignmentChange( String(assignment.hw_id), offsetForWorldPosition(
         assignment, toWorld(transform.current.object.position), parentPosition, previewHeadings,
       ));
-    }}>
-    {children}
-  </TransformControls>;
+    }} />
+  </>;
 }
 
 function Scene({ entries, positions, labels, selectedId, previewHeadings, onSelect, onAssignmentChange, onEditBegin, onEditEnd, fitRequest, zoomRequest, colors, plane }) {
@@ -97,7 +100,12 @@ function Scene({ entries, positions, labels, selectedId, previewHeadings, onSele
   const divisions = Math.min(100, Math.max(10, Math.round(gridSize / gridStep)));
   return <>
     <OrbitControls ref={controls} makeDefault enableDamping={false} minDistance={1} maxDistance={100000} />
-    <gridHelper args={[gridSize, divisions, colors.grid, colors.grid]} />
+    <gridHelper args={[gridSize, divisions, colors.textMuted, colors.textMuted]} onUpdate={(grid) => {
+      // Border tokens can resolve to #RRGGBBAA, which Three.Color cannot parse.
+      // Use an opaque theme color and express alpha through the material.
+      const materials = Array.isArray(grid.material) ? grid.material : [grid.material];
+      materials.forEach((material) => { material.transparent = true; material.opacity = 0.24; material.depthWrite = false; });
+    }} />
     <Line points={[[0, 0.01, 0], [0, 0.01, -Math.max(5, extent)]]} color={colors.textMuted} lineWidth={1} />
     <Html position={[0, 0.1, -Math.max(5, extent)]} center style={{ pointerEvents: 'none' }}><span className="swarm-formation-3d__label">N</span></Html>
     {entries.map((entry) => {
