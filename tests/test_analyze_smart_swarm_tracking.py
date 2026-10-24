@@ -1,11 +1,15 @@
 import asyncio
 import copy
 import time
+import io
+import json
+import urllib.error
 from types import SimpleNamespace
 
 import pytest
 
 from tools.analyze_smart_swarm_tracking import (
+    verify_takeoff_start_handoff,
     FieldRehearsalClient,
     cluster_motion_confirmed,
     measured_jog_speed,
@@ -20,6 +24,19 @@ from tools.analyze_smart_swarm_tracking import (
     restore_swarm_resource,
     wait_for_advancing_fresh_streams,
 )
+
+
+def test_handoff_probe_requires_explicit_nondispatch_and_resolves_cluster():
+    class Client:
+        def get_json(self, path):
+            if '?' not in path:
+                return {'clusters':[{'cluster_id':'7','members':[{'hw_id':'7'},{'hw_id':'8'}]}]}
+            assert 'cluster_id=7' in path
+            return {'start_admissions':{'7':{'reason_code':'finishing_takeoff'}}}
+        def start_saved_swarm(self, ids):
+            assert ids == [7,8]
+            raise urllib.error.HTTPError('http://test',409,'Conflict',{},io.BytesIO(json.dumps({'detail':{'dispatched':False}}).encode()))
+    assert verify_takeoff_start_handoff(Client(), [7,8])['rejection']['detail']['dispatched'] is False
 
 
 def test_motion_requires_all_role_acknowledgements_not_mission_ids():

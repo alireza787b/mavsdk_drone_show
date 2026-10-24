@@ -24,6 +24,8 @@ import os
 import sys
 import time
 import uuid
+import urllib.error
+from urllib.parse import urlencode
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -221,6 +223,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jog-position-tolerance", type=float, default=0.75)
     parser.add_argument("--post-command-settle-sec", type=float, default=3.0)
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for JSON/CSV/plots")
+    parser.add_argument('--verify-start-handoff', action='store_true', help='Prove a known unfinished Take Off prevents partial Start dispatch')
+    parser.add_argument('--managed-return', action='store_true', help='After Hold, validate the default 10-second Managed Return before cleanup')
     args = parser.parse_args()
     if not math.isfinite(args.jog_speed_m_s) or not 0 < args.jog_speed_m_s <= Params.PRECISION_MOVE_MAX_SPEED_MPS:
         parser.error("--jog-speed-m-s must be finite, positive and within the Precision Move ceiling")
@@ -299,6 +303,52 @@ class FieldRehearsalClient(ValidationApiClient):
             "cluster_id": cluster["cluster_id"], "revision": preview["revision"],
             "idempotency_key": str(uuid.uuid4()),
         })
+
+
+def verify_takeoff_start_handoff(client, ids, *, timeout=20):
+    """An early explicit Start must not dispatch a known partial cluster."""
+    preview = client.get_json('/api/v1/swarm/runtime/preview')
+    cluster = next(c for c in preview['clusters'] if {m['hw_id'] for m in c['members']} == {str(hw) for hw in ids})
+    query = urlencode({'cluster_id':cluster['cluster_id'],'check_start':'true'})
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        review = client.get_json('/api/v1/swarm/runtime/preview?' + query)
+        decisions = review.get('start_admissions', {})
+        if any(decisions.get(str(hw), {}).get('reason_code') == 'finishing_takeoff' for hw in ids):
+            try:
+                client.start_saved_swarm(ids)
+            except urllib.error.HTTPError as exc:
+                payload = json.loads(exc.read())
+                require(exc.code == 409 and payload.get('detail', {}).get('dispatched') is False,
+                        f'Unexpected early Start rejection: {payload}')
+                return {'review': decisions, 'rejection': payload}
+            raise RuntimeError('Early Start dispatched despite known unfinished Take Off')
+        time.sleep(.2)
+    raise RuntimeError('Unfinished Take Off was not observed for the handoff regression')
+
+
+def validate_managed_return(client, ids):
+    client.require_sitl_runtime()
+    returned = client.post_json('/api/v1/swarm/runtime/sequential-return', {
+        'target_drone_ids': [str(hw) for hw in ids], 'delay_sec': 10,
+        'idempotency_key': str(uuid.uuid4()),
+    })
+    deadline = time.monotonic() + 90
+    while time.monotonic() < deadline:
+        returned = client.get_json('/api/v1/swarm/runtime/sequential-return/' + returned['return_id'])
+        require(returned['state'] not in {'failed','interrupted','cancelled'}, str(returned))
+        if returned['state'] == 'dispatched':
+            break
+        time.sleep(.5)
+    require(returned['state'] == 'dispatched', 'Managed Return dispatch was not confirmed')
+    submissions = returned['commands']
+    require([item['hw_id'] for item in submissions] == [str(hw) for hw in ids], 'Return target order changed')
+    for before, after in zip(submissions, submissions[1:]):
+        require(after['dispatched_at_ms'] - before['dispatched_at_ms'] >= 10000, 'Return dispatch interval shortened')
+    for item in submissions:
+        result = wait_for_command(client, item['command_id'], terminal=True, timeout=120)
+        require(result['status'] == 'completed', f'Return failed: {command_summary(result)}')
+    return returned
 
 
 def build_two_drone_ned_assignments(
@@ -1073,6 +1123,8 @@ async def main_async() -> int:
 
         command = client.submit_command(TAKEOFF, ids, "Smart Swarm Tracking Analysis Takeoff")
         log(f"TAKEOFF START: ids={ids}")
+        if args.verify_start_handoff:
+            results['takeoff_start_handoff'] = verify_takeoff_start_handoff(client, ids)
         takeoff_status = wait_for_command(client, command["command_id"], terminal=True, timeout=180)
         require(
             takeoff_status["status"] == "completed",
@@ -1306,25 +1358,20 @@ async def main_async() -> int:
             120,
         )
 
-        stage_ref["name"] = "land"
-        log(f"LAND START: ids={ids}")
-        command = await asyncio.to_thread(
-            client.submit_command,
-            LAND,
-            ids,
-            "Two-Drone Field Rehearsal Land",
-        )
-        land_status = await asyncio.to_thread(
-            wait_for_command,
-            client,
-            command["command_id"],
-            terminal=True,
-            timeout=240,
-        )
-        require(land_status["status"] == "completed", f"Land failed: {command_summary(land_status)}")
-        require_full_acceptance(land_status, len(ids), "Tracking analysis land")
-        require_full_execution(land_status, len(ids), "Tracking analysis land")
-        results["land"] = command_summary(land_status)
+        if args.managed_return:
+            stage_ref['name'] = 'managed_return'
+            results['managed_return'] = await asyncio.to_thread(validate_managed_return, client, ids)
+        else:
+            stage_ref["name"] = "land"
+            log(f"LAND START: ids={ids}")
+            command = await asyncio.to_thread(
+                client.submit_command, LAND, ids, "Two-Drone Field Rehearsal Land")
+            land_status = await asyncio.to_thread(
+                wait_for_command, client, command["command_id"], terminal=True, timeout=240)
+            require(land_status["status"] == "completed", f"Land failed: {command_summary(land_status)}")
+            require_full_acceptance(land_status, len(ids), "Tracking analysis land")
+            require_full_execution(land_status, len(ids), "Tracking analysis land")
+            results["land"] = command_summary(land_status)
         results["final_telemetry"] = await asyncio.to_thread(
             wait_idle_reset,
             client,

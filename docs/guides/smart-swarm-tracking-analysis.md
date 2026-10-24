@@ -24,6 +24,13 @@ The bearer token is read from the file only. Do not put a raw token on the
 command line or in an environment variable. In a trusted lab deployment where
 the API is intentionally unauthenticated, omit `--api-token-file`.
 
+For the Take Off-to-Start regression, add `--verify-start-handoff`: the
+rehearsal observes unfinished Take Off ownership, proves an early Start is
+rejected before dispatch, then follows the normal completed-takeoff path.
+Add `--managed-return` to exercise the 10-second sequential queue after Hold
+instead of the final paired Land. Each return must complete before idle proof
+and assignment restoration. Both options retain all SITL-only mutation guards.
+
 Before any command or temporary configuration write, the validator checks the
 runtime-status endpoint and refuses to run unless the running and configured
 modes both say `sitl` with no restart reconciliation pending. It never commits
