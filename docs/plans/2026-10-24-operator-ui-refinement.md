@@ -71,3 +71,17 @@ Do not infer real-aircraft clearance from this UI review.
 No aircraft commands, PX4 changes, controller tuning, new flight gates or Simurgh
 function/policy changes were made. SITL image packaging and final official/client
 release promotion remain separate; Hetzner free disk space is still limited.
+
+## Completed production review update
+
+Deployed implementation `bdcc6394`, tab visibility fix `286ba63e` and persisted
+browser regression `1961751b` to the client review checkout. Production HEAD:
+`a9deed2c1` on `review/swarm-design-20261024`.
+
+Authenticated read-only production checks passed for Top, Four views, 3D and
+Operate: no browser/API errors or attempted writes, no visible Design editor
+in Operate, and no historical return banner. Final tab-isolation browser checks
+passed 8/8 viewport/navigation cases. Real fleet, formation and environment
+hashes were unchanged; no active commands were present. Temporary read-only
+verification credentials were revoked. Rollback builds and production screenshots
+are under `/root/mds-operator-review-20261024/`.
