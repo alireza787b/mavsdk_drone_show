@@ -328,6 +328,7 @@ def verify_takeoff_start_handoff(client, ids, *, timeout=20):
 
 
 def validate_managed_return(client, ids):
+    from tools.validate_smart_swarm_runtime import command_summary, wait_for_command
     client.require_sitl_runtime()
     returned = client.post_json('/api/v1/swarm/runtime/sequential-return', {
         'target_drone_ids': [str(hw) for hw in ids], 'delay_sec': 10,
@@ -994,12 +995,18 @@ def land_armed_targets_and_wait_idle(
     require_full_acceptance: Any,
     require_full_execution: Any,
     timeout: int = 240,
+    pending_takeoff_id: str | None = None,
 ) -> dict[str, Any]:
     """Best-effort terminal safety action used by both success and failure paths."""
 
     # Never send a cleanup flight command to a target whose mode changed to
     # REAL while this SITL rehearsal was running.
     client.require_sitl_runtime()
+    # A receipt may exist before the node has armed. Do not accept a cached
+    # disarmed baseline as cleanup while our submitted Take Off is still
+    # preparing and can arm later. This runner is fenced to SITL throughout.
+    if pending_takeoff_id:
+        wait_for_command(client, pending_takeoff_id, terminal=True, timeout=timeout)
     telemetry = client.get_telemetry()
     armed_ids = [drone_id for drone_id in ids if telemetry.get(str(drone_id), {}).get("is_armed")]
     result: dict[str, Any] = {"armed_targets": armed_ids}
@@ -1065,6 +1072,7 @@ async def main_async() -> int:
         "api_token_file_configured": args.api_token_file is not None,
     }
     original_swarm_resource: dict[str, Any] | None = None
+    takeoff_command_id: str | None = None
     swarm_mutated = False
     sitl_verified = False
     grounded_verified = False
@@ -1122,6 +1130,7 @@ async def main_async() -> int:
         results["clusters"] = clusters
 
         command = client.submit_command(TAKEOFF, ids, "Smart Swarm Tracking Analysis Takeoff")
+        takeoff_command_id = command['command_id']
         log(f"TAKEOFF START: ids={ids}")
         if args.verify_start_handoff:
             results['takeoff_start_handoff'] = verify_takeoff_start_handoff(client, ids)
@@ -1398,6 +1407,7 @@ async def main_async() -> int:
                     require_full_acceptance=require_full_acceptance,
                     require_full_execution=require_full_execution,
                     timeout=240,
+                    pending_takeoff_id=takeoff_command_id if exit_code else None,
                 )
                 results["safety_cleanup"] = safety_cleanup
                 grounded_verified = bool(safety_cleanup.get("grounded_verified"))

@@ -30,6 +30,8 @@ rejected before dispatch, then follows the normal completed-takeoff path.
 Add `--managed-return` to exercise the 10-second sequential queue after Hold
 instead of the final paired Land. Each return must complete before idle proof
 and assignment restoration. Both options retain all SITL-only mutation guards.
+Failure cleanup also accounts for a submitted Take Off that has not yet armed;
+an old disarmed telemetry sample cannot establish that pending work is finished.
 
 Before any command or temporary configuration write, the validator checks the
 runtime-status endpoint and refuses to run unless the running and configured

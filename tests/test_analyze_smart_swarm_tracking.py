@@ -9,6 +9,7 @@ import pytest
 
 from tools.analyze_smart_swarm_tracking import (
     verify_takeoff_start_handoff,
+    validate_managed_return,
     FieldRehearsalClient,
     cluster_motion_confirmed,
     measured_jog_speed,
@@ -36,6 +37,24 @@ def test_handoff_probe_requires_explicit_nondispatch_and_resolves_cluster():
             assert ids == [7,8]
             raise ValidationHttpError(409,json.dumps({'detail':{'dispatched':False}}))
     assert verify_takeoff_start_handoff(Client(), [7,8])['rejection']['detail']['dispatched'] is False
+
+
+def test_managed_return_checks_every_terminal_command_and_ten_second_interval(monkeypatch):
+    seen = []
+    from tools import validate_smart_swarm_runtime as runtime
+    monkeypatch.setattr(runtime, 'wait_for_command', lambda client,cid,**kwargs:
+        seen.append(cid) or {'status':'completed'})
+    class Client:
+        def require_sitl_runtime(self): seen.append('sitl')
+        def post_json(self, path, payload):
+            assert payload['delay_sec'] == 10
+            return {'return_id':'return'}
+        def get_json(self, path):
+            return {'return_id':'return','state':'dispatched','commands':[
+                {'hw_id':'1','command_id':'rtl-1','dispatched_at_ms':10000},
+                {'hw_id':'2','command_id':'rtl-2','dispatched_at_ms':20000}]}
+    assert validate_managed_return(Client(), [1,2])['state'] == 'dispatched'
+    assert seen == ['sitl','rtl-1','rtl-2']
 
 
 def test_motion_requires_all_role_acknowledgements_not_mission_ids():
@@ -288,7 +307,8 @@ async def test_advancing_stream_gate_requires_both_independent_sequences():
     assert evidence["follower"]["advances"] >= 2
 
 
-def test_safety_cleanup_lands_only_armed_targets_then_waits_idle():
+@pytest.mark.parametrize('pending_takeoff_id', [None, 'takeoff-pending'])
+def test_safety_cleanup_lands_only_armed_targets_then_waits_idle(pending_takeoff_id):
     class FakeClient:
         def __init__(self):
             self.submissions = []
@@ -328,10 +348,13 @@ def test_safety_cleanup_lands_only_armed_targets_then_waits_idle():
         require_full_acceptance=lambda status, expected, label: None,
         require_full_execution=lambda status, expected, label: None,
         timeout=30,
+        pending_takeoff_id=pending_takeoff_id,
     )
 
     assert client.submissions[0][1] == [1]
     assert client.sitl_checks == 1
+    if pending_takeoff_id:
+        assert order.pop(0) == ('command', pending_takeoff_id, True, 30)
     assert order[0][0] == "command"
     assert order[1][0] == "idle"
     assert result["grounded_verified"] is True
