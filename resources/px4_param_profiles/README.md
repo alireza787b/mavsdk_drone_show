@@ -34,7 +34,7 @@ verify parameter readback and actual ULog topic coverage. File size depends on
 firmware, topics and duration; the routine profile is not a fixed-size promise.
 Adding a repository profile does not automatically apply it to an aircraft.
 
-`horizontal_velocity_response_trial.json` is an optional **single-aircraft
+`horizontal_velocity_response_trial.json` is an optional **aircraft response
 trial**, changing only `MPC_XY_VEL_P_ACC` to 2.2 (captured field baseline 1.8).
 It leaves I/D, EKF, preflight checks, trajectory limits and RTL settings alone.
 It is not hardware-validated or applied by boot sync. Snapshot each aircraft's
@@ -43,6 +43,13 @@ braking and reversals before any paired-flight trial. Restore the snapshot if
 oscillation/overshoot increases. The [October 4 analysis](../../docs/plans/2026-10-06-field-flight-analysis-and-next-test.md)
 explains why downstream velocity response, rather than another speed-ceiling
 increase, is the next tuning candidate.
+
+For the October 24 client checkpoint, the operator approved this one-parameter
+trial on both aircraft, with grounded/disarmed snapshots and readback on each.
+That approval is not hardware validation or an automatic global deployment:
+check each aircraft's response separately before paired following. MDS guidance
+limits remain 6 m/s horizontal, 1.25 m/s vertical, 4 m/s² acceleration and
+8 m/s³ jerk for that client setup; do not retune I/D or EKF at the same time.
 
 Minimal shape:
 

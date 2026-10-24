@@ -7,6 +7,7 @@ from src.action_result_protocol import (
     ACTION_RESULT_SENTINEL,
     COMPACTION_MARKER_KEY,
     MAX_RESULT_BYTES,
+    MAX_MAPPING_ITEMS,
     ActionResultProtocolError,
     decode_terminal_result,
     emit_terminal_result,
@@ -28,6 +29,31 @@ def _failure_result():
         evidence={"action": "test", "mavsdk_result": "COMMAND_DENIED"},
         final_vehicle_state={"armed": False},
     )
+
+
+@pytest.mark.parametrize("success", [False, True])
+def test_safety_facts_appended_after_mapping_cap_survive_initial_sanitization(success):
+    safety_facts = {
+        "armed": True, "landed_state": "IN_AIR", "relative_altitude_m": -10.0,
+        "recovery_action": None if success else "land",
+        "recovery_status": "not_required" if success else "land_recovery_unconfirmed",
+        "complete": True, "fresh": True, "connection_live": True, "field_errors": {},
+        "target_altitude_m": 10.0, "minimum_confirmed_altitude_m": 8.0,
+        "absolute_altitude_m": 110.0, "baseline_absolute_altitude_m": 100.0,
+        "observed_climb_m": 10.0, "flight_mode": "HOLD", "outcome": "held",
+    }
+    state = {f"diagnostic_{index}": "optional" for index in range(MAX_MAPPING_ITEMS + 4)}
+    state.update(safety_facts)
+    result = make_terminal_result(success=success, code="ACTION_COMPLETED" if success else "ACTION_EXECUTION_FAILED",
+        phase="completed" if success else "execution", operator_message="Terminal safety facts retained.",
+        final_vehicle_state=state)
+
+    assert len(result.final_vehicle_state) <= MAX_MAPPING_ITEMS
+    assert result.final_vehicle_state == safety_facts
+    payload = encode_terminal_result(result)
+    assert len(payload) <= MAX_RESULT_BYTES
+    parsed = decode_terminal_result(payload)
+    assert parsed.final_vehicle_state == safety_facts
 
 
 def _verbose_vehicle_state(*, landed_state="LANDING", relative_altitude_m=8.0):

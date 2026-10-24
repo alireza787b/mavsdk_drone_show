@@ -9,6 +9,14 @@
 
 ## Overview
 
+Launch readiness may be action-specific (`mission_type`). For Takeoff, the
+prepared observation includes `admission.predicate=takeoff_ground_disarmed`,
+its exact native checks and matching mission type. A ready health result alone
+does not authorize Takeoff. Recovery invalidates unused preparations and fences
+commit-time installation; replaying the same recovery does not create a new
+flight intent. State telemetry exposes PX4 `landed_state`, its timestamp and
+age; home-relative altitude is not a substitute for landed state.
+
 The Drone API Server is a high-performance FastAPI-based server that runs on each drone, providing both HTTP REST endpoints and WebSocket streaming for real-time telemetry. It handles communication with the Ground Control Station (GCS) and serves drone state information, commands, and configuration data.
 
 ## API Evolution Note

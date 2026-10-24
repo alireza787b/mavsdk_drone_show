@@ -9,6 +9,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm adds one-press cluster-wide **Hold Swarm**, including the leader,
+  with per-aircraft confirmation and explicit Start to rejoin. Recovery fences
+  older pending launches/starts and invalidates unused node launch preparations.
+  Takeoff and airborne admission use fresh native armed/landed evidence rather
+  than home-relative altitude. PX4 preflight limits remain unchanged.
+- Command results retain bounded typed action/recovery evidence. Smart Swarm
+  reports control release separately from process teardown, avoiding a false
+  failure when a released controller needs forced cleanup; missing or invalid
+  release proof remains unconfirmed.
+
 - Smart Swarm Start reviews now use the same node-owned admission decision
   as command acceptance, showing a compact Finishing takeoff/Checking/Ready
   status without queued automatic engagement. Cluster submissions recheck all

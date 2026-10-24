@@ -436,6 +436,7 @@ describe('MissionDetails Smart Swarm airborne gating', () => {
               heartbeat_last_seen: Date.now(),
               is_armed: true,
               altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
+              landed_state: 2,
             },
           ]}
           targetMode="selected"
@@ -483,6 +484,7 @@ describe('MissionDetails Smart Swarm airborne gating', () => {
               heartbeat_last_seen: now,
               is_armed: true,
               altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
+              landed_state: 2,
             },
             {
               hw_id: '2',
@@ -531,6 +533,7 @@ describe('MissionDetails Smart Swarm airborne gating', () => {
               heartbeat_last_seen: now,
               is_armed: true,
               altitude_report: { source: 'relative_home', relative_home_m: 4.2, stale: false },
+              landed_state: 2,
             },
           ]}
           targetMode="selected"

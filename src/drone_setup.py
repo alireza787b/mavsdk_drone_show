@@ -11,7 +11,7 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import asdict, dataclass, field as dataclass_field
 from enum import Enum
 from typing import Optional, Union
 
@@ -21,9 +21,16 @@ from mds_logging import get_logger
 from src.action_safety import ACTION_PROCESS_CLEANUP_GRACE_SEC
 from src.action_result_protocol import (
     ACTION_RESULT_FD_ENV,
+    TerminalActionResult,
+    decode_terminal_result,
+    encode_terminal_result,
     extract_terminal_result,
     format_legacy_diagnostics,
     read_bounded_result_fd,
+)
+from src.control_release_protocol import (
+    CONTROL_RELEASE_COMMAND_ENV, CONTROL_RELEASE_FD_ENV, CONTROL_RELEASE_OWNER_ENV,
+    MAX_CONTROL_RELEASE_BYTES, ControlReleaseResult, decode_control_release,
 )
 from src.command_execution_contract import (
     DroneExecutionOutcome,
@@ -71,6 +78,14 @@ class RunningMissionProcess:
     # opaque token so a late monitor can never mistake a replacement record
     # with the same key for the process it originally launched.
     ownership_token: str = dataclass_field(default_factory=lambda: uuid.uuid4().hex)
+    control_release_read_fd: Optional[int] = None
+    control_release_buffer: bytes = b""
+    control_release: Optional[ControlReleaseResult] = None
+    control_release_received_monotonic: Optional[float] = None
+    control_release_deadline_monotonic: Optional[float] = None
+    control_release_error: Optional[str] = None
+    control_release_unconfirmed: bool = False
+    teardown_forced: bool = False
 
 
 @dataclass(frozen=True)
@@ -166,6 +181,7 @@ class DroneSetup:
         self._mission_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.process_lock = asyncio.Lock()  # Ensures concurrency safety around process operations
         self.pending_command_reports = []
+        self._retrying_start_commands = set()
         self.command_report_lock = asyncio.Lock()
         self.command_report_retry_task = None
         self.recent_command_history = {}
@@ -404,10 +420,13 @@ class DroneSetup:
                 return True
             except (OSError, TypeError, ValueError) as exc:
                 logger.warning(
-                    "Could not signal mission process group for '%s'; falling back to child: %s",
+                    "Could not stop owned mission process group for '%s': %s",
                     record.script_name,
                     exc,
                 )
+                # Killing only the parent would leave helper publishers able
+                # to compete with a successor. Fail closed for an owned group.
+                return False
 
         try:
             if force:
@@ -451,6 +470,57 @@ class DroneSetup:
             )
             return False
 
+    @staticmethod
+    def _close_control_release_reader(record: RunningMissionProcess) -> None:
+        release_fd = getattr(record, "control_release_read_fd", None)
+        if type(release_fd) is not int:
+            return
+        asyncio.get_running_loop().remove_reader(release_fd)
+        try:
+            os.close(release_fd)
+        except OSError:
+            pass
+        record.control_release_read_fd = None
+
+    def _read_control_release(self, record: RunningMissionProcess) -> None:
+        """Event-loop pipe receipt independent of process/network teardown."""
+        release_fd = getattr(record, "control_release_read_fd", None)
+        if type(release_fd) is not int:
+            return
+        try:
+            chunk = os.read(release_fd, MAX_CONTROL_RELEASE_BYTES + 1 - len(record.control_release_buffer))
+            record.control_release_buffer += chunk
+            if len(record.control_release_buffer) > MAX_CONTROL_RELEASE_BYTES:
+                raise ValueError("oversized control release")
+            if b"\n" not in record.control_release_buffer and chunk:
+                return
+            result = decode_control_release(record.control_release_buffer)
+            if (result.command_id != record.command_id
+                    or result.ownership_token != record.ownership_token
+                    or result.hw_id != str(self.drone_config.hw_id)):
+                raise ValueError("control release owner does not match launched process")
+            received = time.monotonic()
+            deadline = record.control_release_deadline_monotonic
+            if deadline is not None and received > deadline:
+                raise ValueError("control release arrived after stop deadline")
+            record.control_release = result
+            record.control_release_received_monotonic = received
+        except BlockingIOError:
+            return
+        except (OSError, ValueError) as exc:
+            record.control_release_error = str(exc)[:200]
+            logger.warning("Unconfirmed control release from '%s': %s", record.script_name, exc)
+        self._close_control_release_reader(record)
+
+    @staticmethod
+    def _control_release_confirmed(record: RunningMissionProcess) -> bool:
+        release = getattr(record, "control_release", None)
+        received = getattr(record, "control_release_received_monotonic", None)
+        deadline = getattr(record, "control_release_deadline_monotonic", None)
+        return bool(isinstance(release, ControlReleaseResult) and release.released
+                    and isinstance(received, (int, float))
+                    and (deadline is None or received <= deadline))
+
     async def terminate_all_running_processes(
         self,
         *,
@@ -482,8 +552,10 @@ class DroneSetup:
                 script_name = record.script_name
                 process = record.process
                 record.superseded = True
+                unresolved_before = summary.unresolved
                 summary.attempted += 1
                 grace_seconds = self._process_stop_grace_seconds(mode, record)
+                record.control_release_deadline_monotonic = time.monotonic() + grace_seconds
                 if process.returncode is None:
                     stopped = False
                     if grace_seconds > 0:
@@ -503,7 +575,8 @@ class DroneSetup:
                                     timeout=grace_seconds,
                                 )
                                 stopped = True
-                                if return_code in {None, 0}:
+                                self._read_control_release(record)
+                                if return_code in {None, 0} or self._control_release_confirmed(record):
                                     summary.graceful += 1
                                     logger.info(
                                         "Mission controller '%s' stopped gracefully.",
@@ -535,6 +608,8 @@ class DroneSetup:
                     if not stopped:
                         kill_sent = self._signal_process(record, force=True)
                         if kill_sent:
+                            record.teardown_forced = True
+                            record.forced_stop_mode = mode.value
                             # SIGKILL prevents further userspace control immediately.
                             # The existing process monitor owns pipe draining/reaping;
                             # recovery dispatch must not wait for that bookkeeping.
@@ -543,7 +618,8 @@ class DroneSetup:
                                 Mission.TAKE_OFF.value,
                                 Mission.TEST.value,
                                 Mission.SMART_SWARM.value,
-                            }:
+                            } and not (record.mission_type == Mission.SMART_SWARM.value
+                                       and self._control_release_confirmed(record)):
                                 record.forced_kill_cleanup_unconfirmed = True
                                 record.forced_stop_mode = mode.value
                                 summary.cleanup_unconfirmed += 1
@@ -562,6 +638,19 @@ class DroneSetup:
                 else:
                     summary.already_stopped += 1
                     logger.debug(f"Process '{script_name}' already ended.")
+                    self._read_control_release(record)
+                    if not self._stop_process_group_remainders(record):
+                        summary.unresolved += 1
+
+                if record.mission_type == Mission.SMART_SWARM.value:
+                    record.control_release_unconfirmed = not self._control_release_confirmed(record)
+                    if record.control_release_unconfirmed and not record.forced_kill_cleanup_unconfirmed:
+                        summary.cleanup_unconfirmed += 1
+                    self._close_control_release_reader(record)
+                if summary.unresolved > unresolved_before:
+                    # Keep the exact owner fenced until its whole process
+                    # group can be stopped. Do not admit a competing producer.
+                    continue
 
                 # Re-check after the awaited termination. A replacement may
                 # have been registered by a future caller that does not honor
@@ -931,6 +1020,9 @@ class DroneSetup:
 
             action_result_read_fd = None
             action_result_write_fd = None
+            control_release_read_fd = None
+            control_release_write_fd = None
+            ownership_token = uuid.uuid4().hex
             swarm_context = None
             try:
                 process_kwargs = {
@@ -943,10 +1035,17 @@ class DroneSetup:
                 }
                 child_env = os.environ.copy()
                 child_env.pop("MDS_BORROW_MAVSDK_SERVER", None)
+                for name in (CONTROL_RELEASE_FD_ENV, CONTROL_RELEASE_OWNER_ENV, CONTROL_RELEASE_COMMAND_ENV):
+                    child_env.pop(name, None)
                 if mission_type != Mission.SMART_SWARM.value and self._can_overlap_leader_role_session():
                     child_env["MDS_BORROW_MAVSDK_SERVER"] = "1"
                 process_kwargs["env"] = child_env
                 if mission_type == Mission.SMART_SWARM.value:
+                    control_release_read_fd, control_release_write_fd = os.pipe()
+                    os.set_blocking(control_release_read_fd, False)
+                    child_env[CONTROL_RELEASE_FD_ENV] = str(control_release_write_fd)
+                    child_env[CONTROL_RELEASE_OWNER_ENV] = ownership_token
+                    child_env[CONTROL_RELEASE_COMMAND_ENV] = command_id or ""
                     swarm_context = tempfile.TemporaryFile(mode="w+")
                     json.dump({"command_id": command_id,
                                "capability": self._get_command_report_capability(command_id),
@@ -955,7 +1054,7 @@ class DroneSetup:
                     swarm_context.seek(0)
                     child_env["MDS_SWARM_CONTEXT_FD"] = str(swarm_context.fileno())
                     process_kwargs["env"] = child_env
-                    process_kwargs["pass_fds"] = (swarm_context.fileno(),)
+                    process_kwargs["pass_fds"] = (swarm_context.fileno(), control_release_write_fd)
                 # actions.py owns a versioned terminal-result contract.  Keep
                 # it separate from human/logging stdout and stderr so native
                 # LED/SPI diagnostics cannot mask a PX4 command result.
@@ -985,6 +1084,9 @@ class DroneSetup:
                 if action_result_write_fd is not None:
                     os.close(action_result_write_fd)
                     action_result_write_fd = None
+                if control_release_write_fd is not None:
+                    os.close(control_release_write_fd)
+                    control_release_write_fd = None
                 if swarm_context is not None:
                     swarm_context.close()
                 process_key = self._build_process_key(script_name, command_id)
@@ -998,8 +1100,13 @@ class DroneSetup:
                     process_group_owned=True,
                     action_result_read_fd=action_result_read_fd,
                     role_session=(mission_type == Mission.SMART_SWARM.value),
+                    ownership_token=ownership_token,
+                    control_release_read_fd=control_release_read_fd,
                 )
                 self.running_processes[process_key] = process_record
+                if control_release_read_fd is not None:
+                    asyncio.get_running_loop().add_reader(
+                        control_release_read_fd, self._read_control_release, process_record)
                 self._active_mission_owner_token = process_record.ownership_token
                 self._active_mission_command_id = command_id
                 self._remember_recent_command(
@@ -1012,7 +1119,8 @@ class DroneSetup:
             except Exception as e:
                 if swarm_context is not None:
                     swarm_context.close()
-                for result_fd in (action_result_write_fd, action_result_read_fd):
+                for result_fd in (action_result_write_fd, action_result_read_fd,
+                                  control_release_write_fd, control_release_read_fd):
                     if result_fd is not None:
                         try:
                             os.close(result_fd)
@@ -1114,6 +1222,8 @@ class DroneSetup:
             async with self.process_lock:
                 registered_record = self.running_processes.get(process_record.process_key)
                 exact_record_registered = registered_record is process_record
+                if exact_record_registered and not self._stop_process_group_remainders(process_record):
+                    return False, "owned helper process group could not be stopped"
                 if exact_record_registered:
                     self.running_processes.pop(process_record.process_key, None)
 
@@ -1215,11 +1325,9 @@ class DroneSetup:
             dedicated_result_payload = (
                 await result_reader_task if result_reader_task is not None else b""
             )
-            await self._await_execution_start_report_task(
-                execution_start_task,
-                script_name,
-            )
             process_record.action_result_read_fd = None
+            self._read_control_release(process_record)
+            self._close_control_release_reader(process_record)
             return_code = process.returncode
             action_result = extract_terminal_result(
                 dedicated_payload=dedicated_result_payload,
@@ -1284,19 +1392,32 @@ class DroneSetup:
                 process_record,
                 reset_success=result_success,
             )
+            if ownership_reason == "owned helper process group could not be stopped":
+                result_success = False
+                error_message = "Old controller helpers could not be stopped; replacement control remains blocked."
+            # Flight ownership is local truth. A delayed start callback must
+            # not keep a finished action busy or block its replacement.
+            await self._await_execution_start_report_task(execution_start_task, script_name)
+            report_details = {
+                "action_result": action_result,
+                "control_release": process_record.control_release,
+                "teardown_forced": process_record.teardown_forced,
+            }
             # Read superseded only after locked retirement. If an override won
             # the transaction race, it set this flag before retirement; once
             # retirement removes the exact record, no later override can mark
             # it. This makes the reported terminal outcome deterministic.
             if process_record.superseded:
-                if process_record.forced_kill_cleanup_unconfirmed:
+                cleanup_unconfirmed = (process_record.forced_kill_cleanup_unconfirmed
+                                       or process_record.control_release_unconfirmed)
+                if cleanup_unconfirmed:
                     superseded_error = (
-                        "A newer command replaced this action, but the process was force-killed "
+                        "A newer command replaced this action, but the controller stopped "
                         "before its vehicle-safety cleanup could be confirmed. Keep clear of "
                         "the vehicle and use the primary recovery controls."
                     )
                     diagnostic_output = (
-                        "Safety cleanup unconfirmed after forced process stop "
+                        "Safety cleanup unconfirmed after process stop "
                         f"(mode={process_record.forced_stop_mode or 'unknown'}; "
                         f"exit_code={return_code})."
                     )
@@ -1308,6 +1429,12 @@ class DroneSetup:
                         else None
                     )
                     superseded_phase = "superseded"
+                    if process_record.teardown_forced and process_record.control_release is not None:
+                        diagnostic_output = (
+                            "Control release acknowledged before stop deadline; residual process "
+                            f"teardown was force-stopped (exit_code={return_code}). "
+                            "Hold acceptance is not telemetry-confirmed Held."
+                        )
                 logger.info(
                     f"Mission script '{script_name}' ended after being superseded by a newer command. "
                     "Skipping duplicate mission-state reset but reporting the superseded execution. "
@@ -1322,9 +1449,10 @@ class DroneSetup:
                     duration_ms=duration_ms,
                     outcome=(
                         DroneExecutionOutcome.FAILED
-                        if process_record.forced_kill_cleanup_unconfirmed
+                        if cleanup_unconfirmed
                         else DroneExecutionOutcome.SUPERSEDED
                     ),
+                    **report_details,
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1352,7 +1480,8 @@ class DroneSetup:
                     success=True,
                     exit_code=return_code,
                     script_output=diagnostic_output,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    **report_details,
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1379,7 +1508,8 @@ class DroneSetup:
                     error_message=error_message[:500],
                     exit_code=return_code,
                     script_output=diagnostic_output,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
+                    **report_details,
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1389,11 +1519,6 @@ class DroneSetup:
                 )
 
         except Exception as e:
-            if execution_start_task is not None and not execution_start_task.done():
-                await self._await_execution_start_report_task(
-                    execution_start_task,
-                    script_name,
-                )
             if result_reader_task is not None and not result_reader_task.done():
                 result_reader_task.cancel()
             if process_record.action_result_read_fd is not None:
@@ -1402,17 +1527,21 @@ class DroneSetup:
                 except OSError:
                     pass
                 process_record.action_result_read_fd = None
+            self._close_control_release_reader(process_record)
             logger.error(f"Exception in _monitor_script_process for '{script_name}': {e}", exc_info=True)
             state_reset, ownership_reason = await self._retire_process_and_update_state(
                 process_record,
                 reset_success=False,
             )
+            await self._await_execution_start_report_task(execution_start_task, script_name)
             if process_record.superseded:
+                cleanup_unconfirmed = (process_record.forced_kill_cleanup_unconfirmed
+                                       or process_record.control_release_unconfirmed)
                 superseded_error = (
                     "Superseded and force-killed before vehicle-safety cleanup "
                     "could be confirmed. Keep clear of the vehicle and use the primary "
                     "recovery controls."
-                    if process_record.forced_kill_cleanup_unconfirmed
+                    if cleanup_unconfirmed
                     else "Superseded by a newer command before completion"
                 )
                 await self._report_execution_to_gcs(
@@ -1422,9 +1551,11 @@ class DroneSetup:
                     duration_ms=int((time.time() - start_time) * 1000),
                     outcome=(
                         DroneExecutionOutcome.FAILED
-                        if process_record.forced_kill_cleanup_unconfirmed
+                        if cleanup_unconfirmed
                         else DroneExecutionOutcome.SUPERSEDED
                     ),
+                    control_release=process_record.control_release,
+                    teardown_forced=process_record.teardown_forced,
                 )
                 self._remember_recent_command(
                     process_record.command_id,
@@ -1432,7 +1563,7 @@ class DroneSetup:
                     trigger_time=process_record.trigger_time,
                     phase=(
                         "superseded_cleanup_unconfirmed"
-                        if process_record.forced_kill_cleanup_unconfirmed
+                        if cleanup_unconfirmed
                         else "superseded"
                     ),
                 )
@@ -1582,11 +1713,21 @@ class DroneSetup:
 
         async with self.command_report_lock:
             pending = list(self.pending_command_reports)
+            self.pending_command_reports = []
+            retrying_starts = {r.payload.get("command_id") for r in pending
+                               if r.endpoint == GCS_COMMAND_REPORT_EXECUTION_START_ROUTE}
+            self._retrying_start_commands.update(retrying_starts)
 
         still_pending = []
         delivered = 0
 
         for report in pending:
+            if (report.endpoint == GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE
+                    and any(earlier.endpoint == GCS_COMMAND_REPORT_EXECUTION_START_ROUTE
+                            and earlier.payload.get("command_id") == report.payload.get("command_id")
+                            for earlier in still_pending)):
+                still_pending.append(report)
+                continue
             if report.next_attempt_monotonic > now_monotonic:
                 still_pending.append(report)
                 continue
@@ -1633,7 +1774,14 @@ class DroneSetup:
             still_pending.append(report)
 
         async with self.command_report_lock:
-            self.pending_command_reports = still_pending
+            # Callbacks can be queued while HTTP retries are in flight. Keep
+            # those new entries instead of overwriting them with the snapshot.
+            newly_queued = list(self.pending_command_reports)
+            newer_ids = {self._command_report_identity(r.endpoint, r.payload) for r in newly_queued}
+            self.pending_command_reports = [r for r in still_pending
+                                            if self._command_report_identity(r.endpoint, r.payload) not in newer_ids]
+            self.pending_command_reports.extend(newly_queued)
+            self._retrying_start_commands.difference_update(retrying_starts)
 
         return delivered
 
@@ -1716,6 +1864,9 @@ class DroneSetup:
         script_output: Optional[str] = None,
         duration_ms: Optional[int] = None,
         outcome: DroneExecutionOutcome | str | None = None,
+        action_result: Optional[TerminalActionResult] = None,
+        control_release: Optional[ControlReleaseResult] = None,
+        teardown_forced: Optional[bool] = None,
     ):
         """
         Report command execution result to the GCS command tracker.
@@ -1752,8 +1903,25 @@ class DroneSetup:
             'duration_ms': duration_ms,
             'outcome': normalized_outcome.value,
         }
+        if action_result is not None:
+            report_data['action_result'] = asdict(decode_terminal_result(encode_terminal_result(action_result)))
+        if control_release is not None:
+            report_data['control_release'] = ControlReleaseResult.model_validate(control_release).model_dump()
+        if teardown_forced is not None:
+            report_data['teardown_forced'] = bool(teardown_forced)
         description = f"execution-result for command {command_id[:8]}"
         capability = self._get_command_report_capability(command_id)
+
+        async with self.command_report_lock:
+            start_pending = command_id in self._retrying_start_commands or any(
+                report.endpoint == GCS_COMMAND_REPORT_EXECUTION_START_ROUTE
+                and report.payload.get('command_id') == command_id
+                for report in self.pending_command_reports
+            )
+        if start_pending:
+            await self._queue_command_report_retry(
+                GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data, description, capability)
+            return
 
         try:
             delivered = await self._post_command_report(

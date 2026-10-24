@@ -87,6 +87,14 @@ def _prepared_launch_payload(
         "summary": "ready",
         "observation": {
             "schema_version": 1,
+            **({"mission_type": 10, "admission": {
+                "predicate": "takeoff_ground_disarmed", "ready": True,
+                "checks": {
+                    "connection_live": True, "connection_continuous": True,
+                    "armed_fresh": True, "landed_state_fresh": True,
+                    "disarmed": True, "on_ground": True,
+                },
+            }} if command["mission_type"] == 10 else {}),
             "observation_id": f"probe-{hw_id}",
             "source": "test",
             "observed_at_ms": 1_000,
@@ -101,6 +109,25 @@ def _prepared_launch_payload(
         "token_ttl_ms": token_ttl_ms,
         "server_processing_ms": server_processing_ms,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", ["mission_type", "admission"])
+async def test_takeoff_preparation_requires_action_specific_ground_evidence(missing):
+    from fleet_rpc import FleetRPCService
+    from src.enums import Mission
+    async def respond(request):
+        payload = _prepared_launch_payload(request)
+        payload["observation"].pop(missing)
+        return httpx.Response(200, json=payload)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        drones = _drones(1)
+        service = FleetRPCService(_params(), client=client)
+        result = await service.prepare_launch(drones, {"mission_type": Mission.TAKE_OFF.value,
+            "command_id": "takeoff", "trigger_time": 0},
+            callback_capabilities=_callback_capabilities(drones))
+        assert result["all_prepared"] is False
+        assert result["results"]["1"]["ready"] is False
 
 
 @pytest.fixture(autouse=True)
@@ -1356,7 +1383,9 @@ async def test_pre_delivery_transport_failure_is_not_marked_ambiguous(
 async def test_started_post_deadline_is_unknown_while_queued_target_is_not_dispatched():
     from fleet_rpc import FleetRPCService
 
+    posted = []
     async def handler(request):
+        posted.append(str(request.url))
         await asyncio.sleep(0.2)
         payload = json.loads(request.content)
         return httpx.Response(
@@ -1384,7 +1413,8 @@ async def test_started_post_deadline_is_unknown_while_queued_target_is_not_dispa
         await client.aclose()
 
     assert result["results"]["1"]["delivery_state"] == "delivery_unknown"
-    assert result["results"]["2"]["delivery_state"] == "not_dispatched_deadline"
+    assert result["results"]["2"]["delivery_state"] == "not_dispatched_deadline", result
+    assert posted == ['http://10.0.0.1:7070/api/v1/commands']
 
 
 @pytest.mark.asyncio

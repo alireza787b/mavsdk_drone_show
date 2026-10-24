@@ -204,6 +204,11 @@ def create_command_router(deps: Any) -> APIRouter:
                 script_output=report.script_output,
                 duration_ms=report.duration_ms,
                 callback_capability=command_report_capability,
+                **{key: value for key, value in {
+                    "action_result": report.action_result,
+                    "control_release": report.control_release,
+                    "teardown_forced": report.teardown_forced,
+                }.items() if value is not None},
             )
         except CommandCallbackAuthenticationError as exc:
             deps.log_system_warning(

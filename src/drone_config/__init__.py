@@ -327,6 +327,22 @@ class DroneConfig:
         self._state.heartbeat_timestamp_ms = value
 
     @property
+    def landed_state(self) -> Optional[int]:
+        return self._state.landed_state
+
+    @landed_state.setter
+    def landed_state(self, value: Optional[int]):
+        self._state.landed_state = value
+
+    @property
+    def landed_state_timestamp_ms(self) -> int:
+        return self._state.landed_state_timestamp_ms
+
+    @landed_state_timestamp_ms.setter
+    def landed_state_timestamp_ms(self, value: int):
+        self._state.landed_state_timestamp_ms = value
+
+    @property
     def gps_raw_timestamp_ms(self) -> int:
         return self._state.gps_raw_timestamp_ms
 

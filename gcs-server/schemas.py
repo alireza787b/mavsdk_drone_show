@@ -12,13 +12,15 @@ Last Updated: 2025-11-22
 import os
 import sys
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 from typing import Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.command_execution_contract import DroneExecutionOutcome
+from src.execution_evidence import ActionResultEvidence, normalize_execution_evidence
+from src.control_release_protocol import ControlReleaseResult
 from src.enums import CommandOutcome, CommandPhase, CommandStatus
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
 
@@ -2124,6 +2126,9 @@ class DroneExecutionDetail(BaseModel):
     exit_code: Optional[int] = Field(None, description="Script exit code")
     duration_ms: Optional[int] = Field(None, description="Execution duration (ms)")
     timestamp: int = Field(..., description="Execution timestamp (Unix ms)")
+    action_result: Optional[ActionResultEvidence] = None
+    control_release: Optional[ControlReleaseResult] = None
+    teardown_forced: Optional[StrictBool] = None
 
 
 class AckSummary(BaseModel):
@@ -2421,9 +2426,15 @@ class ExecutionReportRequest(BaseModel):
         description="Bounded diagnostic script output; never callback authority",
     )
     duration_ms: Optional[int] = Field(None, ge=0, description="Execution duration (ms)")
+    action_result: Optional[ActionResultEvidence] = None
+    control_release: Optional[ControlReleaseResult] = None
+    teardown_forced: Optional[StrictBool] = None
 
     @model_validator(mode="after")
     def _validate_outcome_consistency(self) -> "ExecutionReportRequest":
+        normalize_execution_evidence(command_id=self.command_id, hw_id=self.hw_id,
+            action_result=self.action_result, control_release=self.control_release,
+            teardown_forced=self.teardown_forced)
         if self.outcome is None:
             return self
         if self.success != (self.outcome == DroneExecutionOutcome.COMPLETED):

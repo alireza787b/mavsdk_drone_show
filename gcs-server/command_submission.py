@@ -498,6 +498,10 @@ async def submit_tracked_command(
                 )
             return build_replay_receipt(tracked_status)
 
+        fence = getattr(tracker, "supersede_pending_flight_commands", None)
+        if recovery and callable(fence):
+            await fence(command_id, target_hw_ids)
+
         return_service = getattr(deps, "sequential_return_service", None)
         if (return_service is not None
                 and resolved_mission not in {deps.Mission.TEST_LED, deps.Mission.UPDATE_CODE}

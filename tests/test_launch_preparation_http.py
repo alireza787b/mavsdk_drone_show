@@ -223,7 +223,7 @@ def test_relaxed_preparation_cannot_bypass_strict_commit_readiness(
     assert committed.json()["error_code"] == "E401"
     assert "PX4 armability" in committed.json()["error_detail"]
     api_server._probe_live_armability.assert_awaited_once_with(
-        require_global_position=True
+        require_global_position=True, mission_type=Mission.TAKE_OFF.value
     )
     mock_drone_communicator.process_command.assert_not_called()
 
@@ -402,7 +402,7 @@ async def test_slow_launch_revalidation_does_not_hold_recovery_transaction_lock(
         probe_started = asyncio.Event()
         release_probe = asyncio.Event()
 
-        async def blocked_probe(*, require_global_position=True):
+        async def blocked_probe(*, require_global_position=True, mission_type=None):
             probe_started.set()
             await release_probe.wait()
             return _probe(ready=True)
@@ -428,4 +428,108 @@ async def test_slow_launch_revalidation_does_not_hold_recovery_transaction_lock(
         assert launch_task.done() is False
 
         release_probe.set()
-        await launch_task
+        launch = await launch_task
+        assert launch.json()["status"] == "rejected"
+        assert "invalidated by recovery" in launch.json()["message"]
+
+
+def _hold_command(command_id="epoch-hold"):
+    return {"mission_type": Mission.HOLD.value, "trigger_time": 0, "command_id": command_id,
+            "target_hw_id": "1", "command_report_capability": "cap-" + ("x" * 39)}
+
+
+@pytest.mark.asyncio
+async def test_delayed_prepare_cannot_issue_after_hold_but_new_prepare_can(
+    api_server, mock_drone_config,
+):
+    mock_drone_config.is_armed = False
+    mock_drone_config.heartbeat_timestamp_ms = time.time_ns() // 1_000_000
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def blocked_probe(**kwargs):
+        started.set()
+        await release.wait()
+        return _probe()
+
+    api_server._probe_live_armability = blocked_probe
+    transport = httpx.ASGITransport(app=api_server.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://node") as client:
+        delayed = asyncio.create_task(client.post("/api/v1/preflight/launch-preparations", json={
+            "schema_version": 1, "command": _command(), "require_global_position": True,
+        }))
+        await asyncio.wait_for(started.wait(), 0.5)
+        recovery = await client.post("/api/v1/drone/commands", json=_hold_command())
+        assert recovery.json()["status"] == "accepted"
+        release.set()
+        assert (await delayed).status_code == 503
+        renewed = await client.post("/api/v1/preflight/launch-preparations", json={
+            "schema_version": 1, "command": _command(command_id="new-after-hold"), "require_global_position": True,
+        })
+        assert renewed.json()["status"] == "prepared"
+
+
+@pytest.mark.asyncio
+async def test_consumed_launch_waiting_lock_cannot_install_after_disarmed_hold(
+    api_server, mock_drone_config, monkeypatch,
+):
+    mock_drone_config.is_armed = False
+    mock_drone_config.heartbeat_timestamp_ms = time.time_ns() // 1_000_000
+    command = _command(command_id="consumed-before-hold")
+    token, _ = api_server._launch_preparation_store.issue(
+        LaunchPreparationBinding.from_command(command),
+        readiness_valid_until_monotonic=time.monotonic() + 2,
+    )
+    consumed = asyncio.Event()
+    recovery_waiting = asyncio.Event()
+    original_consume = api_server._launch_preparation_store.consume
+    original_guard = api_server._command_transaction_guard
+
+    async def observe_guard():
+        recovery_waiting.set()
+        async for value in original_guard():
+            yield value
+
+    def observe_consume(*args):
+        result = original_consume(*args)
+        consumed.set()
+        return result
+
+    monkeypatch.setattr(api_server._launch_preparation_store, "consume", observe_consume)
+    monkeypatch.setattr(api_server, "_command_transaction_guard", observe_guard)
+    transport = httpx.ASGITransport(app=api_server.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://node") as client:
+        await api_server._command_transaction_lock.acquire()
+        try:
+            recovery = asyncio.create_task(client.post("/api/v1/drone/commands", json=_hold_command()))
+            await asyncio.wait_for(recovery_waiting.wait(), 0.5)
+            launch = asyncio.create_task(client.post("/api/v1/drone/commands", json=command,
+                headers={LAUNCH_PREPARATION_TOKEN_HEADER: token}))
+            await asyncio.wait_for(consumed.wait(), 0.5)
+        finally:
+            api_server._command_transaction_lock.release()
+        assert (await recovery).json()["status"] == "accepted"
+        rejected = await launch
+        assert rejected.json()["status"] == "rejected"
+        assert "invalidated by recovery" in rejected.json()["message"]
+        assert mock_drone_config.current_command_id == "epoch-hold"
+
+
+def test_rejected_or_exact_replayed_hold_does_not_invalidate_new_preparations(
+    test_client, api_server, mock_drone_config,
+):
+    mock_drone_config.is_armed = False
+    mock_drone_config.heartbeat_timestamp_ms = time.time_ns() // 1_000_000
+    hold = _hold_command()
+    before = api_server._launch_preparation_store.epoch
+    rejected = test_client.post("/api/v1/drone/commands", json=hold,
+        headers={LAUNCH_PREPARATION_TOKEN_HEADER: "x" * 43})
+    assert rejected.json()["status"] == "rejected"
+    assert api_server._launch_preparation_store.epoch == before
+    hold = _hold_command("new-valid-hold")
+    assert test_client.post("/api/v1/drone/commands", json=hold).json()["status"] == "accepted"
+    assert api_server._launch_preparation_store.epoch == before + 1
+    token, _ = api_server._launch_preparation_store.issue(LaunchPreparationBinding.from_command(_command()))
+    replay = test_client.post("/api/v1/drone/commands", json=hold)
+    assert replay.json()["replayed"] is True
+    assert api_server._launch_preparation_store.epoch == before + 1
+    assert api_server._launch_preparation_store.consume(token, _command()).consumed

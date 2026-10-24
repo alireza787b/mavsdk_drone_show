@@ -1,4 +1,4 @@
-import { SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M } from './smartSwarmLaunchReadiness';
+import { px4LandedState } from './px4LandedState';
 
 export function memberLabel(member) {
   return `Drone ${member.hw_id}${member.callsign ? ` · ${member.callsign}` : ''}`;
@@ -20,7 +20,8 @@ export function movementSummary(member) {
 // Advisory state, not an additional admission gate. Armed is never airborne by itself.
 export function memberFlightState(member) {
   if (!member?.available) return 'Unknown';
-  if (member.armed === false) return 'Grounded';
+  const landed = px4LandedState(member.landed_state);
+  if (member.armed === false) return landed === 'ON_GROUND' ? 'Grounded' : 'Disarmed';
   const mode = Number(member.flight_mode);
   const subMode = (mode >>> 24) & 255;
   const mainMode = (mode >>> 16) & 255;
@@ -29,13 +30,9 @@ export function memberFlightState(member) {
     if (subMode === 5) return 'Returning';
     if (subMode === 6) return 'Landing';
   }
-  const report = member.altitude_report;
-  const rawHeight = report
-    ? (report.source === 'relative_home' && report.stale !== true ? report.relative_home_m : null)
-    : member.relative_altitude_m;
-  const height = rawHeight === null || rawHeight === undefined ? NaN : Number(rawHeight);
-  if (member.armed === true && member.landed_state !== 'ON_GROUND'
-      && Number.isFinite(height) && height >= SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M) return 'Airborne';
+  if (member.armed === true && landed === 'TAKING_OFF') return 'Taking off';
+  if (member.armed === true && landed === 'LANDING') return 'Landing';
+  if (member.armed === true && landed === 'IN_AIR') return 'Airborne';
   return member.armed === true ? 'Armed' : 'Unknown';
 }
 
@@ -44,7 +41,25 @@ export function takeoffTargets(members) {
   // Never silently relaunch or omit an unknown aircraft in a mixed fleet.
   if (states.some((s) => ['Airborne', 'Taking off', 'Returning', 'Landing'].includes(s))) {
     if (states.includes('Unknown') || states.includes('Armed')) return [];
-    return members.filter((m) => memberFlightState(m) === 'Grounded').map((m) => m.hw_id);
+    return members.filter((m) => ['Grounded', 'Disarmed'].includes(memberFlightState(m))).map((m) => m.hw_id);
   }
   return members.map((m) => m.hw_id);
+}
+
+// A receipt is not a confirmed Hold. Keep each aircraft's terminal action fact
+// visible, and stop presenting it as Held when live mode evidence changes.
+export function holdNodeStatus(member, execution) {
+  const result = execution?.action_result;
+  const outcome = result?.final_vehicle_state?.outcome;
+  if (member.available && result?.success === true) {
+    if (outcome === 'disarmed' && member.armed === false) {
+      return { label: memberFlightState(member), tone: 'neutral', symbol: '—' };
+    }
+    const mode = Number(member.flight_mode);
+    if (outcome === 'held' && member.armed === true
+        && ((mode >>> 16) & 255) === 4 && ((mode >>> 24) & 255) === 3) {
+      return { label: 'Held', tone: 'warning', symbol: 'Ⅱ' };
+    }
+  }
+  return { label: 'Hold unconfirmed', tone: 'warning', symbol: '?' };
 }

@@ -1803,6 +1803,9 @@ class TestMissionProcessMonitoring:
         )
         await asyncio.sleep(0.02)
         setup._report_execution_to_gcs.assert_not_awaited()
+        # Local ownership is already retired while network reporting waits.
+        assert setup._active_mission_owner_token is None
+        assert record.process_key not in setup.running_processes
 
         allow_start_completion.set()
         await asyncio.wait_for(monitor_task, timeout=1)
@@ -1899,6 +1902,7 @@ class TestMissionProcessMonitoring:
         assert report_kwargs["error_message"] == result.operator_message
         assert "PX4_COMMAND_DENIED" in report_kwargs["script_output"]
         assert "SPI" not in report_kwargs["script_output"]
+        assert report_kwargs["action_result"] == result
 
     @pytest.mark.asyncio
     async def test_monitor_types_superseded_structured_action_independent_of_message(self):
@@ -2351,3 +2355,178 @@ class TestCommandReportRetry:
         assert report is first_report
         assert report.payload["success"] is True
         setup._ensure_command_report_retry_worker.assert_awaited()
+
+
+    @pytest.mark.asyncio
+    async def test_terminal_callback_retries_after_queued_start(self):
+        from src.drone_setup import DroneSetup
+        from src.gcs_api_routes import (GCS_COMMAND_REPORT_EXECUTION_START_ROUTE,
+                                        GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE)
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup._ensure_command_report_retry_worker = AsyncMock()
+        setup._post_command_report = AsyncMock(return_value=False)
+        await setup._report_execution_start_to_gcs("ordered", "actions.py")
+        await setup._report_execution_to_gcs("ordered", True)
+        assert setup._post_command_report.await_count == 1
+        assert len(setup.pending_command_reports) == 2
+        now = time.monotonic() + 100
+        setup._post_command_report.reset_mock()
+        assert await setup._retry_pending_command_reports_once(now) == 0
+        assert setup._post_command_report.await_count == 1
+        assert setup._post_command_report.await_args.args[0] == GCS_COMMAND_REPORT_EXECUTION_START_ROUTE
+        setup._post_command_report.reset_mock()
+        setup._post_command_report.return_value = True
+        assert await setup._retry_pending_command_reports_once(now + 100) == 2
+        assert [call.args[0] for call in setup._post_command_report.await_args_list] == [
+            GCS_COMMAND_REPORT_EXECUTION_START_ROUTE, GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE]
+
+    @pytest.mark.asyncio
+    async def test_callback_queued_during_start_retry_is_preserved_and_ordered(self):
+        from src.drone_setup import DroneSetup
+        from src.gcs_api_routes import GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup._ensure_command_report_retry_worker = AsyncMock()
+        setup._post_command_report = AsyncMock(return_value=False)
+        await setup._report_execution_start_to_gcs("ordered", "actions.py")
+        entered = asyncio.Event()
+        allow_delivery = asyncio.Event()
+        async def delayed_post(*_args):
+            entered.set()
+            await allow_delivery.wait()
+            return True
+        setup._post_command_report = AsyncMock(side_effect=delayed_post)
+        retry_task = asyncio.create_task(setup._retry_pending_command_reports_once(time.monotonic() + 100))
+        await entered.wait()
+        await setup._report_execution_to_gcs("ordered", True)
+        assert setup._post_command_report.await_count == 1
+        allow_delivery.set()
+        assert await retry_task == 1
+        assert len(setup.pending_command_reports) == 1
+        assert setup.pending_command_reports[0].endpoint == GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE
+
+
+@pytest.mark.unit
+class TestSwarmControlRelease:
+    @staticmethod
+    def _release(record, **changes):
+        from src.control_release_protocol import ControlReleaseResult
+        return ControlReleaseResult(**{
+            "command_id": record.command_id, "ownership_token": record.ownership_token,
+            "hw_id": "1", "producers_stopped": True, "offboard_stop_completed": True,
+            "hold_accepted": True, "observed_mode": "OFFBOARD",
+            "external_control_preserved": False, **changes,
+        })
+
+    @pytest.mark.asyncio
+    async def test_acknowledged_handoff_survives_forced_teardown_and_late_monitor(self):
+        from src.command_execution_contract import DroneExecutionOutcome
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4, RECOVERY_PROCESS_STOP_GRACE_SEC=0.03),
+                           create_mock_drone_config())
+        read_fd, write_fd = os.pipe()
+        os.set_blocking(read_fd, False)
+        process = Mock(pid=4321, returncode=None)
+        process.communicate = AsyncMock(return_value=(b"", b""))
+        record = RunningMissionProcess("smart_swarm.py:old", "smart_swarm.py", process,
+                                      command_id="old", mission_type=Mission.SMART_SWARM.value,
+                                      process_group_owned=True, control_release_read_fd=read_fd)
+        release = self._release(record)
+        def terminate():
+            os.write(write_fd, release.model_dump_json().encode() + b"\n")
+            os.close(write_fd)
+        async def wait_forever():
+            await asyncio.Event().wait()
+        process.terminate = Mock(side_effect=terminate)
+        process.wait = wait_forever
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        asyncio.get_running_loop().add_reader(read_fd, setup._read_control_release, record)
+        setup._report_execution_to_gcs = AsyncMock()
+        with patch("src.drone_setup.os.killpg") as kill_group:
+            summary = await setup.terminate_all_running_processes(
+                reset_state=False, mode=ProcessStopMode.RECOVERY)
+        assert summary.killed == 1
+        assert summary.cleanup_unconfirmed == 0
+        assert record.teardown_forced
+        assert not record.forced_kill_cleanup_unconfirmed
+        kill_group.assert_called_once()
+        assert record.control_release == release
+        assert release.observed_mode == "OFFBOARD"  # accepted != observed Held
+
+        # Reuse the human-readable key: the old opaque owner must never clear
+        # replacement work even after callbacks/process draining finish late.
+        replacement = RunningMissionProcess(record.process_key, "actions.py", Mock(),
+                                            command_id="hold-new", mission_type=Mission.HOLD.value)
+        setup.running_processes[replacement.process_key] = replacement
+        setup._active_mission_owner_token = replacement.ownership_token
+        setup.drone_config.current_command_id = "hold-new"
+        setup.drone_config.mission = Mission.HOLD.value
+        setup.drone_config.state = State.MISSION_READY.value
+        process.returncode = -9
+        await setup._monitor_script_process(record)
+        report = setup._report_execution_to_gcs.await_args.kwargs
+        assert report["outcome"] == DroneExecutionOutcome.SUPERSEDED
+        assert report["success"] is False
+        assert report["control_release"] == release
+        assert report["teardown_forced"] is True
+        assert setup._active_mission_owner_token == replacement.ownership_token
+        assert setup.running_processes[replacement.process_key] is replacement
+        assert setup.drone_config.mission == Mission.HOLD.value
+        assert setup.drone_config.state == State.MISSION_READY.value
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["command", "owner", "hardware", "late", "incomplete", "malformed"])
+    async def test_untrusted_or_late_release_cannot_confirm_cleanup(self, case):
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        read_fd, write_fd = os.pipe()
+        os.set_blocking(read_fd, False)
+        record = RunningMissionProcess("swarm:old", "smart_swarm.py", Mock(),
+                                      command_id="old", control_release_read_fd=read_fd)
+        changes = {"command": {"command_id": "new"}, "owner": {"ownership_token": "new"},
+                   "hardware": {"hw_id": "2"}, "incomplete": {"producers_stopped": False}}
+        result = self._release(record, **changes.get(case, {}))
+        payload = b"not-json\n" if case == "malformed" else result.model_dump_json().encode() + b"\n"
+        os.write(write_fd, payload)
+        os.close(write_fd)
+        if case == "late":
+            record.control_release_deadline_monotonic = time.monotonic() - 1
+        setup._read_control_release(record)
+        assert not setup._control_release_confirmed(record)
+        assert record.control_release_read_fd is None
+
+    @pytest.mark.asyncio
+    async def test_owned_group_stop_failure_keeps_successor_fenced(self):
+        from src.drone_setup import DroneSetup, ProcessStopMode, RunningMissionProcess
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        process = Mock(pid=4321, returncode=None)
+        record = RunningMissionProcess("swarm:old", "smart_swarm.py", process,
+                                      command_id="old", process_group_owned=True)
+        setup.running_processes[record.process_key] = record
+        setup._active_mission_owner_token = record.ownership_token
+        with patch("src.drone_setup.os.killpg", side_effect=PermissionError("denied")):
+            summary = await setup.terminate_all_running_processes(
+                reset_state=False, mode=ProcessStopMode.EMERGENCY)
+        assert summary.unresolved == 1
+        assert setup.running_processes[record.process_key] is record
+        assert setup._active_mission_owner_token == record.ownership_token
+        process.kill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_zero_exit_without_release_does_not_confirm_swarm_cleanup(self):
+        from src.command_execution_contract import DroneExecutionOutcome
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+        setup = DroneSetup(Mock(trigger_sooner_seconds=4), create_mock_drone_config())
+        process = Mock(returncode=None)
+        process.wait = AsyncMock(return_value=0)
+        process.communicate = AsyncMock(return_value=(b"Hold accepted (not authoritative)\n", b""))
+        record = RunningMissionProcess("swarm:old", "smart_swarm.py", process,
+                                      command_id="old", mission_type=Mission.SMART_SWARM.value)
+        setup.running_processes[record.process_key] = record
+        summary = await setup.terminate_all_running_processes(reset_state=False)
+        assert summary.cleanup_unconfirmed == 1
+        assert record.control_release_unconfirmed
+        process.returncode = 0
+        setup._report_execution_to_gcs = AsyncMock()
+        await setup._monitor_script_process(record)
+        assert setup._report_execution_to_gcs.await_args.kwargs["outcome"] == DroneExecutionOutcome.FAILED

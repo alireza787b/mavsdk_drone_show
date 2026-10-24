@@ -48,7 +48,6 @@ from src.led_controller import LEDController
 from src.params import Params
 from src.gcs_auth_client import gcs_auth_headers
 from src.action_safety import (
-    AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
     observe_authoritative_vehicle_state,
 )
 from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment, clear_runtime_swarm_assignment
@@ -72,6 +71,7 @@ from smart_swarm_src.runtime_shutdown import (
     VehicleHandoffResult,
     install_shutdown_signal_handlers,
 )
+from src.control_release_protocol import emit_control_release
 from smart_swarm_src.velocity_command_shaper import (
     NedVelocityCommandShaper,
     VelocityCommandShapeError,
@@ -1859,13 +1859,15 @@ async def execute_failsafe(
             # leader waiting for a missing follower must not interrupt its RC
             # or QGC mission just because the startup barrier failed.
             logger.info("Preserving PX4 control during %s (%s).", reason, CONTROL_AUTHORITY.mode)
-            return VehicleHandoffResult(False, False, control_preserved=True)
+            return VehicleHandoffResult(False, False, control_preserved=True,
+                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
         if not CONTROL_AUTHORITY.owns_fresh_offboard():
             # Do not infer authority from an old mode sample. Stopping the
             # producer/server leaves PX4's configured Offboard-loss action in
             # charge; if the mode is unknown, report an unconfirmed handoff.
             preserved = CONTROL_AUTHORITY.has_fresh_mode() and CONTROL_AUTHORITY.mode != "OFFBOARD"
-            return VehicleHandoffResult(False, False, control_preserved=preserved)
+            return VehicleHandoffResult(False, False, control_preserved=preserved,
+                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
         CONTROL_AUTHORITY.expect("HOLD")
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
@@ -1896,7 +1898,8 @@ async def execute_failsafe(
 
     try:
         if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-            return VehicleHandoffResult(offboard_stop_completed, False, control_preserved=True)
+            return VehicleHandoffResult(offboard_stop_completed, False, control_preserved=True,
+                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
         await await_operation(drone.action.hold())
         hold_requested = True
         logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
@@ -1913,6 +1916,9 @@ async def execute_failsafe(
     return VehicleHandoffResult(
         offboard_stop_completed=offboard_stop_completed,
         hold_requested=hold_requested,
+        observed_mode=(CONTROL_AUTHORITY.mode
+                       if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.has_fresh_mode()
+                       else None),
     )
 
 # ----------------------------- #
@@ -1925,7 +1931,7 @@ async def require_authoritative_airborne_state(drone: System):
         admission_state = await observe_authoritative_vehicle_state(drone)
     except Exception as exc:
         raise RuntimeError(
-            "Smart Swarm was blocked because fresh armed, landed, and relative-altitude "
+            "Smart Swarm was blocked because fresh armed and landed-state "
             "telemetry could not be sampled immediately before runtime start."
         ) from exc
     if admission_state.airborne:
@@ -1934,7 +1940,7 @@ async def require_authoritative_airborne_state(drone: System):
     evidence = admission_state.as_dict()
     raise RuntimeError(
         "Smart Swarm requires fresh authoritative telemetry showing an armed IN_AIR "
-        f"vehicle at least {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f}m above home; "
+        "vehicle; "
         f"observed armed={evidence.get('armed')}, "
         f"landed_state={evidence.get('landed_state')}, "
         f"relative_altitude_m={evidence.get('relative_altitude_m')}."
@@ -2239,7 +2245,12 @@ async def run_smart_swarm_process(logger) -> bool:
         cancel_follower_tasks=cancel_follower_tasks,
         vehicle_handoff=execute_failsafe,
         stop_mavsdk_server=stop_mavsdk_server,
-        manager_grace_sec=Params.MISSION_PROCESS_STOP_GRACE_SEC,
+        # Release control inside the existing recovery deadline even when a
+        # normal stop allows longer helper/network/interpreter teardown.
+        manager_grace_sec=min(Params.MISSION_PROCESS_STOP_GRACE_SEC,
+                              Params.RECOVERY_PROCESS_STOP_GRACE_SEC),
+        report_control_release=lambda **facts: emit_control_release(
+            hw_id=str(HW_ID), **facts),
     )
     loop = asyncio.get_running_loop()
     process_task = asyncio.current_task()

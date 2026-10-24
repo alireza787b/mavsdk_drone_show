@@ -1,6 +1,7 @@
 """Cross-thread cancellation must stay on the subprocess owner's asyncio loop."""
 
 import asyncio
+import os
 from concurrent.futures import Future
 from threading import Thread
 from types import SimpleNamespace
@@ -9,16 +10,18 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from src.drone_setup import DroneSetup, RunningMissionProcess
+from src.control_release_protocol import ControlReleaseResult
 from src.enums import Mission, State
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "exit_code, expected_success, cancel_request",
-    [(0, True, False), (2, False, False), (0, True, True)],
+    "exit_code, expected_success, cancel_request, release_provided",
+    [(0, True, False, True), (2, False, False, False),
+     (0, True, True, True), (0, False, False, False)],
 )
 async def test_cancel_from_api_loop_waits_on_scheduler_loop(
-    exit_code, expected_success, cancel_request
+    exit_code, expected_success, cancel_request, release_provided
 ):
     config = SimpleNamespace(
         mission=Mission.SMART_SWARM.value,
@@ -39,8 +42,24 @@ async def test_cancel_from_api_loop_waits_on_scheduler_loop(
             loop = asyncio.get_running_loop()
             process_exited = loop.create_future()
             process = Mock(pid=None, returncode=None)
+            release_read_fd, release_write_fd = os.pipe()
+            os.set_blocking(release_read_fd, False)
 
             def finish_process():
+                nonlocal release_write_fd
+                # A zero process exit alone no longer proves that Swarm
+                # released control. Model the child's distinct inherited-FD
+                # acknowledgement on successful cooperative shutdown.
+                if release_provided:
+                    proof = ControlReleaseResult(
+                        command_id=record.command_id, ownership_token=record.ownership_token,
+                        hw_id=config.hw_id, producers_stopped=True,
+                        offboard_stop_completed=True, hold_accepted=True,
+                        observed_mode=None, external_control_preserved=False,
+                    )
+                    os.write(release_write_fd, proof.model_dump_json().encode() + b"\n")
+                os.close(release_write_fd)
+                release_write_fd = None
                 process.returncode = exit_code
                 process_exited.set_result(exit_code)
 
@@ -64,12 +83,19 @@ async def test_cancel_from_api_loop_waits_on_scheduler_loop(
                 process=process,
                 command_id="old-command",
                 mission_type=Mission.SMART_SWARM.value,
+                control_release_read_fd=release_read_fd,
             )
+            loop.add_reader(release_read_fd, setup._read_control_release, record)
             setup.running_processes[record.process_key] = record
             setup._active_mission_owner_token = record.ownership_token
             release = asyncio.Event()
             ready.set_result((loop, release, finish_process))
-            await release.wait()
+            try:
+                await release.wait()
+            finally:
+                setup._close_control_release_reader(record)
+                if release_write_fd is not None:
+                    os.close(release_write_fd)
 
         try:
             asyncio.run(own_process())

@@ -239,6 +239,7 @@ class LaunchPreparationConsumeResult:
     status: LaunchPreparationConsumeStatus
     detail: str
     readiness_valid_until_monotonic: float | None = None
+    epoch: int | None = None
 
     @property
     def consumed(self) -> bool:
@@ -251,6 +252,7 @@ class _StoredPreparation:
     expires_at_monotonic: float
     latest_post_barrier_trigger_time: float
     readiness_valid_until_monotonic: float | None
+    epoch: int
 
 
 def calculate_launch_preparation_token_ttl_sec(*, params: Any) -> float:
@@ -329,6 +331,19 @@ class LaunchPreparationStore:
         self._lock = threading.Lock()
         self._active: OrderedDict[str, _StoredPreparation] = OrderedDict()
         self._consumed: OrderedDict[str, float] = OrderedDict()
+        self._epoch = 0
+
+    @property
+    def epoch(self) -> int:
+        with self._lock:
+            return self._epoch
+
+    def invalidate(self) -> int:
+        """Fence pending and consumed-but-not-installed launches after recovery."""
+        with self._lock:
+            self._epoch += 1
+            self._active.clear()
+            return self._epoch
 
     @staticmethod
     def _token_digest(token: str) -> str:
@@ -352,6 +367,7 @@ class LaunchPreparationStore:
         binding: LaunchPreparationBinding,
         *,
         readiness_valid_until_monotonic: float | None = None,
+        expected_epoch: int | None = None,
     ) -> tuple[str, int]:
         now = float(self._monotonic())
         wall_now = float(self._wall_clock())
@@ -370,6 +386,8 @@ class LaunchPreparationStore:
                 expires_at,
             )
         with self._lock:
+            if expected_epoch is not None and expected_epoch != self._epoch:
+                raise RuntimeError("launch preparation was invalidated by recovery; prepare again")
             self._prune_locked(now)
             if len(self._active) >= self._max_records:
                 raise RuntimeError("launch preparation token store is at capacity")
@@ -387,6 +405,7 @@ class LaunchPreparationStore:
                 # preparation authority.
                 latest_post_barrier_trigger_time=wall_now + self._ttl_sec,
                 readiness_valid_until_monotonic=readiness_valid_until_monotonic,
+                epoch=self._epoch,
             )
         return token, max(1, int(self._ttl_sec * 1_000))
 
@@ -490,6 +509,7 @@ class LaunchPreparationStore:
             LaunchPreparationConsumeStatus.CONSUMED,
             "Launch preparation token consumed",
             readiness_valid_until_monotonic=record.readiness_valid_until_monotonic,
+            epoch=record.epoch,
         )
 
 

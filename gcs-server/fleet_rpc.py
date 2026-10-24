@@ -260,8 +260,10 @@ class FleetRPCService:
         slots = self._recovery_slots if recovery else self._routine_slots
         worker_limit = self._recovery_limit if recovery else self._routine_limit
         deadline = time.monotonic() + max(0.0, float(deadline_sec))
+        budget_expired = False
 
         async def worker() -> None:
+            nonlocal budget_expired
             while True:
                 try:
                     drone = queue.get_nowait()
@@ -273,7 +275,7 @@ class FleetRPCService:
                 operation_started = False
                 try:
                     remaining = deadline - time.monotonic()
-                    if remaining <= 0:
+                    if budget_expired or remaining <= 0:
                         results[drone_id] = deadline_result(drone)
                         continue
 
@@ -284,7 +286,7 @@ class FleetRPCService:
                     await asyncio.wait_for(slots.acquire(), timeout=remaining)
                     slot_acquired = True
                     remaining = deadline - time.monotonic()
-                    if remaining <= 0:
+                    if budget_expired or remaining <= 0:
                         results[drone_id] = deadline_result(drone)
                         continue
 
@@ -294,6 +296,10 @@ class FleetRPCService:
                         timeout=remaining,
                     )
                 except asyncio.TimeoutError:
+                    # Event-loop timers may round slightly before the sampled
+                    # monotonic deadline. Once the bounded operation timed out,
+                    # do not dispatch another queued target in that tiny gap.
+                    budget_expired = True
                     # Once an operation coroutine has started, a POST may
                     # already have crossed the transport boundary. Callers can
                     # therefore distinguish it from work that never left the
@@ -481,6 +487,23 @@ class FleetRPCService:
                         "prepare_state": "blocked",
                         "error_code": envelope.error_code or CommandErrorCode.PREFLIGHT_FAILED.value,
                         "error_detail": envelope.error_detail,
+                        "drone_ip": drone.get("ip"),
+                    }
+
+                if mission == Mission.TAKE_OFF and (
+                    envelope.observation is None
+                    or envelope.observation.mission_type != Mission.TAKE_OFF.value
+                    or envelope.observation.admission is None
+                    or not envelope.observation.admission.ready
+                ):
+                    return {
+                        "drone_id": drone_id, "success": False, "ready": False,
+                        "summary": "Takeoff ground-state readiness was not confirmed",
+                        "details": {"observation": envelope.observation.model_dump(mode="json")
+                                    if envelope.observation is not None else None},
+                        "category": "blocked", "prepare_state": "unavailable",
+                        "error_code": CommandErrorCode.PREFLIGHT_FAILED.value,
+                        "error_detail": "A current action-specific Takeoff decision is required; verify node software and readiness",
                         "drone_ip": drone.get("ip"),
                     }
 

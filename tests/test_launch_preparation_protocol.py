@@ -59,6 +59,24 @@ def test_token_carries_only_the_explicit_short_readiness_lease():
     assert consumed.readiness_valid_until_monotonic == 102.0
 
 
+def test_recovery_epoch_fences_delayed_issue_and_already_consumed_authority():
+    store = LaunchPreparationStore(ttl_sec=60)
+    command = _launch_command()
+    binding = LaunchPreparationBinding.from_command(command)
+    before = store.epoch
+    consumed_token, _ = store.issue(binding, expected_epoch=before)
+    pending_token, _ = store.issue(binding, expected_epoch=before)
+    consumed = store.consume(consumed_token, command)
+    assert consumed.consumed and consumed.epoch == before
+    assert store.invalidate() == before + 1
+    assert consumed.epoch != store.epoch
+    assert not store.consume(pending_token, command).consumed
+    with pytest.raises(RuntimeError, match="invalidated by recovery"):
+        store.issue(binding, expected_epoch=before)
+    renewed, _ = store.issue(binding, expected_epoch=store.epoch)
+    assert store.consume(renewed, command).epoch == store.epoch
+
+
 @pytest.mark.parametrize("deadline", [100.0, float("nan"), "102"])
 def test_token_refuses_invalid_readiness_lease(deadline):
     clock = _Clock()

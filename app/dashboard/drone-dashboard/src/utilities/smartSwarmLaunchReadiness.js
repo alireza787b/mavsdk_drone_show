@@ -2,11 +2,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneDisplayIdentity } from './dronePresentation';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
 import { toFiniteTelemetryNumber } from './telemetryAltitude';
-
-// Keep the UI preview aligned with AIRBORNE_MIN_RELATIVE_ALTITUDE_M in
-// src/action_safety.py. The node repeats this check from authoritative MAVSDK
-// streams immediately before Smart Swarm begins.
-export const SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M = 0.5;
+import { px4LandedState } from './px4LandedState';
 
 function normalizeId(value) {
   return String(value ?? '').trim();
@@ -56,7 +52,6 @@ export function buildSmartSwarmLaunchReadiness({
   selectedDrones = [],
   targetDroneIds = [],
   referenceNowMs = Date.now(),
-  minAirborneAltitudeM = SMART_SWARM_MIN_AIRBORNE_ALTITUDE_M,
 } = {}) {
   const { targetDrones, missingTargetIds } = buildScopedTargets({
     drones,
@@ -81,8 +76,9 @@ export function buildSmartSwarmLaunchReadiness({
   targetDrones.forEach((drone) => {
     const runtimeStatus = getDroneRuntimeStatus(drone, referenceNowMs);
     const altitudeM = resolveHomeRelativeAltitude(drone);
-    const isArmed = Boolean(drone?.[FIELD_NAMES.IS_ARMED]);
-    const isAirborne = isArmed && altitudeM !== null && altitudeM >= minAirborneAltitudeM;
+    const isArmed = drone?.[FIELD_NAMES.IS_ARMED] === true;
+    const landed = px4LandedState(drone?.landed_state);
+    const isAirborne = isArmed && landed === 'IN_AIR';
 
     if (runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown') {
       const identity = getDroneDisplayIdentity(drone);
@@ -96,6 +92,13 @@ export function buildSmartSwarmLaunchReadiness({
 
     if (isAirborne) {
       airborneCount += 1;
+      return;
+    }
+
+    if (drone?.[FIELD_NAMES.IS_ARMED] !== false && landed !== 'ON_GROUND') {
+      const identity = getDroneDisplayIdentity(drone);
+      unavailableDrones.push({ hwId: normalizeId(drone?.[FIELD_NAMES.HW_ID]),
+        label: identity.primary, runtimeLabel: landed === 'UNDEFINED' ? 'Checking aircraft state' : 'Finishing takeoff or landing' });
       return;
     }
 
@@ -116,6 +119,5 @@ export function buildSmartSwarmLaunchReadiness({
     groundedIds: groundedDrones.map((drone) => drone.hwId),
     unavailableDrones,
     unavailableIds: unavailableDrones.map((drone) => drone.hwId),
-    minAirborneAltitudeM,
   };
 }

@@ -14,7 +14,10 @@ from src.action_safety import (
     SafetySnapshot,
     SafetyStreamSpec,
     observe_safety_snapshot,
+    takeoff_admission,
+    vehicle_state_stream_specs,
 )
+from src.enums import Mission
 from src.params import Params
 
 
@@ -65,6 +68,9 @@ class LaunchReadinessError(TimeoutError):
             self.code = "BATTERY_RESERVE_LOW"
         else:
             self.code = "PX4_HEALTH_NOT_READY"
+        admission = self.observation.get("admission")
+        if admission is not None and not admission.get("ready"):
+            self.code = "TAKEOFF_REQUIRES_SAFE_GROUND_STATE"
 
         summary = str(result.get("summary") or "launch readiness unavailable")
         if self.code == "PX4_HEALTH_NOT_READY" and self.timed_out:
@@ -184,6 +190,7 @@ def _readiness_from_snapshot(
     minimum_battery_percent: float,
     timed_out: bool,
     elapsed_sec: float,
+    mission_type: int | None = None,
 ) -> dict:
     """Build the existing live-armability envelope from the safety SSOT."""
 
@@ -233,7 +240,11 @@ def _readiness_from_snapshot(
     blockers.extend(battery["blockers"])
     blockers = list(dict.fromkeys(blockers))
 
-    combined_ready = bool(snapshot.complete and health_ready and battery["ready"])
+    admission = takeoff_admission(snapshot) if mission_type == Mission.TAKE_OFF.value else None
+    if admission is not None and not admission["ready"]:
+        blockers.extend(name for name, passed in admission["checks"].items() if not passed)
+    combined_ready = bool(snapshot.complete and health_ready and battery["ready"]
+                          and (admission is None or admission["ready"]))
     if combined_ready:
         voltage_label = (
             f", {battery['voltage_v']:.2f} V"
@@ -250,10 +261,10 @@ def _readiness_from_snapshot(
 
     validity_candidates = [
         int(field.received_at_ms or 0) + SAFETY_EVIDENCE_VALIDITY_MS
-        for field in (snapshot.connection, health_evidence, battery_evidence)
+        for field in (snapshot.connection, *snapshot.fields.values())
         if field is not None and field.usable and field.received_at_ms
     ]
-    valid_until_ms = min(validity_candidates) if len(validity_candidates) == 3 else 0
+    valid_until_ms = min(validity_candidates) if snapshot.complete and validity_candidates else 0
     checks = {
         "connection_live": snapshot.connection_live is True,
         "connection_fresh": snapshot.connection.usable,
@@ -284,6 +295,8 @@ def _readiness_from_snapshot(
         "blockers": blockers,
         "checks": checks,
         "battery": dict(battery),
+        "mission_type": mission_type,
+        "admission": admission,
         "safety_snapshot": snapshot.as_dict(),
     }
     return {
@@ -382,6 +395,7 @@ async def probe_offboard_armability(
     require_global_position: bool,
     timeout: float | None = None,
     logger: logging.Logger | None = None,
+    mission_type: int | None = None,
 ):
     """
     Sample connection-bound MAVSDK health and battery evidence until launch
@@ -391,6 +405,8 @@ async def probe_offboard_armability(
     share the same armability definition.
     """
     logger = logger or logging.getLogger(__name__)
+    if mission_type == Mission.TAKE_OFF.value:
+        require_global_position = True
     wait_timeout = float(timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0))
     sample_timeout = float(getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5))
     stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
@@ -410,6 +426,9 @@ async def probe_offboard_armability(
             stream_factory=drone.telemetry.battery,
         ),
     }
+    if mission_type == Mission.TAKE_OFF.value:
+        native_fields = vehicle_state_stream_specs(drone)
+        field_specs.update({name: native_fields[name] for name in ("armed", "landed_state")})
 
     while True:
         remaining = deadline - time.monotonic()
@@ -440,6 +459,7 @@ async def probe_offboard_armability(
                 minimum_battery_percent=minimum_battery_percent,
                 timed_out=True,
                 elapsed_sec=wait_timeout,
+                mission_type=mission_type,
             )
 
         snapshot = await observe_safety_snapshot(
@@ -453,6 +473,7 @@ async def probe_offboard_armability(
             require_global_position=require_global_position,
             minimum_battery_percent=minimum_battery_percent,
             timed_out=False,
+            mission_type=mission_type,
             elapsed_sec=elapsed_sec,
         )
         last_result = result
@@ -503,6 +524,7 @@ async def wait_until_offboard_armable(
     require_global_position: bool,
     timeout: float | None = None,
     logger: logging.Logger | None = None,
+    mission_type: int | None = None,
 ):
     """
     Wait until MAVSDK reports the vehicle is actually armable for mission startup.
@@ -516,6 +538,7 @@ async def wait_until_offboard_armable(
         require_global_position=require_global_position,
         timeout=timeout,
         logger=logger,
+        mission_type=mission_type,
     )
     if not result["ready"]:
         raise LaunchReadinessError(result)
@@ -528,6 +551,7 @@ async def arm_with_preflight_gate(
     *,
     require_global_position: bool,
     logger: logging.Logger | None = None,
+    mission_type: int | None = None,
 ):
     """
     Wait for armability, then arm with bounded retries on transient denials.
@@ -547,6 +571,7 @@ async def arm_with_preflight_gate(
                 drone,
                 require_global_position=require_global_position,
                 logger=logger,
+                mission_type=mission_type,
             )
             observation = health_result.get("observation", {}) if isinstance(health_result, dict) else {}
             attempt_started_ms = _wall_clock_ms()

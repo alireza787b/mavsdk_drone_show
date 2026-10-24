@@ -63,18 +63,18 @@ from src.async_stream_utils import (
 from src.action_safety import (
     ACTION_SAFETY_CLEANUP_TIMEOUT_SEC,
     ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
-    AIRBORNE_MIN_RELATIVE_ALTITUDE_M,
-    GROUND_MAX_RELATIVE_ALTITUDE_M,
     ActionSafetyError,
     VehicleStateObservation,
     observe_authoritative_vehicle_state,
+    takeoff_admission,
 )
 from src.command_contract import GroundTestSafetyAcknowledgement
 from src.drone_config import ConfigLoader
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
 from src.led_controller import LEDController
-from src.mission_startup import arm_with_preflight_gate
+from src.mission_startup import LaunchReadinessError, arm_with_preflight_gate, probe_offboard_armability
+from src.enums import Mission
 from src.params import Params
 
 # Unified logging system
@@ -248,11 +248,15 @@ def _record_action_exception(action_name: str, exc: BaseException) -> None:
 def _build_terminal_result(action_name: str | None) -> TerminalActionResult:
     """Build the process' single authoritative terminal result."""
     if RETURN_CODE == 0:
+        hold_disarmed = action_name == "hold" and bool(
+            _LAST_FINAL_VEHICLE_STATE and _LAST_FINAL_VEHICLE_STATE.get("outcome") == "disarmed"
+        )
         return make_terminal_result(
             success=True,
-            code="ACTION_COMPLETED",
+            code="HOLD_DISARMED" if hold_disarmed else "ACTION_COMPLETED",
             phase="completed",
-            operator_message=f"Action '{action_name or 'unknown'}' completed successfully.",
+            operator_message=("Disarmed; Hold was not required. Ground state was not inferred."
+                              if hold_disarmed else f"Action '{action_name or 'unknown'}' completed successfully."),
             retryable=False,
             evidence={"action": action_name or "unknown"},
             final_vehicle_state=_LAST_FINAL_VEHICLE_STATE,
@@ -1194,7 +1198,7 @@ async def wait_until_relative_altitude(drone, minimum_relative_altitude_m: float
 
 async def wait_for_authoritative_airborne_state(
     drone,
-    minimum_relative_altitude_m: float,
+    minimum_absolute_altitude_m: float,
     *,
     timeout: float | None = None,
 ):
@@ -1214,11 +1218,12 @@ async def wait_for_authoritative_airborne_state(
         last_observation = await observe_authoritative_vehicle_state(
             drone,
             timeout=min(ACTION_STATE_OBSERVATION_TIMEOUT_SEC, remaining),
+            required_fields=("armed", "landed_state", "absolute_altitude_m"),
         )
         if (
             last_observation.airborne
-            and last_observation.relative_altitude_m is not None
-            and last_observation.relative_altitude_m >= minimum_relative_altitude_m
+            and last_observation.field_value("absolute_altitude_m") is not None
+            and last_observation.field_value("absolute_altitude_m") >= minimum_absolute_altitude_m
         ):
             logger.info("coherent authoritative airborne state confirmed.")
             return last_observation
@@ -1378,61 +1383,15 @@ async def ensure_ready_for_flight(drone, timeout: float | None = None):
     Before takeoff, ensure the drone is healthy, global position is good,
     and home position is set.
     """
-    preflight_timeout = float(timeout or getattr(Params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30))
-    logger.info("Checking preflight conditions...")
-    start = time.monotonic()
-    deadline = monotonic_deadline(preflight_timeout)
-    gps_ok = False
-    home_ok = False
-    last_reported_state = None
-    try:
-        async with managed_async_stream(drone.telemetry.health) as stream:
-            while True:
-                health = await next_stream_sample(
-                    stream,
-                    deadline=deadline,
-                    description="takeoff preflight health",
-                )
-                if health.is_global_position_ok:
-                    gps_ok = True
-                if health.is_home_position_ok:
-                    home_ok = True
-
-                local_state = await asyncio.to_thread(
-                    _get_local_drone_state_snapshot,
-                    timeout=min(1.0, max(0.1, deadline - time.monotonic())),
-                )
-                local_home_ok = bool(local_state and local_state.get("home_position_set"))
-                if local_home_ok:
-                    home_ok = True
-
-                home_source = (
-                    "mavsdk"
-                    if health.is_home_position_ok
-                    else ("drone_api" if local_home_ok else "pending")
-                )
-                current_state = (gps_ok, home_ok, home_source)
-                if current_state != last_reported_state:
-                    logger.info(
-                        "Preflight health update: gps_ok=%s, home_ok=%s, home_source=%s, elapsed=%.1fs/%.1fs",
-                        gps_ok,
-                        home_ok,
-                        home_source,
-                        time.monotonic() - start,
-                        preflight_timeout,
-                    )
-                    last_reported_state = current_state
-                if gps_ok and home_ok:
-                    logger.info("Preflight checks passed: GPS and Home position are good.")
-                    return True
-    except TimeoutError:
-        logger.error(
-            "Preflight checks timed out. GPS or Home not ready (gps_ok=%s, home_ok=%s, timeout=%.1fs).",
-            gps_ok,
-            home_ok,
-            preflight_timeout,
-        )
-        return False
+    result = await probe_offboard_armability(
+        drone, require_global_position=True, mission_type=Mission.TAKE_OFF.value,
+        timeout=float(timeout or getattr(Params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30)),
+        logger=logger,
+    )
+    if not result["ready"]:
+        logger.warning("Takeoff readiness blocked: %s", result["summary"])
+        raise LaunchReadinessError(result)
+    return result["ready"]
 
 async def takeoff(drone, altitude):
     """
@@ -1482,7 +1441,7 @@ async def takeoff(drone, altitude):
                 code="TAKEOFF_START_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Takeoff was blocked because fresh armed, landed, and relative-altitude "
+                    "Takeoff was blocked because fresh armed and landed "
                     "state could not be sampled immediately before arming."
                 ),
                 retryable=True,
@@ -1493,32 +1452,32 @@ async def takeoff(drone, altitude):
                 code="TAKEOFF_START_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Takeoff was blocked because fresh armed, landed, and relative-altitude "
+                    "Takeoff was blocked because fresh armed and landed "
                     "state was incomplete immediately before arming."
                 ),
                 retryable=True,
                 evidence={"observation": start_state.as_dict()},
                 final_vehicle_state=start_state.as_dict(),
             )
-        if not start_state.safe_ground_disarmed:
+        if not takeoff_admission(start_state)["ready"]:
             raise ActionSafetyError(
                 code="TAKEOFF_REQUIRES_SAFE_GROUND_STATE",
                 phase="precondition",
                 message=(
-                    "Takeoff requires a freshly confirmed on-ground, disarmed vehicle near "
-                    f"zero relative altitude (within {GROUND_MAX_RELATIVE_ALTITUDE_M:.1f} m)."
+                    "Takeoff requires a freshly confirmed connected, on-ground, disarmed vehicle."
                 ),
                 evidence={"observation": start_state.as_dict()},
                 final_vehicle_state=start_state.as_dict(),
             )
 
-        # Keep standalone takeoff on the same bounded armability posture as
-        # synchronized launchers without changing its separate GPS/home preflight.
+        # Every actual arm attempt repeats native health/battery and ground
+        # admission together, including retries after a transient denial.
         arm_phase_started = True
         await arm_with_preflight_gate(
             drone,
-            require_global_position=False,
+            require_global_position=True,
             logger=logger,
+            mission_type=Mission.TAKE_OFF.value,
         )
         await wait_until_armed_state(
             drone,
@@ -1527,6 +1486,16 @@ async def takeoff(drone, altitude):
         )
         _safe_led_call(led_controller, "set_color", 255, 255, 255)
         await asyncio.sleep(0.5)
+        baseline = await observe_authoritative_vehicle_state(
+            drone, required_fields=("armed", "landed_state", "absolute_altitude_m"),
+        )
+        if not baseline.complete or baseline.armed is not True or baseline.landed_state != "ON_GROUND":
+            raise ActionSafetyError(
+                code="TAKEOFF_BASELINE_UNAVAILABLE", phase="precondition",
+                message="Takeoff blocked: fresh armed ground state and absolute-altitude baseline unavailable.",
+                evidence={"observation": baseline.as_dict()},
+            )
+        baseline_altitude = baseline.field_value("absolute_altitude_m")
         takeoff_command_may_have_started = True
         await drone.action.takeoff()
         await wait_until_landed_state(
@@ -1536,42 +1505,21 @@ async def takeoff(drone, altitude):
             timeout=Params.TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC,
         )
         minimum_altitude = _takeoff_confirmation_altitude_m(target_altitude)
-        altitude_sample = await wait_until_relative_altitude(
-            drone,
-            minimum_altitude,
-            timeout=Params.TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC,
-        )
-        confirmed_altitude = _relative_altitude_value(altitude_sample)
-        if confirmed_altitude is None or confirmed_altitude < minimum_altitude:
-            raise ActionSafetyError(
-                code="TAKEOFF_ALTITUDE_UNCONFIRMED",
-                phase="state_verification",
-                message=(
-                    "Takeoff started, but the required relative-altitude threshold was not "
-                    "confirmed from telemetry. LAND recovery was initiated."
-                ),
-                retryable=False,
-                evidence={
-                    "target_altitude_m": target_altitude,
-                    "minimum_confirmed_altitude_m": minimum_altitude,
-                    "observed_relative_altitude_m": confirmed_altitude,
-                },
-            )
-
         # The attainable altitude threshold proves climb progress, not a
         # terminal Take Off. PX4 may still report TAKING_OFF while settling at
         # the requested altitude. Keep the command active until one coherent,
         # connection-bound snapshot proves the coherent airborne state.
         completion_state = await wait_for_authoritative_airborne_state(
             drone,
-            minimum_altitude,
+            baseline_altitude + minimum_altitude,
+            timeout=Params.TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC + Params.TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC,
         )
         if (
             completion_state is None
             or not completion_state.complete
             or not completion_state.airborne
-            or completion_state.relative_altitude_m is None
-            or completion_state.relative_altitude_m < minimum_altitude
+            or completion_state.field_value("absolute_altitude_m") is None
+            or completion_state.field_value("absolute_altitude_m") - baseline_altitude < minimum_altitude
         ):
             logger.warning(
                 "Takeoff final-state verification failed after the climb threshold: %s",
@@ -1586,8 +1534,8 @@ async def takeoff(drone, altitude):
                 code="TAKEOFF_FINAL_STATE_UNAVAILABLE",
                 phase="state_verification",
                 message=(
-                    "Takeoff reached the altitude threshold, but a connected, fresh and "
-                    "internally consistent final airborne snapshot was not confirmed. "
+                    "Takeoff climb from the pre-command absolute-altitude baseline and a "
+                    "fresh, connected final airborne state were not confirmed. "
                     "LAND recovery was initiated."
                 ),
                 evidence={"observation": completion_evidence},
@@ -1602,6 +1550,8 @@ async def takeoff(drone, altitude):
             {
                 "target_altitude_m": target_altitude,
                 "minimum_confirmed_altitude_m": minimum_altitude,
+                "baseline_absolute_altitude_m": baseline_altitude,
+                "observed_climb_m": completion_state.field_value("absolute_altitude_m") - baseline_altitude,
                 "recovery_action": None,
                 "recovery_status": "not_required",
             }
@@ -1775,18 +1725,18 @@ async def kill_terminate(drone):
 
 async def hold(drone):
     """
-    Commands an authoritatively-confirmed clear-of-ground drone to hold position.
+    Request native Hold without arming; a disarmed aircraft is an idempotent no-op.
     """
     led_controller = None
     try:
         try:
-            admission_state = await observe_authoritative_vehicle_state(drone)
+            admission_state = await observe_authoritative_vehicle_state(drone, required_fields=("armed",))
         except Exception as exc:
             raise ActionSafetyError(
                 code="HOLD_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Hold was blocked because fresh armed, landed, and relative-altitude "
+                    "Hold was blocked because fresh connected armed-state "
                     "telemetry could not be sampled immediately before the mode change."
                 ),
                 retryable=True,
@@ -1797,38 +1747,51 @@ async def hold(drone):
                 code="HOLD_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Hold was blocked because fresh armed, landed, and relative-altitude "
+                    "Hold was blocked because fresh connected armed-state "
                     "telemetry was incomplete immediately before the mode change."
                 ),
                 retryable=True,
                 evidence={"observation": admission_state.as_dict()},
                 final_vehicle_state=admission_state.as_dict(),
             )
-        if not admission_state.airborne_for_recovery:
-            raise ActionSafetyError(
-                code="HOLD_REQUIRES_AIRBORNE_STATE",
-                phase="precondition",
-                message=(
-                    "Hold Position requires fresh telemetry showing an armed vehicle at "
-                    f"least {AIRBORNE_MIN_RELATIVE_ALTITUDE_M:.1f} m above its takeoff point "
-                    "and in TAKING_OFF, IN_AIR, or LANDING state. It never arms or launches "
-                    "a grounded drone."
-                ),
-                evidence={"observation": admission_state.as_dict()},
-                final_vehicle_state=admission_state.as_dict(),
-            )
+        if admission_state.armed is False:
+            final_state = admission_state.as_dict()
+            final_state["outcome"] = "disarmed"
+            _set_final_vehicle_state(final_state)
+            logger.info("Hold not needed: Disarmed (ground state not inferred).")
+            return
 
         await drone.action.hold()
         led_controller = _optional_led_controller()
         _safe_led_call(led_controller, "set_color", 0, 0, 255)
-        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
-        final_observation = await _best_effort_state_observation(drone)
+        deadline = monotonic_deadline(10)
+        final_observation = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ActionSafetyError(
+                    code="HOLD_MODE_UNCONFIRMED", phase="state_verification",
+                    message="PX4 Hold accepted but fresh connected HOLD mode was not confirmed.",
+                    retryable=True,
+                    evidence={"observation": final_observation.as_dict() if final_observation is not None else None},
+                    final_vehicle_state=final_observation.as_dict() if final_observation is not None else None,
+                )
+            final_observation = await observe_authoritative_vehicle_state(
+                drone, timeout=min(ACTION_STATE_OBSERVATION_TIMEOUT_SEC, remaining),
+                required_fields=("armed", "flight_mode"),
+            )
+            if final_observation.complete and (
+                final_observation.armed is False or final_observation.field_value("flight_mode") == "HOLD"
+            ):
+                break
+            await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
         final_state = _final_state_from_observation(
             final_observation or admission_state,
             recovery_action=None,
             recovery_status="not_required",
         )
-        final_state["flight_mode"] = "HOLD"
+        final_state["flight_mode"] = final_observation.field_value("flight_mode")
+        final_state["outcome"] = "disarmed" if final_observation.armed is False else "held"
         _set_final_vehicle_state(final_state)
         _safe_led_call(led_controller, "set_color", 0, 0, 255)
         await asyncio.sleep(1)
@@ -1898,8 +1861,8 @@ async def test(drone, *, request_payload=None):
                 code="GROUND_TEST_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Arm/Disarm Ground Test was blocked because fresh armed, landed, and "
-                    "relative-altitude telemetry could not be sampled."
+                    "Arm/Disarm Ground Test was blocked because fresh armed and native "
+                    "landed-state telemetry could not be sampled."
                 ),
                 retryable=True,
                 evidence={"observation_error": _exception_detail(exc)[0]},
@@ -1909,8 +1872,8 @@ async def test(drone, *, request_payload=None):
                 code="GROUND_TEST_STATE_UNAVAILABLE",
                 phase="precondition",
                 message=(
-                    "Arm/Disarm Ground Test was blocked because fresh armed, landed, and "
-                    "relative-altitude telemetry was incomplete."
+                    "Arm/Disarm Ground Test was blocked because fresh armed and native "
+                    "landed-state telemetry was incomplete."
                 ),
                 retryable=True,
                 evidence={"observation": start_state.as_dict()},
@@ -1922,8 +1885,8 @@ async def test(drone, *, request_payload=None):
                 phase="precondition",
                 message=(
                     "Arm/Disarm Ground Test requires a freshly confirmed on-ground, "
-                    f"disarmed vehicle within {GROUND_MAX_RELATIVE_ALTITUDE_M:.1f} m of "
-                    "zero relative altitude. It is not allowed on an airborne vehicle."
+                    "disarmed vehicle with native PX4 ON_GROUND detection. "
+                    "It is not allowed on an airborne vehicle."
                 ),
                 evidence={"observation": start_state.as_dict()},
                 final_vehicle_state=start_state.as_dict(),

@@ -562,6 +562,7 @@ function buildLifecycleSnapshot({
     acks,
     executions,
     targetIssues: targetIssueSummary.items,
+    executionDetails: status?.executions?.details || {},
     targetIssueCount: targetIssueSummary.total,
     targetIssuesOmitted: targetIssueSummary.omitted,
     errorSummary: normalizeBoundedText(status?.error_summary, MAX_ERROR_SUMMARY_LENGTH) || null,

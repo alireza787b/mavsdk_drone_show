@@ -156,7 +156,7 @@ test('disappeared explicit cluster does not silently become another cluster', as
 });
 test('takeoff in mixed state explicitly targets only the grounded drone', async () => {
   fetchGcsResource.mockResolvedValue({ data: { ...preview, clusters: [{ ...preview.clusters[0], members: [
-    preview.clusters[0].members[0], { ...preview.clusters[0].members[1], armed: true, relative_altitude_m: 5 },
+    preview.clusters[0].members[0], { ...preview.clusters[0].members[1], armed: true, landed_state: 2, relative_altitude_m: -5 },
   ] }] } });
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));
   expect(within(screen.getByRole('dialog')).getByText('Drone 1')).toBeInTheDocument();
@@ -172,13 +172,58 @@ test('single-drone recovery requires the explicit advanced selector', async () =
   expect(within(screen.getByRole('dialog')).getByText('Drone 2')).toBeInTheDocument();
 });
 
-test('partial engagement is never labelled full following and normal Stop remains cluster-scoped', async () => {
+test('partial engagement is never labelled full following and Hold remains cluster-scoped', async () => {
   mockMonitors.push({ missionType: 2, targetDrones: ['1'], isTerminal: false,
     updatedAtMs: Date.now(), swarmRuntime: { state: 'active', active_hw_ids: ['1'] } });
   await mounted();
   expect(screen.getByText('Partial · 1/2 engaged')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
   fireEvent.change(screen.getByRole('combobox', { name: 'Recovery targets' }), { target: { value: '2' } });
-  fireEvent.click(screen.getAllByRole('button', { name: 'Stop following' })[0]);
-  expect(within(screen.getByRole('dialog')).getByText('Drone 1 · Drone 2')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+    expect.objectContaining({ mission_type: 102, target_drone_ids: ['1', '2'] }), expect.anything()));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('Hold is available without a remembered swarm session and bypasses a pending Start receipt', async () => {
+  let finish;
+  submitCommandWithLifecycleFeedback.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  await mounted();
+  fireEvent.click(screen.getByRole('button', { name: 'Start Swarm' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Start Swarm' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Start Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2));
+  expect(submitCommandWithLifecycleFeedback.mock.calls[1][0]).toEqual(expect.objectContaining({ mission_type: 102, target_drone_ids: ['1','2'] }));
+  await act(async () => { finish({ command_id: 'late-start' }); });
+  expect(screen.queryByRole('button', { name: 'Check Start command' })).not.toBeInTheDocument();
+});
+
+test('Hold fences a delayed readiness reply before Start can be posted', async () => {
+  await mounted();
+  fireEvent.click(screen.getByRole('button', { name: 'Start Swarm' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Start Swarm' })).toBeEnabled());
+  let finishReview;
+  fetchGcsResource.mockImplementationOnce(() => new Promise((resolve) => { finishReview = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Start Swarm' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
+  await act(async () => { finishReview({ data: preview }); });
+  expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1);
+  expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].mission_type).toBe(102);
+});
+
+test('an uncertain Hold retry reuses identity and does not claim Held from the receipt', async () => {
+  await mounted();
+  submitCommandWithLifecycleFeedback.mockRejectedValueOnce({ request: {} });
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await screen.findByRole('alert');
+  const first = submitCommandWithLifecycleFeedback.mock.calls[0][0];
+  expect(screen.getAllByText('Hold unconfirmed')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2));
+  expect(submitCommandWithLifecycleFeedback.mock.calls[1][0]).toEqual(first);
 });

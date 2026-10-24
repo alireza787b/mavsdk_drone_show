@@ -136,6 +136,62 @@ async def test_wait_until_offboard_armable_returns_when_armable():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("armed,landed,ready", [(False, "ON_GROUND", True),
+    (True, "ON_GROUND", False), (False, "IN_AIR", False), (False, "UNKNOWN", False)])
+async def test_takeoff_probe_requires_native_ground_without_altitude_stream(armed, landed, ready):
+    from src.enums import Mission
+    drone = _connected_drone()
+    drone.telemetry.health = _health_stream([_health()])
+    drone.telemetry.battery = _battery_stream([_battery()])
+    drone.telemetry.armed = _health_stream([armed])
+    drone.telemetry.landed_state = _health_stream([SimpleNamespace(name=landed)])
+    result = await mission_startup.probe_offboard_armability(
+        drone, require_global_position=False, mission_type=Mission.TAKE_OFF.value, timeout=0.02,
+    )
+    assert result["ready"] is ready
+    assert result["observation"]["mission_type"] == Mission.TAKE_OFF.value
+    assert result["observation"]["admission"]["ready"] is ready
+    assert result["require_global_position"] is True
+    drone.telemetry.position.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_takeoff_probe_never_latches_separate_global_and_home_successes():
+    from src.enums import Mission
+    drone = _connected_drone()
+    samples = iter([_health(is_home_position_ok=False), _health(is_global_position_ok=False)])
+    drone.telemetry.health = lambda: _health_stream([next(samples, _health(is_global_position_ok=False))])()
+    drone.telemetry.battery = _battery_stream([_battery()])
+    drone.telemetry.armed = _health_stream([False])
+    drone.telemetry.landed_state = _health_stream([SimpleNamespace(name="ON_GROUND")])
+    result = await mission_startup.probe_offboard_armability(
+        drone, require_global_position=True, mission_type=Mission.TAKE_OFF.value, timeout=0.02,
+    )
+    assert result["ready"] is False
+
+
+@pytest.mark.asyncio
+async def test_takeoff_arm_retry_rechecks_native_ground(mocker, monkeypatch):
+    from src.enums import Mission
+    drone = _connected_drone()
+    drone.telemetry.health = _health_stream([_health()])
+    drone.telemetry.battery = _battery_stream([_battery()])
+    drone.telemetry.armed = _health_stream([False])
+    land_samples = iter(["ON_GROUND", "IN_AIR"])
+    drone.telemetry.landed_state = lambda: _health_stream([SimpleNamespace(name=next(land_samples, "IN_AIR"))])()
+    class Denied(Exception):
+        pass
+    mocker.patch.object(mission_startup, "ActionError", Denied)
+    drone.action.arm = AsyncMock(side_effect=Denied("denied"))
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 0.02)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 0)
+    mocker.patch("src.mission_startup._is_command_denied", return_value=True)
+    with pytest.raises(mission_startup.LaunchReadinessError):
+        await mission_startup.arm_with_preflight_gate(drone, require_global_position=True, mission_type=Mission.TAKE_OFF.value)
+    drone.action.arm.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_wait_until_offboard_armable_times_out_when_armability_never_clears(monkeypatch):
     async def _stuck_stream():
         while True:

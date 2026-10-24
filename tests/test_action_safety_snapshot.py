@@ -223,7 +223,8 @@ def test_recovery_airborne_state_does_not_weaken_strict_airborne_truth(landed_st
         (True, "LANDING", 0.5, True),
         (True, "ON_GROUND", 6.0, False),
         (False, "IN_AIR", 6.0, False),
-        (True, "IN_AIR", 0.49, False),
+        (True, "IN_AIR", 0.49, True),
+        (True, "IN_AIR", -10.0, True),
         (True, "UNKNOWN", 6.0, False),
     ],
 )
@@ -242,7 +243,7 @@ def test_recovery_airborne_gate_fails_closed(
     assert snapshot.airborne_for_recovery is expected
 
 
-def test_recovery_airborne_gate_rejects_incomplete_evidence():
+def test_recovery_airborne_gate_does_not_require_home_height():
     snapshot = SafetySnapshot.from_values(
         armed=True,
         landed_state="TAKING_OFF",
@@ -250,16 +251,16 @@ def test_recovery_airborne_gate_rejects_incomplete_evidence():
         errors={"relative_altitude_m": "timeout"},
     )
 
-    assert snapshot.complete is False
-    assert snapshot.airborne_for_recovery is False
+    assert snapshot.complete is True
+    assert snapshot.airborne_for_recovery is True
 
 
 @pytest.mark.parametrize(
     ("relative_altitude_m", "expected"),
-    [(-1.001, False), (-1.0, True), (-0.8, True), (0.0, True),
-     (0.8, True), (1.0, True), (1.001, False)],
+    [(-100.0, True), (-1.0, True), (-0.8, True), (0.0, True),
+     (0.8, True), (1.0, True), (100.0, True), (None, True)],
 )
-def test_ground_disarmed_gate_allows_one_metre_home_height_tolerance(
+def test_ground_disarmed_gate_is_independent_of_home_height(
     relative_altitude_m, expected,
 ):
     snapshot = SafetySnapshot.from_values(
@@ -277,8 +278,8 @@ def test_ground_disarmed_gate_allows_one_metre_home_height_tolerance(
         (True, "ON_GROUND", 0.8, None),
         (False, "IN_AIR", 0.8, None),
         (False, "UNKNOWN", 0.8, None),
-        (False, "ON_GROUND", None, {"relative_altitude_m": "timeout"}),
-        (False, "ON_GROUND", 0.8, {"relative_altitude_m": "stale"}),
+        (False, "ON_GROUND", None, {"armed": "timeout"}),
+        (False, "ON_GROUND", 0.8, {"landed_state": "stale"}),
     ],
 )
 def test_ground_height_tolerance_preserves_required_state_evidence(

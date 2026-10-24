@@ -42,7 +42,7 @@ class LocalMavlinkController:
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
             'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS', 'LOCAL_POSITION_NED',
-            'STATUSTEXT'
+            'STATUSTEXT', 'EXTENDED_SYS_STATE'
         ]
         
         self.local_mavlink_port = int(getattr(params, 'local_mavlink_port', 12550))
@@ -175,12 +175,30 @@ class LocalMavlinkController:
             self.process_sys_status(msg)
         elif msg_type == 'STATUSTEXT':
             self.process_status_text(msg)
+        elif msg_type == 'EXTENDED_SYS_STATE':
+            self.process_extended_sys_state(msg)
         else:
             self.log_debug(f"Received unhandled message type: {msg.get_type()}")
 
     @staticmethod
     def _now_ms() -> int:
         return int(time.time() * 1000)
+
+    def process_extended_sys_state(self, msg) -> None:
+        """Cache native land detection from the same autopilot as the heartbeat."""
+        heartbeat = self.latest_messages.get('HEARTBEAT')
+        if heartbeat is None:
+            return
+        for accessor_name in ('get_srcSystem', 'get_srcComponent'):
+            source = getattr(msg, accessor_name, None)
+            owner = getattr(heartbeat, accessor_name, None)
+            if callable(source) and callable(owner) and source() != owner():
+                return
+        state = self._optional_mavlink_int(getattr(msg, 'landed_state', None))
+        self.drone_config.landed_state = state if state in {0, 1, 2, 3, 4} else None
+        now_ms = self._now_ms()
+        self.drone_config.landed_state_timestamp_ms = now_ms
+        self._mark_telemetry_update(now_ms)
 
     def _mark_telemetry_update(self, now_ms: Optional[int] = None) -> None:
         timestamp_ms = int(now_ms if now_ms is not None else self._now_ms())

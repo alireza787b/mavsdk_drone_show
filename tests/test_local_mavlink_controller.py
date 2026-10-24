@@ -101,6 +101,22 @@ def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, 
     assert mock_drone_config.telemetry_sequence == 1
 
 
+def test_extended_sys_state_is_native_timestamped_and_source_bound(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    controller.latest_messages['HEARTBEAT'] = SimpleNamespace(get_srcSystem=lambda: 1, get_srcComponent=lambda: 1)
+    monkeypatch.setattr(controller, '_now_ms', lambda: 12345)
+    msg = SimpleNamespace(landed_state=2, get_type=lambda: 'EXTENDED_SYS_STATE',
+                          get_srcSystem=lambda: 1, get_srcComponent=lambda: 1)
+    controller.process_message(msg)
+    assert mock_drone_config.landed_state == 2
+    assert mock_drone_config.landed_state_timestamp_ms == 12345
+    msg.landed_state = 1
+    msg.get_srcComponent = lambda: 190
+    controller.process_message(msg)
+    assert mock_drone_config.landed_state == 2
+    assert mock_drone_config.landed_state_timestamp_ms == 12345
+
+
 def test_process_message_ignores_ground_station_heartbeat_without_refreshing_vehicle_state(
     mock_drone_config,
     monkeypatch,

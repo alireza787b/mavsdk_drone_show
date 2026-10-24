@@ -101,6 +101,8 @@ class DroneState:
         self.telemetry_timestamp_ms: int = 0
         self.telemetry_sequence: int = 0
         self.heartbeat_timestamp_ms: int = 0
+        self.landed_state: Optional[int] = None
+        self.landed_state_timestamp_ms: int = 0
         self.gps_raw_timestamp_ms: int = 0
         self.global_position_timestamp_ms: int = 0
         self.global_position_valid: bool = False

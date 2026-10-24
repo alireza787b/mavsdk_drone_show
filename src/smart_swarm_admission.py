@@ -59,7 +59,8 @@ def evaluate_smart_swarm_start_admission(drone_config, *, max_age_sec, now_ms=No
         return result('waiting', 'finishing_takeoff', 'Finishing takeoff')
     if (main == 4 and sub in {5, 6, 9, 20}) or main == 10:
         return result('blocked', 'recovery_active', f'PX4 {describe_px4_custom_mode(drone_config.custom_mode)} active')
-    remaining = max(0, int(float(max_age_sec) * 1000) - max(airborne.heartbeat_age_ms or 0, airborne.altitude_age_ms or 0))
+    remaining = max(0, int(float(max_age_sec) * 1000) - max(
+        airborne.heartbeat_age_ms or 0, airborne.altitude_age_ms or 0, airborne.landed_state_age_ms or 0))
     if not remaining:
         return result('unknown', 'evidence_expired', 'Checking aircraft')
     return result('ready', 'ready', 'Ready', error=None, valid=remaining)

@@ -46,6 +46,7 @@
 .swarm-ops__actions > button, .swarm-ops__actions > .swarm-sequential-return { flex: 1; }
 .swarm-ops .swarm-sequential-return__toolbar > button { width: 100%; }
 .swarm-ops__actions > .swarm-sequential-return { display: contents; }
+.swarm-ops .swarm-ops__hold { border-color: var(--color-warning); color: var(--color-warning); }
 .swarm-ops .swarm-sequential-return__toolbar { flex: 1; min-width: 0; }
 .swarm-ops .swarm-sequential-return__status { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); flex-basis: 100%; grid-column: 1 / -1; font-size: var(--font-size-sm); }
 .swarm-ops .swarm-sequential-return > p { flex-basis: 100%; grid-column: 1 / -1; }
@@ -60,6 +61,6 @@
   .swarm-ops__roster li { grid-template-columns: 1fr auto; }
   .swarm-ops__roster li > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .swarm-ops__roster li > :nth-child(3) { grid-column: 2; grid-row: 1; justify-self: end; }
-  .swarm-ops__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .swarm-ops__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .swarm-ops__actions button { padding: var(--spacing-xs); font-size: var(--font-size-sm); }
 }

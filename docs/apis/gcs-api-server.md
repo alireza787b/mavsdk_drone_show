@@ -33,6 +33,14 @@ The GCS (Ground Control Station) API Server provides comprehensive control and m
 
 ## API Evolution Note
 
+Execution callbacks and command status retain optional bounded `action_result`,
+`control_release` and `teardown_forced` evidence. Action results preserve the
+exact admission/recovery predicate and final observed state. Control release is
+bound to command, aircraft and process ownership; it proves released authority,
+not that a replacement Hold or RTL completed. Deploy the GCS before nodes using
+these callback fields; roll back both together rather than stripping evidence
+to accommodate an older server.
+
 As of the 2026-04-03 API modernization checkpoints, the GCS business API source of truth is the canonical `/api/v1/...` surface.
 
 The remaining versionless roots are intentional:

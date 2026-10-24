@@ -223,6 +223,8 @@ class DroneCommunicator:
             "stream_seq": safe_int(getattr(self.drone_config, "telemetry_sequence", 0)),
             "global_position_valid": global_position_valid,
             "global_position_timestamp_ms": global_position_timestamp_ms,
+            "landed_state": getattr(self.drone_config, "landed_state", None),
+            "landed_state_timestamp_ms": safe_int(getattr(self.drone_config, "landed_state_timestamp_ms", 0)),
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "source_frame": "local_ned" if safe_int(local_ned.get("time_boot_ms")) > 0 else "global_lla_ned",
             "source_time_boot_ms": safe_int(local_ned.get("time_boot_ms")),
@@ -868,6 +870,9 @@ class DroneCommunicator:
             "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
+            "landed_state": getattr(self.drone_config, "landed_state", None),
+            "landed_state_timestamp_ms": safe_int(getattr(self.drone_config, "landed_state_timestamp_ms", 0)),
+            "landed_state_age_ms": self._age_ms(now_ms, getattr(self.drone_config, "landed_state_timestamp_ms", 0)),
             "heartbeat_timestamp_ms": safe_int(
                 getattr(self.drone_config, "heartbeat_timestamp_ms", 0)
             ),

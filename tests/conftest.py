@@ -259,6 +259,8 @@ def mock_drone_config():
     config.telemetry_timestamp_ms = 1732270245000
     config.telemetry_sequence = 7
     config.heartbeat_timestamp_ms = 0
+    config.landed_state = None
+    config.landed_state_timestamp_ms = 0
     config.gps_raw_timestamp_ms = 1732270245000
     config.global_position_timestamp_ms = 1732270245000
     config.global_position_valid = True

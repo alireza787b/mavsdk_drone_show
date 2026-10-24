@@ -96,6 +96,21 @@ its configured PX4 return height and home position; the dialog does not invent
 or override those values. Globe remains the geographic view; the Swarm page
 uses a compact relationship/status diagram instead.
 
+### Hold Swarm
+
+**Hold Swarm** sends Hold to the entire displayed cluster, including its leader,
+in one press. It remains available while routine commands are waiting; no
+confirmation dialog or remembered Swarm session is required. Roles and offsets
+are preserved. Held aircraft do not resume following when the leader moves:
+review and confirm **Start Swarm** to rejoin.
+
+An accepted request is not a confirmed stop. Each aircraft reports **Held**,
+**Disarmed** (or **Grounded** when PX4 confirms landed state), or **Hold
+unconfirmed**. Disarmed Hold is a no-op: it does not arm or launch. A new recovery
+request fences older pending Takeoff/Start work and invalidates unused launch
+preparations, so a delayed reply cannot silently restart that work. This is a
+networked flight-mode request, not a replacement for the pilot's RC takeover.
+
 ### Design save workflow
 
 The `Swarm Design` page separates local assignment saves from fleet-wide Git
@@ -292,10 +307,12 @@ Important operator rule:
   armed/airborne evidence; MSL altitude is never treated as height above launch
 - runtime start performs the same final airborne admission again at command
   dispatch time
-- Take Off and the ground arm/disarm test allow a reported height within
-  ±1.0 m of home, while still requiring fresh, disarmed, `ON_GROUND` evidence.
-  This is a shared MDS ground-height tolerance, not a GNSS drift-rate or
-  position-uncertainty threshold; PX4 preflight checks remain authoritative.
+- Takeoff uses a coherent, fresh native disarmed/`ON_GROUND` observation plus
+  PX4 launch readiness. Home-relative height is diagnostic, not ground clearance
+  or an additional Takeoff gate. Swarm requires fresh armed/`IN_AIR` evidence,
+  not an arbitrary home-relative height floor. PX4 still owns EKF, heading,
+  navigation and arming checks. The props-off ground arm/disarm test retains
+  its separate ±1.0 m home-height guard.
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
 - normal Smart Swarm starts are cluster-first: the page opens the first executable
   saved cluster and shows the full leader/follower roster before confirmation;

@@ -76,9 +76,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.command_execution_contract import (
     DroneExecutionOutcome,
     is_legacy_superseded_execution_error,
+    mission_requires_launch_armability_probe,
     validate_execution_outcome,
 )
 from src.enums import CommandErrorCode, CommandOutcome, CommandPhase, CommandStatus, Mission
+from src.execution_evidence import normalize_execution_evidence
 from mds_logging import get_logger
 from command_journal import CommandJournal, CommandJournalError
 
@@ -161,6 +163,9 @@ class DroneExecution:
     script_output: Optional[str] = None
     duration_ms: Optional[int] = None
     timestamp: int = field(default_factory=lambda: int(time.time() * 1000))
+    action_result: Optional[Dict[str, Any]] = None
+    control_release: Optional[Dict[str, Any]] = None
+    teardown_forced: Optional[bool] = None
 
 
 @dataclass
@@ -1415,6 +1420,9 @@ class CommandTracker:
         exit_code: Optional[int],
         script_output: Optional[str],
         duration_ms: Optional[int],
+        action_result: Optional[Dict[str, Any]] = None,
+        control_release: Optional[Dict[str, Any]] = None,
+        teardown_forced: Optional[bool] = None,
     ) -> bool:
         """Persist post-terminal execution evidence without mutating lifecycle outcome."""
         if hw_id in command.executions or hw_id in command.late_executions:
@@ -1432,6 +1440,9 @@ class CommandTracker:
             script_output=script_output,
             duration_ms=duration_ms,
             timestamp=timestamp,
+            action_result=action_result,
+            control_release=control_release,
+            teardown_forced=teardown_forced,
         )
         command.updated_at = timestamp
         return True
@@ -1514,6 +1525,8 @@ class CommandTracker:
                 return {"engage": False, "abort": True, "reason": "No tracked swarm session"}
             if self._is_terminal(command):
                 return {"engage": False, "abort": True, "reason": "Session tracking ended"}
+            if command.params.get("_swarm_stop_requested") and report.phase == "ready":
+                return {"engage": False, "abort": True, "reason": "A newer recovery stopped this swarm start"}
             now = int(time.time() * 1000)
             reports = command.params.setdefault("_swarm_runtime", {})
             previous = reports.get(report.hw_id, {})
@@ -1672,6 +1685,9 @@ class CommandTracker:
         script_output: Optional[str] = None,
         duration_ms: Optional[int] = None,
         callback_capability: Optional[str] = None,
+        action_result=None,
+        control_release=None,
+        teardown_forced: Optional[bool] = None,
     ) -> bool:
         """
         Record drone execution result for a command.
@@ -1709,6 +1725,10 @@ class CommandTracker:
                 success=success,
                 outcome=outcome,
             )
+            evidence = normalize_execution_evidence(
+                command_id=command_id, hw_id=hw_id, action_result=action_result,
+                control_release=control_release, teardown_forced=teardown_forced,
+            )
 
             if (
                 command.completion_authority
@@ -1731,6 +1751,7 @@ class CommandTracker:
                         script_output=script_output,
                         duration_ms=duration_ms,
                         timestamp=timestamp,
+                        **evidence,
                     )
                 elif existing_report.success != success:
                     command.completion_discrepancies[hw_id] = (
@@ -1768,6 +1789,7 @@ class CommandTracker:
                     exit_code=exit_code,
                     script_output=script_output,
                     duration_ms=duration_ms,
+                    **evidence,
                 )
                 duplicate_execution = not recorded_late_execution
             else:
@@ -1813,7 +1835,8 @@ class CommandTracker:
                     exit_code=exit_code,
                     script_output=script_output,
                     duration_ms=duration_ms,
-                    timestamp=timestamp
+                    timestamp=timestamp,
+                    **evidence,
                 )
 
                 command.executions[hw_id] = execution
@@ -2016,6 +2039,45 @@ class CommandTracker:
             command.executions_expected,
         )
         return True
+
+    async def supersede_pending_flight_commands(self, recovery_command_id: str, target_hw_ids) -> int:
+        """Fence older launch/start intent; this does not claim aircraft Hold.
+
+        Active controllers still report their own handoff. Unstarted work may
+        not redispatch after recovery, and the existing swarm role barrier
+        rejects any delayed old start that already reached a node.
+        """
+        targets = {str(hw_id) for hw_id in target_hw_ids}
+        changed = 0
+        async with self._lock:
+            if recovery_command_id not in self._commands:
+                return 0
+            for command_id, command in self._commands.items():
+                if command_id == recovery_command_id:
+                    break
+                if self._is_terminal(command) or not targets.intersection(command.target_drones):
+                    continue
+                swarm = command.mission_type == Mission.SMART_SWARM.value
+                launch = mission_requires_launch_armability_probe(command.mission_type)
+                if not swarm and not launch:
+                    continue
+                if swarm:
+                    command.params["_swarm_stop_requested"] = True
+                pending = not command.execution_starts and not command.executions
+                if swarm:
+                    pending = not command.params.get("_swarm_engaged")
+                if pending:
+                    command.status = CommandStatus.CANCELLED
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.SUPERSEDED
+                    command.error_summary = "Stopped by a newer recovery command before engagement"
+                    command.completed_at = int(time.time() * 1000)
+                    self._stats['cancelled_commands'] += 1
+                command.updated_at = int(time.time() * 1000)
+                await self._persist_command_locked(command, event_type="recovery_intent_fenced",
+                    event_data={"recovery_command_id": recovery_command_id})
+                changed += 1
+        return changed
 
     async def cancel_command(self, command_id: str, reason: str = "User cancelled") -> bool:
         """Cancel a command"""
@@ -2623,7 +2685,10 @@ class CommandTracker:
                         'error': exe.error_message,
                         'exit_code': exe.exit_code,
                         'duration_ms': exe.duration_ms,
-                        'timestamp': exe.timestamp
+                        'timestamp': exe.timestamp,
+                        'action_result': exe.action_result,
+                        'control_release': exe.control_release,
+                        'teardown_forced': exe.teardown_forced,
                     }
                     for hw_id, exe in executions_snapshot.items()  # Use snapshot
                 }
@@ -2650,6 +2715,9 @@ class CommandTracker:
                         'exit_code': report.exit_code,
                         'duration_ms': report.duration_ms,
                         'timestamp': report.timestamp,
+                        'action_result': report.action_result,
+                        'control_release': report.control_release,
+                        'teardown_forced': report.teardown_forced,
                     }
                     for hw_id, report in node_execution_reports_snapshot.items()
                 },
@@ -2691,6 +2759,9 @@ class CommandTracker:
                             'exit_code': exe.exit_code,
                             'duration_ms': exe.duration_ms,
                             'timestamp': exe.timestamp,
+                            'action_result': exe.action_result,
+                            'control_release': exe.control_release,
+                            'teardown_forced': exe.teardown_forced,
                         }
                         for hw_id, exe in late_executions_snapshot.items()
                     },

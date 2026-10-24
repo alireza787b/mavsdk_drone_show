@@ -1437,6 +1437,8 @@ class TestCommandValidation:
         config.px4_home_position_set = False
         config.global_position_timestamp_ms = 0
         config.relative_altitude_m = None
+        config.landed_state = None
+        config.landed_state_timestamp_ms = 0
         config.current_command_id = None
         return config
 
@@ -1574,28 +1576,32 @@ class TestCommandValidation:
         api_server.drone_config.px4_home_position_set = True
         api_server.drone_config.global_position_timestamp_ms = now_ms
         api_server.drone_config.relative_altitude_m = 5.0
+        api_server.drone_config.landed_state = 2
+        api_server.drone_config.landed_state_timestamp_ms = now_ms
         result = api_server._check_state_preconditions(mission_type=Mission.PRECISION_MOVE.value)
         assert result['valid']
 
-    def test_check_state_hold_requires_armed_airborne(self, api_server):
+    def test_check_state_hold_accepts_fresh_disarmed_noop(self, api_server):
         from src.enums import Mission, CommandErrorCode
 
         api_server.drone_config.is_armed = False
+        api_server.drone_config.heartbeat_timestamp_ms = time.time_ns() // 1_000_000
 
         result = api_server._check_state_preconditions(mission_type=Mission.HOLD.value)
 
-        assert not result['valid']
-        assert result['error_code'] == CommandErrorCode.NOT_ARMED.value
-        assert 'HOLD requires fresh evidence of an armed airborne drone' in result['message']
+        assert result['valid']
 
     def test_check_state_smart_swarm_requires_armed_airborne(self, api_server):
         from src.enums import Mission, CommandErrorCode
 
+        api_server.drone_config.heartbeat_timestamp_ms = time.time_ns() // 1_000_000
+        api_server.drone_config.is_armed = False
         result = api_server._check_state_preconditions(mission_type=Mission.SMART_SWARM.value)
 
         assert not result['valid']
         assert result['error_code'] == CommandErrorCode.NOT_ARMED.value
-        assert 'SMART_SWARM requires fresh evidence of an armed airborne drone' in result['message']
+        assert result['message'] == 'Aircraft not airborne'
+        assert result['detail'] == 'disarmed'
 
     def test_check_state_smart_swarm_accepts_fresh_airborne_evidence(self, api_server):
         from src.enums import Mission
@@ -1606,11 +1612,14 @@ class TestCommandValidation:
         api_server.drone_config.px4_home_position_set = True
         api_server.drone_config.global_position_timestamp_ms = now_ms
         api_server.drone_config.relative_altitude_m = 5.0
+        api_server.drone_config.landed_state = 2
+        api_server.drone_config.landed_state_timestamp_ms = now_ms
+        api_server.drone_config.custom_mode = (4 << 16) | (3 << 24)
 
         result = api_server._check_state_preconditions(mission_type=Mission.SMART_SWARM.value)
 
         assert result['valid']
-        assert result['message'] == 'State preconditions met'
+        assert result['message'] == 'Ready'
 
     @pytest.mark.parametrize('mission', [Mission.LAND, Mission.RETURN_RTL])
     def test_check_state_recovery_commands_do_not_require_airborne_admission(self, api_server, mission):

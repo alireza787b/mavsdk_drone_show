@@ -7,6 +7,19 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
 
 
+class TakeoffAdmissionEvidence(BaseModel):
+    predicate: Literal["takeoff_ground_disarmed"]
+    ready: StrictBool
+    checks: Dict[str, StrictBool]
+
+    @model_validator(mode="after")
+    def _validate_checks(self) -> "TakeoffAdmissionEvidence":
+        required = {"connection_live", "connection_continuous", "armed_fresh", "landed_state_fresh", "disarmed", "on_ground"}
+        if set(self.checks) != required or self.ready != all(self.checks.values()):
+            raise ValueError("takeoff admission must preserve all native ground checks")
+        return self
+
+
 class LaunchReadinessObservation(BaseModel):
     """Identity and freshness evidence sampled by the node.
 
@@ -26,6 +39,8 @@ class LaunchReadinessObservation(BaseModel):
     blockers: List[StrictStr] = Field(default_factory=list)
     checks: Dict[str, Any] = Field(default_factory=dict)
     battery: Dict[str, Any] = Field(default_factory=dict)
+    mission_type: Optional[StrictInt] = None
+    admission: Optional[TakeoffAdmissionEvidence] = None
 
     @field_validator("observation_id", "source")
     @classmethod

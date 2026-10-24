@@ -102,6 +102,7 @@ def _vehicle_state(
     armed=False,
     landed_state="ON_GROUND",
     relative_altitude_m=0.0,
+    absolute_altitude_m=None,
     field_errors=None,
 ):
     receipt_ages = {
@@ -113,6 +114,7 @@ def _vehicle_state(
         armed=armed,
         landed_state=landed_state,
         relative_altitude_m=relative_altitude_m,
+        absolute_altitude_m=(100.0 + (relative_altitude_m or 0.0) if absolute_altitude_m is None else absolute_altitude_m),
         receipt_ages_ms=receipt_ages,
         errors=dict(field_errors or {}),
     )
@@ -217,13 +219,12 @@ async def test_external_cancellation_during_stream_close_is_not_swallowed():
 
 @pytest.mark.asyncio
 async def test_authoritative_state_observation_closes_silent_streams_at_shared_deadline():
-    streams = [_NeverYieldingStream() for _ in range(3)]
+    streams = [_NeverYieldingStream() for _ in range(2)]
     drone = SimpleNamespace(
         core=SimpleNamespace(connection_state=_live_connection_stream),
         telemetry=SimpleNamespace(
             armed=lambda: streams[0],
             landed_state=lambda: streams[1],
-            position=lambda: streams[2],
         )
     )
 
@@ -233,7 +234,6 @@ async def test_authoritative_state_observation_closes_silent_streams_at_shared_d
     assert set(observation.field_errors) == {
         "armed",
         "landed_state",
-        "relative_altitude_m",
     }
     assert all(stream.closed for stream in streams)
 
@@ -311,8 +311,8 @@ async def test_safe_action_preserves_typed_launch_readiness_evidence():
 
 
 @pytest.mark.asyncio
-async def test_ensure_ready_for_flight_uses_local_home_fallback(mocker):
-    mocker.patch(
+async def test_ensure_ready_for_flight_uses_native_current_readiness_only(mocker):
+    fallback = mocker.patch(
         "actions._get_local_drone_state_snapshot",
         return_value={"home_position_set": True},
     )
@@ -321,7 +321,14 @@ async def test_ensure_ready_for_flight_uses_local_home_fallback(mocker):
         SimpleNamespace(is_global_position_ok=True, is_home_position_ok=False),
     ])
 
-    assert await actions.ensure_ready_for_flight(drone, timeout=1) is True
+    probe = mocker.patch("actions.probe_offboard_armability", new=mocker.AsyncMock(return_value={
+        "ready": False, "summary": "native home unavailable", "observation": {}, "battery": {},
+    }))
+    with pytest.raises(actions.LaunchReadinessError):
+        await actions.ensure_ready_for_flight(drone, timeout=1)
+    fallback.assert_not_called()
+    probe.assert_awaited_once_with(drone, require_global_position=True,
+        mission_type=actions.Mission.TAKE_OFF.value, timeout=1.0, logger=actions.logger)
 
 
 @pytest.mark.asyncio
@@ -363,6 +370,7 @@ async def test_takeoff_uses_shared_armability_gate_after_preflight(mocker):
         new=mocker.AsyncMock(
             side_effect=[
                 _vehicle_state(),
+                _vehicle_state(armed=True),
                 _vehicle_state(
                     armed=True,
                     landed_state="IN_AIR",
@@ -398,8 +406,9 @@ async def test_takeoff_uses_shared_armability_gate_after_preflight(mocker):
 
     arm_gate.assert_awaited_once_with(
         drone,
-        require_global_position=False,
+        require_global_position=True,
         logger=actions.logger,
+        mission_type=actions.Mission.TAKE_OFF.value,
     )
     wait_armed.assert_awaited_once_with(
         drone,
@@ -415,7 +424,7 @@ async def test_takeoff_uses_shared_armability_gate_after_preflight(mocker):
         "takeoff state transition",
         timeout=actions.Params.TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC,
     )
-    wait_altitude.assert_awaited_once()
+    wait_altitude.assert_not_awaited()
     drone.action.set_takeoff_altitude.assert_awaited_once_with(12.0)
     drone.action.takeoff.assert_awaited_once()
 
@@ -706,11 +715,19 @@ def _prepare_takeoff(
                 relative_altitude_m=completion_altitude,
             ),
         ]
+    observation_iter = iter(observations)
+    baseline_sampled = False
+
+    async def observe_state(*args, **kwargs):
+        nonlocal baseline_sampled
+        if "absolute_altitude_m" in kwargs.get("required_fields", ()) and not baseline_sampled:
+            baseline_sampled = True
+            return _vehicle_state(armed=True)
+        return next(observation_iter)
+
     observe = mocker.patch(
         "actions.observe_authoritative_vehicle_state",
-        new=mocker.AsyncMock(
-            side_effect=list(observations),
-        ),
+        new=mocker.AsyncMock(side_effect=observe_state),
     )
     wait_armed = mocker.patch(
         "actions.wait_until_armed_state",
@@ -726,16 +743,9 @@ def _prepare_takeoff(
             ),
         ),
     )
-    wait_altitude = mocker.patch(
-        "actions.wait_until_relative_altitude",
-        new=mocker.AsyncMock(
-            side_effect=(
-                altitude_side_effect
-                if altitude_side_effect is not None
-                else [SimpleNamespace(relative_altitude_m=9.0)]
-            ),
-        ),
-    )
+    wait_altitude = mocker.patch("actions.wait_until_relative_altitude", new=mocker.AsyncMock())
+    if altitude_side_effect and isinstance(altitude_side_effect[0], BaseException):
+        mocker.patch("actions.wait_for_authoritative_airborne_state", new=mocker.AsyncMock(side_effect=altitude_side_effect))
     drone = SimpleNamespace(
         action=SimpleNamespace(
             set_takeoff_altitude=mocker.AsyncMock(),
@@ -789,7 +799,7 @@ async def test_authoritative_airborne_wait_retries_until_one_coherent_snapshot(m
 
     result = await actions.wait_for_authoritative_airborne_state(
         SimpleNamespace(),
-        8.0,
+        108.0,
         timeout=1,
     )
 
@@ -819,7 +829,7 @@ async def test_authoritative_airborne_wait_returns_last_snapshot_at_deadline(moc
 
     result = await actions.wait_for_authoritative_airborne_state(
         SimpleNamespace(),
-        8.0,
+        108.0,
         timeout=1,
     )
 
@@ -850,7 +860,7 @@ async def test_authoritative_state_observation_samples_direct_mavsdk_streams():
 
 
 @pytest.mark.asyncio
-async def test_hold_requires_complete_fresh_airborne_evidence(mocker):
+async def test_hold_disarmed_is_noop_without_ground_inference(mocker):
     mocker.patch("actions.LEDController.get_instance", return_value=MagicMock())
     observe = mocker.patch(
         "actions.observe_authoritative_vehicle_state",
@@ -864,12 +874,9 @@ async def test_hold_requires_complete_fresh_airborne_evidence(mocker):
     )
     drone = SimpleNamespace(action=SimpleNamespace(hold=mocker.AsyncMock()))
 
-    with pytest.raises(actions.ActionSafetyError) as failure:
-        await actions.hold(drone)
-
-    assert failure.value.code == "HOLD_REQUIRES_AIRBORNE_STATE"
-    assert failure.value.phase == "precondition"
-    observe.assert_awaited_once_with(drone)
+    await actions.hold(drone)
+    assert actions._LAST_FINAL_VEHICLE_STATE["outcome"] == "disarmed"
+    observe.assert_awaited_once_with(drone, required_fields=("armed",))
     drone.action.hold.assert_not_awaited()
 
 
@@ -883,7 +890,7 @@ async def test_hold_rejects_partial_authoritative_state(mocker):
                 armed=True,
                 landed_state="IN_AIR",
                 relative_altitude_m=None,
-                field_errors={"relative_altitude_m": "timeout"},
+                field_errors={"armed": "timeout"},
             )
         ),
     )
@@ -897,7 +904,7 @@ async def test_hold_rejects_partial_authoritative_state(mocker):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("landed_state", ["TAKING_OFF", "IN_AIR", "LANDING"])
+@pytest.mark.parametrize("landed_state", ["ON_GROUND", "UNKNOWN", "TAKING_OFF", "IN_AIR", "LANDING"])
 async def test_hold_changes_mode_only_after_fresh_airborne_gate(mocker, landed_state):
     led = MagicMock()
     led.set_color.side_effect = RuntimeError("optional SPI unavailable")
@@ -906,11 +913,16 @@ async def test_hold_changes_mode_only_after_fresh_airborne_gate(mocker, landed_s
     admission = _vehicle_state(
         armed=True,
         landed_state=landed_state,
-        relative_altitude_m=6.0,
+        relative_altitude_m=-6.0,
     )
+    from dataclasses import replace
+    from src.action_safety import build_safety_field_evidence
+    held = replace(admission, fields={**admission.fields, "flight_mode": build_safety_field_evidence(
+        name="flight_mode", source="test.mode", value="HOLD", received_at_ms=admission.observed_at_ms,
+        now_ms=admission.observed_at_ms, receipt_age_ms=0)}, required_fields=("armed", "flight_mode"))
     observe = mocker.patch(
         "actions.observe_authoritative_vehicle_state",
-        new=mocker.AsyncMock(side_effect=[admission, admission]),
+        new=mocker.AsyncMock(side_effect=[admission, held]),
     )
     wait_mode = mocker.patch(
         "actions.wait_until_flight_mode",
@@ -922,11 +934,7 @@ async def test_hold_changes_mode_only_after_fresh_airborne_gate(mocker, landed_s
 
     assert observe.await_count == 2
     drone.action.hold.assert_awaited_once()
-    wait_mode.assert_awaited_once_with(
-        drone,
-        actions.telemetry.FlightMode.HOLD,
-        timeout=10,
-    )
+    wait_mode.assert_not_awaited()
     assert actions._LAST_FINAL_VEHICLE_STATE["flight_mode"] == "HOLD"
 
 
@@ -1407,6 +1415,19 @@ async def test_takeoff_success_has_no_indicator_sleep_even_without_leds(mocker):
 
 
 @pytest.mark.asyncio
+async def test_takeoff_completion_measures_climb_not_home_zero(mocker):
+    setup = _prepare_takeoff(mocker, observations=[
+        _vehicle_state(relative_altitude_m=-20, absolute_altitude_m=100),
+        _vehicle_state(armed=True, landed_state="IN_AIR", relative_altitude_m=-10, absolute_altitude_m=110),
+    ])
+    await actions.takeoff(setup.drone, 10)
+    state = actions._LAST_FINAL_VEHICLE_STATE
+    assert state["observed_climb_m"] == 10
+    assert state["relative_altitude_m"] == -10
+    setup.wait_altitude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_takeoff_waits_through_transition_before_terminal_success(mocker):
     setup = _prepare_takeoff(
         mocker,
@@ -1429,7 +1450,7 @@ async def test_takeoff_waits_through_transition_before_terminal_success(mocker):
 
     await actions.takeoff(setup.drone, 10.0)
 
-    assert setup.observe.await_count == 3
+    assert setup.observe.await_count == 4
     setup.drone.action.land.assert_not_awaited()
     assert actions._LAST_FINAL_VEHICLE_STATE["landed_state"] == "IN_AIR"
     assert actions._LAST_FINAL_VEHICLE_STATE["recovery_status"] == "not_required"
@@ -1464,7 +1485,8 @@ async def test_takeoff_unconfirmed_final_state_is_typed_and_starts_land_recovery
     with pytest.raises(actions._ActionTransactionError) as failure:
         await actions.takeoff(setup.drone, 10.0)
 
-    wait_final.assert_awaited_once_with(setup.drone, 8.0)
+    wait_final.assert_awaited_once_with(setup.drone, 108.0,
+        timeout=actions.Params.TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC + actions.Params.TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC)
     assert isinstance(failure.value.primary_error, actions.ActionSafetyError)
     assert failure.value.primary_error.code == "TAKEOFF_FINAL_STATE_UNAVAILABLE"
     setup.drone.action.land.assert_awaited_once()

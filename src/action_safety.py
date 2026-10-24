@@ -253,16 +253,18 @@ class SafetySnapshot:
 
     @property
     def on_ground(self) -> bool:
-        return self.complete and self.landed_state == "ON_GROUND"
+        return self.complete and self._usable_fields("landed_state") and self.landed_state == "ON_GROUND"
+
+    def _usable_fields(self, *names: str) -> bool:
+        return all(name in self.fields and self.fields[name].usable for name in names)
 
     @property
     def airborne(self) -> bool:
         return bool(
             self.complete
+            and self._usable_fields("armed", "landed_state")
             and self.armed is True
             and self.landed_state == "IN_AIR"
-            and self.relative_altitude_m is not None
-            and self.relative_altitude_m >= AIRBORNE_MIN_RELATIVE_ALTITUDE_M
         )
 
     @property
@@ -271,20 +273,18 @@ class SafetySnapshot:
 
         return bool(
             self.complete
+            and self._usable_fields("armed", "landed_state")
             and self.armed is True
             and self.landed_state in RECOVERY_AIRBORNE_LANDED_STATES
-            and self.relative_altitude_m is not None
-            and self.relative_altitude_m >= AIRBORNE_MIN_RELATIVE_ALTITUDE_M
         )
 
     @property
     def safe_ground_disarmed(self) -> bool:
         return bool(
             self.complete
+            and self._usable_fields("armed", "landed_state")
             and self.armed is False
             and self.landed_state == "ON_GROUND"
-            and self.relative_altitude_m is not None
-            and abs(self.relative_altitude_m) <= GROUND_MAX_RELATIVE_ALTITUDE_M
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -302,6 +302,7 @@ class SafetySnapshot:
             "armed": self.armed,
             "landed_state": self.landed_state,
             "relative_altitude_m": self.relative_altitude_m,
+            "absolute_altitude_m": _finite_float(self.field_value("absolute_altitude_m")),
             "field_errors": self.field_errors,
             "connection": self.connection.as_dict(),
             "fields": {
@@ -317,6 +318,7 @@ class SafetySnapshot:
         armed: bool | None,
         landed_state: str | None,
         relative_altitude_m: float | None,
+        absolute_altitude_m: float | None = None,
         connection_live: bool | None = True,
         observed_at_ms: int | None = None,
         receipt_ages_ms: Mapping[str, int | None] | None = None,
@@ -361,12 +363,13 @@ class SafetySnapshot:
                 "mavsdk.telemetry.position.relative_altitude_m",
                 relative_altitude_m,
             ),
+            "absolute_altitude_m": evidence("absolute_altitude_m", "mavsdk.telemetry.position.absolute_altitude_m", absolute_altitude_m),
         }
         return cls(
             observed_at_ms=now_ms,
             connection=connection,
             fields=fields,
-            required_fields=tuple(fields),
+            required_fields=("armed", "landed_state"),
         )
 
 
@@ -765,32 +768,63 @@ async def observe_authoritative_vehicle_state(
     drone: Any,
     *,
     timeout: float = ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+    required_fields: tuple[str, ...] = ("armed", "landed_state"),
 ) -> SafetySnapshot:
-    """Return connection-bound armed, landed and relative-altitude evidence."""
+    """Observe only action-required native fields under one connection/deadline."""
 
     return await observe_safety_snapshot(
         drone,
         timeout=timeout,
-        field_specs={
+        required_fields=required_fields,
+        field_specs={name: spec for name, spec in vehicle_state_stream_specs(drone).items()
+                     if name in required_fields},
+    )
+
+
+def vehicle_state_stream_specs(drone: Any) -> dict[str, SafetyStreamSpec]:
+    """Native state sources shared by admission and execution observations."""
+    return {
             "armed": SafetyStreamSpec(
                 source="mavsdk.telemetry.armed",
-                stream_factory=drone.telemetry.armed,
+                stream_factory=lambda: drone.telemetry.armed(),
                 normalize=lambda sample: sample if type(sample) is bool else None,
             ),
             "landed_state": SafetyStreamSpec(
                 source="mavsdk.telemetry.landed_state",
-                stream_factory=drone.telemetry.landed_state,
+                stream_factory=lambda: drone.telemetry.landed_state(),
                 normalize=_enum_name,
             ),
             "relative_altitude_m": SafetyStreamSpec(
                 source="mavsdk.telemetry.position.relative_altitude_m",
-                stream_factory=drone.telemetry.position,
+                stream_factory=lambda: drone.telemetry.position(),
                 normalize=lambda sample: _finite_float(
                     getattr(sample, "relative_altitude_m", None)
                 ),
             ),
-        },
-    )
+            "absolute_altitude_m": SafetyStreamSpec(
+                source="mavsdk.telemetry.position.absolute_altitude_m",
+                stream_factory=lambda: drone.telemetry.position(),
+                normalize=lambda sample: _finite_float(getattr(sample, "absolute_altitude_m", None)),
+            ),
+            "flight_mode": SafetyStreamSpec(
+                source="mavsdk.telemetry.flight_mode",
+                stream_factory=lambda: drone.telemetry.flight_mode(),
+                normalize=_enum_name,
+            ),
+        }
+
+
+def takeoff_admission(snapshot: SafetySnapshot) -> dict[str, Any]:
+    """Ground admission is native land detection, never a home-height proxy."""
+    checks = {
+        "connection_live": snapshot.connection_live is True and snapshot.connection.usable,
+        "connection_continuous": not snapshot.connection_interrupted and not snapshot.source_boot_reset,
+        "armed_fresh": bool(snapshot.fields.get("armed") and snapshot.fields["armed"].usable),
+        "landed_state_fresh": bool(snapshot.fields.get("landed_state") and snapshot.fields["landed_state"].usable),
+        "disarmed": snapshot.armed is False,
+        "on_ground": snapshot.landed_state == "ON_GROUND",
+    }
+    return {"predicate": "takeoff_ground_disarmed", "ready": all(checks.values()), "checks": checks}
 
 
 __all__ = [
@@ -809,5 +843,7 @@ __all__ = [
     "VehicleStateObservation",
     "build_safety_field_evidence",
     "observe_authoritative_vehicle_state",
+    "vehicle_state_stream_specs",
+    "takeoff_admission",
     "observe_safety_snapshot",
 ]

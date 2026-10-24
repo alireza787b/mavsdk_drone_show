@@ -5,7 +5,7 @@ import { isAmbiguousSubmissionTransportFailure } from '../services/droneApiServi
 import { getBackendURL } from '../config/apiConfig';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
-import { memberFlightState, memberLabel, movementSummary, takeoffTargets } from '../utilities/swarmOperationModel';
+import { holdNodeStatus, memberFlightState, memberLabel, movementSummary, takeoffTargets } from '../utilities/swarmOperationModel';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
@@ -29,6 +29,8 @@ export default function SwarmOperations() {
   const [confirmation, setConfirmation] = useState(null);
   const [height, setHeight] = useState(10);
   const [busy, setBusy] = useState(false);
+  const [holdBusy, setHoldBusy] = useState(false);
+  const [holdReceipt, setHoldReceipt] = useState(null);
   const [advanced, setAdvanced] = useState(false);
   const [individual, setIndividual] = useState('');
   const [inspectedId, setInspectedId] = useState(null);
@@ -37,6 +39,9 @@ export default function SwarmOperations() {
   const submitting = useRef(false);
   const startSubmitting = useRef(false);
   const busyOwner = useRef(null);
+  const holdSubmitting = useRef(false);
+  const pendingHold = useRef(null);
+  const intentEpoch = useRef(0);
   const scope = useRef(null);
   const { commandLifecycleCallbacks, commandMonitors = [] } = useCommandActivity();
 
@@ -62,6 +67,7 @@ export default function SwarmOperations() {
     setConfirmation(null);
     setError('');
     setPendingStart(null);
+    setHoldReceipt(null);
     try {
       const pending = JSON.parse(sessionStorage.getItem(pendingKey));
       if (pending?.reviewed?.action === 'start'
@@ -140,6 +146,9 @@ export default function SwarmOperations() {
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;
   const nodeStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
     swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor) })]));
+  const heldScope = Boolean(holdReceipt && holdReceipt.clusterId === cluster?.cluster_id);
+  const holdMonitor = heldScope
+    ? commandMonitors.find((m) => m.commandId === holdReceipt.commandId) : null;
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
@@ -183,6 +192,7 @@ export default function SwarmOperations() {
     if (confirmation.action === 'start' && !checkingPending
         && !swarmStartReadiness(confirmation.targets, startCheck?.decisions, startCheck?.until || 0).ready) return;
     const reviewed = confirmation;
+    const sendEpoch = intentEpoch.current;
     const sendScope = pendingKey;
     const operation = {};
     busyOwner.current = operation;
@@ -201,7 +211,7 @@ export default function SwarmOperations() {
         return;
       }
       await freshReview(reviewed);
-      if (scope.current !== sendScope) return;
+      if (scope.current !== sendScope || intentEpoch.current !== sendEpoch) return;
       let command = { mission_type: TYPES[reviewed.action], trigger_time: 0,
         target_drone_ids: reviewed.targets, idempotency_key: reviewed.key,
         uiMeta: { operatorLabel: LABELS[reviewed.action], targetLabel: `Cluster ${reviewed.clusterId}` } };
@@ -215,12 +225,13 @@ export default function SwarmOperations() {
         rememberPending({ reviewed, command }, sendScope);
       }
       posted = true;
+      setHoldReceipt(null);
       await submitCommandWithLifecycleFeedback(command, commandLifecycleCallbacks);
-      if (reviewed.action === 'start') rememberPending(null, sendScope);
+      if (reviewed.action === 'start' && intentEpoch.current === sendEpoch) rememberPending(null, sendScope);
       if (scope.current !== sendScope) return;
       if (busyOwner.current === operation) setConfirmation(null);
     } catch (exc) {
-      if (scope.current !== sendScope) return;
+      if (scope.current !== sendScope || intentEpoch.current !== sendEpoch) return;
       if (reviewed.action === 'start' && checkingPending) {
         if (exc?.response?.status === 404) {
           rememberPending({ ...pendingStart, needsReview: true }, sendScope);
@@ -237,6 +248,43 @@ export default function SwarmOperations() {
     } finally {
       submitLock.current = false;
       if (busyOwner.current === operation) { busyOwner.current = null; setBusy(false); }
+    }
+  };
+  const holdSwarm = async () => {
+    if (!cluster || !ids.length || holdSubmitting.current) return;
+    const sendScope = pendingKey;
+    const targets = [...ids];
+    const fingerprint = `${sendScope}:${cluster.cluster_id}:${targets.join(',')}`;
+    if (pendingHold.current?.fingerprint !== fingerprint) pendingHold.current = {
+      fingerprint,
+      command: { mission_type: TYPES.hold, trigger_time: 0, target_drone_ids: targets,
+        idempotency_key: `hold-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        uiMeta: { operatorLabel: 'Hold Swarm', targetLabel: `Cluster ${cluster.cluster_id}` } },
+    };
+    // A recovery has its own lane: a late readiness reply must not post Start
+    // after Hold, and an unresolved routine POST must not trap this control.
+    intentEpoch.current += 1;
+    busyOwner.current = null;
+    setBusy(false);
+    setConfirmation(null);
+    rememberPending(null, sendScope);
+    holdSubmitting.current = true;
+    setHoldBusy(true);
+    setError('');
+    setHoldReceipt({ clusterId: cluster.cluster_id, commandId: null });
+    try {
+      const receipt = await submitCommandWithLifecycleFeedback(pendingHold.current.command, commandLifecycleCallbacks);
+      if (scope.current === sendScope) {
+        setHoldReceipt({ clusterId: cluster.cluster_id, commandId: receipt.command_id });
+        pendingHold.current = null;
+      }
+    } catch (exc) {
+      if (scope.current !== sendScope) return;
+      const detail = exc?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : detail?.message || 'Hold unconfirmed. Check aircraft status and retry.');
+    } finally {
+      holdSubmitting.current = false;
+      setHoldBusy(false);
     }
   };
   const exclusions = cluster?.partial_exclusion_hw_ids || [];
@@ -257,8 +305,11 @@ export default function SwarmOperations() {
         <StatusBadge tone={previewError || (runtimeLabel && runtimeLabel !== 'Following') ? 'warning' : 'neutral'}>{status}</StatusBadge>
       </header>
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
-        statuses={Object.fromEntries(members.map((m) => [m.hw_id, { ...nodeStatuses[m.hw_id],
-          label: `${states[m.hw_id]} · ${nodeStatuses[m.hw_id].label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }]))} />
+        statuses={Object.fromEntries(members.map((m) => {
+          const node = heldScope ? holdNodeStatus({ ...m, available: m.available && !previewError }, holdMonitor?.executionDetails?.[m.hw_id]) : nodeStatuses[m.hw_id];
+          return [m.hw_id, { ...node,
+            label: `${heldScope ? '' : `${states[m.hw_id]} · `}${node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
+        }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
         {inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
@@ -272,11 +323,12 @@ export default function SwarmOperations() {
           disabled={busy || !cluster || !takeoffTargets(members).length} onClick={() => review('takeoff')}><FaArrowUp aria-hidden="true" /> Takeoff</button>
         <button type="button" className={`operator-button ${airborne === members.length && !canStop ? 'operator-button--primary' : 'operator-button--ghost'}`}
           disabled={busy || !cluster || canStop} onClick={() => review('start')}><FaPlay aria-hidden="true" /> Start Swarm</button>
+        <button type="button" className="operator-button swarm-ops__hold" disabled={holdBusy || !cluster}
+          title="Hold the entire displayed cluster" onClick={holdSwarm}><FaPause aria-hidden="true" /> {holdBusy ? 'Sending Hold…' : 'Hold Swarm'}</button>
         <SequentialReturnControl targetIds={ids} targetNames={names} compact contextKey={contextKey}
           aircraftStates={states} validateReview={() => freshReview({ clusterId: selection.id, revision: preview.revision })} />
       </div>
       <div className="swarm-ops__secondary">
-        {canStop && <button type="button" className="operator-button operator-button--ghost" disabled={busy} onClick={() => review('hold')}><FaPause aria-hidden="true" /> Stop following</button>}
         <button type="button" className="operator-button operator-button--ghost" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /> Other actions</button>
         <a href="/swarm-design?tab=formation">Design Swarm</a>
         <a href="/globe-view">Globe</a>
@@ -295,14 +347,12 @@ export default function SwarmOperations() {
         confirmDisabled={(confirmation?.action === 'takeoff' && !validHeight)
           || (confirmation?.action === 'start' && (!pendingStart || pendingStart.needsReview) && !startReadiness.ready)}
         confirmLabel={confirmation?.action === 'start' && pendingStart && !pendingStart.needsReview ? 'Check command' : confirmation ? `Confirm ${LABELS[confirmation.action]}` : 'Confirm'} busy={busy}
-        allowDismissWhileBusy={confirmation?.action === 'start'}
-        cancelLabel={busy && confirmation?.action === 'start' ? 'Close' : 'Cancel'}
+        allowDismissWhileBusy
+        cancelLabel={busy ? 'Close' : 'Cancel'}
         onCancel={() => {
-          if (!busy || confirmation?.action === 'start') {
-            busyOwner.current = null;
-            setBusy(false);
-            setConfirmation(null);
-          }
+          busyOwner.current = null;
+          setBusy(false);
+          setConfirmation(null);
         }} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">
           <strong>{confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })).join(' · ')}</strong>
@@ -310,12 +360,12 @@ export default function SwarmOperations() {
             {!validHeight && <span role="alert">Enter a positive height.</span>}<small>Takeoff only · following stays off.</small></label>}
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
-            {busy && <small>Closing does not cancel the command.</small>}
             <ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {m.frame === 'body' ? 'Body' : 'NED'}</li>)}</ul></>}
           {confirmation.excluded.length > 0 && <p>Partial formation · excludes Drone {confirmation.excluded.join(', ')}.</p>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}
           {confirmation.action === 'land' && <p>Land at current positions.</p>}
           {confirmation.action === 'rtl' && <p>Immediate PX4 RTL · paths may overlap. Return heights: unavailable here; each aircraft uses its configured settings.</p>}
+          {busy && <small>Closing does not cancel the command.</small>}
           {error && <p role="alert">{error}</p>}
         </div> : ''} />
     </section>

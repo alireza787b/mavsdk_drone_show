@@ -58,6 +58,8 @@ def _set_fresh_airborne_state(mock_drone_config, *, relative_altitude_m=5.0):
     now_ms = time.time_ns() // 1_000_000
     mock_drone_config.is_armed = True
     mock_drone_config.heartbeat_timestamp_ms = now_ms
+    mock_drone_config.landed_state = 2
+    mock_drone_config.landed_state_timestamp_ms = now_ms
     mock_drone_config.global_position_timestamp_ms = now_ms
     mock_drone_config.relative_altitude_m = relative_altitude_m
     mock_drone_config.px4_home_position_set = True
@@ -638,7 +640,7 @@ class TestDroneState:
     def test_get_live_armability_success(self, test_client, monkeypatch):
         from src.drone_api_server import DroneAPIServer
 
-        async def _mock_probe(self, require_global_position=True):
+        async def _mock_probe(self, require_global_position=True, mission_type=None):
             return {
                 "hw_id": "1",
                 "success": True,
@@ -737,7 +739,7 @@ class TestDroneState:
         async def _fake_wait(self, drone):
             captured["wait_called"] = True
 
-        async def _fake_probe(drone, require_global_position, timeout, logger):
+        async def _fake_probe(drone, require_global_position, timeout, logger, mission_type=None):
             captured["probe_timeout"] = timeout
             return {
                 "ready": True,
@@ -1803,7 +1805,7 @@ class TestCommands:
         assert "heartbeat/arming evidence is stale" in response.json()["error_detail"]
         mock_drone_communicator.process_command.assert_not_called()
 
-    def test_hold_rejects_stale_relative_altitude_even_with_fresh_armed_heartbeat(
+    def test_hold_does_not_require_relative_altitude(
         self,
         test_client,
         api_server,
@@ -1823,11 +1825,10 @@ class TestCommands:
         )
 
         assert response.status_code == 200
-        assert response.json()["status"] == "rejected"
-        assert "altitude evidence is stale" in response.json()["error_detail"]
-        mock_drone_communicator.process_command.assert_not_called()
+        assert response.json()["status"] == "accepted"
+        mock_drone_communicator.process_command.assert_called_once()
 
-    def test_hold_rejects_raw_relative_altitude_when_px4_home_is_not_set(
+    def test_hold_does_not_require_home_position(
         self,
         test_client,
         mock_drone_config,
@@ -1842,17 +1843,17 @@ class TestCommands:
         )
 
         assert response.status_code == 200
-        assert response.json()["status"] == "rejected"
-        assert "home position is not established" in response.json()["error_detail"]
-        mock_drone_communicator.process_command.assert_not_called()
+        assert response.json()["status"] == "accepted"
+        mock_drone_communicator.process_command.assert_called_once()
 
-    def test_hold_rejects_armed_ground_state_before_install(
+    def test_hold_accepts_armed_ground_state_before_live_action_recheck(
         self,
         test_client,
         mock_drone_config,
         mock_drone_communicator,
     ):
         _set_fresh_airborne_state(mock_drone_config, relative_altitude_m=0.1)
+        mock_drone_config.landed_state = 1
 
         response = test_client.post(
             "/api/v1/drone/commands",
@@ -1860,9 +1861,8 @@ class TestCommands:
         )
 
         assert response.status_code == 200
-        assert response.json()["status"] == "rejected"
-        assert "airborne admission requires" in response.json()["error_detail"]
-        mock_drone_communicator.process_command.assert_not_called()
+        assert response.json()["status"] == "accepted"
+        mock_drone_communicator.process_command.assert_called_once()
 
     def test_hold_accepts_only_fresh_cached_airborne_evidence_then_action_rechecks(
         self,
@@ -3172,7 +3172,7 @@ class TestDroneRouteSurface:
     def test_v1_live_armability(self, test_client, monkeypatch):
         from src.drone_api_server import DroneAPIServer
 
-        async def _mock_probe(self, require_global_position=True):
+        async def _mock_probe(self, require_global_position=True, mission_type=None):
             return {
                 "hw_id": "1",
                 "success": True,

@@ -22,6 +22,8 @@ import sys
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Optional
 
+from src.bounded_fd_transport import write_bounded_payload
+
 
 SCHEMA_VERSION = 1
 ACTION_RESULT_FD_ENV = "MDS_ACTION_RESULT_FD"
@@ -55,6 +57,11 @@ _FINAL_STATE_PRIORITY_KEYS = (
     "field_errors",
     "target_altitude_m",
     "minimum_confirmed_altitude_m",
+    "absolute_altitude_m",
+    "baseline_absolute_altitude_m",
+    "observed_climb_m",
+    "flight_mode",
+    "outcome",
 )
 _EVIDENCE_PRIORITY_KEYS = (
     "action",
@@ -378,7 +385,12 @@ def make_terminal_result(
     sanitized_state = (
         None
         if final_vehicle_state is None
-        else _sanitize_json_value(dict(final_vehicle_state))
+        # Prioritize before the initial item cap, not just wire compaction:
+        # appended recovery/climb facts must survive a verbose snapshot.
+        else _sanitize_json_value({
+            key: final_vehicle_state[key]
+            for key in _ordered_keys(final_vehicle_state, _FINAL_STATE_PRIORITY_KEYS)
+        })
     )
     return TerminalActionResult(
         schema_version=SCHEMA_VERSION,
@@ -513,12 +525,7 @@ def emit_terminal_result(result: TerminalActionResult) -> None:
             result_fd = int(fd_text)
             if result_fd < 3:
                 raise ValueError("reserved descriptor")
-            view = memoryview(payload)
-            while view:
-                written = os.write(result_fd, view)
-                if written <= 0:
-                    raise OSError("terminal result write made no progress")
-                view = view[written:]
+            write_bounded_payload(result_fd, payload, limit=MAX_RESULT_BYTES)
             os.close(result_fd)
             return
         except (OSError, ValueError):

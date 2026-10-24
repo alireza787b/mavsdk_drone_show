@@ -20,12 +20,12 @@ class VehicleHandoffResult:
     offboard_stop_completed: bool
     hold_requested: bool
     control_preserved: bool = False
+    observed_mode: Optional[str] = None
 
     @property
     def completed(self) -> bool:
-        # A PX4-accepted HOLD is the authoritative mode handoff and is also
-        # valid when Offboard was already inactive. The separate stop field
-        # preserves truthful diagnostics for the preceding best-effort RPC.
+        # PX4 acceptance establishes a native handoff, NOT telemetry-confirmed
+        # Hold. Keep observed mode and Offboard-stop facts independent.
         return self.hold_requested or self.control_preserved
 
 
@@ -59,6 +59,7 @@ class SmartSwarmRuntimeLifecycle:
         stop_mavsdk_server: Callable[..., None],
         manager_grace_sec: float = 5.0,
         shutdown_budget_sec: Optional[float] = None,
+        report_control_release: Optional[Callable[..., None]] = None,
     ):
         self.logger = logger
         self.drone = None
@@ -67,6 +68,7 @@ class SmartSwarmRuntimeLifecycle:
         self._cancel_follower_tasks = cancel_follower_tasks
         self._vehicle_handoff = vehicle_handoff
         self._stop_mavsdk_server = stop_mavsdk_server
+        self._report_control_release = report_control_release
         self.shutdown_budget_sec = (
             resolve_shutdown_budget_sec(manager_grace_sec)
             if shutdown_budget_sec is None
@@ -131,6 +133,7 @@ class SmartSwarmRuntimeLifecycle:
                 "Follower task cancellation failed; continuing with the explicit PX4 safety handoff."
             )
 
+        producers_stopped = clean
         if self.drone is not None:
             remaining = max(0.02, deadline - asyncio.get_running_loop().time())
             server_reserve = min(0.5, remaining * 0.15)
@@ -148,6 +151,23 @@ class SmartSwarmRuntimeLifecycle:
                     handoff.offboard_stop_completed,
                     handoff.hold_requested,
                 )
+
+        # Report the ownership handoff before helper/interpreter teardown or
+        # any caller's network callbacks. Teardown may exceed recovery grace
+        # without retroactively invalidating a timely native handoff.
+        if self._report_control_release is not None:
+            try:
+                self._report_control_release(
+                    producers_stopped=producers_stopped,
+                    offboard_stop_completed=bool(handoff and handoff.offboard_stop_completed),
+                    hold_accepted=bool(handoff and handoff.hold_requested),
+                    observed_mode=handoff.observed_mode if handoff else None,
+                    external_control_preserved=(
+                        self.drone is None or bool(handoff and handoff.control_preserved)
+                    ),
+                )
+            except Exception:
+                self.logger.exception("Could not report Smart Swarm control release.")
 
         if self.mavsdk_server is not None:
             remaining = max(0.01, deadline - asyncio.get_running_loop().time())

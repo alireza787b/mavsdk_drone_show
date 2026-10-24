@@ -225,6 +225,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for JSON/CSV/plots")
     parser.add_argument('--verify-start-handoff', action='store_true', help='Prove a known unfinished Take Off prevents partial Start dispatch')
     parser.add_argument('--managed-return', action='store_true', help='After Hold, validate the default 10-second Managed Return before cleanup')
+    parser.add_argument('--verify-hold-rejoin', action='store_true', help='Prove cluster Hold stops following, preserves assignments and requires explicit rejoin')
     args = parser.parse_args()
     if not math.isfinite(args.jog_speed_m_s) or not 0 < args.jog_speed_m_s <= Params.PRECISION_MOVE_MAX_SPEED_MPS:
         parser.error("--jog-speed-m-s must be finite, positive and within the Precision Move ceiling")
@@ -1366,6 +1367,40 @@ async def main_async() -> int:
             float(args.takeoff_min_gain),
             120,
         )
+
+        if args.verify_hold_rejoin:
+            old_status = client.get_json(GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=swarm_command_id))
+            require(old_status.get('outcome') == 'superseded',
+                    f"Released swarm must be superseded, not failed: {command_summary(old_status)}")
+            details = hold_status.get('executions', {}).get('details', {})
+            require(all(details.get(str(i), {}).get('action_result', {}).get('final_vehicle_state', {}).get('outcome') == 'held' for i in ids),
+                    'Hold must preserve each aircraft\'s confirmed terminal action facts')
+            before = client.get_telemetry()
+            stage_ref['name'] = 'leader_move_while_held'
+            move = await asyncio.to_thread(client.submit_command, PRECISION_MOVE, [leader_id],
+                'Leader move while follower held', extra_fields=build_precision_move_payload(
+                    'ned', north=float(args.jog_north_m), speed_m_s=float(args.jog_speed_m_s)))
+            move_status = await asyncio.to_thread(wait_for_command, client, move['command_id'], terminal=True, timeout=180)
+            require_full_execution(move_status, 1, 'Leader move while held')
+            await asyncio.sleep(3)
+            after = client.get_telemetry()
+            follower_shift = math.hypot(
+                (float(after[str(follower_id)]['position_lat']) - float(before[str(follower_id)]['position_lat'])) * 111320,
+                (float(after[str(follower_id)]['position_long']) - float(before[str(follower_id)]['position_long'])) * 111320 * math.cos(math.radians(float(before[str(follower_id)]['position_lat']))))
+            require(follower_shift < 1.0, f'Held follower moved {follower_shift:.2f} m without explicit Start')
+            require(client.get_swarm_resource() == original_swarm_resource or cluster_assignments(client.get_swarm(), ids) == assignments,
+                    'Hold changed the saved formation')
+            stage_ref['name'] = 'explicit_rejoin'
+            rejoin = await asyncio.to_thread(client.start_saved_swarm, ids)
+            swarm_command_id = rejoin['command_id']
+            rejoined = await asyncio.to_thread(wait_for_command, client, swarm_command_id, desired_phase='in_progress', timeout=90)
+            require_full_acceptance(rejoined, len(ids), 'Explicit rejoin')
+            results['hold_rejoin'] = {'old_swarm': command_summary(old_status),
+                'follower_shift_while_held_m': follower_shift, 'new_command_id': swarm_command_id,
+                'formation': await asyncio.to_thread(wait_formation, client, assignments, ids,
+                    horizontal_tolerance=float(args.formation_horizontal_tolerance),
+                    altitude_tolerance=float(args.formation_altitude_tolerance), minimum_timeout=45,
+                    stability_samples=int(args.stability_samples), max_velocity=float(args.max_smart_swarm_velocity))}
 
         if args.managed_return:
             stage_ref['name'] = 'managed_return'
