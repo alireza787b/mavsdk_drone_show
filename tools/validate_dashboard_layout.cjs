@@ -87,6 +87,8 @@ let browser;
           const box = content.getBoundingClientRect();
           const pageShell = content.querySelector('.operator-page-shell');
           const shellBox = pageShell?.getBoundingClientRect();
+          const designBox = content.querySelector('.swarm-design-workspace')?.getBoundingClientRect();
+          const designVisibleInOperate = Boolean(content.querySelector('.swarm-ops') && designBox?.width && designBox?.height);
           const overflow = [...content.querySelectorAll('*')].filter(node => {
             const rect = node.getBoundingClientRect();
             if (!rect.width || !rect.height || rect.right <= innerWidth + 2) return false;
@@ -99,7 +101,7 @@ let browser;
           }).slice(0, 12).map(node => ({ tag: node.tagName, className: String(node.className), right: Math.round(node.getBoundingClientRect().right) }));
           return { content: { left: box.left, width: box.width, right: box.right },
             shell: shellBox ? { left: shellBox.left, width: shellBox.width, right: shellBox.right } : null,
-            documentWidth: document.documentElement.scrollWidth, viewport: innerWidth, overflow };
+            documentWidth: document.documentElement.scrollWidth, viewport: innerWidth, overflow, designVisibleInOperate };
         });
         results.push({ route, width, collapsed, navigationOpen, errors: [...errors], resourceFailures: [...resourceFailures], ...measurement });
         if (measurement.unavailable || measurement.documentWidth > width + 2) console.log('ISSUE', JSON.stringify(results.at(-1)));
@@ -109,7 +111,7 @@ let browser;
     await page.close();
   }
   await browser.close();
-  const failures = results.filter(result => result.documentWidth > result.width + 2 || result.content?.right > result.width + 2);
+  const failures = results.filter(result => result.documentWidth > result.width + 2 || result.content?.right > result.width + 2 || result.designVisibleInOperate);
   const unavailable = results.filter(result => result.unavailable);
   const report = { sourceCssOverlay: overlay, coverage: 'Mock fleet plus empty/unavailable-service states; not populated flight workflow acceptance', results, failures, unavailable, blockedWrites };
   if (output) fs.writeFileSync(output, JSON.stringify(report, null, 2));
