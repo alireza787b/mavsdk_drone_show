@@ -68,7 +68,7 @@ Validator note:
 
 ### Design Swarm workflow
 
-The **Design Swarm** tab is one linked formation workspace. Top, Side, 3D,
+The **Design Swarm** tab is one linked formation workspace. Top, Front, Side, 3D,
 Links, the aircraft list, and the inspector all use the same draft.
 Links shows the leader/follower relationship, not geographic spacing. Body-frame
 geometry uses an explicit design-preview heading; live telemetry never moves a
@@ -79,25 +79,49 @@ The normal operator path is:
 
 1. select an aircraft in the plan;
 2. set `Follows` and spacing;
-3. select **Apply** to use the validated formation on this GCS; optionally
-   **Publish** the applied plan to the repository;
+3. select **Apply plan** to use it on this GCS, or **Save to repo** to apply
+   and then commit/push the acknowledged revision;
 4. use **Operate** for flight commands.
 
-Edits are kept in a browser-local draft until explicitly applied. **Apply**
+Edits are kept in a browser-local draft until explicitly applied. **Apply plan**
 writes the validated formation to the GCS; running Smart Swarm nodes may observe
-that revision through their normal configuration polling. **Publish** saves,
-commits and pushes the already-applied plan when repository write access is available.
+that revision through their normal configuration polling. **Save to repo** applies
+a changed draft first, then commits/pushes that exact revision when repository
+write access is available. An already-applied plan is published without reapplying.
+Repository failure does not undo a successful Apply; retry saves to the repo only.
 These outcomes are separate from aircraft synchronization; the page reports
 each outcome independently. Import, export and revert remain available under
-the secondary actions.
+the Files menu. **Reset draft** restores the last loaded/applied GCS plan locally
+and is undoable; **Undo** reverses the last complete edit or drag.
 
-Top dragging changes North/East spacing; Side changes East/Up. The 3D move tool
+**Four views** shows Top, Front, Side and 3D together; a panel can be expanded.
+All views use the selected aircraft's reference: North/East for NED, or the
+followed aircraft's Forward/Right axes at its explicit preview heading for Body.
+Top changes both horizontal axes; Front changes East/Right and Up; Side changes
+North/Forward and Up. Viewing orientation never changes saved offsets.
+The 3D move tool
 offers constrained Horizontal, East/Up and North/Up planes. Roots are fixed local
 origins, not geographic destinations. A changed relay moves its dependent branch;
 children retain their relative offsets. Frame changes and reparenting within one
 cluster preserve preview positions. Joining independent clusters requires a separate
 confirmation because there is no shared origin to preserve. Preview headings do
 not command yaw. Undo/Redo acts on whole drag gestures; Escape cancels a drag.
+Unfocused fields show readable precision, retaining the full draft value on
+focus and in saved data. Callsign/alias is used where available; unnamed aircraft
+use hardware ID. Duplicate names include hardware ID; roster/inspector show current
+hardware and position IDs, and **Show IDs** adds them to plot labels.
+
+### Operate display
+
+Operate is read-only except for explicit flight controls. Its diagram shows live
+roles and flight/following status, not geographic spacing or editable offsets.
+Secondary actions and links are behind the header overflow control. Hold remains
+an immediate cluster-wide recovery action; its neutral button is not an alert.
+Active return queues keep progress and Cancel remaining visible. Historical
+terminal queues are not persistent banners; a newly dispatched summary expires
+after 10 seconds while aircraft Returning/Landing/Grounded status remains driven
+by fresh telemetry. Unconfirmed work remains visible; dismissing a failure notice
+does not cancel a command. Full command history remains in the existing activity/log surfaces.
 
 **Apply during flight:** editing alone sends nothing. Applying changes the GCS
 configuration that running swarm processes poll. If affected aircraft are

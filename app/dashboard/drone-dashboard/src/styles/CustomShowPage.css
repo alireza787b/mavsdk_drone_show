@@ -1,7 +1,8 @@
 @import './DesignTokens.css';
 
 .custom-show-page {
-    width: min(1280px, calc(100vw - 32px));
+    width: 100%;
+    min-width: 0;
     margin: 0 auto;
     padding: var(--spacing-lg);
     display: flex;

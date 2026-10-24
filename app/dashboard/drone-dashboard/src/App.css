@@ -1,7 +1,6 @@
 /* Global Body Styles - Theme Aware */
 html {
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 body {
@@ -11,7 +10,6 @@ body {
   margin: 0;
   padding: 0;
   transition: var(--transition-all);
-  overflow-x: hidden;
   line-height: var(--line-height-normal);
   letter-spacing: 0.01em;
 }
@@ -47,7 +45,6 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 100vh;
   background: transparent;
   width: 100%;
-  overflow-x: hidden;
 }
 
 /* .content {
@@ -77,20 +74,33 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .content {
+  --page-gutter: var(--spacing-lg);
+  --page-top-inset: 0px;
+  --workspace-height: calc(100dvh - var(--page-top-inset) - 2 * var(--page-gutter));
   flex: 1;
-  padding: var(--spacing-lg);
+  padding: calc(var(--page-top-inset) + var(--page-gutter)) var(--page-gutter) var(--page-gutter);
   min-height: 100vh;
   min-width: 0;
-  width: 100%;
+  width: 0;
   background: transparent;
   transition: var(--transition-all);
-  overflow-x: hidden;
 }
 
 .content.content-mobile {
+  --page-gutter: var(--spacing-sm);
+  --page-top-inset: 4rem;
   margin-left: 0;
-  padding: calc(4rem + var(--spacing-sm)) var(--spacing-sm) var(--spacing-sm);
-  max-width: 100vw;
+  width: 100%;
+}
+
+/* The application shell owns the outer gutter. Pages retain their internal
+   panel spacing, without adding a second gutter or narrowing wide workspaces. */
+.app-container .content > .operator-page-shell {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
 }
 
 /* Dynamic sidebar spacing - responsive to sidebar state */

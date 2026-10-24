@@ -235,3 +235,37 @@ test('a terminal swarm cannot keep displaying Following after recovery', async (
   expect(screen.queryByText('Following')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Start Swarm' })).toBeEnabled();
 });
+
+test('navigation links are in the overflow, not repeated on the main surface', async () => {
+  await mounted();
+  expect(screen.queryByRole('link', { name: 'Globe' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
+  expect(screen.getByRole('link', { name: 'Globe' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Design Swarm' })).toBeInTheDocument();
+});
+
+test('a newer mission removes an old Hold receipt presentation', async () => {
+  const { rerender } = await mounted();
+  fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalled());
+  expect(screen.getAllByText('Hold unconfirmed')).toHaveLength(2);
+  mockMonitors.push({ commandId: 'later-start', missionType: 2, targetDrones: ['1', '2'],
+    updatedAtMs: Date.now() + 1000, isTerminal: false, swarmRuntime: { state: 'active', active_hw_ids: ['1', '2'] } });
+  rerender(<SwarmOperations />);
+  expect(screen.queryByText('Hold unconfirmed')).not.toBeInTheDocument();
+  expect(screen.getByText('Following')).toBeInTheDocument();
+});
+
+test('native returning telemetry takes precedence over a Hold receipt', async () => {
+  jest.useFakeTimers();
+  try {
+    await mounted();
+    fireEvent.click(screen.getByRole('button', { name: 'Hold Swarm' }));
+    await act(async () => {});
+    fetchGcsResource.mockResolvedValue({ data: { ...preview, clusters: [{ ...preview.clusters[0], members:
+      preview.clusters[0].members.map((m) => ({ ...m, armed: true, landed_state: 2, flight_mode: 0x05040000 })) }] } });
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    expect(screen.queryByText('Hold unconfirmed')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Returning/).length).toBeGreaterThan(0);
+  } finally { jest.useRealTimers(); }
+});

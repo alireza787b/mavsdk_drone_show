@@ -133,7 +133,6 @@ export default function SwarmOperations() {
   const states = Object.fromEntries(members.map((m) => [m.hw_id, memberFlightState(m)]));
   const inspected = members.find((m) => m.hw_id === inspectedId);
   const airborne = members.filter((m) => ['Airborne', 'Taking off', 'Returning', 'Landing'].includes(states[m.hw_id])).length;
-  const grounded = members.filter((m) => states[m.hw_id] === 'Grounded').length;
   const monitor = commandMonitors.find((m) => m.missionType === 2
     && m.targetDrones?.length > 0 && m.targetDrones.every((id) => ids.includes(id)));
   const runtime = monitor?.swarmRuntime;
@@ -145,7 +144,12 @@ export default function SwarmOperations() {
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;
   const nodeStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
     swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor && !monitor.isTerminal) })]));
-  const heldScope = Boolean(holdReceipt && holdReceipt.clusterId === cluster?.cluster_id);
+  const newerMission = holdReceipt && commandMonitors.some((m) => m.commandId !== holdReceipt.commandId
+    && m.missionType !== 102 && !holdReceipt.knownCommandIds.includes(m.commandId)
+    && m.updatedAtMs > holdReceipt.sentAtMs
+    && m.targetDrones?.some((id) => ids.includes(id)));
+  const heldScope = Boolean(holdReceipt && holdReceipt.clusterId === cluster?.cluster_id && !newerMission
+    && !members.some((m) => ['Returning', 'Landing', 'Taking off'].includes(states[m.hw_id])));
   const holdMonitor = heldScope
     ? commandMonitors.find((m) => m.commandId === holdReceipt.commandId) : null;
   const holdStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
@@ -155,10 +159,10 @@ export default function SwarmOperations() {
     ? `Hold · ${holdConfirmed}/${members.length} confirmed` : runtimeLabel
       || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
   useEffect(() => {
-    if (heldScope && members.some((member) => ['Returning', 'Landing'].includes(memberFlightState(member)))) {
+    if (holdReceipt && (newerMission || members.some((member) => ['Returning', 'Landing', 'Taking off'].includes(memberFlightState(member))))) {
       setHoldReceipt(null);
     }
-  }, [heldScope, members]);
+  }, [holdReceipt, newerMission, members]);
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
@@ -281,11 +285,13 @@ export default function SwarmOperations() {
     holdSubmitting.current = true;
     setHoldBusy(true);
     setError('');
-    setHoldReceipt({ clusterId: cluster.cluster_id, commandId: null });
+    const sentAtMs = Date.now();
+    const knownCommandIds = commandMonitors.map((m) => m.commandId);
+    setHoldReceipt({ clusterId: cluster.cluster_id, commandId: null, sentAtMs, knownCommandIds });
     try {
       const receipt = await submitCommandWithLifecycleFeedback(pendingHold.current.command, commandLifecycleCallbacks);
       if (scope.current === sendScope) {
-        setHoldReceipt({ clusterId: cluster.cluster_id, commandId: receipt.command_id });
+        setHoldReceipt({ clusterId: cluster.cluster_id, commandId: receipt.command_id, sentAtMs, knownCommandIds });
         pendingHold.current = null;
       }
     } catch (exc) {
@@ -313,6 +319,9 @@ export default function SwarmOperations() {
           </select>
         </label></div>
         <StatusBadge tone={previewError || (runtimeLabel && runtimeLabel !== 'Following') ? 'warning' : 'neutral'}>{status}</StatusBadge>
+        <button type="button" className="operator-button operator-button--ghost swarm-ops__overflow"
+          aria-label="Other actions" title="Other actions" aria-expanded={advanced}
+          onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /></button>
       </header>
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
         statuses={Object.fromEntries(members.map((m) => {
@@ -329,11 +338,11 @@ export default function SwarmOperations() {
         {members.filter((m) => m.readiness_status === 'blocked').map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
       </p>}
       <div className="swarm-ops__actions">
-        <button type="button" className={`operator-button ${grounded === members.length ? 'operator-button--primary' : 'operator-button--ghost'}`}
+        <button type="button" className="operator-button operator-button--ghost"
           disabled={busy || !cluster || !takeoffTargets(members).length} onClick={() => review('takeoff')}><FaArrowUp aria-hidden="true" /> Takeoff</button>
-        <button type="button" className={`operator-button ${airborne === members.length && !canStop ? 'operator-button--primary' : 'operator-button--ghost'}`}
+        <button type="button" className="operator-button operator-button--ghost"
           disabled={busy || !cluster || canStop} onClick={() => review('start')}><FaPlay aria-hidden="true" /> Start Swarm</button>
-        <button type="button" className="operator-button swarm-ops__hold" disabled={holdBusy || !cluster}
+        <button type="button" className="operator-button operator-button--ghost" disabled={holdBusy || !cluster}
           title="Hold the entire displayed cluster" onClick={holdSwarm}><FaPause aria-hidden="true" /> {holdBusy ? 'Sending Hold…' : 'Hold Swarm'}</button>
         <SequentialReturnControl targetIds={ids} targetNames={names} compact contextKey={contextKey}
           aircraftStates={states} validateReview={async () => {
@@ -343,12 +352,9 @@ export default function SwarmOperations() {
             setHoldReceipt(null);
           }} />
       </div>
-      <div className="swarm-ops__secondary">
-        <button type="button" className="operator-button operator-button--ghost" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /> Other actions</button>
+      {advanced && <div className="swarm-ops__advanced">
         <a href="/swarm-design?tab=formation">Design Swarm</a>
         <a href="/globe-view">Globe</a>
-      </div>
-      {advanced && <div className="swarm-ops__advanced">
         <label>Recovery targets <select aria-label="Recovery targets" value={individual} onChange={(e) => setIndividual(e.target.value)}>
           <option value="">Entire cluster</option>{members.map((m) => <option key={m.hw_id} value={m.hw_id}>{memberLabel(m)} only</option>)}
         </select></label>

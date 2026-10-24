@@ -30,6 +30,17 @@ Top-level pages should use the shared operator primitives:
 Mobile and tablet layouts are first-class. Primary actions remain visible;
 secondary actions collapse into an overflow menu.
 
+### Available-space layout
+
+The application `.content` owns the outer gutter and exposes `--workspace-height`.
+A direct `PageShell` fills its available width without adding a second gutter;
+panels own their internal spacing. Maps, editors and logs should size against
+that available area, not independently subtract arbitrary viewport offsets.
+Keep prose/form readability limits local rather than narrowing the whole page.
+Do not hide sizing defects with `overflow-x: hidden` on body/root/content.
+Wide tables or data surfaces scroll within their own panel. Account for both
+sidebar states, browser zoom and mobile navigation when testing.
+
 ## Action Bar Standard
 
 Use `PageActionBar` for page-level actions instead of page-specific button

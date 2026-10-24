@@ -682,10 +682,14 @@ button.mission-config-alert {
 /* Content Layout - Flexible Grid System */
 .content-flex {
     display: grid;
-    grid-template-columns: minmax(560px, 1.05fr) minmax(520px, 1.25fr);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 32.5rem), 1fr));
     gap: var(--spacing-xl);
     margin-top: var(--spacing-lg);
     align-items: start;
+}
+
+.content-flex > * {
+    min-width: 0;
 }
 
 /* Drone Cards Panel - No Internal Scrolling */

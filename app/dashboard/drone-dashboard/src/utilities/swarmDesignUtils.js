@@ -56,7 +56,7 @@ export function normalizeConfigDrone(entry = {}) {
     return null;
   }
 
-  const posId = normalizeNumericString(entry.pos_id, hwId);
+  const posId = normalizeNumericString(entry.pos_id);
 
   return {
     ...entry,
@@ -452,8 +452,8 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
     }
 
     const axisLabels = getOffsetAxisLabels(drone.frame);
-    const posId = configEntry.pos_id || drone.hw_id;
-    const isRoleSwap = posId !== drone.hw_id;
+    const posId = configEntry.pos_id || '';
+    const isRoleSwap = Boolean(posId && posId !== drone.hw_id);
     const followTarget = assignmentMap.get(drone.follow);
     const depth = getDepth(drone, assignmentMap, cycleIds, depthCache);
     const promotedField = getPromotedMissionConfigField(configEntry);
@@ -474,7 +474,7 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       directFollowers,
       directFollowerCount: directFollowers.length,
       followTargetExists: Boolean(followTarget),
-      followTargetPosId: followTarget ? configMap.get(followTarget.hw_id)?.pos_id || followTarget.hw_id : null,
+      followTargetPosId: followTarget ? configMap.get(followTarget.hw_id)?.pos_id || null : null,
       isRoleSwap,
       warnings,
       hasWarnings: warnings.length > 0,

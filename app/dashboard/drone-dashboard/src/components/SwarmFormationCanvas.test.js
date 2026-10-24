@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import SwarmFormationCanvas from './SwarmFormationCanvas';
 
 const assignments = [
@@ -22,6 +22,13 @@ test('side keyboard nudge changes height rather than North', () => {
   const { onAssignmentChange } = setup({ plane: 'east-up' });
   fireEvent.keyDown(screen.getByRole('button', { name: 'Drone 2, formation position' }), { key: 'ArrowUp', shiftKey: true });
   expect(onAssignmentChange).toHaveBeenCalledWith('2', { offset_x: 6, offset_y: 2, offset_z: 2 });
+});
+test('linked body view labels and keyboard edits use displayed axes', () => {
+  const { onAssignmentChange } = setup({ viewFrame: 'body', viewHeading: 90, aircraftLabels: { 2: 'NET-LEADER · H2' }, compact: true });
+  expect(screen.getByText(/Forward ↑ \/ Right →/)).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'NET-LEADER · H2, formation position' }), { key: 'ArrowUp', shiftKey: true });
+  const patch = onAssignmentChange.mock.calls[0][1];
+  expect(patch.offset_x).toBeCloseTo(6); expect(patch.offset_y).toBeCloseTo(3); expect(patch.offset_z).toBe(1);
 });
 test('root leader does not move through arrow keys', () => {
   const { onAssignmentChange } = setup();
@@ -57,4 +64,26 @@ test('pointer drag uses SVG screen transform and Escape restores the gesture sta
     expect(onAssignmentChange).toHaveBeenLastCalledWith('2', { offset_x: 6, offset_y: 2, offset_z: 1 });
     expect(onEditEnd).toHaveBeenCalledWith({ cancelled: true });
   } finally { window.PointerEvent = previousPointerEvent; }
+});
+
+test('Single to Four views fits the smaller pane once without changing offsets', () => {
+  const previous = global.ResizeObserver;
+  const callbacks = [];
+  global.ResizeObserver = class {
+    constructor(callback) { callbacks.push(callback); }
+    observe() {}
+    disconnect() {}
+  };
+  try {
+    const change = jest.fn();
+    const props = { assignments, clusterId: '1', selectedId: '2', onAssignmentChange: change };
+    const { rerender } = render(<SwarmFormationCanvas {...props} compact={false} />);
+    act(() => callbacks.at(-1)([{ contentRect: { width: 700, height: 480 } }]));
+    rerender(<SwarmFormationCanvas {...props} compact />);
+    act(() => callbacks.at(-1)([{ contentRect: { width: 300, height: 220 } }]));
+    const follower = screen.getByRole('button', { name: 'Drone 2, formation position' });
+    const y = Number(follower.getAttribute('transform').match(/translate\([^ ]+ ([^)]+)\)/)[1]);
+    expect(y).toBeGreaterThan(0); expect(y).toBeLessThan(220);
+    expect(change).not.toHaveBeenCalled();
+  } finally { global.ResizeObserver = previous; }
 });

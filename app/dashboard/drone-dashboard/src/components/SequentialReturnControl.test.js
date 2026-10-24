@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import SequentialReturnControl from './SequentialReturnControl';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
 
@@ -88,4 +88,58 @@ test('compact Return reviews interval and rejects a changed formation', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Start return' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Selection changed');
   expect(postGcsResource).not.toHaveBeenCalled();
+});
+
+test('historical terminal return is not shown on initial poll', async () => {
+  fetchGcsResource.mockResolvedValue({ data: { ...waiting, state: 'dispatched' } });
+  render(<SequentialReturnControl {...props} compact />);
+  await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
+  expect(screen.queryByText('RTL commands started')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Managed Return' })).toBeEnabled();
+});
+
+test.each([null, {}])('empty queue response %p does not render a queue or crash', async (data) => {
+  fetchGcsResource.mockResolvedValue({ data });
+  render(<SequentialReturnControl {...props} compact />);
+  await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  if (data === null) expect(screen.getByRole('button', { name: 'Managed Return' })).toBeEnabled();
+  else expect(await screen.findByRole('alert')).toHaveTextContent('Return status unavailable');
+});
+
+test('active queue stays visible across poll failure and selection change offers explicit details', async () => {
+  jest.useFakeTimers();
+  try {
+    fetchGcsResource.mockResolvedValueOnce({ data: waiting }).mockRejectedValue(new Error('offline'));
+    const { rerender } = render(<SequentialReturnControl {...props} compact />);
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'Cancel remaining' })).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByRole('alert')).toHaveTextContent('Return status unavailable');
+    expect(screen.getByRole('button', { name: 'Cancel remaining' })).toBeInTheDocument();
+    rerender(<SequentialReturnControl targetIds={['3']} targetNames={['Other']} compact contextKey="other" />);
+    expect(screen.queryByRole('button', { name: 'Cancel remaining' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Return active for other aircraft/ }));
+    expect(screen.getByRole('button', { name: 'Cancel remaining' })).toBeInTheDocument();
+  } finally { jest.useRealTimers(); }
+});
+
+test('new dispatched notice expires after 10 seconds, failures need acknowledgement only', async () => {
+  jest.useFakeTimers();
+  try {
+    fetchGcsResource.mockResolvedValue({ data: waiting });
+    render(<SequentialReturnControl {...props} compact />);
+    await act(async () => {});
+    fetchGcsResource.mockResolvedValue({ data: { ...waiting, state: 'dispatched' } });
+    await act(async () => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByText('RTL commands started')).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(10000); });
+    expect(screen.queryByText('RTL commands started')).not.toBeInTheDocument();
+    fetchGcsResource.mockResolvedValue({ data: { ...waiting, state: 'failed', message: 'Drone 2 rejected RTL' } });
+    await act(async () => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByText('Drone 2 rejected RTL')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
+    expect(screen.queryByText('Drone 2 rejected RTL')).not.toBeInTheDocument();
+    expect(postGcsResource).not.toHaveBeenCalled();
+  } finally { jest.useRealTimers(); }
 });

@@ -1,7 +1,7 @@
 @import './DesignTokens.css';
 
 .globe-view-container {
-    min-height: calc(100vh - var(--spacing-xl));
+    min-height: var(--workspace-height, 100dvh);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
     display: flex;

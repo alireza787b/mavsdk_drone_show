@@ -5,7 +5,8 @@
 .log-viewer-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 20px);
+  height: var(--workspace-height, 100dvh);
+  min-width: 0;
   padding: var(--spacing-md);
   gap: var(--spacing-sm);
   background-color: var(--color-bg-primary);
@@ -714,8 +715,7 @@
 @media (max-width: 760px) {
   .log-viewer-page {
     height: auto;
-    min-height: calc(100vh - 20px);
-    padding-top: 4rem;
+    min-height: var(--workspace-height, 100dvh);
   }
 
   .log-toolbar {

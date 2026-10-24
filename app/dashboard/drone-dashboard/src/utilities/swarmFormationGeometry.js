@@ -55,15 +55,42 @@ export function preservePositionPatch(assignments, id, patch, headings = {}) {
   return { ...patch, ...offsetForWorldPosition(next, positions[id], parent, headings) };
 }
 
-export function moveAssignmentInPlane(entry, deltaHorizontal, deltaVertical, plane = 'top', heading = 0) {
+/** View axes are North/East or Forward/Right; positive Up is unchanged. */
+export function worldToView(position, viewFrame = 'ned', viewHeading = 0) {
+  const relative = worldToRelative(position, viewFrame, viewHeading);
+  return { axis1: relative.offset_x, axis2: relative.offset_y, up: relative.offset_z };
+}
+
+export function viewToWorld(position, viewFrame = 'ned', viewHeading = 0) {
+  return relativeToWorld({ frame: viewFrame, offset_x: position.axis1, offset_y: position.axis2, offset_z: position.up }, viewHeading);
+}
+
+export function formationToScene(position, viewFrame = 'ned', viewHeading = 0) {
+  const view = worldToView(position, viewFrame, viewHeading);
+  return [view.axis2, view.up, -view.axis1];
+}
+
+export function sceneToFormation(position, viewFrame = 'ned', viewHeading = 0) {
+  return viewToWorld({ axis1: -position.z, axis2: position.x, up: position.y }, viewFrame, viewHeading);
+}
+
+export function formationViewLabels(viewFrame = 'ned') {
+  return viewFrame === 'body' ? { axis1: 'Forward', axis2: 'Right', up: 'Up' } : { axis1: 'North', axis2: 'East', up: 'Up' };
+}
+
+export function moveAssignmentInPlane(entry, deltaHorizontal, deltaVertical, plane = 'top', heading = 0, viewFrame = 'ned', viewHeading = 0) {
   const relative = relativeToWorld(entry, heading);
-  if (plane === 'top') { relative.east += deltaHorizontal; relative.north += deltaVertical; }
-  else { relative[plane === 'north-up' ? 'north' : 'east'] += deltaHorizontal; relative.up += deltaVertical; }
+  const deltaView = { axis1: 0, axis2: 0, up: 0 };
+  if (plane === 'top') { deltaView.axis2 = deltaHorizontal; deltaView.axis1 = deltaVertical; }
+  else { deltaView[plane === 'north-up' ? 'axis1' : 'axis2'] = deltaHorizontal; deltaView.up = deltaVertical; }
+  const delta = viewToWorld(deltaView, viewFrame, viewHeading);
+  relative.north += delta.north; relative.east += delta.east; relative.up += delta.up;
   return worldToRelative(relative, entry.frame, heading);
 }
 
-export function projectFormationPoint(point, plane = 'top') {
-  return plane === 'top' ? { x: point.east, y: point.north } : { x: point[plane === 'north-up' ? 'north' : 'east'], y: point.up };
+export function projectFormationPoint(point, plane = 'top', viewFrame = 'ned', viewHeading = 0) {
+  const view = worldToView(point, viewFrame, viewHeading);
+  return plane === 'top' ? { x: view.axis2, y: view.axis1 } : { x: view[plane === 'north-up' ? 'axis1' : 'axis2'], y: view.up };
 }
 
 export const createDraftHistory = (assignments) => ({ present: assignments, past: [], future: [], gesture: null });

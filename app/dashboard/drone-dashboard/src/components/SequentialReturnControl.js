@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { FaHome } from 'react-icons/fa';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
@@ -13,13 +13,30 @@ const LABELS = {
 };
 
 export default function SequentialReturnControl({ targetIds, targetNames, compact = false,
-  contextKey = '', aircraftStates = {}, validateReview = null }) {
+  contextKey = '', validateReview = null }) {
   const [delay, setDelay] = useState(10);
   const [confirmation, setConfirmation] = useState(null);
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pollError, setPollError] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [showOtherQueue, setShowOtherQueue] = useState(false);
+  const observedJob = useRef(null);
+  const pollInitialized = useRef(false);
+  const acceptJob = useCallback((next, submitted = false) => {
+    const previous = observedJob.current;
+    // An incomplete reply cannot erase a known running queue or imply success.
+    if ((next && (!next.return_id || !Array.isArray(next.commands) || !Array.isArray(next.target_drone_ids)))
+        || (!next && ACTIVE.has(previous?.state))) throw new Error('Return status unavailable');
+    const changed = next && (previous?.return_id !== next.return_id || previous?.state !== next.state);
+    if (next && !ACTIVE.has(next.state) && (submitted || (pollInitialized.current && changed))) {
+      setNotice({ id: next.return_id, state: next.state });
+    }
+    observedJob.current = next;
+    pollInitialized.current = true;
+    setJob(next);
+  }, []);
   // Retain request identity if the POST response is lost; retry recovers it.
   const pendingRequest = useRef(null);
 
@@ -30,7 +47,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
       try {
         const response = await fetchGcsResource(ROUTE);
         if (!stopped) {
-          setJob(response.data);
+          acceptJob(response.data);
           setPollError(false);
         }
       } catch (_) {
@@ -41,9 +58,19 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
     };
     poll();
     return () => { stopped = true; clearTimeout(timer); };
-  }, []);
+  }, [acceptJob]);
+
+  useEffect(() => {
+    if (!notice || ['failed', 'interrupted'].includes(notice.state)) return undefined;
+    const timer = setTimeout(() => setNotice(null), 10000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => { setShowOtherQueue(false); }, [contextKey, targetIds.join(',')]);
 
   const active = ACTIVE.has(job?.state);
+  const inScope = job?.target_drone_ids?.every((id) => targetIds.includes(String(id)));
+  const validJob = Boolean(job?.return_id && Array.isArray(job?.commands) && Array.isArray(job?.target_drone_ids));
+  const visible = validJob && (active || Boolean(notice && notice.id === job.return_id));
   const validDelay = Number.isFinite(Number(delay)) && Number(delay) >= 1 && Number(delay) <= 300;
 
   const start = async () => {
@@ -67,7 +94,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
     try {
       if (validateReview) await validateReview();
       const response = await postGcsResource(ROUTE, pendingRequest.current.payload);
-      setJob(response.data);
+      acceptJob(response.data, true);
       pendingRequest.current = null;
     } catch (exc) {
       const detail = exc?.response?.data?.detail;
@@ -82,7 +109,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
     setError('');
     try {
       const response = await postGcsResource(`${ROUTE}/${job.return_id}/cancel`);
-      setJob(response.data);
+      acceptJob(response.data, true);
     } catch (_) {
       setError('Cancellation not confirmed. Check the connection and retry.');
     } finally {
@@ -104,12 +131,14 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
         <button type="button" className={compact ? 'operator-button operator-button--ghost' : 'swarm-runtime-action warning'}
           disabled={busy || active || targetIds.length === 0 || !validDelay || pollError}
           onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay), contextKey })}>
-          <span className="swarm-runtime-action__icon"><FaHome /></span>
+          <FaHome aria-hidden="true" />
           {compact ? 'Managed Return' : <span className="swarm-runtime-action__copy"><strong>Managed Return</strong>
             <small>RTL in the displayed order, {delay || '—'} s apart</small></span>}
         </button>
       </div>
-      {job && (
+      {active && !inScope && !showOtherQueue && <button type="button" className="operator-button operator-button--ghost"
+        onClick={() => setShowOtherQueue(true)}>Return active for other aircraft · Details</button>}
+      {job && visible && (inScope || showOtherQueue) && (
         <div className="swarm-sequential-return__status" role="status">
           <StatusBadge tone={job.state === 'failed' || job.state === 'interrupted' ? 'warning' : 'info'}>
             {LABELS[job.state] || job.state}
@@ -119,11 +148,8 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
           {active && <button type="button" disabled={busy} onClick={cancel}>Cancel remaining</button>}
           {active && <small>Issued RTL continues.</small>}
           {['failed', 'cancelled', 'interrupted'].includes(job.state) && <span>{job.message}</span>}
-          {job.commands.map((command) => (
-            <span key={command.hw_id}>Drone {command.hw_id} · {aircraftStates[command.hw_id] === 'Grounded'
-              ? 'Landed / disarmed' : (!aircraftStates[command.hw_id] || aircraftStates[command.hw_id] === 'Unknown')
-                ? 'State unknown · RTL issued' : 'RTL issued'}</span>
-          ))}
+          {!active && ['failed', 'interrupted'].includes(job.state) && <button type="button"
+            onClick={() => setNotice(null)}>Dismiss notice</button>}
         </div>
       )}
       {pollError && <p role="alert">Return status unavailable. Pending commands may continue on the GCS.</p>}

@@ -1,4 +1,4 @@
-.formation-workspace { display:grid; grid-template-columns:190px minmax(0,1fr) 230px; min-height:560px; background:var(--color-bg-primary); border-block:1px solid var(--color-border-primary); }
+.formation-workspace { display:grid; grid-template-columns:190px minmax(0,1fr) 230px; min-height:540px; height:max(540px,calc(var(--workspace-height,100dvh) - 220px)); background:var(--color-bg-primary); border-block:1px solid var(--color-border-primary); }
 .formation-roster { border-right:1px solid var(--color-border-primary); overflow:auto; }
 .formation-search { display:block; padding:12px; }
 .formation-workspace input,.formation-workspace select { min-width:0; width:100%; min-height:40px; background:var(--color-bg-primary); color:var(--color-text-primary); border:1px solid var(--color-border-primary); border-radius:0; padding:8px; box-sizing:border-box; }
@@ -11,11 +11,11 @@
 .formation-aircraft small { grid-column:2; font-size:.7rem; }
 .formation-aircraft[aria-pressed=true] { background:var(--color-bg-tertiary); border-left-color:var(--color-info)!important; color:var(--color-text-primary); }
 .formation-role { grid-row:span 2; color:var(--color-info); }
-.formation-stage { min-width:0; }
-.formation-tools { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-border-primary); padding:0 8px; gap:8px; }
+.formation-stage { min-width:0; min-height:0; display:flex; flex-direction:column; }
+.formation-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-border-primary); padding:0 8px; gap:8px; }
 .formation-tools button { padding:10px; font-size:.8rem; border-bottom:2px solid transparent; }
 .formation-tools button[aria-selected=true] { color:var(--color-text-primary); border-bottom-color:var(--color-info); }
-.formation-inspector { border-left:1px solid var(--color-border-primary); padding:16px; }
+.formation-inspector { min-width:0; overflow:auto; border-left:1px solid var(--color-border-primary); padding:16px; }
 .formation-inspector header { display:flex; flex-direction:column; gap:4px; margin-bottom:20px; }
 .formation-inspector header span,.formation-preview-note { font-size:.75rem; color:var(--color-text-secondary); }
 .formation-inspector fieldset { border:0; padding:0; margin:0; }
@@ -30,7 +30,34 @@
 .formation-cluster-overview small { color:var(--color-text-secondary); }
 .formation-cluster-overview svg { width:100%; height:160px; color:var(--color-info); }
 .formation-stage .swarm-formation-canvas { border:0; }
-.formation-stage .swarm-graph-shell { min-height:480px; }
+.formation-stage .swarm-graph-shell { display:flex; flex-direction:column; flex:1; min-height:280px; }
+.formation-stage .swarm-graph-shell>div:last-child { flex:1; height:100%!important; min-height:280px; }
+.formation-display-tools { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:4px 8px; border-bottom:1px solid var(--color-border-primary); font-size:.75rem; }
+.formation-display-tools button { min-height:32px; padding:4px 8px; }
+.formation-display-tools button[aria-pressed=true] { background:var(--color-bg-tertiary); color:var(--color-text-primary); box-shadow:inset 0 -2px var(--color-info); }
+.formation-display-tools>label { margin-left:auto; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.formation-display-tools input[type=checkbox] { width:16px; height:16px; min-height:0; }
+.formation-axis-reference { color:var(--color-text-secondary); }
+.formation-view-grid { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+.formation-view-grid.is-quad { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(230px,1fr)); }
+.formation-workspace:has(.formation-view-grid.is-quad) { min-height:660px; }
+.formation-view-panel { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; }
+.formation-view-panel[hidden] { display:none!important; }
+.formation-view-grid.is-quad>.formation-view-panel { border:1px solid var(--color-border-primary); }
+.formation-view-panel>.swarm-formation-canvas { flex:1; display:flex; flex-direction:column; min-height:0; }
+.formation-view-panel>.swarm-formation-canvas>svg { flex:1; min-height:200px; height:100%; }
+.formation-view-panel>.swarm-formation-3d { flex:1; height:100%; min-height:230px; }
+.formation-panel-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 8px; font-size:.75rem; background:var(--color-bg-secondary); }
+.formation-panel-heading button { min-height:28px; font-size:.7rem; padding:4px; }
+.formation-field-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.formation-field-title>label { margin:0; }
+.formation-inspector .info-hint__button { min-height:24px; min-width:24px; padding:0; border:1px solid var(--color-border-primary); border-radius:0; }
+.formation-inspector .info-hint__bubble { border-radius:0; }
+.formation-inspector #formation-reference { margin-bottom:16px; }
+.formation-inspector .formation-heading { margin-bottom:16px; }
+.formation-aircraft>span:not(.formation-role),.formation-aircraft small { overflow:hidden; text-overflow:ellipsis; }
 @media(max-width:1100px) { .formation-workspace { grid-template-columns:150px minmax(0,1fr) 200px; } }
-@media(max-width:800px) { .formation-workspace { grid-template-columns:130px minmax(0,1fr); } .formation-inspector { grid-column:1/-1; border-left:0; border-top:1px solid var(--color-border-primary); } .formation-inspector fieldset { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; } }
+@media(max-width:1100px) { .formation-workspace { height:auto; } .formation-view-grid { min-height:520px; } .formation-view-grid.is-quad { min-height:680px; } }
+@media(max-width:800px) { .formation-workspace { grid-template-columns:130px minmax(0,1fr); } .formation-inspector { grid-column:1/-1; border-left:0; border-top:1px solid var(--color-border-primary); overflow:visible; } .formation-inspector fieldset { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; } .formation-field-title { grid-column:1/-1; } }
+@media(max-width:680px) { .formation-view-grid.is-quad { grid-template-columns:minmax(0,1fr); grid-template-rows:repeat(4,minmax(300px,1fr)); } }
 @media(max-width:540px) { .formation-workspace { display:flex; flex-direction:column; } .formation-roster { max-height:180px; border-right:0; border-bottom:1px solid var(--color-border-primary); } .formation-tools { flex-wrap:wrap; } }

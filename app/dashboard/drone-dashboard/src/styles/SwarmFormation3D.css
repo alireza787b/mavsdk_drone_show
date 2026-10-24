@@ -1,4 +1,7 @@
 .swarm-formation-3d { height: clamp(380px, 62vh, 720px); min-width: 0; position: relative; display: flex; flex-direction: column; background: var(--color-bg-primary); }
+.swarm-formation-3d.is-compact { height:100%; min-height:0; }
+.swarm-formation-3d.is-compact .swarm-formation-tools { padding:var(--spacing-xs); flex-wrap:wrap; }
+.swarm-formation-3d.is-compact .swarm-formation-tools button, .swarm-formation-3d.is-compact .swarm-formation-3d__plane select { min-height:36px; }
 .swarm-formation-3d > div:last-child { flex: 1; min-height: 0; }
 .swarm-formation-tools { display: flex; align-items: center; gap: var(--spacing-xs); padding: var(--spacing-sm); flex: 0 0 auto; border-bottom: 1px solid var(--color-border-primary); }
 .swarm-formation-tools button { min-width: 44px; min-height: 44px; padding: var(--spacing-xs) var(--spacing-sm); border: 0; border-radius: 0; background: var(--color-bg-tertiary); color: var(--color-text-primary); cursor: pointer; }

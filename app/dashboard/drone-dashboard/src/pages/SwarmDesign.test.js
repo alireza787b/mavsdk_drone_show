@@ -24,8 +24,8 @@ const initialAssignments = [
 let server;
 const renderPage = () => render(<MemoryRouter initialEntries={['/swarm-design?tab=design']}
   future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><SwarmDesign /></MemoryRouter>);
-const applyButton = () => screen.getByRole('button', { name: 'Apply Smart Swarm plan on this GCS' });
-const publishButton = () => screen.getAllByRole('button', { name: 'Publish Smart Swarm assignment changes' })[0];
+const applyButton = () => screen.getByRole('button', { name: 'Apply plan' });
+const publishButton = () => screen.getByRole('button', { name: 'Save to repo' });
 async function selectFollower() {
   fireEvent.click(await screen.findByRole('button', { name: 'NET-LEADER, formation position' }));
   return screen.getByRole('spinbutton', { name: 'offset_x metres' });
@@ -33,8 +33,8 @@ async function selectFollower() {
 async function editNorth(value = '8') { fireEvent.change(await selectFollower(), { target: { value } }); }
 async function confirmApply() {
   fireEvent.click(applyButton());
-  const dialog = await screen.findByRole('dialog', { name: 'Apply Smart Swarm assignments?' });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Apply plan?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply plan' }));
 }
 
 beforeEach(() => {
@@ -71,7 +71,7 @@ test('renders real linked canvas and inspector with Operate separate', async () 
 test('numeric edits remain browser-local and undo/redo restore exact offsets', async () => {
   renderPage(); await editNorth('9');
   expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
-  expect(applyButton()).toBeEnabled(); expect(publishButton()).toBeDisabled();
+  expect(applyButton()).toBeEnabled(); expect(publishButton()).toBeEnabled();
   expect(saveSwarmConfigResponse).not.toHaveBeenCalled(); expect(publishSwarmConfigResponse).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Undo formation edit' }));
   expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(6);
@@ -92,8 +92,8 @@ test('Apply waits for confirmation and carries the loaded revision', async () =>
   renderPage(); await editNorth();
   fireEvent.click(applyButton());
   expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
-  const dialog = await screen.findByRole('dialog', { name: 'Apply Smart Swarm assignments?' });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Apply plan?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply plan' }));
   await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
   expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ hw_id: 2, follow: 1, offset_x: 8 })]),
     { commit: false, revision: 'revision-1', acknowledgedUnavailableIds: [] });
@@ -105,8 +105,8 @@ test('Publish uses the applied revision without another config write', async () 
   renderPage(); await selectFollower();
   await waitFor(() => expect(publishButton()).toBeEnabled());
   fireEvent.click(publishButton());
-  const dialog = await screen.findByRole('dialog', { name: 'Publish Smart Swarm assignments?' });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Save plan to repository?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save to repo' }));
   await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledWith('revision-1'));
   expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
 });
@@ -158,4 +158,74 @@ test('aircraft acknowledgements distinguish unreachable from applied', async () 
   expect(status).toHaveTextContent('SCOUT · Applied');
   expect(status).toHaveTextContent('NET-LEADER · Unreachable');
   expect(status).not.toHaveTextContent('NET-LEADER · Applied');
+});
+
+test('Save to repo applies the draft and publishes the returned revision', async () => {
+  renderPage(); await editNorth('8.25');
+  fireEvent.click(publishButton());
+  const dialog = await screen.findByRole('dialog', { name: 'Save plan to repository?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save to repo' }));
+  await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledWith('revision-2'));
+  expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1);
+  expect(saveSwarmConfigResponse.mock.invocationCallOrder[0]).toBeLessThan(publishSwarmConfigResponse.mock.invocationCallOrder[0]);
+});
+
+test('unreachable acknowledgement continues the entire Save to repo workflow', async () => {
+  saveSwarmConfigResponse.mockRejectedValueOnce({ response: { data: { detail: {
+    code: 'unavailable_confirmation_required', unavailable_hw_ids: ['2'],
+  } } } });
+  renderPage(); await editNorth(); fireEvent.click(publishButton());
+  fireEvent.click(within(await screen.findByRole('dialog', { name: 'Save plan to repository?' })).getByRole('button', { name: 'Save to repo' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Some aircraft are unreachable' });
+  expect(publishSwarmConfigResponse).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply anyway' }));
+  await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledWith('revision-2'));
+});
+
+test('Reset draft is confirmed, local-only and undoable', async () => {
+  renderPage(); await editNorth('9'); fireEvent.click(screen.getByRole('button', { name: 'Reset draft' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Reset draft?' });
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Reset draft' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(6);
+  fireEvent.click(screen.getByRole('button', { name: 'Undo formation edit' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
+
+test('Four views share the selected draft without dispatching or publishing', async () => {
+  renderPage(); await editNorth('7');
+  fireEvent.click(screen.getByRole('button', { name: 'Four views' }));
+  for (const title of ['Top', 'Front', 'Side', '3D']) expect(screen.getByLabelText(`${title} panel`)).toBeVisible();
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(7);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Top view' }));
+  expect(screen.getByLabelText('Front panel')).not.toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Restore four views' }));
+  expect(screen.getByLabelText('Front panel')).toBeVisible();
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
+
+test('repository failure after Apply leaves a publication-only retry', async () => {
+  const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  publishSwarmConfigResponse.mockRejectedValueOnce(new Error('Repository offline'));
+  renderPage(); await editNorth('8'); fireEvent.click(publishButton());
+  fireEvent.click(within(await screen.findByRole('dialog', { name: 'Save plan to repository?' })).getByRole('button', { name: 'Save to repo' }));
+  await screen.findByText('Plan applied · Repository save failed');
+  expect(applyButton()).toBeDisabled();
+  fireEvent.click(publishButton());
+  fireEvent.click(within(await screen.findByRole('dialog', { name: 'Save plan to repository?' })).getByRole('button', { name: 'Save to repo' }));
+  await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledTimes(2));
+  expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1);
+  consoleError.mockRestore();
+});
+
+test('missing names use hardware IDs and never invent a position ID', async () => {
+  getFleetConfigResponse.mockResolvedValue({ data: [{ hw_id: 1 }, { hw_id: 2, pos_id: 9 }] });
+  renderPage();
+  expect(await screen.findByRole('button', { name: 'H1, leader origin' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'H2, formation position' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'H2, formation position' }));
+  expect(screen.getByLabelText('Aircraft spacing')).toHaveTextContent('H2 · P9');
+  fireEvent.click(screen.getByRole('button', { name: 'H1, leader origin' }));
+  expect(screen.getByLabelText('Aircraft spacing')).not.toHaveTextContent('P1');
 });

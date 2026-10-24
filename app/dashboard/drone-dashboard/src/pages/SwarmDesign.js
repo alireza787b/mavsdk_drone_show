@@ -6,7 +6,6 @@ import {
   FaDownload,
   FaProjectDiagram,
   FaSave,
-  FaUndo,
   FaUpload,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -15,6 +14,7 @@ import SwarmDesignWorkspace from '../components/SwarmDesignWorkspace';
 import { preservePositionPatch } from '../utilities/swarmFormationGeometry';
 import { getBackendURL } from '../config/apiConfig';
 import useSwarmDesignDraft from '../hooks/useSwarmDesignDraft';
+import { saveSwarmPlan } from '../utilities/saveSwarmPlan';
 import {
   ActionIconButton,
   ConfirmDialog,
@@ -28,9 +28,7 @@ import {
   getFleetConfigResponse,
   getSwarmConfigResponse,
   getUnifiedGitStatusResponse,
-  saveSwarmConfigResponse,
   getSwarmDesignStatusResponse,
-  publishSwarmConfigResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import {
@@ -94,9 +92,9 @@ function classifySwarmSaveOutcome(responseData, withCommit) {
 
   if (!withCommit) {
     return {
-      tone: 'warning',
-      title: 'Applied on GCS',
-      message: 'The formation is active on this GCS. Publish is optional repository persistence.',
+      tone: 'success',
+      title: 'Plan applied',
+      message: 'GCS plan updated. Repository unchanged.',
       stepStates: ['done', 'skipped', 'skipped'],
       gitResult,
     };
@@ -105,7 +103,7 @@ function classifySwarmSaveOutcome(responseData, withCommit) {
   if (status === 'git_failed' || gitResult?.success === false) {
     return {
       tone: 'danger',
-      title: 'Saved locally, commit failed',
+      title: 'Plan applied · Repository save failed',
       message: buildGitResultMessage(gitResult),
       stepStates: ['done', gitResult?.commit_hash ? 'done' : 'blocked', 'blocked'],
       gitResult,
@@ -124,8 +122,8 @@ function classifySwarmSaveOutcome(responseData, withCommit) {
 
   return {
     tone: 'success',
-    title: 'Published',
-    message: `${buildGitResultMessage(gitResult)}. Use Fleet Ops if drones need to pull this commit.`,
+    title: 'Saved to repository',
+    message: buildGitResultMessage(gitResult),
     stepStates: ['done', 'done', 'done'],
     gitResult,
   };
@@ -515,8 +513,8 @@ function SwarmDesign() {
     }
 
     setConfirmDialog({
-      title: 'Revert staged edits?',
-      confirmLabel: 'Revert',
+      title: 'Reset draft?',
+      confirmLabel: 'Reset draft',
       message: (
         <p>
           Discard {dirtyIds.length} local Smart Swarm assignment change{dirtyIds.length === 1 ? '' : 's'} and restore
@@ -525,45 +523,55 @@ function SwarmDesign() {
       ),
       onConfirm: () => {
         setConfirmDialog(null);
-        setWorkingAssignments(baselineAssignments);
+        draftHistory.replace(baselineAssignments);
         try { window.localStorage.removeItem(DRAFT_KEY); } catch { setDraftStorageError(true); }
         setSaveReport(null);
         setSaveProgress(null);
-        toast.info('Reverted local Smart Swarm changes.');
+        toast.info('Draft reset. Undo is available.');
       },
     });
   };
 
-  const saveSwarmData = async (withCommit, acknowledgedUnavailableIds = []) => {
+  const saveSwarmData = async (withCommit, acknowledgedUnavailableIds = [], captured = null) => {
+    const request = captured || { assignments: toSwarmApiPayload(workingRef.current),
+      revision: serverSwarmRevision, needsApply: canUpdateSwarm };
     const operation = withCommit ? 'commit' : 'update';
     setSaveOperation(operation);
     setSaving(true);
     setSaveProgress(buildSwarmSaveProgress({
-      title: withCommit ? 'Publishing Smart Swarm' : 'Applying Smart Swarm plan',
-      message: withCommit
-        ? 'Saving swarm.json, committing it, then pushing it to the repo.'
-        : 'Applying the validated formation revision on this GCS.',
+      title: withCommit ? 'Saving to repository' : 'Applying plan',
+      message: '',
       tone: 'info',
       withCommit,
       stepStates: withCommit ? ['active', 'pending', 'pending'] : ['active', 'skipped', 'skipped'],
     }));
 
     try {
-      toast.info(withCommit ? 'Publishing Smart Swarm assignments...' : 'Applying Smart Swarm plan...');
-      const saveOptions = { commit: false, acknowledgedUnavailableIds };
-      if (serverSwarmRevision) saveOptions.revision = serverSwarmRevision;
-      const response = withCommit
-        ? await publishSwarmConfigResponse(serverSwarmRevision)
-        : await saveSwarmConfigResponse(toSwarmApiPayload(workingAssignments), saveOptions);
+      const response = await saveSwarmPlan({ ...request, publish: withCommit, acknowledgedUnavailableIds,
+        onApplied: (data) => {
+          setApplicationStatus(data.application || null);
+          setLocalSwarmCommitPending(true);
+          const normalized = (data.config?.assignments || request.assignments).map(normalizeSwarmAssignment).filter(Boolean);
+          const next = buildWorkingSwarmAssignments(configData, normalized).assignments;
+          setServerSwarmData(normalized);
+          setServerSwarmRevision(String(data.config?.revision || ''));
+          setBaselineAssignments(next);
+          setWorkingAssignments(next);
+        },
+        onPublishing: () => setSaveProgress(buildSwarmSaveProgress({ title: 'Saving to repository',
+          message: '', withCommit: true, stepStates: ['done', 'active', 'pending'] })),
+      });
 
       const responseData = response?.data || {};
-      setApplicationStatus(responseData.application || null);
+      if (responseData.application) setApplicationStatus(responseData.application);
       const outcome = classifySwarmSaveOutcome(responseData, withCommit);
       const gitResult = outcome.gitResult;
       if (!withCommit) {
         setLocalSwarmCommitPending(true);
       } else if (outcome.tone === 'danger') {
-        setLocalSwarmCommitPending(!gitResult?.commit_hash);
+        setLocalSwarmCommitPending(true);
+      } else if (outcome.tone === 'warning') {
+        setLocalSwarmCommitPending(true);
       } else {
         setLocalSwarmCommitPending(false);
       }
@@ -603,7 +611,7 @@ function SwarmDesign() {
           stepStates: outcome.stepStates,
         }));
       }
-      await refreshFromServer();
+      await refreshFromServer().catch(() => toast.warning('Plan saved. Readback delayed; refresh when connected.'));
       await refreshGitStatus();
     } catch (error) {
       const detail = error?.response?.data?.detail;
@@ -612,24 +620,30 @@ function SwarmDesign() {
         setConfirmDialog({
           title: 'Some aircraft are unreachable', confirmLabel: 'Apply anyway',
           message: <p>{ids.map((id) => viewModel.dronesById[id]?.callsign || viewModel.dronesById[id]?.title || `Aircraft ${id}`).join(', ')}. Reachable aircraft may change first; others can pick up this plan when they reconnect.</p>,
-          onConfirm: () => { setConfirmDialog(null); saveSwarmData(false, ids); },
+          onConfirm: () => { setConfirmDialog(null); saveSwarmData(withCommit, ids, request); },
         });
         setSaveProgress(null);
         return;
       }
       const errorMessage = typeof detail === 'string' ? detail : detail?.message || error?.message || 'The formation could not be applied.';
+      const repositoryFailure = error?.saveStage === 'publish';
+      if (repositoryFailure) {
+        setLocalSwarmCommitPending(true);
+        // The Apply has already succeeded; keep retries publication-only.
+        await refreshFromServer().catch(() => {});
+      }
       console.error('Failed to save Smart Swarm configuration:', error);
       setSaveReport({
         tone: 'danger',
-        title: withCommit ? 'Commit failed' : 'Update failed',
+        title: repositoryFailure ? 'Plan applied · Repository save failed' : 'Plan not applied',
         message: errorMessage,
       });
       setSaveProgress(buildSwarmSaveProgress({
-        title: withCommit ? 'Commit failed' : 'Update failed',
+        title: repositoryFailure ? 'Plan applied · Repository save failed' : 'Plan not applied',
         message: errorMessage,
         tone: 'danger',
         withCommit,
-        stepStates: ['blocked', withCommit ? 'pending' : 'skipped', withCommit ? 'pending' : 'skipped'],
+        stepStates: repositoryFailure ? ['done', 'blocked', 'blocked'] : ['blocked', 'skipped', 'skipped'],
       }));
       toast.error('Failed to save Smart Swarm configuration.');
     } finally {
@@ -639,10 +653,6 @@ function SwarmDesign() {
   };
 
   const confirmAndSave = (withCommit) => {
-    if (withCommit && (hasStagedChanges || hasPendingSync)) {
-      toast.info('Apply the draft first, then publish the applied plan.');
-      return;
-    }
     if (hasBlockingIssues) {
       toast.error('Resolve blocking follow-chain issues before saving Smart Swarm assignments.');
       return;
@@ -663,13 +673,13 @@ function SwarmDesign() {
       return;
     }
 
-    const summaryLines = [withCommit ? 'Publish the applied plan to the repository.' : `${dirtyIds.length} aircraft changed. Running swarm aircraft will adopt this plan through configuration updates.`];
+    const request = { assignments: toSwarmApiPayload(workingRef.current), revision: serverSwarmRevision, needsApply: canUpdateSwarm };
+    const summaryLines = [withCommit ? `${canUpdateSwarm ? 'Apply this plan, then' : 'Save the applied plan:'} commit and push to the repository.` : `${dirtyIds.length} aircraft changed. Update the GCS plan.`];
     setConfirmDialog({
-      title: `${withCommit ? 'Publish' : 'Apply'} Smart Swarm assignments?`,
-      confirmLabel: withCommit ? 'Publish' : 'Apply',
+      title: withCommit ? 'Save plan to repository?' : 'Apply plan?',
+      confirmLabel: withCommit ? 'Save to repo' : 'Apply plan',
       message: (
         <div className="swarm-confirm-summary">
-          <p>Review the formation summary before saving this assignment set.</p>
           <ul>
             {summaryLines.map((line) => <li key={line}>{line}</li>)}
           </ul>
@@ -677,7 +687,7 @@ function SwarmDesign() {
       ),
       onConfirm: () => {
         setConfirmDialog(null);
-        saveSwarmData(withCommit);
+        saveSwarmData(withCommit, [], request);
       },
     });
   };
@@ -713,7 +723,7 @@ function SwarmDesign() {
             <ActionIconButton
               key="update"
               icon={<FaSave />}
-              label="Apply Smart Swarm plan on this GCS"
+              label="Apply plan"
               onClick={() => confirmAndSave(false)}
               tone="info"
               active={saving && saveOperation === 'update'}
@@ -722,7 +732,13 @@ function SwarmDesign() {
               disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
               data-help="Apply the validated formation on this GCS. Running swarm nodes may observe it through normal configuration polling."
             >
-              {saving && saveOperation === 'update' ? 'Applying' : 'Apply'}
+              {saving && saveOperation === 'update' ? 'Applying' : 'Apply plan'}
+            </ActionIconButton>,
+            <ActionIconButton key="commit" icon={<FaCloudUploadAlt />} label="Save to repo"
+              onClick={() => confirmAndSave(true)} tone="neutral" aria-busy={saving && saveOperation === 'commit'}
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canCommitSwarm}
+              data-help="Apply this draft, then save it to the repository. Does not start a mission.">
+              {saving && saveOperation === 'commit' ? 'Saving' : 'Save to repo'}
             </ActionIconButton>,
           ]}
           secondary={[
@@ -744,20 +760,6 @@ function SwarmDesign() {
               <input type="file" accept=".json,.csv" onChange={handleImport} />
             </label>,
             <ActionIconButton
-              key="commit"
-              icon={<FaCloudUploadAlt />}
-              label="Publish Smart Swarm assignment changes"
-              onClick={() => confirmAndSave(true)}
-              tone="success"
-              active={saving && saveOperation === 'commit'}
-              aria-busy={saving && saveOperation === 'commit'}
-              className={saving && saveOperation === 'commit' ? 'is-busy' : ''}
-              disabled={saving || hasStagedChanges || hasPendingSync || !canCommitSwarm}
-              data-help="Publish the applied GCS plan to the repository. Does not send flight commands."
-            >
-              {saving && saveOperation === 'commit' ? 'Publishing' : 'Publish'}
-            </ActionIconButton>,
-            <ActionIconButton
               key="json"
               icon={<FaDownload />}
               label="Export Smart Swarm assignments as JSON"
@@ -775,16 +777,6 @@ function SwarmDesign() {
             >
               CSV
             </ActionIconButton>,
-            <ActionIconButton
-              key="revert"
-              icon={<FaUndo />}
-              label="Revert local Smart Swarm edits"
-              onClick={handleRevert}
-              disabled={!hasStagedChanges}
-              tone="warning"
-            >
-              Revert
-            </ActionIconButton>,
           ]}
           overflowLabel="Files"
         />
@@ -793,7 +785,7 @@ function SwarmDesign() {
 
       <div role="tablist" aria-label="Swarm workspace" className="swarm-workspace-tabs">
         <button type="button" role="tab" aria-selected={tab === 'operate'} onClick={() => setTab('operate')}>Operate</button>
-        <button type="button" role="tab" aria-selected={tab === 'formation'} onClick={() => setTab('formation')}>Design Swarm{hasStagedChanges ? ' •' : ''}</button>
+        <button type="button" role="tab" aria-selected={tab === 'formation'} onClick={() => setTab('formation')}>Design Swarm{tab === 'formation' && hasStagedChanges ? ' •' : ''}</button>
       </div>
       {tab === 'operate' && <section role="tabpanel" aria-label="Operate">
         <SwarmRuntimeControls />
@@ -871,6 +863,7 @@ function SwarmDesign() {
         selectedId={selectedDroneId} onSelect={handleSelectDrone}
         onChange={handleAssignmentChange} onEditBegin={beginEdit} onEditEnd={endEdit}
         onUndo={undoEdit} onRedo={redoEdit} canUndo={draftHistory.canUndo} canRedo={draftHistory.canRedo}
+        onReset={handleRevert} canReset={hasStagedChanges}
         previewHeadings={previewHeadings} onHeadingChange={(id, value) => setPreviewHeadings((current) => ({ ...current, [id]: value }))}
         disabled={saving} />
 

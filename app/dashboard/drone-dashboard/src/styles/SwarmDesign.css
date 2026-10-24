@@ -1,6 +1,6 @@
 @import './DesignTokens.css';
 
-.swarm-design-page { background:var(--color-bg-primary); color:var(--color-text-primary); min-height:100vh; }
+.swarm-design-page { background:var(--color-bg-primary); color:var(--color-text-primary); min-height:var(--workspace-height,100dvh); }
 .swarm-workspace-tabs { display:flex; gap:var(--spacing-md); border-bottom:1px solid var(--color-border-primary); margin-bottom:var(--spacing-base); }
 .swarm-workspace-tabs button { min-height:44px; padding:8px 18px; border:0; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:var(--color-text-secondary); cursor:pointer; }
 .swarm-workspace-tabs button[aria-selected=true] { border-bottom-color:var(--color-info); color:var(--color-text-primary); }

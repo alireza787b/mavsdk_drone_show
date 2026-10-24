@@ -56,6 +56,8 @@ class TestGitOperationsNonInteractiveAuth:
         fake_git = MagicMock()
         fake_repo = MagicMock()
         fake_repo.git = fake_git
+        fake_repo.head.is_detached = False
+        fake_repo.active_branch.name = gcs_utils.Params.GIT_BRANCH
         fake_repo.is_dirty.return_value = False
 
         monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
@@ -85,6 +87,8 @@ class TestGitOperationsNonInteractiveAuth:
 
         fake_repo = MagicMock()
         fake_repo.git = fake_git
+        fake_repo.head.is_detached = False
+        fake_repo.active_branch.name = gcs_utils.Params.GIT_BRANCH
         fake_repo.is_dirty.return_value = True
         fake_repo.index.commit.return_value = type('Commit', (), {'hexsha': 'abc12345', 'stats': type('Stats', (), {'files': {}})()})()
 
@@ -104,6 +108,8 @@ class TestGitOperationsNonInteractiveAuth:
         fake_git = MagicMock()
         fake_repo = MagicMock()
         fake_repo.git = fake_git
+        fake_repo.head.is_detached = False
+        fake_repo.active_branch.name = gcs_utils.Params.GIT_BRANCH
         fake_repo.is_dirty.return_value = True
         fake_repo.index.commit.return_value = type(
             'Commit',
@@ -130,6 +136,8 @@ class TestGitOperationsNonInteractiveAuth:
         fake_git = MagicMock()
         fake_repo = MagicMock()
         fake_repo.git = fake_git
+        fake_repo.head.is_detached = False
+        fake_repo.active_branch.name = gcs_utils.Params.GIT_BRANCH
         fake_repo.is_dirty.return_value = False
 
         monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
@@ -142,6 +150,23 @@ class TestGitOperationsNonInteractiveAuth:
         assert 'No new git commit was needed' in result['message']
         fake_git.pull.assert_not_called()
         fake_git.push.assert_not_called()
+
+    @pytest.mark.parametrize('detached', [False, True])
+    def test_git_operations_never_mutates_or_pushes_a_different_branch(self, monkeypatch, detached):
+        gcs_utils = load_gcs_utils_module()
+        fake_repo = MagicMock()
+        fake_repo.head.is_detached = detached
+        fake_repo.active_branch.name = 'review/candidate'
+        monkeypatch.setattr(gcs_utils.Params, 'GIT_BRANCH', 'main')
+        monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
+        result = gcs_utils.git_operations('/tmp/repo', 'save formation')
+        assert result['success'] is False
+        assert result['error'] == 'branch_mismatch'
+        fake_repo.git.fetch.assert_not_called()
+        fake_repo.git.add.assert_not_called()
+        fake_repo.index.commit.assert_not_called()
+        fake_repo.git.pull.assert_not_called()
+        fake_repo.git.push.assert_not_called()
 
 
 class TestGitStatusSchemas:

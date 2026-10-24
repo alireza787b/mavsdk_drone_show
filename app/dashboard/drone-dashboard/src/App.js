@@ -11,7 +11,7 @@
  */
 
 import React, { useEffect, useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { FaBars, FaTimes } from 'react-icons/fa';
 
 // Import theme system
@@ -227,7 +227,9 @@ const AppShell = () => {
                       <Route path="/fleet-ops" element={<FleetOpsPage />} />
                       <Route path="/fleet-ops/wifi" element={<FleetOpsWifiPage />} />
                       <Route path="/fleet-ops/mavlink" element={<FleetOpsMavlinkPage />} />
-                      <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
+                      <Route path="/drone-detail" element={selectedDrone
+                        ? <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
+                        : <Navigate to="/" replace />} />
                       <Route path="/manage-drone-show" element={<ManageDroneShow />} />
                       <Route path="/custom-show" element={<CustomShowPage />} />
                       <Route path="/globe-view" element={<GlobeView />} />

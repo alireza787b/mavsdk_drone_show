@@ -1,10 +1,11 @@
 @import './DesignTokens.css';
 
 .overview-container {
-    min-height: 100vh;
+    min-height: var(--workspace-height, 100dvh);
     background: transparent;
     color: var(--color-text-primary);
-    max-width: 1680px;
+    width: 100%;
+    min-width: 0;
 }
 
 .overview-header {

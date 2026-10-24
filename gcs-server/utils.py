@@ -127,6 +127,13 @@ def git_operations(base_dir, commit_message, timeout=30):
     try:
         repo = Repo(base_dir)
         git = repo.git
+        # Never stage/rebase one checkout while pushing a different configured
+        # branch. This can otherwise report success without publishing the plan.
+        if repo.head.is_detached or repo.active_branch.name != Params.GIT_BRANCH:
+            current = 'detached HEAD' if repo.head.is_detached else repo.active_branch.name
+            return {'success': False, 'error': 'branch_mismatch', 'commit_hash': None,
+                    'message': f'Repository is on {current}; deployment tracks {Params.GIT_BRANCH}. '
+                               'Align the deployment branch before saving to the repository.'}
         git.update_environment(
             GIT_TERMINAL_PROMPT='0',
             GIT_ASKPASS='echo',

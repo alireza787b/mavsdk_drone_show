@@ -4,7 +4,7 @@ import { FaInfoCircle } from 'react-icons/fa';
 
 import '../styles/InfoHint.css';
 
-function InfoHint({ content, label = 'More information', className = '', placement = 'top' }) {
+function InfoHint({ content, label = 'More information', className = '', placement = 'top', icon = <FaInfoCircle />, hoverable = false }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const tooltipId = useId();
@@ -39,7 +39,9 @@ function InfoHint({ content, label = 'More information', className = '', placeme
   }
 
   return (
-    <span ref={containerRef} className={`info-hint ${className}`.trim()}>
+    <span ref={containerRef} className={`info-hint ${className}`.trim()}
+      onMouseEnter={hoverable ? () => setOpen(true) : undefined}
+      onMouseLeave={hoverable ? () => setOpen(false) : undefined}>
       <button
         type="button"
         className="info-hint__button"
@@ -47,9 +49,11 @@ function InfoHint({ content, label = 'More information', className = '', placeme
         aria-expanded={open}
         aria-controls={tooltipId}
         onClick={() => setOpen((current) => !current)}
+        onFocus={hoverable ? () => setOpen(true) : undefined}
+        onBlur={hoverable ? () => setOpen(false) : undefined}
         title={label}
       >
-        <FaInfoCircle />
+        {icon}
       </button>
       {open ? (
         <span
@@ -69,6 +73,8 @@ InfoHint.propTypes = {
   label: PropTypes.string,
   className: PropTypes.string,
   placement: PropTypes.oneOf(['top', 'right', 'bottom', 'left']),
+  icon: PropTypes.node,
+  hoverable: PropTypes.bool,
 };
 
 export default InfoHint;

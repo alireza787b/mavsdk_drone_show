@@ -9,6 +9,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm Design adds linked four-view editing, readable distance display without
+  quantizing saved values, undoable Reset draft, consistent hardware/callsign
+  labels, frame help and visible Apply plan / Save to repo actions. Repository
+  saving applies a changed draft then publishes the acknowledged revision.
+  Operate removes historical return clutter, retains active/unconfirmed work,
+  uses consistent controls and moves secondary actions behind overflow.
+  Shared dashboard layout fills available space and fixes sidebar/page overflow
+  without changing flight logic or PX4 parameters. Repository writes reject a
+  detached/mismatched deployment branch before staging or pushing the wrong ref.
+
 - Swarm Design gains a linked Top/Side/3D/Links workspace with constrained
   dragging, shared selection, undo/redo and recoverable browser-local drafts.
   Body-frame previews and mixed follow chains use explicit preview headings;

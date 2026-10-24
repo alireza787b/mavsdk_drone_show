@@ -4,8 +4,8 @@
 .quickscout-page {
     display: flex;
     flex-direction: column;
-    min-height: calc(100dvh - 60px);
-    height: calc(100dvh - 60px);
+    min-height: 0;
+    height: var(--workspace-height, 100dvh);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
     overflow: hidden;
@@ -1364,7 +1364,7 @@
 /* === Responsive === */
 @media (max-width: 768px) {
     .quickscout-page {
-        min-height: 100dvh;
+        min-height: var(--workspace-height, 100dvh);
         height: auto;
         overflow: visible;
     }

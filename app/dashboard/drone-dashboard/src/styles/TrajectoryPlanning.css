@@ -10,8 +10,8 @@
 .trajectory-planning {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
-  height: 100dvh;
+  min-height: 0;
+  height: var(--workspace-height, 100dvh);
   background: var(--color-bg-primary);
   font-family: var(--font-family-primary);
 }
@@ -1860,7 +1860,7 @@
 @media (max-width: 768px) {
   .trajectory-planning {
     height: auto;
-    min-height: 100dvh;
+    min-height: var(--workspace-height, 100dvh);
   }
 
   .trajectory-header {

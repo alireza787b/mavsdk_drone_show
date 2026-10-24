@@ -1,19 +1,21 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { moveAssignmentInPlane, projectFormationPoint, resolveFormationPositions } from '../utilities/swarmFormationGeometry';
+import { formationViewLabels, moveAssignmentInPlane, projectFormationPoint, resolveFormationPositions } from '../utilities/swarmFormationGeometry';
 import '../styles/SwarmFormationCanvas.css';
 
 const WIDTH = 760, HEIGHT = 480;
 const EMPTY = {};
 const clampScale = (value) => Math.max(0.02, Math.min(500, value));
-function fitCamera(points) {
+function fitCamera(points, width = WIDTH, height = HEIGHT) {
   const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
   const minX = Math.min(-3, ...xs), maxX = Math.max(3, ...xs);
   const minY = Math.min(-3, ...ys), maxY = Math.max(3, ...ys);
-  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, scale: clampScale(Math.min((WIDTH - 140) / (maxX - minX), (HEIGHT - 140) / (maxY - minY))) };
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, scale: clampScale(Math.min(Math.max(80, width - 120) / (maxX - minX), Math.max(80, height - 120) / (maxY - minY))) };
 }
 
-export default function SwarmFormationCanvas({ assignments, configData = [], clusterId, selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, plane = 'top', onEditBegin, onEditEnd }) {
+export default function SwarmFormationCanvas({ assignments, configData = [], clusterId, selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, plane = 'top', onEditBegin, onEditEnd, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false }) {
   const svgRef = useRef(null), gesture = useRef(null), cameras = useRef({});
+  const [viewport, setViewport] = useState({ width: WIDTH, height: HEIGHT });
+  const { width, height } = viewport;
   const patternId = useId().replace(/:/g, '');
   const [camera, setCamera] = useState({ x: 0, y: 0, scale: 30 });
   const [tool, setTool] = useState('select');
@@ -34,16 +36,34 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
   const roots = [...new Set(Object.values(scene.positions).map((p) => p.root))];
   const root = clusterId && clusterId !== 'all' ? String(clusterId) : roots[0];
   const entries = assignments.filter((entry) => scene.positions[String(entry.hw_id)]?.root === root);
-  const points = entries.map((entry) => ({ ...entry, id: String(entry.hw_id), ...projectFormationPoint(scene.positions[String(entry.hw_id)], plane) }));
-  const scopeKey = `${root || ''}:${plane}`;
+  const points = entries.map((entry) => ({ ...entry, id: String(entry.hw_id), ...projectFormationPoint(scene.positions[String(entry.hw_id)], plane, viewFrame, viewHeading) }));
+  const scopeKey = `${root || ''}:${plane}:${viewFrame}`;
   const latestPoints = useRef(points); latestPoints.current = points;
-  useEffect(() => { setCamera(cameras.current[scopeKey] || fitCamera(latestPoints.current)); }, [scopeKey]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return undefined;
+    let measured = false;
+    const observer = new ResizeObserver(([entry]) => {
+      const bounds = entry.contentRect;
+      if (bounds.width > 0 && bounds.height > 0) {
+        setViewport({ width: bounds.width, height: bounds.height });
+        if (!measured) setCamera(fitCamera(latestPoints.current, bounds.width, bounds.height));
+        measured = true;
+      }
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  // A deliberate Single/Four-view transition needs a fit at its new size.
+  // Normal edits and later resizes retain the operator's camera.
+  }, [scene.error, compact]);
+  const viewportRef = useRef(viewport); viewportRef.current = viewport;
+  useEffect(() => { setCamera(cameras.current[scopeKey] || fitCamera(latestPoints.current, viewportRef.current.width, viewportRef.current.height)); }, [scopeKey]);
   const activeScope = useRef(scopeKey);
   useEffect(() => {
     if (activeScope.current === scopeKey) cameras.current[scopeKey] = camera;
     activeScope.current = scopeKey;
   }, [camera, scopeKey]);
-  const toScreen = (point) => ({ x: WIDTH / 2 + (point.x - camera.x) * camera.scale, y: HEIGHT / 2 - (point.y - camera.y) * camera.scale });
+  const toScreen = (point) => ({ x: width / 2 + (point.x - camera.x) * camera.scale, y: height / 2 - (point.y - camera.y) * camera.scale });
   const pointFromEvent = (event) => {
     const svg = svgRef.current;
     const matrix = svg?.getScreenCTM?.();
@@ -67,7 +87,7 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
     const id = entry && String(entry.hw_id);
     if (id) onSelect?.(id);
     if (tool === 'select' && entry && String(entry.follow) !== '0') {
-      gesture.current = { kind: 'move', id, original: { ...entry }, start, camera: { ...camera }, heading: previewHeadings[String(entry.follow)] || 0, plane };
+      gesture.current = { kind: 'move', id, original: { ...entry }, start, camera: { ...camera }, heading: previewHeadings[String(entry.follow)] || 0, plane, viewFrame, viewHeading };
       setMoving(id); onEditBegin?.();
     } else if (!entry || tool === 'pan') gesture.current = { kind: 'pan', start, camera: { ...camera } };
     if (gesture.current) svgRef.current?.setPointerCapture?.(event.pointerId);
@@ -78,7 +98,7 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
     const dx = (point.x - active.start.x) / active.camera.scale;
     const dy = -(point.y - active.start.y) / active.camera.scale;
     if (active.kind === 'pan') setCamera({ ...active.camera, x: active.camera.x - dx, y: active.camera.y - dy });
-    else onAssignmentChange?.(active.id, moveAssignmentInPlane(active.original, dx, dy, active.plane, active.heading));
+    else onAssignmentChange?.(active.id, moveAssignmentInPlane(active.original, dx, dy, active.plane, active.heading, active.viewFrame, active.viewHeading));
   };
   const zoom = (factor) => { if (!gesture.current) setCamera((current) => ({ ...current, scale: clampScale(current.scale * factor) })); };
   const nudge = (event, entry) => {
@@ -89,7 +109,7 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
     event.preventDefault(); event.stopPropagation();
     const step = event.shiftKey ? 1 : 0.1;
     onSelect?.(String(entry.hw_id)); onEditBegin?.();
-    onAssignmentChange?.(String(entry.hw_id), moveAssignmentInPlane(entry, direction[0] * step, direction[1] * step, plane, previewHeadings[String(entry.follow)]));
+    onAssignmentChange?.(String(entry.hw_id), moveAssignmentInPlane(entry, direction[0] * step, direction[1] * step, plane, previewHeadings[String(entry.follow)], viewFrame, viewHeading));
     onEditEnd?.({ cancelled: false });
   };
   const spacing = Math.pow(10, Math.floor(Math.log10(60 / camera.scale)));
@@ -108,25 +128,26 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
   });
   const labelFor = (entry) => {
     const config = configData.find((item) => String(item.hw_id) === String(entry.hw_id));
-    return config?.callsign || config?.alias || entry.callsign || `Drone ${entry.hw_id}`;
+    return aircraftLabels[String(entry.hw_id)] || config?.callsign || config?.alias || entry.callsign || `Drone ${entry.hw_id}`;
   };
-  return <div className="swarm-formation-canvas" onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); finish(true); } }}>
+  const axes = formationViewLabels(viewFrame);
+  return <div className={`swarm-formation-canvas ${compact ? 'is-compact' : ''}`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); finish(true); } }}>
     <div className="swarm-formation-canvas__toolbar" role="toolbar" aria-label="Formation canvas tools">
       <button type="button" aria-pressed={tool === 'select'} onClick={() => setTool('select')}>Select</button>
       <button type="button" aria-pressed={tool === 'pan'} onClick={() => setTool('pan')}>Pan</button>
       <span className="swarm-formation-canvas__tool-divider" />
       <button type="button" aria-label="Zoom out" onClick={() => zoom(0.8)}>−</button>
       <button type="button" aria-label="Zoom in" onClick={() => zoom(1.25)}>+</button>
-      <button type="button" onClick={() => { if (!gesture.current) setCamera(fitCamera(points)); }}>Fit</button>
+      <button type="button" onClick={() => { if (!gesture.current) setCamera(fitCamera(points, width, height)); }}>Fit</button>
       <button type="button" disabled={!selected} onClick={() => { if (selected && !gesture.current) setCamera((current) => ({ ...current, x: selected.x, y: selected.y })); }}>Focus</button>
-      <span className="swarm-formation-canvas__scale">{spacing.toPrecision(1)} m grid · {plane === 'top' ? 'North ↑ / East →' : `Up ↑ / ${plane === 'north-up' ? 'North' : 'East'} →`}</span>
+      <span className="swarm-formation-canvas__scale">{spacing.toPrecision(1)} m grid · {plane === 'top' ? `${axes.axis1} ↑ / ${axes.axis2} →` : `Up ↑ / ${plane === 'north-up' ? axes.axis1 : axes.axis2} →`}</span>
     </div>
-    {scene.error ? <div role="status" className="swarm-formation-canvas__empty">Fix the follow chain to preview this formation.</div> : <svg ref={svgRef} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label={`Editable swarm ${plane === 'top' ? 'top' : 'side'} view`} tabIndex={0}
+    {scene.error ? <div role="status" className="swarm-formation-canvas__empty">Fix the follow chain to preview this formation.</div> : <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="group" aria-label={`Editable swarm ${plane === 'top' ? 'top' : plane === 'east-up' ? 'front' : 'side'} view`} tabIndex={0}
       onPointerDown={(event) => begin(event, null)} onPointerMove={move} onPointerUp={() => finish(false)} onPointerCancel={() => finish(true)} onLostPointerCapture={() => finish(true)}>
       <defs><pattern id={patternId} width={grid} height={grid} x={origin.x} y={origin.y} patternUnits="userSpaceOnUse"><path d={`M ${grid} 0 L 0 0 0 ${grid}`} fill="none" stroke="currentColor" strokeOpacity=".3" /></pattern></defs>
-      <rect width={WIDTH} height={HEIGHT} fill={`url(#${patternId})`} />
-      <line className="swarm-formation-canvas__axis" x1={origin.x} x2={origin.x} y1={0} y2={HEIGHT} />
-      <line className="swarm-formation-canvas__axis" x1={0} x2={WIDTH} y1={origin.y} y2={origin.y} />
+      <rect width={width} height={height} fill={`url(#${patternId})`} />
+      <line className="swarm-formation-canvas__axis" x1={origin.x} x2={origin.x} y1={0} y2={height} />
+      <line className="swarm-formation-canvas__axis" x1={0} x2={width} y1={origin.y} y2={origin.y} />
       {points.map((point) => {
         const parent = byId[String(point.follow)]; if (!parent) return null;
         const a = toScreen(parent), b = toScreen(point);

@@ -5,14 +5,14 @@ import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneGraph.css';
 import '../styles/SwarmFormation3D.css';
 
-function buildGraphElements(drones) {
+function buildGraphElements(drones, aircraftLabels = {}) {
   const nodes = drones.map((drone) => ({
     data: (() => {
       const compactIdentity = formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`);
       const primaryLabel = String(drone.alias || drone.callsign || '').trim();
-      const label = primaryLabel && primaryLabel !== compactIdentity
+      const label = aircraftLabels[String(drone.hw_id)] || (primaryLabel && primaryLabel !== compactIdentity
         ? `${primaryLabel}\n${compactIdentity}`
-        : compactIdentity;
+        : compactIdentity);
 
       return {
         id: String(drone.hw_id),
@@ -56,12 +56,12 @@ function applySelectionClasses(cy, selectedDroneId) {
   node.successors().addClass('is-downstream');
 }
 
-function DroneGraph({ swarmData, selectedDroneId, onSelectDrone, active = true }) {
+function DroneGraph({ swarmData, selectedDroneId, onSelectDrone, active = true, aircraftLabels }) {
   const cyRef = useRef(null);
   const membershipRef = useRef('');
   const themeColors = getPlotThemeColors();
 
-  const graphElements = useMemo(() => buildGraphElements(swarmData), [swarmData]);
+  const graphElements = useMemo(() => buildGraphElements(swarmData, aircraftLabels), [swarmData, aircraftLabels]);
   const membership = swarmData.map((drone) => String(drone.hw_id)).sort().join(',');
 
   useEffect(() => {

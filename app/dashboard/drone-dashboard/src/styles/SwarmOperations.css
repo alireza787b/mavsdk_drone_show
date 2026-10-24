@@ -16,6 +16,8 @@
   gap: var(--spacing-sm);
 }
 .swarm-ops__header { justify-content: space-between; }
+.swarm-ops__header > div:first-child { margin-right: auto; }
+.swarm-ops__header .swarm-ops__overflow { width: 44px; padding: 0; flex: 0 0 44px; }
 .swarm-ops h3 { margin: 0; }
 .swarm-ops select, .swarm-ops input {
   color: var(--color-text-primary);
@@ -46,7 +48,7 @@
 .swarm-ops__actions > button, .swarm-ops__actions > .swarm-sequential-return { flex: 1; }
 .swarm-ops .swarm-sequential-return__toolbar > button { width: 100%; }
 .swarm-ops__actions > .swarm-sequential-return { display: contents; }
-.swarm-ops .swarm-ops__hold { border-color: var(--color-warning); color: var(--color-warning); }
+.swarm-ops__actions .operator-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--spacing-sm); border-radius: 2px; }
 .swarm-ops .swarm-sequential-return__toolbar { flex: 1; min-width: 0; }
 .swarm-ops .swarm-sequential-return__status { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); flex-basis: 100%; grid-column: 1 / -1; font-size: var(--font-size-sm); }
 .swarm-ops .swarm-sequential-return > p { flex-basis: 100%; grid-column: 1 / -1; }
