@@ -330,6 +330,9 @@ def poll_telemetry(drone):
                         'base_mode': telemetry_data.get('base_mode', 'UNKNOWN'),  # MAVLink base_mode flags
                         'system_status': telemetry_data.get('system_status', 'UNKNOWN'),
                         'is_armed': _get_enhanced_armed_status(telemetry_data),  # Enhanced armed status
+                        'landed_state': telemetry_data.get('landed_state'),
+                        'landed_state_timestamp_ms': telemetry_data.get('landed_state_timestamp_ms', 0),
+                        'landed_state_age_ms': telemetry_data.get('landed_state_age_ms'),
                         'is_ready_to_arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
                         'home_position_set': telemetry_data.get('home_position_set', False),
                         'distance_to_home_m': telemetry_data.get('distance_to_home_m'),

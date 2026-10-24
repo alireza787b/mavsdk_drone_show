@@ -30,6 +30,11 @@ rejected before dispatch, then follows the normal completed-takeoff path.
 Add `--managed-return` to exercise the 10-second sequential queue after Hold
 instead of the final paired Land. Each return must complete before idle proof
 and assignment restoration. Both options retain all SITL-only mutation guards.
+Add `--verify-hold-rejoin` to verify the old swarm ends as `superseded`, every
+Hold result retains its terminal state, the follower remains stationary during
+a leader-only move, assignments stay unchanged, and following resumes only
+after a new explicit Start. Combine all three options for the complete
+Takeoff/Start/Hold/rejoin/Managed Return regression.
 Failure cleanup also accounts for a submitted Take Off that has not yet armed;
 an old disarmed telemetry sample cannot establish that pending work is finished.
 

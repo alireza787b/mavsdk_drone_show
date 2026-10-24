@@ -136,14 +136,14 @@ export default function SwarmOperations() {
   const monitor = commandMonitors.find((m) => m.missionType === 2
     && m.targetDrones?.length > 0 && m.targetDrones.every((id) => ids.includes(id)));
   const runtime = monitor?.swarmRuntime;
-  const liveRuntime = !previewError && runtime && !monitor?.trackingIssue
+  const liveRuntime = !previewError && runtime && !monitor?.isTerminal && !monitor?.trackingIssue
     && Date.now() - monitor.updatedAtMs < 15000;
   const runtimeLabel = liveRuntime ? (monitor.targetDrones.length < ids.length
     ? `Partial · ${runtime.active_hw_ids?.length || 0}/${ids.length} engaged`
     : RUNTIME_LABELS[runtime.state]) : null;
   const validHeight = Number.isFinite(Number(height)) && Number(height) > 0;
   const nodeStatuses = Object.fromEntries(members.map((member) => [member.hw_id,
-    swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor) })]));
+    swarmNodeStatus(member, runtime?.nodes?.[member.hw_id], { stale: !liveRuntime, hasSession: Boolean(monitor && !monitor.isTerminal) })]));
   const heldScope = Boolean(holdReceipt && holdReceipt.clusterId === cluster?.cluster_id);
   const holdMonitor = heldScope
     ? commandMonitors.find((m) => m.commandId === holdReceipt.commandId) : null;
@@ -153,6 +153,11 @@ export default function SwarmOperations() {
   const status = previewError ? 'Telemetry delayed' : heldScope
     ? `Hold · ${holdConfirmed}/${members.length} confirmed` : runtimeLabel
       || (members.length ? `${airborne}/${members.length} airborne` : preview ? 'Select formation' : 'Loading…');
+  useEffect(() => {
+    if (heldScope && members.some((member) => ['Returning', 'Landing'].includes(memberFlightState(member)))) {
+      setHoldReceipt(null);
+    }
+  }, [heldScope, members]);
 
   const review = (action, excluded = [], individualRecovery = false) => {
     if (!cluster || busy) return;
@@ -330,7 +335,12 @@ export default function SwarmOperations() {
         <button type="button" className="operator-button swarm-ops__hold" disabled={holdBusy || !cluster}
           title="Hold the entire displayed cluster" onClick={holdSwarm}><FaPause aria-hidden="true" /> {holdBusy ? 'Sending Hold…' : 'Hold Swarm'}</button>
         <SequentialReturnControl targetIds={ids} targetNames={names} compact contextKey={contextKey}
-          aircraftStates={states} validateReview={() => freshReview({ clusterId: selection.id, revision: preview.revision })} />
+          aircraftStates={states} validateReview={async () => {
+            const epoch = intentEpoch.current;
+            await freshReview({ clusterId: selection.id, revision: preview.revision });
+            if (epoch !== intentEpoch.current) throw new Error('Newer recovery requested. Review Return again.');
+            setHoldReceipt(null);
+          }} />
       </div>
       <div className="swarm-ops__secondary">
         <button type="button" className="operator-button operator-button--ghost" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /> Other actions</button>

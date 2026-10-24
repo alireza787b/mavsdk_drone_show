@@ -77,3 +77,68 @@ altitude/path and the actual launch geometry remain relevant.
 RTK readiness is per-rover, not simply a connected QGC/base indication. DGPS is
 not RTK fixed, and absent RTK is not evidence that PX4 decided RTK was unnecessary.
 Do not loosen PX4 checks or apply speculative EKF tuning to hide missing data.
+
+## Post-flight admission and Hold implementation
+
+The later October 24 flight showed successful following and sequential return.
+Its first Takeoff attempt was received and started on both nodes; H2 rejected
+the MDS native-ground predicate before arming. The old coordinator discarded
+the failing subpredicate, so neither altitude nor missing RTK can be named as
+that attempt's proven cause. Separately, the follower released Offboard/Hold
+before its supervisor's 0.20 s recovery deadline, but slow process teardown
+still produced a false cleanup-unconfirmed failure.
+
+Changes implemented after that evidence:
+
+- Takeoff admission samples native health, battery, armed and landed state
+  coherently. Home-relative height is diagnostic, not an additional ground
+  clearance gate. The separate props-off arm/disarm test keeps its guard.
+- Swarm requires fresh native armed/`IN_AIR` evidence, without a home-height
+  floor. Native landed-state facts survive the complete node/GCS/UI contract.
+- One-press **Hold Swarm** addresses the displayed cluster including its leader,
+  preserves formation and requires explicit Start to rejoin. Per-aircraft Held,
+  Disarmed and unconfirmed states distinguish receipts from observed results.
+- Recovery fences older pending Takeoff/Start, invalidates unused preparation
+  tokens and prevents a delayed commit from installing after recovery.
+- Typed, bounded action evidence survives callbacks and journal restoration.
+  Owner/command-bound control release is separate from process teardown: valid
+  timely release followed by forced cleanup is `superseded`, not a flight
+  failure. Missing, mismatched or late proof stays unconfirmed.
+- SITL exposed two sampling defects before rollout: a missing native-state
+  sample incorrectly used the low-battery fast-rejection path, and 0.5 s
+  resubscriptions could starve slower native streams. The fix uses the existing
+  coherent-observation window and unchanged overall readiness timeout. No
+  freshness or native ground requirement was bypassed.
+
+Final Hetzner checks: 773 core backend tests, 9 telemetry-contract/display tests
+and 59 frontend tests passed (one backend test skipped). The production build
+is packaged separately with its exact private-repository commit provenance.
+
+Fresh two-drone SITL on runtime commit `f0d9002e` passed Takeoff, early-Start
+rejection, full-cluster Start, two opposite 3 m leader jogs requested at 1 m/s,
+cluster Hold, leader movement while paused, explicit rejoin and Managed Return.
+Measured one-second leader speed peaked at 0.961 m/s. The held follower shifted
+0.0144 m; after rejoin, estimated horizontal error settled to 0.202 m and
+altitude error to 0.086 m. RTL dispatches were 10.006 s apart. Both landed and
+disarmed, roles were preserved, and stream tasks reported no errors. Both old
+Swarm executions retained valid release evidence despite forced teardown.
+Later changes affect only GCS/UI telemetry presentation and documentation.
+
+Private evidence: `mds-action-hold-20261024.PdRKCW/evidence/hold-rejoin` on the
+validation host; a verified copy is retained with the October 24 field evidence.
+Initial failed runs are retained separately and are not counted as passing.
+
+### Required before the next hardware trial
+
+Both real aircraft were offline during implementation. Verify their actual
+commits and formation on next power-on. The operator approved the one-parameter
+`MPC_XY_VEL_P_ACC=2.2` trial on both, but it has **not** been applied or hardware
+validated here: snapshot each grounded/disarmed aircraft, apply and read back,
+then compare isolated hover/starts/stops/reversals before paired following.
+Keep I/D at their captured 0.4/0.2, MDS limits at 6/1.25/4/8, and PX4 EKF,
+heading, navigation, RTL and other guidance settings unchanged. No real-aircraft
+arming or flight command was sent. RTK/survey is outside this phase.
+
+The standalone/offline SITL image remains an outstanding release artifact:
+existing-image Git sync proves the new runtime, not a refreshed offline image.
+Insufficient build/export storage remains the release blocker for that artifact.

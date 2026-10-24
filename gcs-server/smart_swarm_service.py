@@ -41,6 +41,8 @@ def build_preview(deps):
             member['altitude_report'] = state.get('altitude_report')
             member['flight_mode'] = state.get('flight_mode')
             member['landed_state'] = state.get('landed_state')
+            member['landed_state_timestamp_ms'] = state.get('landed_state_timestamp_ms', 0)
+            member['landed_state_age_ms'] = state.get('landed_state_age_ms')
             member['readiness_summary'] = state.get('readiness_summary')
             member['readiness_status'] = state.get('readiness_status')
             member['battery_remaining'] = state.get('battery_remaining')

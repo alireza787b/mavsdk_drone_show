@@ -227,3 +227,11 @@ test('an uncertain Hold retry reuses identity and does not claim Held from the r
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2));
   expect(submitCommandWithLifecycleFeedback.mock.calls[1][0]).toEqual(first);
 });
+
+test('a terminal swarm cannot keep displaying Following after recovery', async () => {
+  mockMonitors.push({ missionType: 2, targetDrones: ['1', '2'], isTerminal: true,
+    updatedAtMs: Date.now(), swarmRuntime: { state: 'active', active_hw_ids: ['1', '2'] } });
+  await mounted();
+  expect(screen.queryByText('Following')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Start Swarm' })).toBeEnabled();
+});
