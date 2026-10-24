@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { calculateClusterPlotData } from '../utilities/swarmDesignUtils';
 import { formatCompactDroneIdentity, formatDroneLabel } from '../utilities/missionIdentityUtils';
@@ -252,23 +252,10 @@ function NorthAltitudePlot({ points }) {
 }
 
 function SwarmPlots({ swarmData, configData, selectedClusterId, onSelectedClusterChange }) {
-  const [activeClusterId, setActiveClusterId] = useState(selectedClusterId || null);
+  const [activeClusterId, setActiveClusterId] = useState(selectedClusterId === 'all' ? null : selectedClusterId || null);
   const { data, clusters, description } = calculateClusterPlotData(swarmData, configData, activeClusterId);
-  const clusterOptions = useMemo(
-    () => (clusters.length > 0
-      ? [
-          {
-            id: 'all',
-            title: 'All executable clusters',
-            counts: {
-              total: clusters.reduce((sum, cluster) => sum + cluster.counts.total, 0),
-            },
-          },
-          ...clusters,
-        ]
-      : []),
-    [clusters]
-  );
+  // Independent roots have no authored relative location. Never overlay them.
+  const clusterOptions = clusters;
 
   useEffect(() => {
     if (!clusters.length) {
@@ -304,9 +291,6 @@ function SwarmPlots({ swarmData, configData, selectedClusterId, onSelectedCluste
           <strong>Formation Analysis Cluster</strong>
           <span>
             {description || 'Preview offsets relative to the selected top leader.'}
-            {activeClusterId === 'all'
-              ? ' Plot-only overlay mode.'
-              : ' Specific cluster selections also drive cluster-scoped runtime actions.'}
           </span>
         </div>
         <select

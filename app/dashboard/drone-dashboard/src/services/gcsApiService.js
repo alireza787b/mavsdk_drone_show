@@ -729,17 +729,28 @@ export async function getSwarmConfigResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.swarmConfig, config);
 }
 
-export async function saveSwarmConfigResponse(payload, { commit = false, ...config } = {}) {
-  return putGcsResource(GCS_ROUTE_KEYS.saveSwarmConfig, {
+export async function saveSwarmConfigResponse(payload, { commit = false, revision = '', acknowledgedUnavailableIds = [], ...config } = {}) {
+  const payloadBody = {
     version: 1,
     assignments: payload,
-  }, {
+  };
+  if (revision) payloadBody.revision = revision;
+  if (acknowledgedUnavailableIds.length) payloadBody.acknowledged_unavailable_hw_ids = acknowledgedUnavailableIds;
+  return putGcsResource(GCS_ROUTE_KEYS.saveSwarmConfig, payloadBody, {
     ...config,
     params: {
       ...(config.params || {}),
       commit: commit ? 'true' : 'false',
     },
   });
+}
+
+export function getSwarmDesignStatusResponse(config = {}) {
+  return fetchGcsResource('/api/v1/config/swarm/status', config);
+}
+
+export function publishSwarmConfigResponse(revision, config = {}) {
+  return postGcsResource('/api/v1/config/swarm/publish', { revision }, config);
 }
 
 export async function getUnifiedGitStatusResponse(config = {}) {

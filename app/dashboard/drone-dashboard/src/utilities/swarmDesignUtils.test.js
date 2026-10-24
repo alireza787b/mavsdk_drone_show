@@ -4,9 +4,18 @@ import {
   buildWorkingSwarmAssignments,
   calculateClusterPlotData,
   getDirtyAssignmentIds,
+  resolveRelativeOffset,
 } from './swarmDesignUtils';
 
 describe('swarmDesignUtils', () => {
+  test('resolves body offsets using the explicit preview heading', () => {
+    expect(resolveRelativeOffset({ frame: 'body', offset_x: 6, offset_y: 0, offset_z: 2 }, 90)).toMatchObject({
+      north: expect.closeTo(0, 10),
+      east: 6,
+      up: 2,
+    });
+  });
+
   test('buildWorkingSwarmAssignments merges config order, adds defaults, and prunes removed assignments', () => {
     const config = [
       { hw_id: 1, pos_id: 1, ip: '10.0.0.1' },

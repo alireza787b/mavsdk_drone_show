@@ -12,7 +12,11 @@ from schemas import (
     SwarmAssignmentUpdateResponse,
     SwarmConfig,
     SwarmConfigSaveResponse,
+    SwarmConfigApplyRequest,
+    SwarmPublishRequest,
 )
+from src.smart_swarm_contract import topology_revision
+from swarm_design_service import formation_status, validate_apply_observation
 
 
 def _normalize_swarm_hw_id(value: Any) -> Optional[int]:
@@ -35,6 +39,7 @@ def _build_swarm_config_resource(assignments: list[dict[str, Any]]) -> dict[str,
     return {
         "version": 1,
         "assignments": assignments,
+        "revision": topology_revision(assignments),
     }
 
 
@@ -89,6 +94,8 @@ def _validate_swarm_cycle_constraints(payload: Any) -> None:
         for entry in assignments
     }
     known_hw_ids.discard(None)
+    if len(known_hw_ids) != len(assignments):
+        raise HTTPException(status_code=400, detail="Swarm hardware IDs must be unique and positive")
 
     for entry in assignments:
         hw_id = _normalize_swarm_hw_id(entry.get("hw_id"))
@@ -143,7 +150,13 @@ def _build_swarm_save_message(should_commit: bool, git_result: Any) -> tuple[str
 
 def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -> dict[str, Any]:
     try:
-        follow = int(data.get("follow", 0))
+        # Offset/frame-only edits must preserve the existing relationship.
+        # Defaulting an omitted follow field to 0 silently promotes a follower.
+        existing_swarm = deps.load_swarm()
+        existing = next((entry for entry in existing_swarm if int(entry.get("hw_id", 0)) == hw_id), None)
+        if existing is None:
+            raise HTTPException(status_code=404, detail=f"Swarm assignment for hw_id={hw_id} not found")
+        follow = int(data["follow"]) if "follow" in data else int(existing.get("follow", 0))
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="follow must be zero or a valid leader hw_id") from exc
 
@@ -154,7 +167,7 @@ def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -
     if follow == hw_id:
         raise HTTPException(status_code=400, detail="A drone cannot follow itself")
 
-    swarm_data = deps.load_swarm()
+    swarm_data = existing_swarm
     if not swarm_data:
         raise HTTPException(status_code=404, detail="Swarm configuration is empty")
 
@@ -206,6 +219,29 @@ def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -
 
 def create_swarm_router(deps: Any) -> APIRouter:
     router = APIRouter()
+    write_lock = asyncio.Lock()
+
+    @router.get("/api/v1/config/swarm/status", tags=["Swarm"])
+    async def get_swarm_status():
+        return await formation_status(deps)
+
+    @router.post("/api/v1/config/swarm/publish", response_model=SwarmConfigSaveResponse, tags=["Swarm"])
+    async def publish_swarm(payload: SwarmPublishRequest):
+        # Publishing persists the already-applied resource; it cannot install a draft.
+        async with write_lock:
+            assignments = deps.load_swarm() or []
+            if payload.revision != topology_revision(assignments):
+                raise HTTPException(409, "Swarm layout changed; review the applied formation before publishing")
+            loop = asyncio.get_running_loop()
+            git_result = await loop.run_in_executor(
+                None, deps.git_operations, deps.BASE_DIR, "config: publish applied swarm formation"
+            )
+            status, message, _ = _build_swarm_save_message(True, git_result)
+            return SwarmConfigSaveResponse(
+                status=status, message=message,
+                config=SwarmConfig.model_validate(_build_swarm_config_resource(assignments)),
+                git_result=git_result,
+            )
 
     @router.get("/api/v1/config/swarm", response_model=SwarmConfig, tags=["Swarm"])
     async def get_swarm_config():
@@ -215,12 +251,31 @@ def create_swarm_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.put("/api/v1/config/swarm", response_model=SwarmConfigSaveResponse, tags=["Swarm"])
-    async def put_swarm_config(payload: SwarmConfig, commit: Optional[bool] = Query(None)):
+    async def put_swarm_config(payload: SwarmConfigApplyRequest, commit: Optional[bool] = Query(None)):
+        async with write_lock:
+            return await save_swarm_config(payload, commit)
+
+    async def save_swarm_config(payload, commit):
         try:
             swarm_data = [assignment.model_dump(exclude_none=True) for assignment in payload.assignments]
             if not swarm_data:
                 raise HTTPException(status_code=400, detail="No swarm data provided")
             _validate_swarm_cycle_constraints(swarm_data)
+
+            before = deps.load_swarm() or []
+            current_revision = topology_revision(before)
+            if payload.revision and payload.revision != current_revision:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Swarm layout changed since this draft was loaded; refresh and review the changes.",
+                )
+
+            # Revision-aware editors receive reachability/installation receipts.
+            # Legacy PUT remains wire compatible during node/dashboard rollout.
+            if payload.revision:
+                await validate_apply_observation(deps, before, swarm_data, payload.acknowledged_unavailable_hw_ids)
+                if topology_revision(deps.load_swarm() or []) != current_revision:
+                    raise HTTPException(409, "Swarm layout changed during review; reload before applying")
 
             deps.log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
             deps.save_swarm(swarm_data)
@@ -244,8 +299,13 @@ def create_swarm_router(deps: Any) -> APIRouter:
             return SwarmConfigSaveResponse(
                 status=status,
                 message=message,
-                config=SwarmConfig(version=int(payload.version), assignments=payload.assignments),
+                config=SwarmConfig(
+                    version=int(payload.version),
+                    assignments=payload.assignments,
+                    revision=topology_revision(swarm_data),
+                ),
                 git_result=git_result,
+                application=await formation_status(deps, swarm_data) if payload.revision else None,
             )
 
         except HTTPException:
@@ -255,6 +315,10 @@ def create_swarm_router(deps: Any) -> APIRouter:
 
     @router.patch("/api/v1/config/swarm/assignments/{hw_id}", response_model=SwarmAssignmentUpdateResponse, tags=["Swarm"])
     async def patch_swarm_assignment(hw_id: int, payload: SwarmAssignmentPatchRequest):
+        async with write_lock:
+            return await patch_assignment(hw_id, payload)
+
+    async def patch_assignment(hw_id, payload):
         try:
             data = payload.model_dump(exclude_unset=True, exclude_none=True)
 

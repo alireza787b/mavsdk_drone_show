@@ -2,267 +2,160 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-jest.mock('react-toastify', () => ({
-  toast: {
-    error: jest.fn(),
-    info: jest.fn(),
-    success: jest.fn(),
-    warning: jest.fn(),
-  },
-}));
-
-jest.mock('../hooks/useNormalizedTelemetry', () => ({
-  __esModule: true,
-  default: jest.fn(() => ({ data: {} })),
-}));
-
-jest.mock('../components/DroneCard', () => {
-  const React = require('react');
-  return React.forwardRef(({ drone, onAssignmentChange }, ref) => (
-    <div ref={ref}>
-      <button type="button">
-        {drone.title || drone.hw_id}
-      </button>
-      <button type="button" onClick={() => onAssignmentChange?.(drone.hw_id, { offset_x: '8' })}>
-        Edit {drone.hw_id}
-      </button>
-    </div>
-  ));
-});
-
-jest.mock('../components/DroneGraph', () => () => <div data-testid="swarm-graph" />);
-jest.mock('../components/SwarmPlots', () => () => <div data-testid="swarm-plots" />);
-jest.mock('../components/SwarmRuntimeControls', () => () => <div data-testid="swarm-runtime-controls" />);
-jest.mock('../components/ClusterScopeBar', () => () => <div data-testid="cluster-scope" />);
-jest.mock('../components/IdentityDoctrineStrip', () => () => <div data-testid="identity-doctrine" />);
-
+jest.mock('react-toastify', () => ({ toast: { error: jest.fn(), info: jest.fn(), success: jest.fn(), warning: jest.fn() } }));
+jest.mock('../components/SwarmRuntimeControls', () => () => <div data-testid="operate-controls" />);
+jest.mock('../components/SwarmFormation3D', () => ({ selectedId, onSelect }) => <div data-testid="3d-view"><span>Selected {selectedId}</span><button onClick={() => onSelect('2')}>Select follower in 3D</button></div>);
+jest.mock('../components/DroneGraph', () => ({ selectedDroneId, onSelectDrone }) => <div data-testid="graph-view"><span>Selected {selectedDroneId}</span><button onClick={() => onSelectDrone('2')}>Select follower in graph</button></div>);
 jest.mock('../services/gcsApiService', () => ({
-  GCS_ROUTE_KEYS: {
-    fleetTelemetry: 'fleetTelemetry',
-  },
-  getFleetConfigResponse: jest.fn(),
-  getUnifiedGitStatusResponse: jest.fn(),
-  getSwarmConfigResponse: jest.fn(),
-  saveSwarmConfigResponse: jest.fn(),
-  unwrapSwarmConfigPayload: jest.fn((payload) => payload),
+  getFleetConfigResponse: jest.fn(), getUnifiedGitStatusResponse: jest.fn(), getSwarmConfigResponse: jest.fn(),
+  saveSwarmConfigResponse: jest.fn(), getSwarmDesignStatusResponse: jest.fn(), publishSwarmConfigResponse: jest.fn(),
+  unwrapSwarmConfigPayload: (payload) => Array.isArray(payload) ? payload : payload?.assignments || [],
 }));
 
 const { default: SwarmDesign } = require('./SwarmDesign');
-const {
-  getFleetConfigResponse,
-  getUnifiedGitStatusResponse,
-  saveSwarmConfigResponse,
-  getSwarmConfigResponse,
-  unwrapSwarmConfigPayload,
-} = require('../services/gcsApiService');
+const { getFleetConfigResponse, getUnifiedGitStatusResponse, getSwarmConfigResponse,
+  saveSwarmConfigResponse, getSwarmDesignStatusResponse, publishSwarmConfigResponse } = require('../services/gcsApiService');
 const { toast } = require('react-toastify');
 const { GIT_REPO } = require('../version');
+const initialAssignments = [
+  { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+  { hw_id: 2, follow: 1, offset_x: 6, offset_y: 0, offset_z: 0, frame: 'ned' },
+];
+let server;
+const renderPage = () => render(<MemoryRouter initialEntries={['/swarm-design?tab=design']}
+  future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><SwarmDesign /></MemoryRouter>);
+const applyButton = () => screen.getByRole('button', { name: 'Apply Smart Swarm plan on this GCS' });
+const publishButton = () => screen.getAllByRole('button', { name: 'Publish Smart Swarm assignment changes' })[0];
+async function selectFollower() {
+  fireEvent.click(await screen.findByRole('button', { name: 'NET-LEADER, formation position' }));
+  return screen.getByRole('spinbutton', { name: 'offset_x metres' });
+}
+async function editNorth(value = '8') { fireEvent.change(await selectFollower(), { target: { value } }); }
+async function confirmApply() {
+  fireEvent.click(applyButton());
+  const dialog = await screen.findByRole('dialog', { name: 'Apply Smart Swarm assignments?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+}
 
-const renderPage = () => render(
-  <MemoryRouter
-    initialEntries={['/swarm-design?tab=formation']}
-    future={{
-      v7_startTransition: true,
-      v7_relativeSplatPath: true,
-    }}
-  >
-    <SwarmDesign />
-  </MemoryRouter>
-);
-
-describe('SwarmDesign', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    getFleetConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
-        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
-      ],
-    });
-    getSwarmConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ENU' },
-        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ENU' },
-      ],
-    });
-    getUnifiedGitStatusResponse.mockResolvedValue({
-      data: {
-        gcs_status: {
-          status: 'clean',
-          uncommitted_changes: [],
-        },
-      },
-    });
+beforeEach(() => {
+  jest.clearAllMocks(); window.localStorage.clear();
+  server = { version: 1, revision: 'revision-1', assignments: initialAssignments.map((entry) => ({ ...entry })) };
+  getFleetConfigResponse.mockResolvedValue({ data: [
+    { hw_id: 1, pos_id: 1, callsign: 'SCOUT' }, { hw_id: 2, pos_id: 2, callsign: 'NET-LEADER' },
+  ] });
+  getSwarmConfigResponse.mockImplementation(async () => ({ data: server }));
+  getUnifiedGitStatusResponse.mockResolvedValue({ data: { gcs_status: { uncommitted_changes: [] } } });
+  getSwarmDesignStatusResponse.mockResolvedValue({ data: { revision: 'revision-1', nodes: [] } });
+  saveSwarmConfigResponse.mockImplementation(async (assignments) => {
+    server = { version: 1, revision: 'revision-2', assignments };
+    return { data: { status: 'success', config: server, application: { revision: 'revision-2', nodes: [] } } };
   });
+  publishSwarmConfigResponse.mockResolvedValue({ data: { status: 'success', git_result: { success: true, pushed: true } } });
+});
 
-  test('renders compact operator shell, docs link, and assignment surfaces', async () => {
-    renderPage();
+test('renders real linked canvas and inspector with Operate separate', async () => {
+  renderPage();
+  expect(await screen.findByRole('button', { name: 'SCOUT, leader origin' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /smart swarm guide/i })).toHaveAttribute('href', `https://github.com/${GIT_REPO}/blob/main/docs/features/smart-swarm.md`);
+  expect(screen.getByRole('group', { name: 'Editable swarm top view' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', { name: 'Links' }));
+  fireEvent.click(screen.getByText('Select follower in graph'));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(6);
+  fireEvent.click(screen.getByRole('tab', { name: '3D' }));
+  expect(await screen.findByTestId('3d-view')).toHaveTextContent('Selected 2');
+  expect(screen.queryByTestId('operate-controls')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', { name: 'Operate' }));
+  expect(screen.getByTestId('operate-controls')).toBeInTheDocument();
+});
 
-    expect(screen.getByRole('heading', { name: 'Smart Swarm' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /smart swarm guide/i })).toHaveAttribute(
-      'href',
-      `https://github.com/${GIT_REPO}/blob/main/docs/features/smart-swarm.md`
-    );
+test('numeric edits remain browser-local and undo/redo restore exact offsets', async () => {
+  renderPage(); await editNorth('9');
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+  expect(applyButton()).toBeEnabled(); expect(publishButton()).toBeDisabled();
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled(); expect(publishSwarmConfigResponse).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Undo formation edit' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(6);
+  fireEvent.click(screen.getByRole('button', { name: 'Redo formation edit' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+});
 
-    await waitFor(() => {
-      expect(getFleetConfigResponse).toHaveBeenCalled();
-      expect(getSwarmConfigResponse).toHaveBeenCalled();
-      expect(unwrapSwarmConfigPayload).toHaveBeenCalled();
-    });
+test('frame conversion preserves preview placement at explicit parent heading', async () => {
+  renderPage(); await selectFollower();
+  fireEvent.change(screen.getByLabelText(/Preview heading/), { target: { value: '90' } });
+  fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'body' } });
+  expect(Number(screen.getByRole('spinbutton', { name: 'offset_x metres' }).value)).toBeCloseTo(0);
+  expect(screen.getByRole('spinbutton', { name: 'offset_y metres' })).toHaveValue(-6);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
 
-    expect(screen.getByRole('list', { name: 'Cluster aircraft' })).toBeInTheDocument();
-    expect(screen.queryByTestId('swarm-runtime-controls')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Swarm plan' })).toBeInTheDocument();
-    const exportButtons = screen.getAllByRole('button', { name: /export smart swarm assignments as csv/i });
-    expect(exportButtons.length).toBeGreaterThan(0);
-    exportButtons.forEach((button) => expect(button).toBeEnabled());
-    fireEvent.click(screen.getByRole('tab', { name: 'Operate' }));
-    expect(screen.getByTestId('swarm-runtime-controls')).toBeInTheDocument();
-  });
+test('Apply waits for confirmation and carries the loaded revision', async () => {
+  renderPage(); await editNorth();
+  fireEvent.click(applyButton());
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+  const dialog = await screen.findByRole('dialog', { name: 'Apply Smart Swarm assignments?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+  await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
+  expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ hw_id: 2, follow: 1, offset_x: 8 })]),
+    { commit: false, revision: 'revision-1', acknowledgedUnavailableIds: [] });
+  await waitFor(() => expect(publishButton()).toBeEnabled());
+});
 
-  test('commits pending swarm sync once and gives operator progress feedback', async () => {
-    getFleetConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
-        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
-        { hw_id: 3, pos_id: 3, ip: '10.0.0.13' },
-      ],
-    });
-    getSwarmConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ENU' },
-        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ENU' },
-      ],
-    });
-    saveSwarmConfigResponse.mockResolvedValue({
-      data: {
-        message: 'Smart Swarm configuration saved and committed successfully.',
-        git_result: { success: true },
-      },
-    });
+test('Publish uses the applied revision without another config write', async () => {
+  getUnifiedGitStatusResponse.mockResolvedValue({ data: { gcs_status: { uncommitted_changes: [' M swarm.json'] } } });
+  renderPage(); await selectFollower();
+  await waitFor(() => expect(publishButton()).toBeEnabled());
+  fireEvent.click(publishButton());
+  const dialog = await screen.findByRole('dialog', { name: 'Publish Smart Swarm assignments?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
+  await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledWith('revision-1'));
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
 
-    renderPage();
+test('unreachable aircraft require explicit acknowledgement without silently retrying', async () => {
+  saveSwarmConfigResponse.mockRejectedValueOnce({ response: { data: { detail: {
+    code: 'unavailable_confirmation_required', unavailable_hw_ids: ['2'],
+  } } } });
+  renderPage(); await editNorth(); await confirmApply();
+  const dialog = await screen.findByRole('dialog', { name: 'Some aircraft are unreachable' });
+  expect(within(dialog).getByText(/NET-LEADER/)).toBeInTheDocument();
+  expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Apply anyway' }));
+  await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(2));
+  expect(saveSwarmConfigResponse.mock.calls[1][1]).toEqual({ commit: false, revision: 'revision-1', acknowledgedUnavailableIds: ['2'] });
+});
 
-    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
-    // Pending fleet entries are a publishable plan; wait for the async preview to settle.
-    await waitFor(() => expect(commitButton).toBeEnabled());
+test('revision conflicts retain the draft and do not report success', async () => {
+  const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  saveSwarmConfigResponse.mockRejectedValueOnce({ response: { status: 409, data: { detail: 'Formation changed; refresh and review.' } } });
+  renderPage(); await editNorth(); await confirmApply();
+  await screen.findAllByText('Formation changed; refresh and review.');
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(8);
+  expect(toast.success).not.toHaveBeenCalled(); expect(publishSwarmConfigResponse).not.toHaveBeenCalled();
+  consoleError.mockRestore();
+});
 
-    fireEvent.click(commitButton);
-    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
+test('a matching browser draft survives remount without operational writes', async () => {
+  const first = renderPage(); await editNorth('11'); first.unmount();
+  renderPage(); await selectFollower();
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(11);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
 
-    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
-    expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
-    expect(toast.info).toHaveBeenCalledWith('Publishing Smart Swarm assignments...');
-    const progress = await screen.findByLabelText(/smart swarm save progress/i);
-    expect(progress).toBeInTheDocument();
-    expect(within(progress).getByText(/save draft/i)).toBeInTheDocument();
-    expect(within(progress).getByText(/^commit$/i)).toBeInTheDocument();
-    expect(within(progress).getByText(/^push$/i)).toBeInTheDocument();
-  });
+test('cluster overview and view changes do not change flight scope or save', async () => {
+  renderPage(); await selectFollower();
+  fireEvent.click(screen.getByRole('button', { name: /All clusters/ }));
+  expect(screen.getByText(/Open formation/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', { name: 'Side' }));
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled(); expect(publishSwarmConfigResponse).not.toHaveBeenCalled();
+});
 
-  test('reports git failure as a local save with failed commit instead of success', async () => {
-    getFleetConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
-        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
-        { hw_id: 3, pos_id: 3, ip: '10.0.0.13' },
-      ],
-    });
-    getSwarmConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
-        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ned' },
-      ],
-    });
-    saveSwarmConfigResponse.mockResolvedValue({
-      data: {
-        status: 'git_failed',
-        message: 'Swarm configuration saved locally, but git commit/push failed: Git push failed: authenticated write access is required',
-        git_result: {
-          success: false,
-          message: 'Git push failed: authenticated write access is required',
-        },
-      },
-    });
-
-    renderPage();
-
-    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
-    fireEvent.click(commitButton);
-    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
-
-    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
-    expect((await screen.findAllByText(/saved locally, commit failed/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/authenticated write access is required/i).length).toBeGreaterThan(0);
-    expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/saved locally.*failed/i));
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-
-  test('keeps publish available immediately after save-only without waiting for git polling', async () => {
-    saveSwarmConfigResponse.mockResolvedValue({
-      data: {
-        message: 'Smart Swarm configuration saved successfully.',
-      },
-    });
-
-    renderPage();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Drone 2' }));
-    const saveButton = screen.getAllByRole('button', { name: /save smart swarm draft on this gcs/i })[0];
-    expect(saveButton).toBeEnabled();
-
-    fireEvent.click(saveButton);
-    const dialog = await screen.findByRole('dialog', { name: /save draft smart swarm assignments/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: /save draft/i }));
-
-    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: false }));
-    expect((await screen.findAllByText(/publish is available now/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /publish smart swarm assignment changes/i })[0]).toBeEnabled();
-  });
-
-  test('keeps publish available when swarm json is saved but not committed', async () => {
-    getFleetConfigResponse.mockResolvedValue({ data: [] });
-    getSwarmConfigResponse.mockResolvedValue({
-      data: [
-        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
-        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ned' },
-      ],
-    });
-    getUnifiedGitStatusResponse.mockResolvedValue({
-      data: {
-        gcs_status: {
-          status: 'dirty',
-          uncommitted_changes: [' M swarm.json'],
-        },
-      },
-    });
-    saveSwarmConfigResponse.mockResolvedValue({
-      data: {
-        message: 'Swarm configuration saved successfully',
-        git_result: {
-          success: true,
-          message: 'Changes pushed to repository successfully.',
-          commit_hash: 'abc12345',
-          pushed: true,
-        },
-      },
-    });
-
-    renderPage();
-
-    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
-    await waitFor(() => expect(commitButton).toBeEnabled());
-    expect(await screen.findByText(/swarm\.json is saved on this GCS and still needs to be published/i)).toBeInTheDocument();
-
-    fireEvent.click(commitButton);
-    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
-    expect(within(dialog).getByText(/saved swarm\.json change pending git commit/i)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
-
-    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
-    expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
-    expect((await screen.findAllByText(/Changes pushed to repository successfully/i)).length).toBeGreaterThan(0);
-  });
+test('aircraft acknowledgements distinguish unreachable from applied', async () => {
+  getSwarmDesignStatusResponse.mockResolvedValue({ data: { revision: 'revision-1', nodes: [
+    { hw_id: '1', status: 'applied' }, { hw_id: '2', status: 'not_reachable' },
+  ] } });
+  renderPage();
+  const status = await screen.findByLabelText('Aircraft formation acknowledgement');
+  expect(status).toHaveTextContent('SCOUT · Applied');
+  expect(status).toHaveTextContent('NET-LEADER · Unreachable');
+  expect(status).not.toHaveTextContent('NET-LEADER · Applied');
 });

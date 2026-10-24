@@ -31,7 +31,7 @@ class SwarmSessionRuntime:
         self.detail = ""
         self.last_report_error = None
 
-    async def report(self, hw_id, follow, revision):
+    async def report(self, hw_id, follow, revision, *, applied_revision=None):
         if self.snapshot is None:
             return {"engage": True, "abort": False}  # legacy/manual diagnostic runner
         self.sequence += 1
@@ -39,6 +39,8 @@ class SwarmSessionRuntime:
                    "sequence": self.sequence, "role": "leader" if int(follow) == 0 else "follower",
                    "follow": str(follow), "revision": revision,
                    "phase": self.phase, "detail": self.detail[:500]}
+        if applied_revision is not None:
+            payload["applied_revision"] = applied_revision
         url = f"http://{self.params.GCS_IP}:{self.params.gcs_api_port}/api/v1/command-reports/swarm-runtime"
         headers = gcs_auth_headers({GCS_COMMAND_REPORT_CAPABILITY_HEADER: self.capability or ""})
         try:

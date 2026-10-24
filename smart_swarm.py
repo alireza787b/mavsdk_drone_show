@@ -54,6 +54,7 @@ from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtim
 from src.smart_swarm_contract import normalize_topology, topology_revision
 from smart_swarm_src.control_authority import ControlAuthority
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
+from smart_swarm_src.formation_acknowledgement import effective_revision
 import aiohttp 
 
 from smart_swarm_src.leader_motion import project_leader_motion
@@ -2201,7 +2202,14 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
             RUNTIME_SESSION.phase = "active" if IS_LEADER else RUNTIME_PHASE
             RUNTIME_SESSION.detail = RUNTIME_DETAIL
             follow = 0 if IS_LEADER else LEADER_HW_ID
-            await RUNTIME_SESSION.report(HW_ID, follow, topology_revision(list(SWARM_CONFIG.values())))
+            assignments = list(SWARM_CONFIG.values())
+            applied_revision = effective_revision(
+                assignments, HW_ID, is_leader=IS_LEADER, follow=follow,
+                offsets=OFFSETS, frame=FRAME,
+                controller_running=not _follower_task_missing('control_task'),
+                takeover=bool(LEADER_FAILOVER_IN_PROGRESS or (CONTROL_AUTHORITY and CONTROL_AUTHORITY.takeover_reason)),
+            )
+            await RUNTIME_SESSION.report(HW_ID, follow, topology_revision(assignments), applied_revision=applied_revision)
         await asyncio.sleep(1)
 
 

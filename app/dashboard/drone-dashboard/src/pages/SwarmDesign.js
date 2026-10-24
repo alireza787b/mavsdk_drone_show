@@ -6,19 +6,18 @@ import {
   FaDownload,
   FaProjectDiagram,
   FaSave,
-  FaSearch,
   FaUndo,
   FaUpload,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import DroneCard from '../components/DroneCard';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
-import SwarmClusterDiagram from '../components/SwarmClusterDiagram';
-import ClusterScopeBar from '../components/ClusterScopeBar';
+import SwarmDesignWorkspace from '../components/SwarmDesignWorkspace';
+import { preservePositionPatch } from '../utilities/swarmFormationGeometry';
+import { getBackendURL } from '../config/apiConfig';
+import useSwarmDesignDraft from '../hooks/useSwarmDesignDraft';
 import {
   ActionIconButton,
   ConfirmDialog,
-  EmptyState,
   OperatorNotice,
   PageActionBar,
   PageShell,
@@ -30,23 +29,21 @@ import {
   getSwarmConfigResponse,
   getUnifiedGitStatusResponse,
   saveSwarmConfigResponse,
+  getSwarmDesignStatusResponse,
+  publishSwarmConfigResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import {
-  buildClusterScopeOptions,
   buildSwarmViewModel,
   buildWorkingSwarmAssignments,
-  filterClustersByScope,
   getDirtyAssignmentIds,
   normalizeConfigDrone,
   normalizeSwarmAssignment,
   toSwarmApiPayload,
 } from '../utilities/swarmDesignUtils';
-import {
-  matchesDroneSearchQuery,
-} from '../utilities/dronePresentation';
 
 const CSV_HEADERS = ['hw_id', 'follow', 'offset_x', 'offset_y', 'offset_z', 'frame'];
+const DRAFT_KEY = `mds.swarmDesign.draft.v2:${getBackendURL()}`;
 
 function hasIncompleteNumericValue(value) {
   if (typeof value !== 'string') {
@@ -98,8 +95,8 @@ function classifySwarmSaveOutcome(responseData, withCommit) {
   if (!withCommit) {
     return {
       tone: 'warning',
-      title: 'Draft saved',
-      message: 'Draft saved on this GCS. Publish is available now.',
+      title: 'Applied on GCS',
+      message: 'The formation is active on this GCS. Publish is optional repository persistence.',
       stepStates: ['done', 'skipped', 'skipped'],
       gitResult,
     };
@@ -135,7 +132,7 @@ function classifySwarmSaveOutcome(responseData, withCommit) {
 }
 
 function buildSwarmSaveProgress({ title, message, tone = 'info', stepStates = ['pending', 'pending', 'pending'], withCommit = true }) {
-  const labels = ['Save draft', 'Commit', 'Push'];
+  const labels = ['Apply', 'Commit', 'Push'];
   return {
     title,
     message,
@@ -178,19 +175,21 @@ function SwarmSaveProgress({ progress }) {
 function SwarmDesign() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('tab') === 'design' || searchParams.get('drone') ? 'formation' : 'operate');
-  const cardRefs = useRef({});
+  const [previewHeadings, setPreviewHeadings] = useState({});
+  const draftHistory = useSwarmDesignDraft();
+  const { assignments: workingAssignments, assignmentsRef: workingRef,
+    reset: setWorkingAssignments, begin: beginEdit, end: endEdit,
+    undo: undoEdit, redo: redoEdit } = draftHistory;
   const handledRouteDroneRef = useRef('');
 
   const [configData, setConfigData] = useState([]);
   const [serverSwarmData, setServerSwarmData] = useState([]);
+  const [serverSwarmRevision, setServerSwarmRevision] = useState('');
+  const [applicationStatus, setApplicationStatus] = useState(null);
+  const [recoverableDraft, setRecoverableDraft] = useState(null);
+  const [draftStorageError, setDraftStorageError] = useState(false);
   const [baselineAssignments, setBaselineAssignments] = useState([]);
-  const [workingAssignments, setWorkingAssignments] = useState([]);
   const [selectedDroneId, setSelectedDroneId] = useState(null);
-  const [selectedClusterId, setSelectedClusterId] = useState(null);
-  const [clusterScope, setClusterScope] = useState('all');
-  const [expandedDroneId, setExpandedDroneId] = useState(null);
-  const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveOperation, setSaveOperation] = useState(null);
   const [gitStatus, setGitStatus] = useState(null);
@@ -209,12 +208,10 @@ function SwarmDesign() {
     () => getDirtyAssignmentIds(workingAssignments, baselineAssignments),
     [baselineAssignments, workingAssignments]
   );
-  const dirtyIdSet = useMemo(() => new Set(dirtyIds), [dirtyIds]);
   const syncChanges = useMemo(
     () => buildWorkingSwarmAssignments(configData, serverSwarmData).syncChanges,
     [configData, serverSwarmData]
   );
-  const selectedDrone = selectedDroneId ? viewModel.dronesById[selectedDroneId] : null;
   const hasPendingSync = syncChanges.addedIds.length > 0 || syncChanges.removedIds.length > 0;
   const hasStagedChanges = dirtyIds.length > 0;
   const gcsUncommittedChanges = useMemo(() => extractGcsUncommittedChanges(gitStatus), [gitStatus]);
@@ -227,46 +224,12 @@ function SwarmDesign() {
   const canCommitSwarm = canUpdateSwarm || hasCommitPending;
   const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasIncompleteInputs = workingAssignments.some((assignment) =>
-    ['offset_x', 'offset_y', 'offset_z'].some((field) => hasIncompleteNumericValue(assignment[field]))
+    ['offset_x', 'offset_y', 'offset_z'].some((field) => hasIncompleteNumericValue(assignment[field]) || !Number.isFinite(Number(assignment[field])))
   );
   const pendingSyncIds = useMemo(
     () => [...new Set([...syncChanges.addedIds, ...syncChanges.removedIds].map((value) => String(value)))],
     [syncChanges.addedIds, syncChanges.removedIds]
   );
-  const clusterScopeOptions = useMemo(
-    () => buildClusterScopeOptions(viewModel.clusters, viewModel.summary.totalDrones),
-    [viewModel.clusters, viewModel.summary.totalDrones]
-  );
-  const scopedClusters = useMemo(
-    () => filterClustersByScope(viewModel.clusters, clusterScope),
-    [clusterScope, viewModel.clusters]
-  );
-
-  const searchValue = searchTerm.trim().toLowerCase();
-  const filteredClusters = useMemo(
-    () => scopedClusters
-      .map((cluster) => ({
-        ...cluster,
-        drones: cluster.drones.filter((drone) => (
-          searchValue.length === 0
-          || matchesDroneSearchQuery(drone, searchValue, [
-            drone.roleLabel,
-            drone.ip,
-            drone.follow,
-            drone.title,
-            drone.subtitle,
-          ])
-        )),
-      }))
-      .filter((cluster) => cluster.drones.length > 0),
-    [scopedClusters, searchValue]
-  );
-
-  const filteredDroneIds = useMemo(
-    () => new Set(filteredClusters.flatMap((cluster) => cluster.drones.map((drone) => drone.hw_id))),
-    [filteredClusters]
-  );
-
   useEffect(() => {
     let isActive = true;
 
@@ -288,14 +251,30 @@ function SwarmDesign() {
           .map((entry) => normalizeSwarmAssignment(entry))
           .filter(Boolean);
         const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);
+        let initialAssignments = assignments;
+        try {
+          const savedDraft = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || 'null');
+          const draftAssignments = Array.isArray(savedDraft) ? savedDraft : savedDraft?.assignments;
+          const draftBase = Array.isArray(savedDraft) ? null : savedDraft?.base;
+          const sameBase = draftBase && JSON.stringify(draftBase) === JSON.stringify(assignments);
+          if (sameBase && Array.isArray(draftAssignments) && draftAssignments.length === assignments.length
+            && draftAssignments.every((entry) => assignments.some((assignment) => String(assignment.hw_id) === String(entry.hw_id)))) {
+            initialAssignments = buildWorkingSwarmAssignments(normalizedConfig, draftAssignments).assignments;
+            if (savedDraft.previewHeadings && typeof savedDraft.previewHeadings === 'object') setPreviewHeadings(savedDraft.previewHeadings);
+          } else if (Array.isArray(draftAssignments)) {
+            setRecoverableDraft(savedDraft);
+          }
+        } catch {
+          // A corrupt browser draft must never block loading the server plan.
+        }
         const firstDroneId = assignments[0]?.hw_id || null;
 
         setConfigData(normalizedConfig);
         setServerSwarmData(normalizedSwarm);
+        setServerSwarmRevision(String(swarmResponse?.data?.revision || ''));
         setBaselineAssignments(assignments);
-        setWorkingAssignments(assignments);
+        setWorkingAssignments(initialAssignments);
         setSelectedDroneId((currentId) => assignments.some((assignment) => assignment.hw_id === currentId) ? currentId : firstDroneId);
-        setExpandedDroneId((currentId) => assignments.some((assignment) => assignment.hw_id === currentId) ? currentId : firstDroneId);
       } catch (error) {
         console.error('Error fetching Smart Swarm data:', error);
         toast.error('Failed to load Smart Swarm configuration.');
@@ -307,7 +286,17 @@ function SwarmDesign() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [setWorkingAssignments]);
+
+  useEffect(() => {
+    if (workingAssignments.length > 0 && !recoverableDraft) {
+      try { window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        base: baselineAssignments,
+        assignments: workingAssignments,
+        previewHeadings,
+      })); } catch { setDraftStorageError(true); }
+    }
+  }, [baselineAssignments, workingAssignments, recoverableDraft, previewHeadings]);
 
   const refreshGitStatus = async () => {
     setGitStatusLoading(true);
@@ -334,90 +323,30 @@ function SwarmDesign() {
   }, []);
 
   useEffect(() => {
-    if (viewModel.drones.length === 0) {
-      if (selectedDroneId !== null) {
-        setSelectedDroneId(null);
+    if (tab !== 'formation' || !serverSwarmRevision) return undefined;
+    let cancelled = false;
+    let timer;
+    const poll = async () => {
+      try {
+        const response = await getSwarmDesignStatusResponse({ timeout: 4000 });
+        if (!cancelled) setApplicationStatus(response.data);
+      } catch {
+        if (!cancelled) setApplicationStatus(null);
       }
-      if (expandedDroneId !== null) {
-        setExpandedDroneId(null);
-      }
-      return;
-    }
-
-    if (!selectedDroneId || !viewModel.dronesById[selectedDroneId]) {
-      const nextDroneId = viewModel.drones[0].hw_id;
-      setSelectedDroneId(nextDroneId);
-      setExpandedDroneId(nextDroneId);
-    }
-    if (expandedDroneId && !viewModel.dronesById[expandedDroneId]) {
-      setExpandedDroneId(selectedDroneId || viewModel.drones[0].hw_id);
-    }
-  }, [expandedDroneId, selectedDroneId, viewModel.drones, viewModel.dronesById]);
+      if (!cancelled) timer = setTimeout(poll, 3000);
+    };
+    poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [tab, serverSwarmRevision]);
 
   useEffect(() => {
-    const executableClusterIds = new Set(
-      viewModel.clusters
-        .filter((cluster) => cluster.type === 'cluster')
-        .map((cluster) => cluster.id)
-    );
-
-    if (executableClusterIds.size === 0) {
-      if (selectedClusterId !== null) {
-        setSelectedClusterId(null);
-      }
-      return;
+    if (requestedDroneId && viewModel.dronesById[requestedDroneId] && handledRouteDroneRef.current !== requestedDroneId) {
+      handledRouteDroneRef.current = requestedDroneId;
+      setSelectedDroneId(requestedDroneId);
+    } else if (!viewModel.dronesById[selectedDroneId]) {
+      setSelectedDroneId(viewModel.drones[0]?.hw_id || null);
     }
-
-    if (selectedClusterId === 'all' || executableClusterIds.has(selectedClusterId)) {
-      return;
-    }
-
-    const fallbackClusterId = selectedDrone?.clusterRootId
-      || viewModel.clusters.find((cluster) => cluster.type === 'cluster')?.id
-      || null;
-
-    if (fallbackClusterId && fallbackClusterId !== selectedClusterId) {
-      setSelectedClusterId(fallbackClusterId);
-    }
-  }, [selectedClusterId, selectedDrone?.clusterRootId, viewModel.clusters]);
-
-  useEffect(() => {
-    if (!pendingCardFocusId) {
-      return;
-    }
-
-    const targetNode = cardRefs.current[pendingCardFocusId];
-    if (!targetNode) {
-      return;
-    }
-
-    targetNode.scrollIntoView?.({
-      behavior: 'smooth',
-      block: 'center',
-    });
-    targetNode.focus({ preventScroll: true });
-    setPendingCardFocusId(null);
-  }, [filteredClusters, pendingCardFocusId]);
-
-  useEffect(() => {
-    if (!requestedDroneId) {
-      handledRouteDroneRef.current = '';
-      return;
-    }
-
-    if (!viewModel.dronesById[requestedDroneId] || handledRouteDroneRef.current === requestedDroneId) {
-      return;
-    }
-
-    if (searchValue && !filteredDroneIds.has(requestedDroneId)) {
-      setSearchTerm('');
-    }
-
-    handledRouteDroneRef.current = requestedDroneId;
-    setSelectedDroneId(requestedDroneId);
-    setExpandedDroneId(requestedDroneId);
-    setPendingCardFocusId(requestedDroneId);
-  }, [filteredDroneIds, requestedDroneId, searchValue, viewModel.dronesById]);
+  }, [requestedDroneId, selectedDroneId, viewModel.drones, viewModel.dronesById]);
 
   const refreshFromServer = async () => {
     const [swarmResponse, configResponse] = await Promise.all([
@@ -435,6 +364,7 @@ function SwarmDesign() {
 
     setConfigData(normalizedConfig);
     setServerSwarmData(normalizedSwarm);
+    setServerSwarmRevision(String(swarmResponse?.data?.revision || ''));
     setBaselineAssignments(assignments);
     setWorkingAssignments(assignments);
   };
@@ -442,31 +372,28 @@ function SwarmDesign() {
   const handleAssignmentChange = (hwId, patch) => {
     setSaveReport(null);
     setSaveProgress(null);
-    setWorkingAssignments((currentAssignments) => (
-      currentAssignments.map((assignment) => (
-        assignment.hw_id === hwId
-          ? {
-              ...assignment,
-              ...patch,
-            }
-          : assignment
-      ))
-    ));
+    const current = workingRef.current;
+    let actualPatch = patch;
+    try {
+      if ('follow' in patch || 'frame' in patch) actualPatch = preservePositionPatch(current, String(hwId), patch, previewHeadings);
+    } catch (error) {
+      if (error.message.startsWith('Independent clusters')) {
+        setConfirmDialog({ title: 'Join this formation?', confirmLabel: 'Join formation',
+          message: <p>These leaders have no shared position reference. Keep this aircraft’s existing spacing relative to the new leader, then adjust it in the canvas.</p>,
+          onConfirm: () => {
+            setConfirmDialog(null);
+            draftHistory.edit(hwId, patch);
+          } });
+        return;
+      }
+      toast.warning(error.message);
+      return;
+    }
+    draftHistory.edit(hwId, actualPatch);
   };
 
-  const handleSelectDrone = (droneId, { fromGraph = false } = {}) => {
-    if (fromGraph && searchValue && !filteredDroneIds.has(droneId)) {
-      setSearchTerm('');
-    }
 
-    const nextDrone = viewModel.dronesById[droneId];
-    setSelectedDroneId(droneId);
-    setExpandedDroneId(droneId);
-    setPendingCardFocusId(droneId);
-    if (nextDrone?.clusterRootId) {
-      setSelectedClusterId(nextDrone.clusterRootId);
-    }
-  };
+  const handleSelectDrone = (droneId) => setSelectedDroneId(String(droneId));
 
 
   const handleImport = (event) => {
@@ -491,7 +418,7 @@ function SwarmDesign() {
           .filter(Boolean);
         const importedResult = buildWorkingSwarmAssignments(configData, importedAssignments);
 
-        setWorkingAssignments(importedResult.assignments);
+        draftHistory.replace(importedResult.assignments);
         setSaveReport(null);
         setSaveProgress(null);
 
@@ -599,6 +526,7 @@ function SwarmDesign() {
       onConfirm: () => {
         setConfirmDialog(null);
         setWorkingAssignments(baselineAssignments);
+        try { window.localStorage.removeItem(DRAFT_KEY); } catch { setDraftStorageError(true); }
         setSaveReport(null);
         setSaveProgress(null);
         toast.info('Reverted local Smart Swarm changes.');
@@ -606,28 +534,30 @@ function SwarmDesign() {
     });
   };
 
-  const saveSwarmData = async (withCommit) => {
+  const saveSwarmData = async (withCommit, acknowledgedUnavailableIds = []) => {
     const operation = withCommit ? 'commit' : 'update';
     setSaveOperation(operation);
     setSaving(true);
     setSaveProgress(buildSwarmSaveProgress({
-      title: withCommit ? 'Publishing Smart Swarm' : 'Saving Smart Swarm draft',
+      title: withCommit ? 'Publishing Smart Swarm' : 'Applying Smart Swarm plan',
       message: withCommit
         ? 'Saving swarm.json, committing it, then pushing it to the repo.'
-        : 'Saving swarm.json on this GCS. Drones will not pull this until it is published.',
+        : 'Applying the validated formation revision on this GCS.',
       tone: 'info',
       withCommit,
       stepStates: withCommit ? ['active', 'pending', 'pending'] : ['active', 'skipped', 'skipped'],
     }));
 
     try {
-      toast.info(withCommit ? 'Publishing Smart Swarm assignments...' : 'Saving Smart Swarm draft...');
-      const response = await saveSwarmConfigResponse(
-        toSwarmApiPayload(workingAssignments),
-        { commit: withCommit }
-      );
+      toast.info(withCommit ? 'Publishing Smart Swarm assignments...' : 'Applying Smart Swarm plan...');
+      const saveOptions = { commit: false, acknowledgedUnavailableIds };
+      if (serverSwarmRevision) saveOptions.revision = serverSwarmRevision;
+      const response = withCommit
+        ? await publishSwarmConfigResponse(serverSwarmRevision)
+        : await saveSwarmConfigResponse(toSwarmApiPayload(workingAssignments), saveOptions);
 
       const responseData = response?.data || {};
+      setApplicationStatus(responseData.application || null);
       const outcome = classifySwarmSaveOutcome(responseData, withCommit);
       const gitResult = outcome.gitResult;
       if (!withCommit) {
@@ -676,15 +606,27 @@ function SwarmDesign() {
       await refreshFromServer();
       await refreshGitStatus();
     } catch (error) {
+      const detail = error?.response?.data?.detail;
+      if (detail?.code === 'unavailable_confirmation_required') {
+        const ids = detail.unavailable_hw_ids || [];
+        setConfirmDialog({
+          title: 'Some aircraft are unreachable', confirmLabel: 'Apply anyway',
+          message: <p>{ids.map((id) => viewModel.dronesById[id]?.callsign || viewModel.dronesById[id]?.title || `Aircraft ${id}`).join(', ')}. Reachable aircraft may change first; others can pick up this plan when they reconnect.</p>,
+          onConfirm: () => { setConfirmDialog(null); saveSwarmData(false, ids); },
+        });
+        setSaveProgress(null);
+        return;
+      }
+      const errorMessage = typeof detail === 'string' ? detail : detail?.message || error?.message || 'The formation could not be applied.';
       console.error('Failed to save Smart Swarm configuration:', error);
       setSaveReport({
         tone: 'danger',
         title: withCommit ? 'Commit failed' : 'Update failed',
-        message: error?.response?.data?.detail || error?.message || 'GCS did not accept the Smart Swarm save request.',
+        message: errorMessage,
       });
       setSaveProgress(buildSwarmSaveProgress({
         title: withCommit ? 'Commit failed' : 'Update failed',
-        message: error?.response?.data?.detail || error?.message || 'GCS did not accept the Smart Swarm save request.',
+        message: errorMessage,
         tone: 'danger',
         withCommit,
         stepStates: ['blocked', withCommit ? 'pending' : 'skipped', withCommit ? 'pending' : 'skipped'],
@@ -697,6 +639,10 @@ function SwarmDesign() {
   };
 
   const confirmAndSave = (withCommit) => {
+    if (withCommit && (hasStagedChanges || hasPendingSync)) {
+      toast.info('Apply the draft first, then publish the applied plan.');
+      return;
+    }
     if (hasBlockingIssues) {
       toast.error('Resolve blocking follow-chain issues before saving Smart Swarm assignments.');
       return;
@@ -717,21 +663,10 @@ function SwarmDesign() {
       return;
     }
 
-    const summaryLines = [
-      `${viewModel.summary.totalDrones} drones across ${viewModel.summary.clusterCount} cluster${viewModel.summary.clusterCount === 1 ? '' : 's'}`,
-      `${viewModel.summary.topLeaderCount} top leaders, ${viewModel.summary.relayLeaderCount} relay leaders, ${viewModel.summary.followerCount} followers`,
-      `${dirtyIds.length} staged assignment change${dirtyIds.length === 1 ? '' : 's'}`,
-      `${syncChanges.addedIds.length + syncChanges.removedIds.length} fleet sync update${syncChanges.addedIds.length + syncChanges.removedIds.length === 1 ? '' : 's'}`,
-      `${viewModel.summary.attentionCount} drone${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
-    ];
-
-    if (withCommit && hasCommitPending && !canUpdateSwarm) {
-      summaryLines.push('saved swarm.json change pending git commit');
-    }
-
+    const summaryLines = [withCommit ? 'Publish the applied plan to the repository.' : `${dirtyIds.length} aircraft changed. Running swarm aircraft will adopt this plan through configuration updates.`];
     setConfirmDialog({
-      title: `${withCommit ? 'Publish' : 'Save draft'} Smart Swarm assignments?`,
-      confirmLabel: withCommit ? 'Publish' : 'Save draft',
+      title: `${withCommit ? 'Publish' : 'Apply'} Smart Swarm assignments?`,
+      confirmLabel: withCommit ? 'Publish' : 'Apply',
       message: (
         <div className="swarm-confirm-summary">
           <p>Review the formation summary before saving this assignment set.</p>
@@ -776,18 +711,18 @@ function SwarmDesign() {
           className="swarm-design-actions"
           primary={[
             <ActionIconButton
-              key="commit"
-              icon={<FaCloudUploadAlt />}
-              label="Publish Smart Swarm assignment changes"
-              onClick={() => confirmAndSave(true)}
-              tone="success"
-              active={saving && saveOperation === 'commit'}
-              aria-busy={saving && saveOperation === 'commit'}
-              className={saving && saveOperation === 'commit' ? 'is-busy' : ''}
-              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canCommitSwarm}
-              data-help="Save, commit, and push swarm.json. Use Fleet Ops if drones need to pull the latest commit."
+              key="update"
+              icon={<FaSave />}
+              label="Apply Smart Swarm plan on this GCS"
+              onClick={() => confirmAndSave(false)}
+              tone="info"
+              active={saving && saveOperation === 'update'}
+              aria-busy={saving && saveOperation === 'update'}
+              className={saving && saveOperation === 'update' ? 'is-busy' : ''}
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
+              data-help="Apply the validated formation on this GCS. Running swarm nodes may observe it through normal configuration polling."
             >
-              {saving && saveOperation === 'commit' ? 'Publishing' : 'Publish'}
+              {saving && saveOperation === 'update' ? 'Applying' : 'Apply'}
             </ActionIconButton>,
           ]}
           secondary={[
@@ -809,18 +744,18 @@ function SwarmDesign() {
               <input type="file" accept=".json,.csv" onChange={handleImport} />
             </label>,
             <ActionIconButton
-              key="update"
-              icon={<FaSave />}
-              label="Save Smart Swarm draft on this GCS"
-              onClick={() => confirmAndSave(false)}
-              tone="info"
-              active={saving && saveOperation === 'update'}
-              aria-busy={saving && saveOperation === 'update'}
-              className={saving && saveOperation === 'update' ? 'is-busy' : ''}
-              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
-              data-help="Save this draft on the GCS only. Publish when the plan is ready for fleet sync."
+              key="commit"
+              icon={<FaCloudUploadAlt />}
+              label="Publish Smart Swarm assignment changes"
+              onClick={() => confirmAndSave(true)}
+              tone="success"
+              active={saving && saveOperation === 'commit'}
+              aria-busy={saving && saveOperation === 'commit'}
+              className={saving && saveOperation === 'commit' ? 'is-busy' : ''}
+              disabled={saving || hasStagedChanges || hasPendingSync || !canCommitSwarm}
+              data-help="Publish the applied GCS plan to the repository. Does not send flight commands."
             >
-              {saving && saveOperation === 'update' ? 'Saving' : 'Save draft'}
+              {saving && saveOperation === 'commit' ? 'Publishing' : 'Publish'}
             </ActionIconButton>,
             <ActionIconButton
               key="json"
@@ -870,6 +805,20 @@ function SwarmDesign() {
         <span>{dirtyIds.length ? `${dirtyIds.length} unsaved` : 'Plan saved'}</span>
       </div>
       <SwarmSaveProgress progress={saveProgress} />
+      {draftStorageError && <p role="status">Draft recovery unavailable in this browser. Export before closing.</p>}
+      {recoverableDraft && <div className="swarm-draft-recovery" role="status">
+        <span>A previous draft differs from the current GCS plan.</span>
+        <button type="button" onClick={() => {
+          setWorkingAssignments(buildWorkingSwarmAssignments(configData, recoverableDraft.assignments).assignments);
+          setRecoverableDraft(null);
+        }}>Restore draft</button>
+        <button type="button" onClick={() => setRecoverableDraft(null)}>Use GCS plan</button>
+      </div>}
+      {applicationStatus && <div className="swarm-apply-status" aria-label="Aircraft formation acknowledgement" role="status">
+        {applicationStatus.nodes?.map((node) => <span key={node.hw_id} className={`is-${node.status}`}>
+          {viewModel.dronesById[node.hw_id]?.callsign || viewModel.dronesById[node.hw_id]?.title || `Aircraft ${node.hw_id}`} · {({ applied: 'Applied', pending: 'Pending', not_reachable: 'Unreachable', inactive: 'Next start' })[node.status] || 'Unknown'}
+        </span>)}
+      </div>}
 
       <section className="swarm-status-strip">
         {hasPendingSync && (
@@ -900,10 +849,10 @@ function SwarmDesign() {
           </OperatorNotice>
         )}
 
-        {(saveReport || gitStatusLoading || hasCommitPending) && (
+        {saveReport && !saveProgress && (
           <OperatorNotice
             tone={saveReport?.tone || (hasCommitPending ? 'warning' : 'info')}
-            title={saveReport?.title || (gitStatusLoading ? 'Checking git status' : 'Commit pending')}
+            title={saveReport.title}
             className="swarm-status-card git"
           >
             <span>
@@ -911,51 +860,19 @@ function SwarmDesign() {
                 || (gitStatusLoading
                   ? 'Reading GCS repository status.'
                   : localSwarmCommitPending
-                    ? 'Draft saved on this GCS. Publish is available now.'
-                    : 'swarm.json is saved on this GCS and still needs to be published to the repo.')}
+                    ? 'Applied on this GCS; applied formation is ready to publish.'
+                    : 'The applied formation is current on this GCS.')}
             </span>
           </OperatorNotice>
         )}
       </section>
 
-      <div className="swarm-design-toolbar">
-        <label className="swarm-search-field">
-          <FaSearch aria-hidden="true" />
-          <span className="sr-only">Find aircraft</span>
-          <input type="search" placeholder="Find aircraft" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
-        </label>
-        {clusterScopeOptions.length > 1 && <ClusterScopeBar label="Cluster" options={clusterScopeOptions} selectedId={clusterScope} onSelect={setClusterScope} />}
-      </div>
-
-      <div className="swarm-design-editor-layout">
-        <section className="swarm-panel swarm-panel--graph">
-          <div className="swarm-panel__header">
-            <div>
-              <h2>Swarm plan</h2>
-              <p>Click an aircraft to edit its place in the chain.</p>
-            </div>
-          </div>
-          <SwarmClusterDiagram members={filteredClusters.flatMap((cluster) => cluster.drones)} selectedId={selectedDroneId}
-            onSelect={(droneId) => handleSelectDrone(droneId, { fromGraph: true })} dirtyIds={dirtyIds} />
-          {filteredClusters.length === 0 && <EmptyState title="No matching aircraft" detail="Clear the search to see the saved swarm plan." />}
-        </section>
-
-        <section className="swarm-panel swarm-panel--assignments">
-          <div className="swarm-panel__header"><div><h2>Aircraft plan</h2><p>Set the leader and spacing for the selected aircraft.</p></div></div>
-          {selectedDrone ? <DroneCard
-            ref={(node) => { if (node) cardRefs.current[selectedDrone.hw_id] = node; }}
-            drone={selectedDrone}
-            draftAssignment={workingAssignments.find((assignment) => String(assignment.hw_id) === selectedDrone.hw_id) || selectedDrone}
-            followOptions={viewModel.followOptions}
-            onSelect={handleSelectDrone}
-            onToggleExpand={() => setExpandedDroneId(selectedDrone.hw_id)}
-            onAssignmentChange={handleAssignmentChange}
-            isSelected
-            isExpanded
-            isDirty={dirtyIdSet.has(selectedDrone.hw_id)}
-          /> : <EmptyState title="Select an aircraft" detail="Choose an aircraft in the plan to edit it." />}
-        </section>
-      </div>
+      <SwarmDesignWorkspace assignments={workingAssignments} configData={configData}
+        selectedId={selectedDroneId} onSelect={handleSelectDrone}
+        onChange={handleAssignmentChange} onEditBegin={beginEdit} onEditEnd={endEdit}
+        onUndo={undoEdit} onRedo={redoEdit} canUndo={draftHistory.canUndo} canRedo={draftHistory.canRedo}
+        previewHeadings={previewHeadings} onHeadingChange={(id, value) => setPreviewHeadings((current) => ({ ...current, [id]: value }))}
+        disabled={saving} />
 
       </section>
       <ConfirmDialog

@@ -1,0 +1,10 @@
+.swarm-formation-3d { height: clamp(380px, 62vh, 720px); min-width: 0; position: relative; display: flex; flex-direction: column; background: var(--color-bg-primary); }
+.swarm-formation-3d > div:last-child { flex: 1; min-height: 0; }
+.swarm-formation-tools { display: flex; align-items: center; gap: var(--spacing-xs); padding: var(--spacing-sm); flex: 0 0 auto; border-bottom: 1px solid var(--color-border-primary); }
+.swarm-formation-tools button { min-width: 44px; min-height: 44px; padding: var(--spacing-xs) var(--spacing-sm); border: 0; border-radius: 0; background: var(--color-bg-tertiary); color: var(--color-text-primary); cursor: pointer; }
+.swarm-formation-tools button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.swarm-formation-tools span { margin-left: auto; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.swarm-formation-3d__label { white-space: nowrap; color: var(--color-text-primary); background: var(--color-bg-primary); font-size: var(--font-size-xs); padding: 2px 4px; pointer-events: none; }
+.swarm-formation-3d__label.is-selected { color: var(--color-success); font-weight: var(--font-weight-bold); }
+.swarm-formation-3d__plane { margin-left: auto; display: flex; align-items: center; gap: var(--spacing-xs); color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.swarm-formation-3d__plane select { background: var(--color-bg-tertiary); color: var(--color-text-primary); border: 0; border-radius: 0; min-height: 44px; }

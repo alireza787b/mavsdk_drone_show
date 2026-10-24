@@ -9,6 +9,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm Design gains a linked Top/Side/3D/Links workspace with constrained
+  dragging, shared selection, undo/redo and recoverable browser-local drafts.
+  Body-frame previews and mixed follow chains use explicit preview headings;
+  independent clusters are no longer presented as a shared physical origin.
+  Apply is distinct from publishing the applied plan. Revision-aware edits
+  detect conflicts and require explicit acknowledgement of unreachable members.
+  Authenticated effective-configuration readback distinguishes Applied from
+  Pending/Unreachable/Next start. Offset-only patches retain their leader.
+
 - Smart Swarm adds one-press cluster-wide **Hold Swarm**, including the leader,
   with per-aircraft confirmation and explicit Start to rejoin. Recovery fences
   older pending launches/starts and invalidates unused node launch preparations.

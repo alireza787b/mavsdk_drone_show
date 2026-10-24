@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneGraph.css';
+import '../styles/SwarmFormation3D.css';
 
 function buildGraphElements(drones) {
   const nodes = drones.map((drone) => ({
@@ -14,7 +15,7 @@ function buildGraphElements(drones) {
         : compactIdentity;
 
       return {
-        id: drone.hw_id,
+        id: String(drone.hw_id),
         label,
         role: drone.role,
         warningState: drone.hasWarnings ? 'attention' : 'clear',
@@ -55,11 +56,19 @@ function applySelectionClasses(cy, selectedDroneId) {
   node.successors().addClass('is-downstream');
 }
 
-function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
+function DroneGraph({ swarmData, selectedDroneId, onSelectDrone, active = true }) {
   const cyRef = useRef(null);
+  const membershipRef = useRef('');
   const themeColors = getPlotThemeColors();
 
-  const graphElements = buildGraphElements(swarmData);
+  const graphElements = useMemo(() => buildGraphElements(swarmData), [swarmData]);
+  const membership = swarmData.map((drone) => String(drone.hw_id)).sort().join(',');
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const frame = requestAnimationFrame(() => cyRef.current?.resize());
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -70,11 +79,10 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
       .filter((drone) => drone.role === 'topLeader')
       .map((drone) => drone.hw_id);
 
-    cy.batch(() => {
-      cy.elements().remove();
-      cy.add(graphElements);
-    });
-
+    // react-cytoscapejs diffs elements. Do not destroy node positions, zoom or
+    // selection for an offset/label change in another linked view.
+    if (membershipRef.current === membership) return undefined;
+    membershipRef.current = membership;
     cy.layout({
       name: 'breadthfirst',
       directed: true,
@@ -88,7 +96,7 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
     cy.fit(undefined, 36);
 
     return undefined;
-  }, [graphElements, swarmData]);
+  }, [membership, swarmData]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -98,7 +106,7 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
 
     applySelectionClasses(cy, selectedDroneId);
     return undefined;
-  }, [selectedDroneId]);
+  }, [selectedDroneId, graphElements]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -136,13 +144,13 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         'text-max-width': 66,
         'color': themeColors.textInverse,
         'transition-property': 'background-color, border-color, border-width, width, height',
-        'transition-duration': '150ms',
+        'transition-duration': '0ms',
       },
     },
     {
       selector: 'node[role = "topLeader"]',
       style: {
-        'shape': 'round-rectangle',
+        'shape': 'rectangle',
         'width': 84,
         'height': 64,
         'background-color': themeColors.success,
@@ -231,6 +239,16 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
 
   return (
     <div className="swarm-graph-shell">
+      <div className="swarm-formation-tools" role="toolbar" aria-label="Relationship view controls">
+        <button type="button" onClick={() => cyRef.current?.fit(undefined, 36)}>Fit</button>
+        <button type="button" aria-label="Zoom relationship view in" onClick={() => {
+          const cy = cyRef.current; if (cy) cy.zoom(Math.min(cy.maxZoom(), cy.zoom() * 1.25));
+        }}>+</button>
+        <button type="button" aria-label="Zoom relationship view out" onClick={() => {
+          const cy = cyRef.current; if (cy) cy.zoom(Math.max(cy.minZoom(), cy.zoom() / 1.25));
+        }}>−</button>
+        <span>Relationships · not distance</span>
+      </div>
       <CytoscapeComponent
         cy={(cy) => {
           cyRef.current = cy;
@@ -238,7 +256,7 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         elements={graphElements}
         layout={{ name: 'preset' }}
         stylesheet={stylesheet}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '420px' }}
         minZoom={0.3}
         maxZoom={2.4}
       />

@@ -48,7 +48,7 @@ For a clean first Smart Swarm demo in SITL:
    ```
 3. open `Overview` and wait until the target drones show `READY` with live telemetry
 4. open `Swarm Design` and verify the saved SITL assignments from `swarm_sitl.json`
-5. use `Formation Analysis` to preview the intended cluster
+5. use `Design Swarm` Top, Side, 3D and Links views to preview the intended cluster
 6. use `Smart Swarm Runtime` to review `Formation Preview` and the live readiness snapshot for either the selected drone or selected cluster
 7. start Smart Swarm for the intended scope
 8. if you want the full branch acceptance run from the command line, use:
@@ -68,23 +68,48 @@ Validator note:
 
 ### Design Swarm workflow
 
-The **Design Swarm** tab is the saved-plan editor. The relationship diagram is
-not a live map: it shows the saved leader/follower chain only. Select an
-aircraft, choose the aircraft it follows, then set its spacing reference and
-three signed metre offsets. `Compass` keeps North/East/Up axes fixed;
-`Leader heading` follows the leader's Forward/Right/Up axes.
+The **Design Swarm** tab is one linked formation workspace. Top, Side, 3D,
+Links, the aircraft list, and the inspector all use the same draft.
+Links shows the leader/follower relationship, not geographic spacing. Body-frame
+geometry uses an explicit design-preview heading; live telemetry never moves a
+draft underneath the operator. Independent clusters are shown separately and
+do not imply saved spacing between their leaders.
 
 The normal operator path is:
 
 1. select an aircraft in the plan;
 2. set `Follows` and spacing;
-3. select **Publish** when the plan is ready for fleet sync;
+3. select **Apply** to use the validated formation on this GCS; optionally
+   **Publish** the applied plan to the repository;
 4. use **Operate** for flight commands.
 
-`Save draft` stores the plan on the GCS only. **Publish** saves, commits and
-pushes it when repository write access is available. These are separate from
-aircraft boot synchronization; the page reports each outcome independently.
-Import, export and revert remain available under the secondary actions.
+Edits are kept in a browser-local draft until explicitly applied. **Apply**
+writes the validated formation to the GCS; running Smart Swarm nodes may observe
+that revision through their normal configuration polling. **Publish** saves,
+commits and pushes the already-applied plan when repository write access is available.
+These outcomes are separate from aircraft synchronization; the page reports
+each outcome independently. Import, export and revert remain available under
+the secondary actions.
+
+Top dragging changes North/East spacing; Side changes East/Up. The 3D move tool
+offers constrained Horizontal, East/Up and North/Up planes. Roots are fixed local
+origins, not geographic destinations. A changed relay moves its dependent branch;
+children retain their relative offsets. Frame changes and reparenting within one
+cluster preserve preview positions. Joining independent clusters requires a separate
+confirmation because there is no shared origin to preserve. Preview headings do
+not command yaw. Undo/Redo acts on whole drag gestures; Escape cancels a drag.
+
+**Apply during flight:** editing alone sends nothing. Applying changes the GCS
+configuration that running swarm processes poll. If affected aircraft are
+unreachable, **Apply anyway** explicitly accepts that reachable aircraft may
+change first and others may adopt the plan on reconnect. This is not simultaneous
+dispatch or collision avoidance. The readback strip separates **Applied** (effective
+controller configuration), **Pending**, **Unreachable**, and **Next start** (no active
+swarm). Applied does not mean the aircraft has arrived at its new formation position.
+Hold, pilot takeover and Managed Return are never implicitly resumed by editing.
+An unresolved active update must be resolved or the swarm stopped before another
+update. Revision conflicts preserve the local draft for review rather than overwriting
+a newer GCS plan.
 
 ### Managed Return
 
@@ -111,14 +136,15 @@ request fences older pending Takeoff/Start work and invalidates unused launch
 preparations, so a delayed reply cannot silently restart that work. This is a
 networked flight-mode request, not a replacement for the pilot's RC takeover.
 
-### Design save workflow
+### Design persistence workflow
 
 The `Swarm Design` page separates local assignment saves from fleet-wide Git
 write-back during the current compatibility phase:
 
-- `Save` writes the current `swarm.json` assignment set on the GCS only.
-- `Commit & Push` saves, commits, and pushes the change so nodes can receive it
-  through the current sync path.
+- `Draft` stays in the browser and never changes the GCS or aircraft.
+- `Apply` writes the current validated `swarm.json` assignment set on the GCS.
+- `Publish` commits and pushes the already-applied plan so nodes can receive it
+  through the repository sync path.
 - A failed commit or push is reported as local-save success plus Git write-back
   failure, never as complete success.
 - Progress distinguishes the local save, commit, and remote push.
@@ -278,7 +304,7 @@ automatic mission. The first saved cluster is the initial default. The runtime
 selection is retained for this GCS/mode browser session and is independent of
 drone inspection, formation plots and general dashboard dispatch selection.
 If the selected cluster disappears, select again; MDS never substitutes another.
-The **Formation** tab holds editing, graphs, imports, exports and publishing.
+The **Design Swarm** tab holds editing, graphs, imports, exports and publishing.
 
 Return defaults to **Sequential RTL · 10 s** with the order and interval in its
 confirmation. This is timed dispatch, not collision avoidance or waiting for

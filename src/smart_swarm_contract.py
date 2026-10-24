@@ -106,6 +106,7 @@ class SwarmRuntimeReport(BaseModel):
     role: Literal["leader", "follower"]
     follow: str
     revision: str
+    applied_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     phase: Literal["ready", "active", "acquiring", "settling", "tracking", "tracking_degraded", "holding", "takeover", "stopped", "failed"]
     detail: str = Field(default="", max_length=500)
 

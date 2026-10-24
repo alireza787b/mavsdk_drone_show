@@ -1,4 +1,5 @@
 import { getPromotedMissionConfigField } from './missionConfigFields';
+import { relativeToWorld } from './swarmFormationGeometry';
 import { formatCompactDroneIdentity, formatDroneLabel, formatShowSlotLabel } from './missionIdentityUtils';
 
 export const TOP_LEADER_FOLLOW_VALUE = '0';
@@ -577,7 +578,16 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
   };
 }
 
-function calculateClusterOffset(droneId, assignmentMap, visited = new Set()) {
+/**
+ * Resolve a design-space offset into NED-like display coordinates. Body-frame
+ * assignments are evaluated against an explicit preview heading; live heading
+ * must never move an editing canvas underneath the operator.
+ */
+export function resolveRelativeOffset(assignment, previewHeadingDeg = 0) {
+  return relativeToWorld(assignment || {}, previewHeadingDeg);
+}
+
+function calculateClusterOffset(droneId, assignmentMap, visited = new Set(), previewHeadings = {}) {
   if (!assignmentMap.has(droneId) || visited.has(droneId)) {
     return {
       north: 0,
@@ -596,17 +606,18 @@ function calculateClusterOffset(droneId, assignmentMap, visited = new Set()) {
   }
 
   visited.add(droneId);
-  const leaderOffset = calculateClusterOffset(drone.follow, assignmentMap, visited);
+  const leaderOffset = calculateClusterOffset(drone.follow, assignmentMap, visited, previewHeadings);
+  const relative = resolveRelativeOffset(drone, previewHeadings[drone.follow] || 0);
   visited.delete(droneId);
 
   return {
-    north: leaderOffset.north + drone.offset_x,
-    east: leaderOffset.east + drone.offset_y,
-    up: leaderOffset.up + drone.offset_z,
+    north: leaderOffset.north + relative.north,
+    east: leaderOffset.east + relative.east,
+    up: leaderOffset.up + relative.up,
   };
 }
 
-export function calculateClusterPlotData(assignments = [], configData = [], clusterId = null) {
+export function calculateClusterPlotData(assignments = [], configData = [], clusterId = null, previewHeadings = {}) {
   const viewModel = buildSwarmViewModel(assignments, configData);
   const executableClusters = viewModel.clusters.filter((candidate) => candidate.type === 'cluster');
   const cluster = executableClusters.find((candidate) => candidate.id === clusterId)
@@ -633,7 +644,7 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
       );
 
       return currentCluster.drones.map((drone) => {
-        const offset = calculateClusterOffset(drone.hw_id, assignmentMap);
+        const offset = calculateClusterOffset(drone.hw_id, assignmentMap, new Set(), previewHeadings);
         return {
           hw_id: drone.hw_id,
           pos_id: drone.pos_id,
@@ -657,7 +668,7 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
       data,
       clusters: executableClusters,
       title: 'All executable clusters',
-      description: `${executableClusters.length} clusters · ${totalDrones} drones · overlaid on shared leader origin`,
+      description: `${executableClusters.length} clusters · ${totalDrones} drones · separate relative previews`,
     };
   }
 
@@ -669,7 +680,7 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
   );
 
   const data = cluster.drones.map((drone) => {
-    const offset = calculateClusterOffset(drone.hw_id, assignmentMap);
+    const offset = calculateClusterOffset(drone.hw_id, assignmentMap, new Set(), previewHeadings);
     return {
       hw_id: drone.hw_id,
       pos_id: drone.pos_id,

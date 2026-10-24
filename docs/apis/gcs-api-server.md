@@ -1136,6 +1136,49 @@ Get the canonical swarm configuration resource.
 #### `PUT /api/v1/config/swarm?commit={true|false}`
 Save the canonical swarm configuration resource.
 
+Design editors pass the `revision` returned by GET. A stale revision returns
+409 before writing. Revision-aware writes also accept
+`acknowledged_unavailable_hw_ids` (string IDs): when changed aircraft are not
+reachable, 409 detail has `code=unavailable_confirmation_required` and the
+exact `unavailable_hw_ids` to review and explicitly confirm. This is best-effort
+configuration application, not a simultaneous network transaction. Offline
+aircraft may consume the new canonical configuration when they reconnect.
+The legacy revision-less PUT remains compatible during rollout; new editors
+must not omit the revision to bypass conflict or reachability review.
+
+`application` in the response describes node readback separately from the GCS
+save. New edits are rejected with `formation_apply_pending` while a reachable
+active node has not confirmed the current configuration. Stop/Hold remains an
+independent operation and application never arms, starts, or resumes a swarm.
+
+#### `GET /api/v1/config/swarm/status`
+
+Returns `revision`, `unavailable_hw_ids`, and per-aircraft `nodes` with `hw_id`,
+`status`, `active`, `phase`, `received_revision`, and `applied_revision`.
+Statuses are `applied`, `pending`, `not_reachable`, or `inactive`. Applied means
+fresh authenticated evidence that the running controller installed its role,
+offsets and frame; it does **not** mean formation arrival or guaranteed clearance.
+Older nodes without effective-configuration evidence remain pending. Inactive
+aircraft use the saved formation on their next explicit Start; they are not
+silently engaged by Apply.
+
+`update_pending` distinguishes an unresolved later Apply from the session's
+confirmed startup revision. Older nodes can accept a first edit from their
+confirmed startup layout without being falsely marked Applied; subsequent
+unconfirmed changes require controller readback or ending the active swarm.
+Deploy the GCS before nodes that send the optional authenticated
+`applied_revision` report field.
+
+#### `POST /api/v1/config/swarm/publish`
+
+Body: `{ "revision": "<current GCS revision>" }`. Commits/pushes only the
+already-applied canonical configuration; accepts no draft assignments. A stale
+revision returns 409. Git failure does not undo the GCS configuration or imply
+aircraft synchronization. The older PUT `commit=true` combination remains a
+compatibility API, not the new editor's Publish action.
+
+#### PUT request and response
+
 **Parameters:**
 - `commit` (optional): Whether to commit to git
 
@@ -1200,6 +1243,8 @@ together for a single saved assignment.
 
 The `hw_id` path parameter owns the target resource. The request body no longer
 accepts a second `hw_id` field.
+Omitting `follow` preserves the existing parent; an offset-only patch never
+promotes the aircraft to independent leader.
 
 **Response:**
 ```json

@@ -102,7 +102,7 @@ class FleetConfigEntryPayload(BaseModel):
 
 class SwarmAssignment(BaseModel):
     """Individual swarm assignment for swarm.json"""
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra='allow', allow_inf_nan=False)
 
     hw_id: int = Field(..., ge=1, description="Hardware ID")
     follow: int = Field(0, ge=0, description="Leader hw_id to follow (0 = independent)")
@@ -116,6 +116,16 @@ class SwarmConfig(BaseModel):
     """Top-level swarm.json schema"""
     version: int = Field(1, ge=1, description="Schema version")
     assignments: List[SwarmAssignment]
+    revision: str = Field("", description="Deterministic topology revision for conflict detection")
+
+
+class SwarmConfigApplyRequest(SwarmConfig):
+    acknowledged_unavailable_hw_ids: List[str] = Field(default_factory=list)
+
+
+class SwarmPublishRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
 class SwarmConfigSaveResponse(BaseModel):
@@ -124,11 +134,12 @@ class SwarmConfigSaveResponse(BaseModel):
     message: str = Field(..., description="Operator-facing result summary")
     config: SwarmConfig = Field(..., description="Persisted swarm configuration resource")
     git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push enabled")
+    application: Optional[Dict[str, Any]] = Field(None, description="Observed per-aircraft configuration installation, not arrival")
 
 
 class SwarmAssignmentPatchRequest(BaseModel):
     """Patch payload for one saved swarm assignment."""
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
     follow: Optional[int] = Field(None, ge=0, description="Leader hw_id to follow (0 = independent)")
     offset_x: Optional[float] = Field(None, description="Offset axis 1: North (ned) or Forward (body), meters")
