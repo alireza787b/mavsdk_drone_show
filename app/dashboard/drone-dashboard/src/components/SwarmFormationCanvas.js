@@ -12,7 +12,7 @@ function fitCamera(points, width = WIDTH, height = HEIGHT) {
   return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, scale: clampScale(Math.min(Math.max(80, width - 120) / (maxX - minX), Math.max(80, height - 120) / (maxY - minY))) };
 }
 
-export default function SwarmFormationCanvas({ assignments, configData = [], clusterId, selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, plane = 'top', onEditBegin, onEditEnd, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false }) {
+export default function SwarmFormationCanvas({ assignments, configData = [], clusterId, selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, plane = 'top', onEditBegin, onEditEnd, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false, linkedViews = false, viewportCommand = null, onViewportCommand }) {
   const svgRef = useRef(null), gesture = useRef(null), cameras = useRef({});
   const [viewport, setViewport] = useState({ width: WIDTH, height: HEIGHT });
   const { width, height } = viewport;
@@ -56,6 +56,16 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
   // A deliberate Single/Four-view transition needs a fit at its new size.
   // Normal edits and later resizes retain the operator's camera.
   }, [scene.error, compact]);
+  const executeViewportCommand = (action) => {
+    if (action === 'fit') setCamera(fitCamera(points, width, height));
+    if (action === 'focus' && selected) setCamera((current) => ({ ...current, x: selected.x, y: selected.y }));
+    if (action === 'zoom-in') setCamera((current) => ({ ...current, scale: clampScale(current.scale * 1.25) }));
+    if (action === 'zoom-out') setCamera((current) => ({ ...current, scale: clampScale(current.scale * 0.8) }));
+  };
+  useEffect(() => {
+    if (!viewportCommand?.sequence) return;
+    executeViewportCommand(viewportCommand.action);
+  }, [viewportCommand?.sequence]);
   const viewportRef = useRef(viewport); viewportRef.current = viewport;
   useEffect(() => { setCamera(cameras.current[scopeKey] || fitCamera(latestPoints.current, viewportRef.current.width, viewportRef.current.height)); }, [scopeKey]);
   const activeScope = useRef(scopeKey);
@@ -136,10 +146,10 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
       <button type="button" aria-pressed={tool === 'select'} onClick={() => setTool('select')}>Select</button>
       <button type="button" aria-pressed={tool === 'pan'} onClick={() => setTool('pan')}>Pan</button>
       <span className="swarm-formation-canvas__tool-divider" />
-      <button type="button" aria-label="Zoom out" onClick={() => zoom(0.8)}>−</button>
-      <button type="button" aria-label="Zoom in" onClick={() => zoom(1.25)}>+</button>
-      <button type="button" onClick={() => { if (!gesture.current) setCamera(fitCamera(points, width, height)); }}>Fit</button>
-      <button type="button" disabled={!selected} onClick={() => { if (selected && !gesture.current) setCamera((current) => ({ ...current, x: selected.x, y: selected.y })); }}>Focus</button>
+      <button type="button" aria-label="Zoom out" onClick={() => linkedViews ? onViewportCommand?.('zoom-out') : zoom(0.8)}>−</button>
+      <button type="button" aria-label="Zoom in" onClick={() => linkedViews ? onViewportCommand?.('zoom-in') : zoom(1.25)}>+</button>
+      <button type="button" onClick={() => linkedViews ? onViewportCommand?.('fit') : (!gesture.current && executeViewportCommand('fit'))}>Fit</button>
+      <button type="button" disabled={!selected} onClick={() => linkedViews ? onViewportCommand?.('focus') : (!gesture.current && executeViewportCommand('focus'))}>Focus</button>
       <span className="swarm-formation-canvas__scale">{spacing.toPrecision(1)} m grid · {plane === 'top' ? `${axes.axis1} ↑ / ${axes.axis2} →` : `Up ↑ / ${plane === 'north-up' ? axes.axis1 : axes.axis2} →`}</span>
     </div>
     {scene.error ? <div role="status" className="swarm-formation-canvas__empty">Fix the follow chain to preview this formation.</div> : <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} role="group" aria-label={`Editable swarm ${plane === 'top' ? 'top' : plane === 'east-up' ? 'front' : 'side'} view`} tabIndex={0}

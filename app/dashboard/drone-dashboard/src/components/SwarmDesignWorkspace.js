@@ -36,10 +36,12 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
   previewHeadings = EMPTY_HEADINGS, onHeadingChange, disabled = false }) {
   const model = useMemo(() => buildSwarmViewModel(assignments, configData), [assignments, configData]);
   const [view, setView] = useState('top');
-  const [layout, setLayout] = useState('single');
+  const [layout, setLayout] = useState('quad');
+  const [linkedViews, setLinkedViews] = useState(true);
+  const [viewportCommand, setViewportCommand] = useState({ sequence: 0, action: null });
   const [expanded, setExpanded] = useState(null);
   const [showIds, setShowIds] = useState(false);
-  const [visitedViews, setVisitedViews] = useState(() => new Set(['top']));
+  const [visitedViews, setVisitedViews] = useState(() => new Set(['top', 'front', 'side', '3d']));
   const [scope, setScope] = useState(null);
   const [search, setSearch] = useState('');
   const selected = model.dronesById[String(selectedId)];
@@ -60,10 +62,12 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
   const headingId = draft?.follow !== '0' ? String(draft?.follow) : String(selectedId);
   const viewFrame = draft?.frame === 'body' && draft?.follow !== '0' ? 'body' : 'ned';
   const viewHeading = viewFrame === 'body' ? previewHeadings[headingId] || 0 : 0;
+  const emitViewportCommand = (action) => setViewportCommand((current) => ({ sequence: current.sequence + 1, action }));
   const canvasProps = { assignments, configData, clusterId: cluster?.id, selectedId,
     onSelect: select, onAssignmentChange: disabled ? undefined : onChange,
     onEditBegin, onEditEnd, previewHeadings, viewFrame, viewHeading, aircraftLabels: labels,
-    compact: layout === 'quad' && !expanded };
+    compact: layout === 'quad' && !expanded, linkedViews, viewportCommand,
+    onViewportCommand: emitViewportCommand };
   const parentCandidates = model.drones.filter((item) => {
     let current = item; const visited = new Set();
     while (current) {
@@ -110,6 +114,13 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
         <div role="group" aria-label="Editor layout"><button type="button" aria-pressed={layout === 'single'} onClick={() => changeLayout('single')}>Single</button>
           <button type="button" aria-pressed={layout === 'quad'} onClick={() => changeLayout('quad')}>Four views</button></div>
         <span className="formation-axis-reference">{viewFrame === 'body' ? `Body · ${names[headingId] || `H${headingId}`} · ${viewHeading}°` : 'NED · North / East / Up'}</span>
+        <div className="formation-viewport-tools" role="group" aria-label="View controls">
+          <button type="button" onClick={() => emitViewportCommand('fit')}>Fit all</button>
+          <button type="button" disabled={!selectedId} onClick={() => emitViewportCommand('focus')}>Focus all</button>
+          <button type="button" aria-label="Zoom all views out" onClick={() => emitViewportCommand('zoom-out')}>−</button>
+          <button type="button" aria-label="Zoom all views in" onClick={() => emitViewportCommand('zoom-in')}>+</button>
+        </div>
+        <label className="formation-linked-toggle"><input type="checkbox" checked={linkedViews} onChange={(event) => setLinkedViews(event.target.checked)} /> Linked views</label>
         <label><input type="checkbox" checked={showIds} onChange={(event) => setShowIds(event.target.checked)} /> Show IDs</label>
       </div>
       {scope === 'all' ? <div className="formation-cluster-overview">{model.clusters.map((group) =>

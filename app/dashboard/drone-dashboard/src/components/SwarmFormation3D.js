@@ -72,7 +72,7 @@ export function EditableAircraft({ assignment, position, parentPosition, preview
   </>;
 }
 
-function Scene({ entries, positions, labels, selectedId, previewHeadings, onSelect, onAssignmentChange, onEditBegin, onEditEnd, fitRequest, zoomRequest, colors, plane, viewFrame, viewHeading }) {
+function Scene({ entries, positions, labels, selectedId, previewHeadings, onSelect, onAssignmentChange, onEditBegin, onEditEnd, fitRequest, focusRequest, zoomRequest, colors, plane, viewFrame, viewHeading }) {
   const controls = useRef();
   const { camera, invalidate } = useThree();
   const positionsRef = useRef(positions);
@@ -100,6 +100,16 @@ function Scene({ entries, positions, labels, selectedId, previewHeadings, onSele
     controls.current.update();
     invalidate();
   }, [zoomRequest, camera, invalidate]);
+  useEffect(() => {
+    if (!focusRequest || !positionsRef.current[String(selectedId)]) return;
+    const center = new Vector3(...toScene(positionsRef.current[String(selectedId)]));
+    const direction = camera.position.clone().sub(controls.current?.target || new Vector3());
+    camera.position.copy(center).add(direction);
+    camera.lookAt(center);
+    controls.current?.target.copy(center);
+    controls.current?.update();
+    invalidate();
+  }, [focusRequest, selectedId, camera, invalidate]);
   const extent = Math.max(10, ...Object.values(positions).flatMap((p) => {
     const scene = toScene(p); return [Math.abs(scene[0]), Math.abs(scene[2])];
   }));
@@ -144,11 +154,12 @@ class SceneBoundary extends React.Component {
 }
 
 /** Lazy-load this component from Design; it has no network or aircraft side effects. */
-export default function SwarmFormation3D({ assignments, configData = [], selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, onEditBegin, onEditEnd, clusterId, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false }) {
+export default function SwarmFormation3D({ assignments, configData = [], selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, onEditBegin, onEditEnd, clusterId, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false, linkedViews = false, viewportCommand = null, onViewportCommand }) {
   const [fitRequest, setFitRequest] = useState(0);
   const [plane, setPlane] = useState('horizontal');
   const [editing, setEditing] = useState(false);
   const [zoomRequest, setZoomRequest] = useState({ sequence: 0, factor: 1 });
+  const [focusRequest, setFocusRequest] = useState(0);
   const colors = getPlotThemeColors();
   const geometry = useMemo(() => {
     try { return { positions: resolveFormationPositions(assignments, previewHeadings) }; }
@@ -165,12 +176,20 @@ export default function SwarmFormation3D({ assignments, configData = [], selecte
   // Cluster switching is deliberate framing; editing spacing is not.
   useEffect(() => { setFitRequest((value) => value + 1); }, [root]);
   const zoom = (factor) => setZoomRequest((value) => ({ sequence: value.sequence + 1, factor }));
+  useEffect(() => {
+    if (!viewportCommand?.sequence) return;
+    if (viewportCommand.action === 'fit') setFitRequest((value) => value + 1);
+    if (viewportCommand.action === 'focus') setFocusRequest((value) => value + 1);
+    if (viewportCommand.action === 'zoom-in') zoom(0.8);
+    if (viewportCommand.action === 'zoom-out') zoom(1.25);
+  }, [viewportCommand?.sequence]);
   const axes = formationViewLabels(viewFrame);
   return <section className={`swarm-formation-3d ${compact ? 'is-compact' : ''}`} aria-label="3D formation editor">
     <div className="swarm-formation-tools" role="toolbar" aria-label="3D view controls">
-      <button type="button" disabled={editing} onClick={() => setFitRequest((value) => value + 1)}>Fit</button>
-      <button type="button" disabled={editing} aria-label="Zoom 3D view in" onClick={() => zoom(0.8)}>+</button>
-      <button type="button" disabled={editing} aria-label="Zoom 3D view out" onClick={() => zoom(1.25)}>−</button>
+      <button type="button" disabled={editing} onClick={() => linkedViews ? onViewportCommand?.('fit') : setFitRequest((value) => value + 1)}>Fit</button>
+      <button type="button" disabled={editing} aria-label="Zoom 3D view in" onClick={() => linkedViews ? onViewportCommand?.('zoom-in') : zoom(0.8)}>+</button>
+      <button type="button" disabled={editing} aria-label="Zoom 3D view out" onClick={() => linkedViews ? onViewportCommand?.('zoom-out') : zoom(1.25)}>−</button>
+      <button type="button" disabled={editing || !selectedId} onClick={() => linkedViews ? onViewportCommand?.('focus') : setFocusRequest((value) => value + 1)}>Focus</button>
       <label className="swarm-formation-3d__plane">Move <select aria-label="3D movement plane" value={plane} disabled={editing} onChange={(event) => setPlane(event.target.value)}>
         <option value="horizontal">{axes.axis1} / {axes.axis2}</option><option value="east-up">{axes.axis2} / Up</option><option value="north-up">{axes.axis1} / Up</option>
       </select></label>
@@ -183,7 +202,7 @@ export default function SwarmFormation3D({ assignments, configData = [], selecte
           onSelect={onSelect} onAssignmentChange={onAssignmentChange}
           onEditBegin={() => { setEditing(true); onEditBegin?.(); }}
           onEditEnd={(result) => { setEditing(false); onEditEnd?.(result); }}
-          fitRequest={fitRequest} zoomRequest={zoomRequest} colors={colors} plane={plane} viewFrame={viewFrame} viewHeading={viewHeading} />
+          fitRequest={fitRequest} focusRequest={focusRequest} zoomRequest={zoomRequest} colors={colors} plane={plane} viewFrame={viewFrame} viewHeading={viewHeading} />
       </Canvas></SceneBoundary>}
   </section>;
 }

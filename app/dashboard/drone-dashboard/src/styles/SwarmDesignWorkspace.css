@@ -11,11 +11,11 @@
 .formation-aircraft small { grid-column:2; font-size:.7rem; }
 .formation-aircraft[aria-pressed=true] { background:var(--color-bg-tertiary); border-left-color:var(--color-info)!important; color:var(--color-text-primary); }
 .formation-role { grid-row:span 2; color:var(--color-info); }
-.formation-stage { min-width:0; min-height:0; display:flex; flex-direction:column; }
+.formation-stage { position:relative; z-index:var(--z-local-base); min-width:0; min-height:0; display:flex; flex-direction:column; }
 .formation-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-border-primary); padding:0 8px; gap:8px; }
 .formation-tools button { padding:10px; font-size:.8rem; border-bottom:2px solid transparent; }
 .formation-tools button[aria-selected=true] { color:var(--color-text-primary); border-bottom-color:var(--color-info); }
-.formation-inspector { min-width:0; overflow:auto; border-left:1px solid var(--color-border-primary); padding:16px; }
+.formation-inspector { position:relative; z-index:var(--z-popover); min-width:0; overflow:visible; border-left:1px solid var(--color-border-primary); padding:16px; }
 .formation-inspector header { display:flex; flex-direction:column; gap:4px; margin-bottom:20px; }
 .formation-inspector header span,.formation-preview-note { font-size:.75rem; color:var(--color-text-secondary); }
 .formation-inspector fieldset { border:0; padding:0; margin:0; }
@@ -36,6 +36,9 @@
 .formation-display-tools button { min-height:32px; padding:4px 8px; }
 .formation-display-tools button[aria-pressed=true] { background:var(--color-bg-tertiary); color:var(--color-text-primary); box-shadow:inset 0 -2px var(--color-info); }
 .formation-display-tools>label { margin-left:auto; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.formation-viewport-tools { display:flex; align-items:center; gap:3px; }
+.formation-viewport-tools button { min-height:30px; padding:3px 8px; border:1px solid var(--color-border-primary); }
+.formation-linked-toggle { margin-left:0!important; }
 .formation-display-tools input[type=checkbox] { width:16px; height:16px; min-height:0; }
 .formation-axis-reference { color:var(--color-text-secondary); }
 .formation-view-grid { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }

@@ -27,7 +27,7 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/swarm-design?ta
 const applyButton = () => screen.getByRole('button', { name: 'Apply plan' });
 const publishButton = () => screen.getByRole('button', { name: 'Save to repo' });
 async function selectFollower() {
-  fireEvent.click(await screen.findByRole('button', { name: 'NET-LEADER, formation position' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'NET-LEADER, formation position' }))[0]);
   return screen.getByRole('spinbutton', { name: 'offset_x metres' });
 }
 async function editNorth(value = '8') { fireEvent.change(await selectFollower(), { target: { value } }); }
@@ -55,7 +55,7 @@ beforeEach(() => {
 
 test('renders real linked canvas and inspector with Operate separate', async () => {
   renderPage();
-  expect(await screen.findByRole('button', { name: 'SCOUT, leader origin' })).toBeInTheDocument();
+  expect((await screen.findAllByRole('button', { name: 'SCOUT, leader origin' }))[0]).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /smart swarm guide/i })).toHaveAttribute('href', `https://github.com/${GIT_REPO}/blob/main/docs/features/smart-swarm.md`);
   expect(screen.getByRole('group', { name: 'Editable swarm top view' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', { name: 'Links' }));
@@ -66,6 +66,26 @@ test('renders real linked canvas and inspector with Operate separate', async () 
   expect(screen.queryByTestId('operate-controls')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', { name: 'Operate' }));
   expect(screen.getByTestId('operate-controls')).toBeInTheDocument();
+});
+
+test('Four views and linked viewport controls are the default', async () => {
+  renderPage();
+  await screen.findAllByRole('button', { name: 'SCOUT, leader origin' });
+  expect(screen.getByRole('button', { name: 'Four views' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('checkbox', { name: /Linked views/i })).toBeChecked();
+  expect(screen.getByRole('button', { name: 'Fit all' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Focus all' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Zoom all views in' })).toBeInTheDocument();
+  for (const title of ['Top', 'Front', 'Side', '3D']) expect(screen.getByLabelText(`${title} panel`)).toBeVisible();
+});
+
+test('independent views toggle stops linked viewport broadcasts', async () => {
+  renderPage();
+  await screen.findAllByRole('button', { name: 'SCOUT, leader origin' });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Linked views/i }));
+  expect(screen.getByRole('checkbox', { name: /Linked views/i })).not.toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'Fit all' }));
+  expect(screen.getByRole('button', { name: 'Fit all' })).toBeInTheDocument();
 });
 
 test('numeric edits remain browser-local and undo/redo restore exact offsets', async () => {
@@ -222,10 +242,10 @@ test('repository failure after Apply leaves a publication-only retry', async () 
 test('missing names use hardware IDs and never invent a position ID', async () => {
   getFleetConfigResponse.mockResolvedValue({ data: [{ hw_id: 1 }, { hw_id: 2, pos_id: 9 }] });
   renderPage();
-  expect(await screen.findByRole('button', { name: 'H1, leader origin' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'H2, formation position' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'H2, formation position' }));
+  expect((await screen.findAllByRole('button', { name: 'H1, leader origin' }))[0]).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: 'H2, formation position' })[0]).toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole('button', { name: 'H2, formation position' })[0]);
   expect(screen.getByLabelText('Aircraft spacing')).toHaveTextContent('H2 · P9');
-  fireEvent.click(screen.getByRole('button', { name: 'H1, leader origin' }));
+  fireEvent.click(screen.getAllByRole('button', { name: 'H1, leader origin' })[0]);
   expect(screen.getByLabelText('Aircraft spacing')).not.toHaveTextContent('P1');
 });

@@ -94,7 +94,9 @@ each outcome independently. Import, export and revert remain available under
 the Files menu. **Reset draft** restores the last loaded/applied GCS plan locally
 and is undoable; **Undo** reverses the last complete edit or drag.
 
-**Four views** shows Top, Front, Side and 3D together; a panel can be expanded.
+**Four views** is the default and shows Top, Front, Side and 3D together; a panel
+can be expanded. Fit, Focus and zoom are linked across all four panels by default;
+toggle **Linked views** off when independent camera control is needed.
 All views use the selected aircraft's reference: North/East for NED, or the
 followed aircraft's Forward/Right axes at its explicit preview heading for Body.
 Top changes both horizontal axes; Front changes East/Right and Up; Side changes

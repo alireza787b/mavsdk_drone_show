@@ -26,6 +26,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   Apply is distinct from publishing the applied plan. Revision-aware edits
   detect conflicts and require explicit acknowledgement of unreachable members.
   Authenticated effective-configuration readback distinguishes Applied from
+  Pending/Unreachable/Next start. Four views are now the default; Fit, Focus
+  and zoom are linked across the projections until Independent views is chosen.
   Pending/Unreachable/Next start. Offset-only patches retain their leader.
 
 - Smart Swarm adds one-press cluster-wide **Hold Swarm**, including the leader,

@@ -85,3 +85,16 @@ passed 8/8 viewport/navigation cases. Real fleet, formation and environment
 hashes were unchanged; no active commands were present. Temporary read-only
 verification credentials were revoked. Rollback builds and production screenshots
 are under `/root/mds-operator-review-20261024/`.
+
+## Follow-up: linked Four-view default
+
+Four views is now the default Design Swarm layout. Fit all, Focus all, zoom in
+and zoom out broadcast to Top, Front, Side and 3D while **Linked views** is on;
+the operator can turn it off for independent camera control. The inspector help
+layer is above the plot surface so NED/Body and preview-heading explanations are
+readable. The focused page/canvas/3D checks pass 30/30 after this change.
+
+The final linked-view browser run passes with Four views initially visible,
+Fit/Focus/zoom command broadcast, real 3D East drag 0 → 1.530813689m, readable
+unfocused 1.53 display, full precision on focus, Undo restoration, Body 90°/NED
+projection changes, zero browser/API writes and 390px mobile document width.
