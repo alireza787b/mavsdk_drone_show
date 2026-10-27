@@ -2094,17 +2094,17 @@ class TestSwarmEndpoints:
 
         response = test_client.get("/api/v1/config/swarm")
         assert response.status_code == 200
-        assert response.json() == {
-            'version': 1,
-            'assignments': [{
-                'hw_id': 1,
-                'follow': 0,
-                'offset_x': 0.0,
-                'offset_y': 0.0,
-                'offset_z': 0.0,
-                'frame': 'ned',
-            }],
-        }
+        payload = response.json()
+        assert payload['version'] == 1
+        assert payload['assignments'] == [{
+            'hw_id': 1,
+            'follow': 0,
+            'offset_x': 0.0,
+            'offset_y': 0.0,
+            'offset_z': 0.0,
+            'frame': 'ned',
+        }]
+        assert len(payload['revision']) == 64
 
     @patch('app_fastapi.load_swarm')
     def test_get_swarm_config_v1_returns_envelope(self, mock_load, test_client):
@@ -2114,17 +2114,17 @@ class TestSwarmEndpoints:
         response = test_client.get("/api/v1/config/swarm")
 
         assert response.status_code == 200
-        assert response.json() == {
-            'version': 1,
-            'assignments': [{
-                'hw_id': 1,
-                'follow': 0,
-                'offset_x': 0.0,
-                'offset_y': 0.0,
-                'offset_z': 0.0,
-                'frame': 'ned',
-            }],
-        }
+        payload = response.json()
+        assert payload['version'] == 1
+        assert payload['assignments'] == [{
+            'hw_id': 1,
+            'follow': 0,
+            'offset_x': 0.0,
+            'offset_y': 0.0,
+            'offset_z': 0.0,
+            'frame': 'ned',
+        }]
+        assert len(payload['revision']) == 64
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data(self, mock_save, test_client):
@@ -2143,17 +2143,17 @@ class TestSwarmEndpoints:
 
         assert response.status_code == 200
         assert response.json()['status'] == 'success'
-        assert response.json()['config'] == {
-            'version': 1,
-            'assignments': [{
-                'hw_id': 1,
-                'follow': 0,
-                'offset_x': 0.0,
-                'offset_y': 0.0,
-                'offset_z': 0.0,
-                'frame': 'ned',
-            }],
-        }
+        config = response.json()['config']
+        assert config['version'] == 1
+        assert config['assignments'] == [{
+            'hw_id': 1,
+            'follow': 0,
+            'offset_x': 0.0,
+            'offset_y': 0.0,
+            'offset_z': 0.0,
+            'frame': 'ned',
+        }]
+        assert len(config['revision']) == 64
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data_rejects_cycles(self, mock_save, test_client):
