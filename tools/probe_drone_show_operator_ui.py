@@ -187,6 +187,11 @@ def click_text(client: CDPClient, selector: str, text: str) -> bool:
     return bool(client.evaluate(f"(() => {{ const el = [...document.querySelectorAll({json.dumps(selector)})].find((node) => node.textContent.trim() === {json.dumps(text)}); if (!el) return false; el.click(); return true; }})()"))
 
 
+def inject_plot_fixture(client: CDPClient) -> None:
+    """Replace mocked plot URLs with a local SVG so screenshots stay clean."""
+    client.evaluate("""(() => { const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500"><rect width="1200" height="500" fill="#17202a"/><path d="M90 400 C260 340 270 90 480 120 S680 430 900 200 S1040 90 1120 70" fill="none" stroke="#36c2a0" stroke-width="7"/><path d="M90 420 C280 380 350 160 520 180 S700 410 900 250 S1030 140 1120 100" fill="none" stroke="#f3b562" stroke-width="4" stroke-dasharray="12 8"/></svg>`; const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; document.querySelectorAll('img[src*="/api/v1/shows/skybrush/plots/"]').forEach((img) => { img.src = src; }); return true; })()""")
+
+
 def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome: str, port: int) -> dict:
     width, height = (390, 844) if viewport == "mobile" else (1440, 960)
     active = {"value": False}
@@ -208,11 +213,13 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace__summary-state'))", timeout_s=25)
             time.sleep(0.6)
+            inject_plot_fixture(client)
             operate = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-operate-ready.png")
             if not click_text(client, "[role=tab]", "Design / Setup"):
                 raise RuntimeError("Design / Setup tab unavailable")
             time.sleep(0.5)
+            inject_plot_fixture(client)
             setup = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-setup.png")
             if not click_text(client, "[role=tab]", "Operate"):
@@ -229,6 +236,7 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.navigate(f"{base_url.rstrip('/')}/drone-show?tab=operate")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
             time.sleep(0.6)
+            inject_plot_fixture(client)
             monitoring = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-monitoring.png")
             writes.extend(client.evaluate("window.__mdsProbeWrites || []") or [])
