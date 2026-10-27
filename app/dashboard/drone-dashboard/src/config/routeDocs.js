@@ -89,14 +89,20 @@ export const ROUTE_DOCS = Object.freeze([
     feature: 'logs',
   },
   {
+    path: '/drone-show',
+    label: 'Drone Show workspace guide',
+    docPath: 'docs/features/drone-show.md',
+    feature: 'drone-show',
+  },
+  {
     path: '/drone-show-design',
-    label: 'Drone show guide',
+    label: 'Drone Show workspace guide',
     docPath: 'docs/features/drone-show.md',
     feature: 'drone-show',
   },
   {
     path: '/manage-drone-show',
-    label: 'Drone show guide',
+    label: 'Drone Show workspace guide',
     docPath: 'docs/features/drone-show.md',
     feature: 'drone-show',
   },

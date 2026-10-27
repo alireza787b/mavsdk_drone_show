@@ -2,7 +2,8 @@
 
 **Mission Type:** `1` (`DRONE_SHOW_FROM_CSV`)  
 **Advanced Alternate Mode:** `3` (`CUSTOM_CSV_DRONE_SHOW`)  
-**Primary UI Surfaces:** `Show Design`, `Mission Config`, `Overview`
+**Primary UI Surface:** `Drone Show` (`/drone-show`)
+**Supporting Surface:** `Mission Config` for launch geometry and origin
 
 ## Overview
 
@@ -18,16 +19,16 @@ Do not mix these mentally. The standard Drone Show path is the normal operator w
 
 ## Standard Operator Flow
 
-1. Open `Show Design`
-2. Import a SkyBrush ZIP archive
-3. Confirm the processed plots and metrics were generated
-4. Open `Mission Config` and verify launch geometry / origin setup
-5. Open `Overview`
-6. Select `Drone Show from CSV`
-7. Choose the control mode
-8. Verify the launch-readiness snapshot
-9. Schedule the trigger time
-10. Monitor execution and be ready to send `HOLD`, `LAND`, or `RTL` if required
+1. Open `Drone Show`.
+2. In **Design / Setup**, import a SkyBrush ZIP archive.
+3. Review the generated plots, metrics, trajectory validation, and safety result.
+4. Open `Mission Config` from the workspace when launch geometry or origin needs editing.
+5. Select the launch mode in Design / Setup; **Global · auto correction** is the normal outdoor choice.
+6. Return to **Operate** and wait for the package, validation, safety, and fleet rows to be ready.
+7. Confirm **Launch show** once. Monitor the operation rail and fleet rows from the same page.
+8. Use **Hold**, **Managed return**, **Land here**, or **Abort** only when needed. Recovery controls act on the current show targets.
+
+The old `/drone-show-design` and `/manage-drone-show` paths remain bookmark-compatible aliases to this same workspace. They are not separate implementations. `Custom Show` remains an advanced CSV-only path and is intentionally kept behind the Setup disclosure.
 
 ## Import Pipeline
 
@@ -38,11 +39,11 @@ Do not mix these mentally. The standard Drone Show path is the normal operator w
 - processed files are only swapped into the live directories after the full conversion succeeds
 - the operator gets a truthful summary: raw CSV count, processed drone count, generated plots, warnings, and next steps
 
-The related dashboard surfaces are:
+The workspace is the single operator surface:
 
-- `Show Design` for import, visualization, and export
-- `Mission Config` for launch geometry and origin review
-- `Overview` for live readiness and mission dispatch
+- **Operate** contains readiness, live progress, fleet status, and recovery controls.
+- **Design / Setup** contains import, preview/validation, launch mode, geometry link, export, and the advanced Custom CSV link.
+- `Mission Config` remains the shared geometry/origin editor rather than a second show launcher.
 
 ## Origin Behavior in Stock SITL
 
@@ -158,7 +159,7 @@ Operational guidance:
 
 ## Launch Readiness
 
-The `Overview` mission card now checks the real blockers for the standard Drone Show path:
+The Drone Show **Operate** tab checks the real blockers for the standard Drone Show path:
 
 - imported show exists
 - origin is configured when auto correction is enabled
@@ -227,7 +228,7 @@ For writable production workflows:
 
 Custom CSV now has its own dedicated dashboard surface at `Custom Show`.
 
-That page is intentionally separate from the normal SkyBrush `Show Design` path:
+That page is intentionally separate from the normal SkyBrush Drone Show workspace:
 
 - operators can upload one ready-to-execute protocol CSV
 - MDS validates the file, stores it as `active.csv`, and regenerates the preview
@@ -235,5 +236,5 @@ That page is intentionally separate from the normal SkyBrush `Show Design` path:
 
 Keep the workflows mentally separate:
 
-- `Show Design` is the normal multi-drone SkyBrush import path
+- `Drone Show → Design / Setup` is the normal multi-drone SkyBrush import path
 - `Custom Show` is an expert-only override path for specialized testing and research

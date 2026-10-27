@@ -86,6 +86,10 @@ Current callable argument scope:
 - `mds.shows.skybrush.metrics_snapshot.read` uses
   `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current
   cached metrics snapshot and reports unavailable if no current cache exists.
+- The Drone Show operator workspace uses the read-only aggregate routes
+  `GET /api/v1/shows/skybrush/workspace` and
+  `GET /api/v1/shows/operation/status`. They expose package/readiness and live
+  operation evidence only; they do not import, deploy, or send flight commands.
 - `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a
   read-only MCP tool because the current route can refresh and write cached
   metrics.

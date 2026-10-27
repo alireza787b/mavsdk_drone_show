@@ -104,7 +104,7 @@ describe('SidebarMenu', () => {
       'Overview',
       'Mission Config',
       'Smart Swarm',
-      'Show Design',
+      'Drone Show',
     ]);
 
     const planSection = screen.getByText('Plan').closest('.nav-section');

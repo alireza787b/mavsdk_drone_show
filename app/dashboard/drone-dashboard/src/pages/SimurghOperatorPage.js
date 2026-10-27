@@ -69,7 +69,7 @@ const LINKABLE_DASHBOARD_ROUTES = Object.freeze([
   '/fleet-enrollment',
   '/fleet-ops',
   '/logs',
-  '/manage-drone-show',
+  '/drone-show',
   '/mission-config',
   '/quickscout',
   '/simurgh',

@@ -71,6 +71,8 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   networkInfo: 'networkInfo',
   swarmLeaders: 'swarmLeaders',
   showInfo: 'showInfo',
+  showWorkspace: 'showWorkspace',
+  showOperationStatus: 'showOperationStatus',
   comprehensiveMetrics: 'comprehensiveMetrics',
   customShowInfo: 'customShowInfo',
   importShow: 'importShow',
@@ -171,6 +173,8 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.networkInfo]: '/api/v1/fleet/network-details',
   [GCS_ROUTE_KEYS.swarmLeaders]: '/api/v1/swarm-trajectories/leaders',
   [GCS_ROUTE_KEYS.showInfo]: '/api/v1/shows/skybrush',
+  [GCS_ROUTE_KEYS.showWorkspace]: '/api/v1/shows/skybrush/workspace',
+  [GCS_ROUTE_KEYS.showOperationStatus]: '/api/v1/shows/operation/status',
   [GCS_ROUTE_KEYS.comprehensiveMetrics]: '/api/v1/shows/skybrush/metrics',
   [GCS_ROUTE_KEYS.customShowInfo]: '/api/v1/shows/custom',
   [GCS_ROUTE_KEYS.importShow]: '/api/v1/shows/skybrush/import',
@@ -274,6 +278,8 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/fleet/network-details': GCS_ROUTE_KEYS.networkInfo,
   '/api/v1/swarm-trajectories/leaders': GCS_ROUTE_KEYS.swarmLeaders,
   '/api/v1/shows/skybrush': GCS_ROUTE_KEYS.showInfo,
+  '/api/v1/shows/skybrush/workspace': GCS_ROUTE_KEYS.showWorkspace,
+  '/api/v1/shows/operation/status': GCS_ROUTE_KEYS.showOperationStatus,
   '/api/v1/shows/skybrush/metrics': GCS_ROUTE_KEYS.comprehensiveMetrics,
   '/api/v1/shows/custom': GCS_ROUTE_KEYS.customShowInfo,
   '/api/v1/shows/skybrush/import': GCS_ROUTE_KEYS.importShow,
@@ -1095,6 +1101,14 @@ export async function getSwarmLeadersResponse(config = {}) {
 
 export async function getShowInfoResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.showInfo, config);
+}
+
+export async function getShowWorkspaceResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.showWorkspace, config);
+}
+
+export async function getShowOperationStatusResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.showOperationStatus, config);
 }
 
 export async function getShowPlotsResponse(config = {}) {

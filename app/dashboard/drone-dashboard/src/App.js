@@ -42,7 +42,7 @@ const Detail = lazy(() => import('./components/DroneDetail'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
 const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
 const GlobeView = lazy(() => import('./pages/GlobeView'));
-const ManageDroneShow = lazy(() => import('./pages/ManageDroneShow'));
+const DroneShowWorkspace = lazy(() => import('./pages/DroneShowWorkspace'));
 const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
 const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
 const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
@@ -220,7 +220,8 @@ const AppShell = () => {
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
                       {/* Main drone management routes */}
-                      <Route path="/drone-show-design" element={<ManageDroneShow />} />
+                      <Route path="/drone-show" element={<DroneShowWorkspace />} />
+                      <Route path="/drone-show-design" element={<DroneShowWorkspace />} />
                       <Route path="/swarm-design" element={<SwarmDesign />} />
                       <Route path="/mission-config" element={<MissionConfig />} />
                       <Route path="/fleet-enrollment" element={<FleetEnrollmentPage />} />
@@ -230,7 +231,7 @@ const AppShell = () => {
                       <Route path="/drone-detail" element={selectedDrone
                         ? <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
                         : <Navigate to="/" replace />} />
-                      <Route path="/manage-drone-show" element={<ManageDroneShow />} />
+                      <Route path="/manage-drone-show" element={<DroneShowWorkspace />} />
                       <Route path="/custom-show" element={<CustomShowPage />} />
                       <Route path="/globe-view" element={<GlobeView />} />
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />

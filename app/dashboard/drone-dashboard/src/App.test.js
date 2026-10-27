@@ -35,10 +35,9 @@ jest.mock('./hooks/useGcsRuntimeStatus', () => ({
 
 // Mock lazy-loaded pages — must return { default: Component } for React.lazy
 jest.mock('./pages/SwarmDesign', () => ({ __esModule: true, default: () => <div data-testid="swarm-design" /> }));
-jest.mock('./pages/DroneShowDesign', () => ({ __esModule: true, default: () => <div data-testid="drone-show-design" /> }));
+jest.mock('./pages/DroneShowWorkspace', () => ({ __esModule: true, default: () => <div data-testid="drone-show-workspace" /> }));
 jest.mock('./pages/CustomShowPage', () => ({ __esModule: true, default: () => <div data-testid="custom-show" /> }));
 jest.mock('./pages/GlobeView', () => ({ __esModule: true, default: () => <div data-testid="globe-view" /> }));
-jest.mock('./pages/ManageDroneShow', () => ({ __esModule: true, default: () => <div data-testid="manage-drone-show" /> }));
 jest.mock('./pages/SwarmTrajectory', () => ({ __esModule: true, default: () => <div data-testid="swarm-trajectory" /> }));
 jest.mock('./pages/TrajectoryPlanning', () => ({ __esModule: true, default: () => <div data-testid="trajectory-planning" /> }));
 jest.mock('./pages/QuickScoutPage', () => ({ __esModule: true, default: () => <div data-testid="quickscout" /> }));

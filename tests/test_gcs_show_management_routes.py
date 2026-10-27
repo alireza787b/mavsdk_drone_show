@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -26,6 +27,20 @@ class _DummyMetricsEngine:
         return {"safety_status": "SAFE", "collision_warnings_count": 0}
 
 
+class _DummyCommandTracker:
+    def __init__(self, commands=None):
+        self.commands = commands or []
+
+    async def get_active_commands(self):
+        return [command for command in self.commands if command.get("phase") != "terminal"]
+
+    async def get_recent(self, limit=50, status_filter=None, mission_filter=None):
+        rows = self.commands[:limit]
+        if mission_filter:
+            rows = [row for row in rows if row.get("mission_type") in mission_filter]
+        return rows
+
+
 def _make_deps():
     return SimpleNamespace(
         BASE_DIR="/tmp/mds-show-tests",
@@ -49,6 +64,9 @@ def _make_deps():
         _generate_custom_show_preview=None,
         _load_saved_metrics_if_current=lambda: None,
         _refresh_saved_show_metrics=lambda: {"basic_metrics": {"drone_count": 1}},
+        get_command_tracker=lambda: _DummyCommandTracker(),
+        load_config=lambda: [],
+        telemetry_data_all_drones={},
     )
 
 
@@ -63,6 +81,8 @@ def test_show_management_router_registers_expected_routes():
     assert "/api/v1/shows/skybrush/archives/raw" in routes
     assert "/api/v1/shows/skybrush/archives/processed" in routes
     assert "/api/v1/shows/skybrush" in routes
+    assert "/api/v1/shows/skybrush/workspace" in routes
+    assert "/api/v1/shows/operation/status" in routes
     assert "/api/v1/shows/custom" in routes
     assert "/api/v1/shows/custom/import" in routes
     assert "/api/v1/shows/skybrush/metrics" in routes
@@ -136,6 +156,54 @@ def test_show_management_router_metrics_snapshot_reports_missing_cache_without_r
     assert payload["cache_current"] is False
     assert "No current cached SkyBrush metrics snapshot" in payload["detail"]
     assert refresh_calls == []
+
+
+def test_show_workspace_returns_empty_snapshot_without_imported_package():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_show_management_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/shows/skybrush/workspace")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["package"]["available"] is False
+    assert payload["plots"]["filenames"] == []
+
+
+def test_show_operation_status_prefers_latest_active_command_and_normalizes_telemetry_age():
+    now_ms = int(time.time() * 1000)
+    command = {
+        "command_id": "show-1",
+        "mission_type": 1,
+        "mission_name": "DRONE_SHOW_FROM_CSV",
+        "target_drones": ["1", "2"],
+        "phase": "in_progress",
+        "status": "executing",
+        "outcome": None,
+        "updated_at": now_ms,
+        "progress": {"stage": "executing", "label": "Show in progress", "completed": 0},
+    }
+    deps = _make_deps()
+    deps.get_command_tracker = lambda: _DummyCommandTracker([command])
+    deps.load_config = lambda: [{"hw_id": "1"}, {"hw_id": "2"}]
+    deps.telemetry_data_all_drones = {
+        "1": {"timestamp": time.time(), "state": "HOLD", "is_armed": True, "battery_remaining_percent": 87},
+        "2": {"heartbeat_last_seen": now_ms - 1000, "state": "OFFBOARD", "is_armed": True, "battery_remaining_percent": 82},
+    }
+    app = FastAPI()
+    app.include_router(create_show_management_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/shows/operation/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["phase"] == "executing"
+    assert payload["state"] == "active"
+    assert payload["target_drone_ids"] == ["1", "2"]
+    assert all(row["telemetry_fresh"] for row in payload["fleet"])
 
 
 def test_show_management_router_get_show_info_uses_live_directory_after_router_creation(tmp_path):

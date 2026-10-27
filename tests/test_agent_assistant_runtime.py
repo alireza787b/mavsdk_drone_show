@@ -812,13 +812,13 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
         (
             "what drone show is planned now? how long it will take?",
             "show_summary",
-            ("Loaded show state", "operator-selected package", "/manage-drone-show", "/swarm-trajectory"),
+            ("Loaded show state", "operator-selected package", "/drone-show", "/swarm-trajectory"),
             ("Connectivity from GCS state",),
         ),
         (
             "Whay drone show is uploaded now and how long it takes?",
             "show_summary",
-            ("Loaded show state", "operator-selected package", "/manage-drone-show"),
+            ("Loaded show state", "operator-selected package", "/drone-show"),
             ("SkyBrush show upload workflow", "Upload the SkyBrush ZIP"),
         ),
         (
@@ -842,7 +842,7 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
         (
             "How to upload skybrush drone show",
             "show_upload_help",
-            ("SkyBrush show upload workflow", "/manage-drone-show", "POST /api/v1/shows/skybrush/import", "/api/v1/simurgh/context/mds.drone_show/markdown"),
+            ("SkyBrush show upload workflow", "/drone-show", "POST /api/v1/shows/skybrush/import", "/api/v1/simurgh/context/mds.drone_show/markdown"),
             ("Loaded show state", "Connectivity from GCS state"),
         ),
         (

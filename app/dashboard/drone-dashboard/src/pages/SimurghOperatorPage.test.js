@@ -782,7 +782,7 @@ describe('SimurghOperatorPage', () => {
       '',
       '| Area | Mode | Use it when | |---|---|---| | Show workflow | **SkyBrush ZIP** | Normal multi-drone show import. | | Launch/control mode | GLOBAL | Outdoor show with launch correction. |',
       '',
-      '**Normal path:** use `Show Design` after readiness is green.',
+      '**Normal path:** use `Drone Show` Design / Setup after readiness is green.',
       '',
       '```bash',
       'mds show validate --dry-run',
@@ -809,7 +809,7 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getByRole('cell', { name: /Normal multi-drone show import/i })).toBeInTheDocument();
     expect(screen.getByText('SkyBrush ZIP').tagName).toBe('STRONG');
     expect(screen.getByText('Normal path:').tagName).toBe('STRONG');
-    expect(screen.getByText('Show Design').tagName).toBe('CODE');
+    expect(screen.getByText('Drone Show').tagName).toBe('CODE');
     expect(screen.getByText('mds show validate --dry-run')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /copy simurgh message/i }));
@@ -2794,7 +2794,7 @@ describe('SimurghOperatorPage', () => {
   test('auto-links safe dashboard routes and known docs paths in assistant answers', async () => {
     mockStreamResponseOnce(assistantTurnData({
       id: 'turn_links',
-      content: 'Open /manage-drone-show or /quickscout. Read docs/features/drone-show.md and docs/guides/simurgh-mcp-clients.md and call /api/v1/shows/skybrush/import.',
+      content: 'Open /drone-show or /quickscout. Read docs/features/drone-show.md and docs/guides/simurgh-mcp-clients.md and call /api/v1/shows/skybrush/import.',
       session: { id: 'sess_links' },
       message_hash: 'links',
       message_chars: 18,
@@ -2808,8 +2808,8 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'show upload links' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    const routeLink = await screen.findByRole('link', { name: '/manage-drone-show' });
-    expect(routeLink).toHaveAttribute('href', '/manage-drone-show');
+    const routeLink = await screen.findByRole('link', { name: '/drone-show' });
+    expect(routeLink).toHaveAttribute('href', '/drone-show');
     expect(routeLink).toHaveAttribute('target', '_blank');
     const quickScoutLink = screen.getByRole('link', { name: '/quickscout' });
     expect(quickScoutLink).toHaveAttribute('href', '/quickscout');

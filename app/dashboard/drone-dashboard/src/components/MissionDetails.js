@@ -238,7 +238,7 @@ const MissionDetails = ({
 
   if (showModeHints && !showInfoLoading) {
     if (!showImported) {
-      droneShowBlockers.push('No processed Drone Show is loaded. Import a SkyBrush ZIP on the Show Design page first.');
+      droneShowBlockers.push('No processed Drone Show is loaded. Import a SkyBrush ZIP in Drone Show → Design / Setup first.');
     }
 
     if (showInfoError && !showImported) {
@@ -955,8 +955,8 @@ const MissionDetails = ({
           reference: (
             <p>
               Confirm imported geometry in{' '}
-              <Link to="/manage-drone-show" className="origin-link">
-                Show Design
+              <Link to="/drone-show" className="origin-link">
+                Drone Show → Design / Setup
               </Link>{' '}
               and launch setup in{' '}
               <Link to="/mission-config" className="origin-link">

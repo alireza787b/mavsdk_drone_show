@@ -151,8 +151,8 @@ const CustomShowPage = () => {
       status={<StatusBadge tone={hasActiveCustomShow ? 'success' : 'warning'}>{hasActiveCustomShow ? 'Active' : 'No CSV'}</StatusBadge>}
       actions={(
         <div className="custom-show-page__hero-actions">
-          <Button component={RouterLink} to="/drone-show-design" variant="outlined">
-            Open Show Design
+          <Button component={RouterLink} to="/drone-show" variant="outlined">
+            Open Drone Show
           </Button>
           <Button component={RouterLink} to="/mission-config" variant="outlined">
             Review Mission Config

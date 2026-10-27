@@ -899,6 +899,10 @@ The show domain now exposes canonical v1 routes grouped by workflow:
 
 The older verb-style show-management aliases were retired on 2026-04-03. Use the canonical routes below.
 
+The dashboard's canonical operator surface is `/drone-show`. The legacy
+`/drone-show-design` and `/manage-drone-show` browser paths are compatibility
+aliases only; they do not represent separate show state.
+
 #### `POST /api/v1/shows/skybrush/import`
 Import and process drone show files (multipart file upload).
 
@@ -936,6 +940,34 @@ Get show metadata (drone count, duration, altitude).
   "duration_minutes": 2,
   "duration_seconds": 0,
   "max_altitude": 50.0
+}
+```
+
+#### `GET /api/v1/shows/skybrush/workspace`
+Return the non-mutating aggregate used by the Drone Show Design / Setup tab.
+It combines package metadata, cached metrics, safety and trajectory validation,
+available plots, and a server timestamp. Missing optional analysis is reported
+as unavailable; this route never imports, recalculates, deploys, or commands a
+show.
+
+#### `GET /api/v1/shows/operation/status`
+Return the non-mutating live projection used by the Drone Show Operate tab.
+The response includes the latest show/recovery command phase, progress summary,
+target hardware IDs, operation kind, telemetry age/freshness, armed state, and
+battery percentage. It derives state from the command tracker and does not
+create or alter commands.
+
+Example shape:
+```json
+{
+  "state": "active",
+  "phase": "executing",
+  "progress_percent": 0,
+  "operation_kind": "show",
+  "target_drone_ids": ["1", "2"],
+  "fleet": [
+    {"hw_id": "1", "telemetry_age_ms": 420, "telemetry_fresh": true, "armed": true}
+  ]
 }
 ```
 

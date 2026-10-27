@@ -2221,7 +2221,7 @@ class MdsReadOnlyTools:
         )
         composer.blank()
         composer.line("Uploaded/loaded does not by itself mean fly-ready; validation, safety, operator-selected package, and field readiness must all be green.")
-        composer.line("Edit/import or confirm the active package from [Show Design](/manage-drone-show).")
+        composer.line("Edit/import or confirm the active package from [Drone Show](/drone-show), using Design / Setup.")
         composer.line("If this is a Swarm Trajectory workflow, review [Swarm Trajectory](/swarm-trajectory) before treating it as fly-ready.")
         composer.line(
             "Docs: "
@@ -2274,7 +2274,7 @@ class MdsReadOnlyTools:
             )
         )
         composer.blank()
-        composer.line("Operator meaning: treat an uploaded show as available for review, not approved for flight. Use [Show Design](/manage-drone-show), [Mission Config](/mission-config), and [Swarm Trajectory](/swarm-trajectory) to verify the selected workflow before any mission trigger.")
+        composer.line("Operator meaning: treat an uploaded show as available for review, not approved for flight. Use [Drone Show](/drone-show), [Mission Config](/mission-config), and [Swarm Trajectory](/swarm-trajectory) to verify the selected workflow before any mission trigger.")
         composer.line(
             "Docs: "
             + _doc_link("Drone Show guide", "mds.drone_show")
@@ -2315,14 +2315,14 @@ class MdsReadOnlyTools:
                 "",
                 "| Area | Mode | Use it when |",
                 "|---|---|---|",
-                "| Show workflow | Normal Drone Show / SkyBrush ZIP | Normal multi-drone show import: one processed trajectory per drone, reviewed in [Show Design](/manage-drone-show), [Mission Config](/mission-config), then dispatched from [Overview](/). |",
+                "| Show workflow | Normal Drone Show / SkyBrush ZIP | Normal multi-drone show import: one processed trajectory per drone, reviewed in [Drone Show](/drone-show), [Mission Config](/mission-config), then operated from the Drone Show Operate tab. |",
                 "| Show workflow | Custom CSV Drone Show | Advanced/manual path where every selected drone executes the same `active.csv` relative to its own launch frame; use for research, bench, or SITL tests, not the normal SkyBrush pipeline. |",
                 "| Launch/control mode | GLOBAL with Auto Global Launch Corrector | Recommended outdoor Drone Show path: shared origin, GPS/global setpoints, live launch-position deviation checks, and tolerance-based correction. |",
                 "| Launch/control mode | GLOBAL with manual placement | Legacy/manual placement path: each drone uses its captured launch position; accuracy depends on placing every aircraft exactly at the intended start point. |",
                 "| Launch/control mode | LOCAL mode | Local NED/feedforward path for audited local-frame testing; accuracy depends on estimator quality and exact manual placement. |",
                 "| Trigger timing | Relative delay or time-of-day trigger | Synchronized launch scheduling from the dashboard after readiness is clear; timing follows the GCS-aligned clock. |",
                 "",
-                "Normal operator path: import in [Show Design](/manage-drone-show), verify launch geometry/origin in [Mission Config](/mission-config), then use the [Overview](/) mission card only after readiness is green.",
+                "Normal operator path: import in [Drone Show](/drone-show) Design / Setup, verify launch geometry/origin in [Mission Config](/mission-config), then use the Operate tab only after readiness is green.",
                 "Docs: " + _doc_link("Drone Show guide", "mds.drone_show") + " and " + _doc_link("Origin System guide", "mds.origin_system") + ".",
                 "This is conceptual guidance only; no show was launched, uploaded, deployed, or commanded.",
             ]
@@ -2338,13 +2338,13 @@ class MdsReadOnlyTools:
         content = "\n".join(
             [
                 "SkyBrush show upload workflow:",
-                "1. Open [Show Design](/manage-drone-show).",
+                "1. Open [Drone Show](/drone-show) and select Design / Setup.",
                 "2. Upload the SkyBrush ZIP archive from that page; do not upload an extracted folder.",
                 "3. The dashboard calls `POST /api/v1/shows/skybrush/import` with multipart field `file`.",
                 "4. Confirm the import summary: raw CSV count, processed drone count, generated plots, warnings, and next steps.",
                 "5. Review launch geometry/origin in [Mission Config](/mission-config).",
                 "6. Before any flight, verify the processed show metadata, metrics, safety report, and validation snapshot: `GET /api/v1/shows/skybrush`, `GET /api/v1/shows/skybrush/metrics`, `GET /api/v1/shows/skybrush/safety-report`, and `GET /api/v1/shows/skybrush/validation`.",
-                "7. Use [Show Design](/manage-drone-show) only for the normal SkyBrush multi-drone workflow; use [Swarm Trajectory](/swarm-trajectory) only for the separate trajectory workflow.",
+                "7. Use [Drone Show](/drone-show) only for the normal SkyBrush multi-drone workflow; use [Swarm Trajectory](/swarm-trajectory) only for the separate trajectory workflow.",
                 "Docs: " + _doc_link("Drone Show guide", "mds.drone_show") + " and " + _doc_link("GCS API surface", "mds.gcs_api") + ".",
                 *_docs_source_lines("SkyBrush show upload workflow", tags="show,skybrush", limit=3),
                 "This is guidance only; no show was uploaded or deployed, and no drone command was sent.",
@@ -2380,7 +2380,7 @@ class MdsReadOnlyTools:
         content = "\n".join(
             [
                 "I can explain MDS workflows and inspect current GCS state from this chat.",
-                "Common pages: [Mission Config](/mission-config), [Swarm Design](/swarm-design), [Show Design](/manage-drone-show), [Swarm Trajectory](/swarm-trajectory).",
+                "Common pages: [Drone Show](/drone-show), [Mission Config](/mission-config), [Swarm Design](/swarm-design), [Swarm Trajectory](/swarm-trajectory).",
                 "No drone command was sent.",
             ]
         )
@@ -3305,7 +3305,7 @@ class MdsReadOnlyTools:
                 "7. Reprocess/review the show or swarm trajectory if the mission asset must include the third drone.",
                 "",
                 "Useful pages and docs:",
-                "- [Fleet Enrollment](/fleet-enrollment), [Fleet Ops](/fleet-ops), [Environment registry](/environments), [Swarm Design](/swarm-design), [Show Design](/manage-drone-show).",
+                "- [Fleet Enrollment](/fleet-enrollment), [Fleet Ops](/fleet-ops), [Environment registry](/environments), [Swarm Design](/swarm-design), [Drone Show](/drone-show).",
                 f"- {_doc_link('MDS init setup', 'mds.init_setup')}, {_doc_link('Fleet Ops guide', 'mds.fleet_ops')}, {_doc_link('Node bootstrap and fleet enrollment design', 'mds.node_bootstrap_design')}.",
                 *_docs_source_lines("add third drone fleet enrollment companion setup swarm show mapping", tags="setup", limit=3),
                 "No drone command, config write, or deployment action was executed.",

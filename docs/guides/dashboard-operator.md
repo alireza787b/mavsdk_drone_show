@@ -101,6 +101,11 @@ per-aircraft and cannot make physical takeoff atomic.
 
 Mission-specific reminders:
 
+- Drone Show uses one canonical `/drone-show` workspace. **Design / Setup** is
+  for SkyBrush import, preview/validation, launch mode, geometry, and export;
+  **Operate** is for readiness, launch, progress, fleet status, and recovery.
+  The older `/drone-show-design` and `/manage-drone-show` bookmarks open the
+  same workspace and must not be treated as separate show state.
 - QuickScout launches from its own review dialog after the SAR package is
   computed. Monitor and abort/return controls remain in QuickScout.
 - Smart Swarm opens the same controls on Overview and `Smart Swarm` → `Operate`:

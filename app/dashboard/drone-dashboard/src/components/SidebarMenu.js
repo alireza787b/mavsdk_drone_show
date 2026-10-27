@@ -157,7 +157,7 @@ const SidebarMenu = ({
         { to: '/', icon: FaTachometerAlt, label: 'Overview' },
         { to: '/mission-config', icon: FaCog, label: 'Mission Config' },
         { to: '/swarm-design', icon: FaCubes, label: 'Smart Swarm' },
-        { to: '/manage-drone-show', icon: FaMagic, label: 'Show Design' },
+        { to: '/drone-show', icon: FaMagic, label: 'Drone Show' },
       ],
     },
     {

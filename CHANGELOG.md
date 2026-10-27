@@ -9,6 +9,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Added the canonical `/drone-show` workspace with separate Operate and
+  Design / Setup tabs. It aggregates package metadata, plots, safety and
+  trajectory readiness, launch mode, live fleet status, and show recovery
+  actions. `/drone-show-design` and `/manage-drone-show` remain thin
+  compatibility aliases to the same implementation; the retired duplicate
+  pages are no longer routed. Read-only workspace and operation-status APIs
+  expose one source of truth for the operator UI.
+
 - Swarm Design adds linked four-view editing, readable distance display without
   quantizing saved values, undoable Reset draft, consistent hardware/callsign
   labels, frame help and visible Apply plan / Save to repo actions. Repository
