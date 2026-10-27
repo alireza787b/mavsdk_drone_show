@@ -359,6 +359,34 @@ The `configuration` validator is intentionally mutation-safe for live systems:
 - the validator snapshots and restores the exact local `data/origin.json` presence/content, so a host that normally relies on the packaged SITL default origin does not get left with an unintended runtime override file
 - the operator regression template inserts a protective `reset_before_drone_show` after the configuration gate, so any temporary config/origin writes cannot contaminate later Drone Show launch geometry
 
+## Agent Handoff Lessons
+
+Keep these checks explicit in future validation runs:
+
+- Match the reset fleet to the configured topology. If the GCS has four saved
+  fleet/formation members, launch four SITL instances (or deliberately select
+  an isolated subset). A revision-aware swarm write must return
+  `409 unavailable_confirmation_required` when a changed member is not
+  reachable; wait for `/api/v1/config/swarm/status` readback rather than
+  bypassing that receipt.
+- SITL origin is runtime data, not a permanent field origin. Before a Drone
+  Show run, compute or set the origin from live SITL telemetry and verify
+  `/api/v1/origin/deviations` is clear. Restore the original origin file during
+  cleanup so a Paris/field origin cannot be compared with the next SITL run.
+- Image cleanup can remove a private alias even when the stock image remains.
+  Check the configured `MDS_DOCKER_IMAGE` against `docker image ls` and tag a
+  local validated stock image explicitly before reconciling containers.
+- Temporary validation auth/mode overrides must use separate env and config
+  paths (`MDS_GCS_ENV_FILE` and `MDS_GCS_SYSTEM_CONFIG`) because the production
+  env file is also the authoritative host configuration. Remove the drop-in,
+  restore the production paths, restart, and verify health plus an
+  unauthenticated `401` before handoff.
+- A Drone Show process may legitimately run longer than a short shell probe.
+  Treat the command lifecycle/execution report as authoritative and preserve
+  the full child diagnostic when debugging; do not infer failure from a clipped
+  legacy-stdout prefix. Reset the SITL fleet and wait for an idle,
+  launch-ready baseline before retrying after an interrupted process.
+
 ## Dry-Run and Provenance
 
 Use `--dry-run` when you want the resolved plan, commands, and plan hash without
