@@ -1,7 +1,6 @@
 """Show-management routes extracted from the GCS FastAPI monolith."""
 
 import asyncio
-import time
 from typing import Any, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -27,62 +26,11 @@ from show_management import (
     resolve_custom_show_image_path,
     resolve_show_plot_path,
 )
-from src.enums import Mission
+from show_workspace import build_operation_snapshot, build_workspace_snapshot
 
 
 def create_show_management_router(deps: Any) -> APIRouter:
     router = APIRouter()
-
-    def _safe_show_snapshot() -> dict[str, Any]:
-        """Build a non-mutating aggregate for the Drone Show workspace."""
-        package: dict[str, Any] = {"available": False}
-        try:
-            package = build_show_info_payload(deps.skybrush_dir)
-            package["available"] = True
-        except Exception:
-            package = {"available": False, "drone_count": 0}
-
-        metrics = None
-        safety = None
-        validation = None
-        if package.get("available"):
-            try:
-                metrics = build_metrics_snapshot_payload(
-                    metrics_available=bool(deps.METRICS_AVAILABLE),
-                    load_saved_metrics_if_current_func=deps._load_saved_metrics_if_current,
-                )
-            except Exception:
-                metrics = None
-            try:
-                safety = build_safety_report_payload(
-                    metrics_available=bool(deps.METRICS_AVAILABLE),
-                    metrics_engine_cls=deps.DroneShowMetrics,
-                    processed_dir=deps.processed_dir,
-                )
-            except Exception:
-                safety = None
-            try:
-                validation = build_trajectory_validation_payload(
-                    metrics_available=bool(deps.METRICS_AVAILABLE),
-                    metrics_engine_cls=deps.DroneShowMetrics,
-                    processed_dir=deps.processed_dir,
-                )
-            except Exception:
-                validation = None
-
-        try:
-            plots = list_show_plots_payload(deps.plots_directory)
-        except Exception:
-            plots = {"filenames": []}
-
-        return {
-            "package": package,
-            "metrics": metrics,
-            "safety": safety,
-            "validation": validation,
-            "plots": plots,
-            "timestamp": int(time.time() * 1000),
-        }
 
     @router.post("/api/v1/shows/skybrush/import", response_model=ShowImportResponse, tags=["Show Management"])
     async def import_show(file: UploadFile = File(...)):
@@ -148,110 +96,12 @@ def create_show_management_router(deps: Any) -> APIRouter:
     @router.get("/api/v1/shows/skybrush/workspace", tags=["Show Management"])
     async def get_show_workspace():
         """Return the read-only aggregate consumed by the Drone Show workspace."""
-        return JSONResponse(content=_safe_show_snapshot())
+        return await asyncio.to_thread(build_workspace_snapshot, deps)
 
     @router.get("/api/v1/shows/operation/status", tags=["Show Management"])
     async def get_show_operation_status():
-        """Return a typed, read-only live operation projection for Drone Show."""
-        tracker = deps.get_command_tracker()
-        active = await tracker.get_active_commands()
-        show_missions = {Mission.DRONE_SHOW_FROM_CSV.value, Mission.CUSTOM_CSV_DRONE_SHOW.value}
-        recovery_actions = {
-            Mission.NONE.value,
-            Mission.HOLD.value,
-            Mission.LAND.value,
-            Mission.RETURN_RTL.value,
-        }
-        tracked_missions = show_missions | recovery_actions
-        recent = await tracker.get_recent(limit=30, mission_filter=list(tracked_missions))
-
-        def command_sort_key(row: dict[str, Any]) -> int:
-            return int(row.get("updated_at") or row.get("created_at") or 0)
-
-        candidates = [
-            row for row in [*active, *recent]
-            if int(row.get("mission_type", -1)) in tracked_missions
-        ]
-        command = max(candidates, key=command_sort_key, default=None)
-
-        now_ms = int(time.time() * 1000)
-        telemetry = getattr(deps, "telemetry_data_all_drones", {}) or {}
-        try:
-            configured = deps.load_config()
-        except Exception:
-            configured = []
-        target_ids = [str(item.get("hw_id")) for item in configured if item.get("hw_id") is not None]
-        if command:
-            target_ids = [str(value) for value in command.get("target_drones", target_ids)]
-
-        fleet = []
-        for hw_id in target_ids:
-            row = telemetry.get(hw_id)
-            if not row and str(hw_id).isdigit():
-                row = telemetry.get(int(hw_id))
-            row = row if isinstance(row, dict) else {}
-            last_update = (
-                row.get("telemetry_timestamp_ms")
-                or row.get("heartbeat_last_seen")
-                or row.get("preflight_last_update")
-                or row.get("server_time")
-                or row.get("timestamp")
-            )
-            try:
-                numeric_update = float(last_update)
-                if numeric_update < 1_000_000_000_000:
-                    numeric_update *= 1000
-                age_ms = max(0, now_ms - int(numeric_update))
-            except (TypeError, ValueError):
-                age_ms = None
-            fleet.append({
-                "hw_id": hw_id,
-                "state": row.get("state") or row.get("flight_mode") or "unknown",
-                "armed": bool(row.get("is_armed", row.get("armed", False))),
-                "battery_percent": row.get("battery_remaining_percent", row.get("battery_percent")),
-                "telemetry_age_ms": age_ms,
-                "telemetry_fresh": age_ms is not None and age_ms < 5000,
-            })
-
-        phase = "idle"
-        progress = 0
-        if command:
-            progress_data = command.get("progress") or {}
-            phase = str(
-                progress_data.get("stage")
-                or command.get("phase")
-                or command.get("status")
-                or "unknown"
-            )
-            if phase == "in_progress":
-                phase = "executing"
-            progress = progress_data.get("percent", progress_data.get("progress_percent", 0))
-            if not progress and command.get("outcome") == "completed":
-                progress = 100
-            if not isinstance(progress, (int, float)):
-                progress = 0
-
-        mission_type = command.get("mission_type") if command else None
-        is_recovery = mission_type in recovery_actions
-        if is_recovery and phase in {"completed", "terminal"}:
-            phase = "idle"
-
-        return JSONResponse(content={
-            "state": (
-                "active" if command and phase not in {"idle", "completed", "failed", "cancelled", "timeout", "terminal"}
-                else (str(command.get("outcome") or "complete") if command else "idle")
-            ),
-            "phase": phase,
-            "progress_percent": max(0, min(100, int(progress))),
-            "command_id": command.get("command_id") if command else None,
-            "mission_type": mission_type,
-            "mission_name": command.get("mission_name") if command else None,
-            "operation_kind": "recovery" if is_recovery else ("show" if command else None),
-            "target_drone_ids": target_ids,
-            "fleet": fleet,
-            "command": command,
-            "timestamp": now_ms,
-        })
+        """Read-only tracker and fleet-presence projection for Drone Show."""
+        return await build_operation_snapshot(deps)
 
     @router.get("/api/v1/shows/custom", response_model=CustomShowInfoResponse, tags=["Show Management"])
     async def get_custom_show_info():

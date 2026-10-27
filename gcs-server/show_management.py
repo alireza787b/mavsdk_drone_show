@@ -589,6 +589,11 @@ def build_trajectory_validation_payload(
         raise HTTPException(status_code=404, detail="No drone data available for validation")
 
     all_metrics = metrics_engine.calculate_comprehensive_metrics()
+    return validation_from_metrics(all_metrics)
+
+
+def validation_from_metrics(all_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """One trajectory assessment shared by explicit validation and cache reads."""
     validation_status = "PASS"
     issues: List[str] = []
 
