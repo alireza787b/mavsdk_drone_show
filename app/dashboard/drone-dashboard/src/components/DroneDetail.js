@@ -162,7 +162,10 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="status-info">
             <div className="status-label">Battery</div>
-            <div className="status-value" data-help={batteryStatus.help} title={batteryStatus.help}>{batteryStatus.text}</div>
+            <div className="status-value status-value--with-help" data-help={batteryStatus.help}>
+              {batteryStatus.text}
+              <InfoHint content={batteryStatus.help} label="Battery status help" placement="right" />
+            </div>
             <div className={`status-sub status-sub--${batteryStatus.tone}`}>
               {batteryStatus.label}
             </div>

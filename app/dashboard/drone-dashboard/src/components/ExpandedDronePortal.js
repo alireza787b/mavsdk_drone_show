@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import DroneDetail from './DroneDetail';
 import DroneCriticalCommands from './DroneCriticalCommands';
 import DroneReadinessReport from './DroneReadinessReport';
+import InfoHint from './InfoHint';
 import { getFlightModeTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
@@ -212,8 +213,9 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
               {/* Battery */}
               <div className="data-item">
                 <span className="data-label">Battery</span>
-                <span className={`battery-value ${batteryStatus.class}`} data-help={batteryStatus.help} title={batteryStatus.help}>
+                <span className={`battery-value ${batteryStatus.class}`} data-help={batteryStatus.help}>
                   {batteryStatus.text}
+                  <InfoHint content={batteryStatus.help} label="Battery status help" placement="right" />
                 </span>
               </div>
 

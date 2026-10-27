@@ -139,7 +139,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
     </section>
     <aside className="formation-inspector" aria-label="Aircraft spacing">
       {selected && draft ? <>
-        <header><strong>{label(selected)}</strong><span title="Hardware ID · Position ID (mission slot)">{aircraftIdentity(selectedIdentity || selected)}</span><span>{draft.follow === '0' ? 'Leader' : 'Follower'}</span></header>
+        <header><strong>{label(selected)}</strong><span className="formation-identity-with-help">{aircraftIdentity(selectedIdentity || selected)}<InfoHint content="Hardware ID identifies the physical aircraft. Position ID identifies its mission slot." label="Aircraft identity help" placement="bottom" /></span><span>{draft.follow === '0' ? 'Leader' : 'Follower'}</span></header>
         <fieldset disabled={disabled}>
           <label>Follows<select value={draft.follow} onChange={(event) => onChange(selectedId, { follow: event.target.value })}>
             <option value="0">Independent leader</option>{parentCandidates.map((item) => <option value={item.hw_id} key={item.hw_id}>{label(item)}</option>)}</select></label>
