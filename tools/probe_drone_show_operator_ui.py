@@ -191,7 +191,7 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
     width, height = (390, 844) if viewport == "mobile" else (1440, 960)
     active = {"value": False}
     writes: list[dict[str, str]] = []
-    with tempfile.TemporaryDirectory(prefix="mds-drone-show-ui-") as profile:
+    with tempfile.TemporaryDirectory(prefix="mds-drone-show-ui-", ignore_cleanup_errors=True) as profile:
         process = launch_chrome(chrome, port, viewport, Path(profile))
         client = None
         try:
