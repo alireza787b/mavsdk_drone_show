@@ -63,6 +63,8 @@ from src.gcs_api_routes import (
     GCS_SYSTEM_HEALTH_ROUTE,
 )
 
+GCS_CONFIG_SWARM_STATUS_ROUTE = "/api/v1/config/swarm/status"
+
 
 def log(message: str) -> None:
     print(message, flush=True)
@@ -172,6 +174,11 @@ class ApiClient:
         require(isinstance(payload, dict) and isinstance(payload.get("assignments"), list), "Unexpected swarm-config payload")
         return payload
 
+    def get_swarm_status(self) -> dict[str, Any]:
+        payload = self.get_json(GCS_CONFIG_SWARM_STATUS_ROUTE)
+        require(isinstance(payload, dict), "Unexpected swarm-status payload")
+        return payload
+
     def put_swarm_config(self, payload: dict[str, Any], *, commit: bool = False) -> dict[str, Any]:
         commit_value = "true" if commit else "false"
         return self.put_json(f"{GCS_CONFIG_SWARM_ROUTE}?commit={commit_value}", payload)
@@ -216,6 +223,43 @@ def wait_for(predicate, *, label: str, timeout: int = 60, interval: float = 1.0)
             return last_value
         time.sleep(interval)
     raise RuntimeError(f"Timed out waiting for {label}. Last value: {last_value!r}")
+
+
+def wait_for_swarm_reachability(client: ApiClient, hw_ids: list[int], *, timeout: int = 60):
+    expected = {str(hw_id) for hw_id in hw_ids}
+
+    def _ready():
+        status = client.get_swarm_status()
+        unavailable = {str(hw_id) for hw_id in status.get("unavailable_hw_ids", [])}
+        return status if not (expected & unavailable) else None
+
+    return wait_for(
+        _ready,
+        label=f"swarm readback for hardware IDs {sorted(expected, key=int)}",
+        timeout=timeout,
+        interval=1.0,
+    )
+
+
+def put_swarm_config_after_readback(
+    client: ApiClient,
+    payload: dict[str, Any],
+    *,
+    hw_ids: list[int],
+    max_attempts: int = 4,
+) -> dict[str, Any]:
+    last_error = ""
+    for attempt in range(1, max_attempts + 1):
+        wait_for_swarm_reachability(client, hw_ids)
+        try:
+            return client.put_swarm_config(payload, commit=False)
+        except RuntimeError as exc:
+            last_error = str(exc)
+            if "unavailable_confirmation_required" not in last_error or attempt >= max_attempts:
+                raise
+            log(f"WAIT RETRY: swarm apply readback was stale (attempt {attempt}/{max_attempts})")
+            time.sleep(1.0)
+    raise RuntimeError(last_error or "Swarm configuration apply did not complete")
 
 
 def wait_api_ready(client: ApiClient, timeout: int = 60):
@@ -546,7 +590,12 @@ def main() -> int:
             target_hw_id=swarm_target_hw_id,
             offset_delta=args.swarm_put_offset_delta,
         )
-        put_swarm_result = client.put_swarm_config(mutated_swarm_payload, commit=False)
+        all_swarm_hw_ids = sorted(swarm_assignments_by_hw_id(original_swarm))
+        put_swarm_result = put_swarm_config_after_readback(
+            client,
+            mutated_swarm_payload,
+            hw_ids=all_swarm_hw_ids,
+        )
         results["swarm_put"] = put_swarm_result
 
         current_swarm = client.get_swarm_config()
