@@ -515,7 +515,7 @@ class DroneTelemetry(BaseModel):
 
     hdop: float = Field(..., description="Horizontal dilution of precision")
     vdop: float = Field(..., description="Vertical dilution of precision")
-    gps_fix_type: int = Field(..., ge=0, le=8, description="MAVLink GPS fix type (0-8)")
+    gps_fix_type: int = Field(..., ge=0, le=6, description="MAVLink GPS fix type (0-6)")
     satellites_visible: int = Field(..., ge=0, description="Visible satellites")
 
     ip: str = Field(..., description="Drone IP address")
@@ -1570,7 +1570,7 @@ class OriginReferenceEvidence(BaseModel):
     position_source: Literal["global_position_int"]
     position_timestamp_ms: int = Field(..., ge=1)
     position_age_ms: int = Field(..., ge=0)
-    gps_fix_type: int = Field(..., ge=3, le=8)
+    gps_fix_type: int = Field(..., ge=3, le=6)
 
 
 class OriginIntendedOffset(BaseModel):

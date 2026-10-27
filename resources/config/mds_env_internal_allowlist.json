@@ -639,6 +639,60 @@
       "domain": "system",
       "scope": "process",
       "reason": "Build/version metadata value."
+    },
+    {
+      "name": "MDS_CHROMIUM_PATH",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Browser executable selector for dashboard layout validation."
+    },
+    {
+      "name": "MDS_LAYOUT_OUTPUT",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Dashboard layout validation output path."
+    },
+    {
+      "name": "MDS_LAYOUT_ROUTES",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Dashboard layout validation route selection."
+    },
+    {
+      "name": "MDS_LAYOUT_URL",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Dashboard layout validation server URL."
+    },
+    {
+      "name": "MDS_LAYOUT_WIDTHS",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Dashboard layout validation viewport widths."
+    },
+    {
+      "name": "MDS_PLAYWRIGHT_MODULE",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Dashboard layout validation Playwright module selector."
+    },
+    {
+      "name": "MDS_CONTROL_RELEASE_COMMAND_ID",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited command control-release evidence identifier."
+    },
+    {
+      "name": "MDS_CONTROL_RELEASE_FD",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited command control-release evidence descriptor."
+    },
+    {
+      "name": "MDS_CONTROL_RELEASE_OWNER",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited command control-release ownership marker."
     }
   ]
 }
