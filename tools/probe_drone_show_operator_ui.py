@@ -217,8 +217,9 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             full_screenshot(client, output_dir / f"{prefix}-setup.png")
             if not click_text(client, "[role=tab]", "Operate"):
                 raise RuntimeError("Operate tab unavailable")
-            if not bool(client.evaluate("(() => { const b = document.querySelector('.drone-show-workspace__action--launch'); if (!b || b.disabled) return false; b.click(); return true; })()")):
-                raise RuntimeError("Launch review unavailable")
+            launch_probe = client.evaluate("(() => { const b = document.querySelector('.drone-show-workspace__action--launch'); if (!b) return {exists: false}; if (b.disabled) return {exists: true, disabled: true, text: b.textContent.trim()}; b.click(); return {exists: true, disabled: false, text: b.textContent.trim()}; })()")
+            if not launch_probe.get("exists") or launch_probe.get("disabled"):
+                raise RuntimeError(f"Launch review unavailable: {launch_probe}")
             client.wait_for("Boolean(document.querySelector('[role=dialog]'))", timeout_s=5)
             full_screenshot(client, output_dir / f"{prefix}-launch-review.png")
             client.evaluate("document.querySelector('[role=dialog] [data-dialog-cancel]')?.click(); true")
