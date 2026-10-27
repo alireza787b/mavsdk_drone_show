@@ -90,6 +90,10 @@ def install_fetch_mock(client: CDPClient, active: dict[str, bool], writes: list[
         url = urlsplit(request.get("url", ""))
         method = request.get("method", "GET").upper()
         request_id = params.get("requestId")
+        if not (url.port == 5030 or url.path.startswith("/api/")):
+            client.next_id += 1
+            client.ws.send(json.dumps({"id": client.next_id, "method": "Fetch.continueRequest", "params": {"requestId": request_id}}))
+            return
         if method not in {"GET", "HEAD", "OPTIONS"}:
             writes.append({"method": method, "path": url.path})
             status, content_type, body = 409, "application/json", json.dumps({"detail": "Probe: writes disabled"})
@@ -99,7 +103,10 @@ def install_fetch_mock(client: CDPClient, active: dict[str, bool], writes: list[
         client.ws.send(json.dumps({"id": client.next_id, "method": "Fetch.fulfillRequest", "params": {"requestId": request_id, "responseCode": status, "responseHeaders": [{"name": "Content-Type", "value": content_type}, {"name": "Cache-Control", "value": "no-store"}], "body": base64.b64encode(body.encode()).decode()}}))
 
     client._handle_event = handle_event
-    client.command("Fetch.enable", {"patterns": [{"urlPattern": "*://*:5030/api/*", "requestStage": "Request"}]})
+    # Intercept every request because Chrome's URL-pattern parser is not
+    # consistent across versions for wildcard ports. Non-API requests are
+    # immediately continued; only the isolated GCS surface is mocked.
+    client.command("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
 
 
 def full_screenshot(client: CDPClient, output: Path) -> None:
