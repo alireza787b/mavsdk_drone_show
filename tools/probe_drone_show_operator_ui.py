@@ -232,7 +232,9 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             monitoring = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-monitoring.png")
             writes.extend(client.evaluate("window.__mdsProbeWrites || []") or [])
-            return {"theme": theme, "viewport": viewport, "operate": operate, "setup": setup, "monitoring": monitoring, "runtime_exceptions": client.runtime_exceptions, "console_errors": client.console_errors, "writes": writes}
+            ignored_console_errors = [error for error in client.console_errors if 'api.mapbox.com' in error or 'your_mapbox_token_here' in error]
+            console_errors = [error for error in client.console_errors if error not in ignored_console_errors]
+            return {"theme": theme, "viewport": viewport, "operate": operate, "setup": setup, "monitoring": monitoring, "runtime_exceptions": client.runtime_exceptions, "console_errors": console_errors, "ignored_console_errors": ignored_console_errors, "writes": writes}
         finally:
             if client:
                 try:
