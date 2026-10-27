@@ -1773,6 +1773,61 @@ tools:
   - docs/apis/gcs-api-server.md
   safety_notes:
   - Loaded show files must be verified by the operator before flight.
+- id: mds.shows.skybrush.workspace.read
+  title: Read Drone Show workspace snapshot
+  description: Read the non-mutating package, cached analysis, plots, and readiness snapshot used by the Drone Show Design / Setup workspace.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/skybrush/workspace
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  tags:
+  - show
+  - skybrush
+  - workspace
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/drone-show.md
+  safety_notes:
+  - This route never imports, recalculates, deploys, or commands a show.
+  - Readiness evidence is advisory and must be confirmed against live fleet state before flight.
+- id: mds.shows.operation_status.read
+  title: Read Drone Show operation status
+  description: Read the latest show or recovery command phase and target-fleet telemetry freshness for the Drone Show Operate tab.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/operation/status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  tags:
+  - show
+  - operation
+  - telemetry
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/drone-show.md
+  safety_notes:
+  - This route reports tracker and telemetry evidence only; it never dispatches or cancels commands.
 - id: mds.shows.skybrush.metrics_snapshot.read
   title: Read SkyBrush metrics snapshot
   description: Read the current cached comprehensive metrics snapshot for the processed

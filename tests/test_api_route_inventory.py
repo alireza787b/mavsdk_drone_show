@@ -71,6 +71,8 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/swarm",
         "/api/v1/git/status",
         "/api/v1/shows/skybrush",
+        "/api/v1/shows/skybrush/workspace",
+        "/api/v1/shows/operation/status",
         "/api/v1/shows/custom",
         "/api/v1/shows/skybrush/metrics",
         "/api/v1/shows/skybrush/metrics/snapshot",

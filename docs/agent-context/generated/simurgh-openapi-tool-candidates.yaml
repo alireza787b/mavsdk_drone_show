@@ -1355,12 +1355,12 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
-    inferred_risk_class: observe
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
     inferred_sensitivity: []
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - command identity lookup is not a stable operator evidence contract
   has_request_body: false
   id: candidate.gcs.get.api.v1.commands.lookup
   parameters:
@@ -1668,14 +1668,14 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
+    eligible_read_only_mcp_candidate: false
     inferred_risk_class: sensitive_observe
     inferred_sensitivity:
     - configuration
     - mission_state
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - use the reviewed Smart Swarm status contract instead
   has_request_body: false
   id: candidate.gcs.get.api.v1.config.swarm.status
   parameters: []
@@ -3955,13 +3955,13 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
+    eligible_read_only_mcp_candidate: false
     inferred_risk_class: sensitive_observe
     inferred_sensitivity:
     - mission_state
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - live runtime preview requires a scoped Smart Swarm operator contract
   has_request_body: false
   id: candidate.gcs.get.api.v1.swarm.runtime.preview
   parameters:
@@ -4004,13 +4004,13 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
+    eligible_read_only_mcp_candidate: false
     inferred_risk_class: sensitive_observe
     inferred_sensitivity:
     - mission_state
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - recovery queue status is dashboard-scoped until a reviewed read contract exists
   has_request_body: false
   id: candidate.gcs.get.api.v1.swarm.runtime.sequential.return
   parameters: []
@@ -4036,13 +4036,13 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
+    eligible_read_only_mcp_candidate: false
     inferred_risk_class: sensitive_observe
     inferred_sensitivity:
     - mission_state
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - recovery queue status is dashboard-scoped until a reviewed read contract exists
   has_request_body: false
   id: candidate.gcs.get.api.v1.swarm.runtime.sequential.return.by.return.id
   parameters:
@@ -8539,34 +8539,15 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 4c4cac3a19675c918d53181a2ff1cd80aca2272fa38f9650f884246841eed3ba
+  openapi_sha256: 4cca20b9c0466cd872411902559d110b0aa5e7234f59d5123abf60284fdd3592
   title: GCS Server API
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 87
-    promoted_eligible_candidate_count: 80
-    promoted_eligible_ratio: 0.9195
+    eligible_read_only_candidate_count: 82
+    promoted_eligible_candidate_count: 82
+    promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
-    registry_route_count: 98
-    unpromoted_eligible_by_area:
-    - area: commands
-      count: 1
-      routes:
-      - GET /api/v1/commands/lookup
-    - area: configuration
-      count: 1
-      routes:
-      - GET /api/v1/config/swarm/status
-    - area: drone_show
-      count: 2
-      routes:
-      - GET /api/v1/shows/operation/status
-      - GET /api/v1/shows/skybrush/workspace
-    - area: swarm_trajectory
-      count: 3
-      routes:
-      - GET /api/v1/swarm/runtime/preview
-      - GET /api/v1/swarm/runtime/sequential-return
-      - GET /api/v1/swarm/runtime/sequential-return/{return_id}
-    unpromoted_eligible_candidate_count: 7
+    registry_route_count: 100
+    unpromoted_eligible_by_area: []
+    unpromoted_eligible_candidate_count: 0

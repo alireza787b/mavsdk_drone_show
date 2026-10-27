@@ -55,6 +55,21 @@ def canonicalize_openapi_schema(value: Any) -> Any:
         return int(value)
     return value
 MANUAL_UNSAFE_ROUTE_REASONS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("GET", "/api/v1/commands/lookup"): (
+        "command identity lookup is not a stable operator evidence contract",
+    ),
+    ("GET", "/api/v1/config/swarm/status"): (
+        "use the reviewed Smart Swarm status contract instead",
+    ),
+    ("GET", "/api/v1/swarm/runtime/preview"): (
+        "live runtime preview requires a scoped Smart Swarm operator contract",
+    ),
+    ("GET", "/api/v1/swarm/runtime/sequential-return"): (
+        "recovery queue status is dashboard-scoped until a reviewed read contract exists",
+    ),
+    ("GET", "/api/v1/swarm/runtime/sequential-return/{return_id}"): (
+        "recovery queue status is dashboard-scoped until a reviewed read contract exists",
+    ),
     ("GET", "/api/v1/shows/skybrush/metrics"): (
         "read-through cache refresh can write state",
     ),
