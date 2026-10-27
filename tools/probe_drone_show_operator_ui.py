@@ -109,6 +109,67 @@ def install_fetch_mock(client: CDPClient, active: dict[str, bool], writes: list[
     client.command("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
 
 
+def install_browser_mock(client: CDPClient) -> None:
+    """Mock axios' browser transports before the React bundle is evaluated.
+
+    This avoids depending on Chrome's Fetch wildcard behavior, which changed
+    between the versions installed on the VPS and the build host.
+    """
+    source = r'''(() => {
+      window.__mdsProbeActive = false;
+      window.__mdsProbeWrites = [];
+      const fleet = [
+        {hw_id: 1, pos_id: 1, name: 'NET-LEADER', state: 'STANDBY', armed: false, battery_percent: 92, telemetry_fresh: true, ready_to_arm: true, readiness_summary: 'Ready'},
+        {hw_id: 2, pos_id: 2, name: 'NET-FOLLOWER', state: 'STANDBY', armed: false, battery_percent: 88, telemetry_fresh: true, ready_to_arm: true, readiness_summary: 'Ready'},
+      ];
+      const json = (value) => ({status: 200, type: 'application/json', body: JSON.stringify(value)});
+      const fixture = (path) => {
+        const active = Boolean(window.__mdsProbeActive);
+        if (path === '/api/v1/auth/status') return json({dashboard_auth_enabled: false, api_auth_enabled: false, authenticated: true, role: 'operator'});
+        if (path === '/api/v1/system/runtime-status') return json({mode: 'SITL', configured_mode: 'SITL', configured_sim_mode: true, restart_required: false});
+        if (path === '/api/v1/system/health' || path === '/ping' || path === '/health') return json({status: 'healthy'});
+        if (path === '/api/v1/shows/skybrush/workspace') return json({package: {available: true, name: 'Aurora Demo / rehearsal', revision: 'sitl-fixture-01', drone_count: 2, position_ids: [1, 2], duration_ms: 192000, max_altitude: 48}, metrics: {performance_metrics: {max_velocity_ms: 4.2}}, validation: {validation_status: 'PASS'}, plots: {filenames: ['combined_drone_paths.jpg']}});
+        if (path === '/api/v1/shows/skybrush') return json({drone_count: 2, duration_ms: 192000, duration_minutes: 3, duration_seconds: 12, max_altitude: 48});
+        if (path === '/api/v1/shows/skybrush/plots') return json({filenames: ['combined_drone_paths.jpg', 'drone_1_path.jpg', 'drone_2_path.jpg']});
+        if (path === '/api/v1/shows/skybrush/metrics') return json({basic_metrics: {max_altitude_details: {value: 48}, min_altitude_details: {value: 3}, max_distance_details: {value: 36}}, performance_metrics: {max_velocity_details: {value: 4.2}}});
+        if (path === '/api/v1/shows/operation/status') return json({state: active ? 'active' : 'idle', phase: active ? 'executing' : 'idle', mission_type: active ? 300 : null, timestamp: Date.now(), fleet: fleet.map(d => ({...d, state: active ? 'OFFBOARD' : d.state, armed: active})), operation_target_ids: [1, 2], command_id: active ? 'probe-show-001' : null, command: {executions: {succeeded: active ? 1 : 0, failed: 0}}});
+        if (path === '/api/v1/origin') return json({lat: 48.8566, lon: 2.3522, alt: 42.1});
+        if (path === '/api/v1/origin/deviations') return json({deviations: {'1': {status: 'ok', horizontal_m: 0.12, vertical_m: 0.08}, '2': {status: 'ok', horizontal_m: 0.18, vertical_m: 0.1}}});
+        if (path === '/api/v1/config/fleet') return json(fleet);
+        if (path === '/api/v1/config/swarm') return json({version: 1, assignments: [{hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned'}, {hw_id: 2, follow: 1, offset_x: 6, offset_y: 0, offset_z: 0, frame: 'ned'}]});
+        if (path === '/api/v1/fleet/telemetry') return json({drones: fleet});
+        if (path === '/api/v1/commands/recent' || path === '/api/v1/commands/active') return json({commands: []});
+        if (path === '/api/v1/git/status') return json({gcs_status: {status: 'clean', uncommitted_changes: []}});
+        if (path === '/api/v1/shows/custom') return json({drone_count: 0});
+        return json({});
+      };
+      const isApi = (value) => { try { const url = new URL(value, window.location.href); return url.port === '5030' || url.pathname.startsWith('/api/'); } catch (_) { return false; } };
+      const responseFor = (method, value) => {
+        const url = new URL(value, window.location.href);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase())) { window.__mdsProbeWrites.push({method, path: url.pathname}); return {status: 409, type: 'application/json', body: JSON.stringify({detail: 'Probe: writes disabled'})}; }
+        return fixture(url.pathname);
+      };
+      class ProbeXHR {
+        constructor() { this.readyState = 0; this.status = 0; this.statusText = ''; this.responseText = ''; this.response = ''; this.responseType = ''; this.responseURL = ''; this.timeout = 0; this.withCredentials = true; this.upload = {addEventListener() {}}; }
+        open(method, url) { this.method = method; this.url = url; this.readyState = 1; }
+        setRequestHeader() {}
+        getAllResponseHeaders() { return 'content-type: application/json\r\n'; }
+        abort() { this.aborted = true; }
+        send() { if (!isApi(this.url)) { this._native = new window.__mdsProbeNativeXHR(); this._native.open(this.method, this.url); this._native.send(); return; } setTimeout(() => { const result = responseFor(this.method, this.url); this.readyState = 4; this.status = result.status; this.statusText = result.status === 200 ? 'OK' : 'Conflict'; this.responseText = result.body; this.response = this.responseType === 'json' ? JSON.parse(result.body) : result.body; this.responseURL = this.url; this.onreadystatechange?.(); this.onload?.(); this.onloadend?.(); }, 0); }
+      }
+      window.__mdsProbeNativeXHR = window.XMLHttpRequest;
+      window.XMLHttpRequest = ProbeXHR;
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = async (input, init = {}) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if (!isApi(url)) return nativeFetch(input, init);
+        const result = responseFor(init.method || 'GET', url);
+        return new Response(result.body, {status: result.status, headers: {'Content-Type': result.type}});
+      };
+    })();'''
+    client.command("Page.addScriptToEvaluateOnNewDocument", {"source": source})
+
+
 def full_screenshot(client: CDPClient, output: Path) -> None:
     metrics = client.command("Page.getLayoutMetrics").get("cssContentSize", {"width": 1440, "height": 960})
     width = max(1, min(float(metrics["width"]), 16000))
@@ -141,7 +202,7 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.command("Log.enable")
             client.command("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": 1, "mobile": viewport == "mobile"})
             client.command("Page.addScriptToEvaluateOnNewDocument", {"source": f"localStorage.setItem('drone-dashboard-theme', {json.dumps(theme)});"})
-            install_fetch_mock(client, active, writes)
+            install_browser_mock(client)
             prefix = f"{theme}-{viewport}"
             client.navigate(f"{base_url.rstrip('/')}/drone-show?tab=operate")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
@@ -162,11 +223,13 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             full_screenshot(client, output_dir / f"{prefix}-launch-review.png")
             client.evaluate("document.querySelector('[role=dialog] [data-dialog-cancel]')?.click(); true")
             active["value"] = True
+            client.evaluate("window.__mdsProbeActive = true; true")
             client.navigate(f"{base_url.rstrip('/')}/drone-show?tab=operate")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
             time.sleep(0.6)
             monitoring = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-monitoring.png")
+            writes.extend(client.evaluate("window.__mdsProbeWrites || []") or [])
             return {"theme": theme, "viewport": viewport, "operate": operate, "setup": setup, "monitoring": monitoring, "runtime_exceptions": client.runtime_exceptions, "console_errors": client.console_errors, "writes": writes}
         finally:
             if client:
