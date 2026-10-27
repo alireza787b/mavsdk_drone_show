@@ -95,6 +95,14 @@ export default function DroneShowWorkspace() {
 
   return <PageShell className="drone-show-workspace" title="Drone Show" docsRoute="/drone-show"
     status={<StatusBadge tone={ready ? 'success' : 'info'}>{active ? PHASES[phase] || 'Active' : ready ? 'Ready' : 'Review'}</StatusBadge>}>
+    <div className="drone-show-workspace__workflow" aria-label="Drone Show workflow">
+      {['Setup', 'Review', 'Launch', 'Monitor'].map((step, index) => {
+        const current = tab === 'setup' ? index === 0 : index === 3;
+        return <span key={step} className={current ? 'is-current' : ''}>
+          <b>{index + 1}</b><span>{step}</span>
+        </span>;
+      })}
+    </div>
     <div className="drone-show-workspace__tabs" role="tablist" aria-label="Drone Show workspace">
       {['operate', 'setup'].map((key) => <button type="button" role="tab" key={key}
         id={`show-tab-${key}`} aria-controls={`show-panel-${key}`} aria-selected={tab === key}
@@ -103,18 +111,24 @@ export default function DroneShowWorkspace() {
     </div>
     {(workspaceState.error || operationState.error) && <OperatorNotice tone="warning" title="Connection unavailable">Launch disabled. Last flight outcome may be unconfirmed.</OperatorNotice>}
     {error && <OperatorNotice tone="warning" title="Check command status">{error}</OperatorNotice>}
-    <MetricStrip label="Show summary" items={[
+    <div className="drone-show-workspace__summary">
+      <div className="drone-show-workspace__summary-heading">
+        <div><span className="drone-show-workspace__eyebrow">Mission package</span><strong>{packageInfo.name || 'No show loaded'}</strong></div>
+        <span className="drone-show-workspace__summary-state">{packageInfo.available ? 'Loaded' : 'Awaiting import'}</span>
+      </div>
+      <MetricStrip label="Show summary" items={[
       { label: 'Aircraft', value: packageInfo.drone_count || '—' },
       { label: 'Duration', value: packageInfo.duration_ms ? duration(packageInfo.duration_ms) : '—' },
       { label: 'Max altitude', value: packageInfo.max_altitude != null ? `${packageInfo.max_altitude} m` : '—' },
       { label: 'Max speed', value: metrics.performance_metrics?.max_velocity_ms != null ? `${metrics.performance_metrics.max_velocity_ms} m/s` : '—' },
-    ]} />
+      ]} />
+    </div>
     <section id={`show-panel-${tab}`} role="tabpanel" aria-labelledby={`show-tab-${tab}`}>
       {tab === 'operate' ? <div className="drone-show-workspace__operate">
         <div className="drone-show-workspace__operation-rail" role="status">
-          <div><span className="drone-show-workspace__eyebrow">Operation</span><strong>{PHASES[phase] || phase}</strong></div>
-          <div>{operation?.mission_type != null ? getCommandName(operation.mission_type) : 'No show dispatched'}</div>
-          <span>{fleet.filter((d) => d.telemetry_fresh).length}/{fleet.length} live · {operation?.command?.executions?.succeeded || 0} aircraft completed</span>
+          <div className="drone-show-workspace__operation-title"><span className="drone-show-workspace__eyebrow">Operation</span><strong>{PHASES[phase] || phase}</strong><small>{operation?.mission_type != null ? getCommandName(operation.mission_type) : 'No show dispatched'}</small></div>
+          <div className="drone-show-workspace__operation-progress" aria-label="Mission progress"><span style={{ width: `${fleet.length ? Math.round(((operation?.command?.executions?.succeeded || 0) / fleet.length) * 100) : 0}%` }} /></div>
+          <div className="drone-show-workspace__operation-stats"><span><b>{fleet.filter((d) => d.telemetry_fresh).length}/{fleet.length}</b> live</span><span><b>{operation?.command?.executions?.succeeded || 0}</b> complete</span></div>
         </div>
         <div className="drone-show-workspace__operate-grid">
           <OperatorCard className="drone-show-workspace__readiness">
@@ -127,13 +141,13 @@ export default function DroneShowWorkspace() {
           </OperatorCard>
           <OperatorCard className="drone-show-workspace__controls">
             <h2>Flight control</h2>
-            <label>Position reference<select aria-label="Position reference" value={mode} disabled={active || busy} onChange={(e) => setMode(e.target.value)}>
+            <label className="drone-show-workspace__field">Position reference<select aria-label="Position reference" value={mode} disabled={active || busy} onChange={(e) => setMode(e.target.value)}>
               {SHOW_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select></label>
-            <label>Start in (s)<input aria-label="Launch delay" type="number" min="10" max="3600" value={delay} disabled={active || busy} onChange={(e) => setDelay(e.target.value)} /></label>
+            <label className="drone-show-workspace__field">Start in (s)<input aria-label="Launch delay" type="number" min="10" max="3600" value={delay} disabled={active || busy} onChange={(e) => setDelay(e.target.value)} /></label>
             <div className="drone-show-workspace__action-grid">
-              <button type="button" className="drone-show-workspace__action" disabled={!ready || busy} onClick={() => openReview('launch')}><MdFlightTakeoff />Launch show</button>
-              <button type="button" className="drone-show-workspace__action" disabled={!recoverable || busy} onClick={() => openReview('hold')}><MdPauseCircleOutline />Hold</button>
+              <button type="button" className="drone-show-workspace__action drone-show-workspace__action--launch" disabled={!ready || busy} onClick={() => openReview('launch')}><MdFlightTakeoff />Launch show</button>
+              <button type="button" className="drone-show-workspace__action drone-show-workspace__action--hold" disabled={!recoverable || busy} onClick={() => openReview('hold')}><MdPauseCircleOutline />Hold</button>
               <SequentialReturnControl compact targetIds={recoveryIds} targetNames={recoveryNames} contextKey={operation?.command_id || 'show'} />
             </div>
             <details className="drone-show-workspace__advanced"><summary>Other actions</summary>
@@ -141,13 +155,14 @@ export default function DroneShowWorkspace() {
             </details>
           </OperatorCard>
         </div>
-        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <img className="drone-show-workspace__preview" src={buildShowPlotUrl('combined_drone_paths.jpg')} alt="Loaded show trajectory preview" />}
+        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><img className="drone-show-workspace__preview" src={buildShowPlotUrl('combined_drone_paths.jpg')} alt="Loaded show trajectory preview" /></figure>}
         <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft</h2>
-          <table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>
-            {fleet.map((d) => <tr key={d.hw_id}><th>{d.name}</th><td>{d.state}</td><td>{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td>{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td>{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}
-          </tbody></table>
+          <div className="drone-show-workspace__table-wrap"><table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>
+            {fleet.map((d) => <tr key={d.hw_id}><th data-label="Aircraft">{d.name}</th><td data-label="Mode">{d.state}</td><td data-label="Flight state">{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td data-label="Battery">{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td data-label="Link">{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}
+          </tbody></table></div>
         </OperatorCard>
       </div> : <div className="drone-show-workspace__setup">
+        <div className="drone-show-workspace__setup-intro"><div><span className="drone-show-workspace__eyebrow">Design / Setup</span><h2>Prepare the show package</h2><p>Import, review, then hand off to Operate when the package and launch positions are ready.</p></div><Link className="drone-show-workspace__setup-next" to="/mission-config">Next: launch positions</Link></div>
         <ImportSection setUploadCount={setRevision} />
         <VisualizationSection uploadCount={revision} />
         <Link to="/mission-config">Review launch positions, assignments & origin</Link>
