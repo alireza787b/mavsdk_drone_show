@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 206
+candidate_count: 219
 candidates:
 - callable: false
   classification:
@@ -1362,6 +1362,47 @@ candidates:
     review_reasons:
     - manual_review_required_before_registry_promotion
   has_request_body: false
+  id: candidate.gcs.get.api.v1.commands.lookup
+  parameters:
+  - description: ''
+    in: query
+    name: idempotency_key
+    required: true
+    schema:
+      maxLength: 200
+      minLength: 1
+      title: Idempotency Key
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/CommandSubmissionReceipt'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: lookup_command_api_v1_commands_lookup_get
+    path: /api/v1/commands/lookup
+    summary: Lookup Command
+    tags:
+    - Commands
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
   id: candidate.gcs.get.api.v1.commands.policy.precision.move
   parameters: []
   promotion_contract:
@@ -1622,6 +1663,39 @@ candidates:
     operation_id: get_swarm_config_api_v1_config_swarm_get
     path: /api/v1/config/swarm
     summary: Get Swarm Config
+    tags:
+    - Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - configuration
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.config.swarm.status
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_swarm_status_api_v1_config_swarm_status_get
+    path: /api/v1/config/swarm/status
+    summary: Get Swarm Status
     tags:
     - Swarm
 - callable: false
@@ -2766,6 +2840,38 @@ candidates:
     review_reasons:
     - manual_review_required_before_registry_promotion
   has_request_body: false
+  id: candidate.gcs.get.api.v1.shows.operation.status
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_show_operation_status_api_v1_shows_operation_status_get
+    path: /api/v1/shows/operation/status
+    summary: Get Show Operation Status
+    tags:
+    - Show Management
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
   id: candidate.gcs.get.api.v1.shows.skybrush
   parameters: []
   promotion_contract:
@@ -3048,6 +3154,38 @@ candidates:
     operation_id: validate_trajectory_api_v1_shows_skybrush_validation_get
     path: /api/v1/shows/skybrush/validation
     summary: Validate Trajectory
+    tags:
+    - Show Management
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.shows.skybrush.workspace
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_show_workspace_api_v1_shows_skybrush_workspace_get
+    path: /api/v1/shows/skybrush/workspace
+    summary: Get Show Workspace
     tags:
     - Show Management
 - callable: false
@@ -3814,6 +3952,126 @@ candidates:
     summary: Get Simurgh Tool
     tags:
     - Simurgh Operator
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.runtime.preview
+  parameters:
+  - description: ''
+    in: query
+    name: cluster_id
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: Cluster Id
+  - description: ''
+    in: query
+    name: check_start
+    required: false
+    schema:
+      default: false
+      title: Check Start
+      type: boolean
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: preview_api_v1_swarm_runtime_preview_get
+    path: /api/v1/swarm/runtime/preview
+    summary: Preview
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.runtime.sequential.return
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: latest_return_api_v1_swarm_runtime_sequential_return_get
+    path: /api/v1/swarm/runtime/sequential-return
+    summary: Latest Return
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.runtime.sequential.return.by.return.id
+  parameters:
+  - description: ''
+    in: path
+    name: return_id
+    required: true
+    schema:
+      title: Return Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: return_status_api_v1_swarm_runtime_sequential_return__return_id__get
+    path: /api/v1/swarm/runtime/sequential-return/{return_id}
+    summary: Return Status
+    tags:
+    - Smart Swarm
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -5875,6 +6133,90 @@ candidates:
     default_registry_exposure: exclude
     eligible_read_only_mcp_candidate: false
     inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.command.reports.swarm.recovery
+  parameters:
+  - description: ''
+    in: header
+    name: X-MDS-Command-Report-Capability
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: X-Mds-Command-Report-Capability
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: recover_api_v1_command_reports_swarm_recovery_post
+    path: /api/v1/command-reports/swarm-recovery
+    summary: Recover
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.command.reports.swarm.runtime
+  parameters:
+  - description: ''
+    in: header
+    name: X-MDS-Command-Report-Capability
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: X-Mds-Command-Report-Capability
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: report_api_v1_command_reports_swarm_runtime_post
+    path: /api/v1/command-reports/swarm-runtime
+    summary: Report
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
     inferred_sensitivity: []
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
@@ -5937,6 +6279,41 @@ candidates:
     summary: Validate Config Route
     tags:
     - Configuration
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - configuration
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.config.swarm.publish
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/SwarmConfigSaveResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: publish_swarm_api_v1_config_swarm_publish_post
+    path: /api/v1/config/swarm/publish
+    summary: Publish Swarm
+    tags:
+    - Swarm
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -7047,6 +7424,111 @@ candidates:
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
     - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.swarm.runtime.sequential.return
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: sequential_return_api_v1_swarm_runtime_sequential_return_post
+    path: /api/v1/swarm/runtime/sequential-return
+    summary: Sequential Return
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+  has_request_body: false
+  id: candidate.gcs.post.api.v1.swarm.runtime.sequential.return.by.return.id.cancel
+  parameters:
+  - description: ''
+    in: path
+    name: return_id
+    required: true
+    schema:
+      title: Return Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: cancel_return_api_v1_swarm_runtime_sequential_return__return_id__cancel_post
+    path: /api/v1/swarm/runtime/sequential-return/{return_id}/cancel
+    summary: Cancel Return
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.swarm.runtime.start
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: start_api_v1_swarm_runtime_start_post
+    path: /api/v1/swarm/runtime/start
+    summary: Start
+    tags:
+    - Smart Swarm
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
   has_request_body: false
   id: candidate.gcs.post.api.v1.swarm.trajectories.clear
   parameters: []
@@ -8057,15 +8539,34 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 95a202434e1e13a3bc5588ab028fb3a3339510e3daca6a8ce31bed2112d0c213
+  openapi_sha256: 4c4cac3a19675c918d53181a2ff1cd80aca2272fa38f9650f884246841eed3ba
   title: GCS Server API
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 80
+    eligible_read_only_candidate_count: 87
     promoted_eligible_candidate_count: 80
-    promoted_eligible_ratio: 1.0
+    promoted_eligible_ratio: 0.9195
     registry_path: config/agent_tools.yaml
     registry_route_count: 98
-    unpromoted_eligible_by_area: []
-    unpromoted_eligible_candidate_count: 0
+    unpromoted_eligible_by_area:
+    - area: commands
+      count: 1
+      routes:
+      - GET /api/v1/commands/lookup
+    - area: configuration
+      count: 1
+      routes:
+      - GET /api/v1/config/swarm/status
+    - area: drone_show
+      count: 2
+      routes:
+      - GET /api/v1/shows/operation/status
+      - GET /api/v1/shows/skybrush/workspace
+    - area: swarm_trajectory
+      count: 3
+      routes:
+      - GET /api/v1/swarm/runtime/preview
+      - GET /api/v1/swarm/runtime/sequential-return
+      - GET /api/v1/swarm/runtime/sequential-return/{return_id}
+    unpromoted_eligible_candidate_count: 7
