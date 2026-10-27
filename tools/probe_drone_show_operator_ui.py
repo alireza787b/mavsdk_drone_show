@@ -217,7 +217,7 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             full_screenshot(client, output_dir / f"{prefix}-setup.png")
             if not click_text(client, "[role=tab]", "Operate"):
                 raise RuntimeError("Operate tab unavailable")
-            if not bool(client.evaluate("(() => { const b = [...document.querySelectorAll('button')].find((node) => node.textContent.trim() === 'Launch show'); if (!b || b.disabled) return false; b.click(); return true; })()")):
+            if not bool(client.evaluate("(() => { const b = document.querySelector('.drone-show-workspace__action--launch'); if (!b || b.disabled) return false; b.click(); return true; })()")):
                 raise RuntimeError("Launch review unavailable")
             client.wait_for("Boolean(document.querySelector('[role=dialog]'))", timeout_s=5)
             full_screenshot(client, output_dir / f"{prefix}-launch-review.png")
