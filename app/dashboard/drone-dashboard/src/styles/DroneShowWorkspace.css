@@ -59,6 +59,13 @@
 .drone-show-workspace__metric-details { display: grid; gap: .6rem; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: .8rem; }
 .drone-show-workspace__metric-details span { border-left: 2px solid var(--show-accent); color: var(--show-text-muted); padding-left: .6rem; }
 .drone-show-workspace__metric-details b { color: var(--color-text-primary); display: block; margin-top: .2rem; }
+.show-analysis-details { color: var(--color-text-primary); margin-top: .8rem; }
+.show-analysis-details ul { max-height: 20rem; overflow-y: auto; padding-left: 1.2rem; }
+.show-analysis-details li { padding-block: .4rem; }
+.show-analysis-details p { color: var(--show-text-muted); margin: .3rem 0; overflow-wrap: anywhere; }
+.show-analysis-details a { color: var(--show-accent); }
+.drone-show-workspace__fleet-status .drone-show-workspace__table-wrap { max-height: 32rem; overflow-y: auto; }
+.drone-show-workspace__fleet-status thead th { background: var(--show-surface); position: sticky; top: 0; }
 .drone-show-workspace__preview-wrap { background: var(--show-surface); border: 1px solid var(--show-line); margin: 0; padding: .6rem; }.drone-show-workspace__preview-wrap figcaption { color: var(--show-text-muted); font-size: .75rem; font-weight: 800; letter-spacing: .08em; margin: .1rem 0 .5rem; text-transform: uppercase; }.drone-show-workspace__preview { display: block; height: auto; max-height: 420px; object-fit: contain; width: 100%; }
 .drone-show-workspace__table-wrap { overflow-x: auto; width: 100%; }.drone-show-workspace__table { border-collapse: collapse; min-width: 600px; width: 100%; }.drone-show-workspace__table th, .drone-show-workspace__table td { border-top: 1px solid var(--show-line); padding: .65rem .5rem; text-align: left; }.drone-show-workspace__table th { color: var(--color-text-primary); }.drone-show-workspace__table td { color: var(--show-text-muted); }
 .drone-show-workspace__setup-intro { align-items: center; border-bottom: 1px solid var(--show-line); display: flex; gap: 1rem; justify-content: space-between; padding-bottom: .75rem; }.drone-show-workspace__setup-intro h2 { font-size: 1.15rem; margin: .15rem 0 .2rem; }.drone-show-workspace__setup-intro p { color: var(--show-text-muted); font-size: .85rem; margin: 0; }.drone-show-workspace__setup-next { flex: 0 0 auto; }

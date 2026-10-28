@@ -8,7 +8,7 @@ from PIL import Image
 from functions.plot_drone_paths import plot_drone_paths
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'gcs-server'))
-from show_management import list_show_plots_payload
+from show_management import list_show_plots_payload, validation_from_metrics
 
 
 def test_generated_plot_variants_and_manifest(tmp_path):
@@ -38,3 +38,19 @@ def test_legacy_plots_keep_light_only_manifest(tmp_path):
     manifest = list_show_plots_payload(str(tmp_path))
     assert manifest['filenames'] == ['combined_drone_paths.jpg']
     assert manifest['variants']['combined_drone_paths.jpg'] == {'light': 'combined_drone_paths.jpg'}
+
+
+def test_ground_level_caution_is_actionable_not_unexplained_failure():
+    report = validation_from_metrics({'safety_metrics': {'safety_status': 'CAUTION',
+        'collision_warnings_count': 0, 'min_ground_clearance_m': 0}})
+    assert report['validation_status'] == 'WARNING'
+    assert 'launch/landing' in report['issues'][0]
+    assert report['findings'][0]['severity'] == 'warning'
+
+
+def test_collision_negative_clearance_and_unknown_cautions_still_block():
+    for fields in ({'collision_warnings_count': 1, 'min_ground_clearance_m': 0},
+                   {'collision_warnings_count': 0, 'min_ground_clearance_m': -1},
+                   {'collision_warnings_count': 0}):
+        report = validation_from_metrics({'safety_metrics': {'safety_status': 'CAUTION', **fields}})
+        assert report['validation_status'] == 'FAIL'

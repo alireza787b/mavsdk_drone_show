@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import ImportSection from '../components/ImportSection';
 import VisualizationSection from '../components/VisualizationSection';
 import ShowPlotImage from '../components/ShowPlotImage';
+import ShowAnalysisDetails from '../components/ShowAnalysisDetails';
 import ExportSection from '../components/ExportSection';
 import SequentialReturnControl from '../components/SequentialReturnControl';
 import DeviationView from '../components/DeviationView';
@@ -26,11 +27,11 @@ function duration(ms) {
   const seconds = Math.round(Number(ms || 0) / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
-function ReadinessRow({ label, ready, detail, caution = false, action = null }) {
+function ReadinessRow({ label, ready, detail, caution = false, action = null, status = null }) {
   const tone = ready && !caution ? 'success' : 'warning';
   return <div className="drone-show-workspace__readiness-row">
     <span className={`drone-show-workspace__signal drone-show-workspace__signal--${tone}`} aria-hidden="true" />
-    <span>{label}</span><StatusBadge tone={tone}>{ready ? (caution ? 'Review' : 'Ready') : 'Check'}</StatusBadge>
+    <span>{label}</span><StatusBadge tone={tone}>{status || (ready ? (caution ? 'Review' : 'Ready') : 'Check')}</StatusBadge>
     {detail && <small>{detail}</small>}
     {action}
   </div>;
@@ -45,6 +46,7 @@ export default function DroneShowWorkspace() {
   const [review, setReview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [aircraftFilter, setAircraftFilter] = useState('');
   const pending = useRef(null);
   const workspaceState = useGcsResourcePolling(GCS_ROUTE_KEYS.showWorkspace, 15000, revision);
   const operationState = useGcsResourcePolling(GCS_ROUTE_KEYS.showOperationStatus, 2000);
@@ -53,6 +55,12 @@ export default function DroneShowWorkspace() {
   const workspace = workspaceState.data;
   const operation = operationState.data;
   const fleet = useMemo(() => operation?.fleet || [], [operation]);
+  const visibleFleet = fleet.filter(d => `${d.name} ${d.hw_id} ${d.pos_id}`.toLowerCase().includes(aircraftFilter.toLowerCase()));
+  const revealEvidence = (event, id) => {
+    event.preventDefault();
+    const panel = document.getElementById(id);
+    if (panel) { panel.open = true; panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  };
   const targetIds = useMemo(() => fleet.map((d) => d.hw_id), [fleet]);
   const recoveryIds = operation?.operation_target_ids?.length ? operation.operation_target_ids : targetIds;
   const recoveryNames = recoveryIds.map((id) => fleet.find((d) => d.hw_id === id)?.name || `HW ${id}`);
@@ -156,8 +164,8 @@ export default function DroneShowWorkspace() {
             <ReadinessRow label="Package & aircraft slots" ready={readiness.packageReady && readiness.mappingReady} detail={!readiness.mappingReady ? 'Review package and hardware assignments.' : null} action={!readiness.mappingReady ? <Link to="/mission-config">Open Mission Config</Link> : null} />
             <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? fleet.filter((d) => !d.telemetry_fresh || !d.ready_to_arm).map((d) => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ') : 'Aircraft connected and disarmed'} />
             <ReadinessRow label="Home / origin" ready={readiness.originReady} detail={readiness.originReady ? 'Shared launch reference set.' : 'Set the shared origin before global auto-correction.'} action={!readiness.originReady ? <Link to="/mission-config">Set origin</Link> : null} />
-            <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={readiness.geometryState === 'review' || mode !== 'global-auto'} detail={mode !== 'global-auto' ? 'Manual placement mode.' : readiness.geometrySummary.worst_deviation != null ? `Worst ${Number(readiness.geometrySummary.worst_deviation).toFixed(1)} m · ${readiness.geometrySummary.warnings || 0} warning(s)` : 'Live positions are being checked.'} action={<Link to="#launch-geometry">Review layout</Link>} />
-            <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : `${readiness.analysisStatus}${workspace?.validation?.issues?.length ? ` · ${workspace.validation.issues[0]}` : ''}`} action={<a href="#trajectory-analysis">Details</a>} />
+            <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={readiness.geometryState === 'review' || mode !== 'global-auto'} detail={mode !== 'global-auto' ? 'Manual placement mode.' : readiness.geometrySummary.worst_deviation != null ? `Worst ${Number(readiness.geometrySummary.worst_deviation).toFixed(1)} m · ${readiness.geometrySummary.warnings || 0} warning(s)` : 'Live positions are being checked.'} action={<a href="#launch-geometry" onClick={e => revealEvidence(e, 'launch-geometry')}>Review layout</a>} />
+            <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} status={readiness.analysisStatus === 'FAIL' ? 'Blocked' : readiness.analysisStatus === 'WARNING' ? 'Review' : null} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : workspace?.validation?.findings?.[0]?.title || workspace?.validation?.issues?.[0]} action={<a href="#trajectory-analysis" onClick={e => revealEvidence(e, 'trajectory-analysis')}>View findings</a>} />
           </OperatorCard>
         </div>
         <details id="launch-geometry" className="drone-show-workspace__evidence-panel">
@@ -175,11 +183,13 @@ export default function DroneShowWorkspace() {
             <span>Safety <b>{metrics.safety_metrics?.safety_status || '—'}</b></span>
             <span>Trajectory <b>{readiness.analysisStatus}</b></span>
           </div>
+          <ShowAnalysisDetails validation={workspace?.validation} metrics={metrics} />
         </details>
         {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><ShowPlotImage className="drone-show-workspace__preview" filename="combined_drone_paths.jpg" plots={workspace.plots} alt="Loaded show trajectory preview" /></figure>}
-        <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft</h2>
+        <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft · {fleet.filter(d => d.telemetry_fresh).length}/{fleet.length} live</h2>
+          <label className="drone-show-workspace__field">Find aircraft<input type="search" value={aircraftFilter} onChange={e => setAircraftFilter(e.target.value)} placeholder="Callsign, hardware or position" /></label>
           <div className="drone-show-workspace__table-wrap"><table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>
-            {fleet.map((d) => <tr key={d.hw_id}><th data-label="Aircraft">{d.name}</th><td data-label="Mode">{d.state}</td><td data-label="Flight state">{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td data-label="Battery">{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td data-label="Link">{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}
+            {visibleFleet.map((d) => <tr key={d.hw_id}><th data-label="Aircraft">{d.name}</th><td data-label="Mode">{d.state}</td><td data-label="Flight state">{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td data-label="Battery">{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td data-label="Link">{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}
           </tbody></table></div>
         </OperatorCard>
       </div> : <div className="drone-show-workspace__setup">

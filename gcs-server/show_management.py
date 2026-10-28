@@ -596,17 +596,34 @@ def validation_from_metrics(all_metrics: Dict[str, Any]) -> Dict[str, Any]:
     """One trajectory assessment shared by explicit validation and cache reads."""
     validation_status = "PASS"
     issues: List[str] = []
+    findings: List[Dict[str, Any]] = []
 
     if "safety_metrics" in all_metrics:
         safety = all_metrics["safety_metrics"]
-        if safety.get("safety_status") != "SAFE":
+        status = safety.get("safety_status")
+        clearance = safety.get("min_ground_clearance_m")
+        collisions = safety.get("collision_warnings_count", 0)
+        # CAUTION is also emitted for the launch/landing sample at zero height.
+        # Do not turn that aggregate flag into an unexplained hard failure.
+        ground_advisory = (status == "CAUTION" and collisions == 0
+                           and isinstance(clearance, (int, float)) and 0 <= clearance <= 1)
+        if status != "SAFE" and not ground_advisory:
             validation_status = "FAIL"
-            issues.append(f"Safety issue: {safety.get('safety_status')}")
+            issues.append(f"Safety issue: {status}; review separation and ground clearance")
+            findings.append({"severity": "error", "title": "Trajectory safety needs review",
+                             "detail": "Inspect the separation and height findings before launch."})
+        if ground_advisory:
+            validation_status = "WARNING"
+            message = f"Minimum recorded height {clearance:g} m includes launch/landing; review the flight path."
+            issues.append(message)
+            findings.append({"severity": "warning", "title": "Ground-level trajectory samples", "detail": message})
 
-        if safety.get("collision_warnings_count", 0) > 0:
-            if validation_status != "FAIL":
-                validation_status = "WARNING"
-            issues.append(f"{safety['collision_warnings_count']} collision warnings")
+        if collisions > 0:
+            validation_status = "FAIL"
+            issues.append(f"{collisions} collision warnings; review the closest aircraft pair")
+            findings.append({"severity": "error", "title": "Aircraft separation below analysis limit",
+                             "count": collisions, "detail": "Review the closest pair and trajectory time; revise the show before launch.",
+                             "evidence": safety.get("min_distance_details", {})})
 
     if "performance_metrics" in all_metrics:
         perf = all_metrics["performance_metrics"]
@@ -614,10 +631,13 @@ def validation_from_metrics(all_metrics: Dict[str, Any]) -> Dict[str, Any]:
             if validation_status == "PASS":
                 validation_status = "WARNING"
             issues.append(f"High velocity: {perf['max_velocity_ms']} m/s")
+            findings.append({"severity": "warning", "title": "High trajectory speed",
+                             "detail": f"{perf['max_velocity_ms']} m/s; verify aircraft capability."})
 
     return {
         "validation_status": validation_status,
         "issues": issues,
+        "findings": findings,
         "metrics_summary": {
             "safety_status": all_metrics.get("safety_metrics", {}).get("safety_status", "Unknown"),
             "max_velocity": all_metrics.get("performance_metrics", {}).get("max_velocity_ms", 0),

@@ -202,6 +202,14 @@ UI evidence probes must verify actual selected image names and image pixels,
 not only page layout. Use `tools/probe_drone_show_operator_ui.py --plot-dir ...`
 to validate real generated JPEGs across both themes, Operate, Setup and fullscreen.
 
+Trajectory `CAUTION` is not itself proof of a collision. The metrics engine
+includes launch/landing at zero height in its minimum-clearance statistic.
+When this is the only caution, validation reports an explicit ground-samples
+advisory rather than an unexplained failure. Separation violations, negative
+clearance, explicit unsafe status and unexplained safety failures remain
+blocking. **View findings** opens the evidence and next action. Fleet summaries
+remain compact; the aircraft list is searchable and scrolls independently.
+
 Flight control keeps **Immediate RTL** visible at all times. **Managed Return**
 is under **Other actions** because it requires review of aircraft order and
 interval before dispatch.

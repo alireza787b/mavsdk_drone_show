@@ -5115,42 +5115,13 @@ class MdsReadOnlyTools:
         return {"safety_analysis": dict(safety), "recommendations": []}
 
     def _show_validation(self) -> dict[str, Any]:
+        from show_management import validation_from_metrics
+
         metrics = self._show_metrics_snapshot()
         if not metrics.get("available"):
             return {"available": False, "detail": metrics.get("detail") or "no current metrics snapshot"}
         all_metrics = metrics.get("metrics") if isinstance(metrics.get("metrics"), Mapping) else {}
-        validation_status = "PASS"
-        issues: list[str] = []
-
-        safety = all_metrics.get("safety_metrics") if isinstance(all_metrics.get("safety_metrics"), Mapping) else {}
-        if safety:
-            safety_status = safety.get("safety_status")
-            if safety_status != "SAFE":
-                validation_status = "FAIL"
-                issues.append(f"Safety issue: {safety_status}")
-            collision_warnings = _as_int(safety.get("collision_warnings_count")) or 0
-            if collision_warnings > 0:
-                if validation_status != "FAIL":
-                    validation_status = "WARNING"
-                issues.append(f"{collision_warnings} collision warnings")
-
-        performance = all_metrics.get("performance_metrics") if isinstance(all_metrics.get("performance_metrics"), Mapping) else {}
-        max_velocity = _as_float(performance.get("max_velocity_ms"), 0.0) if performance else 0.0
-        if max_velocity > 15:
-            if validation_status == "PASS":
-                validation_status = "WARNING"
-            issues.append(f"High velocity: {max_velocity} m/s")
-
-        formation = all_metrics.get("formation_metrics") if isinstance(all_metrics.get("formation_metrics"), Mapping) else {}
-        return {
-            "validation_status": validation_status,
-            "issues": issues,
-            "metrics_summary": {
-                "safety_status": safety.get("safety_status", "Unknown") if safety else "Unknown",
-                "max_velocity": max_velocity,
-                "formation_quality": formation.get("formation_quality", "Unknown") if isinstance(formation, Mapping) else "Unknown",
-            },
-        }
+        return validation_from_metrics(all_metrics)
 
     def _answer(
         self,
