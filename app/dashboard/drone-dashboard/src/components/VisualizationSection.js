@@ -88,6 +88,16 @@ const plotImageStyle = {
   boxShadow: 'var(--shadow-sm)',
 };
 
+const isDarkTheme = () => typeof document !== 'undefined'
+  && (document.documentElement.dataset.theme === 'dark' || document.documentElement.classList.contains('theme-dark'));
+
+const themedPlotName = (plots, name) => {
+  if (name === 'combined_drone_paths.jpg' && isDarkTheme() && plots.includes('combined_drone_paths_dark.jpg')) {
+    return 'combined_drone_paths_dark.jpg';
+  }
+  return name;
+};
+
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -817,7 +827,7 @@ const VisualizationSection = ({ uploadCount }) => {
               }}
             >
               <img 
-                src={buildShowPlotUrl('combined_drone_paths.jpg')}
+                src={buildShowPlotUrl(themedPlotName(plots, 'combined_drone_paths.jpg'))}
                 alt="All Drones Combined Trajectory" 
                 style={{ 
                   ...plotImageStyle,
@@ -833,7 +843,7 @@ const VisualizationSection = ({ uploadCount }) => {
       )}
 
       {/* Individual Drone Plots */}
-      {plots.filter(name => name !== 'combined_drone_paths.jpg').length > 0 && (
+      {plots.filter(name => !['combined_drone_paths.jpg', 'combined_drone_paths_dark.jpg'].includes(name)).length > 0 && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ ...analysisHeadingSx, mb: 2 }}>
             <MdTimeline />
@@ -845,7 +855,7 @@ const VisualizationSection = ({ uploadCount }) => {
             gap: 2 
           }}>
             {plots
-              .filter((name) => name !== 'combined_drone_paths.jpg')
+              .filter((name) => !['combined_drone_paths.jpg', 'combined_drone_paths_dark.jpg'].includes(name))
               .map((plot, index) => {
                 const plotUrl = buildShowPlotUrl(plot);
                 const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
@@ -983,7 +993,7 @@ const VisualizationSection = ({ uploadCount }) => {
             {plots.length > 0 && (
               <>
                 <img
-                  src={buildShowPlotUrl(plots[currentIndex] || '')}
+                  src={buildShowPlotUrl(themedPlotName(plots, plots[currentIndex] || ''))}
                   alt={`Drone Trajectory Plot ${currentIndex + 1}`}
                   style={{
                     maxWidth: '100%',
