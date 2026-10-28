@@ -153,12 +153,12 @@ def plot_drone_paths(
 
     # Color mapping
     num_drones    = len(processed_files)
-    colormap      = plt.colormaps.get('viridis', plt.cm.viridis)
-    color_indices = np.linspace(0, 1, num_drones)
+    # Keep aircraft colors identical across themes, with no near-black paths.
+    colormap      = plt.colormaps['tab10']
 
     # For combined plot bounding
     drone_data = []
-    color_dict = {file: colormap(color_indices[i]) for i, file in enumerate(processed_files)}
+    color_dict = {file: colormap(i % 10) for i, file in enumerate(processed_files)}
 
     ###################################################
     # Single-Drone Plots
@@ -237,9 +237,9 @@ def plot_drone_paths(
         ax_c.scatter(ln, le, lu, color=color, s=50)
 
         # Position the text with slight offset so it doesn't collide
-        ax_c.text(ln + offset_n, le + offset_e, lu,
-                  f"({drone_id})",
-                  color=color, fontsize=10)
+        if num_drones <= 12:
+            ax_c.text(ln + offset_n, le + offset_e, lu,
+                      f"({drone_id})", color=color, fontsize=10)
 
     # Axis labels
     ax_c.set_xlabel('← South | North → (m)', fontweight='bold')
@@ -247,7 +247,10 @@ def plot_drone_paths(
     ax_c.set_zlabel('← Down | Up → (m)',     fontweight='bold')
 
     ax_c.set_title('Combined Drone Paths (N–E–Up)', fontweight='bold')
-    ax_c.legend(loc='best', title='Drone IDs')
+    if num_drones <= 12:
+        ax_c.legend(loc='best', title='Drone IDs')
+    else:
+        ax_c.set_title(f'Combined Drone Paths · {num_drones} aircraft (N–E–Up)', fontweight='bold')
 
     # Similar vantage angle
     ax_c.view_init(elev=30, azim=-60)
