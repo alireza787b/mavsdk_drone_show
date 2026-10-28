@@ -165,9 +165,10 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
                 onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</span>
             </label>
             <div className="swarm-return-order-heading">Return order</div>
-            <ol className="swarm-return-order" aria-label="Return order">{confirmation.targetNames.map((name, index) => (
-              <li key={confirmation.targetIds[index]}><span>{name}</span><small>{index === 0 ? 'first' : `after ${index * confirmation.delay} s`}</small></li>
-            ))}</ol>
+            <ol className="swarm-return-order" aria-label="Return order">{confirmation.targetNames.map((name, index) => {
+              const timing = index === 0 ? 'first' : `+${index * confirmation.delay} s`;
+              return <li key={confirmation.targetIds[index]}><span>{name} · {timing}</span><small>{index === 0 ? 'first aircraft' : `after ${index * confirmation.delay} s`}</small></li>;
+            })}</ol>
             <p className="swarm-return-note">PX4 home and return height are used for each aircraft. The next command starts after the interval; it does not wait for landing.</p>
             {(!Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300) && <p role="alert">Use an interval from 1 to 300 s.</p>}
           </div>
