@@ -241,7 +241,14 @@ class DroneShowMetrics:
         """Calculate safety-related metrics"""
         try:
             if len(self.drone_data) < 2:
-                return {'min_inter_drone_distance': 'N/A (single drone)'}
+                if not self.drone_data:
+                    return {'safety_status': 'UNKNOWN', 'error': 'No trajectory data'}
+                frame = next(iter(self.drone_data.values()))
+                clearance = float((-frame['pz']).min())
+                return {'min_inter_drone_distance_m': None, 'min_distance_details': None,
+                        'collision_warnings_count': 0, 'collision_warnings': [],
+                        'min_ground_clearance_m': round(clearance, 2),
+                        'safety_status': 'SAFE' if clearance > 1 else 'CAUTION'}
                 
             min_distance = float('inf')
             collision_warnings = []

@@ -133,7 +133,7 @@ export default function DroneShowWorkspace() {
       { label: 'Duration', value: packageInfo.duration_ms ? duration(packageInfo.duration_ms) : '—' },
       { label: 'Max altitude', value: packageInfo.max_altitude != null ? `${packageInfo.max_altitude} m` : '—' },
       { label: 'Max speed', value: metrics.performance_metrics?.max_velocity_ms != null ? `${metrics.performance_metrics.max_velocity_ms} m/s` : '—' },
-      { label: 'Min separation', value: metrics.safety_metrics?.min_inter_drone_distance_m != null ? `${metrics.safety_metrics.min_inter_drone_distance_m} m` : '—', detail: metrics.safety_metrics?.min_distance_details ? `P${metrics.safety_metrics.min_distance_details.drone_1} ↔ P${metrics.safety_metrics.min_distance_details.drone_2} · ${metrics.safety_metrics.min_distance_details.time_s}s` : 'pair/time unavailable' },
+      { label: 'Min separation', value: metrics.safety_metrics?.min_inter_drone_distance_m != null ? `${metrics.safety_metrics.min_inter_drone_distance_m} m` : packageInfo.drone_count === 1 ? 'N/A' : '—', detail: metrics.safety_metrics?.min_distance_details ? `P${metrics.safety_metrics.min_distance_details.drone_1} ↔ P${metrics.safety_metrics.min_distance_details.drone_2} · ${metrics.safety_metrics.min_distance_details.time_s}s` : packageInfo.drone_count === 1 ? 'Single aircraft' : 'pair/time unavailable' },
       ]} />
     </div>
     <section id={`show-panel-${tab}`} role="tabpanel" aria-labelledby={`show-tab-${tab}`}>

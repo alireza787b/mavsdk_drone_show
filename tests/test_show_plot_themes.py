@@ -54,3 +54,13 @@ def test_collision_negative_clearance_and_unknown_cautions_still_block():
                    {'collision_warnings_count': 0}):
         report = validation_from_metrics({'safety_metrics': {'safety_status': 'CAUTION', **fields}})
         assert report['validation_status'] == 'FAIL'
+
+
+def test_single_aircraft_has_valid_safety_without_fabricated_pair():
+    from functions.drone_show_metrics import DroneShowMetrics
+    engine = DroneShowMetrics('.')
+    engine.drone_data = {'1': pd.DataFrame({'pz': [0, -2, -1]})}
+    safety = engine.calculate_safety_metrics()
+    assert safety['min_distance_details'] is None
+    assert safety['collision_warnings_count'] == 0
+    assert validation_from_metrics({'safety_metrics': safety})['validation_status'] == 'WARNING'
