@@ -188,6 +188,20 @@ The launch-geometry review uses the same expected-versus-live evidence as
 Mission Config. It is read-only from Drone Show and is intentionally not a
 second geometry implementation.
 
+Show imports render light and dark JPEGs from the same Matplotlib figure for
+both combined and individual trajectories. Operate, Design / Setup and the
+fullscreen viewer share one theme-aware renderer; changing the dashboard theme
+switches assets without image inversion or changing aircraft colors. The plot
+list keeps canonical gallery names in `filenames` and exposes theme choices in
+`variants`, with a `revision` for cache invalidation. Existing canonical URLs
+remain light/print compatible. To refresh older assets, run `plot_drone_paths`
+with explicit processed/plot directories using the GCS service's Python virtual
+environment; no trajectory conversion or aircraft command is required.
+
+UI evidence probes must verify actual selected image names and image pixels,
+not only page layout. Use `tools/probe_drone_show_operator_ui.py --plot-dir ...`
+to validate real generated JPEGs across both themes, Operate, Setup and fullscreen.
+
 Flight control keeps **Immediate RTL** visible at all times. **Managed Return**
 is under **Other actions** because it requires review of aircraft order and
 interval before dispatch.

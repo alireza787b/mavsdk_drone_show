@@ -642,14 +642,23 @@ def list_show_plots_payload(plots_directory: str) -> Dict[str, Any]:
     if not os.path.exists(plots_directory):
         return {"filenames": [], "uploadTime": "unknown"}
 
-    filenames = sorted(filename for filename in os.listdir(plots_directory) if filename.endswith(".jpg"))
+    files = sorted(filename for filename in os.listdir(plots_directory) if filename.endswith(".jpg"))
+    # Variants are presentation choices, not additional gallery entries.
+    filenames = [name for name in files if not name.endswith('_dark.jpg')]
+    variants = {}
+    for name in filenames:
+        dark_name = Path(name).stem + '_dark.jpg'
+        variants[name] = {"light": name}
+        if dark_name in files:
+            variants[name]["dark"] = dark_name
     upload_time = "unknown"
 
     combined_path = os.path.join(plots_directory, "combined_drone_paths.jpg")
     if os.path.exists(combined_path):
         upload_time = time.ctime(os.path.getctime(combined_path))
 
-    return {"filenames": filenames, "uploadTime": upload_time}
+    revision = str(max((os.stat(os.path.join(plots_directory, name)).st_mtime_ns for name in files), default=0))
+    return {"filenames": filenames, "variants": variants, "revision": revision, "uploadTime": upload_time}
 
 
 def resolve_custom_show_image_path(shapes_dir: str) -> str:

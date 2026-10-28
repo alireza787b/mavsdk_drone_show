@@ -4,12 +4,13 @@ import { MdFlightTakeoff, MdHome, MdPauseCircleOutline, MdStop } from 'react-ico
 import { toast } from 'react-toastify';
 import ImportSection from '../components/ImportSection';
 import VisualizationSection from '../components/VisualizationSection';
+import ShowPlotImage from '../components/ShowPlotImage';
 import ExportSection from '../components/ExportSection';
 import SequentialReturnControl from '../components/SequentialReturnControl';
 import DeviationView from '../components/DeviationView';
 import { ConfirmDialog, MetricStrip, OperatorCard, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
-import { GCS_ROUTE_KEYS, buildShowPlotUrl } from '../services/gcsApiService';
+import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import { getCommandName } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { buildShowCommand, showReadiness, SHOW_MODES } from '../utilities/droneShowWorkspace';
@@ -24,11 +25,6 @@ const ACTIONS = { launch: 'Launch show', hold: 'Hold', land: 'Land here', rtl: '
 function duration(ms) {
   const seconds = Math.round(Number(ms || 0) / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-function themedPlotName(filenames = []) {
-  const dark = typeof document !== 'undefined' && (document.documentElement.dataset.theme === 'dark' || document.documentElement.classList.contains('theme-dark'));
-  if (dark && filenames.includes('combined_drone_paths_dark.jpg')) return 'combined_drone_paths_dark.jpg';
-  return 'combined_drone_paths.jpg';
 }
 function ReadinessRow({ label, ready, detail, caution = false, action = null }) {
   const tone = ready && !caution ? 'success' : 'warning';
@@ -175,12 +171,12 @@ export default function DroneShowWorkspace() {
           <summary>Mission evidence</summary>
           <div className="drone-show-workspace__metric-details">
             <span>Max distance <b>{metrics.basic_metrics?.max_distance_from_launch_m != null ? `${metrics.basic_metrics.max_distance_from_launch_m} m` : '—'}</b></span>
-            <span>Minimum separation <b>{metrics.safety_metrics?.minimum_separation_m != null ? `${metrics.safety_metrics.minimum_separation_m} m` : '—'}</b></span>
+            <span>Minimum separation <b>{metrics.safety_metrics?.min_inter_drone_distance_m != null ? `${metrics.safety_metrics.min_inter_drone_distance_m} m` : '—'}</b></span>
             <span>Safety <b>{metrics.safety_metrics?.safety_status || '—'}</b></span>
             <span>Trajectory <b>{readiness.analysisStatus}</b></span>
           </div>
         </details>
-        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><img className="drone-show-workspace__preview" src={buildShowPlotUrl(themedPlotName(workspace.plots.filenames))} alt="Loaded show trajectory preview" /></figure>}
+        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><ShowPlotImage className="drone-show-workspace__preview" filename="combined_drone_paths.jpg" plots={workspace.plots} alt="Loaded show trajectory preview" /></figure>}
         <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft</h2>
           <div className="drone-show-workspace__table-wrap"><table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>
             {fleet.map((d) => <tr key={d.hw_id}><th data-label="Aircraft">{d.name}</th><td data-label="Mode">{d.state}</td><td data-label="Flight state">{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td data-label="Battery">{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td data-label="Link">{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}

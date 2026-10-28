@@ -8,14 +8,38 @@ import numpy as np
 import pandas as pd
 from src.params import Params
 
-def _write_dark_variant(source_path: str, target_path: str) -> None:
-    """Create a presentation-only dark variant while preserving the source plot."""
-    try:
-        from PIL import Image, ImageOps
-        with Image.open(source_path).convert('RGB') as image:
-            ImageOps.invert(image).save(target_path, format='JPEG', quality=92)
-    except Exception as exc:
-        logging.warning("Could not create dark plot variant %s: %s", target_path, exc)
+def save_plot_variants(figure, filename: str, dpi: int) -> None:
+    """Render the same figure in light/dark palettes without changing path colors.
+
+    The unsuffixed file remains the light/print-compatible public filename.
+    Styling is figure-local; another Matplotlib job cannot inherit dark rcParams.
+    """
+    from matplotlib.text import Text
+
+    figure.savefig(filename, dpi=dpi, format='jpg')
+    background, foreground, grid = '#111d2b', '#e3ebf3', '#415268'
+    figure.set_facecolor(background)
+    for axis in figure.axes:
+        axis.set_facecolor(background)
+        axis.tick_params(colors=foreground)
+        for dimension in (axis.xaxis, axis.yaxis, getattr(axis, 'zaxis', None)):
+            if dimension is None:
+                continue
+            dimension.label.set_color(foreground)
+            if hasattr(dimension, 'set_pane_color'):
+                dimension.set_pane_color((0.067, 0.114, 0.169, 1))
+            if hasattr(dimension, '_axinfo'):
+                dimension._axinfo['grid']['color'] = grid
+            if hasattr(dimension, 'line'):
+                dimension.line.set_color(grid)
+        legend = axis.get_legend()
+        if legend is not None:
+            legend.get_frame().set_facecolor(background)
+            legend.get_frame().set_edgecolor(grid)
+    for text in figure.findobj(Text):
+        text.set_color(foreground)
+    dark_path = str(Path(filename).with_name(Path(filename).stem + '_dark.jpg'))
+    figure.savefig(dark_path, dpi=dpi, format='jpg', facecolor=background)
 
 def setup_matplotlib_style():
     """
@@ -175,7 +199,7 @@ def plot_drone_paths(
         plt.tight_layout()
         single_out = os.path.join(plots_dir, f'drone_{drone_id}_path.jpg')
         # Save as jpg with a lower DPI to optimize file size; note that 'quality' is not supported here.
-        plt.savefig(single_out, dpi=60, format='jpg')
+        save_plot_variants(fig, single_out, dpi=60)
 
         if show_plots:
             plt.show()
@@ -231,8 +255,7 @@ def plot_drone_paths(
     plt.tight_layout()
     combined_out = os.path.join(plots_dir, 'combined_drone_paths.jpg')
     # Save as jpg with a lower DPI to optimize file size; no 'quality' parameter here.
-    plt.savefig(combined_out, dpi=100, format='jpg')
-    _write_dark_variant(combined_out, os.path.join(plots_dir, 'combined_drone_paths_dark.jpg'))
+    save_plot_variants(fig_c, combined_out, dpi=100)
 
     if show_plots:
         plt.show()
@@ -241,7 +264,7 @@ def plot_drone_paths(
     # ====================================================================
     # CRITICAL VALIDATION: Verify all plots were generated
     # ====================================================================
-    expected_plot_count = len(processed_files) + 1  # Individual plots + combined
+    expected_plot_count = 2 * (len(processed_files) + 1)  # Light and dark per view
     actual_plots = [f for f in os.listdir(plots_dir) if f.endswith('.jpg')]
     actual_plot_count = len(actual_plots)
 

@@ -167,6 +167,11 @@ def install_browser_mock(client: CDPClient) -> None:
         return new Response(result.body, {status: result.status, headers: {'Content-Type': result.type}});
       };
     })();'''
+    # Match the real aggregate contract, including the metrics envelope and
+    # presentation variants. Do not silently test a different API shape.
+    source = source.replace("metrics: {performance_metrics: {max_velocity_ms: 4.2}}", "metrics: {available: true, metrics: {performance_metrics: {max_velocity_ms: 4.2}, safety_metrics: {min_inter_drone_distance_m: 6.2, min_distance_details: {drone_1: '1', drone_2: '2', time_s: 42}}}}")
+    source = source.replace("filenames: ['combined_drone_paths.jpg']", "filenames: ['combined_drone_paths.jpg'], variants: {'combined_drone_paths.jpg': {light: 'combined_drone_paths.jpg', dark: 'combined_drone_paths_dark.jpg'}}")
+    source = source.replace("filenames: ['combined_drone_paths.jpg', 'drone_1_path.jpg', 'drone_2_path.jpg']", "filenames: ['combined_drone_paths.jpg', 'drone_1_path.jpg', 'drone_2_path.jpg'], variants: Object.fromEntries(['combined_drone_paths', 'drone_1_path', 'drone_2_path'].map(stem => [stem + '.jpg', {light: stem + '.jpg', dark: stem + '_dark.jpg'}]))")
     client.command("Page.addScriptToEvaluateOnNewDocument", {"source": source})
 
 
@@ -187,12 +192,28 @@ def click_text(client: CDPClient, selector: str, text: str) -> bool:
     return bool(client.evaluate(f"(() => {{ const el = [...document.querySelectorAll({json.dumps(selector)})].find((node) => node.textContent.trim() === {json.dumps(text)}); if (!el) return false; el.click(); return true; }})()"))
 
 
-def inject_plot_fixture(client: CDPClient) -> None:
+def inject_plot_fixture(client: CDPClient, plot_dir: Path | None = None) -> None:
     """Replace mocked plot URLs with a local SVG so screenshots stay clean."""
-    client.evaluate("""(() => { const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500"><rect width="1200" height="500" fill="#17202a"/><path d="M90 400 C260 340 270 90 480 120 S680 430 900 200 S1040 90 1120 70" fill="none" stroke="#36c2a0" stroke-width="7"/><path d="M90 420 C280 380 350 160 520 180 S700 410 900 250 S1030 140 1120 100" fill="none" stroke="#f3b562" stroke-width="4" stroke-dasharray="12 8"/></svg>`; const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; document.querySelectorAll('img[src*="/api/v1/shows/skybrush/plots/"]').forEach((img) => { img.src = src; }); return true; })()""")
+    if plot_dir:
+        images = {p.name: 'data:image/jpeg;base64,' + base64.b64encode(p.read_bytes()).decode() for p in plot_dir.glob('*.jpg')}
+        client.evaluate(f"""(() => {{ const images = {json.dumps(images)}; document.querySelectorAll('img[data-show-plot]').forEach(img => {{ if (img.src.startsWith('data:')) return; const name = new URL(img.src).pathname.split('/').pop(); img.dataset.evidenceFilename = name; if (!images[name]) throw new Error('Missing evidence image: ' + name); img.src = images[name]; }}); return true; }})()""")
+    else:
+        client.evaluate("""(() => { const dark = document.documentElement.dataset.theme === 'dark'; const bg = dark ? '#111d2b' : '#ffffff'; const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500"><rect width="1200" height="500" fill="${bg}"/><path d="M90 400 C260 340 270 90 480 120 S680 430 900 200 S1040 90 1120 70" fill="none" stroke="#36c2a0" stroke-width="7"/></svg>`; const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; document.querySelectorAll('img[data-show-plot]').forEach(img => { if (!img.src.startsWith('data:')) img.dataset.evidenceFilename = new URL(img.src).pathname.split('/').pop(); img.src = src; }); return true; })()""")
+    client.wait_for("[...document.querySelectorAll('img[data-show-plot]')].every(img => img.complete && img.naturalWidth > 0)", timeout_s=10)
 
 
-def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome: str, port: int) -> dict:
+def verify_plot_theme(client: CDPClient, theme: str) -> None:
+    result = client.evaluate("""(() => { const imgs = [...document.querySelectorAll('img[data-show-plot]')]; const img = imgs[imgs.length - 1]; if (!img) return null; const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 5, 5, 1, 1, 0, 0, 1, 1); const pixel = [...ctx.getImageData(0,0,1,1).data]; return {name: img.dataset.evidenceFilename, filter: getComputedStyle(img).filter, pixel}; })()""")
+    if not result or result['filter'] != 'none':
+        raise RuntimeError(f"Missing plot or unexpected filter: {result}")
+    if (theme == 'dark') != result['name'].endswith('_dark.jpg'):
+        raise RuntimeError(f"Wrong plot variant for {theme}: {result}")
+    brightness = sum(result['pixel'][:3]) / 3
+    if (theme == 'dark' and brightness > 60) or (theme == 'light' and brightness < 220):
+        raise RuntimeError(f"Incorrect plot background for {theme}: {result}")
+
+
+def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome: str, port: int, plot_dir: Path | None = None) -> dict:
     width, height = (390, 844) if viewport == "mobile" else (1440, 960)
     active = {"value": False}
     writes: list[dict[str, str]] = []
@@ -213,15 +234,23 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace__summary-state'))", timeout_s=25)
             time.sleep(0.6)
-            inject_plot_fixture(client)
+            inject_plot_fixture(client, plot_dir)
+            verify_plot_theme(client, theme)
             operate = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-operate-ready.png")
             if not click_text(client, "[role=tab]", "Design / Setup"):
                 raise RuntimeError("Design / Setup tab unavailable")
             time.sleep(0.5)
-            inject_plot_fixture(client)
+            inject_plot_fixture(client, plot_dir)
+            verify_plot_theme(client, theme)
             setup = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-setup.png")
+            client.evaluate("document.querySelector('.clickable-image')?.click(); true")
+            client.wait_for("Boolean(document.querySelector('[aria-label=\"Close plot viewer\"]'))", timeout_s=5)
+            inject_plot_fixture(client, plot_dir)
+            verify_plot_theme(client, theme)
+            full_screenshot(client, output_dir / f"{prefix}-fullscreen.png")
+            client.evaluate("document.querySelector('[aria-label=\"Close plot viewer\"]')?.click(); true")
             if not click_text(client, "[role=tab]", "Operate"):
                 raise RuntimeError("Operate tab unavailable")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace__action--launch'))", timeout_s=10)
@@ -236,7 +265,8 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.navigate(f"{base_url.rstrip('/')}/drone-show?tab=operate")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
             time.sleep(0.6)
-            inject_plot_fixture(client)
+            inject_plot_fixture(client, plot_dir)
+            verify_plot_theme(client, theme)
             monitoring = layout(client)
             full_screenshot(client, output_dir / f"{prefix}-monitoring.png")
             writes.extend(client.evaluate("window.__mdsProbeWrites || []") or [])
@@ -259,12 +289,13 @@ def main() -> None:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--chrome", default="/usr/bin/google-chrome")
+    parser.add_argument("--plot-dir", type=Path, help="Use real generated theme JPEGs for screenshot and pixel assertions")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     reports = []
     for index, theme in enumerate(("dark", "light")):
         for offset, viewport in enumerate(("desktop", "mobile")):
-            reports.append(run_case(args.base_url, args.output_dir, theme, viewport, args.chrome, 9481 + (index * 2) + offset))
+            reports.append(run_case(args.base_url, args.output_dir, theme, viewport, args.chrome, 9481 + (index * 2) + offset, args.plot_dir))
     failures = []
     for report in reports:
         case = f"{report['theme']}/{report['viewport']}"

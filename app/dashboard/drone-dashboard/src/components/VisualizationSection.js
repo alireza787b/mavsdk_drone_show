@@ -1,6 +1,7 @@
 // src/components/VisualizationSection.js
 
 import React, { useState, useEffect } from 'react';
+import ShowPlotImage from './ShowPlotImage';
 import {
   Alert,
   Box,
@@ -38,7 +39,6 @@ import {
 } from 'react-icons/md';
 import { extractApiErrorMessage } from '../services/apiError';
 import {
-  buildShowPlotUrl,
   getComprehensiveMetricsResponse,
   getShowInfoResponse,
   getShowPlotsResponse,
@@ -88,26 +88,9 @@ const plotImageStyle = {
   boxShadow: 'var(--shadow-sm)',
 };
 
-const isDarkTheme = () => typeof document !== 'undefined'
-  && (document.documentElement.dataset.theme === 'dark'
-    || document.documentElement.classList.contains('theme-dark')
-    || document.body?.dataset.theme === 'dark'
-    || document.body?.classList.contains('theme-dark')
-    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
-
-const themedPlotName = (plots, name) => {
-  if (name === 'combined_drone_paths.jpg' && isDarkTheme() && plots.includes('combined_drone_paths_dark.jpg')) {
-    return 'combined_drone_paths_dark.jpg';
-  }
-  return name;
-};
-
-const themedPlotStyle = () => (isDarkTheme()
-  ? { filter: 'invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15)' }
-  : {});
-
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
+  const [plotManifest, setPlotManifest] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -143,6 +126,7 @@ const VisualizationSection = ({ uploadCount }) => {
         }
 
         setPlots(filenames);
+        setPlotManifest(plotsData);
 
         if (Number(showInfoData?.drone_count || 0) > 0) {
           setShowDetails({
@@ -834,10 +818,10 @@ const VisualizationSection = ({ uploadCount }) => {
                 '&:hover': { transform: 'scale(1.02)' }
               }}
             >
-              <img 
-                src={buildShowPlotUrl(themedPlotName(plots, 'combined_drone_paths.jpg'))}
+              <ShowPlotImage
+                filename="combined_drone_paths.jpg" plots={plotManifest}
                 alt="All Drones Combined Trajectory" 
-                style={{ ...themedPlotStyle(), 
+                style={{
                   ...plotImageStyle,
                   maxWidth: '800px',
                 }} 
@@ -865,7 +849,6 @@ const VisualizationSection = ({ uploadCount }) => {
             {plots
               .filter((name) => !['combined_drone_paths.jpg', 'combined_drone_paths_dark.jpg'].includes(name))
               .map((plot, index) => {
-                const plotUrl = buildShowPlotUrl(plot);
                 const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
                 return (
                   <Paper key={`individual-${index}`} sx={{ p: 1 }}>
@@ -881,11 +864,11 @@ const VisualizationSection = ({ uploadCount }) => {
                         '&:hover': { transform: 'scale(1.05)' }
                       }}
                     >
-                      <img 
-                        src={plotUrl} 
+                      <ShowPlotImage
+                        filename={plot} plots={plotManifest}
                         alt={`Drone ${droneId} Trajectory`} 
                         style={{ 
-                          ...plotImageStyle, ...themedPlotStyle(),
+                          ...plotImageStyle,
                           borderRadius: '6px',
                         }}
                       />
@@ -1000,10 +983,10 @@ const VisualizationSection = ({ uploadCount }) => {
           }}>
             {plots.length > 0 && (
               <>
-                <img
-                  src={buildShowPlotUrl(themedPlotName(plots, plots[currentIndex] || ''))}
+                <ShowPlotImage
+                  filename={plots[currentIndex] || ''} plots={plotManifest}
                   alt={`Drone Trajectory Plot ${currentIndex + 1}`}
-                  style={{ ...themedPlotStyle(),
+                  style={{
                     maxWidth: '100%',
                     maxHeight: 'calc(95vh - 60px)',
                     width: 'auto',

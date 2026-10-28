@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Drone Show previews now use real light/dark plot variants in Operate, Setup
+  and fullscreen through one reactive renderer. Removed image-inversion
+  workarounds; gallery manifests separate variants from views and cache-bust
+  refreshed assets. UI evidence checks assert theme filenames and image pixels.
+
 - Added the canonical `/drone-show` workspace with separate Operate and
   Design / Setup tabs. It aggregates package metadata, plots, safety and
   trajectory readiness, launch mode, live fleet status, and show recovery
