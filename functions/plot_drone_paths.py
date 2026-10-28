@@ -8,6 +8,15 @@ import numpy as np
 import pandas as pd
 from src.params import Params
 
+def _write_dark_variant(source_path: str, target_path: str) -> None:
+    """Create a presentation-only dark variant while preserving the source plot."""
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(source_path).convert('RGB') as image:
+            ImageOps.invert(image).save(target_path, format='JPEG', quality=92)
+    except Exception as exc:
+        logging.warning("Could not create dark plot variant %s: %s", target_path, exc)
+
 def setup_matplotlib_style():
     """
     Configure global Matplotlib styling for professional visualizations.
@@ -223,6 +232,7 @@ def plot_drone_paths(
     combined_out = os.path.join(plots_dir, 'combined_drone_paths.jpg')
     # Save as jpg with a lower DPI to optimize file size; no 'quality' parameter here.
     plt.savefig(combined_out, dpi=100, format='jpg')
+    _write_dark_variant(combined_out, os.path.join(plots_dir, 'combined_drone_paths_dark.jpg'))
 
     if show_plots:
         plt.show()

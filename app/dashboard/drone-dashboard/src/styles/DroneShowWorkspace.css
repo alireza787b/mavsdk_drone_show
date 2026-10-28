@@ -114,9 +114,13 @@
 .drone-show-workspace__setup .visualization-section img { border-radius: 2px; box-shadow: none; }
 .drone-show-workspace__setup .MuiTypography-root { color: inherit; }
 .drone-show-workspace__setup .MuiTypography-colorTextSecondary { color: var(--show-text-muted); }
-.drone-show-workspace__setup :is(.MuiFormLabel-root, .MuiInputLabel-root, .MuiFormHelperText-root, .MuiInputBase-root, .MuiInputBase-input) { color: var(--color-text-primary); }
+.drone-show-workspace__setup :is(.MuiTypography-root, .MuiFormLabel-root, .MuiInputLabel-root, .MuiFormHelperText-root, .MuiInputBase-root, .MuiInputBase-input, .MuiButton-root, .MuiChip-label, .MuiAlert-message) { color: var(--color-text-primary) !important; }
 .drone-show-workspace__setup .MuiInputBase-root { background: var(--show-surface-raised); border-color: var(--show-line); }
 .drone-show-workspace__setup .MuiFormHelperText-root { color: var(--show-text-muted); }
+.drone-show-workspace__setup .MuiButton-contained { color: var(--color-contrast-on-dark-fill) !important; }
+.drone-show-workspace__setup .MuiSvgIcon-root { color: currentColor; }
+.drone-show-workspace__setup .visualization-section img, .drone-show-workspace__setup .clickable-image { background: var(--show-surface-raised); }
+[data-theme="dark"] .drone-show-workspace__setup .visualization-section img, .theme-dark .drone-show-workspace__setup .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.82) contrast(1.08); }
 .drone-show-workspace__setup .MuiModal-root .MuiPaper-root { border-radius: 2px !important; }
 .drone-show-workspace__setup .export-section .MuiPaper-root { padding: .8rem !important; }
 @media (max-width: 900px) { .drone-show-workspace__operation-rail { grid-template-columns: 1fr; }.drone-show-workspace__operate-grid { grid-template-columns: 1fr; }.drone-show-workspace__metric-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

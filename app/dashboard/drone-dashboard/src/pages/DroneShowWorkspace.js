@@ -25,6 +25,11 @@ function duration(ms) {
   const seconds = Math.round(Number(ms || 0) / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
+function themedPlotName(filenames = []) {
+  const dark = typeof document !== 'undefined' && (document.documentElement.dataset.theme === 'dark' || document.documentElement.classList.contains('theme-dark'));
+  if (dark && filenames.includes('combined_drone_paths_dark.jpg')) return 'combined_drone_paths_dark.jpg';
+  return 'combined_drone_paths.jpg';
+}
 function ReadinessRow({ label, ready, detail, caution = false, action = null }) {
   const tone = ready && !caution ? 'success' : 'warning';
   return <div className="drone-show-workspace__readiness-row">
@@ -123,6 +128,7 @@ export default function DroneShowWorkspace() {
       { label: 'Duration', value: packageInfo.duration_ms ? duration(packageInfo.duration_ms) : '—' },
       { label: 'Max altitude', value: packageInfo.max_altitude != null ? `${packageInfo.max_altitude} m` : '—' },
       { label: 'Max speed', value: metrics.performance_metrics?.max_velocity_ms != null ? `${metrics.performance_metrics.max_velocity_ms} m/s` : '—' },
+      { label: 'Min separation', value: metrics.safety_metrics?.min_inter_drone_distance_m != null ? `${metrics.safety_metrics.min_inter_drone_distance_m} m` : '—', detail: metrics.safety_metrics?.min_distance_details ? `P${metrics.safety_metrics.min_distance_details.drone_1} ↔ P${metrics.safety_metrics.min_distance_details.drone_2} · ${metrics.safety_metrics.min_distance_details.time_s}s` : 'pair/time unavailable' },
       ]} />
     </div>
     <section id={`show-panel-${tab}`} role="tabpanel" aria-labelledby={`show-tab-${tab}`}>
@@ -174,7 +180,7 @@ export default function DroneShowWorkspace() {
             <span>Trajectory <b>{readiness.analysisStatus}</b></span>
           </div>
         </details>
-        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><img className="drone-show-workspace__preview" src={buildShowPlotUrl('combined_drone_paths.jpg')} alt="Loaded show trajectory preview" /></figure>}
+        {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><img className="drone-show-workspace__preview" src={buildShowPlotUrl(themedPlotName(workspace.plots.filenames))} alt="Loaded show trajectory preview" /></figure>}
         <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft</h2>
           <div className="drone-show-workspace__table-wrap"><table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>
             {fleet.map((d) => <tr key={d.hw_id}><th data-label="Aircraft">{d.name}</th><td data-label="Mode">{d.state}</td><td data-label="Flight state">{d.armed === true ? 'Armed' : d.armed === false ? 'Disarmed' : 'Unknown'}</td><td data-label="Battery">{d.battery_percent == null ? '—' : `${Math.round(d.battery_percent)}%`}</td><td data-label="Link">{d.telemetry_fresh ? 'Live' : 'Unavailable'}</td></tr>)}
