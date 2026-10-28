@@ -122,7 +122,10 @@
 .drone-show-workspace__setup .visualization-section img, .drone-show-workspace__setup .clickable-image { background: var(--show-surface-raised); }
 [data-theme="dark"] .drone-show-workspace__setup .visualization-section img, .theme-dark .drone-show-workspace__setup .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
 [data-theme="dark"] .visualization-section .MuiPaper-root, .theme-dark .visualization-section .MuiPaper-root { background: var(--color-bg-secondary) !important; color: var(--color-text-primary) !important; }
-[data-theme="dark"] .visualization-section img, .theme-dark .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
+html[data-theme="dark"] .visualization-section img,
+body[data-theme="dark"] .visualization-section img,
+html.theme-dark .visualization-section img,
+body.theme-dark .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15) !important; }
 [data-theme="dark"] .visualization-section .MuiModal-root .MuiBox-root, .theme-dark .visualization-section .MuiModal-root .MuiBox-root { background: var(--color-bg-secondary) !important; color: var(--color-text-primary) !important; }
 [data-theme="dark"] .visualization-section .MuiModal-root img, .theme-dark .visualization-section .MuiModal-root img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
 @media (prefers-color-scheme: dark) {
