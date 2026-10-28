@@ -1032,12 +1032,22 @@ Get list of all show plot images.
 **Response:**
 ```json
 {
-  "filenames": ["drone_1_plot.jpg", "drone_2_plot.jpg"],
+  "filenames": ["combined_drone_paths.jpg", "drone_1_path.jpg"],
+  "variants": {
+    "combined_drone_paths.jpg": {"light": "combined_drone_paths.jpg", "dark": "combined_drone_paths_dark.jpg"},
+    "drone_1_path.jpg": {"light": "drone_1_path.jpg", "dark": "drone_1_path_dark.jpg"}
+  },
+  "revision": "1793188800000000000",
   "uploadTime": "Fri Nov 22 12:00:00 2025"
 }
 ```
 
 If the plots directory does not exist yet, the response is an empty list with `"uploadTime": "unknown"` instead of creating the directory as a side effect.
+
+`filenames` contains one entry per view, not one per theme. `variants` maps
+those entries to available theme assets; older packages can have only a light
+asset. Include `revision` in the image query string to invalidate cached images
+after regeneration. The workspace API embeds this same manifest.
 
 #### `GET /api/v1/shows/skybrush/plots/{filename}`
 Get specific show plot image.
@@ -1113,9 +1123,17 @@ Get the current validation snapshot for the processed show package.
 {
   "validation_status": "PASS",
   "issues": [],
+  "findings": [],
   "metrics_summary": {...}
 }
 ```
+
+`findings` adds operator-facing `severity`, `title`, `detail` and optional
+separation `evidence` (position IDs, distance in meters, time in seconds).
+Known ground-level launch/landing samples alone produce `WARNING`, not `FAIL`.
+Separation violations, negative clearance and unexplained unsafe results remain
+`FAIL`. UI, cached workspace validation and optional agent read tools share the
+same assessment function. This analysis is not a flight-safety certification.
 
 #### `POST /api/v1/shows/skybrush/deployments`
 Deploy show changes to git repository for drone fleet.
