@@ -172,6 +172,26 @@ Warnings remain visible for:
 - manual-placement assumptions
 - non-critical placement drift
 
+The operator surface distinguishes four outcomes instead of collapsing them into
+one boolean:
+
+- **Ready** — all required checks pass.
+- **Ready with correction** — global auto-correction can handle a warning-level
+  launch deviation; the measured aircraft and deviation remain visible.
+- **Review** — a non-blocking warning or manual-placement assumption needs an
+  operator decision.
+- **Blocked** — origin, telemetry, PX4 readiness, trajectory analysis, or
+  error-level geometry is not valid. The preflight row links directly to the
+  page that can correct it.
+
+The launch-geometry review uses the same expected-versus-live evidence as
+Mission Config. It is read-only from Drone Show and is intentionally not a
+second geometry implementation.
+
+Flight control keeps **Immediate RTL** visible at all times. **Managed Return**
+is under **Other actions** because it requires review of aircraft order and
+interval before dispatch.
+
 Validator note:
 
 - the acceptance validator can target a live subset with `--drone-ids`, so offline config slots outside that selected subset do not fail the run by themselves
