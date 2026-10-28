@@ -109,7 +109,7 @@ def install_fetch_mock(client: CDPClient, active: dict[str, bool], writes: list[
     client.command("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
 
 
-def install_browser_mock(client: CDPClient) -> None:
+def install_browser_mock(client: CDPClient, fleet_size: int = 2) -> None:
     """Mock axios' browser transports before the React bundle is evaluated.
 
     This avoids depending on Chrome's Fetch wildcard behavior, which changed
@@ -167,6 +167,11 @@ def install_browser_mock(client: CDPClient) -> None:
         return new Response(result.body, {status: result.status, headers: {'Content-Type': result.type}});
       };
     })();'''
+    if fleet_size != 2:
+        source = source.replace("const json = (value)", f"fleet.splice(0, fleet.length, ...Array.from({{length: {fleet_size}}}, (_, i) => ({{...fleet[0], hw_id: i+1, pos_id: i+1, name: 'AIRCRAFT-' + (i+1)}}))); const json = (value)")
+        source = source.replace("position_ids: [1, 2]", "position_ids: fleet.map(d => d.pos_id)")
+        source = source.replace("drone_count: 2", "drone_count: fleet.length")
+        source = source.replace("{'1': {status: 'ok', horizontal_m: 0.12, vertical_m: 0.08}, '2': {status: 'ok', horizontal_m: 0.18, vertical_m: 0.1}}", "Object.fromEntries(fleet.map(d => [d.hw_id, {status: 'ok'}]))")
     # Match the real aggregate contract, including the metrics envelope and
     # presentation variants. Do not silently test a different API shape.
     source = source.replace("metrics: {performance_metrics: {max_velocity_ms: 4.2}}", "metrics: {available: true, metrics: {performance_metrics: {max_velocity_ms: 4.2}, safety_metrics: {min_inter_drone_distance_m: 6.2, min_distance_details: {drone_1: '1', drone_2: '2', time_s: 42}}}}")
@@ -213,7 +218,7 @@ def verify_plot_theme(client: CDPClient, theme: str) -> None:
         raise RuntimeError(f"Incorrect plot background for {theme}: {result}")
 
 
-def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome: str, port: int, plot_dir: Path | None = None) -> dict:
+def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome: str, port: int, plot_dir: Path | None = None, fleet_size: int = 2) -> dict:
     width, height = (390, 844) if viewport == "mobile" else (1440, 960)
     active = {"value": False}
     writes: list[dict[str, str]] = []
@@ -228,7 +233,7 @@ def run_case(base_url: str, output_dir: Path, theme: str, viewport: str, chrome:
             client.command("Log.enable")
             client.command("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": 1, "mobile": viewport == "mobile"})
             client.command("Page.addScriptToEvaluateOnNewDocument", {"source": f"localStorage.setItem('drone-dashboard-theme', {json.dumps(theme)});"})
-            install_browser_mock(client)
+            install_browser_mock(client, fleet_size)
             prefix = f"{theme}-{viewport}"
             client.navigate(f"{base_url.rstrip('/')}/drone-show?tab=operate")
             client.wait_for("Boolean(document.querySelector('.drone-show-workspace'))", timeout_s=25)
@@ -290,12 +295,13 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--chrome", default="/usr/bin/google-chrome")
     parser.add_argument("--plot-dir", type=Path, help="Use real generated theme JPEGs for screenshot and pixel assertions")
+    parser.add_argument("--fleet-size", type=int, default=2, help="Synthetic aircraft count for layout stress checks (does not change the real fleet)")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     reports = []
     for index, theme in enumerate(("dark", "light")):
         for offset, viewport in enumerate(("desktop", "mobile")):
-            reports.append(run_case(args.base_url, args.output_dir, theme, viewport, args.chrome, 9481 + (index * 2) + offset, args.plot_dir))
+            reports.append(run_case(args.base_url, args.output_dir, theme, viewport, args.chrome, 9481 + (index * 2) + offset, args.plot_dir, args.fleet_size))
     failures = []
     for report in reports:
         case = f"{report['theme']}/{report['viewport']}"
