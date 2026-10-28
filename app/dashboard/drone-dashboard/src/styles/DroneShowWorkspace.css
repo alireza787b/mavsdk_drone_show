@@ -125,6 +125,10 @@
 [data-theme="dark"] .visualization-section img, .theme-dark .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
 [data-theme="dark"] .visualization-section .MuiModal-root .MuiBox-root, .theme-dark .visualization-section .MuiModal-root .MuiBox-root { background: var(--color-bg-secondary) !important; color: var(--color-text-primary) !important; }
 [data-theme="dark"] .visualization-section .MuiModal-root img, .theme-dark .visualization-section .MuiModal-root img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
+@media (prefers-color-scheme: dark) {
+  .visualization-section img { filter: invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15); }
+  .visualization-section .MuiPaper-root, .visualization-section .MuiModal-root .MuiBox-root { background: var(--color-bg-secondary) !important; color: var(--color-text-primary) !important; }
+}
 .drone-show-workspace__setup .MuiModal-root .MuiPaper-root { border-radius: 2px !important; }
 .drone-show-workspace__setup .export-section .MuiPaper-root { padding: .8rem !important; }
 @media (max-width: 900px) { .drone-show-workspace__operation-rail { grid-template-columns: 1fr; }.drone-show-workspace__operate-grid { grid-template-columns: 1fr; }.drone-show-workspace__metric-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -89,7 +89,11 @@ const plotImageStyle = {
 };
 
 const isDarkTheme = () => typeof document !== 'undefined'
-  && (document.documentElement.dataset.theme === 'dark' || document.documentElement.classList.contains('theme-dark'));
+  && (document.documentElement.dataset.theme === 'dark'
+    || document.documentElement.classList.contains('theme-dark')
+    || document.body?.dataset.theme === 'dark'
+    || document.body?.classList.contains('theme-dark')
+    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
 
 const themedPlotName = (plots, name) => {
   if (name === 'combined_drone_paths.jpg' && isDarkTheme() && plots.includes('combined_drone_paths_dark.jpg')) {
