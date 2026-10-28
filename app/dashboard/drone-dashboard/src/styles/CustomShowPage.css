@@ -25,6 +25,12 @@
 .custom-show-page__status-strip {
     margin-top: var(--spacing-base);
 }
+.custom-show-page__workflow { border-block: 1px solid var(--color-border-primary); display: flex; gap: 1.2rem; overflow-x: auto; padding: .6rem 0; }
+.custom-show-page__workflow span { color: var(--color-text-secondary); flex: 0 0 auto; font-size: .76rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.custom-show-page__workflow .is-current { color: var(--color-text-primary); }
+.custom-show-page__advanced { border: 1px solid var(--color-border-primary); padding: .65rem .8rem; }
+.custom-show-page__advanced summary { color: var(--color-text-primary); cursor: pointer; font-weight: 800; }
+.custom-show-page__advanced p { color: var(--color-text-secondary); margin: .6rem 0; }
 
 .custom-show-page .MuiTypography-colorTextSecondary {
     color: var(--color-text-secondary) !important;

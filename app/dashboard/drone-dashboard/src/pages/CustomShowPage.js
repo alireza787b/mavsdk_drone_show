@@ -146,7 +146,7 @@ const CustomShowPage = () => {
       className="custom-show-page"
       eyebrow="Advanced manual mode"
       title="Custom CSV Drone Show"
-      subtitle="Activate one protocol CSV as active.csv, validate it, and preview local-frame replay."
+      subtitle="Select, validate, preview, then activate a local-frame CSV."
       docsRoute="/custom-show"
       status={<StatusBadge tone={hasActiveCustomShow ? 'success' : 'warning'}>{hasActiveCustomShow ? 'Active' : 'No CSV'}</StatusBadge>}
       actions={(
@@ -162,9 +162,9 @@ const CustomShowPage = () => {
     >
       <MetricStrip items={statusItems} label="Custom CSV status" className="custom-show-page__status-strip" />
 
-      <OperatorNotice tone="warning" title="Expert-only override" className="custom-show-page__banner">
-        No SkyBrush conversion runs here. Use only protocol-ready CSV files that are safe for local-frame replay.
-      </OperatorNotice>
+      <div className="custom-show-page__workflow" aria-label="Custom CSV workflow">
+        <span className="is-current">1 Select</span><span>2 Validate</span><span>3 Preview</span><span>4 Activate</span>
+      </div>
 
       {customShowBackendError && (
         <OperatorNotice tone="danger" title="Failed to load active custom CSV metadata" role="alert" className="custom-show-page__banner">
@@ -177,7 +177,7 @@ const CustomShowPage = () => {
           <div className="custom-show-card__header">
             <MdCloudUpload className="custom-show-card__icon" />
             <div>
-              <Typography variant="h6">Upload Ready-to-Execute CSV</Typography>
+              <Typography variant="h6">1 · Select CSV</Typography>
               <Typography variant="body2" color="text.secondary">
                 Replaces <code>active.csv</code>, validates the protocol, and regenerates the preview.
               </Typography>
@@ -197,13 +197,11 @@ const CustomShowPage = () => {
                 disabled={!selectedFile || isUploading}
                 startIcon={isUploading ? <CircularProgress size={18} color="inherit" /> : <MdCloudUpload />}
               >
-                {isUploading ? 'Validating...' : 'Upload & Activate'}
+                {isUploading ? 'Validating…' : 'Validate & Activate'}
               </Button>
             </div>
 
-            <Alert severity="info">
-              Not a SkyBrush import. The CSV must already match the MDS custom trajectory protocol.
-            </Alert>
+            <details className="custom-show-page__advanced"><summary>CSV requirements</summary><p>Protocol-ready local-frame CSV only; no SkyBrush conversion or shared-origin correction is applied.</p><code>{requiredColumns.join(', ')}</code></details>
 
             {uploadWarnings.length > 0 && (
               <Alert severity="warning">
@@ -219,7 +217,7 @@ const CustomShowPage = () => {
           <div className="custom-show-card__header">
             <MdDescription className="custom-show-card__icon" />
             <div>
-              <Typography variant="h6">Active Custom CSV</Typography>
+              <Typography variant="h6">2–4 · Active replay</Typography>
               <Typography variant="body2" color="text.secondary">
                 Same file on every drone, replayed in each drone&apos;s own local launch frame.
               </Typography>
