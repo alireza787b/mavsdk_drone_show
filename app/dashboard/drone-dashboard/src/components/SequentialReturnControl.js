@@ -158,15 +158,17 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
         confirmDisabled={!confirmation || !Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300}
         onCancel={() => setConfirmation(null)} onConfirm={start} busy={busy}
         message={confirmation ? (
-          <div className="swarm-confirm-summary">
-            <p>Stops following, then sends each aircraft home in order.</p>
-            <label>Time between returns (s) <input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
-              onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</label>
+          <div className="swarm-confirm-summary swarm-confirm-summary--managed-return">
+            <p><strong>Managed Return</strong> stops the show and sends aircraft home in the displayed order.</p>
+            <label className="swarm-return-field">Interval between aircraft
+              <span><input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
+                onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</span>
+            </label>
+            <div className="swarm-return-order-heading">Return order</div>
             <ol className="swarm-return-order" aria-label="Return order">{confirmation.targetNames.map((name, index) => (
-              <li key={confirmation.targetIds[index]}>{name} · {index === 0 ? 'first' : `+${index * confirmation.delay} s`}</li>
+              <li key={confirmation.targetIds[index]}><span>{name}</span><small>{index === 0 ? 'first' : `after ${index * confirmation.delay} s`}</small></li>
             ))}</ol>
-            <p>Return paths may overlap.</p>
-            <details><summary>Return settings</summary>Each aircraft uses its configured PX4 return height and home position. Heights are unavailable here. The next return starts after the interval, not after the previous landing.</details>
+            <p className="swarm-return-note">PX4 home and return height are used for each aircraft. The next command starts after the interval; it does not wait for landing.</p>
             {(!Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300) && <p role="alert">Use an interval from 1 to 300 s.</p>}
           </div>
         ) : ''} />

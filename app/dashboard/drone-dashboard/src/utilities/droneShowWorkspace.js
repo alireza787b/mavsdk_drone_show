@@ -17,13 +17,23 @@ export function showReadiness({ workspace, operation, mode, origin, deviations }
   const fleetReady = fleet.length > 0 && fleet.every((d) => d.telemetry_fresh && d.ready_to_arm && d.armed === false);
   const globalAuto = mode === 'global-auto';
   const originReady = !globalAuto || (origin?.lat != null && origin?.lon != null && origin.lat !== '' && origin.lon !== '');
-  const geometryReady = !globalAuto || (originReady && fleet.every((d) => {
-    const row = deviations?.deviations?.[d.hw_id];
-    return row && ['ok', 'good', 'success', 'warning'].includes(row.status);
-  }));
-  const analysisReady = workspace?.validation?.validation_status !== 'FAIL';
-  return { packageReady, mappingReady, fleetReady, originReady, geometryReady, analysisReady,
-    ready: Boolean(packageReady && mappingReady && fleetReady && originReady && geometryReady && analysisReady) };
+  const geometrySummary = deviations?.summary || {};
+  const geometryRows = fleet.map((d) => deviations?.deviations?.[d.hw_id]).filter(Boolean);
+  const hasGeometryErrors = geometryRows.some((row) => ['error', 'no_telemetry'].includes(row.status));
+  const geometryWarning = geometryRows.some((row) => row.status === 'warning');
+  const geometryReady = !globalAuto || (originReady && geometryRows.length === fleet.length && !hasGeometryErrors);
+  const analysisStatus = workspace?.validation?.validation_status || 'UNKNOWN';
+  const analysisReady = analysisStatus !== 'FAIL' && analysisStatus !== 'UNKNOWN';
+  const geometryState = !globalAuto ? 'review'
+    : !originReady || !geometryRows.length ? 'blocked'
+      : hasGeometryErrors ? 'blocked' : geometryWarning ? 'review' : 'ready';
+  const readinessState = !packageReady || !mappingReady || !fleetReady || !originReady || !geometryReady || !analysisReady
+    ? 'blocked' : geometryState === 'review' || analysisStatus === 'WARNING' ? 'review' : 'ready';
+  return {
+    packageReady, mappingReady, fleetReady, originReady, geometryReady, analysisReady,
+    geometryState, geometrySummary, geometryRows, analysisStatus,
+    ready: readinessState !== 'blocked', readinessState,
+  };
 }
 
 export function buildShowCommand(action, targetIds, { mode = 'global-auto', delay = 10, referenceNowMs } = {}) {

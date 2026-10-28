@@ -54,6 +54,14 @@
 .swarm-ops .swarm-sequential-return > p { flex-basis: 100%; grid-column: 1 / -1; }
 .swarm-confirm-summary { display: grid; gap: var(--spacing-sm); }
 .swarm-confirm-summary input { max-width: 6rem; padding: var(--spacing-xs); color: var(--color-text-primary); background: var(--color-surface-inset); border: 1px solid var(--color-border-primary); }
+.swarm-confirm-summary--managed-return { min-width: min(32rem, 80vw); }
+.swarm-return-field { align-items: center; display: flex; gap: .8rem; justify-content: space-between; }
+.swarm-return-field span { align-items: center; display: inline-flex; gap: .3rem; }
+.swarm-return-order-heading { border-bottom: 1px solid var(--color-border-primary); color: var(--color-text-secondary); font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.swarm-return-order { display: grid; gap: .35rem; list-style: decimal; margin: 0; padding-left: 1.4rem; }
+.swarm-return-order li { align-items: baseline; display: flex; gap: .5rem; justify-content: space-between; }
+.swarm-return-order small, .swarm-return-note { color: var(--color-text-secondary); }
+.swarm-return-note { font-size: .8rem; margin: 0; }
 .swarm-ops__confirmation { display: grid; gap: var(--spacing-sm); }
 .swarm-ops__confirmation label { display: grid; gap: var(--spacing-xs); }
 .swarm-ops__confirmation input { max-width: 8rem; }

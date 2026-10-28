@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MdFlightTakeoff, MdPauseCircleOutline, MdStop } from 'react-icons/md';
+import { MdFlightTakeoff, MdHome, MdPauseCircleOutline, MdStop } from 'react-icons/md';
 import { toast } from 'react-toastify';
 import ImportSection from '../components/ImportSection';
 import VisualizationSection from '../components/VisualizationSection';
 import ExportSection from '../components/ExportSection';
 import SequentialReturnControl from '../components/SequentialReturnControl';
+import DeviationView from '../components/DeviationView';
 import { ConfirmDialog, MetricStrip, OperatorCard, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
 import { GCS_ROUTE_KEYS, buildShowPlotUrl } from '../services/gcsApiService';
@@ -24,12 +25,13 @@ function duration(ms) {
   const seconds = Math.round(Number(ms || 0) / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
-function ReadinessRow({ label, ready, detail, caution = false }) {
+function ReadinessRow({ label, ready, detail, caution = false, action = null }) {
   const tone = ready && !caution ? 'success' : 'warning';
   return <div className="drone-show-workspace__readiness-row">
     <span className={`drone-show-workspace__signal drone-show-workspace__signal--${tone}`} aria-hidden="true" />
     <span>{label}</span><StatusBadge tone={tone}>{ready ? (caution ? 'Review' : 'Ready') : 'Check'}</StatusBadge>
     {detail && <small>{detail}</small>}
+    {action}
   </div>;
 }
 
@@ -131,14 +133,6 @@ export default function DroneShowWorkspace() {
           <div className="drone-show-workspace__operation-stats"><span><b>{fleet.filter((d) => d.telemetry_fresh).length}/{fleet.length}</b> live</span><span><b>{operation?.command?.executions?.succeeded || 0}</b> complete</span></div>
         </div>
         <div className="drone-show-workspace__operate-grid">
-          <OperatorCard className="drone-show-workspace__readiness">
-            <h2>Preflight</h2>
-            <ReadinessRow label="Package & aircraft slots" ready={readiness.packageReady && readiness.mappingReady} detail={!readiness.mappingReady ? 'Review package and hardware assignments in Mission Config.' : null} />
-            <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? fleet.filter((d) => !d.telemetry_fresh || !d.ready_to_arm).map((d) => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ') : null} />
-            <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={mode !== 'global-auto'} detail={mode === 'global-auto' && !readiness.originReady ? 'Set shared origin in Mission Config.' : mode !== 'global-auto' ? 'Manual launch placement' : null} />
-            <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={!workspace?.validation || workspace.validation.validation_status === 'WARNING'} detail={workspace?.validation?.validation_status || 'No cached analysis'} />
-            <Link to="/mission-config">Launch positions & origin</Link>
-          </OperatorCard>
           <OperatorCard className="drone-show-workspace__controls">
             <h2>Flight control</h2>
             <label className="drone-show-workspace__field">Position reference<select aria-label="Position reference" value={mode} disabled={active || busy} onChange={(e) => setMode(e.target.value)}>
@@ -148,13 +142,38 @@ export default function DroneShowWorkspace() {
             <div className="drone-show-workspace__action-grid">
               <button type="button" className="drone-show-workspace__action drone-show-workspace__action--launch" disabled={!ready || busy} onClick={() => openReview('launch')}><MdFlightTakeoff />Launch show</button>
               <button type="button" className="drone-show-workspace__action drone-show-workspace__action--hold" disabled={!recoverable || busy} onClick={() => openReview('hold')}><MdPauseCircleOutline />Hold</button>
-              <SequentialReturnControl compact targetIds={recoveryIds} targetNames={recoveryNames} contextKey={operation?.command_id || 'show'} />
+              <button type="button" className="drone-show-workspace__action drone-show-workspace__action--return" disabled={!recoverable || busy} onClick={() => openReview('rtl')}><MdHome />Immediate RTL</button>
             </div>
             <details className="drone-show-workspace__advanced"><summary>Other actions</summary>
-              {['land', 'rtl', 'cancel'].map((action) => <button className="operator-button operator-button--ghost" type="button" key={action} disabled={!recoverable || busy} onClick={() => openReview(action)}><MdStop />{ACTIONS[action]}</button>)}
+              <SequentialReturnControl compact targetIds={recoveryIds} targetNames={recoveryNames} contextKey={operation?.command_id || 'show'} />
+              {['land', 'cancel'].map((action) => <button className="operator-button operator-button--ghost" type="button" key={action} disabled={!recoverable || busy} onClick={() => openReview(action)}><MdStop />{ACTIONS[action]}</button>)}
             </details>
           </OperatorCard>
+          <OperatorCard className="drone-show-workspace__readiness">
+            <h2>Preflight</h2>
+            <ReadinessRow label="Package & aircraft slots" ready={readiness.packageReady && readiness.mappingReady} detail={!readiness.mappingReady ? 'Review package and hardware assignments.' : null} action={!readiness.mappingReady ? <Link to="/mission-config">Open Mission Config</Link> : null} />
+            <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? fleet.filter((d) => !d.telemetry_fresh || !d.ready_to_arm).map((d) => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ') : 'Aircraft connected and disarmed'} />
+            <ReadinessRow label="Home / origin" ready={readiness.originReady} detail={readiness.originReady ? 'Shared launch reference set.' : 'Set the shared origin before global auto-correction.'} action={!readiness.originReady ? <Link to="/mission-config">Set origin</Link> : null} />
+            <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={readiness.geometryState === 'review' || mode !== 'global-auto'} detail={mode !== 'global-auto' ? 'Manual placement mode.' : readiness.geometrySummary.worst_deviation != null ? `Worst ${Number(readiness.geometrySummary.worst_deviation).toFixed(1)} m · ${readiness.geometrySummary.warnings || 0} warning(s)` : 'Live positions are being checked.'} action={<Link to="#launch-geometry">Review layout</Link>} />
+            <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : `${readiness.analysisStatus}${workspace?.validation?.issues?.length ? ` · ${workspace.validation.issues[0]}` : ''}`} action={<a href="#trajectory-analysis">Details</a>} />
+          </OperatorCard>
         </div>
+        <details id="launch-geometry" className="drone-show-workspace__evidence-panel">
+          <summary>Launch geometry · expected vs live</summary>
+          <div className="drone-show-workspace__evidence-content">
+            {readiness.originReady ? <DeviationView drones={fleet} deviationData={geometryState.data} trajectoryPositionsByPosId={{}} origin={originState.data} /> : <p>Set the shared origin in Mission Config to review launch positions.</p>}
+            <Link to="/mission-config">Open Mission Config</Link>
+          </div>
+        </details>
+        <details id="trajectory-analysis" className="drone-show-workspace__metrics-panel">
+          <summary>Mission evidence</summary>
+          <div className="drone-show-workspace__metric-details">
+            <span>Max distance <b>{metrics.basic_metrics?.max_distance_from_launch_m != null ? `${metrics.basic_metrics.max_distance_from_launch_m} m` : '—'}</b></span>
+            <span>Minimum separation <b>{metrics.safety_metrics?.minimum_separation_m != null ? `${metrics.safety_metrics.minimum_separation_m} m` : '—'}</b></span>
+            <span>Safety <b>{metrics.safety_metrics?.safety_status || '—'}</b></span>
+            <span>Trajectory <b>{readiness.analysisStatus}</b></span>
+          </div>
+        </details>
         {workspace?.plots?.filenames?.includes('combined_drone_paths.jpg') && <figure className="drone-show-workspace__preview-wrap"><figcaption>Trajectory preview</figcaption><img className="drone-show-workspace__preview" src={buildShowPlotUrl('combined_drone_paths.jpg')} alt="Loaded show trajectory preview" /></figure>}
         <OperatorCard className="drone-show-workspace__fleet-status"><h2>Aircraft</h2>
           <div className="drone-show-workspace__table-wrap"><table className="drone-show-workspace__table"><thead><tr><th>Aircraft</th><th>Mode</th><th>Flight state</th><th>Battery</th><th>Link</th></tr></thead><tbody>

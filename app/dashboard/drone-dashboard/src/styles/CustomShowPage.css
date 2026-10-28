@@ -8,6 +8,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
+    color-scheme: light dark;
 }
 
 .custom-show-page__hero-actions {
@@ -115,11 +116,11 @@
 }
 
 .custom-show-card {
-    border-radius: var(--border-radius-lg) !important;
+    border-radius: 2px !important;
     border: 1px solid var(--color-border-primary);
-    background: linear-gradient(145deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    background: var(--color-bg-secondary);
     padding: var(--spacing-lg);
-    box-shadow: var(--shadow-base);
+    box-shadow: none;
 }
 
 .custom-show-card--upload,
@@ -173,11 +174,23 @@
     display: block;
     width: 100%;
     max-width: 100%;
-    border-radius: var(--border-radius-base);
+    border-radius: 2px;
     border: 1px solid var(--color-border-primary);
     background: var(--color-bg-primary);
     box-shadow: var(--shadow-md);
 }
+
+.custom-show-page .MuiPaper-root,
+.custom-show-page .MuiAlert-root,
+.custom-show-page .MuiChip-root,
+.custom-show-page .MuiButton-root { border-radius: 2px !important; }
+.custom-show-page .MuiTypography-root,
+.custom-show-page .MuiFormLabel-root,
+.custom-show-page .MuiInputBase-root,
+.custom-show-page .MuiInputBase-input { color: var(--color-text-primary); }
+.custom-show-page .MuiAlert-root { background: var(--color-bg-tertiary); }
+.custom-show-page__preview-image { background: var(--color-bg-tertiary); padding: .35rem; object-fit: contain; }
+.custom-show-page code { border-radius: 2px; }
 
 .custom-show-card code {
     padding: 0 0.35rem;
