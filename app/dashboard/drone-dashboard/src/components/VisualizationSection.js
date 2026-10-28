@@ -91,6 +91,8 @@ const plotImageStyle = {
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
   const [plotManifest, setPlotManifest] = useState({});
+  const [plotSearch, setPlotSearch] = useState('');
+  const [plotLimit, setPlotLimit] = useState(12);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -266,7 +268,7 @@ const VisualizationSection = ({ uploadCount }) => {
       const warningCount = safetyMetrics.collision_warnings_count || 0;
       const criticalWarnings = warnings
         .slice(0, 3)
-        .map((warning) => `Drones ${warning.drone_1}-${warning.drone_2} (${warning.distance}m at ${warning.time}s)`)
+        .map((warning) => `Drones ${warning.drone_1}-${warning.drone_2} (${warning.distance_m}m at ${warning.time_s}s)`)
         .join(', ');
       return `Caution: ${warningCount} collision warnings detected.${criticalWarnings ? ` Critical proximities: ${criticalWarnings}` : ''} Review paths before launch.`;
     }
@@ -428,7 +430,7 @@ const VisualizationSection = ({ uploadCount }) => {
                         primary="Collision Warnings" 
                         secondary={
                           safety_metrics.collision_warnings_count > 0 && comprehensiveMetrics?.safety_metrics?.collision_warnings?.length > 0
-                            ? `${safety_metrics.collision_warnings_count} detected - Most critical: Drones ${comprehensiveMetrics.safety_metrics.collision_warnings[0].drone_1}-${comprehensiveMetrics.safety_metrics.collision_warnings[0].drone_2} (${comprehensiveMetrics.safety_metrics.collision_warnings[0].distance}m)`
+                            ? `${safety_metrics.collision_warnings_count} detected - Review: Drones ${safety_metrics.collision_warnings[0].drone_1}-${safety_metrics.collision_warnings[0].drone_2} (${safety_metrics.collision_warnings[0].distance_m}m at ${safety_metrics.collision_warnings[0].time_s}s)`
                             : `${safety_metrics.collision_warnings_count || 0} detected`
                         }
                         primaryTypographyProps={{ fontWeight: 'medium' }}
@@ -841,6 +843,10 @@ const VisualizationSection = ({ uploadCount }) => {
             <MdTimeline />
             Individual Drone Trajectories
           </Typography>
+          <label className="drone-show-workspace__field">Find trajectory
+            <input type="search" aria-label="Find trajectory" placeholder="Position number" value={plotSearch}
+              onChange={event => { setPlotSearch(event.target.value); setPlotLimit(12); }} />
+          </label>
           <Box className="plot-grid" sx={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
@@ -848,6 +854,8 @@ const VisualizationSection = ({ uploadCount }) => {
           }}>
             {plots
               .filter((name) => !['combined_drone_paths.jpg', 'combined_drone_paths_dark.jpg'].includes(name))
+              .filter((name) => name.includes(plotSearch))
+              .slice(0, plotLimit)
               .map((plot, index) => {
                 const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
                 return (
@@ -877,6 +885,8 @@ const VisualizationSection = ({ uploadCount }) => {
                 );
               })}
           </Box>
+          {plots.filter(name => !name.startsWith('combined_') && name.includes(plotSearch)).length > plotLimit
+            && <Button variant="outlined" onClick={() => setPlotLimit(limit => limit + 12)}>Show more trajectories</Button>}
         </Box>
       )}
 

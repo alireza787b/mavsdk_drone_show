@@ -55,6 +55,7 @@ export default function DroneShowWorkspace() {
   const workspace = workspaceState.data;
   const operation = operationState.data;
   const fleet = useMemo(() => operation?.fleet || [], [operation]);
+  const unreadyFleet = fleet.filter(d => !d.telemetry_fresh || !d.ready_to_arm);
   const visibleFleet = fleet.filter(d => `${d.name} ${d.hw_id} ${d.pos_id}`.toLowerCase().includes(aircraftFilter.toLowerCase()));
   const revealEvidence = (event, id) => {
     event.preventDefault();
@@ -162,7 +163,7 @@ export default function DroneShowWorkspace() {
           <OperatorCard className="drone-show-workspace__readiness">
             <h2>Preflight</h2>
             <ReadinessRow label="Package & aircraft slots" ready={readiness.packageReady && readiness.mappingReady} detail={!readiness.mappingReady ? 'Review package and hardware assignments.' : null} action={!readiness.mappingReady ? <Link to="/mission-config">Open Mission Config</Link> : null} />
-            <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? fleet.filter((d) => !d.telemetry_fresh || !d.ready_to_arm).map((d) => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ') : 'Aircraft connected and disarmed'} />
+            <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? `${unreadyFleet.slice(0, 3).map(d => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ')}${unreadyFleet.length > 3 ? ` · +${unreadyFleet.length - 3} more; see aircraft list` : ''}` : 'Aircraft connected and disarmed'} />
             <ReadinessRow label="Home / origin" ready={readiness.originReady} detail={readiness.originReady ? 'Shared launch reference set.' : 'Set the shared origin before global auto-correction.'} action={!readiness.originReady ? <Link to="/mission-config">Set origin</Link> : null} />
             <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={readiness.geometryState === 'review' || mode !== 'global-auto'} detail={mode !== 'global-auto' ? 'Manual placement mode.' : readiness.geometrySummary.worst_deviation != null ? `Worst ${Number(readiness.geometrySummary.worst_deviation).toFixed(1)} m · ${readiness.geometrySummary.warnings || 0} warning(s)` : 'Live positions are being checked.'} action={<a href="#launch-geometry" onClick={e => revealEvidence(e, 'launch-geometry')}>Review layout</a>} />
             <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} status={readiness.analysisStatus === 'FAIL' ? 'Blocked' : readiness.analysisStatus === 'WARNING' ? 'Review' : null} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : workspace?.validation?.findings?.[0]?.title || workspace?.validation?.issues?.[0]} action={<a href="#trajectory-analysis" onClick={e => revealEvidence(e, 'trajectory-analysis')}>View findings</a>} />
