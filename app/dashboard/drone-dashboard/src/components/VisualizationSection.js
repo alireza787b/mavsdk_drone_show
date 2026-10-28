@@ -98,6 +98,10 @@ const themedPlotName = (plots, name) => {
   return name;
 };
 
+const themedPlotStyle = () => (isDarkTheme()
+  ? { filter: 'invert(.92) hue-rotate(180deg) brightness(.95) contrast(1.15)' }
+  : {});
+
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -829,7 +833,7 @@ const VisualizationSection = ({ uploadCount }) => {
               <img 
                 src={buildShowPlotUrl(themedPlotName(plots, 'combined_drone_paths.jpg'))}
                 alt="All Drones Combined Trajectory" 
-                style={{ 
+                style={{ ...themedPlotStyle(), 
                   ...plotImageStyle,
                   maxWidth: '800px',
                 }} 
@@ -877,7 +881,7 @@ const VisualizationSection = ({ uploadCount }) => {
                         src={plotUrl} 
                         alt={`Drone ${droneId} Trajectory`} 
                         style={{ 
-                          ...plotImageStyle,
+                          ...plotImageStyle, ...themedPlotStyle(),
                           borderRadius: '6px',
                         }}
                       />
@@ -995,7 +999,7 @@ const VisualizationSection = ({ uploadCount }) => {
                 <img
                   src={buildShowPlotUrl(themedPlotName(plots, plots[currentIndex] || ''))}
                   alt={`Drone Trajectory Plot ${currentIndex + 1}`}
-                  style={{
+                  style={{ ...themedPlotStyle(),
                     maxWidth: '100%',
                     maxHeight: 'calc(95vh - 60px)',
                     width: 'auto',
