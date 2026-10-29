@@ -556,6 +556,9 @@ def build_safety_report_payload(
         raise HTTPException(status_code=404, detail="No drone data available for safety analysis")
 
     safety_metrics = metrics_engine.calculate_safety_metrics()
+    if safety_metrics.get("error") or safety_metrics.get("safety_status") == "UNKNOWN":
+        return {"safety_analysis": safety_metrics,
+                "recommendations": [safety_metrics.get("error") or "Reprocess the show to obtain trajectory analysis."]}
     recommendations = (
         [
             "Maintain minimum 2m separation between drones",
