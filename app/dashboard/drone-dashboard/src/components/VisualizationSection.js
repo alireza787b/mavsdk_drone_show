@@ -205,9 +205,8 @@ const VisualizationSection = ({ uploadCount }) => {
 
   // Format minimum altitude with details
   const formatMinAltitude = () => {
-    if (comprehensiveMetrics?.basic_metrics?.min_altitude_details) {
-      const details = comprehensiveMetrics.basic_metrics.min_altitude_details;
-      return `${details.value} m`;
+    if (comprehensiveMetrics?.safety_metrics?.min_ground_clearance_m != null) {
+      return `${comprehensiveMetrics.safety_metrics.min_ground_clearance_m} m`;
     }
     return 'N/A';
   };
@@ -261,7 +260,7 @@ const VisualizationSection = ({ uploadCount }) => {
   const getSafetyStatusTooltip = () => {
     const safetyMetrics = comprehensiveMetrics?.safety_metrics;
     if (!safetyMetrics) {
-      return 'Safety assessment uses collision risk, ground clearance, and inter-drone distance.';
+      return 'Trajectory analysis checks aircraft separation. Show-relative height is not terrain clearance.';
     }
     if (safetyMetrics.safety_status === 'CAUTION') {
       const warnings = safetyMetrics.collision_warnings || [];
@@ -275,7 +274,7 @@ const VisualizationSection = ({ uploadCount }) => {
     if (safetyMetrics.safety_status === 'SAFE') {
       return 'Safe: no collision risks detected and required clearances are maintained.';
     }
-    return 'Safety assessment uses collision risk, ground clearance, and inter-drone distance.';
+    return 'Trajectory analysis checks aircraft separation. Show-relative height is not terrain clearance.';
   };
 
 
@@ -406,12 +405,12 @@ const VisualizationSection = ({ uploadCount }) => {
                 <Paper sx={technicalPanelSx}>
                   <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                     <MdSecurity />
-                    Safety Analysis
+                    Trajectory analysis
                   </Typography>
                   <List dense>
                     <ListItem sx={{ px: 0 }}>
                       <ListItemText 
-                        primary="Ground Clearance (Min)" 
+                        primary="Minimum height above show origin"
                         secondary={`${safety_metrics.min_ground_clearance_m} m`}
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
@@ -506,12 +505,8 @@ const VisualizationSection = ({ uploadCount }) => {
                     </ListItem>
                     <ListItem sx={{ px: 0 }}>
                       <ListItemText 
-                        primary="Min Altitude (Flight)" 
-                        secondary={
-                          comprehensiveMetrics.basic_metrics.min_altitude_details 
-                            ? `${comprehensiveMetrics.basic_metrics.min_altitude_details.value} m - Drone ${comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at ${comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s`
-                            : `${comprehensiveMetrics.basic_metrics.min_altitude_flight_m || 'N/A'} m`
-                        }
+                        primary="Minimum show height (includes launch / landing)"
+                        secondary={formatMinAltitude()}
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
@@ -662,20 +657,15 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <MdHeight className="metric-icon metric-icon--large metric-icon--inverted warning" aria-hidden="true" />
-              <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing within 20m)">
+              <MdHeight className="metric-icon metric-icon--large metric-icon--inverted primary" aria-hidden="true" />
+              <Tooltip title="Height relative to the show origin, including launch and landing. Zero is normal; this is not terrain clearance.">
                 <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Min Altitude <MdHelpOutline className="metric-help-icon" aria-hidden="true" />
+                  Min show height <MdHelpOutline className="metric-help-icon" aria-hidden="true" />
                 </Typography>
               </Tooltip>
               <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatMinAltitude()}
               </Typography>
-              {comprehensiveMetrics?.basic_metrics?.min_altitude_details && (
-                <Typography variant="caption" className="metric-detail" sx={{ display: 'block' }}>
-                  Drone {comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s
-                </Typography>
-              )}
             </CardContent>
           </Card>
         </Grid>
@@ -764,7 +754,7 @@ const VisualizationSection = ({ uploadCount }) => {
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 2 }}>
                   <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 600 }}>
-                    Safety Status
+                    Separation analysis
                   </Typography>
                   <Tooltip title={getSafetyStatusTooltip()} arrow>
                     <MdHelpOutline className="metric-help-icon metric-help-icon--muted" aria-hidden="true" />

@@ -202,12 +202,21 @@ UI evidence probes must verify actual selected image names and image pixels,
 not only page layout. Use `tools/probe_drone_show_operator_ui.py --plot-dir ...`
 to validate real generated JPEGs across both themes, Operate, Setup and fullscreen.
 
-Trajectory `CAUTION` is not itself proof of a collision. The metrics engine
-includes launch/landing at zero height in its minimum-clearance statistic.
-When this is the only caution, validation reports an explicit ground-samples
-advisory rather than an unexplained failure. Separation violations, negative
-clearance, explicit unsafe status and unexplained safety failures remain
-blocking. **View findings** opens the evidence and next action. Fleet summaries
+Normal launch/landing at zero height produces no warning or finding. Minimum
+show height is neutral data relative to the show origin, not measured terrain
+clearance; even a negative height can be intentional for a lower landing area.
+The historical `min_ground_clearance_m` API field is retained for compatibility
+but has this show-relative meaning. No terrain/phase safety claim is inferred
+from it. A configurable minimum-navigation-altitude/motion check would require
+an explicit venue envelope, not arbitrary radius or percentage exclusions.
+See [Skybrush's safety-check semantics](https://docs.skybrush.io/public/skybrush-studio-for-blender/latest/panels/safety_and_export/safety_check.html).
+
+Separation violations (including exact overlaps), malformed/unaligned trajectory
+data, explicit unsafe status and unexplained analysis failures remain actionable.
+**View findings** opens aircraft pair, time, measured separation, analysis limit
+and a corrective action. After updating from the former ground-minimum logic,
+explicitly regenerate cached metrics with the normal processing workflow;
+do not add a UI suppression rule for old cached `CAUTION` values. Fleet summaries
 remain compact; the aircraft list is searchable and scrolls independently.
 
 Flight control keeps **Immediate RTL** visible at all times. **Managed Return**

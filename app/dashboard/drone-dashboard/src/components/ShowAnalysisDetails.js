@@ -9,6 +9,7 @@ export default function ShowAnalysisDetails({ validation = {}, metrics = {} }) {
       {' · '}{closest.distance_m} m at {closest.time_s} s from show start</p>}
     {findings.length ? <ul>{findings.map((finding, index) => <li key={index}>
       <strong>{finding.title}</strong><p>{finding.detail}</p>
+      {finding.threshold_m != null && <p>Analysis separation limit: {finding.threshold_m} m</p>}
     </li>)}</ul> : <p>{validation.validation_status === 'PASS' ? 'No trajectory findings.' : 'Analysis unavailable. Reprocess the show in Design / Setup.'}</p>}
     <a href="/drone-show?tab=setup">Review trajectories in Design / Setup</a>
   </div>;

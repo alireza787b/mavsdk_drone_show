@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Removed the spurious zero-height Drone Show warning: normal launch/landing
+  samples are neutral show-relative data, not a terrain hazard. Separation
+  violations now include exact overlaps between distinct aircraft; malformed
+  or unaligned trajectories remain actionable rather than silently passing.
+
 - Drone Show previews now use real light/dark plot variants in Operate, Setup
   and fullscreen through one reactive renderer. Removed image-inversion
   workarounds; gallery manifests separate variants from views and cache-bust

@@ -1130,9 +1130,11 @@ Get the current validation snapshot for the processed show package.
 
 `findings` adds operator-facing `severity`, `title`, `detail` and optional
 separation `evidence` (position IDs, distance in meters, time in seconds).
-Known ground-level launch/landing samples alone produce `WARNING`, not `FAIL`.
-Separation violations, negative clearance and unexplained unsafe results remain
-`FAIL`. UI, cached workspace validation and optional agent read tools share the
+Normal zero-level launch/landing samples produce no warning. The historical
+`min_ground_clearance_m` statistic is height relative to the show origin, not
+terrain clearance, and does not determine validation severity. Separation
+violations and unexplained unsafe results remain `FAIL`; unavailable analysis
+is `UNKNOWN`. UI, cached workspace validation and optional agent read tools share the
 same assessment function. This analysis is not a flight-safety certification.
 
 #### `POST /api/v1/shows/skybrush/deployments`

@@ -240,6 +240,17 @@ class DroneShowMetrics:
     def calculate_safety_metrics(self) -> Dict:
         """Calculate safety-related metrics"""
         try:
+            reference_times = None
+            for drone_id, frame in self.drone_data.items():
+                columns = ['t', 'px', 'py', 'pz']
+                if frame.empty or not set(columns).issubset(frame.columns):
+                    return {'safety_status': 'UNKNOWN', 'error': f'P{drone_id}: missing trajectory coordinates or timestamps; reprocess the show.'}
+                values = frame[columns].to_numpy(dtype=float)
+                if not np.isfinite(values).all() or (np.diff(values[:, 0]) <= 0).any():
+                    return {'safety_status': 'UNKNOWN', 'error': f'P{drone_id}: invalid coordinates or timestamps; reprocess the show.'}
+                if reference_times is not None and not np.array_equal(reference_times, values[:, 0]):
+                    return {'safety_status': 'UNKNOWN', 'error': f'P{drone_id}: trajectory times do not match the fleet; reprocess with a common time grid.'}
+                reference_times = values[:, 0]
             if len(self.drone_data) < 2:
                 if not self.drone_data:
                     return {'safety_status': 'UNKNOWN', 'error': 'No trajectory data'}
@@ -248,7 +259,9 @@ class DroneShowMetrics:
                 return {'min_inter_drone_distance_m': None, 'min_distance_details': None,
                         'collision_warnings_count': 0, 'collision_warnings': [],
                         'min_ground_clearance_m': round(clearance, 2),
-                        'safety_status': 'SAFE' if clearance > 1 else 'CAUTION'}
+                        # Height is relative to the show plane, not terrain AGL.
+                        # Zero/negative values alone do not establish a hazard.
+                        'safety_status': 'SAFE'}
                 
             min_distance = float('inf')
             collision_warnings = []
@@ -282,7 +295,9 @@ class DroneShowMetrics:
                     if min_dist_at_t < critical_distance_threshold:
                         # Find which drones are too close
                         dist_matrix = squareform(distances)
-                        close_pairs = np.where((dist_matrix < critical_distance_threshold) & (dist_matrix > 0))
+                        # Omit self-pairs, not zero distances: two different
+                        # aircraft at exactly the same position must be flagged.
+                        close_pairs = np.where(np.triu(dist_matrix < critical_distance_threshold, k=1))
                         
                         for i, j in zip(close_pairs[0], close_pairs[1]):
                             if i < j:  # Avoid duplicates
@@ -337,9 +352,10 @@ class DroneShowMetrics:
                 'min_inter_drone_distance_m': round(min_distance, 2) if min_distance != float('inf') else 'N/A',
                 'min_distance_details': min_distance_info,
                 'collision_warnings_count': len(collision_warnings),
+                'separation_threshold_m': critical_distance_threshold,
                 'collision_warnings': collision_warnings[:10],  # Limit to first 10
                 'min_ground_clearance_m': round(min_ground_clearance, 2),
-                'safety_status': 'SAFE' if len(collision_warnings) == 0 and min_ground_clearance > 1.0 else 'CAUTION'
+                'safety_status': 'SAFE' if len(collision_warnings) == 0 else 'CAUTION'
             }
         except Exception as e:
             self.logger.error(f"Error in safety metrics: {e}")
