@@ -124,9 +124,10 @@
       "distance_m": 4.24
     },
     "collision_warnings_count": 0,
+    "separation_threshold_m": 2.0,
     "collision_warnings": [],
     "min_ground_clearance_m": -0.0,
-    "safety_status": "CAUTION"
+    "safety_status": "SAFE"
   },
   "performance_metrics": {
     "max_velocity_ms": 4.53,
