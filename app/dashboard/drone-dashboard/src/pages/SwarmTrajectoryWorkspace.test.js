@@ -8,6 +8,8 @@ import { sendDroneCommand } from '../services/droneApiService';
 jest.mock('../hooks/useGcsResourcePolling');
 jest.mock('../services/droneApiService', () => ({ sendDroneCommand: jest.fn(), createCommandIdempotencyKey: () => 'request-123' }));
 jest.mock('./SwarmTrajectory', () => () => <div>Route editor</div>);
+jest.mock('../components/trajectory/TrajectoryRouteReview', () => (props) => <div data-testid="mission-map"
+  data-prefer-3d={String(props.prefer3D)} data-route-count={props.preview.drones.length} />);
 jest.mock('../components/SequentialReturnControl', () => () => <div>Managed Return</div>);
 let workspace, operation;
 function mount(path='/swarm-trajectory') {
@@ -29,6 +31,7 @@ beforeEach(() => {
 
 test('defaults to whole first cluster, requires review and binds reviewed hashes', async () => {
   mount();
+  expect(screen.getByTestId('mission-map')).toHaveAttribute('data-prefer-3d', 'true');
   expect(sendDroneCommand).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Start mission' }));
   const dialog = screen.getByRole('dialog');

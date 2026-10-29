@@ -156,3 +156,4 @@
   .swarm-trajectory .drones-grid { grid-template-columns: minmax(0,1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .swarm-trajectory * { transition-duration: 0s; animation-duration: 0s; } }
+@media (max-width: 380px) { .swarm-trajectory .swarm-workflow-tab svg { display: none; } }

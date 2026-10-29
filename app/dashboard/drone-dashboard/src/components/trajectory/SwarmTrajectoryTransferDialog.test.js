@@ -23,6 +23,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
 
   test('locks embedded assignment to the mission leader without a live Formation navigation escape', () => {
     render(<MemoryRouter><SwarmTrajectoryTransferDialog {...lockedDialogProps} successMessage="Assigned" /></MemoryRouter>);
+    expect(screen.getByRole('dialog').closest('.trajectory-dialog-host').parentElement).toBe(document.body);
     expect(screen.getByRole('button', { name: /Leader 1.*follower/i })).toBeDisabled();
     expect(screen.queryByText('Leader 99')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Swarm Design' })).not.toBeInTheDocument();

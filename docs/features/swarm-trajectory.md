@@ -31,8 +31,9 @@ Open **Plan → Formation**. Check aircraft, leader links, frame and offsets, th
 **Save mission layout**. **Copy Smart Swarm** only imports a draft; it does not
 change live Smart Swarm.
 
-On first use, this is already the current Smart Swarm layout as an unsaved draft.
-Save it unchanged for the clean default, or customize the mission's links, frames
+The bundled home-loop demo already has a saved mission layout and verified
+package. In an empty workspace, the current Smart Swarm layout is offered as an
+unsaved draft. Save it unchanged, or customize the mission's links, frames
 and offsets before saving. Later Smart Swarm edits do not change the saved mission
 layout. Copy Smart Swarm is an explicit refresh, not continuous live linking.
 
@@ -44,6 +45,14 @@ In **Route**, choose the leader. Add waypoints on the map, edit coordinates or
 drag points; Undo/Redo restores edits. Use preferred-speed timing for normal
 authoring, fixed arrival times only when required. MSL is entered directly;
 AGL requires verified backend terrain.
+
+The map initially frames the saved route, or the configured origin when no route
+exists. This is camera positioning only: it does not import, assign or change a
+draft. Once you move the map, background updates do not recenter it.
+
+**Entry delay** is the wait before route motion. Changing it recomputes
+preferred-speed arrivals; deliberately fixed arrivals remain constraints. The
+compact waypoint summary shows its delay or hold without expanding Details.
 
 Use the assignment control and confirm its leader. After acknowledgement the
 workspace opens **Generate**. Repeat for other leaders when needed.
@@ -99,6 +108,12 @@ Watch mission phase, aircraft mode, battery and route progress. Route time is th
 commanded execution clock, not a measured tracking-accuracy claim. Stale progress
 or missing telemetry requires investigation, not an assumption of completion.
 
+Operate's read-only map defaults to 3D when the configured Mapbox provider,
+WebGL and explicit MSL heights are available. It uses actual route heights over
+terrain, not a tilted ground trace. Provider/rendering failure falls back to the
+2D map; Map and Overview remain available. Fit reframes the visible routes;
+telemetry polling or legend changes do not steal the current view.
+
 ![Simulated active mission and per-aircraft route progress](../assets/swarm-trajectory/06-monitor.png)
 
 ### 7. End or return
@@ -121,6 +136,37 @@ intentionally removing a package.
 The old basic map/form editor has been removed. Existing route-editor bookmarks
 open the same mission Plan, and the browser library uses its existing storage keys.
 Scoped drafts do not use the former global autosave/pruning behavior.
+
+## Bundled Home Loop Demo
+
+REAL and SITL each include a complete saved formation, leader routes, processed
+paths, plots and a content-bound session manifest. The default package should
+review green without regenerating on a fresh checkout. It uses the configured
+aircraft/roles only; it does not change live Smart Swarm or the formation origin.
+
+The 160-second example holds for 30 seconds, flies a slow 10 m-radius closed loop,
+then holds for 30 seconds. Altitude is 20 m above the chosen origin's MSL altitude;
+it is not independently measured terrain clearance. Parallel leader clusters
+are spatially separated. Package readiness does not imply live aircraft readiness
+or flight acceptance; rehearse the precomputed mission in SITL before field use.
+
+To replace the demo around a reviewed origin on an **idle** checkout:
+
+```bash
+python tools/prepare_swarm_trajectory_demo.py --mode sitl --replace
+python tools/prepare_swarm_trajectory_demo.py --mode real --origin data/origin.sitl.default.json --replace
+```
+
+Without `--origin`, the helper reads the existing `data/origin.json`, falling back
+to the tracked stock origin. It never writes either origin. It backs up the
+entire replaced package under ignored `artifacts/trajectory-demo-backups/`, then
+uses normal processing/validation and checks sample clocks, finite motion,
+planned separation and reviewed file hashes. Failure restores the original.
+Commit the generated package **including** its `.trajectory_session.json` and
+`formation.json`; editing raw routes, outputs or formation still requires normal
+regeneration. Mission CSV/manifest files use enforced LF checkout endings so
+platform newline settings do not invalidate their content hashes. Do not install
+a stock-home example as a reviewed field mission.
 
 Terrain verification is explicit: absent or failed verification stays unverified
 through library and CSV roundtrips. Legacy files cannot gain terrain authority

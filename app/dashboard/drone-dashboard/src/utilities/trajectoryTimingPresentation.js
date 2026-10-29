@@ -1,14 +1,15 @@
 const toFiniteNumber = (value, fallback = 0) => {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return fallback;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
 export const formatTrajectoryDuration = (seconds = 0) => {
-  const normalizedSeconds = Math.max(0, toFiniteNumber(seconds, 0));
+  const normalizedSeconds = Math.round(Math.max(0, toFiniteNumber(seconds, 0)));
 
   if (normalizedSeconds >= 60) {
     const minutes = Math.floor(normalizedSeconds / 60);
-    const remainder = Math.round(normalizedSeconds % 60);
+    const remainder = normalizedSeconds % 60;
     return `${minutes}m ${remainder}s`;
   }
 
@@ -22,7 +23,7 @@ export const getTrajectoryRouteEntryDelaySeconds = (stats = {}) =>
   Math.max(0, toFiniteNumber(stats.routeEntryDelaySeconds, 0));
 
 export const getTrajectoryRouteMotionSeconds = (stats = {}) => {
-  if (Number.isFinite(Number(stats.routeMotionTime))) {
+  if (toFiniteNumber(stats.routeMotionTime, null) !== null) {
     return Math.max(0, Number(stats.routeMotionTime));
   }
 

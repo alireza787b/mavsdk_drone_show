@@ -9,7 +9,6 @@ import {
   MdClose,
   MdDelete,
   MdExpandMore,
-  MdLightbulb,
   MdList,
   MdLocationOn,
   MdWarningAmber,
@@ -31,8 +30,6 @@ import {
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
 import {
-  buildTrajectoryCompactWaypointSummary,
-  buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryDisplayedHeadingFieldDescription,
@@ -42,7 +39,6 @@ import {
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
-  getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryStoredAltitudeFieldDescription,
   getTrajectoryTerrainConfidenceDescription,
@@ -91,23 +87,11 @@ const WaypointPanel = ({
     const handleResize = () => {
       const newIsMobile = window.innerWidth <= 768;
       setIsMobile(newIsMobile);
-      
-      // Auto-collapse on mobile if there are many waypoints
-      if (newIsMobile && waypoints.length > 3) {
-        setIsCollapsed(true);
-      }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [waypoints.length]);
-
-  // Auto-collapse on mobile when waypoints increase
-  useEffect(() => {
-    if (isMobile && waypoints.length > 5) {
-      setIsCollapsed(true);
-    }
-  }, [waypoints.length, isMobile]);
 
   if (!waypoints || waypoints.length === 0) {
     return (
@@ -132,10 +116,10 @@ const WaypointPanel = ({
       targetAgl: Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl >= 0
         ? waypoint.targetAgl
         : (Number.isFinite(waypoint.groundElevation) ? Math.max(0, waypoint.altitude - waypoint.groundElevation) : 0),
-      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      timeFromStart: waypoint.timeFromStart ?? waypoint.time ?? 0,
       timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: waypoint.preferredSpeed || waypoint.estimatedSpeed || TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED,
-      heading: waypoint.heading || waypoint.yaw || 0,
+      heading: waypoint.heading ?? waypoint.yaw ?? 0,
       headingMode: waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO
     });
   };
@@ -270,7 +254,8 @@ const WaypointPanel = ({
             });
             return;
           }
-          if (nextWaypoint && time >= (nextWaypoint.timeFromStart || 0)) {
+          if (nextWaypoint && (nextWaypoint.timingMode || TIMING_MODES.MANUAL_TIME) !== TIMING_MODES.AUTO_SPEED
+              && time >= (nextWaypoint.timeFromStart ?? nextWaypoint.time ?? 0)) {
             setEditFeedback({
               tone: 'error',
               text: `Time must stay before waypoint ${waypointIndex + 2} at ${(nextWaypoint.timeFromStart || 0)}s.`,
@@ -411,8 +396,12 @@ const WaypointPanel = ({
       return;
     }
     if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
       handleEditSave();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
       handleEditCancel();
     }
   };
@@ -479,40 +468,12 @@ const WaypointPanel = ({
     return getNominalPreferredLegSpeed(TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED);
   };
 
-  const buildIntentTags = (waypoint, index) => {
+  const buildIntentTags = (waypoint) => {
     const tags = [];
-    tags.push({
-      tone: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
-      text: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input',
-      title: getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint)),
-    });
-
-    if (index > 0) {
+    if (getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL
+        && hasGroundReference(waypoint) && waypoint.terrainAccurate === false) {
       tags.push({
-        tone: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'info' : 'neutral',
-        text: getTrajectoryTimingModeLabel(getTimingMode(waypoint)),
-        title: getTrajectoryTimingModeDescription(getTimingMode(waypoint)),
-      });
-    } else {
-      tags.push({
-        tone: 'neutral',
-        text: getTrajectoryMissionAnchorLabel(index),
-        title: getTrajectoryMissionAnchorDescription(index),
-      });
-    }
-
-    tags.push({
-      tone: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
-      text: getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO),
-      title: getTrajectoryHeadingModeDescription(
-        waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
-        { isMissionAnchor: index === 0 }
-      ),
-    });
-
-    if (hasGroundReference(waypoint)) {
-      tags.push({
-        tone: waypoint.terrainAccurate === false ? 'warning' : 'success',
+        tone: 'warning',
         text: getTrajectoryTerrainConfidenceLabel({
           terrainResolved: true,
           terrainAccurate: waypoint.terrainAccurate !== false,
@@ -538,43 +499,15 @@ const WaypointPanel = ({
     });
   };
 
-  const buildCompactWaypointSummary = (waypoint, index) => {
-    return buildTrajectoryCompactWaypointSummary({
-      altitudeReference: getAltitudeReference(waypoint),
-      altitude: waypoint.altitude,
-      targetAgl: getTargetAgl(waypoint),
-      groundElevation: waypoint.groundElevation,
-      terrainAccurate: waypoint.terrainAccurate !== false,
-      isMissionAnchor: index === 0,
-      timingMode: getTimingMode(waypoint),
-      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
-      preferredSpeed: getPreferredSpeed(waypoint),
-      requiredSpeed: waypoint.estimatedSpeed || 0,
-      headingMode:
-        waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
-      heading: waypoint.heading || waypoint.yaw || 0,
-      calculatedHeading: waypoint.calculatedHeading || waypoint.heading || waypoint.yaw || 0,
-    });
-  };
-
-  const getWaypointAuthoringCards = (waypoint, index) =>
-    buildTrajectoryWaypointAuthoringCards({
-      altitudeReference: getAltitudeReference(waypoint),
-      altitude: waypoint.altitude,
-      targetAgl: getTargetAgl(waypoint),
-      groundElevation: waypoint.groundElevation,
-      isMissionAnchor: index === 0,
-      timingMode: getTimingMode(waypoint),
-      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
-      preferredSpeed: getPreferredSpeed(waypoint),
-      requiredSpeed: waypoint.estimatedSpeed || 0,
-      speedStatus: getSpeedStatus(waypoint.estimatedSpeed || 0),
-      headingMode:
-        waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
-      heading: waypoint.heading || waypoint.yaw || 0,
-      calculatedHeading: waypoint.calculatedHeading || waypoint.heading || waypoint.yaw || 0,
-      includeTerrain: false,
-    });
+  // One scan line, not repeated authoring instructions or derived terrain claims.
+  const buildCompactWaypointSummary = (waypoint, index) => [
+    `${index === 0 ? 'Wait ' : ''}${formatTime(waypoint.timeFromStart ?? waypoint.time ?? 0)}`,
+    `${Number(waypoint.altitude.toFixed(1))} m MSL`,
+    ...(index > 0 ? [`${formatSpeed(waypoint.estimatedSpeed)} m/s`] : []),
+    formatHeading(index > 0 && (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO
+      ? waypoint.calculatedHeading ?? waypoint.heading ?? waypoint.yaw ?? 0
+      : waypoint.heading ?? waypoint.yaw ?? 0),
+  ].join(' · ');
 
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
@@ -593,6 +526,7 @@ const WaypointPanel = ({
               onKeyDown={handleEditKeyPress}
               className="edit-input edit-input-small"
               placeholder="Latitude"
+              aria-label="Latitude"
               disabled={isApplyingEdit}
             />
             <input
@@ -603,6 +537,7 @@ const WaypointPanel = ({
               onKeyDown={handleEditKeyPress}
               className="edit-input edit-input-small"
               placeholder="Longitude"
+              aria-label="Longitude"
               disabled={isApplyingEdit}
             />
             <div className="edit-buttons">
@@ -697,6 +632,7 @@ const WaypointPanel = ({
                 }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input"
+                aria-label={field === 'time' ? (isMissionAnchor ? 'Route entry delay (s)' : 'Arrival time (s)') : field === 'altitude' ? 'Altitude MSL (m)' : field === 'preferredSpeed' ? 'Preferred speed (m/s)' : field === 'heading' ? 'Heading (degrees)' : 'Target clearance AGL (m)'}
                 disabled={isApplyingEdit}
                 placeholder={
                   field === 'altitude' ? 'Altitude MSL (m)' : 
@@ -717,13 +653,13 @@ const WaypointPanel = ({
     }
 
     return (
-      <span 
+      <button type="button"
         className="detail-value editable" 
-        onClick={() => handleEditStart(waypoint, field)}
+        onClick={(event) => { event.stopPropagation(); handleEditStart(waypoint, field); }}
         data-help={field === 'coordinates' ? 'Click to edit. Coordinate changes refresh terrain and clearance.' : 'Click to edit'}
       >
         {displayValue}
-      </span>
+      </button>
     );
   };
 
@@ -759,7 +695,7 @@ const WaypointPanel = ({
             </div>
           )}
           {waypoints.map((waypoint, index) => {
-            const authoringCards = getWaypointAuthoringCards(waypoint, index);
+            const intentTags = buildIntentTags(waypoint);
             const isFocusedWaypoint = selectedWaypointId === waypoint.id || editingWaypointId === waypoint.id;
 
             return (
@@ -823,8 +759,8 @@ const WaypointPanel = ({
               </div>
             </div>
 
-            <div className="waypoint-intent-tags">
-              {buildIntentTags(waypoint, index).map((tag) => (
+            {intentTags.length > 0 && <div className="waypoint-intent-tags">
+              {intentTags.map((tag) => (
                 <span
                   key={`${waypoint.id}-${tag.text}`}
                   className={`waypoint-intent-tag waypoint-intent-tag--${tag.tone}`}
@@ -833,15 +769,12 @@ const WaypointPanel = ({
                   {tag.text}
                 </span>
               ))}
-            </div>
+            </div>}
 
             {!isFocusedWaypoint ? (
               <div className="waypoint-compact-summary">
                 <span className="waypoint-compact-summary__primary">
                   {buildCompactWaypointSummary(waypoint, index)}
-                </span>
-                <span className="waypoint-compact-summary__hint">
-                  Select this waypoint to review or edit the full authoring details.
                 </span>
               </div>
             ) : (
@@ -962,14 +895,14 @@ const WaypointPanel = ({
                       'Waypoint arrival time is derived from the preferred leg speed in Speed-driven ETA mode. Switch Timing Mode to Time-driven speed if you want to type an arrival time directly.'
                     )}
                   >
-                    {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
+                    {formatTime(waypoint.timeFromStart ?? waypoint.time ?? 0)}
                   </span>
                 ) : (
                   renderEditableField(
                     waypoint,
                     'time',
-                    waypoint.timeFromStart || waypoint.time || 0,
-                    formatTime(waypoint.timeFromStart || waypoint.time || 0)
+                    waypoint.timeFromStart ?? waypoint.time ?? 0,
+                    formatTime(waypoint.timeFromStart ?? waypoint.time ?? 0)
                   )
                 )}
               </div>
@@ -990,18 +923,6 @@ const WaypointPanel = ({
                       formatTimingMode(waypoint)
                     )}
                   </div>
-                </div>
-              )}
-
-              {index === 0 && (
-                <div className="detail-row start-point">
-                  <span className="detail-label">Route Role:</span>
-                  <span
-                    className="detail-value start-indicator"
-                    data-help={getTrajectoryMissionAnchorDescription(index)}
-                  >
-                    {getTrajectoryMissionAnchorLabel(index)}
-                  </span>
                 </div>
               )}
 
@@ -1033,7 +954,7 @@ const WaypointPanel = ({
                 </div>
               )}
 
-              {index > 0 && getSpeedStatus(waypoint.estimatedSpeed || 0) !== 'feasible' ? (
+              {index > 0 && ['marginal', 'impossible'].includes(getSpeedStatus(waypoint.estimatedSpeed || 0)) ? (
                 <div className="detail-row timing-row">
                   <span className="detail-label">Leg Review:</span>
                   <span className={`detail-value speed-review speed-review--${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
@@ -1076,13 +997,13 @@ const WaypointPanel = ({
                         })
                       )}
                     >
-                      {formatHeading(waypoint.heading || waypoint.yaw || 0)}
+                      {formatHeading(waypoint.heading ?? waypoint.yaw ?? 0)}
                     </span>
                   ) : renderEditableField(
                     waypoint,
                     'heading',
-                    waypoint.heading || waypoint.yaw || 0,
-                    formatHeading(waypoint.heading || waypoint.yaw || 0)
+                    waypoint.heading ?? waypoint.yaw ?? 0,
+                    formatHeading(waypoint.heading ?? waypoint.yaw ?? 0)
                   )}
                   <span
                     className="heading-mode-indicator"
@@ -1105,26 +1026,6 @@ const WaypointPanel = ({
                 </div>
               </div>
 
-              {index === waypoints.length - 1 && waypoints.length > 1 && (
-                <div className="detail-row end-point">
-                  <span className="detail-label">Type:</span>
-                  <span className="detail-value end-indicator">End Point</span>
-                </div>
-              )}
-
-              <div className="waypoint-brief-grid" aria-label={`${waypoint.name} operator brief`}>
-                {authoringCards.map((card) => (
-                  <div
-                    key={`${waypoint.id}-${card.key}`}
-                    className={`waypoint-brief-card waypoint-brief-card--${card.tone}`}
-                    data-help={card.detail}
-                  >
-                    <span className="waypoint-brief-card__label">{card.label}</span>
-                    <strong className="waypoint-brief-card__value">{card.value}</strong>
-                    <span className="waypoint-brief-card__detail">{card.detail}</span>
-                  </div>
-                ))}
-              </div>
             </div>
             )}
             
@@ -1136,11 +1037,6 @@ const WaypointPanel = ({
               </div>
             )}
 
-            {editingWaypointId === waypoint.id && (
-              <div className="edit-help">
-                <small>Press Enter to save, Escape to cancel</small>
-              </div>
-            )}
           </div>
             );
           })}
@@ -1197,16 +1093,6 @@ const WaypointPanel = ({
       )}
 
       {/* Enhanced instructions - responsive */}
-      {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
-        <div className="edit-instructions">
-          <small>
-            <MdLightbulb aria-hidden="true" />
-            <span>{isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.</span>
-            {' '}Derived timing and speed checks stay locked so the panel always shows what the planner is calculating.
-            {!isMobile && ' Drag waypoints on map to reposition.'}
-          </small>
-        </div>
-      )}
     </div>
   );
 };

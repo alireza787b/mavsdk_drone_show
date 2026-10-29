@@ -17,6 +17,7 @@ import {
   getTrajectoryRouteMotionSeconds,
 } from '../../utilities/trajectoryTimingPresentation';
 import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
+import TrajectoryDialogPortal from './TrajectoryDialogPortal';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
 
@@ -91,6 +92,7 @@ const SwarmTrajectoryTransferDialog = ({
     : 'This cluster does not have a current processed package yet. Processing is still required after assignment.';
 
   return (
+    <TrajectoryDialogPortal>
     <div className="dialog-overlay" onClick={onClose}>
       <div
         className="dialog-content swarm-transfer-dialog"
@@ -335,6 +337,7 @@ const SwarmTrajectoryTransferDialog = ({
         </div>
       </div>
     </div>
+    </TrajectoryDialogPortal>
   );
 };
 

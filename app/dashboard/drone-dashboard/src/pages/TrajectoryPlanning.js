@@ -50,6 +50,8 @@ import {
 } from '../utilities/trajectoryTerrainContext';
 import { uploadLeaderTrajectoryCsv } from '../utilities/swarmTrajectoryAssignment';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
+import { getOriginResponse } from '../services/gcsApiService';
+import { routeGeographicBounds } from '../utilities/trajectoryRoutePreview';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -81,8 +83,9 @@ try {
 }
 
 // Leaflet click handler component for adding waypoints
-const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick }) => {
+const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick, onNavigate }) => {
   useMapEvents({
+    dragstart: onNavigate,
     click(e) {
       if (!isAddingWaypoint || isDragging) return;
       onMapClick({
@@ -90,6 +93,20 @@ const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick }) => {
       });
     },
   });
+  return null;
+};
+
+const LeafletInitialView = ({ request, mayApply }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (!request || !mayApply()) return;
+    if (request.bounds && typeof map.fitBounds === 'function') {
+      const b = request.bounds;
+      map.fitBounds([[b.minLat, b.minLng], [b.maxLat, b.maxLng]], { padding: [35, 35], maxZoom: 17, animate: false });
+    } else {
+      map.setView?.([request.latitude, request.longitude], 16, { animate: false });
+    }
+  }, [map, mayApply, request]);
   return null;
 };
 
@@ -134,13 +151,14 @@ const TrajectoryPlanning = ({
   embedded = false,
   scopedLeaderId = null,
   initialWaypoints = [],
+  initialMapPoints = [],
   onWaypointsChange,
   onAssigned,
 }) => {
   const navigate = useNavigate();
   const scoped = scopedLeaderId !== null && scopedLeaderId !== undefined && scopedLeaderId !== '';
-  const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
-  const mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN ||
+  const { provider, isMapboxAvailable: ctxMapboxAvailable, mapboxToken: contextMapboxToken } = useMapContext();
+  const mapboxToken = contextMapboxToken || process.env.REACT_APP_MAPBOX_ACCESS_TOKEN ||
                      process.env.REACT_APP_MAPBOX_TOKEN ||
                      process.env.REACT_APP_MAP_TOKEN;
   const hasMapboxToken = Boolean(mapboxToken);
@@ -168,6 +186,18 @@ const TrajectoryPlanning = ({
   const waypointsRef = useRef(initialWaypointsRef.current);
   const draftChangeCallbackRef = useRef(onWaypointsChange);
   draftChangeCallbackRef.current = onWaypointsChange;
+  const initialBoundsRef = useRef(undefined);
+  const referenceFitAppliedRef = useRef(false);
+  const mapboxReadyRef = useRef(false);
+  if (initialBoundsRef.current === undefined) {
+    initialBoundsRef.current = routeGeographicBounds([{ points: initialWaypointsRef.current }])
+      || routeGeographicBounds([{ points: initialMapPoints }]);
+    referenceFitAppliedRef.current = Boolean(initialBoundsRef.current);
+  }
+  const mapNavigatedRef = useRef(false);
+  const mayApplyInitialView = useCallback(() => !mapNavigatedRef.current, []);
+  const markMapNavigated = useCallback(() => { mapNavigatedRef.current = true; }, []);
+  const [initialMapView, setInitialMapView] = useState(() => initialBoundsRef.current ? { bounds: initialBoundsRef.current } : null);
   
   // Core state
   const [waypoints, setWaypoints] = useState(initialWaypointsRef.current);
@@ -208,17 +238,48 @@ const TrajectoryPlanning = ({
   const [pendingWaypointPosition, setPendingWaypointPosition] = useState(null);
 
   const [viewState, setViewState] = useState(() => {
-    const anchor = initialWaypointsRef.current.find((waypoint) => (
-      Number.isFinite(waypoint.latitude) && Number.isFinite(waypoint.longitude)
-    ));
+    const bounds = initialBoundsRef.current;
     return {
-      longitude: anchor?.longitude ?? 0,
-      latitude: anchor?.latitude ?? 0,
-      zoom: anchor ? 15 : 2,
+      longitude: bounds ? (bounds.minLng + bounds.maxLng) / 2 : 0,
+      latitude: bounds ? (bounds.minLat + bounds.maxLat) / 2 : 0,
+      zoom: bounds ? 15 : 2,
       pitch: 60,
       bearing: 0,
     };
   });
+
+  useEffect(() => {
+    if (initialBoundsRef.current) return undefined;
+    let active = true;
+    getOriginResponse().then(({ data: origin }) => {
+      const latitude = origin?.lat, longitude = origin?.lon;
+      if (!active || mapNavigatedRef.current || referenceFitAppliedRef.current || waypointsRef.current.length
+          || !Number.isFinite(latitude) || Math.abs(latitude) > 90
+          || !Number.isFinite(longitude) || Math.abs(longitude) > 180) return;
+      setViewState((current) => ({ ...current, latitude, longitude, zoom: 16 }));
+      setInitialMapView({ latitude, longitude });
+    }).catch(() => { /* Keep the neutral world overview when no configured origin is available. */ });
+    return () => { active = false; };
+  }, []);
+
+  // Camera reference only: a first late preview may replace an origin overview,
+  // but never a browser draft, an operator-panned view, or a previous route fit.
+  useEffect(() => {
+    if (referenceFitAppliedRef.current || mapNavigatedRef.current || waypointsRef.current.length) return;
+    const bounds = routeGeographicBounds([{ points: initialMapPoints }]);
+    if (!bounds) return;
+    referenceFitAppliedRef.current = true;
+    setInitialMapView({ bounds });
+    setViewState((current) => ({ ...current, latitude: (bounds.minLat + bounds.maxLat) / 2,
+      longitude: (bounds.minLng + bounds.maxLng) / 2, zoom: 15 }));
+  }, [initialMapPoints]);
+
+  const applyInitialMapboxView = useCallback(() => {
+    if (useLeaflet || !initialMapView || mapNavigatedRef.current || typeof mapRef.current?.fitBounds !== 'function') return;
+    const bounds = initialMapView.bounds;
+    if (bounds) mapRef.current.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { padding: 35, maxZoom: 17, duration: 0 });
+  }, [initialMapView, useLeaflet]);
+  useEffect(() => { if (mapboxReadyRef.current) applyInitialMapboxView(); }, [applyInitialMapboxView]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -545,7 +606,6 @@ const TrajectoryPlanning = ({
   const plannerWorkflowBriefBlock = (
     <details
       className="trajectory-workflow-brief trajectory-workflow-brief--compact trajectory-workflow-brief--docked"
-      open={waypoints.length === 0 || plannerMissionReadiness.blockers.length > 0}
     >
       <summary>
         <span>Route review & policy</span>
@@ -934,12 +994,13 @@ const TrajectoryPlanning = ({
   // Enhanced map interaction handlers
   const handleMapClick = useCallback((event) => {
     if (!isAddingWaypoint || isDragging) return;
+    markMapNavigated();
 
     const { lng, lat } = event.lngLat || { lng: event.longitude, lat: event.latitude };
     
     setPendingWaypointPosition({ latitude: lat, longitude: lng });
     setModalOpen(true);
-  }, [isAddingWaypoint, isDragging]);
+  }, [isAddingWaypoint, isDragging, markMapNavigated]);
 
   const handleModalConfirm = useCallback((waypointData) => {
     if (pendingWaypointPosition) {
@@ -988,6 +1049,7 @@ const TrajectoryPlanning = ({
 
   // Navigation functions
   const flyToWaypoint = useCallback((waypoint) => {
+    markMapNavigated();
     if (mapRef.current && useLeaflet && typeof mapRef.current.flyTo === 'function') {
       try {
         mapRef.current.flyTo([waypoint.latitude, waypoint.longitude], 15, { duration: 1.5 });
@@ -1013,10 +1075,11 @@ const TrajectoryPlanning = ({
         zoom: 15,
       }));
     }
-  }, [useLeaflet]);
+  }, [useLeaflet, markMapNavigated]);
 
   // Enhanced location select with elevation estimation
   const handleLocationSelect = useCallback((longitude, latitude) => {
+    markMapNavigated();
     if (mapRef.current && useLeaflet && typeof mapRef.current.flyTo === 'function') {
       try {
         mapRef.current.flyTo([latitude, longitude], 12, { duration: 1.8 });
@@ -1042,7 +1105,7 @@ const TrajectoryPlanning = ({
       }));
     }
 
-  }, [useLeaflet]);
+  }, [useLeaflet, markMapNavigated]);
 
   const handleSelectSegment = useCallback((segment) => {
     setSelectedWaypointId(segment.toWaypointId);
@@ -1463,7 +1526,7 @@ const TrajectoryPlanning = ({
 
             {plannerNoticeBanner}
 
-            <div className="map-container">
+            <div className="map-container" onPointerDownCapture={markMapNavigated} onWheelCapture={markMapNavigated} onKeyDownCapture={markMapNavigated}>
               {!embedded && <MapFallbackBanner />}
               <LeafletMapBase
                 center={[viewState.latitude ?? 0, viewState.longitude ?? 0]}
@@ -1475,10 +1538,12 @@ const TrajectoryPlanning = ({
                   mapRef={mapRef}
                   resizeKey={`${isCompactViewport}-${waypoints.length}-${selectedWaypointId}`}
                 />
+                <LeafletInitialView request={initialMapView} mayApply={mayApplyInitialView} />
                 <LeafletClickHandler
                   isAddingWaypoint={isAddingWaypoint}
                   isDragging={isDragging}
                   onMapClick={handleMapClick}
+                  onNavigate={markMapNavigated}
                 />
 
                 {/* Trajectory line */}
@@ -1597,11 +1662,12 @@ const TrajectoryPlanning = ({
 
           {plannerNoticeBanner}
 
-          <div className="map-container">
+          <div className="map-container" onPointerDownCapture={markMapNavigated} onWheelCapture={markMapNavigated} onKeyDownCapture={markMapNavigated}>
             <MapboxMap
               ref={mapRef}
               {...viewState}
-              onMove={evt => setViewState(evt.viewState)}
+              onLoad={() => { mapboxReadyRef.current = true; applyInitialMapboxView(); }}
+              onMove={evt => { if (evt.originalEvent) markMapNavigated(); setViewState(evt.viewState); }}
               onClick={handleMapClick}
               mapboxAccessToken={mapboxToken}
               className="trajectory-map-surface"

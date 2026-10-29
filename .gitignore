@@ -37,6 +37,9 @@ shapes_sitl/trajectory/
 artifacts/
 shapes/**/.trajectory_session.json
 shapes_sitl/**/.trajectory_session.json
+# The bundled Mission 4 demo must retain the content-bound validation manifest.
+!shapes/swarm_trajectory/.trajectory_session.json
+!shapes_sitl/swarm_trajectory/.trajectory_session.json
 # CRITICAL: DO NOT ignore processed directories - these contain mission-critical drone trajectory files
 # that must be version controlled for safety, traceability, and team collaboration
 # shapes/swarm/processed/

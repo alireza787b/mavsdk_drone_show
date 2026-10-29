@@ -17,6 +17,7 @@ describe('TrajectoryExportDialog', () => {
     );
 
     expect(screen.getByText('Export Leader Route')).toBeInTheDocument();
+    expect(screen.getByRole('dialog').closest('.trajectory-dialog-host').parentElement).toBe(document.body);
     expect(screen.getByText(/leader authoring CSV/i)).toBeInTheDocument();
     expect(screen.getByText(/not the processed multi-drone mission package/i)).toBeInTheDocument();
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import TrajectoryDialogPortal from './TrajectoryDialogPortal';
 
 const EXPORT_FORMATS = [
   {
@@ -31,9 +32,10 @@ const TrajectoryExportDialog = ({ isOpen, onClose, onExport, trajectoryName = ''
   };
 
   return (
+    <TrajectoryDialogPortal>
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog-content trajectory-export-dialog" onClick={(event) => event.stopPropagation()}>
-        <h3>Export Leader Route</h3>
+      <div className="dialog-content trajectory-export-dialog" role="dialog" aria-modal="true" aria-labelledby="trajectory-export-dialog-title" onClick={(event) => event.stopPropagation()}>
+        <h3 id="trajectory-export-dialog-title">Export Leader Route</h3>
         <p className="dialog-body-copy">
           Choose the output format for <strong>{trajectoryName || 'the current leader route'}</strong>.
         </p>
@@ -69,6 +71,7 @@ const TrajectoryExportDialog = ({ isOpen, onClose, onExport, trajectoryName = ''
         </div>
       </div>
     </div>
+    </TrajectoryDialogPortal>
   );
 };
 

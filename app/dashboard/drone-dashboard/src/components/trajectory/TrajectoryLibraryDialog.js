@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
+import TrajectoryDialogPortal from './TrajectoryDialogPortal';
 
 import { calculateTrajectoryStats } from '../../utilities/SpeedCalculator';
 import {
@@ -137,6 +138,7 @@ const TrajectoryLibraryDialog = ({
   const title = mode === 'save' ? 'Save Trajectory' : 'Load Trajectory';
 
   return (
+    <TrajectoryDialogPortal>
     <div className="dialog-overlay" onClick={onClose}>
       <div
         className="dialog-content trajectory-library-dialog"
@@ -240,6 +242,7 @@ const TrajectoryLibraryDialog = ({
         )}
       </div>
     </div>
+    </TrajectoryDialogPortal>
   );
 };
 

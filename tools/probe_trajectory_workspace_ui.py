@@ -139,7 +139,8 @@ def main():
                 client.evaluate("document.querySelector('[data-dialog-cancel]').click()")
                 client.evaluate("[...document.querySelectorAll('.trajectory-console__tabs button')].find(b=>b.textContent==='Plan').click()")
                 client.wait_for("Boolean(document.querySelector('.trajectory-planning--embedded .waypoint-panel'))", timeout_s=20)
-                assert client.evaluate("getComputedStyle(document.querySelector('.waypoint-intent-tags')).display === 'flex'"), 'Waypoint panel stylesheet is missing'
+                assert client.evaluate("getComputedStyle(document.querySelector('.waypoint-panel .waypoint-actions')).display === 'flex'"), 'Waypoint panel stylesheet is missing'
+                assert not client.evaluate("document.querySelector('.waypoint-compact-summary__hint, .waypoint-brief-grid')"), 'Repeated authoring guidance remains in waypoint cards'
                 assert client.evaluate("document.querySelector('.trajectory-header .header-left').getBoundingClientRect().bottom <= document.querySelector('.trajectory-brief').getBoundingClientRect().top + 2"), 'Search overlaps route metrics'
                 assert client.evaluate("[...document.querySelectorAll('.trajectory-toolbar button')].every(b=>{const r=b.getBoundingClientRect(), p=b.closest('.trajectory-toolbar').getBoundingClientRect(); return r.left >= p.left-2 && r.right <= p.right+2;})"), 'Route controls overlap the waypoint panel'
                 assert client.evaluate("document.querySelector('#trajectory-leader').value === '1'"), 'Wrong leader draft'

@@ -56,6 +56,41 @@ coordinates/altitude/time are rejected; explicit zero values are preserved.
 
 ## Verification
 
+### Home demo and editor follow-up
+
+- REAL/SITL demo packages now include a saved mission formation and checked
+  content manifest. The preparation helper preserves the replaced package,
+  uses the existing configured fleet and origin, and never dispatches commands
+  or changes live Smart Swarm. A fresh-checkout regression test prevents stale
+  bundled sessions or unrelated outputs from shipping as a ready example.
+- Plan frames the saved draft/route or canonical origin once; late preview data
+  may supply the initial view but cannot overwrite a draft or operator navigation.
+- Operate shares the geographic route renderer. Available Mapbox/WebGL uses
+  explicit MSL route heights; absent/failed rendering falls back to 2D. Shader
+  geometry/resource cleanup and provider failure have focused unit coverage;
+  headless browser evidence covers the 2D fallback, not GPU/flight acceptance.
+- Fixed timing-edit bugs: preferred-speed successor arrivals are not immutable
+  deadlines, zero remains zero, and rounded seconds carry into minutes.
+- One body-level dialog host prevents map instructions/controls from covering
+  Waypoint, Library, Export and Assign. Flat scoped fields remain readable in
+  both themes. Waypoint rows show numeric summaries and selected controls, not
+  repeated guide cards, normal-status tags or instructional paragraphs.
+- Follow-up remote checks: 211 frontend tests across 33 suites, including live
+  Smart Swarm Start and Managed Return regressions; nine demo tests on each
+  official/private checkout. Browser probes check field hit targets, timing,
+  responsive dialogs and real generated package data while aircraft stay offline.
+  Fourteen browser cases passed: eight 2/50-aircraft theme/viewport cases, two
+  editing hit-test cases, and four actual-package desktop/320-pixel cases.
+  API writes are blocked in these probes. Seven operator-guide captures were
+  refreshed; neither screenshots nor package readiness establish flight proof.
+  Logs: `/tmp/mds-home-final-ui-tests.log`,
+  `/tmp/mds-home-demo-public-fresh-tests.log`,
+  `/tmp/mds-home-demo-private-fresh-tests.log`.
+- Current source/UI follow-up is `trajectory-workspace-20261029-rc2`.
+  It is not Mission 4 flight clearance or an updated pinned SITL image.
+  The usual live Smart Swarm field workflow remains separate and unchanged;
+  node synchronization and native aircraft readiness must be checked online.
+
 ### All-tab operator-console follow-up
 
 - Flat scoped surfaces replace the legacy unscoped trajectory stylesheet across
@@ -118,9 +153,9 @@ together; older nodes cannot provide the new native admission evidence.
    The existing geometry/clock modules do not dispatch flight commands.
 4. Complete two-aircraft SITL acceptance, including partial acceptance, stale
    package, link loss, restart, concurrent edits, pause/resume and pilot takeover.
-5. Publish verified official/private code without private deployment details;
-   rebuild/package/checksum the runtime image and refresh release documentation.
-   Hardware verification remains separate.
+5. Rebuild/package/checksum the runtime image after obtaining build headroom.
+   Official/private source publication is separate from image and hardware
+   acceptance; do not treat a source tag as a refreshed download image.
 
 ## Storage and cleanup
 
@@ -153,3 +188,10 @@ isolated build and evidence are retained for the next acceptance phase.
   mission has attempted to acquire flight control.
 - Keep public source/checkpoints deployment-neutral; host names and private
   customer details belong in private operational context.
+- Map dialogs must escape transformed map/workspace stacking contexts through
+  the shared overlay host. Increasing a child z-index cannot fix an ancestor
+  stacking boundary; test real browser hit targets, not DOM presence alone.
+- Ship bundled mission formation/session manifests together and enforce LF
+  mission-file checkout endings, or a fresh installation can start stale/red.
+- Keep route camera references separate from draft import/assignment. Opening
+  a demo or receiving late preview data must not mutate the operator's route.

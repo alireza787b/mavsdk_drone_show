@@ -1,0 +1,45 @@
+{
+  "assignments": [
+    {
+      "hw_id": "1",
+      "follow": "0",
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "2",
+      "follow": "1",
+      "offset_x": 5.0,
+      "offset_y": 50.0,
+      "offset_z": 5.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "3",
+      "follow": "1",
+      "offset_x": 25.0,
+      "offset_y": 0.0,
+      "offset_z": 15.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "4",
+      "follow": "0",
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "5",
+      "follow": "4",
+      "offset_x": 15.0,
+      "offset_y": -5.0,
+      "offset_z": 0.0,
+      "frame": "ned"
+    }
+  ],
+  "revision": "b841455e845663492b73d159ccca905effbe97bd266d33111d4d78b82553c033"
+}

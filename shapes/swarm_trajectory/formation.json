@@ -1,0 +1,85 @@
+{
+  "assignments": [
+    {
+      "hw_id": "1",
+      "follow": "0",
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "2",
+      "follow": "0",
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "3",
+      "follow": "2",
+      "offset_x": -5.0,
+      "offset_y": -5.0,
+      "offset_z": 3.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "4",
+      "follow": "3",
+      "offset_x": -5.0,
+      "offset_y": 5.0,
+      "offset_z": 5.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "5",
+      "follow": "2",
+      "offset_x": 4.0,
+      "offset_y": 4.0,
+      "offset_z": -2.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "6",
+      "follow": "1",
+      "offset_x": -4.0,
+      "offset_y": 4.0,
+      "offset_z": -4.0,
+      "frame": "ned"
+    },
+    {
+      "hw_id": "7",
+      "follow": "3",
+      "offset_x": 5.0,
+      "offset_y": 5.0,
+      "offset_z": 0.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "8",
+      "follow": "3",
+      "offset_x": -5.0,
+      "offset_y": 5.0,
+      "offset_z": 1.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "9",
+      "follow": "3",
+      "offset_x": 5.0,
+      "offset_y": -8.0,
+      "offset_z": 2.0,
+      "frame": "body"
+    },
+    {
+      "hw_id": "10",
+      "follow": "8",
+      "offset_x": 1.0,
+      "offset_y": 3.0,
+      "offset_z": 6.0,
+      "frame": "ned"
+    }
+  ],
+  "revision": "7461b6bdfad4fa92227ccd0a5647746fa3702cde1d1b867674c2c11ae1f98aa8"
+}

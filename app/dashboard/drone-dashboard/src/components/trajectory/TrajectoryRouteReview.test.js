@@ -3,6 +3,13 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import TrajectoryRouteReview from './TrajectoryRouteReview';
 
 const mockMap = { fitBounds: jest.fn(), invalidateSize: jest.fn() };
+let mockMapContext;
+jest.mock('../../contexts/MapContext', () => ({ useMapContext: () => mockMapContext }));
+jest.mock('./TrajectoryMap3D', () => ({
+  __esModule: true,
+  default: ({ onUnavailable }) => <div data-testid="3d-map"><button onClick={onUnavailable}>Lose 3D provider</button></div>,
+  canRenderRoutes3D: () => true,
+}));
 jest.mock('../map/LeafletMapBase', () => ({ children }) => <div data-testid="geographic-map">{children}</div>);
 jest.mock('react-leaflet', () => ({
   useMap: () => mockMap,
@@ -18,7 +25,22 @@ const formation = [{ hw_id: 1, follow: 0 }, { hw_id: 2, follow: 1 }];
 const retainedPreview = { drones: Array.from({ length: 10 }, (_, index) => route(index + 1)) };
 
 describe('TrajectoryRouteReview', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockMapContext = { mapboxToken: '', isMapboxAvailable: false, provider: 'leaflet' };
+  });
+
+  it('Operate prefers available 3D, offers 2D, and falls back after provider failure', () => {
+    mockMapContext = { mapboxToken: 'token', isMapboxAvailable: true, provider: 'mapbox' };
+    render(<TrajectoryRouteReview preview={retainedPreview} formationAssignments={formation} prefer3D />);
+    expect(screen.getByTestId('3d-map')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Map', exact: true }));
+    expect(screen.getByTestId('geographic-map')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '3D' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lose 3D provider' }));
+    expect(screen.getByTestId('geographic-map')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3D' })).toBeDisabled();
+  });
 
   it('prioritizes the two assigned aircraft and keeps eight retained outputs collapsed and hidden', () => {
     render(<TrajectoryRouteReview preview={retainedPreview} formationAssignments={formation}

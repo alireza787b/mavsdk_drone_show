@@ -1,0 +1,31 @@
+{
+  "name": "Home loop demo",
+  "mode": "real",
+  "origin": {
+    "lat": 35.724435686078365,
+    "lon": 51.275581311948706,
+    "alt": 1278.0
+  },
+  "duration_s": 160,
+  "entry_hold_s": 30,
+  "exit_hold_s": 30,
+  "radius_m": 10,
+  "height_above_origin_m": 20,
+  "aircraft_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "max_speed_ms": 1.178,
+  "max_acceleration_mss": 0.694,
+  "minimum_separation_m": 3.0,
+  "planning_ready": true,
+  "flight_validated": false
+}

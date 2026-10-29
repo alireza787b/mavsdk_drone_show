@@ -12,6 +12,16 @@ describe('trajectoryTimingPresentation', () => {
   test('formats short and minute-scale durations consistently', () => {
     expect(formatTrajectoryDuration(12)).toBe('12s');
     expect(formatTrajectoryDuration(83)).toBe('1m 23s');
+    expect(formatTrajectoryDuration(59.6)).toBe('1m 0s');
+    expect(formatTrajectoryDuration(119.6)).toBe('2m 0s');
+    expect(formatTrajectoryDuration(0)).toBe('0s');
+  });
+
+  test('distinguishes explicit zero route motion from missing or blank values', () => {
+    expect(getTrajectoryRouteMotionSeconds({ totalTime: 90, routeEntryDelaySeconds: 10, routeMotionTime: 0 })).toBe(0);
+    for (const routeMotionTime of [null, undefined, '']) {
+      expect(getTrajectoryRouteMotionSeconds({ totalTime: 90, routeEntryDelaySeconds: 10, routeMotionTime })).toBe(80);
+    }
   });
 
   test('derives mission clock, route entry, and route motion from trajectory stats', () => {

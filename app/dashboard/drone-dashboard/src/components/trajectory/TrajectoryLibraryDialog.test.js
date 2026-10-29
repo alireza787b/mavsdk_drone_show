@@ -24,6 +24,7 @@ describe('TrajectoryLibraryDialog', () => {
       />
     );
 
+    expect(screen.getByRole('dialog').closest('.trajectory-dialog-host').parentElement).toBe(document.body);
     expect(screen.getByText('Mission clock')).toBeInTheDocument();
     expect(screen.getByText('Route motion')).toBeInTheDocument();
     expect(screen.getByText('1.25 km')).toBeInTheDocument();

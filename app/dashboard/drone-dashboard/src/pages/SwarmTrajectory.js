@@ -125,6 +125,10 @@ const SwarmTrajectory = ({ embedded = false, fleet = [], formationAssignments = 
   const [processJob, setProcessJob] = useState(null);
   const [processDialogOpen, setProcessDialogOpen] = useState(false);
   const [selectedLeaderId, setSelectedLeaderId] = useState('');
+  const initialMapPoints = useMemo(() => (preview?.drones || [])
+    .find((drone) => String(drone.drone_id) === String(selectedLeaderId))?.points
+    ?.map((point) => ({ latitude: point.lat, longitude: point.lng, altitude: point.alt_msl })) || [],
+  [preview, selectedLeaderId]);
   const { waypoints: draftWaypoints, update: setDraftWaypoints, persist: persistDrafts, key: draftKey } =
     useLeaderRouteDraft(simulationMode === null ? null : simulationMode ? 'sitl' : 'real', selectedLeaderId);
   const [activePanel, setActivePanel] = useState('route');
@@ -967,6 +971,7 @@ const SwarmTrajectory = ({ embedded = false, fleet = [], formationAssignments = 
               embedded
               scopedLeaderId={selectedLeaderId}
               initialWaypoints={draftWaypoints}
+              initialMapPoints={initialMapPoints}
               onWaypointsChange={setDraftWaypoints}
               onAssigned={async (leaderId) => {
                 await refreshOperationalState();

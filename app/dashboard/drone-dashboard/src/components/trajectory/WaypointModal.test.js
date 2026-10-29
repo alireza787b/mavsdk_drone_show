@@ -20,6 +20,15 @@ describe('WaypointModal', () => {
     }));
   });
 
+  it('portals the editor above map stacking contexts and restores background scrolling on close', () => {
+    const previousOverflow = document.body.style.overflow;
+    const { unmount } = render(<div style={{ transform: 'translateX(0)', zIndex: 1 }}><WaypointModal isOpen onClose={jest.fn()} onConfirm={jest.fn()} position={{ latitude: 0, longitude: 0 }} /></div>);
+    expect(screen.getByRole('dialog').closest('.trajectory-dialog-host').parentElement).toBe(document.body);
+    expect(document.body.style.overflow).toBe('hidden');
+    unmount();
+    expect(document.body.style.overflow).toBe(previousOverflow);
+  });
+
   it('shows inline validation instead of submitting an underground altitude', async () => {
     const onConfirm = jest.fn();
 
@@ -176,9 +185,7 @@ describe('WaypointModal', () => {
     expect(
       screen.getByText(/operator sets preferred inbound-leg speed 4\.0 m\/s\./i)
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/arrival stays derived in this mode\. switch to time-driven speed to pin the mission clock yourself\./i)
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Timing summary')).toHaveTextContent('Leg duration:');
     expect(
       screen.getByText(
         new RegExp(
@@ -225,9 +232,7 @@ describe('WaypointModal', () => {
 
     const timeInput = screen.getByLabelText(/waypoint arrival time/i);
     expect(timeInput).not.toBeDisabled();
-    expect(
-      screen.getByText(/required inbound-leg speed updates live from the arrival time you pin here\./i)
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Timing summary')).toHaveTextContent('Leg duration:');
 
     fireEvent.change(timeInput, { target: { value: '44' } });
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
@@ -355,14 +360,25 @@ describe('WaypointModal', () => {
       expect(screen.getByText(/mission start anchor/i)).toBeInTheDocument();
     });
 
-    expect(
-      screen.getAllByText(/this first waypoint anchors the route-entry delay after mission start/i).length
-    ).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Timing summary')).toHaveTextContent('Route entry at +10.0s');
     expect(screen.queryByRole('radio', { name: /auto \(arrival leg\)/i })).not.toBeInTheDocument();
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: /entry heading/i })).not.toBeDisabled();
     expect(screen.getByLabelText(/route entry delay/i)).toHaveValue(10);
-    expect(screen.getByText(/default route-entry delay starts at 10s/i)).toBeInTheDocument();
-    expect(screen.getByText(/first waypoint: set the initial route-entry heading explicitly/i)).toBeInTheDocument();
+    expect(screen.getByText('Details').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('lets operators clear numeric fields without substituting zero or clamping while typing', async () => {
+    const onConfirm = jest.fn();
+    render(<WaypointModal isOpen onClose={jest.fn()} onConfirm={onConfirm} position={{ latitude: 0, longitude: 0 }} previousWaypoint={{ latitude: 0, longitude: .001, altitude: 350, timeFromStart: 10 }} waypointIndex={2} />);
+    const speed = screen.getByLabelText(/preferred leg speed/i);
+    fireEvent.change(speed, { target: { value: '' } });
+    expect(speed).toHaveValue(null);
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+    expect(await screen.findByText(/Enter speed between/i)).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.change(speed, { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ preferredSpeed: 4 }));
   });
 });

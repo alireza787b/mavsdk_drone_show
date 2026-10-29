@@ -5,6 +5,8 @@ import LeafletMapBase from '../map/LeafletMapBase';
 import RouteSketch from './RouteSketch';
 import ThemeContext from '../../contexts/ThemeContext';
 import { getDronePaletteColors } from '../../utilities/plotThemeColors';
+import { useMapContext } from '../../contexts/MapContext';
+import TrajectoryMap3D, { canRenderRoutes3D } from './TrajectoryMap3D';
 import {
   normalizeTrajectoryPreviewRoutes, routeGeographicBounds, trajectoryPreviewGeometryKey,
 } from '../../utilities/trajectoryRoutePreview';
@@ -34,8 +36,9 @@ const RouteMapViewport = ({ bounds, packageKey, fitRequest }) => {
 };
 
 export default function TrajectoryRouteReview({
-  preview = {}, formationAssignments = EMPTY, fleet = EMPTY, packageIdentity = null,
+  preview = {}, formationAssignments = EMPTY, fleet = EMPTY, packageIdentity = null, prefer3D = false,
 }) {
+  const { mapboxToken, isMapboxAvailable, provider } = useMapContext();
   const theme = useContext(ThemeContext)?.theme;
   const [palette, setPalette] = useState(getDronePaletteColors);
   useEffect(() => {
@@ -54,10 +57,18 @@ export default function TrajectoryRouteReview({
   const defaultHidden = useMemo(() => new Set(routes.filter((route) => route.outsideMission).map((route) => route.id)), [routes]);
   const [visibility, setVisibility] = useState({ packageKey, hidden: defaultHidden });
   const [query, setQuery] = useState('');
-  const [view, setView] = useState('map');
+  const [view, setView] = useState('auto');
+  const [failed3D, setFailed3D] = useState(false);
   const [fitRequest, setFitRequest] = useState(0);
   const hidden = visibility.packageKey === packageKey ? visibility.hidden : defaultHidden;
   const visible = routes.filter((route) => !hidden.has(route.id));
+  const visibleKey = visible.map((route) => route.id).join(',');
+  const supports3D = useMemo(() => !failed3D && isMapboxAvailable && canRenderRoutes3D(visible, mapboxToken),
+    // Labels and telemetry polls do not require another WebGL capability probe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [failed3D, isMapboxAvailable, geometryKey, visibleKey, mapboxToken]);
+  const activeView = view === 'auto' ? (prefer3D && supports3D && provider !== 'leaflet' ? '3d' : 'map')
+    : view === '3d' && !supports3D ? 'map' : view;
   const bounds = routeGeographicBounds(visible, coordinateFrame);
   const known = routes.filter((route) => !route.outsideMission);
   const outside = routes.filter((route) => route.outsideMission);
@@ -81,8 +92,11 @@ export default function TrajectoryRouteReview({
   return <section className="trajectory-route-review" aria-label="Processed route review">
     <div className="trajectory-route-review__toolbar">
       <div className="trajectory-route-review__views" role="group" aria-label="Route view">
-        <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Map</button>
-        <button type="button" aria-pressed={view === 'overview'} onClick={() => setView('overview')}>Overview</button>
+        <button type="button" aria-pressed={activeView === 'map'} onClick={() => setView('map')}>Map</button>
+        {prefer3D && <button type="button" aria-pressed={activeView === '3d'} disabled={!supports3D}
+          title={supports3D ? '3D map with MSL route heights' : '3D needs available Mapbox, WebGL and route altitude'}
+          onClick={() => setView('3d')}>3D</button>}
+        <button type="button" aria-pressed={activeView === 'overview'} onClick={() => setView('overview')}>Overview</button>
       </div>
       <button type="button" onClick={() => setFitRequest((value) => value + 1)} disabled={!visible.length} aria-label="Fit visible routes">
         <MdCenterFocusStrong aria-hidden="true" /> Fit
@@ -94,7 +108,10 @@ export default function TrajectoryRouteReview({
         {!visible.length ? <div className="trajectory-route-review__empty" role="status">
           <strong>{known.length ? 'All routes hidden' : 'No routes assigned to this mission'}</strong>
           <span>{known.length ? 'Select an aircraft to show its path.' : outside.length ? 'Review Formation or inspect retained paths in Outside mission.' : 'Process the mission to see geographic paths.'}</span>
-        </div> : view === 'overview' ? <RouteSketch series={visible} bounds={bounds} /> : <LeafletMapBase
+        </div> : activeView === 'overview' ? <RouteSketch series={visible} bounds={bounds} />
+          : activeView === '3d' ? <TrajectoryMap3D routes={visible} bounds={bounds} packageKey={packageKey}
+            fitRequest={fitRequest} token={mapboxToken} onUnavailable={() => { setFailed3D(true); setView('map'); }} />
+            : <LeafletMapBase
           center={[(bounds.minLat + bounds.maxLat) / 2, (bounds.minLng + bounds.maxLng) / 2]}
           zoom={12} showLayerControl={false} maxBounds={null} worldCopyJump={false}
           className="trajectory-route-review__map" style={{ width: '100%', height: '100%' }}>

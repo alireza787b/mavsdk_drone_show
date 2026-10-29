@@ -9,6 +9,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm Trajectory route entry delays reflow preferred-speed legs instead of
+  treating calculated arrivals as fixed deadlines. Explicit zero values, minute
+  rounding, editable controls and dark/mobile fields are corrected. Editor
+  dialogs use one overlay host so map layers cannot intercept their controls.
+  Waypoint rows keep one compact numeric summary and selected-point controls,
+  without repeated guide cards, normal-status tags or instructional paragraphs.
+
+- Swarm Trajectory includes a slow home-loop demo with complete REAL/SITL
+  packages and tracked content-validation manifests. A reusable preparation tool
+  preserves the configured formation/origin, backs up replaced assets and checks
+  generated motion/separation. Operate now uses a read-only geographic map with
+  MSL-aware 3D when available and automatic 2D fallback.
+
 - Swarm Trajectory uses one flat, theme-aware operator console across Operate,
   Formation, Route, Uploads, Generate, Review and confirmations. Review adds a
   geographic map, working aircraft visibility/search and thin stable-color

@@ -22,7 +22,7 @@
 .trajectory-console__status { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; padding: 16px 0; color: var(--color-text-secondary); font-size: .85rem; }
 .trajectory-console__status strong { color: var(--color-text-primary); }
 .trajectory-console__status button { border: 0; background: none; color: var(--color-primary); cursor: pointer; }
-.trajectory-console__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; }
+.trajectory-console__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 24px; }
 .trajectory-console h2 { font-size: .9rem; font-weight: 600; margin-block: 12px; }
 .trajectory-console__preview { min-width: 0; }
 .trajectory-console__preview .swarm-route-sketch { width: 100%; height: clamp(260px, 45vh, 600px); border-radius: 0; }

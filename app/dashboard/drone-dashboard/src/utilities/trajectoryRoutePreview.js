@@ -102,7 +102,10 @@ export function trajectoryPreviewGeometryKey(routes = []) {
   routes.forEach((route) => {
     feed(route.id); feed(route.outsideMission);
     route.segments.forEach((segment) => {
-      feed('|'); segment.forEach((point) => { feed(point.latitude); feed(','); feed(point.longitude); feed(';'); });
+      feed('|'); segment.forEach((point) => {
+        feed(point.latitude); feed(','); feed(point.longitude); feed(',');
+        feed(point.alt_msl ?? point.altitude ?? point.alt); feed(';');
+      });
     });
   });
   return String(hash);

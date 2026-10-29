@@ -163,13 +163,8 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('120.0m')).toBeInTheDocument();
     expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Speed-driven ETA').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Auto heading').length).toBeGreaterThan(0);
     expect(screen.getByText('Estimated terrain')).toBeInTheDocument();
-    const operatorBrief = screen.getByLabelText(/waypoint 2 operator brief/i);
-    expect(operatorBrief).toBeInTheDocument();
-    expect(within(operatorBrief).getByText('Altitude Logic')).toBeInTheDocument();
-    expect(within(operatorBrief).getByText('Timing Logic')).toBeInTheDocument();
-    expect(within(operatorBrief).getByText('Heading Logic')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/operator brief/i)).not.toBeInTheDocument();
   });
 
   it('keeps stored altitude read-only for AGL-authored waypoints and explains how to change it', () => {
@@ -255,7 +250,6 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Verified terrain • 0.0m MSL')).toBeInTheDocument();
     expect(screen.getByText('Clearance AGL:')).toBeInTheDocument();
     expect(screen.getAllByText('120.0m').length).toBeGreaterThan(0);
-    expect(screen.getByText('Verified terrain')).toBeInTheDocument();
   });
 
   it('can switch a terrain-backed waypoint from MSL input to Target AGL', () => {
@@ -320,11 +314,10 @@ describe('WaypointPanel', () => {
     }));
   });
 
-  it('marks the first waypoint as the mission start anchor', () => {
+  it('shows entry controls without repeating the mission-anchor explanation', () => {
     renderPanel();
 
-    expect(screen.getByText('Route Role:')).toBeInTheDocument();
-    expect(screen.getAllByText('Mission start anchor').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Route Role:')).not.toBeInTheDocument();
     expect(screen.getByText('Route entry delay:')).toBeInTheDocument();
     expect(screen.getByText('Entry heading:')).toBeInTheDocument();
     expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
@@ -357,9 +350,36 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Route motion:')).toBeInTheDocument();
     const routeMotionRow = screen.getByText('Route motion:').closest('.summary-item');
     expect(within(routeMotionRow).getByText('30.0s')).toBeInTheDocument();
-    expect(
-      screen.getByText(/derived timing and speed checks stay locked so the panel always shows what the planner is calculating/i)
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/derived timing and speed checks stay locked/i)).not.toBeInTheDocument();
+  });
+
+  it('lets entry delay move past a speed-driven arrival so the route calculator can reflow it', () => {
+    const { props } = renderPanel({ waypoints: [
+      { ...baseWaypoint, timeFromStart: 10 },
+      { ...baseWaypoint, id: 'wp-2', name: 'Waypoint 2', timeFromStart: 30, timingMode: TIMING_MODES.AUTO_SPEED, preferredSpeed: 8 },
+    ] });
+    fireEvent.click(screen.getByRole('button', { name: '10.0s' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Route entry delay (s)' }), { target: { value: '90' } });
+    fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'Route entry delay (s)' }), { key: 'Enter' });
+    expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-1', expect.objectContaining({ timeFromStart: 90, time: 90 }));
+  });
+
+  it('preserves a later pinned manual arrival deadline', () => {
+    const { props } = renderPanel({ waypoints: [
+      { ...baseWaypoint, timeFromStart: 10 },
+      { ...baseWaypoint, id: 'wp-2', name: 'Waypoint 2', timeFromStart: 30, timingMode: TIMING_MODES.MANUAL_TIME },
+    ] });
+    fireEvent.click(screen.getByRole('button', { name: '10.0s' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Route entry delay (s)' }), { target: { value: '90' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save edit' }));
+    expect(screen.getByText(/Time must stay before waypoint 2 at 30s/)).toBeInTheDocument();
+    expect(props.onUpdateWaypoint).not.toHaveBeenCalled();
+  });
+
+  it('keeps explicit zero delay instead of a stale legacy time alias', () => {
+    renderPanel({ waypoints: [{ ...baseWaypoint, timeFromStart: 0, time: 25 }] });
+    fireEvent.click(screen.getByRole('button', { name: '0.0s' }));
+    expect(screen.getByRole('spinbutton', { name: 'Route entry delay (s)' })).toHaveValue(0);
   });
 
   it('shows terrain-refresh feedback while saving coordinate edits', async () => {
@@ -427,8 +447,18 @@ describe('WaypointPanel', () => {
       selectedWaypointId: baseWaypoint.id,
     });
 
-    expect(screen.getByText(/select this waypoint to review or edit the full authoring details/i)).toBeInTheDocument();
+    expect(screen.queryByText(/select this waypoint to review or edit the full authoring details/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/waypoint 2 operator brief/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/8\.0 m\/s → 24s • Leg 8\.0 m\/s • 120\.0m MSL → 0\.0m AGL • Auto 000°/i)).toBeInTheDocument();
+    expect(screen.getByText('24.0s · 120 m MSL · 8.0 m/s · 000°')).toBeInTheDocument();
+    expect(document.querySelector('.waypoint-compact-summary').textContent).not.toMatch(/AGL|Leg|Auto|Select/);
+  });
+
+  it('keeps a deliberate zero manual heading distinct from a derived bearing', () => {
+    renderPanel({ waypoints: [baseWaypoint, {
+      ...baseWaypoint, id: 'wp-2', name: 'Waypoint 2', timeFromStart: 24,
+      headingMode: YAW_CONSTANTS.MANUAL, heading: 0, yaw: 90, calculatedHeading: 135,
+    }] });
+    expect(document.querySelector('.waypoint-compact-summary').textContent).toContain('000°');
+    expect(document.querySelector('.waypoint-compact-summary').textContent).not.toMatch(/090°|135°/);
   });
 });

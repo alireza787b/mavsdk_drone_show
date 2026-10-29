@@ -1,0 +1,13 @@
+{
+  "session_id": "c2b552bfe250492aa3e7260a0aeb6159",
+  "timestamp": "2026-10-29T11:03:59.732244",
+  "swarm_fingerprint": "5559e9607ac5e1c17fe24353a84695e5",
+  "processed_leaders": [
+    1,
+    4
+  ],
+  "total_drones": 5,
+  "parameters_hash": "5d3283303a32264a0740e7a155940824",
+  "raw_inputs_hash": "55a81490f255107b894e1a6846120bf9592723aacf287e905743f3309dd4b40b",
+  "processed_outputs_hash": "aad0c01cb849a5054ae5df07cda1653b0a313205067e2da8a208465dbc9a302e"
+}

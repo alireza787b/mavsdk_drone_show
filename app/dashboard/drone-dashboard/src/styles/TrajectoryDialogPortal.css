@@ -1,0 +1,28 @@
+/* The same root owns all trajectory dialogs, including outside the workspace. */
+.trajectory-dialog-host { position:fixed; inset:0; z-index:var(--z-navigation,1110); isolation:isolate; pointer-events:none; color:var(--color-text-primary); }
+.trajectory-dialog-host > * { pointer-events:auto; }
+.trajectory-dialog-host .dialog-overlay { inset:0 !important; width:auto !important; height:auto !important; z-index:auto !important; box-sizing:border-box; padding:12px; background:var(--color-overlay) !important; backdrop-filter:none; overflow:auto; }
+.trajectory-dialog-host .dialog-content { box-sizing:border-box; position:relative !important; z-index:auto !important; width:min(720px,100%) !important; max-width:100% !important; min-height:0 !important; max-height:calc(100dvh - 24px); overflow-y:auto !important; padding:1rem !important; background:var(--color-bg-primary) !important; color:var(--color-text-primary); border:1px solid var(--color-border-secondary) !important; border-radius:0 !important; box-shadow:0 12px 40px var(--color-overlay) !important; animation:none; }
+.trajectory-dialog-host .dialog-content h3 { margin:0 0 .75rem !important; text-align:left !important; font-size:1rem !important; color:var(--color-text-primary) !important; }
+.trajectory-dialog-host .dialog-content :is(button,input,select) { box-sizing:border-box; border-radius:0 !important; font:inherit; }
+.trajectory-dialog-host .dialog-content :is(input[type=text],input[type=number],select) { width:100% !important; min-width:0; min-height:38px; padding:.45rem .55rem !important; border:1px solid var(--color-border-secondary) !important; background:var(--color-bg-secondary) !important; color:var(--color-text-primary) !important; font-size:.85rem !important; box-shadow:none !important; }
+.trajectory-dialog-host .dialog-content input[type=radio] { appearance:auto; display:inline-block; width:16px; height:16px; min-width:16px; min-height:16px; max-width:16px; max-height:16px; flex:0 0 16px; margin:0; padding:0; accent-color:var(--color-primary); }
+.trajectory-dialog-host .dialog-content button { min-height:36px; padding:.4rem .65rem; border:1px solid var(--color-border-secondary); color:var(--color-text-primary); background:var(--color-bg-secondary); cursor:pointer; }
+.trajectory-dialog-host .dialog-content button:disabled { opacity:.45 !important; cursor:default !important; }
+.trajectory-dialog-host .dialog-content button:hover { border-color:var(--color-primary); }
+.trajectory-dialog-host .dialog-content a { color:var(--color-primary); }
+.trajectory-dialog-host .dialog-content .dialog-buttons { display:flex !important; flex-wrap:wrap; gap:.5rem !important; margin-top:1rem !important; padding-top:.75rem; border-top:1px solid var(--color-border-primary); }
+.trajectory-dialog-host .dialog-content .dialog-buttons button { padding:.45rem .75rem !important; border:1px solid var(--color-border-secondary) !important; color:var(--color-text-primary) !important; background:var(--color-bg-secondary) !important; transform:none !important; box-shadow:none !important; }
+.trajectory-dialog-host .dialog-content .dialog-buttons button:last-child:not(:first-child) { color:var(--color-primary-text) !important; background:var(--color-primary) !important; border-color:var(--color-primary) !important; }
+.trajectory-dialog-host .dialog-content :is(.trajectory-library-dialog__summary,.swarm-transfer-summary__item,.swarm-transfer-posture,.swarm-transfer-selected-cluster,.swarm-transfer-alert,.swarm-transfer-cluster-card,.swarm-transfer-workflow__stage,.trajectory-export-option,.trajectory-library-dialog__badge) { border-radius:0; box-shadow:none; }
+.trajectory-dialog-host .dialog-content .trajectory-library-dialog__summary { padding:.65rem 0; border:0; border-block:1px solid var(--color-border-primary); background:transparent; }
+.trajectory-dialog-host .dialog-content .trajectory-list { background:var(--color-bg-secondary) !important; border-radius:0 !important; }
+.trajectory-dialog-host .dialog-content .trajectory-export-option { display:flex; align-items:flex-start; gap:.6rem; padding:.7rem; background:var(--color-bg-secondary); }
+.trajectory-dialog-host .dialog-content .swarm-transfer-alert--error { color:var(--color-danger-text); }
+.trajectory-dialog-host .dialog-content .swarm-transfer-alert--info { color:var(--color-info-text); }
+.trajectory-dialog-host .dialog-content .swarm-transfer-alert--success { color:var(--color-success-text); }
+.trajectory-dialog-host :is(button,input,select,summary,a):focus-visible { outline:2px solid var(--color-primary) !important; outline-offset:2px; }
+@media(max-width:640px) {
+  .trajectory-dialog-host .dialog-content { padding:.75rem !important; }
+  .trajectory-dialog-host .dialog-content .dialog-buttons button { flex:1; min-width:0 !important; }
+}

@@ -1,0 +1,5 @@
+# Mission file hashes must survive platform checkout/line-ending preferences.
+shapes/swarm_trajectory/**/*.csv text eol=lf
+shapes/swarm_trajectory/*.json text eol=lf
+shapes_sitl/swarm_trajectory/**/*.csv text eol=lf
+shapes_sitl/swarm_trajectory/*.json text eol=lf

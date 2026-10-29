@@ -11,6 +11,7 @@ import {
 } from '../services/droneApiService';
 import { suggestOptimalTime } from '../utilities/SpeedCalculator';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
+import { getOriginResponse } from '../services/gcsApiService';
 import {
   resetTrajectoryMissionPolicy,
   TRAJECTORY_SPEED_POLICY,
@@ -26,7 +27,7 @@ jest.mock('react-map-gl', () => {
     { lng: 51.2733, lat: 35.7274 },
     { lng: 51.2745, lat: 35.7286 },
   ];
-  const MockMap = React.forwardRef(({ children, onClick, latitude, longitude, zoom }, ref) => (
+  const MockMap = React.forwardRef(({ children, onClick, onMove, latitude, longitude, zoom }, ref) => (
     <div ref={ref} data-testid="map-viewport" data-latitude={latitude} data-longitude={longitude} data-zoom={zoom}>
       <button
         type="button"
@@ -40,6 +41,7 @@ jest.mock('react-map-gl', () => {
         Mock Map
       </button>
       {children}
+      <button type="button" onClick={() => onMove?.({ originalEvent: {}, viewState: { latitude: 40, longitude: 30, zoom: 12, pitch: 0, bearing: 0 } })}>Pan map</button>
     </div>
   ));
 
@@ -58,6 +60,7 @@ jest.mock('react-map-gl', () => {
 jest.mock('../contexts/MapContext', () => ({
   useMapContext: () => ({ provider: 'mapbox', isMapboxAvailable: true }),
 }));
+jest.mock('../services/gcsApiService', () => ({ getOriginResponse: jest.fn().mockResolvedValue({ data: { lat: null, lon: null } }) }));
 
 jest.mock('../components/map/MapProviderToggle', () => () => <div data-testid="map-provider-toggle" />);
 jest.mock('../components/map/MapFallbackBanner', () => () => null);
@@ -223,6 +226,7 @@ describe('TrajectoryPlanning', () => {
     process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = 'test-mapbox-token';
     window.localStorage.clear();
     resetTrajectoryMissionPolicy();
+    getOriginResponse.mockResolvedValue({ data: { lat: null, lon: null } });
     getSwarmTrajectoryElevationBatch.mockImplementation(async (points) => ({
       success: true,
       results: points.map((point) => ({ ...point, status: 'ok', elevation_m: 0, source: 'backend' })),
@@ -430,7 +434,7 @@ describe('TrajectoryPlanning', () => {
     const { rerender } = renderEditor({ embedded: true, scopedLeaderId: 1, initialWaypoints: draft, onWaypointsChange });
     expect(screen.queryByRole('heading', { name: 'Advanced Route Editor' })).not.toBeInTheDocument();
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('3');
-    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '0');
+    expect(Number(screen.getByTestId('map-viewport').getAttribute('data-latitude'))).toBeCloseTo(.001);
     expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '0');
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
 
@@ -456,6 +460,45 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '0');
     expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '0');
     expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-zoom', '2');
+  });
+
+  it('uses configured origin only for an empty draft without replacing its route', async () => {
+    getOriginResponse.mockResolvedValue({ data: { lat: 0, lon: 0 } });
+    renderEditor({});
+    await waitFor(() => expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-zoom', '16'));
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '0');
+    expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
+  });
+
+  it('does not reset an operator-panned view when configured origin arrives late', async () => {
+    let resolveOrigin;
+    getOriginResponse.mockImplementationOnce(() => new Promise((resolve) => { resolveOrigin = resolve; }));
+    renderEditor({});
+    fireEvent.click(screen.getByText('Pan map'));
+    await act(async () => { resolveOrigin({ data: { lat: 1, lon: 2 } }); });
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '40');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '30');
+  });
+
+  it('fits the first late camera reference once, prioritizes it over origin, and never imports it as a draft', async () => {
+    let resolveOrigin;
+    getOriginResponse.mockImplementationOnce(() => new Promise((resolve) => { resolveOrigin = resolve; }));
+    const { rerender } = renderEditor({});
+    rerender(<MemoryRouter><TrajectoryPlanning initialMapPoints={[{ latitude: 2, longitude: 3 }, { latitude: 4, longitude: 5 }]} /></MemoryRouter>);
+    await act(async () => { resolveOrigin({ data: { lat: 20, lon: 30 } }); });
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '3');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '4');
+    expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
+    rerender(<MemoryRouter><TrajectoryPlanning initialMapPoints={[{ latitude: 50, longitude: 60 }]} /></MemoryRouter>);
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '3');
+  });
+
+  it('does not refit a late route reference after the operator navigated the map', () => {
+    const { rerender } = renderEditor({});
+    fireEvent.click(screen.getByText('Pan map'));
+    rerender(<MemoryRouter><TrajectoryPlanning initialMapPoints={[{ latitude: 2, longitude: 3 }]} /></MemoryRouter>);
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '40');
+    expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
   });
 
   it('does not write a scoped leader draft into the global autosave library', async () => {

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MdFlightTakeoff, MdHome, MdPause } from 'react-icons/md';
 import SwarmTrajectory from './SwarmTrajectory';
-import RouteSketch from '../components/trajectory/RouteSketch';
+import TrajectoryRouteReview from '../components/trajectory/TrajectoryRouteReview';
 import TrajectoryFormationPanel from '../components/trajectory/TrajectoryFormationPanel';
 import SequentialReturnControl from '../components/SequentialReturnControl';
 import { ConfirmDialog, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
@@ -145,7 +145,9 @@ export default function SwarmTrajectoryWorkspace() {
       </OperatorNotice>}
       <div className="trajectory-console__body">
         <section className="trajectory-console__preview" aria-label="Planned routes">
-          <h2>Planned routes</h2><RouteSketch series={previews.map((d) => ({ id: d.drone_id, label: `H${d.drone_id}`, points: d.points }))} />
+          <h2>Planned routes</h2><TrajectoryRouteReview preview={{ ...workspace?.preview, drones: previews }}
+            formationAssignments={workspace?.formation?.assignments || []} fleet={fleet}
+            packageIdentity={workspace?.launch_identity?.revision} prefer3D />
         </section>
         <section id="trajectory-aircraft" className="trajectory-console__aircraft" aria-label="Aircraft status">
           <h2>Aircraft</h2>{selected.length === 0 && <p>Choose a cluster in Plan.</p>}
