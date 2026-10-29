@@ -5,19 +5,23 @@ Orchestrates the complete swarm trajectory processing pipeline
 import os
 import logging
 import math
+import threading
 import pandas as pd
 from typing import Dict, Any, List
 
 from functions.file_management import ensure_directory_exists, clear_directory
-from functions.swarm_analyzer import analyze_swarm_structure, fetch_swarm_data
+from functions.swarm_analyzer import analyze_swarm_structure
+from functions.trajectory_formation import fetch_swarm_data, ensure_formation_snapshot
 from functions.swarm_global_calculator import calculate_follower_global_position, calculate_follower_yaw
 from functions.swarm_trajectory_smoother import smooth_trajectory_with_waypoints
 from functions.swarm_plotter import generate_swarm_plots
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 from functions.swarm_session_manager import SwarmSessionManager
+from functions.swarm_trajectory_package import StagedTrajectoryPackage
 from src.params import Params
 
 logger = logging.getLogger(__name__)
+_PROCESSING_LOCK = threading.Lock()
 
 LEADER_TRAJECTORY_REQUIRED_COLUMNS = [
     'Name',
@@ -65,20 +69,13 @@ def validate_leader_trajectory_dataframe(trajectory_df: pd.DataFrame, leader_id:
     if invalid_lat.any() or invalid_lon.any():
         raise ValueError(f"Leader {leader_id} CSV contains out-of-range global coordinates")
 
-    zero_global = (
-        normalized_df['Latitude'].abs().lt(1e-9)
-        & normalized_df['Longitude'].abs().lt(1e-9)
-    )
-    if zero_global.any():
-        rows = [int(index) + 2 for index in normalized_df.index[zero_global].tolist()]
-        raise ValueError(
-            f"Leader {leader_id} CSV contains unsafe default coordinate 0,0 at row(s): {rows}"
-        )
-
     if len(normalized_df) < 2:
         raise ValueError(f"Leader {leader_id} CSV requires at least two waypoints")
-    if not normalized_df['TimeFromStart_s'].is_monotonic_increasing:
-        raise ValueError(f"Leader {leader_id} CSV TimeFromStart_s must be monotonic")
+    timestamps = normalized_df['TimeFromStart_s']
+    if timestamps.lt(0).any():
+        raise ValueError(f"Leader {leader_id} CSV TimeFromStart_s must be nonnegative")
+    if not timestamps.diff().iloc[1:].gt(0).all():
+        raise ValueError(f"Leader {leader_id} CSV TimeFromStart_s must be strictly increasing")
 
     return normalized_df
 
@@ -313,7 +310,7 @@ def process_swarm_trajectories(force_clear: bool = False, auto_reload: bool = Tr
     Smart trajectory processing with change detection and session management
 
     Args:
-        force_clear: Force clear all processed data before processing
+        force_clear: Regenerate from raw inputs without auto-reloading leaders
         auto_reload: Auto-reload existing trajectory files for unchanged clusters
     """
     mode_str = "SITL" if Params.sim_mode else "real"
@@ -321,22 +318,15 @@ def process_swarm_trajectories(force_clear: bool = False, auto_reload: bool = Tr
 
     try:
         # Initialize session manager
+        ensure_formation_snapshot()
         session_manager = SwarmSessionManager()
 
         # Get processing recommendation
         recommendation = session_manager.get_processing_recommendation()
         logger.info(f"Processing recommendation: {recommendation['action']}")
 
-        # Handle mandatory clearing scenarios
-        if force_clear or recommendation['action'] in ['mandatory_full_reprocess', 'recommended_full_reprocess']:
-            clear_result = clear_processed_data()
-            if not clear_result['success']:
-                return {
-                    'success': False,
-                    'error': f"Failed to clear data: {clear_result['error']}",
-                    'recommendation': recommendation
-                }
-            logger.info(f"Cleared processed data: {clear_result['message']}")
+        # Never erase the last package before a replacement has been generated.
+        # Every attempt builds a complete new output set in isolated staging.
 
         # Get uploaded leaders
         uploaded_leaders = session_manager.get_uploaded_leaders()
@@ -380,20 +370,53 @@ def _execute_trajectory_processing(
     recommendation: Dict[str, Any],
     reloaded_leaders: List[int] | None = None,
 ) -> Dict[str, Any]:
-    """Execute the actual trajectory processing"""
+    """Generate in staging and publish only a complete successful package."""
+    with _PROCESSING_LOCK:
+        folders = get_swarm_trajectory_folders()
+        session_file = os.path.join(os.path.dirname(folders['processed']), '.trajectory_session.json')
+        try:
+            expected_inputs = session_manager.input_identity()
+            with StagedTrajectoryPackage(folders, session_file) as staged:
+                result = _generate_trajectory_processing(
+                    available_leaders, recommendation, staged.folders, reloaded_leaders,
+                )
+                if not result.get('success') or result.get('outcome') != 'success':
+                    result['success'] = False
+                    result['published'] = False
+                    result.setdefault('error', 'Generation incomplete. Previous package was preserved; resolve missing routes and generate again.')
+                    return result
+                session = staged.publish(lambda: session_manager.create_processing_session(
+                    result['processed_leaders'], result['processed_drones'], expected_inputs=expected_inputs,
+                ))
+                result['session_id'] = session.session_id
+                result['published'] = True
+                return result
+        except Exception as error:
+            logger.exception('Trajectory package generation/publication failed')
+            return {
+                'success': False, 'published': False, 'error': str(error),
+                'processing_stage': 'execution', 'recommendation': recommendation,
+            }
+
+
+def _generate_trajectory_processing(
+    available_leaders: List[int],
+    recommendation: Dict[str, Any],
+    folders: Dict[str, str],
+    reloaded_leaders: List[int] | None = None,
+) -> Dict[str, Any]:
+    """Generate the candidate package without modifying active files/session."""
     mode_str = "SITL" if Params.sim_mode else "real"
     reloaded_leaders = sorted(reloaded_leaders or [])
 
     try:
-        # Get folder structure
-        folders = get_swarm_trajectory_folders()
-
         # Ensure directories exist
         ensure_directory_exists(folders['processed'])
         ensure_directory_exists(folders['plots'])
 
         # Step 1: Analyze swarm structure
-        swarm_structure = analyze_swarm_structure()
+        swarm_data = fetch_swarm_data()
+        swarm_structure = analyze_swarm_structure(swarm_data)
         logger.info(f"Found {len(swarm_structure['top_leaders'])} top leaders")
 
         # Check for leader structure mismatch (critical edge case)
@@ -432,7 +455,6 @@ def _execute_trajectory_processing(
         processing_stats = {'leaders': 0, 'followers': 0, 'errors': 0}
 
         # Load swarm data from API for drone configurations
-        swarm_data = fetch_swarm_data()
         swarm_df = _normalize_swarm_dataframe(swarm_data)
         row_by_hw_id = {
             int(drone_row['hw_id']): drone_row.to_dict()
@@ -462,10 +484,9 @@ def _execute_trajectory_processing(
         logger.info("Generating visualization plots...")
         generate_swarm_plots(all_trajectories, swarm_structure, folders['plots'])
 
-        # Step 6: Create processing session
+        # Step 6: Summarize candidate; caller publishes only complete output.
         total_processed = processing_stats['leaders'] + processing_stats['followers']
         processed_leaders = list(leader_trajectories.keys())
-        session = session_manager.create_processing_session(processed_leaders, total_processed)
         processed_drone_ids = sorted(all_trajectories.keys())
         skipped_drone_ids = sorted(set(expected_drone_ids) - set(processed_drone_ids))
         outcome = 'success'
@@ -489,7 +510,7 @@ def _execute_trajectory_processing(
             'expected_drone_list': expected_drone_ids,
             'skipped_drone_ids': skipped_drone_ids,
             'statistics': processing_stats,
-            'session_id': session.session_id,
+            'session_id': None,
             'recommendation': recommendation,
             'processed_leaders': processed_leaders,
             'missing_leaders': missing_leaders,

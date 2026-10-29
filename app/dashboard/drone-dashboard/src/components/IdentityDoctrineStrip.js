@@ -2,7 +2,6 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 import { getIdentityDoctrineCopy } from '../utilities/missionIdentityUtils';
-import '../styles/IdentityDoctrineStrip.css';
 
 const IdentityDoctrineStrip = ({ surface = 'default', className = '' }) => {
   const copy = getIdentityDoctrineCopy(surface);

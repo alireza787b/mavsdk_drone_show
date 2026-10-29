@@ -45,6 +45,8 @@ LAUNCH_ARMABILITY_MISSIONS = frozenset(
     }
 )
 
+GROUND_START_MISSIONS = frozenset({Mission.TAKE_OFF, Mission.SWARM_TRAJECTORY})
+
 
 class DroneExecutionOutcome(str, Enum):
     """Terminal outcome reported by one drone for one tracked command."""
@@ -70,6 +72,22 @@ def mission_requires_launch_armability_probe(mission: Mission | None) -> bool:
     """Return whether command admission requires command-bound preparation."""
 
     return resolve_mission_type(mission) in LAUNCH_ARMABILITY_MISSIONS
+
+
+def mission_requires_ground_start(mission: Mission | None) -> bool:
+    return resolve_mission_type(mission) in GROUND_START_MISSIONS
+
+
+def ground_start_observation_ready(mission: Mission | None, observation: Any) -> bool:
+    """Ground-start authority must carry the exact mission's native decision."""
+    resolved = resolve_mission_type(mission)
+    if resolved not in GROUND_START_MISSIONS:
+        return True
+    return (
+        observation is not None
+        and getattr(observation, 'mission_type', None) == resolved.value
+        and getattr(getattr(observation, 'admission', None), 'ready', False) is True
+    )
 
 
 def mission_requires_strict_sync_dispatch(mission: Mission | None) -> bool:

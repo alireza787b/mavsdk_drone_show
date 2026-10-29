@@ -22,7 +22,7 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
     return {
       tone: 'blocked',
       title: 'No swarm clusters are configured yet',
-      message: 'Define top leaders in Swarm Design before authoring or processing trajectory missions.',
+      message: 'Define top leaders in this mission’s Formation before authoring or processing routes.',
       details: ['This workspace only accepts top-leader CSVs from the current swarm structure.'],
     };
   }
@@ -84,7 +84,7 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
       message: `${buildDroneLabel(viewModel.processedDroneCount)} are available across ${buildClusterLabel(readyClusterCount)}.`,
       details: [
         `Processing session: ${viewModel.session.session_id || 'Unavailable'}`,
-        'Next step: review plots, optionally commit the package for traceability, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
+        'Next step: review plots, save the package if needed, then use Operate to review and start the mission.',
       ],
     };
   }
@@ -113,17 +113,17 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     id: 'upload',
     step: 1,
     title: 'Load Leader Paths',
-    actionLabel: 'Open Advanced Route Editor',
-    actionHref: '/trajectory-planning',
+    actionLabel: 'Open Mission Plan',
+    actionHref: '/swarm-trajectory?tab=plan',
   };
 
   if (clusterCount === 0) {
-    uploadStage.actionLabel = 'Open Swarm Design';
-    uploadStage.actionHref = '/swarm-design';
+    uploadStage.actionLabel = 'Open Mission Plan';
+    uploadStage.actionHref = '/swarm-trajectory?tab=plan';
     uploadStage.tone = 'blocked';
     uploadStage.label = 'Blocked';
     uploadStage.summary = 'No clusters are available yet.';
-    uploadStage.details = ['Go to Swarm Design and define top leaders before uploading CSVs.'];
+    uploadStage.details = ['Save the mission Formation with a top-level leader before uploading routes.'];
   } else if (viewModel.missingLeaderIds.length === 0 && uploadedLeaderCount > 0) {
     uploadStage.tone = 'ready';
     uploadStage.label = 'Ready';
@@ -228,20 +228,20 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     reviewStage.details = [
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       `Attention items: ${attentionItemCount}`,
-      'Intentional selected-subset launch can still be validated later in Dashboard preflight if the chosen leader chain remains complete.',
+      'Resolve package blockers before starting a complete cluster from Operate.',
     ];
-    reviewStage.actionLabel = 'Open Mission Trigger';
-    reviewStage.actionHref = '/';
+    reviewStage.actionLabel = 'Operate';
+    reviewStage.actionHref = '/swarm-trajectory';
   } else {
     reviewStage.tone = 'ready';
     reviewStage.label = 'Ready';
     reviewStage.summary = 'Plots, outputs, and cluster readiness are clear for launch preflight.';
     reviewStage.details = [
       `Session: ${viewModel.session.session_id || 'Unavailable'}`,
-      'Commit the package if traceability is needed, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
+      'Save the package if needed, then review and start the mission from Operate.',
     ];
-    reviewStage.actionLabel = 'Open Mission Trigger';
-    reviewStage.actionHref = '/';
+    reviewStage.actionLabel = 'Operate';
+    reviewStage.actionHref = '/swarm-trajectory';
   }
 
   return [uploadStage, processingStage, reviewStage];

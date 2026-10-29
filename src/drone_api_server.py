@@ -66,6 +66,7 @@ from src.command_execution_contract import (
     format_pending_superseded_execution_error,
     is_legacy_schema_outcome_rejection,
     mission_requires_launch_armability_probe,
+    ground_start_observation_ready,
 )
 from src.launch_preparation_protocol import (
     LAUNCH_PREPARATION_TOKEN_HEADER,
@@ -107,6 +108,8 @@ from src.command_admission import (
     evaluate_cached_hold_admission,
 )
 from src.smart_swarm_admission import SmartSwarmStartAdmission, evaluate_smart_swarm_start_admission
+from src.trajectory_runtime_state import TrajectoryRuntimeState, read_trajectory_runtime
+from src.swarm_trajectory_contract import verify_local_package
 from src.action_safety import SAFETY_EVIDENCE_VALIDITY_MS
 from src.command_installation import (
     CommandInstallationRejected,
@@ -237,6 +240,7 @@ class DroneStateResponse(BaseModel):
     """Drone state response"""
     pos_id: Any
     smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
+    trajectory_execution: Optional[TrajectoryRuntimeState] = None
     detected_pos_id: Any
     state: int
     mission: Any
@@ -1936,6 +1940,14 @@ class DroneAPIServer:
                         ),
                     )
 
+        if mission_type == Mission.SWARM_TRAJECTORY.value:
+            try:
+                await asyncio.to_thread(verify_local_package, command.swarm_trajectory,
+                    str(self.drone_config.hw_id), self.params.get_swarm_trajectory_file_path(self.drone_config.hw_id))
+            except ValueError as exc:
+                return _LaunchCommitAdmission(command=command, launch_required=True, authorized=False,
+                    error_code=CommandErrorCode.PREFLIGHT_FAILED.value, error_detail=str(exc))
+
         preparation_result = self._launch_preparation_store.consume(
             launch_preparation_token,
             command,
@@ -2022,6 +2034,12 @@ class DroneAPIServer:
                     "Commit-time readiness did not prove the required global-position policy"
                 ),
             )
+        if not ground_start_observation_ready(mission_type, envelope.observation):
+            return _LaunchCommitAdmission(
+                command=command, launch_required=True, authorized=False,
+                error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
+                error_detail='Commit-time ground-start readiness was not confirmed for this mission',
+            )
         if not envelope.ready:
             blockers = (
                 envelope.observation.blockers
@@ -2076,6 +2094,8 @@ class DroneAPIServer:
             payload['timestamp'] = server_time_ms
 
         payload['server_time'] = server_time_ms
+        payload['trajectory_execution'] = read_trajectory_runtime(
+            command_id=getattr(self.drone_config, 'current_command_id', None) or '')
         payload['smart_swarm_start_admission'] = evaluate_smart_swarm_start_admission(
             self.drone_config,
             max_age_sec=self.params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC,
@@ -2163,6 +2183,13 @@ class DroneAPIServer:
                     ),
                 )
 
+            if command.mission_type == Mission.SWARM_TRAJECTORY.value:
+                try:
+                    await asyncio.to_thread(verify_local_package, command.swarm_trajectory,
+                        local_hw_id, self.params.get_swarm_trajectory_file_path(local_hw_id))
+                except ValueError as exc:
+                    raise HTTPException(409, detail={'error_code': CommandErrorCode.PREFLIGHT_FAILED.value,
+                        'message': str(exc), 'error_detail': 'No launch token was issued'}) from exc
             try:
                 probe = await self._probe_live_armability(
                     require_global_position=request.require_global_position,
@@ -2244,6 +2271,13 @@ class DroneAPIServer:
                         "error_detail": "No launch token was issued",
                     },
                 )
+
+            if not ground_start_observation_ready(command.mission_type, envelope.observation):
+                raise HTTPException(status_code=503, detail={
+                    'error_code': CommandErrorCode.PREFLIGHT_FAILED.value,
+                    'message': 'Ground-start readiness was not confirmed for this mission',
+                    'error_detail': 'No launch token was issued',
+                })
 
             try:
                 binding = LaunchPreparationBinding.from_command(command)

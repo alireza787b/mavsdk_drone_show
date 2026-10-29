@@ -44,7 +44,7 @@ import {
   getSafeTerrainAdjustedAltitude,
   needsTerrainSafetyAdjustment,
 } from '../../constants/trajectoryMissionPolicy';
-import { getTerrainElevation } from '../../services/ElevationService';
+import { resolveMissionTrajectoryTerrain } from '../../utilities/trajectoryTerrainContext';
 import '../../styles/WaypointModal.css';
 
 const WaypointModal = ({
@@ -63,12 +63,15 @@ const WaypointModal = ({
   const [preferredSpeed, setPreferredSpeed] = useState(TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED);
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
   const [speedStatus, setSpeedStatus] = useState('unknown');
-  const [groundElevation, setGroundElevation] = useState(0);
+  const [groundElevation, setGroundElevation] = useState(null);
   const [terrainResolved, setTerrainResolved] = useState(false);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
   const [terrainElapsed, setTerrainElapsed] = useState(0);
-  const [terrainFallbackMsg, setTerrainFallbackMsg] = useState(null);
+  const [terrainSource, setTerrainSource] = useState('');
+  const [terrainConfidence, setTerrainConfidence] = useState('');
+  const [terrainSampleTime, setTerrainSampleTime] = useState(null);
+  const [terrainRetry, setTerrainRetry] = useState(0);
   const [validationMessage, setValidationMessage] = useState(null);
 
   // Heading state (aviation standard)
@@ -105,7 +108,8 @@ const WaypointModal = ({
       setValidationMessage(null);
       // Initialize altitude based on previous waypoint or intelligent defaults
       let defaultAltitude = TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL;
-      let defaultAltitudeReference = previousWaypoint?.altitudeReference || ALTITUDE_REFERENCE.MSL;
+      let defaultAltitudeReference = String(previousWaypoint?.altitudeReference || '').toLowerCase() === ALTITUDE_REFERENCE.AGL
+        ? ALTITUDE_REFERENCE.AGL : ALTITUDE_REFERENCE.MSL;
       let defaultTargetAgl = TRAJECTORY_ALTITUDE_POLICY.DEFAULT_TARGET_AGL;
       
       if (previousWaypoint) {
@@ -169,22 +173,22 @@ const WaypointModal = ({
   }, [altitude, position, preferredSpeed, previousWaypoint, timingMode]);
 
   useEffect(() => {
-    if (altitudeReference !== ALTITUDE_REFERENCE.AGL) {
+    if (altitudeReference !== ALTITUDE_REFERENCE.AGL || !terrainResolved || !Number.isFinite(groundElevation)) {
       return;
     }
 
     const derivedAltitude = groundElevation + targetAgl;
     setAltitude((current) => (current === derivedAltitude ? current : derivedAltitude));
-  }, [altitudeReference, groundElevation, targetAgl]);
+  }, [altitudeReference, groundElevation, targetAgl, terrainResolved]);
 
   useEffect(() => {
-    if (altitudeReference !== ALTITUDE_REFERENCE.MSL) {
+    if (altitudeReference !== ALTITUDE_REFERENCE.MSL || !terrainResolved || !Number.isFinite(groundElevation)) {
       return;
     }
 
     const derivedAgl = Math.max(0, altitude - groundElevation);
     setTargetAgl((current) => (current === derivedAgl ? current : derivedAgl));
-  }, [altitude, altitudeReference, groundElevation]);
+  }, [altitude, altitudeReference, groundElevation, terrainResolved]);
 
   useEffect(() => {
     if (!isOpen || !position) return;
@@ -202,40 +206,28 @@ const WaypointModal = ({
         setTerrainResolved(false);
         setIsLoadingTerrain(true);
         setTerrainError(null);
-        setTerrainFallbackMsg(null);
-        setGroundElevation(0);
+        setGroundElevation(null);
+        setTerrainSource('backend');
+        setTerrainConfidence('');
+        setTerrainSampleTime(null);
 
-        const result = await getTerrainElevation(latitude, longitude);
+        const result = await resolveMissionTrajectoryTerrain(latitude, longitude);
 
         // Check if aborted during fetch
         if (abortController.signal.aborted) return;
 
-        const elevation = result.elevation;
-
-        if (elevation !== null && elevation !== undefined) {
-          setGroundElevation(elevation);
-
-          if (result.error) {
-            setTerrainError(result.error);
-            setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
-          }
-
+        setTerrainSource(result.source);
+        setTerrainConfidence(result.confidence);
+        setTerrainSampleTime(result.sample_time);
+        if (result.verified === true && Number.isFinite(result.elevation) && !result.error) {
+          setGroundElevation(result.elevation);
           setTerrainResolved(true);
-
         } else {
-          setTerrainError('No elevation data available');
-          const estimatedGround = estimateBasicElevation(latitude, longitude);
-          setGroundElevation(estimatedGround);
-          setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
-          setTerrainResolved(true);
+          setTerrainError(result.error || 'Terrain elevation unavailable.');
         }
       } catch (error) {
         if (abortController.signal.aborted) return;
-        setTerrainError('Query failed, using estimated data');
-        setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
-        const estimatedGround = estimateBasicElevation(latitude, longitude);
-        setGroundElevation(estimatedGround);
-        setTerrainResolved(true);
+        setTerrainError(error?.message || 'Terrain elevation unavailable.');
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoadingTerrain(false);
@@ -248,7 +240,7 @@ const WaypointModal = ({
     return () => {
       abortController.abort();
     };
-  }, [isOpen, position]);
+  }, [isOpen, position, terrainRetry]);
 
   useEffect(() => {
     if (previousWaypoint && position && timeFromStart > (previousWaypoint.timeFromStart || 0)) {
@@ -283,32 +275,6 @@ const WaypointModal = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  const estimateBasicElevation = (latitude, longitude) => {
-    if (Math.abs(latitude) > 60) return 300; // Polar regions
-    if (Math.abs(latitude) < 30) return 50;  // Tropical regions
-
-    if (latitude > 25 && latitude < 50 && longitude > -125 && longitude < -100) return 1500; // Rocky Mountains
-    if (latitude > 25 && latitude < 45 && longitude > 65 && longitude < 105) return 2000;   // Himalayas
-
-    return 150; // Default continental
-  };
-
-  const handleSkipElevation = () => {
-    // Cancel in-flight fetch
-    if (elevationAbortRef.current) {
-      elevationAbortRef.current.abort();
-    }
-    setIsLoadingTerrain(false);
-    const estimatedGround = estimateBasicElevation(
-      position?.latitude || 0,
-      position?.longitude || 0
-    );
-    setGroundElevation(estimatedGround);
-    setTerrainError('Using estimate (skipped API)');
-    setTerrainFallbackMsg('Using estimated elevation (skipped by user)');
-    setTerrainResolved(true);
-  };
-
   const handleApplySafeTerrainSuggestion = () => {
     setValidationMessage(null);
 
@@ -321,10 +287,10 @@ const WaypointModal = ({
   };
 
   const handleConfirm = () => {
-    if (!terrainResolved) {
+    if (altitudeReference === ALTITUDE_REFERENCE.AGL && !terrainResolved) {
       setValidationMessage({
         tone: 'warning',
-        text: 'Wait for terrain elevation to resolve or choose Use Estimate before adding this waypoint.',
+        text: 'AGL needs verified terrain. Retry the lookup or use MSL input.',
       });
       return;
     }
@@ -337,7 +303,7 @@ const WaypointModal = ({
       return;
     }
 
-    const isUnderground = altitude < groundElevation;
+    const isUnderground = terrainResolved && altitude < groundElevation;
 
     if (isUnderground) {
       setValidationMessage({
@@ -359,6 +325,10 @@ const WaypointModal = ({
       speedFeasible: true,
       groundElevation,
       terrainAccurate: terrainResolved && !terrainError,
+      terrainSource,
+      terrainConfidence,
+      terrainSampleTime,
+      terrainError: terrainError || (isLoadingTerrain ? 'Terrain lookup pending.' : ''),
       // Aviation standard heading data
       heading: parseFloat(heading),
       headingMode,
@@ -381,7 +351,7 @@ const WaypointModal = ({
     setValidationMessage(null);
     if (altitudeReference === ALTITUDE_REFERENCE.AGL) {
       setTargetAgl(Math.max(0, newAltitudeValue));
-      setAltitude(groundElevation + Math.max(0, newAltitudeValue));
+      if (terrainResolved) setAltitude(groundElevation + Math.max(0, newAltitudeValue));
       return;
     }
     setAltitude(newAltitudeValue);
@@ -417,7 +387,7 @@ const WaypointModal = ({
 
   const handleAltitudeReferenceChange = (newReference) => {
     setValidationMessage(null);
-    if (newReference === ALTITUDE_REFERENCE.AGL) {
+    if (newReference === ALTITUDE_REFERENCE.AGL && terrainResolved) {
       setTargetAgl(Math.max(0, altitude - groundElevation));
     }
     setAltitudeReference(newReference);
@@ -445,8 +415,8 @@ const WaypointModal = ({
     }
   };
 
-  const isUnderground = altitude < groundElevation;
-  const aglAltitude = Math.max(0, altitude - groundElevation);
+  const isUnderground = terrainResolved && altitude < groundElevation;
+  const aglAltitude = terrainResolved ? Math.max(0, altitude - groundElevation) : targetAgl;
   const needsTerrainReview = terrainResolved && needsTerrainSafetyAdjustment(altitude, groundElevation);
   const safeSuggestedAltitude = getSafeTerrainAdjustedAltitude(groundElevation);
   const previousTime = previousWaypoint?.timeFromStart || 0;
@@ -514,39 +484,17 @@ const WaypointModal = ({
                   <span className="wm-terrain-banner-text">
                     Loading terrain elevation... {terrainElapsed > 0 && `(${terrainElapsed}s)`}
                   </span>
-                  <button
-                    className="wm-terrain-skip-btn"
-                    onClick={handleSkipElevation}
-                    type="button"
-                  >
-                    Use Estimate
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* Fallback message + editable ground elevation after API unavailable */}
-            {!isLoadingTerrain && terrainFallbackMsg && (
-              <div className="wm-terrain-fallback-msg">
-                <div>{terrainFallbackMsg}</div>
-                <div className="wm-ground-elevation-edit">
-                  <label htmlFor="groundElevationOverride" className="wm-ground-elevation-label">
-                    Ground elevation (m MSL):
-                  </label>
-                  <input
-                    id="groundElevationOverride"
-                    type="number"
-                    className="wm-ground-elevation-input"
-                    value={groundElevation}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val)) setGroundElevation(val);
-                    }}
-                    step="1"
-                    min="0"
-                    max="9000"
-                  />
-                </div>
+            {!isLoadingTerrain && terrainError && (
+              <div className="wm-terrain-fallback-msg" role="status">
+                <div>Terrain unavailable. MSL input remains available.</div>
+                <button type="button" className="wm-terrain-skip-btn" onClick={() => setTerrainRetry((value) => value + 1)}>Retry terrain</button>
+                {altitudeReference === ALTITUDE_REFERENCE.AGL && (
+                  <button type="button" className="wm-terrain-skip-btn" onClick={() => handleAltitudeReferenceChange(ALTITUDE_REFERENCE.MSL)}>Use MSL input</button>
+                )}
               </div>
             )}
 
@@ -603,14 +551,13 @@ const WaypointModal = ({
               />
               <div className="altitude-context">
                 <small className="terrain-note">
-                  Ground elevation: <strong>{terrainResolved ? `${groundElevation.toFixed(1)}m MSL` : 'resolving...'}</strong>
-                  {terrainError && <span className="terrain-warning"> ({terrainError})</span>}
+                  Ground elevation: <strong>{terrainResolved ? `${groundElevation.toFixed(1)}m MSL` : isLoadingTerrain ? 'resolving...' : 'unavailable'}</strong>
                 </small>
                 <small className="agl-note">
-                  Above ground: <strong>{aglAltitude.toFixed(1)}m AGL</strong>
+                  Above ground: <strong>{terrainResolved ? `${aglAltitude.toFixed(1)}m AGL` : 'unverified'}</strong>
                 </small>
                 <small className="agl-note">
-                  Mission stores altitude as <strong>{altitude.toFixed(1)}m MSL</strong>
+                  Mission stores altitude as <strong>{altitudeReference === ALTITUDE_REFERENCE.AGL && !terrainResolved ? 'pending terrain' : `${altitude.toFixed(1)}m MSL`}</strong>
                 </small>
                 <small className="agl-note">
                   Planner envelope: <strong>{TRAJECTORY_ALTITUDE_POLICY.MIN_MSL}-{TRAJECTORY_ALTITUDE_POLICY.MAX_MSL.toLocaleString()}m MSL</strong>
@@ -620,9 +567,9 @@ const WaypointModal = ({
                     Pre-filled from previous waypoint ({previousWaypoint.altitude.toFixed(1)}m MSL)
                   </small>
                 )}
-                {!terrainResolved && (
+                {!terrainResolved && altitudeReference === ALTITUDE_REFERENCE.AGL && (
                   <small className="terrain-warning">
-                    Waypoint confirmation stays locked until terrain resolves or you choose Use Estimate.
+                    AGL needs verified terrain. Use MSL input to continue without terrain.
                   </small>
                 )}
               </div>
@@ -912,7 +859,7 @@ const WaypointModal = ({
             onClick={handleConfirm}
             className="modal-btn primary"
             title="Add waypoint (Ctrl+Enter)"
-            disabled={!terrainResolved}
+            disabled={altitudeReference === ALTITUDE_REFERENCE.AGL && !terrainResolved}
           >
             Add Waypoint
           </button>

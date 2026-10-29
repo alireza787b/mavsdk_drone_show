@@ -112,6 +112,7 @@ def create_mock_drone_config():
     drone_config.trigger_time = 0
     drone_config.config = {'pos_id': 1, 'hw_id': '1'}
     drone_config.hw_id = '1'
+    drone_config.swarm_trajectory_request = {'revision': 'test-revision', 'files': {'1': 'a' * 64}}
     drone_config.is_armed = False
     drone_config.is_ready_to_arm = True
     drone_config.current_command_id = None
@@ -1202,7 +1203,7 @@ class TestActionMissionHandlerRouting:
             ("_execute_reboot_sys", "System Reboot Mission", "actions.py", "--action=reboot_sys", None),
             ("_execute_precision_move", "Precision Move Mission", "actions.py", "--action=precision_move --request-file=/tmp/precision_move_1_cmd-xyz.json", "recovery"),
             ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", None),
-            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", "normal"),
+            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "--position_id 1 --trajectory_sha256 " + 'a' * 64, "normal"),
         ],
     )
     async def test_handlers_use_execute_immediate_launcher(

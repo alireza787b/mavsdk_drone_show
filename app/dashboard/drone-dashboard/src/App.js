@@ -22,6 +22,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Import design tokens first
 import './styles/DesignTokens.css';
+// Shared operator surfaces have one cascade order, independent of lazy routes.
+import './styles/MapCommon.css';
+import './styles/SearchBar.css';
+import './styles/IdentityDoctrineStrip.css';
+import './styles/MissionPlanning.css';
 
 import SidebarMenu from './components/SidebarMenu';
 import RouteDocsShortcut from './components/RouteDocsShortcut';
@@ -43,8 +48,7 @@ const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
 const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
 const GlobeView = lazy(() => import('./pages/GlobeView'));
 const DroneShowWorkspace = lazy(() => import('./pages/DroneShowWorkspace'));
-const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
-const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
+const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectoryWorkspace'));
 const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
 const Px4ParametersPage = lazy(() => import('./pages/Px4ParametersPage'));
 const FleetEnrollmentPage = lazy(() => import('./pages/FleetEnrollmentPage'));
@@ -237,8 +241,8 @@ const AppShell = () => {
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
                       <Route path="/px4-parameters" element={<Px4ParametersPage />} />
 
-                      {/* Advanced Route Editor retained for lower-level trajectory authoring */}
-                      <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
+                      {/* Existing bookmarks resolve to the single mission authoring workspace. */}
+                      <Route path="/trajectory-planning" element={<Navigate to="/swarm-trajectory?tab=plan" replace />} />
 
                       {/* QuickScout SAR */}
                       <Route path="/quickscout" element={<QuickScoutPage />} />

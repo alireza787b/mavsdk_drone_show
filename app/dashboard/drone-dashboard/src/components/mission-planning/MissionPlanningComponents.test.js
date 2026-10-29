@@ -14,6 +14,14 @@ import {
 import { MISSION_GEOMETRY_TYPES } from '../../utilities/missionGeometry';
 
 describe('mission planning shared components', () => {
+  test('console job dialog keeps its appearance through the body portal without changing other missions', () => {
+    const { rerender } = render(<MissionJobProgressDialog open appearance="console"
+      job={{ status: 'running' }} onClose={jest.fn()} />);
+    expect(screen.getByRole('dialog').closest('.operator-console')).not.toBeNull();
+    expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+    rerender(<MissionJobProgressDialog open job={{ status: 'running' }} onClose={jest.fn()} />);
+    expect(screen.getByRole('dialog').closest('.operator-console')).toBeNull();
+  });
   test('renders map workspace with toolbar, provider controls, fallback, sidebar, and footer', () => {
     render(
       <MissionMapWorkspace
@@ -138,6 +146,12 @@ describe('mission planning shared components', () => {
     expect(onValueChange).toHaveBeenCalledWith('90');
     expect(screen.getByText('Estimated terrain')).toBeInTheDocument();
     expect(screen.getByText('Provider unavailable')).toBeInTheDocument();
+  });
+
+  test('unknown processing progress does not invent a percentage', () => {
+    render(<MissionJobProgressDialog open job={{ status: 'running', progressPercent: null }} onClose={() => {}} />);
+    expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Processing');
   });
 
   test('renders progress dialog with cancel and failed retry actions', () => {

@@ -172,12 +172,11 @@ a real aircraft.
 - Official `main` contains the validated shared implementation at
   `87cfe5015c1e7788a0419772e694e2345036c77e`. The annotated release tag is
   `v5.5.115-field-launch-readiness`.
-- Catch-A-Drone private `main` preserves the reviewed two-drone deployment
+- Private deployment `main` preserves the reviewed two-drone deployment
   overlay and the old private history in merge commit
   `fe3b1ea72ef6eb3112332b6f71e157f0e1edf6e6`. The pre-migration private tree
-  remains recoverable at tag
-  `catchadrone-archive-pre-field-hardening-20260803`; the release tag is
-  `cad-v5.5.115-field-launch-readiness`.
+  remains recoverable through its private archive and release tags. Deployment
+  identifiers are recorded in the private release handoff, not this public guide.
 - The VPS production launcher synced private `main`, rebuilt the optimized
   dashboard, and restarted the real-mode services at 13:26 UTC. Health returned
   HTTP 200, an unauthenticated protected telemetry request returned HTTP 401,

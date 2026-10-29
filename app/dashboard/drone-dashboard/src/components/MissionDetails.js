@@ -862,8 +862,8 @@ const MissionDetails = ({
                 Swarm Trajectory
               </Link>{' '}
               before launch. Use{' '}
-              <Link to="/trajectory-planning" className="origin-link">
-                Advanced Route Editor
+              <Link to="/swarm-trajectory?tab=plan" className="origin-link">
+                Mission Plan
               </Link>{' '}
               only when lower-level path editing is required.
             </p>

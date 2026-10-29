@@ -216,6 +216,7 @@ const MissionTrigger = ({
                   note={presentation.note}
                   label={presentation.cardLabel || getCommandName(mission.value)}
                   onClick={() => handleMissionSelect(mission.value)}
+                  href={mission.value === DRONE_MISSION_TYPES.SWARM_TRAJECTORY ? '/swarm-trajectory' : undefined}
                   isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
                 />
                 {mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && (

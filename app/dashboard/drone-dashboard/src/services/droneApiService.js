@@ -44,7 +44,7 @@ export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) =
   };
 };
 
-const createCommandIdempotencyKey = () => {
+export const createCommandIdempotencyKey = () => {
   const browserCrypto = typeof window === 'undefined' ? null : window.crypto;
   if (typeof browserCrypto?.randomUUID === 'function') {
     return `dashboard-${browserCrypto.randomUUID()}`;

@@ -11,7 +11,6 @@ import {
   resolveTileLayerKey,
   TILE_LAYERS,
 } from '../../config/mapConfig';
-import '../../styles/MapCommon.css';
 
 const LeafletMapEventBridge = ({ eventHandlers = {} }) => {
   useMapEvents(eventHandlers);

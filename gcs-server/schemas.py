@@ -22,6 +22,7 @@ from src.command_execution_contract import DroneExecutionOutcome
 from src.execution_evidence import ActionResultEvidence, normalize_execution_evidence
 from src.control_release_protocol import ControlReleaseResult
 from src.enums import CommandOutcome, CommandPhase, CommandStatus
+from src.swarm_trajectory_contract import SwarmTrajectoryPackage
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
 
 
@@ -117,6 +118,18 @@ class SwarmConfig(BaseModel):
     version: int = Field(1, ge=1, description="Schema version")
     assignments: List[SwarmAssignment]
     revision: str = Field("", description="Deterministic topology revision for conflict detection")
+
+
+class TrajectoryFormationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    assignments: List[SwarmAssignment] = Field(min_length=1)
+    revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class TrajectoryFormationResponse(TrajectoryFormationRequest):
+    assignments: List[SwarmAssignment] = Field(default_factory=list)
+    success: bool
+    saved: bool
 
 
 class SwarmConfigApplyRequest(SwarmConfig):
@@ -980,7 +993,7 @@ class SwarmTrajectoryProcessRequest(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
-    force_clear: bool = Field(False, description="Clear processed outputs before generating a fresh package")
+    force_clear: bool = Field(False, description="Regenerate all paths without auto-reloading; preserve the previous package until publication")
     auto_reload: bool = Field(True, description="Auto-include unchanged leader uploads from the active workspace")
 
 
@@ -1117,7 +1130,7 @@ class SwarmTrajectoryProcessingJobResponse(BaseModel):
     job_id: str = Field(..., description="Processing job ID")
     status: SwarmTrajectoryProcessingJobState = Field(..., description="Current job state")
     phase: str = Field(..., description="Current processing phase")
-    progress_percent: int = Field(..., ge=0, le=100, description="Best-effort progress")
+    progress_percent: Optional[int] = Field(None, ge=0, le=100, description="Measured progress, or null when indeterminate")
     message: Optional[str] = Field(None, description="Operator-facing job status")
     result: Optional[Dict[str, Any]] = Field(None, description="Process result when succeeded")
     error_code: Optional[str] = Field(None, description="Stable failure code")
@@ -1152,6 +1165,7 @@ class SwarmTrajectoryProcessingChanges(BaseModel):
     swarm_structure_changed: bool = Field(..., description="Whether swarm relationships changed since last process")
     parameters_changed: bool = Field(..., description="Whether trajectory processing parameters changed")
     trajectory_files_changed: bool = Field(..., description="Whether uploaded leader CSV contents changed")
+    processed_outputs_changed: bool = Field(False, description="Whether generated CSV identity changed or was never verified")
     new_uploads: List[int] = Field(default_factory=list, description="Leader IDs newly uploaded since last process")
     missing_uploads: List[int] = Field(default_factory=list, description="Leader IDs removed since last process")
     leader_structure_changed: bool = Field(..., description="Whether leader coverage changed in a way that invalidates outputs")
@@ -1261,6 +1275,8 @@ class SwarmTrajectoryStatusPayload(BaseModel):
     processed_drones: List[int] = Field(default_factory=list, description="Drone IDs with processed outputs")
     processed_leaders: List[int] = Field(default_factory=list, description="Leader IDs with processed outputs")
     processed_followers: List[int] = Field(default_factory=list, description="Follower IDs with processed outputs")
+    unassigned_processed_drones: List[int] = Field(default_factory=list,
+        description="Retained output IDs absent from this mission formation; not fleet membership")
     follow_map: Dict[str, int] = Field(default_factory=dict, description="Current follow assignments keyed by drone ID")
     leader_count: int = Field(..., ge=0, description="Processed leader count")
     follower_count: int = Field(..., ge=0, description="Processed follower count")
@@ -1295,6 +1311,16 @@ class SwarmTrajectoryStatusResponse(BaseModel):
     success: Literal[True] = Field(True, description="Always true for successful responses")
     status: SwarmTrajectoryStatusPayload = Field(..., description="Current workspace state")
     folders: Dict[str, str] = Field(default_factory=dict, description="Active raw/processed/plot workspace paths")
+
+
+class SwarmTrajectoryWorkspaceResponse(BaseModel):
+    status: SwarmTrajectoryStatusPayload
+    validation: SwarmTrajectoryValidationResponse
+    formation: TrajectoryFormationResponse
+    launch_identity: Optional[SwarmTrajectoryPackage] = None
+    preview: SwarmTrajectoryPreviewResponse
+    simulation_mode: bool
+    timestamp: int
 
 
 class SwarmTrajectoryProcessingStatistics(BaseModel):

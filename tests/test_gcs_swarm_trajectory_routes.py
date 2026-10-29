@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -366,6 +367,7 @@ def _make_service(tmp_path: Path):
 
 def _make_deps(tmp_path: Path):
     return SimpleNamespace(
+        get_command_tracker=lambda: SimpleNamespace(get_active_commands=AsyncMock(return_value=[])),
         Params=SimpleNamespace(
             TRAJECTORY_PLANNER_DEFAULT_MSL=100.0,
             TRAJECTORY_PLANNER_DEFAULT_TARGET_AGL=100.0,
@@ -386,6 +388,19 @@ def _make_deps(tmp_path: Path):
         log_system_event=lambda *args, **kwargs: None,
         log_system_error=lambda *args, **kwargs: None,
     )
+
+
+def test_active_trajectory_blocks_package_mutations_but_not_review(tmp_path):
+    deps = _make_deps(tmp_path)
+    deps.get_command_tracker = lambda: SimpleNamespace(get_active_commands=AsyncMock(return_value=[{'mission_type': 4}]))
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+    with TestClient(app) as client:
+        for path in ('/process', '/process/jobs', '/clear', '/clear-processed', '/clear-leader/1', '/clear-drone/2', '/commit'):
+            result = client.post('/api/v1/swarm-trajectories' + path, json={})
+            assert result.status_code == 409, (path, result.text)
+        assert client.delete('/api/v1/swarm-trajectories/remove/1').status_code == 409
+        assert client.get('/api/v1/swarm-trajectories/status').status_code == 200
 
 
 def test_swarm_trajectory_router_registers_expected_routes(tmp_path):

@@ -16,7 +16,6 @@ import {
   MdTerrain,
 } from 'react-icons/md';
 import { TRAJECTORY_ALTITUDE_POLICY } from '../../constants/trajectoryMissionPolicy';
-import '../../styles/SearchBar.css';
 
 // Module-level geocode result cache (max 50 entries)
 const geocodeCache = new Map();

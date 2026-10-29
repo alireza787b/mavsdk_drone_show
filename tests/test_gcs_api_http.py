@@ -2645,10 +2645,14 @@ class TestCommandEndpoints:
     @patch('app_fastapi.fleet_rpc_service.dispatch', new_callable=AsyncMock)
     @patch('app_fastapi.load_config')
     @patch('app_fastapi.get_swarm_trajectory_folders')
+    @patch('app_fastapi.swarm_trajectory_service.get_validation_payload')
+    @patch('app_fastapi.swarm_trajectory_service.get_dispatch_package_payload')
     @patch('app_fastapi.swarm_trajectory_service.get_processing_status_payload')
     def test_submit_command_swarm_trajectory_uses_selected_processed_timeout_budget(
         self,
         mock_status,
+        mock_package,
+        mock_validation,
         mock_folders,
         mock_load,
         mock_dispatch,
@@ -2659,6 +2663,8 @@ class TestCommandEndpoints:
         command_submission_runtime,
     ):
         mock_load.return_value = mock_config
+        mock_validation.return_value = {'success': True, 'ready': True, 'blockers': []}
+        mock_package.return_value = {'revision': 'test-revision', 'files': {'1': 'a' * 64}}
         mock_prepare.return_value = _prepared_launch_result(mock_config)
         mock_dispatch.return_value = {
             'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,

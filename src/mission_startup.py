@@ -17,8 +17,10 @@ from src.action_safety import (
     observe_safety_snapshot,
     takeoff_admission,
     vehicle_state_stream_specs,
+    observe_authoritative_vehicle_state,
 )
 from src.enums import Mission
+from src.command_execution_contract import mission_requires_ground_start
 from src.params import Params
 
 
@@ -48,6 +50,22 @@ class LaunchPreflightError(RuntimeError):
             message += " No correlated PX4 status text was captured."
         message += " The specific failing PX4 health item is unknown."
         super().__init__(message)
+
+
+class GroundStartRejected(RuntimeError):
+    """No flight-control ownership was acquired; never recover by landing/disarming."""
+
+
+async def require_native_ground_start(drone, *, timeout=ACTION_STATE_OBSERVATION_TIMEOUT_SEC):
+    try:
+        snapshot = await observe_authoritative_vehicle_state(drone, timeout=timeout)
+    except Exception as error:
+        raise GroundStartRejected('Ground start native state could not be observed') from error
+    admission = takeoff_admission(snapshot)
+    if not admission['ready']:
+        failed = ', '.join(key for key, value in admission['checks'].items() if not value)
+        raise GroundStartRejected(f'Ground start requires fresh Disarmed and On-ground state: {failed}')
+    return admission
 
 
 class LaunchReadinessError(TimeoutError):
@@ -241,7 +259,7 @@ def _readiness_from_snapshot(
     blockers.extend(battery["blockers"])
     blockers = list(dict.fromkeys(blockers))
 
-    admission = takeoff_admission(snapshot) if mission_type == Mission.TAKE_OFF.value else None
+    admission = takeoff_admission(snapshot) if mission_requires_ground_start(mission_type) else None
     if admission is not None and not admission["ready"]:
         blockers.extend(name for name, passed in admission["checks"].items() if not passed)
     combined_ready = bool(snapshot.complete and health_ready and battery["ready"]
@@ -406,7 +424,7 @@ async def probe_offboard_armability(
     share the same armability definition.
     """
     logger = logger or logging.getLogger(__name__)
-    if mission_type == Mission.TAKE_OFF.value:
+    if mission_requires_ground_start(mission_type):
         require_global_position = True
     wait_timeout = float(timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0))
     # Sampling a set of native streams is not a health-poll interval. Closing
@@ -432,7 +450,7 @@ async def probe_offboard_armability(
             stream_factory=drone.telemetry.battery,
         ),
     }
-    if mission_type == Mission.TAKE_OFF.value:
+    if mission_requires_ground_start(mission_type):
         native_fields = vehicle_state_stream_specs(drone)
         field_specs.update({name: native_fields[name] for name in ("armed", "landed_state")})
 
@@ -559,6 +577,7 @@ async def arm_with_preflight_gate(
     require_global_position: bool,
     logger: logging.Logger | None = None,
     mission_type: int | None = None,
+    on_arm_attempt=None,
 ):
     """
     Wait for armability, then arm with bounded retries on transient denials.
@@ -584,6 +603,8 @@ async def arm_with_preflight_gate(
             attempt_started_ms = _wall_clock_ms()
             try:
                 logger.info("Arming the drone (attempt %d/%d).", attempt, max_attempts)
+                if on_arm_attempt is not None:
+                    on_arm_attempt()
                 await asyncio.wait_for(drone.action.arm(), timeout=arm_action_timeout)
                 return
             except asyncio.TimeoutError as exc:

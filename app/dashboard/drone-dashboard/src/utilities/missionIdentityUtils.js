@@ -84,10 +84,10 @@ export function getIdentityDoctrineCopy(surface = 'default') {
       };
     case 'swarm-trajectory':
       return {
-        title: 'Trajectory packages are authored by slot and launched on current hardware owners.',
+        title: 'Trajectory formation and route files are bound to hardware IDs, not show slots.',
         chips: [
-          ...sharedChips,
-          { key: 'rule', label: 'Launch', detail: 'P -> H' },
+          { key: 'hardware', label: 'H', detail: 'aircraft identity' },
+          { key: 'rule', label: 'Route', detail: 'H -> file hash' },
         ],
       };
     case 'fleet-enrollment':

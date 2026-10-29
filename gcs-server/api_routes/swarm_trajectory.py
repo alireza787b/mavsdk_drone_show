@@ -4,11 +4,14 @@ import asyncio
 from functools import partial
 from typing import Any
 
-from fastapi import APIRouter, Body, File, Path as PathParam, Query, Request, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, Path as PathParam, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from api_errors import DEFAULT_ERROR_RESPONSES, build_error_payload
 from schemas import (
+    TrajectoryFormationRequest,
+    TrajectoryFormationResponse,
+    SwarmTrajectoryWorkspaceResponse,
     SwarmTrajectoryClearAllResponse,
     SwarmTrajectoryClearDroneResponse,
     SwarmTrajectoryClearLeaderResponse,
@@ -102,13 +105,51 @@ def _build_swarm_trajectory_policy_payload(params: Any) -> dict[str, Any]:
 def create_swarm_trajectory_router(deps: Any) -> APIRouter:
     router = APIRouter(responses=DEFAULT_ERROR_RESPONSES)
 
+    async def require_idle_trajectory():
+        try:
+            active = await deps.get_command_tracker().get_active_commands()
+        except Exception as exc:
+            raise HTTPException(503, 'Mission state unavailable; package edits were not applied') from exc
+        if any(int(command.get('mission_type', -1)) == 4 for command in active):
+            raise HTTPException(409, 'Trajectory mission is active. Hold or return before changing its package.')
+
+    @router.get('/api/v1/swarm-trajectories/workspace', response_model=SwarmTrajectoryWorkspaceResponse,
+                tags=['Swarm Trajectories'])
+    async def get_workspace(request: Request):
+        try:
+            return await asyncio.to_thread(deps.swarm_trajectory_service.get_workspace_payload)
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+
+    @router.get('/api/v1/swarm-trajectories/operation', tags=['Swarm Trajectories'])
+    async def get_operation():
+        from mission_operation import build_mission_operation_snapshot
+        from src.enums import Mission
+        return await build_mission_operation_snapshot(
+            deps, mission_types={Mission.SWARM_TRAJECTORY.value}, operation_kind='trajectory')
+
+    @router.get('/api/v1/swarm-trajectories/formation', response_model=TrajectoryFormationResponse,
+                tags=['Swarm Trajectories'])
+    async def get_formation():
+        return deps.swarm_trajectory_service.get_formation_payload()
+
+    @router.put('/api/v1/swarm-trajectories/formation', response_model=TrajectoryFormationResponse,
+                tags=['Swarm Trajectories'])
+    async def save_formation(request: Request, payload: TrajectoryFormationRequest):
+        await require_idle_trajectory()
+        try:
+            return deps.swarm_trajectory_service.save_formation_payload(
+                [member.model_dump() for member in payload.assignments], payload.revision)
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+
     @router.get(
         "/api/v1/swarm-trajectories/leaders",
         response_model=SwarmTrajectoryLeaderListResponse,
         tags=["Swarm Trajectories"],
     )
     async def get_swarm_leaders(request: Request):
-        """Get list of top leaders from swarm configuration."""
+        """Get top leaders from the mission-owned formation snapshot."""
         try:
             return SwarmTrajectoryLeaderListResponse.model_validate(
                 deps.swarm_trajectory_service.get_swarm_leaders_payload()
@@ -130,6 +171,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         file: UploadFile = File(...),
     ):
         """Upload CSV trajectory for a specific top-level leader."""
+        await require_idle_trajectory()
         try:
             payload = deps.swarm_trajectory_service.save_uploaded_trajectory(
                 leader_id=leader_id,
@@ -153,6 +195,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         payload: SwarmTrajectoryProcessRequest | None = Body(default=None),
     ):
         """Smart processing with automatic change detection."""
+        await require_idle_trajectory()
         try:
             process_request = payload or SwarmTrajectoryProcessRequest()
 
@@ -183,6 +226,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         payload: SwarmTrajectoryProcessRequest | None = Body(default=None),
     ):
         """Create an asynchronous Swarm Trajectory processing job."""
+        await require_idle_trajectory()
         try:
             process_request = payload or SwarmTrajectoryProcessRequest()
             result = deps.swarm_trajectory_service.create_processing_job_payload(
@@ -362,6 +406,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
     )
     async def clear_processed_trajectories(request: Request):
         """Explicitly clear all processed data and plots."""
+        await require_idle_trajectory()
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, deps.swarm_trajectory_service.clear_processed_payload)
@@ -379,6 +424,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
     )
     async def clear_all_trajectories(request: Request):
         """Clear all raw, processed, and generated swarm trajectory artifacts."""
+        await require_idle_trajectory()
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, deps.swarm_trajectory_service.clear_all_payload)
@@ -399,6 +445,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         leader_id: int = PathParam(..., description="Leader drone ID"),
     ):
         """Clear a leader upload together with all cluster outputs."""
+        await require_idle_trajectory()
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
@@ -422,6 +469,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         leader_id: int = PathParam(..., description="Leader drone ID"),
     ):
         """Remove a leader upload together with all cluster outputs."""
+        await require_idle_trajectory()
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
@@ -506,6 +554,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         drone_id: int = PathParam(..., description="Drone ID"),
     ):
         """Clear a single follower trajectory and invalidate stale plots."""
+        await require_idle_trajectory()
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
@@ -529,6 +578,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
         payload: SwarmTrajectoryCommitRequest | None = Body(default=None),
     ):
         """Commit and push swarm trajectory changes to git."""
+        await require_idle_trajectory()
         try:
             commit_request = payload or SwarmTrajectoryCommitRequest()
 

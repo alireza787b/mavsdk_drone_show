@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-04
 
-**Scope:** Catch-A-Drone two-node field deployment
+**Scope:** Private two-node field deployment
 
 **Status:** both nodes converged and the one-drone props-off admission check
 completed safely; bounded lifecycle corrections are locally validated and final
@@ -67,16 +67,9 @@ launch blockers; Bench/Ground Test connectivity does not override them.
 revision and syntax-checked any path ending in `.py` or `.sh`. It did not
 distinguish a deleted path from a file present in the target revision.
 
-The old-node-to-current-private delta intentionally deletes these seven retired
-client-demo Python tools:
-
-- `tools/build_catchadrone_phase1a_demo_01_assets.py`
-- `tools/build_catchadrone_phase1a_demo_assets.py`
-- `tools/fetch_catchadrone_demo_ulogs.py`
-- `tools/package_catchadrone_phase1a_demo_01.py`
-- `tools/package_catchadrone_phase1a_demo_02.py`
-- `tools/run_catchadrone_phase1a_demo_01.py`
-- `tools/validate_catchadrone_phase1a_demo.py`
+The old-node-to-current-private delta intentionally deletes seven retired
+client-demo Python tools: asset builders, log retrieval, packagers, a runner and
+a validator. Their deployment-specific names are retained in private history.
 
 After reset, those files correctly no longer existed. The validator attempted
 to read each one, classified the resulting missing-file errors as seven Python
@@ -224,7 +217,7 @@ invalid, or stale global samples through the same validator.
 ## Live deployment and node convergence evidence
 
 The validated correction was published first to official `main` at
-`b037e446`, then cherry-picked to Catch-A-Drone private `main` as
+`b037e446`, then cherry-picked to private deployment `main` as
 `1ada356b2be2bb5cab2d596ddf9a693de68da3dc`. The private checkout was clean
 before production deployment.
 

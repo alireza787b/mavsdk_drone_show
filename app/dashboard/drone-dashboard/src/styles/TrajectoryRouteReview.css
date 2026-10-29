@@ -1,0 +1,65 @@
+.trajectory-route-review {
+  min-width: 0;
+  width: 100%;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 0;
+}
+.trajectory-route-review__toolbar,
+.trajectory-route-review__legend-heading {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+  padding: .5rem;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+.trajectory-route-review__views { display: flex; }
+.trajectory-route-review button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  min-height: 34px;
+  padding: .35rem .65rem;
+  font: inherit;
+  font-size: .8rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 0;
+  cursor: pointer;
+}
+.trajectory-route-review button[aria-pressed="true"] { color: var(--color-primary); border-color: var(--color-primary); background: var(--color-primary-light); }
+.trajectory-route-review button:disabled { opacity: .45; cursor: default; }
+.trajectory-route-review button:focus-visible,
+.trajectory-route-review input:focus-visible,
+.trajectory-route-review summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.trajectory-route-review__shown { margin-left: auto; font-size: .75rem; color: var(--color-text-secondary); }
+.trajectory-route-review__body { display: grid; grid-template-columns: minmax(0, 1fr) 220px; min-height: 350px; }
+.trajectory-route-review__canvas { position: relative; min-width: 0; height: clamp(320px, 45vh, 520px); overflow: hidden; }
+.trajectory-route-review__canvas > .swarm-route-sketch { height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.trajectory-route-review__empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; height: 100%; padding: 1rem; text-align: center; }
+.trajectory-route-review__empty span { max-width: 30rem; font-size: .8rem; color: var(--color-text-secondary); }
+.trajectory-route-review__legend { display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--color-border-primary); }
+.trajectory-route-review__legend-heading { justify-content: space-between; font-size: .8rem; }
+.trajectory-route-review__legend > input { min-width: 0; width: calc(100% - 1rem); min-height: 34px; margin: .5rem; padding: .4rem; border: 1px solid var(--color-border-primary); border-radius: 0; background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: .8rem; }
+.trajectory-route-review__list { flex: 1; min-height: 0; max-height: 440px; overflow: auto; overscroll-behavior: contain; }
+.trajectory-route-review .trajectory-route-review__aircraft { display: flex; align-items: center; gap: .45rem; min-height: 45px; margin: 0; padding: .5rem; border-bottom: 1px solid var(--color-border-primary); cursor: pointer; }
+.trajectory-route-review__aircraft input { width: 15px; height: 15px; margin: 0; flex: 0 0 auto; accent-color: var(--color-primary); }
+.trajectory-route-review__aircraft > i { width: 18px; height: 3px; flex: 0 0 auto; }
+.trajectory-route-review__aircraft > span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.trajectory-route-review__aircraft strong { font-size: .8rem; overflow-wrap: anywhere; }
+.trajectory-route-review__aircraft small { font-size: .7rem; color: var(--color-text-secondary); }
+.trajectory-route-review__outside { border-top: 1px solid var(--color-border-primary); }
+.trajectory-route-review__outside summary { padding: .65rem .5rem; font-size: .75rem; color: var(--color-text-secondary); cursor: pointer; }
+.trajectory-route-review__outside > p,
+.trajectory-route-review__no-match { padding: .5rem; margin: 0; font-size: .75rem; color: var(--color-text-secondary); line-height: 1.4; }
+.trajectory-route-review__map .leaflet-control-zoom a { border-radius: 0; color: var(--color-text-primary); background: var(--color-bg-primary); }
+@media (max-width: 640px) {
+  .trajectory-route-review__body { grid-template-columns: minmax(0, 1fr); }
+  .trajectory-route-review__canvas { height: 300px; }
+  .trajectory-route-review__legend { border-left: 0; border-top: 1px solid var(--color-border-primary); }
+  .trajectory-route-review__list { max-height: 200px; }
+}

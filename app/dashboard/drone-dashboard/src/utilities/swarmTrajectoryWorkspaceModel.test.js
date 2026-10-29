@@ -84,7 +84,7 @@ describe('swarmTrajectoryWorkspaceModel', () => {
       title: 'Mission package is ready for launch preflight',
     });
     expect(status.details).toContain('Processing session: session-42');
-    expect(status.details).toContain('Next step: review plots, optionally commit the package for traceability, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.');
+    expect(status.details).toContain('Next step: review plots, save the package if needed, then use Operate to review and start the mission.');
   });
 
   test('buildSwarmTrajectoryStages derives blocked, action-needed, and ready stages', () => {
@@ -125,7 +125,7 @@ describe('swarmTrajectoryWorkspaceModel', () => {
       id: 'review',
       tone: 'ready',
       label: 'Ready',
-      actionLabel: 'Open Mission Trigger',
+      actionLabel: 'Operate',
     });
   });
 

@@ -218,3 +218,9 @@ multiple_sitl/**/build/
 .benchmarks/
 temp/
 runtime_data/
+
+# In-progress trajectory publication and cross-process lock files (not packages).
+**/swarm_trajectory/.formation.lock
+**/swarm_trajectory/.formation-*
+**/swarm_trajectory/.session-*
+**/swarm_trajectory/.trajectory-stage-*/

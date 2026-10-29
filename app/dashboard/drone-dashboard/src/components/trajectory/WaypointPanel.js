@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
+  MdArrowDownward,
+  MdArrowUpward,
   MdCheck,
   MdClose,
   MdDelete,
@@ -54,6 +56,7 @@ import {
   getWaypointRouteEntryDelaySeconds,
   getWaypointRouteMotionSeconds,
 } from '../../utilities/trajectoryTimingPresentation';
+import '../../styles/WaypointPanel.css';
 
 const WaypointPanel = ({
   waypoints,
@@ -773,6 +776,26 @@ const WaypointPanel = ({
                 {index > 0 && getSpeedIndicator(waypoint, index)}
               </div>
               <div className="waypoint-actions">
+                <button
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); onMoveWaypoint(waypoint.id, 'up'); }}
+                  className="action-btn"
+                  disabled={index === 0 || editingWaypointId !== null}
+                  aria-label={`Move ${waypoint.name} earlier`}
+                  data-help="Move waypoint earlier"
+                >
+                  <MdArrowUpward aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); onMoveWaypoint(waypoint.id, 'down'); }}
+                  className="action-btn"
+                  disabled={index === waypoints.length - 1 || editingWaypointId !== null}
+                  aria-label={`Move ${waypoint.name} later`}
+                  data-help="Move waypoint later"
+                >
+                  <MdArrowDownward aria-hidden="true" />
+                </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onFlyTo(waypoint); }}
                   data-help="Fly to waypoint"

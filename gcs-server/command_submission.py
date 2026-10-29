@@ -361,7 +361,7 @@ async def submit_tracked_command(
         )
         command_data["smart_swarm"] = session.model_dump(mode="json")
         dispatch_payload["smart_swarm"] = command_data["smart_swarm"]
-    if resolved_mission == deps.Mission.SWARM_TRAJECTORY and normalized_target_ids:
+    if resolved_mission == deps.Mission.SWARM_TRAJECTORY:
         try:
             status_payload = deps.swarm_trajectory_service.get_processing_status_payload()["status"]
             structure = {
@@ -408,6 +408,48 @@ async def submit_tracked_command(
                 status_code=400,
                 detail="Unsafe Swarm Trajectory target set. " + "; ".join(formatted_issues[:4]),
             )
+
+        # File presence and a valid target chain do not establish package
+        # freshness. Apply the same canonical validation used by review and
+        # publication to every launch, including the implicit all-fleet scope.
+        # A subset does not bypass a stale or incomplete package revision.
+        try:
+            validation = deps.swarm_trajectory_service.get_validation_payload()
+            if not isinstance(validation, dict):
+                raise ValueError("Validation response is unavailable")
+            blockers = validation.get("blockers")
+            if not isinstance(blockers, list):
+                raise ValueError("Validation blockers are unavailable")
+            if any(not isinstance(item, dict) for item in blockers):
+                raise ValueError("Validation blockers are malformed")
+        except Exception as exc:
+            deps.log_system_error(f"Swarm Trajectory validation failed: {exc}", "command")
+            raise HTTPException(
+                status_code=409,
+                detail=("Swarm Trajectory readiness could not be verified. "
+                        "Refresh the mission review before starting. No command was dispatched."),
+            ) from exc
+
+        if validation.get("success") is not True or validation.get("ready") is not True or blockers:
+            reasons = [str(item["message"]) for item in blockers[:4] if item.get("message")]
+            reason = "; ".join(reasons) or "Package validation has not confirmed readiness."
+            raise HTTPException(
+                status_code=409,
+                detail=(f"Swarm Trajectory is not ready: {reason} "
+                        "Review and regenerate the package before starting. No command was dispatched."),
+            )
+
+    if resolved_mission == deps.Mission.SWARM_TRAJECTORY:
+        from src.swarm_trajectory_contract import SwarmTrajectoryPackage
+        try:
+            package = SwarmTrajectoryPackage.model_validate(
+                deps.swarm_trajectory_service.get_dispatch_package_payload(target_hw_ids))
+            if command.swarm_trajectory is not None and command.swarm_trajectory != package:
+                raise ValueError('The reviewed trajectory package changed; review it again')
+        except Exception as exc:
+            raise HTTPException(409, f'Trajectory package could not be bound to this launch: {exc}') from exc
+        command_data['swarm_trajectory'] = package.model_dump(mode='json')
+        dispatch_payload['swarm_trajectory'] = command_data['swarm_trajectory']
 
     if resolved_mission == deps.Mission.SMART_SWARM:
         from swarm_start_readiness import require_start_admissions

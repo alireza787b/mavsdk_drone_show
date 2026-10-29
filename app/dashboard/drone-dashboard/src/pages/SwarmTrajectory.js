@@ -2,10 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FaCheckCircle,
-  FaArrowDown,
-  FaArrowUp,
-  FaClock,
-  FaCompass,
   FaExclamationTriangle,
   FaGlobeAmericas,
   FaHourglassHalf,
@@ -19,11 +15,12 @@ import {
 import { toast } from 'react-toastify';
 
 import { ConfirmDialog, DocsLink, MetricStrip, OperatorNotice, StatusBadge } from '../components/ui';
-import { MissionAltitudeControl, MissionJobProgressDialog } from '../components/mission-planning';
-import RouteSketch, { ROUTE_SKETCH_COLORS } from '../components/trajectory/RouteSketch';
-import SwarmRouteMapEditor from '../components/trajectory/SwarmRouteMapEditor';
+import { MissionJobProgressDialog } from '../components/mission-planning';
+import TrajectoryRouteReview from '../components/trajectory/TrajectoryRouteReview';
+import TrajectoryPlanning from './TrajectoryPlanning';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
+import useLeaderRouteDraft from '../hooks/useLeaderRouteDraft';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import {
   buildSwarmTrajectoryPlotUrl,
@@ -38,7 +35,6 @@ import {
   downloadSwarmTrajectoryCsv,
   downloadSwarmTrajectoryKml,
   getSwarmLeaders,
-  getSwarmTrajectoryElevationBatch,
   getSwarmTrajectoryPreview,
   getSwarmTrajectoryProcessJob,
   getSwarmTrajectoryStatus,
@@ -47,19 +43,6 @@ import {
   uploadSwarmTrajectory,
 } from '../services/droneApiService';
 import {
-  SWARM_TRAJECTORY_ALTITUDE_MODES,
-  TIMING_MODES,
-  YAW_CONSTANTS,
-  buildSwarmLeaderCsv,
-  buildTerrainStatusFromResults,
-  normalizeDraftWaypoint,
-  reflowDraftWaypoints,
-  toFiniteNumber,
-  validateDraftWaypoint,
-  validateDraftWaypoints,
-} from '../utilities/swarmTrajectoryDraft';
-import { buildTrajectorySegments } from '../utilities/SpeedCalculator';
-import {
   buildSwarmTrajectoryViewModel,
   getClusterStateMeta,
 } from '../utilities/swarmTrajectoryViewModel';
@@ -67,7 +50,6 @@ import {
   buildSwarmTrajectoryStages,
   buildSwarmTrajectoryWorkspaceStatus,
 } from '../utilities/swarmTrajectoryWorkspaceModel';
-import { uploadLeaderTrajectoryCsv } from '../utilities/swarmTrajectoryAssignment';
 import '../styles/SwarmTrajectory.css';
 
 const buildListLabel = (values = []) => (values.length > 0 ? values.join(', ') : 'None');
@@ -106,17 +88,6 @@ const triggerBlobDownload = (blob, filename) => {
   window.URL.revokeObjectURL(url);
 };
 
-const DEFAULT_WAYPOINT_FORM = {
-  latitude: '',
-  longitude: '',
-  altitude: 100,
-  timeFromStart: 0,
-  estimatedSpeed: 8,
-  heading: 0,
-  timingMode: TIMING_MODES.AUTO_SPEED,
-  headingMode: YAW_CONSTANTS.AUTO,
-};
-
 const issueMessages = (issues = []) => (issues || []).map((issue) => issue.message || issue.code || String(issue));
 
 const normalizeJobForDialog = (job = {}) => {
@@ -124,58 +95,13 @@ const normalizeJobForDialog = (job = {}) => {
   return {
     status: safeJob.status || 'running',
     phase: safeJob.phase || 'processing',
-    progressPercent: Number(safeJob.progress_percent ?? safeJob.progressPercent ?? 0),
+    progressPercent: safeJob.progress_percent ?? safeJob.progressPercent ?? null,
     message: safeJob.message,
     error: safeJob.error_message || safeJob.error,
   };
 };
 
-const createWaypointId = () => `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-const formatSeconds = (seconds = 0) => {
-  const safeSeconds = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
-  if (safeSeconds >= 60) {
-    const minutes = Math.floor(safeSeconds / 60);
-    const remainder = Math.round(safeSeconds % 60);
-    return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
-  }
-  return `${Math.round(safeSeconds)}s`;
-};
-
-const formatHeadingDegrees = (heading = 0) => {
-  const safeHeading = Number.isFinite(Number(heading)) ? Number(heading) : 0;
-  const normalized = ((safeHeading % 360) + 360) % 360;
-  return `${Math.round(normalized).toString().padStart(3, '0')} deg`;
-};
-
-const buildClimbLabel = (segment) => {
-  if (!segment || !Number.isFinite(segment.durationSeconds) || segment.durationSeconds <= 0) {
-    return 'level';
-  }
-  const verticalRate = (Number(segment.toAltitude || 0) - Number(segment.fromAltitude || 0)) / segment.durationSeconds;
-  if (verticalRate > 0.05) {
-    return `climb +${verticalRate.toFixed(1)} m/s`;
-  }
-  if (verticalRate < -0.05) {
-    return `desc ${Math.abs(verticalRate).toFixed(1)} m/s`;
-  }
-  return 'level';
-};
-
-const buildWaypointFormState = (waypoint = {}) => ({
-  latitude: waypoint.latitude,
-  longitude: waypoint.longitude,
-  altitude: waypoint.altitudeReference === 'AGL' ? waypoint.targetAgl : waypoint.altitude,
-  timeFromStart: waypoint.timeFromStart,
-  estimatedSpeed: waypoint.timingMode === TIMING_MODES.AUTO_SPEED
-    ? waypoint.preferredSpeed
-    : waypoint.estimatedSpeed,
-  heading: waypoint.heading,
-  timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
-  headingMode: waypoint.headingMode || YAW_CONSTANTS.AUTO,
-});
-
-const SwarmTrajectory = () => {
+const SwarmTrajectory = ({ embedded = false, fleet = [], formationAssignments = [] }) => {
   const [leaders, setLeaders] = useState([]);
   const [hierarchies, setHierarchies] = useState({});
   const [followerDetails, setFollowerDetails] = useState({});
@@ -185,7 +111,7 @@ const SwarmTrajectory = () => {
   const [status, setStatus] = useState(null);
   const [validation, setValidation] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [simulationMode, setSimulationMode] = useState(false);
+  const [simulationMode, setSimulationMode] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [commitProgress, setCommitProgress] = useState(null);
@@ -199,19 +125,12 @@ const SwarmTrajectory = () => {
   const [processJob, setProcessJob] = useState(null);
   const [processDialogOpen, setProcessDialogOpen] = useState(false);
   const [selectedLeaderId, setSelectedLeaderId] = useState('');
-  const [draftWaypoints, setDraftWaypoints] = useState([]);
-  const [waypointForm, setWaypointForm] = useState(DEFAULT_WAYPOINT_FORM);
-  const [editingWaypointId, setEditingWaypointId] = useState('');
+  const { waypoints: draftWaypoints, update: setDraftWaypoints, persist: persistDrafts, key: draftKey } =
+    useLeaderRouteDraft(simulationMode === null ? null : simulationMode ? 'sitl' : 'real', selectedLeaderId);
   const [activePanel, setActivePanel] = useState('route');
-  const [altitudeMode, setAltitudeMode] = useState(SWARM_TRAJECTORY_ALTITUDE_MODES.MSL);
-  const [terrainStatus, setTerrainStatus] = useState({
-    status: 'neutral',
-    label: 'MSL',
-    detail: 'Fixed MSL route authoring.',
-  });
-  const [uploadingDraft, setUploadingDraft] = useState(false);
   const { data: gcsConfig } = useFetch(GCS_ROUTE_KEYS.gcsConfig);
 
+  useEffect(() => { persistDrafts(); }, [persistDrafts]);
   useEffect(() => {
     // This screen intentionally boots once, then refreshes from explicit operator actions.
     initializeComponent();
@@ -253,31 +172,8 @@ const SwarmTrajectory = () => {
   const validationBlockers = issueMessages(validation?.blockers);
   const validationWarnings = issueMessages(validation?.warnings);
   const validationAdvisories = issueMessages(validation?.advisories);
-  const validationReady = validation ? Boolean(validation.ready) : hasProcessedOutputs && !isPartialPackage;
-  const previewSeries = useMemo(() => (
-    (preview?.drones || [])
-      .filter((drone) => drone.global_coordinates_available && drone.points?.length)
-      .map((drone, index) => ({
-        id: drone.drone_id,
-        label: `Drone ${drone.drone_id}`,
-        role: drone.role,
-        color: ROUTE_SKETCH_COLORS[index % ROUTE_SKETCH_COLORS.length],
-        points: drone.points,
-      }))
-  ), [preview]);
-  const draftSeries = useMemo(() => [{
-    id: 'draft',
-    label: 'Draft leader route',
-    role: 'leader',
-    color: ROUTE_SKETCH_COLORS[0],
-    points: draftWaypoints,
-  }], [draftWaypoints]);
-  const draftSegments = useMemo(() => buildTrajectorySegments(draftWaypoints), [draftWaypoints]);
-  const draftSegmentByWaypointId = useMemo(
-    () => new Map(draftSegments.map((segment) => [segment.toWaypointId, segment])),
-    [draftSegments],
-  );
-  const draftRouteErrors = useMemo(() => validateDraftWaypoints(draftWaypoints), [draftWaypoints]);
+  const validationReady = validation?.success === true && validation?.ready === true
+    && Array.isArray(validation.blockers) && validation.blockers.length === 0;
   const workspaceMetricItems = useMemo(() => [
     {
       key: 'clusters',
@@ -287,7 +183,7 @@ const SwarmTrajectory = () => {
     },
     {
       key: 'leader-csvs',
-      label: 'Leader CSVs',
+      label: 'Leader routes',
       value: viewModel.uploadedLeaderIds.length,
       tone: viewModel.uploadedLeaderIds.length > 0 ? 'success' : 'neutral',
     },
@@ -299,7 +195,7 @@ const SwarmTrajectory = () => {
     },
     {
       key: 'processed-drones',
-      label: 'Processed Drones',
+      label: 'Output files',
       value: viewModel.processedDroneCount,
       tone: viewModel.processedDroneCount > 0 ? 'success' : 'neutral',
     },
@@ -319,13 +215,13 @@ const SwarmTrajectory = () => {
     },
     {
       id: 'leaders',
-      label: 'Leaders',
+      label: 'Uploads',
       meta: `${viewModel.uploadedLeaderIds.length}/${viewModel.expectedLeaderIds.length || leaders.length}`,
       Icon: FaUpload,
     },
     {
       id: 'process',
-      label: 'Process',
+      label: 'Generate',
       meta: `${viewModel.clusterSummary.ready_cluster_count}/${viewModel.clusterSummary.cluster_count || leaders.length}`,
       Icon: FaHourglassHalf,
     },
@@ -345,17 +241,6 @@ const SwarmTrajectory = () => {
     viewModel.processedDroneCount,
     viewModel.uploadedLeaderIds.length,
   ]);
-  const editingWaypointIndex = draftWaypoints.findIndex((waypoint) => waypoint.id === editingWaypointId);
-  const formWaypointIndex = editingWaypointIndex >= 0 ? editingWaypointIndex : draftWaypoints.length;
-  const isRouteEntryWaypoint = formWaypointIndex === 0;
-  const formTimingMode = isRouteEntryWaypoint
-    ? TIMING_MODES.MANUAL_TIME
-    : (waypointForm.timingMode || TIMING_MODES.AUTO_SPEED);
-  const formHeadingMode = isRouteEntryWaypoint
-    ? YAW_CONSTANTS.MANUAL
-    : (waypointForm.headingMode || YAW_CONSTANTS.AUTO);
-  const isAutoTiming = formTimingMode === TIMING_MODES.AUTO_SPEED && !isRouteEntryWaypoint;
-  const isAutoHeading = formHeadingMode === YAW_CONSTANTS.AUTO && !isRouteEntryWaypoint;
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
     method(message ? `${title} — ${message}` : title);
@@ -410,7 +295,8 @@ const SwarmTrajectory = () => {
       setHierarchies(data.hierarchies || {});
       setFollowerDetails(data.follower_details || {});
       setSimulationMode(Boolean(data.simulation_mode));
-      setSelectedLeaderId((current) => current || String((data.leaders || [])[0] || ''));
+      setSelectedLeaderId((current) => (data.leaders || []).some((id) => String(id) === current)
+        ? current : String((data.leaders || [])[0] || ''));
       setPageError('');
     } catch (error) {
       console.error('Error fetching leaders:', error);
@@ -534,231 +420,6 @@ const SwarmTrajectory = () => {
     } catch (error) {
       console.error('Upload error:', error);
       showNotice('error', `Leader ${leaderId} upload failed`, error.message || 'Upload failed');
-    }
-  };
-
-  const resetWaypointForm = (nextIndex = draftWaypoints.length, sourceWaypoints = draftWaypoints) => {
-    setWaypointForm({
-      ...DEFAULT_WAYPOINT_FORM,
-      altitude: altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 100 : 100,
-      timeFromStart: nextIndex === 0
-        ? 0
-        : toFiniteNumber(sourceWaypoints[nextIndex - 1]?.timeFromStart, 0) + 10,
-      timingMode: nextIndex === 0 ? TIMING_MODES.MANUAL_TIME : TIMING_MODES.AUTO_SPEED,
-      headingMode: nextIndex === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO,
-    });
-    setEditingWaypointId('');
-  };
-
-  const handleWaypointFormChange = (field, value) => {
-    setWaypointForm((prev) => ({
-      ...prev,
-      [field]: value,
-      ...(field === 'timeFromStart' ? { timingMode: TIMING_MODES.MANUAL_TIME } : {}),
-      ...(field === 'estimatedSpeed' ? { timingMode: TIMING_MODES.AUTO_SPEED } : {}),
-      ...(field === 'heading' ? { headingMode: YAW_CONSTANTS.MANUAL } : {}),
-    }));
-  };
-
-  const handleWaypointModeChange = (field, value) => {
-    setWaypointForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const selectDraftWaypoint = (waypoint) => {
-    if (!waypoint) {
-      return;
-    }
-    setEditingWaypointId(waypoint.id);
-    setWaypointForm(buildWaypointFormState(waypoint));
-    setAltitudeMode(
-      waypoint.altitudeReference === 'AGL'
-        ? SWARM_TRAJECTORY_ALTITUDE_MODES.AGL
-        : SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
-    );
-  };
-
-  const resolveWaypointAltitude = async (waypoint) => {
-    if (altitudeMode !== SWARM_TRAJECTORY_ALTITUDE_MODES.AGL) {
-      setTerrainStatus({
-        status: 'neutral',
-        label: 'MSL',
-        detail: 'Fixed MSL route authoring.',
-      });
-      return {
-        ...waypoint,
-        altitudeReference: 'MSL',
-        targetAgl: 0,
-        groundElevation: 0,
-        terrainAccurate: true,
-      };
-    }
-
-    const lookup = await getSwarmTrajectoryElevationBatch([{
-      id: waypoint.id,
-      lat: waypoint.latitude,
-      lng: waypoint.longitude,
-    }]);
-    const results = lookup.results || [];
-    setTerrainStatus(buildTerrainStatusFromResults(results));
-    const result = results[0];
-    if (!result || result.status !== 'ok' || !Number.isFinite(Number(result.elevation_m))) {
-      throw new Error(result?.message || 'Terrain elevation is unavailable. Switch to fixed MSL or retry.');
-    }
-
-    const targetAgl = Math.max(0, Number(waypoint.altitude) || 0);
-    return {
-      ...waypoint,
-      altitude: Number(result.elevation_m) + targetAgl,
-      altitudeReference: 'AGL',
-      targetAgl,
-      groundElevation: Number(result.elevation_m),
-      terrainAccurate: true,
-      terrainSource: result.provider || result.source || 'backend',
-      terrainConfidence: result.confidence || 'reported',
-      terrainSampleTime: result.sample_time || null,
-    };
-  };
-
-  const saveDraftWaypoint = async () => {
-    try {
-      const existingIndex = draftWaypoints.findIndex((waypoint) => waypoint.id === editingWaypointId);
-      const waypointIndex = existingIndex >= 0 ? existingIndex : draftWaypoints.length;
-      const rawWaypoint = {
-        id: editingWaypointId || createWaypointId(),
-        latitude: toFiniteNumber(waypointForm.latitude),
-        longitude: toFiniteNumber(waypointForm.longitude),
-        altitude: toFiniteNumber(waypointForm.altitude),
-        timeFromStart: toFiniteNumber(waypointForm.timeFromStart, waypointIndex * 30),
-        estimatedSpeed: toFiniteNumber(waypointForm.estimatedSpeed, 8),
-        preferredSpeed: toFiniteNumber(waypointForm.estimatedSpeed, 8),
-        heading: toFiniteNumber(waypointForm.heading, 0),
-        calculatedHeading: toFiniteNumber(waypointForm.heading, 0),
-        timingMode: waypointForm.timingMode || TIMING_MODES.AUTO_SPEED,
-        headingMode: waypointIndex === 0
-          ? YAW_CONSTANTS.MANUAL
-          : (waypointForm.headingMode || YAW_CONSTANTS.AUTO),
-      };
-      const altitudeResolved = await resolveWaypointAltitude(rawWaypoint);
-      const nextWaypoint = normalizeDraftWaypoint(altitudeResolved, waypointIndex);
-      const waypointErrors = validateDraftWaypoint(nextWaypoint);
-      if (waypointErrors.length) {
-        throw new Error(waypointErrors.join(' '));
-      }
-
-      const nextWaypoints = reflowDraftWaypoints(
-        existingIndex >= 0
-          ? draftWaypoints.map((waypoint) => (waypoint.id === editingWaypointId ? nextWaypoint : waypoint))
-          : [...draftWaypoints, nextWaypoint]
-      );
-      const selectedWaypoint = nextWaypoints.find((waypoint) => waypoint.id === nextWaypoint.id);
-      setDraftWaypoints(nextWaypoints);
-      if (existingIndex >= 0) {
-        selectDraftWaypoint(selectedWaypoint);
-      } else {
-        resetWaypointForm(waypointIndex + 1, nextWaypoints);
-      }
-    } catch (error) {
-      showNotice('error', 'Waypoint not saved', error.message || 'Check the waypoint fields and terrain state.');
-    }
-  };
-
-  const addDraftWaypointFromMap = async ({ latitude, longitude }) => {
-    try {
-      const waypointIndex = draftWaypoints.length;
-      const rawWaypoint = {
-        id: createWaypointId(),
-        latitude: toFiniteNumber(latitude),
-        longitude: toFiniteNumber(longitude),
-        altitude: toFiniteNumber(waypointForm.altitude, DEFAULT_WAYPOINT_FORM.altitude),
-        timeFromStart: waypointIndex === 0
-          ? 0
-          : toFiniteNumber(draftWaypoints[waypointIndex - 1]?.timeFromStart, 0) + 10,
-        estimatedSpeed: toFiniteNumber(waypointForm.estimatedSpeed, DEFAULT_WAYPOINT_FORM.estimatedSpeed),
-        preferredSpeed: toFiniteNumber(waypointForm.estimatedSpeed, DEFAULT_WAYPOINT_FORM.estimatedSpeed),
-        heading: toFiniteNumber(waypointForm.heading, DEFAULT_WAYPOINT_FORM.heading),
-        timingMode: waypointIndex === 0 ? TIMING_MODES.MANUAL_TIME : TIMING_MODES.AUTO_SPEED,
-        headingMode: waypointIndex === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO,
-      };
-      const normalized = normalizeDraftWaypoint(rawWaypoint, waypointIndex);
-      const errors = validateDraftWaypoint(normalized);
-      if (errors.length) {
-        throw new Error(errors.join(' '));
-      }
-      const resolved = await resolveWaypointAltitude(normalized);
-      const nextWaypoint = normalizeDraftWaypoint(resolved, waypointIndex);
-      const nextWaypoints = reflowDraftWaypoints([...draftWaypoints, nextWaypoint]);
-      const selectedWaypoint = nextWaypoints.find((waypoint) => waypoint.id === nextWaypoint.id);
-      setDraftWaypoints(nextWaypoints);
-      selectDraftWaypoint(selectedWaypoint);
-      setOperatorNotice(null);
-    } catch (error) {
-      showNotice('error', 'Map waypoint not saved', error.message || 'Check terrain state and waypoint policy.');
-    }
-  };
-
-  const editDraftWaypoint = (waypoint) => {
-    selectDraftWaypoint(waypoint);
-  };
-
-  const deleteDraftWaypoint = (waypointId) => {
-    const nextWaypoints = reflowDraftWaypoints(draftWaypoints.filter((waypoint) => waypoint.id !== waypointId));
-    setDraftWaypoints(nextWaypoints);
-    if (editingWaypointId === waypointId) {
-      resetWaypointForm(nextWaypoints.length, nextWaypoints);
-    } else if (editingWaypointId) {
-      selectDraftWaypoint(nextWaypoints.find((waypoint) => waypoint.id === editingWaypointId));
-    }
-  };
-
-  const moveDraftWaypoint = (waypointId, direction) => {
-    const index = draftWaypoints.findIndex((waypoint) => waypoint.id === waypointId);
-    const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= draftWaypoints.length) {
-      return;
-    }
-    const next = [...draftWaypoints];
-    const [item] = next.splice(index, 1);
-    next.splice(targetIndex, 0, item);
-    const nextWaypoints = reflowDraftWaypoints(next);
-    setDraftWaypoints(nextWaypoints);
-    if (editingWaypointId) {
-      selectDraftWaypoint(nextWaypoints.find((waypoint) => waypoint.id === editingWaypointId));
-    }
-  };
-
-  const uploadDraftToLeader = async () => {
-    if (!selectedLeaderId) {
-      showNotice('error', 'Leader not selected', 'Choose a top-level leader before assigning a route.');
-      return;
-    }
-    const errors = validateDraftWaypoints(draftWaypoints);
-    if (errors.length) {
-      showNotice('error', 'Draft route blocked', errors[0], errors.slice(1));
-      return;
-    }
-
-    setUploadingDraft(true);
-    try {
-      await uploadLeaderTrajectoryCsv({
-        leaderId: selectedLeaderId,
-        waypoints: draftWaypoints,
-        buildCsv: buildSwarmLeaderCsv,
-        uploadFn: uploadSwarmTrajectory,
-      });
-      await refreshOperationalState();
-      setActivePanel('process');
-      showNotice(
-        'success',
-        `Leader ${selectedLeaderId} route assigned`,
-        'Run processing to generate follower paths and validation preview.',
-      );
-    } catch (error) {
-      showNotice('error', 'Route upload failed', error.message || 'Unable to assign leader route');
-    } finally {
-      setUploadingDraft(false);
     }
   };
 
@@ -1172,27 +833,9 @@ const SwarmTrajectory = () => {
       confirmLabel,
       onConfirm: async () => {
         setCommitting(true);
-        setCommitProgress({ step: 'Preparing files...', progress: 10 });
+        setCommitProgress({ step: isPushMode ? 'Saving to repository…' : 'Saving locally…' });
 
         try {
-          const progressSteps = isPushMode
-            ? [
-                { step: 'Staging trajectory outputs...', progress: 25 },
-                { step: 'Creating git commit...', progress: 50 },
-                { step: 'Pushing to repository...', progress: 75 },
-                { step: 'Finalizing...', progress: 90 },
-              ]
-            : [
-                { step: 'Staging trajectory outputs...', progress: 35 },
-                { step: 'Creating local git commit...', progress: 70 },
-                { step: 'Finalizing...', progress: 90 },
-              ];
-
-          for (const progressStep of progressSteps) {
-            setCommitProgress(progressStep);
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-
           const data = await commitSwarmTrajectoryOutputs(
             `Swarm trajectory update: ${viewModel.processedDroneCount} drones processed - ${new Date().toISOString().split('T')[0]}`
           );
@@ -1201,15 +844,12 @@ const SwarmTrajectory = () => {
             throw new Error(data.error || 'Commit failed');
           }
 
-          setCommitProgress({ step: 'Complete', progress: 100 });
-          setTimeout(() => {
-            setCommitProgress(null);
-            showNotice(
-              'success',
-              isPushMode ? 'Swarm trajectory outputs committed and pushed' : 'Swarm trajectory outputs committed locally',
-              data.git_info?.message || data.message || 'Mission outputs were recorded successfully.',
-            );
-          }, 500);
+          setCommitProgress(null);
+          showNotice(
+            'success',
+            isPushMode ? 'Swarm trajectory outputs committed and pushed' : 'Swarm trajectory outputs committed locally',
+            data.git_info?.message || data.message || 'Mission outputs were recorded successfully.',
+          );
         } catch (error) {
           console.error('Commit error:', error);
           setCommitProgress(null);
@@ -1223,7 +863,7 @@ const SwarmTrajectory = () => {
 
   return (
     <div className="swarm-trajectory">
-      <div className="swarm-trajectory__header">
+      {!embedded && <div className="swarm-trajectory__header">
         <div className="title-section">
           <h1>Swarm Trajectory Mission</h1>
           <p className="subtitle">
@@ -1236,7 +876,7 @@ const SwarmTrajectory = () => {
           </StatusBadge>
           <DocsLink route="/swarm-trajectory" compact />
         </div>
-      </div>
+      </div>}
 
       <div className="status-card status-card--compact">
         <MetricStrip
@@ -1280,8 +920,7 @@ const SwarmTrajectory = () => {
 
         <details className="swarm-status-details">
           <summary>
-            <span>Workspace review & policy</span>
-            <small>Status, doctrine, and links</small>
+            <span>Package details</span>
           </summary>
           <SwarmTrajectoryWorkspaceSummary
             workspaceStatus={workspaceStatus}
@@ -1311,238 +950,35 @@ const SwarmTrajectory = () => {
             ))}
           </div>
 
-          <div className={`workflow-step workflow-step--planner swarm-panel ${activePanel === 'route' ? 'is-active' : ''}`} hidden={activePanel !== 'route'}>
-            <div className="step-header">
-              <h3><span className="step-number">1</span>Route</h3>
+          <section className="swarm-route-authoring" hidden={activePanel !== 'route'} aria-label="Leader route">
+            <div className="swarm-route-authoring__scope">
+              <label htmlFor="trajectory-leader">Leader route</label>
+              <select id="trajectory-leader" value={selectedLeaderId}
+                onChange={(event) => setSelectedLeaderId(event.target.value)}
+                aria-label="Leader route assignment">
+                {leaders.map((leaderId) => (
+                  <option key={leaderId} value={leaderId}>Leader {leaderId}</option>
+                ))}
+              </select>
+              <span>{draftWaypoints.length} waypoints · browser draft</span>
             </div>
-
-            <SwarmRouteMapEditor
-              waypoints={draftWaypoints}
-              onAddWaypoint={addDraftWaypointFromMap}
-              onSelectWaypoint={editDraftWaypoint}
-              selectedWaypointId={editingWaypointId}
-              altitudeLabel={altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 'AGL terrain' : 'Fixed MSL'}
-            />
-
-            <div className="swarm-planner-grid">
-              <section className="swarm-planner-card" aria-label="Leader route waypoint editor">
-                <div className="swarm-planner-card__header">
-                  <div>
-                    <strong>Draft leader path</strong>
-                    <span>
-                      {editingWaypointId ? `Editing WP${formWaypointIndex + 1}` : 'New waypoint'}
-                      {' · '}
-                      {draftWaypoints.length} waypoint{draftWaypoints.length === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  <select
-                    value={selectedLeaderId}
-                    onChange={(event) => setSelectedLeaderId(event.target.value)}
-                    aria-label="Leader route assignment"
-                  >
-                    {leaders.map((leaderId) => (
-                      <option key={leaderId} value={leaderId}>Leader {leaderId}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="swarm-waypoint-mode-strip" aria-label="Waypoint automation modes">
-                  <div className="swarm-segmented-control" role="group" aria-label="Waypoint timing mode">
-                    <button
-                      type="button"
-                      className={isAutoTiming ? 'is-selected' : ''}
-                      onClick={() => handleWaypointModeChange('timingMode', TIMING_MODES.AUTO_SPEED)}
-                      disabled={isRouteEntryWaypoint}
-                      title="Use distance, altitude change, and preferred speed to derive waypoint arrival time."
-                    >
-                      <FaClock aria-hidden="true" />
-                      Auto ETA
-                    </button>
-                    <button
-                      type="button"
-                      className={!isAutoTiming ? 'is-selected' : ''}
-                      onClick={() => handleWaypointModeChange('timingMode', TIMING_MODES.MANUAL_TIME)}
-                      title="Pin waypoint arrival time and calculate the required inbound speed."
-                    >
-                      Fixed time
-                    </button>
-                  </div>
-                  <div className="swarm-segmented-control" role="group" aria-label="Waypoint yaw mode">
-                    <button
-                      type="button"
-                      className={isAutoHeading ? 'is-selected' : ''}
-                      onClick={() => handleWaypointModeChange('headingMode', YAW_CONSTANTS.AUTO)}
-                      disabled={isRouteEntryWaypoint}
-                      title="Align yaw with the inbound route leg."
-                    >
-                      <FaCompass aria-hidden="true" />
-                      Auto yaw
-                    </button>
-                    <button
-                      type="button"
-                      className={!isAutoHeading ? 'is-selected' : ''}
-                      onClick={() => handleWaypointModeChange('headingMode', YAW_CONSTANTS.MANUAL)}
-                      title="Lock the waypoint yaw to the value in the heading field."
-                    >
-                      Manual
-                    </button>
-                  </div>
-                </div>
-
-                <div className="swarm-waypoint-form">
-                  <label>
-                    <span>Latitude</span>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={waypointForm.latitude}
-                      onChange={(event) => handleWaypointFormChange('latitude', event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <span>Longitude</span>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={waypointForm.longitude}
-                      onChange={(event) => handleWaypointFormChange('longitude', event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <span>Time</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={waypointForm.timeFromStart}
-                      onChange={(event) => handleWaypointFormChange('timeFromStart', event.target.value)}
-                      readOnly={isAutoTiming}
-                      title={isAutoTiming ? 'Derived from distance, altitude change, and preferred speed.' : 'Pinned waypoint arrival time.'}
-                    />
-                  </label>
-                  <label>
-                    <span>Speed</span>
-                    <input
-                      type="number"
-                      min="0.5"
-                      step="0.1"
-                      value={waypointForm.estimatedSpeed}
-                      onChange={(event) => handleWaypointFormChange('estimatedSpeed', event.target.value)}
-                      readOnly={!isAutoTiming}
-                      title={isAutoTiming ? 'Preferred inbound speed for automatic ETA.' : 'Calculated from fixed arrival time and route distance.'}
-                    />
-                  </label>
-                  <label>
-                    <span>Heading</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="360"
-                      step="1"
-                      value={waypointForm.heading}
-                      onChange={(event) => handleWaypointFormChange('heading', event.target.value)}
-                      readOnly={isAutoHeading}
-                      title={isAutoHeading ? 'Derived from the inbound route leg.' : 'Operator-owned yaw/heading.'}
-                    />
-                  </label>
-                </div>
-
-                <MissionAltitudeControl
-                  mode={altitudeMode}
-                  valueM={waypointForm.altitude}
-                  onModeChange={(mode) => setAltitudeMode(
-                    mode === SWARM_TRAJECTORY_ALTITUDE_MODES.IMPORTED
-                      ? SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
-                      : mode
-                  )}
-                  onValueChange={(value) => handleWaypointFormChange('altitude', value)}
-                  terrainStatus={terrainStatus}
-                />
-
-                <div className="swarm-planner-actions">
-                  <button type="button" className="utility-btn commit" onClick={saveDraftWaypoint}>
-                    <FaPlus aria-hidden="true" />
-                    {editingWaypointId ? 'Save Waypoint' : 'Add Waypoint'}
-                  </button>
-                  <button type="button" className="utility-btn" onClick={() => resetWaypointForm()}>
-                    Reset Form
-                  </button>
-                  <button
-                    type="button"
-                    className="utility-btn"
-                    onClick={uploadDraftToLeader}
-                    disabled={uploadingDraft || draftRouteErrors.length > 0}
-                  >
-                    <FaUpload aria-hidden="true" />
-                    {uploadingDraft ? 'Assigning...' : 'Assign to Leader'}
-                  </button>
-                </div>
-
-                {draftWaypoints.length > 0 && draftRouteErrors.length ? (
-                  <OperatorNotice tone="warning" title="Draft route needs attention" className="swarm-planner-card__notice">
-                    {draftRouteErrors[0]}
-                  </OperatorNotice>
-                ) : null}
-              </section>
-
-              <section className="swarm-planner-card" aria-label="Leader route preview">
-                <div className="swarm-planner-card__header">
-                  <div>
-                    <strong>2D route preview</strong>
-                    <span>{altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 'AGL with terrain lookup' : 'Fixed MSL'}</span>
-                  </div>
-                  <StatusBadge tone={draftRouteErrors.length ? 'warning' : 'success'}>
-                    {draftRouteErrors.length ? 'Draft' : 'Ready'}
-                  </StatusBadge>
-                </div>
-                <RouteSketch series={draftSeries} emptyLabel="Add waypoints to preview the leader path" />
-                <div className="swarm-waypoint-list" role="list" aria-label="Draft waypoints">
-                  {draftWaypoints.map((waypoint, index) => {
-                    const segment = draftSegmentByWaypointId.get(waypoint.id);
-                    const timingLabel = waypoint.timingMode === TIMING_MODES.AUTO_SPEED ? 'auto ETA' : 'fixed time';
-                    const headingLabel = waypoint.headingMode === YAW_CONSTANTS.AUTO ? 'auto yaw' : 'manual yaw';
-                    return (
-                      <div
-                        key={waypoint.id}
-                        className={`swarm-waypoint-row ${editingWaypointId === waypoint.id ? 'is-active' : ''}`}
-                        role="listitem"
-                      >
-                        <button type="button" className="swarm-waypoint-row__main" onClick={() => editDraftWaypoint(waypoint)}>
-                          <strong>{index + 1}. {waypoint.name}</strong>
-                          <span>
-                            {waypoint.latitude.toFixed(5)}, {waypoint.longitude.toFixed(5)} · {waypoint.altitude.toFixed(0)} m MSL
-                          </span>
-                          <span className="swarm-waypoint-row__detail">
-                            {index === 0
-                              ? `T+${formatSeconds(waypoint.timeFromStart)} · entry ${formatHeadingDegrees(waypoint.heading)}`
-                              : `T+${formatSeconds(waypoint.timeFromStart)} · ${Number(waypoint.estimatedSpeed || 0).toFixed(1)} m/s · ${formatHeadingDegrees(waypoint.heading)} · ${buildClimbLabel(segment)}`}
-                          </span>
-                          <span className="swarm-waypoint-row__modes">
-                            {index === 0 ? 'route entry' : `${timingLabel} · ${headingLabel}`}
-                          </span>
-                        </button>
-                        <div className="swarm-waypoint-row__actions">
-                          <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, -1)} disabled={index === 0} aria-label={`Move waypoint ${index + 1} up`}>
-                            <FaArrowUp aria-hidden="true" />
-                          </button>
-                          <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, 1)} disabled={index === draftWaypoints.length - 1} aria-label={`Move waypoint ${index + 1} down`}>
-                            <FaArrowDown aria-hidden="true" />
-                          </button>
-                          <button type="button" onClick={() => deleteDraftWaypoint(waypoint.id)} aria-label={`Delete waypoint ${index + 1}`}>
-                            <FaTrashAlt aria-hidden="true" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-          </div>
+            {activePanel === 'route' && draftKey && <TrajectoryPlanning
+              key={draftKey}
+              embedded
+              scopedLeaderId={selectedLeaderId}
+              initialWaypoints={draftWaypoints}
+              onWaypointsChange={setDraftWaypoints}
+              onAssigned={async (leaderId) => {
+                await refreshOperationalState();
+                setActivePanel('process');
+                showNotice('success', `Leader ${leaderId} route assigned`, 'Generate the formation paths next.');
+              }}
+            />}
+          </section>
 
           <div className={`workflow-step swarm-panel ${activePanel === 'leaders' ? 'is-active' : ''}`} hidden={activePanel !== 'leaders'}>
             <div className="step-header">
-              <h3><span className="step-number">2</span>Leaders</h3>
+              <h3>Leader uploads</h3>
             </div>
 
             <div className="leaders-grid">
@@ -1567,7 +1003,6 @@ const SwarmTrajectory = () => {
                       <span className={`leader-state-badge ${stateClass}`}>{stateMeta.label}</span>
                     </div>
 
-                    <p className="leader-card__summary">{stateMeta.summary}</p>
 
                     <div className="leader-metrics">
                       <div className="leader-metric">
@@ -1633,7 +1068,7 @@ const SwarmTrajectory = () => {
 
           <div className={`workflow-step swarm-panel ${activePanel === 'process' ? 'is-active' : ''}`} hidden={activePanel !== 'process'}>
             <div className="step-header">
-              <h3><span className="step-number">3</span>Process</h3>
+              <h3>Generate formation paths</h3>
             </div>
 
             <div className="process-summary">
@@ -1662,11 +1097,11 @@ const SwarmTrajectory = () => {
                 </div>
 
                 {recommendation.details?.length ? (
-                  <div className="recommendation-details">
+                  <details className="recommendation-details"><summary>Details</summary>
                     {recommendation.details.map((detail) => (
                       <div key={detail} className="recommendation-detail">• {detail}</div>
                     ))}
-                  </div>
+                  </details>
                 ) : null}
               </div>
             ) : null}
@@ -1680,24 +1115,22 @@ const SwarmTrajectory = () => {
                 {processing ? (
                   <>
                     <span className="spinner"></span>
-                    Processing Cluster Outputs...
+                    Generating paths…
                   </>
                 ) : (
-                  recommendation?.action === 'safe_incremental'
-                    ? 'Process Current Uploads'
-                    : 'Process Swarm Trajectory Package'
+                  'Generate paths'
                 )}
               </button>
 
               {viewModel.uploadedLeaderIds.length === 0 ? (
                 <p className="requirement-note">Upload at least one leader CSV before processing.</p>
               ) : (
-                <p className="requirement-note requirement-note--soft">Ready to process current leader uploads.</p>
+                null
               )}
 
               {viewModel.uploadedLeaderIds.length > 0 ? (
                 <details className="swarm-advanced-actions">
-                  <summary>Advanced processing</summary>
+                  <summary>Other actions</summary>
                   <div className="advanced-processing-options">
                     <button
                       className="process-option-btn secondary"
@@ -1723,7 +1156,7 @@ const SwarmTrajectory = () => {
           {hasProcessedOutputs ? (
           <div className={`workflow-step swarm-panel ${activePanel === 'review' ? 'is-active' : ''}`} hidden={activePanel !== 'review'}>
             <div className="step-header">
-              <h3><span className="step-number">4</span>Review and Prepare Launch</h3>
+              <h3>Review package</h3>
             </div>
 
               <div className={`success-card ${viewModel.currentOutcome === 'partial' ? 'success-card--warning' : ''}`}>
@@ -1735,34 +1168,13 @@ const SwarmTrajectory = () => {
                     <h4>
                       {viewModel.currentOutcome === 'partial'
                         ? 'Outputs generated, review still required'
-                        : 'Mission outputs ready for launch preflight'}
+                        : validationReady ? 'Package ready' : 'Package needs review'}
                     </h4>
                     <p>
-                      {viewModel.processedDroneCount} drone output{viewModel.processedDroneCount === 1 ? '' : 's'} available across{' '}
-                      {viewModel.clusterSummary.processed_cluster_count} processed cluster{viewModel.clusterSummary.processed_cluster_count === 1 ? '' : 's'}.
+                      {viewModel.processedDroneCount} output file{viewModel.processedDroneCount === 1 ? '' : 's'} ·{' '}
+                      {viewModel.clusterSummary.processed_cluster_count} cluster{viewModel.clusterSummary.processed_cluster_count === 1 ? '' : 's'}
                     </p>
                   </div>
-                </div>
-
-                <div className="processing-stats">
-                  <div className="stat">
-                    <span className="stat-value">{status?.leader_count || results?.statistics?.leaders || 0}</span>
-                    <span className="stat-label">Leaders</span>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-value">{status?.follower_count || results?.statistics?.followers || 0}</span>
-                    <span className="stat-label">Followers</span>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-value">{viewModel.clusterSummary.ready_cluster_count}</span>
-                    <span className="stat-label">Ready Clusters</span>
-                  </div>
-                  {(viewModel.issueCount > 0 || viewModel.advisoryCount > 0) ? (
-                    <div className="stat error">
-                      <span className="stat-value">{viewModel.issueCount + viewModel.advisoryCount}</span>
-                      <span className="stat-label">Attention Items</span>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="swarm-validation-panel">
@@ -1780,7 +1192,8 @@ const SwarmTrajectory = () => {
                     </OperatorNotice>
                   ) : null}
                   {validationWarnings.length ? (
-                    <OperatorNotice tone="warning" title="Operator review">
+                    <OperatorNotice tone="warning" title="Review required" action={<button type="button"
+                      className="operator-button operator-button--ghost" onClick={() => setActivePanel('process')}>Generate paths</button>}>
                       <ul>
                         {validationWarnings.map((warning) => <li key={warning}>{warning}</li>)}
                       </ul>
@@ -1793,51 +1206,29 @@ const SwarmTrajectory = () => {
                   ) : null}
                 </div>
 
-                <div className="swarm-processed-preview">
-                  <div className="swarm-processed-preview__header">
-                    <strong>Leader/follower preview</strong>
-                    <span>{previewSeries.length} path{previewSeries.length === 1 ? '' : 's'} with global coordinates</span>
-                  </div>
-                  <RouteSketch series={previewSeries} emptyLabel="Processed global preview is unavailable" />
-                  <div className="swarm-preview-legend">
-                    {(preview?.drones || []).slice(0, 12).map((drone, index) => (
-                      <span key={drone.drone_id}>
-                        <i style={{ backgroundColor: ROUTE_SKETCH_COLORS[index % ROUTE_SKETCH_COLORS.length] }} />
-                        Drone {drone.drone_id} · {drone.role}
-                        {drone.direct_leader_id ? ` → ${drone.direct_leader_id}` : ''}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="next-steps">
-                  <p>
-                    <strong>Next:</strong>{' '}
-                    {isPartialPackage
-                      ? 'Resolve attention items and reprocess, or launch only an intentional selected subset after Dashboard preflight.'
-                      : 'Review preview, optionally commit for traceability, then use Dashboard Mission Type 4 preflight.'}
-                  </p>
-                </div>
+                {activePanel === 'review' && <TrajectoryRouteReview preview={preview}
+                  formationAssignments={formationAssignments} fleet={fleet}
+                  packageIdentity={status?.session?.session_id} />}
 
                 <div className="review-actions">
                   <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing || !validationReady}>
                     {committing
                       ? 'Saving...'
                       : commitMode === 'local_commit'
-                        ? 'Commit Outputs Locally'
+                        ? 'Record package'
                         : commitMode === 'commit_and_push'
-                          ? 'Commit & Push Outputs'
-                          : 'Commit Mission Outputs'}
+                          ? 'Publish package'
+                          : 'Save package'}
                   </button>
-                  <Link className="utility-btn" to="/">
-                    Open Mission Trigger
+                  <Link className="utility-btn" to="/swarm-trajectory">
+                    Operate
                   </Link>
                 </div>
 
                 <div className="advanced-section">
                   <details className="trajectory-preview">
                     <summary className="preview-toggle">
-                      Review processed cluster plots and downloads
+                      Files and static plots
                     </summary>
 
                     <div className="preview-content">
@@ -1918,17 +1309,6 @@ const SwarmTrajectory = () => {
                                     <div className="zoom-overlay">
                                       <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                       <span>Click to enlarge</span>
-                                    </div>
-                                  </div>
-                                  <div className="cluster-features">
-                                    <div className="feature-item">
-                                      <span className="feature-text">Combined path review</span>
-                                    </div>
-                                    <div className="feature-item">
-                                      <span className="feature-text">Cluster terrain export</span>
-                                    </div>
-                                    <div className="feature-item">
-                                      <span className="feature-text">Mission validation artifact</span>
                                     </div>
                                   </div>
                                 </div>
@@ -2060,7 +1440,7 @@ const SwarmTrajectory = () => {
           <div className="empty-icon" aria-hidden="true"><FaRobot /></div>
           <h3>No clusters found</h3>
           <p>
-            Configure top leaders in <Link to="/swarm-design" className="guide-link">Swarm Design</Link> before using this workflow.
+            Save top leaders in the mission Formation above before authoring routes.
           </p>
           <button className="utility-btn" onClick={() => refreshOperationalState({ reloadStructure: true })}>
             Reload Configuration
@@ -2091,69 +1471,18 @@ const SwarmTrajectory = () => {
         </div>
       ) : null}
 
-      {commitProgress ? (
-        <div className="progress-overlay">
-          <div className="progress-modal">
-            <div className="progress-header">
-              <h3>Committing Changes</h3>
-              <div className="progress-subtitle">
-                Syncing processed swarm trajectory outputs with the repository
-              </div>
-            </div>
-
-            <div className="progress-content">
-              <div className="progress-bar-container">
-                <div
-                  className="progress-bar-fill"
-                  style={{ '--progress-percent': `${commitProgress.progress}%` }}
-                ></div>
-              </div>
-
-              <div className="progress-step">
-                {commitProgress.step}
-              </div>
-
-              <div className="progress-percentage">
-                {commitProgress.progress}%
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {kmlProgress ? (
-        <div className="progress-overlay">
-          <div className="progress-modal">
-            <div className="progress-header">
-              <h3>Generating KML</h3>
-              <div className="progress-subtitle">
-                Preparing a 3D review artifact for terrain inspection
-              </div>
-            </div>
-
-            <div className="progress-content">
-              <div className="progress-bar-container">
-                <div
-                  className="progress-bar-fill"
-                  style={{ '--progress-percent': `${kmlProgress.progress}%` }}
-                ></div>
-              </div>
-
-              <div className="progress-step">
-                {kmlProgress.step}
-              </div>
-
-              <div className="progress-percentage">
-                {kmlProgress.progress}%
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MissionJobProgressDialog
+        open={Boolean(commitProgress || kmlProgress)}
+        appearance="console"
+        title={commitProgress ? 'Saving package' : 'Preparing KML'}
+        job={{ status: 'running', phase: commitProgress?.step || kmlProgress?.step, progressPercent: null }}
+        onClose={() => {}}
+      />
 
       <MissionJobProgressDialog
         open={processDialogOpen}
-        title="Processing swarm trajectories"
+        appearance="console"
+        title="Generating formation paths"
         job={normalizeJobForDialog(processJob)}
         onCancel={processing ? cancelProcessing : null}
         onRetry={processJob?.status === 'failed' ? () => requestProcessing(false) : null}
@@ -2161,6 +1490,7 @@ const SwarmTrajectory = () => {
       />
 
       <ConfirmDialog
+        appearance="console"
         open={Boolean(confirmDialog)}
         title={confirmDialog?.title || 'Confirm'}
         message={confirmDialog?.message || ''}

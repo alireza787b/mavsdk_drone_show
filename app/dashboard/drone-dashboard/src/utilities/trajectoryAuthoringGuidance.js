@@ -175,8 +175,12 @@ export const getTrajectoryAltitudeIntentSummary = ({
   return {
     label: 'Altitude Logic',
     control: `Operator sets canonical mission altitude ${formatAltitude(altitude)}.`,
-    derived: `Planner reports current waypoint clearance as ${formatAgl(clearance)} against ${terrainLabel}.`,
-    compact: `${formatAltitude(altitude)} → ${formatAgl(clearance)}`,
+    derived: terrainAccurate === true
+      ? `Planner reports current waypoint clearance as ${formatAgl(clearance)} against ${terrainLabel}.`
+      : 'Terrain clearance is unavailable.',
+    compact: terrainAccurate === true
+      ? `${formatAltitude(altitude)} → ${formatAgl(clearance)}`
+      : formatAltitude(altitude),
   };
 };
 
@@ -412,7 +416,7 @@ export const getTrajectoryWorkflowStages = ({
     {
       key: 'author',
       label: 'Author top-leader path',
-      detail: 'This workspace only authors top-leader routes. Follower paths are generated later from the current Swarm Design hierarchy and offsets.',
+      detail: 'This workspace only authors top-leader routes. Follower paths are generated later from the mission Formation hierarchy and offsets.',
     },
     {
       key: 'intent',
@@ -429,7 +433,7 @@ export const getTrajectoryWorkflowStages = ({
     {
       key: 'process',
       label: 'Process, review, then launch',
-      detail: 'Open Swarm Trajectory to regenerate follower outputs and review plots, then launch Mission 4 from Dashboard once preflight is clear.',
+      detail: 'Open Swarm Trajectory to regenerate follower outputs and review plots, then review and start from Operate once preflight is clear.',
     },
   ];
 };
@@ -505,7 +509,7 @@ export const getSwarmTrajectoryExecutionDoctrine = () => [
   {
     key: 'leaders',
     label: 'Leader scope',
-    detail: "Only top-leader paths are authored or uploaded here. Follower outputs are regenerated from the active Swarm Design hierarchy and offsets around each leader waypoint's instantaneous global position.",
+    detail: "Only top-leader paths are authored or uploaded here. Follower outputs are regenerated from the mission Formation hierarchy and offsets around each leader waypoint's instantaneous global position.",
   },
   {
     key: 'execution',

@@ -114,7 +114,7 @@ const TrajectoryToolbar = ({
           data-help="Save Trajectory (Ctrl+S)"
         >
           <MdSave className="btn-icon" aria-hidden="true" />
-          <span className="btn-text">Save</span>
+          <span className="btn-text">Save draft</span>
           {isDirty && <span className="unsaved-indicator" aria-hidden="true" />}
         </button>
         
@@ -124,7 +124,7 @@ const TrajectoryToolbar = ({
           data-help="Load Trajectory (Ctrl+O)"
         >
           <MdFolderOpen className="btn-icon" aria-hidden="true" />
-          <span className="btn-text">Load</span>
+          <span className="btn-text">Library</span>
         </button>
 
         <button

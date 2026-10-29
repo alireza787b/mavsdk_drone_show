@@ -7,7 +7,6 @@ import {
   FaTachometerAlt,
   FaCog,
   FaCubes,
-  FaRoute,
   FaProjectDiagram,
   FaGithub,
   FaGem,
@@ -165,7 +164,6 @@ const SidebarMenu = ({
       items: [
         { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout SAR' },
         { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory' },
-        { to: '/trajectory-planning', icon: FaRoute, label: 'Route Editor' },
         { to: '/custom-show', icon: FaGem, label: 'Custom CSV Show' },
       ],
     },

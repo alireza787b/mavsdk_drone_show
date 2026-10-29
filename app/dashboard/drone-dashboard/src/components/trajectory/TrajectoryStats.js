@@ -55,9 +55,9 @@ const TrajectoryStats = ({ stats }) => {
     {
       label: 'Terrain',
       value: formatCountPair(
-        'Accurate',
+        'Verified',
         terrainCoverage.accurate || 0,
-        'Estimated',
+        'Unverified',
         (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0),
       ),
     },
@@ -84,7 +84,9 @@ const TrajectoryStats = ({ stats }) => {
           <span className="trajectory-brief__label">Altitude Envelope</span>
           <span className="trajectory-brief__value">{formatAltitudeRange(stats.minAltitude, stats.maxAltitude)} MSL</span>
           <span className="trajectory-brief__detail">
-            {formatAltitudeRange(stats.minAgl, stats.maxAgl)} AGL
+            {terrainCoverage.accurate > 0
+              ? `${formatAltitudeRange(stats.minAgl, stats.maxAgl)} AGL`
+              : 'AGL unavailable'}
           </span>
         </div>
         <div className={`trajectory-brief__metric trajectory-brief__metric--${stats.maxSpeedStatus || 'unknown'}`}>

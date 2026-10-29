@@ -10,7 +10,7 @@ unavailable.
 
 ## Evidence that triggered the slice
 
-- The private Catch-A-Drone runtime was healthy in SITL mode and its local
+- The private deployment runtime was healthy in SITL mode and its local
   GCS/SITL APIs were reachable.
 - The Simurgh process log recorded OpenAI `HTTP 429 Too Many Requests` responses
   for semantic turns at approximately 03:13:42 and 03:14:28 UTC.
@@ -78,7 +78,7 @@ Validation completed on both source trees:
 - Official tree: 153 route tests passed; 226 assistant/planner/intent tests
   passed; dashboard prompt evals 33/33; advisory evals 14/14; foundation tests
   35/35; docs-index check passed.
-- Private Catch-A-Drone tree: the synchronized route/runtime suite passed
+- Private deployment tree: the synchronized route/runtime suite passed
   322/322; Python compilation, docs-index validation, and staged diff checks
   passed.
 
@@ -102,7 +102,7 @@ Release and runtime handoff:
   `3b4448f992b295df389bbbc493ec81aad8554d59`.
 - Official release tag: `v5.5.114-simurgh-routing-resilience` will point to
   the final checkpoint commit containing this document.
-- Private Catch-A-Drone source: `main` synchronized at
+- Private deployment source: `main` synchronized at
   `452aaec700030c2ee25e2b2fa63206b673ee7a22`, pushed to its private `origin`.
 - Private runtime: GCS/dashboard restarted from that clone at
   `2026-07-28T04:18:44Z`; `/api/v1/system/health` returned HTTP 200, the

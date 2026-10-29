@@ -33,6 +33,9 @@ For public/private repo authentication, read [Custom SITL Auth Guide](custom-sit
 - Commit changes to git first, then rebuild a clean image.
 - Keep PX4 and the baked `mavsdk_server` pinned inside the image and update them only through a validated image rebuild.
 - Use runtime git sync only when you intentionally want mutable latest-on-boot behavior.
+- A source prerelease tag does not refresh the downloadable SITL image. Record
+  its unit/UI/SITL evidence separately; do not imply an older archive contains
+  the tagged runtime, or promote unvalidated mission capabilities to hardware.
 
 ## What Container Startup Actually Syncs
 

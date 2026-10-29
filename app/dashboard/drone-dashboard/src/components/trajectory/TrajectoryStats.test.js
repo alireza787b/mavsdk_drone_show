@@ -4,6 +4,13 @@ import { render, screen } from '@testing-library/react';
 import TrajectoryStats from './TrajectoryStats';
 
 describe('TrajectoryStats', () => {
+  test('does not display an invented zero clearance for terrain-unverified MSL routes', () => {
+    render(<TrajectoryStats stats={{ totalDistance: 10, totalTime: 5, maxSpeed: 2,
+      minAltitude: 120, maxAltitude: 120, minAgl: 0, maxAgl: 0,
+      terrainCoverage: { accurate: 0, estimated: 0, unknown: 2 } }} />);
+    expect(screen.getByText('AGL unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('0 m AGL')).not.toBeInTheDocument();
+  });
   test('uses operator-facing timing and heading wording in the mission brief', () => {
     render(
       <TrajectoryStats

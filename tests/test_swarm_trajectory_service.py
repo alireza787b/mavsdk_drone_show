@@ -135,6 +135,57 @@ def test_session_manager_detects_raw_csv_content_changes(monkeypatch, tmp_path):
     assert changes['safe_to_incremental'] is False
 
 
+@pytest.mark.parametrize('change', ['modify', 'remove', 'add', 'legacy'])
+def test_session_detects_processed_output_changes(monkeypatch, tmp_path, change):
+    folders = {name: str(tmp_path / name) for name in ('raw', 'processed', 'plots')}
+    folders['base'] = str(tmp_path)
+    for directory in folders.values():
+        Path(directory).mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr('functions.swarm_session_manager.get_swarm_trajectory_folders', lambda: folders)
+    monkeypatch.setattr('functions.swarm_session_manager.fetch_swarm_data', lambda: [
+        {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'}])
+    Path(folders['raw'], 'Drone 1.csv').write_text('input')
+    output = Path(folders['processed'], 'Drone 1.csv')
+    output.write_text('reviewed output')
+    manager = SwarmSessionManager()
+    session = manager.create_processing_session([1], 1)
+    assert manager.detect_changes()['requires_full_reprocess'] is False
+    if change == 'modify':
+        output.write_text('different output')
+    elif change == 'remove':
+        output.unlink()
+    elif change == 'add':
+        Path(folders['processed'], 'Drone 2.csv').write_text('unreviewed')
+    else:
+        session.processed_outputs_hash = ''
+        manager.save_session(session)
+    changes = manager.detect_changes()
+    assert changes['processed_outputs_changed'] is True
+    assert changes['requires_full_reprocess'] is True
+    assert changes['safe_to_incremental'] is False
+
+
+def test_dispatch_package_binds_hashes_and_refuses_modified_outputs(monkeypatch, tmp_path):
+    from functions.swarm_trajectory_service import get_dispatch_package_payload
+    import hashlib
+    folders = {name: str(tmp_path / name) for name in ('raw', 'processed', 'plots')}
+    folders['base'] = str(tmp_path)
+    for directory in folders.values():
+        Path(directory).mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr('functions.swarm_session_manager.get_swarm_trajectory_folders', lambda: folders)
+    monkeypatch.setattr('functions.swarm_session_manager.fetch_swarm_data', lambda: [
+        {'hw_id': 7, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'}])
+    Path(folders['raw'], 'Drone 7.csv').write_text('input')
+    route = Path(folders['processed'], 'Drone 7.csv')
+    route.write_bytes(b'reviewed route')
+    session = SwarmSessionManager().create_processing_session([7], 1)
+    payload = get_dispatch_package_payload(['7'])
+    assert payload == {'revision': session.session_id, 'files': {'7': hashlib.sha256(b'reviewed route').hexdigest()}}
+    route.write_bytes(b'changed route')
+    with pytest.raises(SwarmTrajectoryError, match='changed'):
+        get_dispatch_package_payload(['7'])
+
+
 def test_save_uploaded_trajectory_rejects_non_top_leader():
     """Uploads must target a current top-level leader, not an arbitrary follower."""
     structure = {
@@ -158,8 +209,9 @@ def test_save_uploaded_trajectory_rejects_non_top_leader():
     assert '1, 5' in exc_info.value.message
 
 
-def test_save_uploaded_trajectory_rejects_default_zero_global_coordinates(monkeypatch, tmp_path):
-    """Uploaded leader CSVs must not carry unsafe 0,0 placeholder coordinates."""
+@pytest.mark.parametrize('coordinates', ['0,0', ','])
+def test_save_uploaded_trajectory_distinguishes_explicit_zero_from_missing_coordinates(monkeypatch, tmp_path, coordinates):
+    """Explicit coordinates are valid; blank CSV cells are not coordinates."""
     structure = {
         'top_leaders': [1],
         'hierarchies': {1: []},
@@ -173,22 +225,25 @@ def test_save_uploaded_trajectory_rejects_default_zero_global_coordinates(monkey
     }
     content = (
         'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode\n'
-        'WP1,0,0,100,0,5,0,auto\n'
-        'WP2,35,51,100,10,5,0,auto\n'
+        f'WP1,{coordinates},100,0,5,0,auto\n'
+        'WP2,0.0001,0.0001,100,10,5,0,auto\n'
     ).encode('utf-8')
 
     monkeypatch.setattr('functions.swarm_trajectory_service._load_swarm_structure', lambda: structure)
     monkeypatch.setattr('functions.swarm_trajectory_service.get_swarm_trajectory_folders', lambda: folders)
 
-    with pytest.raises(SwarmTrajectoryError) as exc_info:
-        save_uploaded_trajectory(1, 'test.csv', content)
+    if coordinates == '0,0':
+        assert save_uploaded_trajectory(1, 'test.csv', content)['success'] is True
+        assert (tmp_path / 'raw' / 'Drone 1.csv').read_bytes() == content
+    else:
+        with pytest.raises(SwarmTrajectoryError) as exc_info:
+            save_uploaded_trajectory(1, 'test.csv', content)
+        assert exc_info.value.status_code == 400
+        assert not (tmp_path / 'raw' / 'Drone 1.csv').exists()
 
-    assert exc_info.value.status_code == 400
-    assert 'unsafe default coordinate 0,0' in exc_info.value.message
-    assert not (tmp_path / 'raw' / 'Drone 1.csv').exists()
 
-
-def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_path):
+@pytest.mark.parametrize('retained_id', [None, 99])
+def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_path, retained_id):
     """Status payload must reflect real per-cluster upload/processed state."""
     folders = {
         'base': str(tmp_path),
@@ -208,6 +263,8 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
         't,alt\n10,1455\n65,1462\n',
         encoding='utf-8',
     )
+    if retained_id is not None:
+        (Path(folders['processed']) / f'Drone {retained_id}.csv').write_text('t,alt\n10,1450\n70,1465\n')
 
     structure = {
         'top_leaders': [1, 5],
@@ -228,7 +285,11 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     payload = get_processing_status_payload()
     status = payload['status']
 
-    assert status['processed_trajectories'] == 2
+    assert status['processed_trajectories'] == (3 if retained_id else 2)
+    assert status['processed_leaders'] == [1]
+    assert status['processed_followers'] == [2]
+    assert status['follower_count'] == 1
+    assert status['unassigned_processed_drones'] == ([retained_id] if retained_id else [])
     assert status['has_results'] is True
     assert status['plots_available'] is False
     assert status['expected_top_leaders'] == [1, 5]
@@ -245,6 +306,11 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert status['session_changes']['has_previous_session'] is False
     assert status['session_changes']['requires_full_reprocess'] is True
     assert status['processing_recommendation']['action'] == 'recommended_full_reprocess'
+    if retained_id:
+        validation = get_validation_payload(status_payload=payload)
+        assert any(item['code'] == 'swarm_trajectory_unassigned_outputs' for item in validation['advisories'])
+        assert not any(item['code'] == 'swarm_trajectory_unassigned_outputs' for item in validation['warnings'])
+        return
     assert status['package_stats'] == {
         'available': True,
         'drone_count': 2,
@@ -729,6 +795,7 @@ def test_process_swarm_trajectories_reports_auto_reloaded_leaders(monkeypatch):
             return [1]
 
     monkeypatch.setattr(swarm_trajectory_processor, 'SwarmSessionManager', FakeSessionManager)
+    monkeypatch.setattr(swarm_trajectory_processor, 'ensure_formation_snapshot', lambda: None)
     monkeypatch.setattr(swarm_trajectory_processor, 'auto_reload_missing_leaders', lambda uploaded: [5])
 
     def fake_execute(available_leaders, session_manager, recommendation, reloaded_leaders=None):
@@ -772,7 +839,10 @@ def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_inco
     ]
 
     class FakeSessionManager:
-        def create_processing_session(self, processed_leaders, total_drones):
+        def input_identity(self):
+            return {}
+
+        def create_processing_session(self, processed_leaders, total_drones, expected_inputs=None):
             return type('Session', (), {'session_id': 'sess-1'})()
 
     trajectory_df = pd.DataFrame([{
@@ -795,7 +865,7 @@ def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_inco
 
     monkeypatch.setattr(swarm_trajectory_processor, 'get_swarm_trajectory_folders', lambda: folders)
     monkeypatch.setattr(swarm_trajectory_processor, 'ensure_directory_exists', lambda directory: None)
-    monkeypatch.setattr(swarm_trajectory_processor, 'analyze_swarm_structure', lambda: swarm_structure)
+    monkeypatch.setattr(swarm_trajectory_processor, 'analyze_swarm_structure', lambda rows: swarm_structure)
     monkeypatch.setattr(swarm_trajectory_processor, 'load_leader_trajectories', lambda raw_dir, valid_leaders: {1: pd.DataFrame([{
         'Name': 'WP1',
         'Latitude': 35.0,
@@ -819,7 +889,8 @@ def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_inco
         reloaded_leaders=[],
     )
 
-    assert result['success'] is True
+    assert result['success'] is False
+    assert result['published'] is False
     assert result['outcome'] == 'partial'
     assert result['processed_drone_list'] == [1, 2]
     assert result['expected_drone_list'] == [1, 2, 5, 6]

@@ -128,7 +128,7 @@ class ApiClient:
         return {str(key): value for key, value in telemetry.items()}
 
     def get_swarm_assignments(self) -> list[dict]:
-        payload = self.get_json(GCS_CONFIG_SWARM_ROUTE)
+        payload = self.get_json('/api/v1/swarm-trajectories/formation')
         if isinstance(payload, dict) and "assignments" in payload:
             payload = payload["assignments"]
         return payload

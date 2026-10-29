@@ -5,12 +5,13 @@
 }
 .operator-console :is(.operator-button, .operator-action-icon-button, .operator-status-badge,
   .operator-docs-link, .operator-card, .operator-page-shell__icon, .operator-notice,
-  .operator-confirm-dialog__panel, .operator-confirm-dialog__close) {
+  .operator-confirm-dialog__panel, .operator-confirm-dialog__close,
+  .mission-dialog__panel, .mission-dialog__close) {
   border-radius: var(--console-corner);
   box-shadow: none;
 }
 .operator-console :is(button, input, select) { font: inherit; }
-.operator-console :is(input, select) {
+.operator-console :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select) {
   min-width: 0;
   max-width: 100%;
   min-height: var(--console-control-height);

@@ -6,6 +6,100 @@ describe('TrajectoryStorage', () => {
     localStorage.clear();
   });
 
+  const aglWaypoint = {
+    id: 'wp-terrain', name: 'Waypoint 1', latitude: 0, longitude: 0,
+    altitude: 100, altitudeReference: 'AGL', targetAgl: 100,
+    groundElevation: 0, timeFromStart: 0, heading: 0, headingMode: 'manual',
+  };
+
+  it.each(['', ' ', null, undefined, true])('refuses a missing latitude in saved routes (%s)', async (latitude) => {
+    const storage = new TrajectoryStorage();
+    const result = await storage.saveTrajectory('invalid', [{ ...aglWaypoint, latitude }]);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/latitude.*explicit finite number/);
+    expect(storage.getAllTrajectories()).toEqual([]);
+  });
+
+  it('rejects a blank CSV coordinate instead of importing a different location', () => {
+    expect(() => new TrajectoryStorage().parseCSV(
+      'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s\nWP1,,0,100,0', 'blank.csv'
+    )).toThrow(/latitude.*explicit finite number/);
+  });
+
+  it.each([
+    ['missing', {}],
+    ['explicit false', { terrainAccurate: false }],
+    ['string boolean', { terrainAccurate: 'true' }],
+    ['error despite true', { terrainAccurate: true, terrainError: 'Elevation service unavailable' }],
+  ])('keeps %s terrain verification blocked through library and CSV roundtrips', async (_, metadata) => {
+    const storage = new TrajectoryStorage();
+    expect((await storage.saveTrajectory('unverified', [{ ...aglWaypoint, ...metadata }])).success).toBe(true);
+    const loaded = await storage.loadTrajectory('unverified');
+    const savedWaypoint = loaded.trajectory.waypoints[0];
+    expect(savedWaypoint.altitudeReference).toBe('agl');
+    // This is the scoped AGL assignment gate: persistence may not clear it.
+    expect(savedWaypoint.terrainAccurate !== true || Boolean(savedWaypoint.terrainError)).toBe(true);
+
+    const csv = storage.convertToCSV(loaded.trajectory.waypoints);
+    const imported = storage.parseCSV(csv, 'roundtrip.csv');
+    await storage.saveTrajectory('roundtrip', imported.waypoints);
+    const reloaded = (await storage.loadTrajectory('roundtrip')).trajectory.waypoints[0];
+    expect(reloaded.terrainAccurate !== true || Boolean(reloaded.terrainError)).toBe(true);
+    expect(reloaded.terrainError).toBe(metadata.terrainError || '');
+  });
+
+  it('normalizes missing verification in an existing legacy library entry without claiming terrain resolution', async () => {
+    const storage = new TrajectoryStorage();
+    localStorage.setItem(storage.storageKey, JSON.stringify({
+      trajectories: [{ id: 'legacy', name: 'legacy', waypoints: [aglWaypoint], metadata: {} }],
+    }));
+    const loaded = await storage.loadTrajectory('legacy');
+    expect(loaded.success).toBe(true);
+    expect(loaded.trajectory.waypoints[0]).toEqual(expect.objectContaining({
+      altitudeReference: 'agl', terrainAccurate: false, terrainError: '', terrainSource: '',
+    }));
+  });
+
+  it('preserves verified provenance and quoted errors across save, load, and CSV import/export', async () => {
+    const storage = new TrajectoryStorage();
+    const waypoint = {
+      ...aglWaypoint,
+      name: 'Waypoint, "East"',
+      terrainAccurate: true,
+      terrainError: 'Provider unavailable, retry\nafter reconnect',
+      terrainSource: 'Service, "Primary"',
+      terrainConfidence: 'reported',
+      terrainSampleTime: '2026-10-29T11:00:00Z',
+    };
+    await storage.saveTrajectory('provenance', [waypoint]);
+    const loaded = (await storage.loadTrajectory('provenance')).trajectory;
+    const csv = storage.buildExportFile(loaded, 'csv').content;
+    const parsed = storage.parseCSV(csv, 'provenance.csv');
+    expect(parsed.waypoints[0]).toEqual(expect.objectContaining({
+      ...waypoint, id: expect.any(String), altitudeReference: 'agl',
+    }));
+  });
+
+  it('does not infer terrain verification from unrelated CSV columns', () => {
+    const storage = new TrajectoryStorage();
+    const parsed = storage.parseCSV([
+      'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode,AltitudeReference,TargetAgl_m,GroundElevation_m,UnrelatedBoolean',
+      'Waypoint 1,0,0,100,0,0,0,manual,agl,100,0,true',
+    ].join('\n'), 'legacy.csv');
+    expect(parsed.waypoints[0].terrainAccurate).toBe(false);
+  });
+
+  it('imports legacy JSON with missing terrain verification as unverified', async () => {
+    const storage = new TrajectoryStorage();
+    const result = await storage.importTrajectory(new File([
+      JSON.stringify({ name: 'legacy', waypoints: [aglWaypoint] }),
+    ], 'legacy.json', { type: 'application/json' }));
+    expect(result.success).toBe(true);
+    expect(result.trajectory.waypoints[0]).toEqual(expect.objectContaining({
+      altitudeReference: 'agl', terrainAccurate: false,
+    }));
+  });
+
   it('preserves timing and terrain planning metadata through save/load', async () => {
     const storage = new TrajectoryStorage();
 
@@ -111,6 +205,7 @@ describe('TrajectoryStorage', () => {
     expect(parsed.waypoints[0]).toEqual(
       expect.objectContaining({
         altitudeReference: ALTITUDE_REFERENCE.MSL,
+        terrainAccurate: false,
         timingMode: TIMING_MODES.MANUAL_TIME,
         heading: 90,
         headingMode: 'auto',

@@ -108,7 +108,7 @@ describe('MissionReadinessCard', () => {
       )),
     ).toBeInTheDocument();
     expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Swarm Trajectory' })).toHaveAttribute('href', '/swarm-trajectory');
-    expect(screen.getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
+    expect(screen.getByRole('link', { name: 'Operate' })).toHaveAttribute('href', '/swarm-trajectory');
+    expect(screen.getByRole('link', { name: 'Mission Plan' })).toHaveAttribute('href', '/swarm-trajectory?tab=plan');
   });
 });

@@ -17,7 +17,6 @@ import {
   downloadSwarmTrajectoryCsv,
   downloadSwarmTrajectoryKml,
   getSwarmLeaders,
-  getSwarmTrajectoryElevationBatch,
   getSwarmTrajectoryPreview,
   getSwarmTrajectoryProcessJob,
   getSwarmTrajectoryStatus,
@@ -27,27 +26,18 @@ import {
 } from '../services/droneApiService';
 
 jest.mock('../hooks/useFetch');
-jest.mock('../components/trajectory/SwarmRouteMapEditor', () => (props) => (
-  <div data-testid="swarm-route-map-editor">
-    <span>{props.altitudeLabel}</span>
-    <button
-      type="button"
-      onClick={() => props.onAddWaypoint?.({ latitude: 35.03, longitude: 51.04 })}
-    >
-      Map click route point
-    </button>
-    <button
-      type="button"
-      onClick={() => props.onAddWaypoint?.({ latitude: 35.04, longitude: 51.06 })}
-    >
-      Map click second route point
-    </button>
-    <button
-      type="button"
-      onClick={() => props.onSelectWaypoint?.(props.waypoints?.[0])}
-      disabled={!props.waypoints?.[0]}
-    >
-      Select first route point
+// Map/legend behavior has its own real component tests; keep parent action
+// tests independent of Leaflet's browser-only module loading.
+jest.mock('../components/trajectory/TrajectoryRouteReview', () => () => <div data-testid="route-review" />);
+jest.mock('./TrajectoryPlanning', () => (props) => (
+  <div data-testid="leader-route-editor" data-leader={props.scopedLeaderId}>
+    <span>{props.initialWaypoints.length} editor waypoints</span>
+    <button type="button" onClick={() => props.onWaypointsChange([
+      ...props.initialWaypoints,
+      { id: 'draft-point', latitude: 0, longitude: 0, altitude: 100, timeFromStart: 0 },
+    ])}>Edit route draft</button>
+    <button type="button" onClick={() => props.onAssigned(props.scopedLeaderId, { success: true })}>
+      Acknowledge assigned route
     </button>
   </div>
 ));
@@ -64,7 +54,6 @@ jest.mock('../services/droneApiService', () => ({
   downloadSwarmTrajectoryCsv: jest.fn(),
   downloadSwarmTrajectoryKml: jest.fn(),
   getSwarmLeaders: jest.fn(),
-  getSwarmTrajectoryElevationBatch: jest.fn(),
   getSwarmTrajectoryPreview: jest.fn(),
   getSwarmTrajectoryProcessJob: jest.fn(),
   getSwarmTrajectoryStatus: jest.fn(),
@@ -126,6 +115,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     window.innerWidth = 1024;
     useFetch.mockReturnValue({
       data: { git_auto_push: false },
@@ -192,11 +182,6 @@ describe('SwarmTrajectory git writeback messaging', () => {
       warnings: [],
       advisories: [],
     });
-    getSwarmTrajectoryElevationBatch.mockResolvedValue({
-      success: true,
-      results: [{ id: 'wp', lat: 35, lng: 51, elevation_m: 1000, status: 'ok', source: 'test' }],
-      summary: { requested: 1, resolved: 1, unavailable: 0, status: 'ok' },
-    });
     createSwarmTrajectoryProcessJob.mockResolvedValue({
       job_id: 'job-1',
       status: 'queued',
@@ -262,8 +247,35 @@ describe('SwarmTrajectory git writeback messaging', () => {
     });
     fireEvent.click(screen.getByRole('tab', { name: /review/i }));
 
-    expect(screen.getByRole('button', { name: 'Commit Outputs Locally' })).toBeInTheDocument();
-    expect(screen.getByText(/optionally commit for traceability/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record package' })).toBeInTheDocument();
+    expect(screen.getByTestId('route-review')).toBeInTheDocument();
+  });
+
+  test('switching leader keeps routes separate and recovers them after reload', async () => {
+    getSwarmLeaders.mockResolvedValue({ success: true, leaders: [1, 5],
+      hierarchies: { 1: 2, 5: 0 }, follower_details: { 1: [2, 3], 5: [] }, simulation_mode: true });
+    const first = render(<MemoryRouter><SwarmTrajectory /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByLabelText('Leader route assignment')).toHaveValue('1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit route draft' }));
+    await waitFor(() => expect(screen.getByText('1 editor waypoints')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Leader route assignment'), { target: { value: '5' } });
+    expect(screen.getByText('0 editor waypoints')).toBeInTheDocument();
+    expect(screen.getByTestId('leader-route-editor')).toHaveAttribute('data-leader', '5');
+    fireEvent.change(screen.getByLabelText('Leader route assignment'), { target: { value: '1' } });
+    expect(screen.getByText('1 editor waypoints')).toBeInTheDocument();
+    first.unmount();
+    render(<MemoryRouter><SwarmTrajectory /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('1 editor waypoints')).toBeInTheDocument());
+    expect(uploadSwarmTrajectory).not.toHaveBeenCalled();
+  });
+
+  test('existing files cannot substitute for unavailable validation', async () => {
+    getSwarmTrajectoryValidation.mockResolvedValue({ success: false, error: 'Unavailable' });
+    render(<MemoryRouter><SwarmTrajectory /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole('tab', { name: /review/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /review/i }));
+    expect(screen.getByRole('button', { name: 'Record package' })).toBeDisabled();
+    expect(commitSwarmTrajectoryOutputs).not.toHaveBeenCalled();
   });
 
   test('treats partial outputs as attention items instead of normal launch-ready flow', async () => {
@@ -331,8 +343,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     fireEvent.click(screen.getByRole('tab', { name: /review/i }));
 
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
-    expect(screen.getByText(/resolve attention items and reprocess/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open mission trigger/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('link', { name: 'Operate' }).length).toBeGreaterThanOrEqual(1);
   });
 
   test('uses compact operator-flow and workspace-review summaries on mobile', async () => {
@@ -348,125 +359,22 @@ describe('SwarmTrajectory git writeback messaging', () => {
       expect(screen.getByRole('tab', { name: /route/i })).toHaveAttribute('aria-selected', 'true');
     });
 
-    expect(screen.getAllByText('Workspace review & policy').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole('tab', { name: /leaders/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /process/i })).toBeInTheDocument();
+    expect(screen.getAllByText('Package details').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('tab', { name: /uploads/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /generate/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /review/i })).toBeInTheDocument();
   });
 
-  test('assigns a drafted leader route from the single-page workflow', async () => {
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <SwarmTrajectory />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.0' } });
-    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.0' } });
-    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/WP1/i)).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.01' } });
-    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.02' } });
-    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '300' } });
-    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/WP2/i)).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /assign to leader/i }));
-
-    await waitFor(() => {
-      expect(uploadSwarmTrajectory).toHaveBeenCalledWith('1', expect.any(Blob), 'Drone 1.csv');
-    });
-    expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
-  });
-
-  test('adds draft waypoints from the embedded route map editor', async () => {
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <SwarmTrajectory />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Map click route point' }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/35.03000, 51.04000/i)).toBeInTheDocument();
-    });
-    expect(screen.getByLabelText('Latitude')).toHaveValue(35.03);
-    expect(screen.getByLabelText('Longitude')).toHaveValue(51.04);
-    expect(screen.getByLabelText('Time')).toHaveValue(0);
-    expect(screen.getByLabelText('Heading')).toHaveValue(0);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Map click second route point' }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/35.04000, 51.06000/i)).toBeInTheDocument();
-    });
-    expect(screen.getByLabelText('Latitude')).toHaveValue(35.04);
-    expect(screen.getByLabelText('Longitude')).toHaveValue(51.06);
-    expect(Number(screen.getByLabelText('Time').value)).toBeGreaterThan(0);
-    expect(Number(screen.getByLabelText('Heading').value)).toBeGreaterThan(0);
-    expect(screen.getByText(/auto ETA .* auto yaw/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /Select first route point/i }));
-    expect(screen.getByLabelText('Latitude')).toHaveValue(35.03);
-    expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
-  });
-
-  test('adds AGL waypoints with backend terrain provenance and sea-level elevation', async () => {
-    getSwarmTrajectoryElevationBatch.mockResolvedValue({
-      success: true,
-      results: [{
-        id: 'wp',
-        lat: 35,
-        lng: 51,
-        elevation_m: 0,
-        status: 'ok',
-        source: 'opentopodata',
-        provider: 'opentopodata',
-        confidence: 'reported',
-      }],
-      summary: { requested: 1, resolved: 1, unavailable: 0, status: 'ok' },
-    });
-
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <SwarmTrajectory />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /AGL Terrain based/i }));
-    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.0' } });
-    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.0' } });
-    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
-
-    await waitFor(() => {
-      expect(getSwarmTrajectoryElevationBatch).toHaveBeenCalledWith([
-        expect.objectContaining({ lat: 35, lng: 51 }),
-      ]);
-    });
-    expect(await screen.findByText('Terrain ready')).toBeInTheDocument();
-    expect(screen.getByText(/1\/1 waypoint elevations resolved via opentopodata/i)).toBeInTheDocument();
-    expect(screen.getByText(/100 m MSL/i)).toBeInTheDocument();
+  test('embeds one leader-scoped editor and advances only after an acknowledged assignment', async () => {
+    render(<MemoryRouter><SwarmTrajectory embedded /></MemoryRouter>);
+    const editor = await screen.findByTestId('leader-route-editor');
+    expect(editor).toHaveAttribute('data-leader', '1');
+    expect(screen.queryByRole('heading', { name: 'Swarm Trajectory Mission' })).not.toBeInTheDocument();
+    expect(uploadSwarmTrajectory).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Acknowledge assigned route' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: /generate/i })).toHaveAttribute('aria-selected', 'true'));
+    expect(screen.queryByTestId('leader-route-editor')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /route/i }));
+    expect(screen.getByTestId('leader-route-editor')).toHaveAttribute('data-leader', '1');
   });
 });

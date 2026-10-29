@@ -90,6 +90,7 @@
 
 /* Individual Mission Card */
 .mission-card {
+    text-decoration: none;
     appearance: none;
     background: var(--color-surface-raised);
     border: 1px solid var(--color-border-secondary);

@@ -138,7 +138,8 @@ async def test_wait_until_offboard_armable_returns_when_armable():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("armed,landed,ready", [(False, "ON_GROUND", True),
     (True, "ON_GROUND", False), (False, "IN_AIR", False), (False, "UNKNOWN", False)])
-async def test_takeoff_probe_requires_native_ground_without_altitude_stream(armed, landed, ready):
+@pytest.mark.parametrize('mission_type', [10, 4])
+async def test_takeoff_probe_requires_native_ground_without_altitude_stream(armed, landed, ready, mission_type):
     from src.enums import Mission
     drone = _connected_drone()
     drone.telemetry.health = _health_stream([_health()])
@@ -146,13 +147,46 @@ async def test_takeoff_probe_requires_native_ground_without_altitude_stream(arme
     drone.telemetry.armed = _health_stream([armed])
     drone.telemetry.landed_state = _health_stream([SimpleNamespace(name=landed)])
     result = await mission_startup.probe_offboard_armability(
-        drone, require_global_position=False, mission_type=Mission.TAKE_OFF.value, timeout=0.02,
+        drone, require_global_position=False, mission_type=mission_type, timeout=0.02,
     )
     assert result["ready"] is ready
-    assert result["observation"]["mission_type"] == Mission.TAKE_OFF.value
+    assert result["observation"]["mission_type"] == mission_type
     assert result["observation"]["admission"]["ready"] is ready
     assert result["require_global_position"] is True
     drone.telemetry.position.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('armed,landed,connected', [(False, 'ON_GROUND', True),
+    (True, 'ON_GROUND', True), (False, 'IN_AIR', True), (False, 'UNKNOWN', True),
+    (None, 'ON_GROUND', True), (False, None, True), (False, 'ON_GROUND', False)])
+async def test_native_ground_start_requires_coherent_native_proof_without_control(armed, landed, connected):
+    drone = _connected_drone()
+    async def connection():
+        yield SimpleNamespace(is_connected=connected)
+        await asyncio.Event().wait()
+    drone.core.connection_state = connection
+    drone.telemetry.armed = _health_stream([] if armed is None else [armed])
+    drone.telemetry.landed_state = _health_stream([] if landed is None else [SimpleNamespace(name=landed)])
+    if armed is False and landed == 'ON_GROUND' and connected:
+        assert (await mission_startup.require_native_ground_start(drone, timeout=.02))['ready'] is True
+    else:
+        with pytest.raises(mission_startup.GroundStartRejected):
+            await mission_startup.require_native_ground_start(drone, timeout=.02)
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
+    drone.telemetry.position.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_native_ground_observation_failure_is_preownership_rejection(monkeypatch):
+    monkeypatch.setattr(mission_startup, 'observe_authoritative_vehicle_state',
+        AsyncMock(side_effect=OSError('no telemetry')))
+    drone = _connected_drone()
+    with pytest.raises(mission_startup.GroundStartRejected, match='could not be observed'):
+        await mission_startup.require_native_ground_start(drone)
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
 
 
 @pytest.mark.asyncio

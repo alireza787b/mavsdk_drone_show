@@ -343,6 +343,7 @@ def poll_telemetry(drone):
                         'preflight_warnings': telemetry_data.get('preflight_warnings', []),
                         'status_messages': telemetry_data.get('status_messages', []),
                         'preflight_last_update': telemetry_data.get('preflight_last_update', 0),
+                        'trajectory_execution': telemetry_data.get('trajectory_execution'),
                         'hdop': telemetry_data.get('hdop', 99.99),
                         'vdop': telemetry_data.get('vdop', 99.99),
                         'gps_fix_type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status

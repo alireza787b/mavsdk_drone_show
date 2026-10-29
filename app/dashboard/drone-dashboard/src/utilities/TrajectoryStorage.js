@@ -6,8 +6,20 @@ import {
   validateWaypointSequence,
   calculateTrajectoryStats,
 } from './SpeedCalculator';
-import { serializeTrajectoryCsv } from './trajectoryCsv';
-import { TRAJECTORY_ALTITUDE_POLICY } from '../constants/trajectoryMissionPolicy';
+import { serializeTrajectoryCsv, trajectoryWaypointCore } from './trajectoryCsv';
+import Papa from 'papaparse';
+
+const normalizeWaypointTerrainMetadata = (waypoint = {}) => ({
+  altitudeReference: String(waypoint.altitudeReference || '').toLowerCase() === ALTITUDE_REFERENCE.AGL
+    ? ALTITUDE_REFERENCE.AGL
+    : ALTITUDE_REFERENCE.MSL,
+  // Missing legacy metadata is not evidence that terrain was resolved.
+  terrainAccurate: waypoint.terrainAccurate === true,
+  terrainError: waypoint.terrainError || '',
+  terrainSource: waypoint.terrainSource || '',
+  terrainConfidence: waypoint.terrainConfidence || '',
+  terrainSampleTime: waypoint.terrainSampleTime ?? null,
+});
 
 /**
  * TrajectoryStorage - Professional trajectory persistence
@@ -109,6 +121,13 @@ export class TrajectoryStorage {
 
       if (!trajectory) {
         throw new Error(`Trajectory "${identifier}" not found`);
+      }
+
+      if (Array.isArray(trajectory.waypoints)) {
+        trajectory.waypoints = trajectory.waypoints.map((waypoint) => ({
+          ...waypoint,
+          ...normalizeWaypointTerrainMetadata(waypoint),
+        }));
       }
 
       // Validate loaded trajectory
@@ -281,6 +300,11 @@ export class TrajectoryStorage {
         throw new Error(`Import validation failed: ${validation.issues.join(', ')}`);
       }
 
+      trajectoryData.waypoints = trajectoryData.waypoints.map((waypoint) => ({
+        ...waypoint,
+        ...normalizeWaypointTerrainMetadata(waypoint),
+      }));
+
       // Generate new ID and update metadata
       trajectoryData.id = this.generateId();
       trajectoryData.metadata = {
@@ -422,18 +446,14 @@ export class TrajectoryStorage {
       // Standard waypoint data
       id: wp.id || `waypoint-${Date.now()}-${index}`,
       name: wp.name || `Waypoint ${index + 1}`,
-      latitude: Number(wp.latitude),
-      longitude: Number(wp.longitude),
-      altitude: Number(wp.altitude),
-      altitudeReference: wp.altitudeReference || ALTITUDE_REFERENCE.MSL,
+      ...trajectoryWaypointCore(wp, index),
+      ...normalizeWaypointTerrainMetadata(wp),
       targetAgl: Number(wp.targetAgl || 0),
-      timeFromStart: Number(wp.timeFromStart || wp.time || 0),
       timingMode: wp.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: Number(wp.preferredSpeed || 0),
       estimatedSpeed: Number(wp.estimatedSpeed || 0),
       speedFeasible: Boolean(wp.speedFeasible),
       groundElevation: Number(wp.groundElevation || 0),
-      terrainAccurate: wp.terrainAccurate !== false,
       
       // AVIATION STANDARD HEADING DATA (clean, single source of truth)
       heading: wp.heading !== undefined ? Number(wp.heading) : (wp.yaw !== undefined ? Number(wp.yaw) : 0),
@@ -512,8 +532,12 @@ export class TrajectoryStorage {
    * Parse CSV content to trajectory data
    */
   parseCSV(content, filename) {
-    const lines = content.trim().split('\n').filter((line) => line.trim().length > 0);
-    const headers = (lines[0] || '').split(',').map((value) => value.trim());
+    const parsed = Papa.parse(content.trim(), { skipEmptyLines: 'greedy' });
+    if (parsed.errors.length > 0) {
+      throw new Error(`Invalid trajectory CSV: ${parsed.errors[0].message}`);
+    }
+    const [headerRow = [], ...rows] = parsed.data;
+    const headers = headerRow.map((value) => value.trim());
     const headerIndex = new Map(headers.map((header, index) => [header, index]));
     const readValue = (values, headerName, fallbackIndex, fallbackValue = '') => {
       const index = headerIndex.get(headerName);
@@ -524,6 +548,12 @@ export class TrajectoryStorage {
 
       return values[fallbackIndex] ?? fallbackValue;
     };
+    // Provenance must come from a named field, never an unrelated positional
+    // column in an older or reordered CSV.
+    const readMetadata = (values, headerName) => {
+      const index = headerIndex.get(headerName);
+      return index === undefined ? '' : (values[index] ?? '');
+    };
     const normalizeAltitudeReference = (value) =>
       String(value || '').toLowerCase() === ALTITUDE_REFERENCE.AGL ? ALTITUDE_REFERENCE.AGL : ALTITUDE_REFERENCE.MSL;
     const normalizeTimingMode = (value) =>
@@ -531,13 +561,11 @@ export class TrajectoryStorage {
     const normalizeHeadingMode = (value) =>
       String(value || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
     
-    const waypoints = lines.slice(1).map((line, index) => {
-      const values = line.split(',').map(v => v.trim());
+    const waypoints = rows.map((values, index) => {
       const altitudeReference = normalizeAltitudeReference(readValue(values, 'AltitudeReference', 8, ALTITUDE_REFERENCE.MSL));
       const targetAgl = parseFloat(readValue(values, 'TargetAgl_m', 9, '0')) || 0;
       const groundElevation = parseFloat(readValue(values, 'GroundElevation_m', 10, '0')) || 0;
-      const terrainAccurateRaw = readValue(values, 'TerrainAccurate', 11, 'true');
-      const terrainAccurate = String(terrainAccurateRaw).toLowerCase() !== 'false';
+      const terrainAccurate = String(readMetadata(values, 'TerrainAccurate')).trim().toLowerCase() === 'true';
       const timingMode = normalizeTimingMode(readValue(values, 'TimingMode', 12, TIMING_MODES.MANUAL_TIME));
       const preferredSpeed = parseFloat(readValue(values, 'PreferredSpeed_ms', 13, '0')) || 0;
       const calculatedHeading = parseFloat(readValue(values, 'CalculatedHeading_deg', 14, '0')) || 0;
@@ -545,14 +573,20 @@ export class TrajectoryStorage {
       return {
         id: `waypoint-${Date.now()}-${index}`,
         name: readValue(values, 'Name', 0, `Waypoint ${index + 1}`) || `Waypoint ${index + 1}`,
-        latitude: parseFloat(readValue(values, 'Latitude', 1, '0')) || 0,
-        longitude: parseFloat(readValue(values, 'Longitude', 2, '0')) || 0,
-        altitude: parseFloat(readValue(values, 'Altitude_MSL_m', 3, String(TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL))) || TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL,
+        ...trajectoryWaypointCore({
+          latitude: readValue(values, 'Latitude', 1),
+          longitude: readValue(values, 'Longitude', 2),
+          altitude: readValue(values, 'Altitude_MSL_m', 3),
+          timeFromStart: readValue(values, 'TimeFromStart_s', 4),
+        }, index),
         altitudeReference,
         targetAgl,
         groundElevation,
         terrainAccurate,
-        timeFromStart: parseFloat(readValue(values, 'TimeFromStart_s', 4, '0')) || 0,
+        terrainError: readMetadata(values, 'TerrainError'),
+        terrainSource: readMetadata(values, 'TerrainSource'),
+        terrainConfidence: readMetadata(values, 'TerrainConfidence'),
+        terrainSampleTime: readMetadata(values, 'TerrainSampleTime') || null,
         timingMode,
         preferredSpeed,
         estimatedSpeed: parseFloat(readValue(values, 'EstimatedSpeed_ms', 5, '0')) || 0,

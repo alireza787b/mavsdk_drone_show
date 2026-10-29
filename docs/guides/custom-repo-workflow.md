@@ -120,7 +120,8 @@ For confidentiality-sensitive customers, prefer:
 3. seed it from the official repo
 4. keep a documented upstream-sync process
 
-That private repo can still track `main` or `main`, but it should be treated as a private mirror/customization repo, not assumed to be a private fork.
+That private repo can track `main` or a customer branch, but it should be treated
+as a private mirror/customization repo, not assumed to be a private fork.
 
 ## `--fork` Versus `--repo-url`
 

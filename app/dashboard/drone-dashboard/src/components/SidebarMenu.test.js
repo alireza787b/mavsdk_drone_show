@@ -113,12 +113,11 @@ describe('SidebarMenu', () => {
     expect(planLabels).toEqual([
       'QuickScout SAR',
       'Swarm Trajectory',
-      'Route Editor',
       'Custom CSV Show',
     ]);
     expect(within(operateSection).getByRole('link', { name: 'Smart Swarm' })).toHaveAttribute('href', '/swarm-design');
     expect(within(planSection).getByRole('link', { name: 'QuickScout SAR' })).toHaveAttribute('href', '/quickscout');
-    expect(within(planSection).getByRole('link', { name: 'Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
+    expect(within(planSection).queryByRole('link', { name: 'Route Editor' })).not.toBeInTheDocument();
   });
 
   it('ports collapsed sidebar tooltips outside the scroll container and avoids stale hover timers', () => {
@@ -132,18 +131,18 @@ describe('SidebarMenu', () => {
     );
 
     const quickScout = screen.getByRole('link', { name: 'QuickScout SAR' });
-    const routeEditor = screen.getByRole('link', { name: 'Route Editor' });
+    const routeEditor = screen.getByRole('link', { name: 'Swarm Trajectory' });
 
     fireEvent.mouseEnter(quickScout);
     expect(screen.getByRole('tooltip')).toHaveTextContent('QuickScout SAR');
     expect(screen.getByRole('tooltip').closest('.modern-sidebar-wrapper')).toBeNull();
 
     fireEvent.mouseEnter(routeEditor);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Route Editor');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Swarm Trajectory');
     act(() => {
       jest.advanceTimersByTime(1999);
     });
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Route Editor');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Swarm Trajectory');
 
     act(() => {
       jest.advanceTimersByTime(1);

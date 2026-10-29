@@ -2453,10 +2453,21 @@ class DroneSetup:
 
     async def _execute_swarm_trajectory(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """Handler for Mission.SWARM_TRAJECTORY."""
+        from src.swarm_trajectory_contract import SwarmTrajectoryPackage
+        try:
+            package = SwarmTrajectoryPackage.model_validate(self.drone_config.swarm_trajectory_request)
+            hardware_id = str(int(self.drone_config.hw_id))
+            digest = package.files[hardware_id]
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            return await self._fail_pending_command(f'Trajectory package identity is missing or invalid: {exc}')
+        action = f"--position_id {hardware_id} --trajectory_sha256 {digest}"
+        command_id = self._normalize_command_id(getattr(self.drone_config, 'current_command_id', None))
+        if command_id:
+            action = ['--position_id', hardware_id, '--trajectory_sha256', digest, '--command_id', command_id]
         return await self._execute_immediate_script_mission(
             "Swarm Trajectory Mission",
             "swarm_trajectory_mission.py",
-            "",
+            action,
             current_time,
             earlier_trigger_time,
             interrupt_mode=ProcessStopMode.NORMAL,

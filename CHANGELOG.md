@@ -9,6 +9,48 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm Trajectory uses one flat, theme-aware operator console across Operate,
+  Formation, Route, Uploads, Generate, Review and confirmations. Review adds a
+  geographic map, working aircraft visibility/search and thin stable-color
+  paths. Retained files outside the mission are collapsed by default and no
+  longer inflate follower counts. No live Smart Swarm flight tuning changed.
+
+- Swarm Trajectory's first-use formation is the current Smart Swarm layout as an
+  unsaved draft. `Copy Smart Swarm` makes copying explicit; saving/customizing
+  affects only the mission snapshot, never live Smart Swarm. This source release
+  remains a trajectory-workspace candidate; coordinated Resume and flight SITL
+  acceptance are not included.
+
+- Swarm Trajectory Plan now embeds the full route editor with per-leader drafts,
+  drag editing, undo/redo, reorder, library and import/export. Existing editor
+  bookmarks redirect to Plan; the duplicate basic map editor and sidebar entry
+  are removed. Terrain uncertainty/provenance survives library/CSV roundtrips
+  instead of being upgraded to verified by missing metadata.
+  Shared operator styles load in one fixed app-shell order, independent of lazy
+  route navigation; explicit MSL remains usable without terrain lookup.
+
+- Swarm Trajectory gains an initial Plan/Operate workspace, independent mission
+  formation snapshots, whole-cluster start review, receipt recovery and typed
+  read-only workspace APIs/MCP tools. Aircraft report stale-aware commanded
+  trajectory time. Native preparation/commit reject changed package files.
+  Hold remains terminal and coordinated Pause/Resume is not enabled in this
+  checkpoint.
+
+- Mission 4 managed launches now bind reviewed trajectory hashes to hardware
+  identities and verify exact loaded bytes before arming. Staged regeneration
+  preserves prior outputs on failure, and leader drafts are isolated/recoverable.
+  Server/node updates and legacy package regeneration are required together.
+
+- Swarm Trajectory dispatch now enforces canonical package readiness for selected
+  and whole-fleet starts. Processing sessions detect changed output contents;
+  legacy sessions require regeneration. The planner no longer substitutes file
+  presence for validation or fabricates repository-save percentages.
+
+- Swarm Trajectory now loads its route before arming, rejects malformed processed
+  samples instead of silently skipping them, and requires explicit altitude and
+  finite motion data. Leader and processed routes reject negative, duplicate or
+  decreasing timestamps. Coordinated pause/resume remains under development.
+
 - Removed the spurious zero-height Drone Show warning: normal launch/landing
   samples are neutral show-relative data, not a terrain hazard. Separation
   violations now include exact overlaps between distinct aircraft; malformed
@@ -646,7 +688,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   for Axios, Markdown-It/Linkify-It, and PostCSS, alongside the earlier
   `shell-quote` fix, without forcing npm's invalid Create React App remediation
   or an unverified React Router major-version change.
-- Generic Catch-A-Drone improvements were reconciled into official MDS without
+- Generic deployment improvements were reconciled into official MDS without
   importing customer configuration or weaker private security behavior:
   command failures retain concise per-drone reasons, Smart Swarm distinguishes
   local save from failed Git write-back, Fleet Ops guides drift review, booting

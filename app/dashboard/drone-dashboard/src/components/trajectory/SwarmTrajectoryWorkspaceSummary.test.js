@@ -29,8 +29,8 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
               tone: 'ready',
               summary: 'All expected leader CSVs are loaded.',
               details: ['Uploaded leaders: 1, 5'],
-              actionLabel: 'Open Advanced Route Editor',
-              actionHref: '/trajectory-planning',
+              actionLabel: 'Open Mission Plan',
+              actionHref: '/swarm-trajectory?tab=plan',
             },
             {
               id: 'processing',
@@ -48,11 +48,11 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
 
     expect(screen.getByText('Mission package is ready for launch preflight')).toBeInTheDocument();
     expect(screen.getByText('session-42')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Swarm Design' })).toHaveAttribute('href', '/swarm-design');
-    expect(screen.getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
+    expect(screen.getByRole('link', { name: 'Operate' })).toHaveAttribute('href', '/swarm-trajectory');
+    expect(screen.getByRole('link', { name: 'Mission Plan' })).toHaveAttribute('href', '/swarm-trajectory?tab=plan');
     expect(screen.getByText('Swarm trajectory execution policy')).toBeInTheDocument();
     expect(screen.getByText(/This is not live Smart Swarm/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Open Advanced Route Editor' })[0]).toHaveAttribute('href', '/trajectory-planning');
+    expect(screen.getAllByRole('link', { name: 'Open Mission Plan' })[0]).toHaveAttribute('href', '/swarm-trajectory?tab=plan');
     expect(screen.getByText('Generate Cluster Outputs')).toBeInTheDocument();
   });
 

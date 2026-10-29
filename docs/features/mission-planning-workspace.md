@@ -15,6 +15,10 @@ QuickScout is a SAR/surveillance workflow that produces PX4 Mission-style waypoi
 - Show stale telemetry as stale. Do not treat last-known data as fresh position truth.
 - Keep Mapbox optional. Leaflet fallback must stay usable.
 
+Shared map, search, identity and mission-planning styles load once at the app
+shell, in a fixed order. Embedded/lazy workspaces must not reimport these shared
+styles in different orders; page-specific styles remain owned by their page.
+
 ## Map And Geometry
 
 | Geometry | Used by | Notes |
@@ -72,7 +76,7 @@ Current QuickScout planning jobs and Swarm Trajectory processing jobs are in-mem
 | Runtime semantics | PX4 Mission-style autonomous waypoint upload | MDS trajectory/offboard-style Mission Type 4 execution |
 | Primary geometry | Point, polygon, corridor polyline | Ordered leader waypoint sequence |
 | Multi-drone behavior | Partition coverage where the template supports it | Generate per-drone files from leader/follower cluster graph |
-| Launch surface | QuickScout review/launch then monitor | Dashboard Mission Trigger after validation/commit/transfer review |
+| Launch surface | QuickScout review/launch then monitor | Swarm Trajectory Operate after package and aircraft review |
 | Required position truth | Global mission geometry and fresh selected-drone global positions for assignment | Global route geometry; launch readiness depends on runtime telemetry/preflight |
 | Terrain behavior | Optional terrain following for search waypoints | AGL authoring converts terrain-assisted waypoint altitudes into stored MSL |
 
@@ -102,8 +106,9 @@ Wide area sweep:
 Planned coordinated surveillance pass:
 
 - Use Swarm Trajectory.
-- Verify `Swarm Design` first.
-- Author/import a leader route, assign it, process, validate, preview cluster paths, commit/transfer if required, then launch Mission Type 4 from Dashboard.
+- Review the mission-owned Formation in Swarm Trajectory Plan.
+- Author/import a leader route, assign it, process, validate, preview cluster paths,
+  save/synchronize if required, then confirm Start mission in Operate.
 
 Degraded connectivity:
 

@@ -66,7 +66,7 @@ def _set_fresh_airborne_state(mock_drone_config, *, relative_altitude_m=5.0):
     mock_drone_config.custom_mode = (4 << 16) | (3 << 24)
 
 
-def _ready_launch_probe(hw_id="1"):
+def _ready_launch_probe(hw_id="1", mission_type=None):
     now_ms = int(time.time() * 1_000)
     return {
         "hw_id": str(hw_id),
@@ -75,6 +75,11 @@ def _ready_launch_probe(hw_id="1"):
         "summary": "ready for mission startup",
         "observation": {
             "schema_version": 1,
+            **({'mission_type': mission_type, 'admission': {
+                'predicate': 'takeoff_ground_disarmed', 'ready': True,
+                'checks': {name: True for name in ('connection_live', 'connection_continuous',
+                    'armed_fresh', 'landed_state_fresh', 'disarmed', 'on_ground')},
+            }} if mission_type in {10, 4} else {}),
             "observation_id": f"route-test-{now_ms}",
             "source": "test.health+battery",
             "observed_at_ms": now_ms,
@@ -97,7 +102,7 @@ def _prepared_launch_headers(api_server, command):
         LaunchPreparationBinding.from_command(parsed)
     )
     api_server._probe_live_armability = AsyncMock(
-        return_value=_ready_launch_probe(api_server.drone_config.hw_id)
+        return_value=_ready_launch_probe(api_server.drone_config.hw_id, parsed.mission_type)
     )
     return {LAUNCH_PREPARATION_TOKEN_HEADER: token}
 

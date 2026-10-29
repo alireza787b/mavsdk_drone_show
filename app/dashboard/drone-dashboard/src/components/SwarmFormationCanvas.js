@@ -62,10 +62,14 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
     if (action === 'zoom-in') setCamera((current) => ({ ...current, scale: clampScale(current.scale * 1.25) }));
     if (action === 'zoom-out') setCamera((current) => ({ ...current, scale: clampScale(current.scale * 0.8) }));
   };
+  // View commands are events. Use the current geometry without replaying an
+  // already-issued Fit/Focus whenever the draft or viewport size changes.
+  const viewportExecutorRef = useRef(executeViewportCommand);
+  viewportExecutorRef.current = executeViewportCommand;
   useEffect(() => {
     if (!viewportCommand?.sequence) return;
-    executeViewportCommand(viewportCommand.action);
-  }, [viewportCommand?.sequence]);
+    viewportExecutorRef.current(viewportCommand.action);
+  }, [viewportCommand?.sequence, viewportCommand?.action]);
   const viewportRef = useRef(viewport); viewportRef.current = viewport;
   useEffect(() => { setCamera(cameras.current[scopeKey] || fitCamera(latestPoints.current, viewportRef.current.width, viewportRef.current.height)); }, [scopeKey]);
   const activeScope = useRef(scopeKey);

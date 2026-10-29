@@ -1315,7 +1315,9 @@ promotes the aircraft to independent leader.
 ```
 
 #### `GET /api/v1/swarm-trajectories/leaders`
-Get list of top leaders from swarm configuration.
+Get top leaders from this mission's Formation snapshot, not editable live
+Smart Swarm roles. Before the snapshot is saved, reads expose the initial live
+layout as a draft without writing it.
 
 **Response:**
 ```json
@@ -1420,6 +1422,12 @@ message instead of pretending cancellation stopped work immediately.
 
 #### `GET /api/v1/swarm-trajectories/status`
 Get current processing status and file counts.
+
+`leader_count` and `follower_count` count processed aircraft assigned in the
+current mission formation. Optional `unassigned_processed_drones` lists retained
+output IDs without a current assignment; these are files, not extra followers.
+The read-only preview may expose their paths for explicit inspection without
+adding them to the mission or deleting them.
 
 **Response:**
 ```json
@@ -1537,6 +1545,29 @@ Get the operator-facing trajectory planner envelope sourced from backend `Params
 Use this endpoint as the frontend source of truth for Swarm Trajectory planner defaults and operator envelopes instead of maintaining a separate hardcoded policy table.
 
 Additional active Swarm Trajectory endpoints:
+
+- `GET /api/v1/swarm-trajectories/workspace`: typed aggregate package review,
+  preview, independent formation and reviewed launch identity.
+- `GET /api/v1/swarm-trajectories/operation`: command-tracker and fleet-presence
+  projection, including command-scoped aircraft trajectory reports. Commanded
+  route time is not measured tracking accuracy.
+- `GET|PUT /api/v1/swarm-trajectories/formation`: read/save the mission-owned
+  snapshot. PUT carries `assignments` and the previous `revision`; stale revisions
+  return 409. Reads never create a snapshot or change live Smart Swarm roles.
+- Package-mutating requests reject active tracked Mission 4 runs. Processing-job
+  `progress_percent` may be null; use phase/status rather than inventing a percent.
+
+Mission 4 command submission rechecks package readiness and attaches a typed
+`swarm_trajectory` identity containing `revision` and a `files` mapping from
+hardware ID to lowercase SHA-256 digest. A caller may provide its reviewed
+identity; submission rejects it if it differs from the current package. Nodes
+verify their generated file before arming. This field is invalid for other
+missions. It does not replace PX4 readiness or certify trajectory clearance.
+
+Mission 4 is ground-start only: FleetRPC and the node prepare/commit boundaries
+require current mission-specific native Disarmed + On-ground admission, not a
+generic ready-health response. Update GCS and nodes together; old nodes without
+this evidence cannot authorize a ground-start trajectory mission.
 
 - `GET /api/v1/swarm-trajectories/recommendation`
 - `POST /api/v1/swarm-trajectories/process/jobs`

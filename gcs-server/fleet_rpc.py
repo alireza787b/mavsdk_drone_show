@@ -33,7 +33,7 @@ from src.drone_api_routes import (
 )
 from src.smart_swarm_admission import SmartSwarmStartAdmission
 from target_command_payloads import validate_per_target_payloads
-from src.command_execution_contract import mission_requires_launch_armability_probe
+from src.command_execution_contract import mission_requires_launch_armability_probe, ground_start_observation_ready
 from src.launch_preparation_protocol import (
     LAUNCH_PREPARATION_TOKEN_HEADER,
     LaunchPreparationRequest,
@@ -490,20 +490,15 @@ class FleetRPCService:
                         "drone_ip": drone.get("ip"),
                     }
 
-                if mission == Mission.TAKE_OFF and (
-                    envelope.observation is None
-                    or envelope.observation.mission_type != Mission.TAKE_OFF.value
-                    or envelope.observation.admission is None
-                    or not envelope.observation.admission.ready
-                ):
+                if not ground_start_observation_ready(mission, envelope.observation):
                     return {
                         "drone_id": drone_id, "success": False, "ready": False,
-                        "summary": "Takeoff ground-state readiness was not confirmed",
+                        "summary": "Ground-start readiness was not confirmed",
                         "details": {"observation": envelope.observation.model_dump(mode="json")
                                     if envelope.observation is not None else None},
                         "category": "blocked", "prepare_state": "unavailable",
                         "error_code": CommandErrorCode.PREFLIGHT_FAILED.value,
-                        "error_detail": "A current action-specific Takeoff decision is required; verify node software and readiness",
+                        "error_detail": "A current mission-specific ground-start decision is required; verify node software and readiness",
                         "drone_ip": drone.get("ip"),
                     }
 

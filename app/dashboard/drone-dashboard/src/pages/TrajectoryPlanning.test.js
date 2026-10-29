@@ -1,15 +1,16 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import TrajectoryPlanning from './TrajectoryPlanning';
 import {
   getSwarmClusterStatus,
   getSwarmTrajectoryPolicy,
+  getSwarmTrajectoryElevationBatch,
   uploadSwarmTrajectory,
 } from '../services/droneApiService';
-import { getTerrainElevation } from '../services/ElevationService';
 import { suggestOptimalTime } from '../utilities/SpeedCalculator';
+import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
 import {
   resetTrajectoryMissionPolicy,
   TRAJECTORY_SPEED_POLICY,
@@ -25,8 +26,8 @@ jest.mock('react-map-gl', () => {
     { lng: 51.2733, lat: 35.7274 },
     { lng: 51.2745, lat: 35.7286 },
   ];
-  const MockMap = React.forwardRef(({ children, onClick }, ref) => (
-    <div ref={ref}>
+  const MockMap = React.forwardRef(({ children, onClick, latitude, longitude, zoom }, ref) => (
+    <div ref={ref} data-testid="map-viewport" data-latitude={latitude} data-longitude={longitude} data-zoom={zoom}>
       <button
         type="button"
         data-testid="mock-map"
@@ -89,14 +90,21 @@ jest.mock('../components/trajectory/TrajectoryToolbar', () => (props) => (
     <button type="button" onClick={props.onSendToSwarm} disabled={!props.canSendToSwarm}>
       Assign to Cluster
     </button>
+    <button type="button" onClick={props.onUndo} disabled={!props.canUndo}>Undo</button>
+    <button type="button" onClick={props.onRedo} disabled={!props.canRedo}>Redo</button>
+    <button type="button" onClick={props.onLoad}>Open library</button>
     <span data-testid="toolbar-waypoint-count">{props.waypointCount}</span>
   </div>
 ));
-jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdateWaypoint }) => (
+jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdateWaypoint, onMoveWaypoint }) => (
   <div>
     <div data-testid="waypoint-panel-state">
       {JSON.stringify(
         waypoints.map((waypoint) => ({
+          id: waypoint.id,
+          name: waypoint.name,
+          latitude: waypoint.latitude,
+          longitude: waypoint.longitude,
           headingMode: waypoint.headingMode,
           estimatedSpeed: waypoint.estimatedSpeed,
           altitudeReference: waypoint.altitudeReference,
@@ -107,9 +115,14 @@ jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdate
           preferredSpeed: waypoint.preferredSpeed,
           groundElevation: waypoint.groundElevation,
           terrainAccurate: waypoint.terrainAccurate,
+          terrainError: waypoint.terrainError,
+          terrainSource: waypoint.terrainSource,
         }))
       )}
     </div>
+    {waypoints[1] && (
+      <button type="button" onClick={() => onMoveWaypoint(waypoints[1].id, 'up')}>Move waypoint 2 up</button>
+    )}
     {waypoints[1] && (
       <button
         type="button"
@@ -125,9 +138,6 @@ jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdate
     )}
   </div>
 ));
-jest.mock('../services/ElevationService', () => ({
-  getTerrainElevation: jest.fn().mockResolvedValue({ elevation: 0, source: 'backend' }),
-}));
 jest.mock('../components/trajectory/WaypointModal', () => (props) => {
   if (!props.isOpen) {
     return null;
@@ -147,6 +157,8 @@ jest.mock('../components/trajectory/WaypointModal', () => (props) => {
         terrainInfo: null,
         groundElevation: 0,
         terrainAccurate: true,
+        terrainError: '',
+        terrainSource: 'backend',
       }
     : {
         altitude: 160,
@@ -161,6 +173,8 @@ jest.mock('../components/trajectory/WaypointModal', () => (props) => {
         terrainInfo: null,
         groundElevation: 40,
         terrainAccurate: true,
+        terrainError: '',
+        terrainSource: 'backend',
       };
 
   return (
@@ -178,6 +192,11 @@ jest.mock('../components/trajectory/SwarmTrajectoryTransferDialog', () => (props
 
   return (
     <div data-testid="swarm-transfer-dialog">
+      <div data-testid="transfer-clusters">{props.clusters.map((cluster) => cluster.leader_id).join(',')}</div>
+      <div data-testid="transfer-leader">{props.selectedLeaderId}</div>
+      <div data-testid="transfer-lock">{props.lockedLeaderId}</div>
+      <div role="alert">{props.error}</div>
+      <button type="button" onClick={() => props.onSelectLeaderId(99)}>Select unrelated leader</button>
       <button type="button" onClick={() => props.onSubmit()}>
         Submit transfer
       </button>
@@ -185,11 +204,16 @@ jest.mock('../components/trajectory/SwarmTrajectoryTransferDialog', () => (props
   );
 });
 jest.mock('../components/trajectory/TrajectoryExportDialog', () => () => null);
-jest.mock('../components/trajectory/TrajectoryLibraryDialog', () => () => null);
+jest.mock('../components/trajectory/TrajectoryLibraryDialog', () => (props) => (
+  props.isOpen && props.mode === 'load'
+    ? <button type="button" onClick={() => props.onLoad('legacy-route')}>Load legacy route</button>
+    : null
+));
 
 jest.mock('../services/droneApiService', () => ({
   getSwarmClusterStatus: jest.fn().mockResolvedValue({ clusters: [] }),
   getSwarmTrajectoryPolicy: jest.fn().mockResolvedValue({ success: true, policy: {} }),
+  getSwarmTrajectoryElevationBatch: jest.fn(),
   uploadSwarmTrajectory: jest.fn().mockResolvedValue({ success: true, message: 'uploaded' }),
 }));
 
@@ -199,7 +223,10 @@ describe('TrajectoryPlanning', () => {
     process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = 'test-mapbox-token';
     window.localStorage.clear();
     resetTrajectoryMissionPolicy();
-    getTerrainElevation.mockResolvedValue({ elevation: 0, source: 'backend' });
+    getSwarmTrajectoryElevationBatch.mockImplementation(async (points) => ({
+      success: true,
+      results: points.map((point) => ({ ...point, status: 'ok', elevation_m: 0, source: 'backend' })),
+    }));
     getSwarmClusterStatus.mockResolvedValue({
       clusters: [
         {
@@ -222,6 +249,8 @@ describe('TrajectoryPlanning', () => {
 
   afterEach(() => {
     window.innerWidth = 1024;
+    jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {
@@ -270,6 +299,8 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"terrainSource":"backend"');
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"terrainError":""');
   });
 
   it('uses the compact workflow brief on small viewports so the map stays primary', async () => {
@@ -311,10 +342,10 @@ describe('TrajectoryPlanning', () => {
   });
 
   it('refreshes terrain context when a waypoint is moved and preserves target AGL intent', async () => {
-    getTerrainElevation.mockResolvedValue({
-      elevation: 85,
-      source: 'backend',
-    });
+    getSwarmTrajectoryElevationBatch.mockImplementation(async (points) => ({
+      success: true,
+      results: points.map((point) => ({ ...point, status: 'ok', elevation_m: 85, source: 'backend' })),
+    }));
 
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -381,5 +412,134 @@ describe('TrajectoryPlanning', () => {
 
     expect(await screen.findByRole('button', { name: /open swarm trajectory/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /stay in planner/i })).toBeInTheDocument();
+  });
+
+  const draft = [
+    { id: 'a', name: 'Waypoint 1', latitude: 0, longitude: 0, altitude: 100, timeFromStart: 5, timingMode: 'manual_time', headingMode: 'manual', heading: 0, altitudeReference: 'msl' },
+    { id: 'b', name: 'Waypoint 2', latitude: 0.001, longitude: 0, altitude: 100, timeFromStart: 30, timingMode: 'auto_speed', preferredSpeed: 5, headingMode: 'auto', altitudeReference: 'msl' },
+    { id: 'c', name: 'Waypoint 3', latitude: 0.002, longitude: 0, altitude: 100, timeFromStart: 60, timingMode: 'auto_speed', preferredSpeed: 5, headingMode: 'auto', altitudeReference: 'msl' },
+  ];
+  const renderEditor = (props) => render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <TrajectoryPlanning {...props} />
+    </MemoryRouter>
+  );
+
+  it('hydrates the scoped draft once, preserves zero coordinates, and reports edits without resetting history', async () => {
+    const onWaypointsChange = jest.fn();
+    const { rerender } = renderEditor({ embedded: true, scopedLeaderId: 1, initialWaypoints: draft, onWaypointsChange });
+    expect(screen.queryByRole('heading', { name: 'Advanced Route Editor' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('3');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '0');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '0');
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Move waypoint 2 up'));
+    await waitFor(() => expect(onWaypointsChange).toHaveBeenLastCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: 'b', name: 'Waypoint 1', timeFromStart: 5 }),
+    ])));
+    const reordered = onWaypointsChange.mock.calls.at(-1)[0];
+    expect(reordered.map((waypoint) => waypoint.id)).toEqual(['b', 'a', 'c']);
+    expect(reordered[0].estimatedSpeed).toBe(0);
+    expect(reordered[2].timeFromStart).toBeGreaterThan(reordered[1].timeFromStart);
+
+    rerender(<MemoryRouter><TrajectoryPlanning embedded scopedLeaderId={1} initialWaypoints={[]} onWaypointsChange={onWaypointsChange} /></MemoryRouter>);
+    expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('3');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(onWaypointsChange.mock.calls.at(-1)[0].map((waypoint) => waypoint.id)).toEqual(['a', 'b', 'c']));
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    await waitFor(() => expect(onWaypointsChange.mock.calls.at(-1)[0].map((waypoint) => waypoint.id)).toEqual(['b', 'a', 'c']));
+  });
+
+  it('uses a neutral world view for an empty route instead of an arbitrary mission location', () => {
+    renderEditor({});
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-latitude', '0');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-longitude', '0');
+    expect(screen.getByTestId('map-viewport')).toHaveAttribute('data-zoom', '2');
+  });
+
+  it('does not write a scoped leader draft into the global autosave library', async () => {
+    jest.useFakeTimers();
+    const autoSave = jest.spyOn(TrajectoryStorage.prototype, 'autoSave');
+    renderEditor({ scopedLeaderId: 1, initialWaypoints: draft });
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { jest.advanceTimersByTime(60000); });
+    expect(autoSave).not.toHaveBeenCalled();
+  });
+
+  it('preserves standalone library autosave', async () => {
+    jest.useFakeTimers();
+    const autoSave = jest.spyOn(TrajectoryStorage.prototype, 'autoSave').mockResolvedValue({ success: true });
+    renderEditor({ initialWaypoints: draft });
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { jest.advanceTimersByTime(30000); });
+    expect(autoSave).toHaveBeenCalledWith(expect.any(Array), expect.any(Object));
+  });
+
+  it('locks assignment to its mission leader and acknowledges success without standalone navigation', async () => {
+    const onAssigned = jest.fn();
+    getSwarmClusterStatus.mockResolvedValue({ clusters: [
+      { leader_id: 1, follower_ids: [2], follower_count: 1 },
+      { leader_id: 99, follower_ids: [], follower_count: 0 },
+    ] });
+    renderEditor({ embedded: true, scopedLeaderId: 1, initialWaypoints: draft, onAssigned });
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
+    await waitFor(() => expect(screen.getByTestId('transfer-clusters')).toHaveTextContent(/^1$/));
+    fireEvent.click(screen.getByText('Select unrelated leader'));
+    expect(screen.getByTestId('transfer-leader')).toHaveTextContent(/^1$/);
+    expect(screen.getByTestId('transfer-lock')).toHaveTextContent(/^1$/);
+    fireEvent.click(screen.getByText('Submit transfer'));
+    await waitFor(() => expect(onAssigned).toHaveBeenCalledWith(1, expect.objectContaining({ success: true })));
+    expect(uploadSwarmTrajectory).toHaveBeenLastCalledWith(1, expect.any(Blob), 'Drone 1.csv');
+    expect(screen.queryByRole('button', { name: /open swarm trajectory/i })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { terrainAccurate: false },
+    { terrainAccurate: undefined },
+    { terrainAccurate: true, terrainError: 'Provider unavailable' },
+  ])('blocks scoped AGL assignment without verified terrain (%o)', async (terrainContext) => {
+    const onAssigned = jest.fn();
+    const uploadsBefore = uploadSwarmTrajectory.mock.calls.length;
+    renderEditor({ scopedLeaderId: 1, initialWaypoints: draft.map((waypoint) => ({ ...waypoint, altitudeReference: 'agl', ...terrainContext })), onAssigned });
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
+    await waitFor(() => expect(screen.getByTestId('transfer-clusters')).toHaveTextContent(/^1$/));
+    fireEvent.click(screen.getByText('Submit transfer'));
+    expect(await screen.findByText(/Resolve terrain elevation for all AGL waypoints/i)).toBeInTheDocument();
+    expect(uploadSwarmTrajectory.mock.calls).toHaveLength(uploadsBefore);
+    expect(onAssigned).not.toHaveBeenCalled();
+  });
+
+  it('does not acknowledge assignment when the server rejects its upload', async () => {
+    const onAssigned = jest.fn();
+    uploadSwarmTrajectory.mockResolvedValue({ success: false, message: 'Route rejected' });
+    renderEditor({ scopedLeaderId: 1, initialWaypoints: draft, onAssigned });
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
+    await waitFor(() => expect(screen.getByTestId('transfer-clusters')).toHaveTextContent(/^1$/));
+    fireEvent.click(screen.getByText('Submit transfer'));
+    expect(await screen.findByText('Route rejected')).toBeInTheDocument();
+    expect(onAssigned).not.toHaveBeenCalled();
+  });
+
+  it('re-resolves legacy verified AGL from the library and cannot assign it when backend terrain is unavailable', async () => {
+    const storage = new TrajectoryStorage();
+    const onWaypointsChange = jest.fn();
+    const uploadsBefore = uploadSwarmTrajectory.mock.calls.length;
+    await storage.saveTrajectory('legacy-route', draft.map((waypoint) => ({
+      ...waypoint, altitudeReference: 'AGL', targetAgl: 80, groundElevation: 20, terrainAccurate: true,
+    })));
+    getSwarmTrajectoryElevationBatch.mockResolvedValue({ success: true, results: [] });
+    renderEditor({ embedded: true, scopedLeaderId: 1, onWaypointsChange });
+    fireEvent.click(screen.getByText('Open library'));
+    fireEvent.click(await screen.findByText('Load legacy route'));
+    await waitFor(() => expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('3'));
+    expect(onWaypointsChange.mock.calls.at(-1)[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ altitude: 100, altitudeReference: 'agl', terrainAccurate: false, terrainError: 'Terrain elevation unavailable.' }),
+    ]));
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
+    await waitFor(() => expect(screen.getByTestId('transfer-clusters')).toHaveTextContent(/^1$/));
+    fireEvent.click(screen.getByText('Submit transfer'));
+    expect(await screen.findByText(/Resolve terrain elevation for all AGL waypoints/i)).toBeInTheDocument();
+    expect(uploadSwarmTrajectory.mock.calls).toHaveLength(uploadsBefore);
   });
 });

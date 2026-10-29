@@ -102,7 +102,8 @@ function Scene({ entries, positions, labels, selectedId, previewHeadings, onSele
   }, [zoomRequest, camera, invalidate]);
   useEffect(() => {
     if (!focusRequest || !positionsRef.current[String(selectedId)]) return;
-    const center = new Vector3(...toScene(positionsRef.current[String(selectedId)]));
+    const center = new Vector3(...formationToScene(positionsRef.current[String(selectedId)],
+      viewRef.current.viewFrame, viewRef.current.viewHeading));
     const direction = camera.position.clone().sub(controls.current?.target || new Vector3());
     camera.position.copy(center).add(direction);
     camera.lookAt(center);
@@ -182,7 +183,7 @@ export default function SwarmFormation3D({ assignments, configData = [], selecte
     if (viewportCommand.action === 'focus') setFocusRequest((value) => value + 1);
     if (viewportCommand.action === 'zoom-in') zoom(0.8);
     if (viewportCommand.action === 'zoom-out') zoom(1.25);
-  }, [viewportCommand?.sequence]);
+  }, [viewportCommand?.sequence, viewportCommand?.action]);
   const axes = formationViewLabels(viewFrame);
   return <section className={`swarm-formation-3d ${compact ? 'is-compact' : ''}`} aria-label="3D formation editor">
     <div className="swarm-formation-tools" role="toolbar" aria-label="3D view controls">

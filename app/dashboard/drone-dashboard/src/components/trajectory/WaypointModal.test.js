@@ -1,11 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import WaypointModal from './WaypointModal';
-import { getTerrainElevation } from '../../services/ElevationService';
+import { getSwarmTrajectoryElevationBatch } from '../../services/droneApiService';
 import { ALTITUDE_REFERENCE, TIMING_MODES, suggestOptimalTime } from '../../utilities/SpeedCalculator';
 
-jest.mock('../../services/ElevationService', () => ({
-  getTerrainElevation: jest.fn(),
+jest.mock('../../services/droneApiService', () => ({
+  getSwarmTrajectoryElevationBatch: jest.fn(),
 }));
 
 const byTextContent = (text) => (_, element) =>
@@ -13,11 +13,11 @@ const byTextContent = (text) => (_, element) =>
 
 describe('WaypointModal', () => {
   beforeEach(() => {
-    getTerrainElevation.mockResolvedValue({
-      elevation: 200,
-      source: 'mock-terrain',
-      error: null,
-    });
+    getSwarmTrajectoryElevationBatch.mockReset();
+    getSwarmTrajectoryElevationBatch.mockImplementation(async (points) => ({
+      success: true,
+      results: points.map((point) => ({ ...point, status: 'ok', elevation_m: 200, source: 'mock-terrain' })),
+    }));
   });
 
   it('shows inline validation instead of submitting an underground altitude', async () => {
@@ -53,10 +53,10 @@ describe('WaypointModal', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('locks confirmation until terrain is resolved or intentionally estimated', async () => {
+  it('allows MSL authoring immediately while backend terrain is still pending', async () => {
     const onConfirm = jest.fn();
     let resolveTerrain;
-    getTerrainElevation.mockReturnValue(
+    getSwarmTrajectoryElevationBatch.mockReturnValue(
       new Promise((resolve) => {
         resolveTerrain = resolve;
       })
@@ -79,28 +79,54 @@ describe('WaypointModal', () => {
       />
     );
 
-    expect(
-      screen.getByText(/waypoint confirmation stays locked until terrain resolves or you choose use estimate/i)
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add waypoint/i })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole('button', { name: /use estimate/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /add waypoint/i })).not.toBeDisabled();
-    });
+    expect(screen.getByRole('button', { name: /add waypoint/i })).not.toBeDisabled();
+    expect(screen.queryByRole('button', { name: /use estimate/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       terrainAccurate: false,
+      altitude: 350,
+      terrainError: 'Terrain lookup pending.',
+      groundElevation: null,
     }));
 
-    resolveTerrain({
-      elevation: 200,
-      source: 'mock-terrain',
-      error: null,
-    });
+    await act(async () => { resolveTerrain({ success: true, results: [] }); });
+  });
+
+  it('blocks AGL until verified terrain returns without offering a guessed elevation', async () => {
+    let resolveTerrain;
+    const onConfirm = jest.fn();
+    getSwarmTrajectoryElevationBatch.mockImplementation((points) => new Promise((resolve) => {
+      resolveTerrain = () => resolve({ success: true, results: points.map((point) => ({ ...point, status: 'ok', elevation_m: 0, source: 'backend' })) });
+    }));
+    render(<WaypointModal isOpen onClose={jest.fn()} onConfirm={onConfirm} position={{ latitude: 0, longitude: 0 }} previousWaypoint={null} />);
+    fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
+    expect(screen.getByRole('button', { name: /add waypoint/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /use estimate/i })).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Enter', ctrlKey: true });
+    expect(onConfirm).not.toHaveBeenCalled();
+    await act(async () => { resolveTerrain(); });
+    expect(screen.getByRole('button', { name: /add waypoint/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ terrainAccurate: true, terrainError: '', terrainSource: 'backend', groundElevation: 0 }));
+  });
+
+  it('offers retry or explicit MSL on backend failure without altering operator MSL altitude', async () => {
+    const onConfirm = jest.fn();
+    getSwarmTrajectoryElevationBatch.mockResolvedValue({ success: true, results: [] });
+    render(<WaypointModal isOpen onClose={jest.fn()} onConfirm={onConfirm} position={{ latitude: 0, longitude: 0 }} previousWaypoint={null} />);
+    fireEvent.change(screen.getByLabelText(/altitude \(msl\)/i), { target: { value: '275' } });
+    await screen.findByRole('button', { name: 'Retry terrain' });
+    expect(screen.getByLabelText(/altitude \(msl\)/i)).toHaveValue(275);
+    fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
+    expect(screen.getByRole('button', { name: /add waypoint/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry terrain' }));
+    await waitFor(() => expect(getSwarmTrajectoryElevationBatch).toHaveBeenCalledTimes(2));
+    await screen.findByRole('button', { name: 'Use MSL input' });
+    fireEvent.click(screen.getByRole('button', { name: 'Use MSL input' }));
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ altitude: 275, altitudeReference: 'msl', terrainAccurate: false, terrainError: 'Terrain elevation unavailable.' }));
   });
 
   it('derives waypoint arrival time from preferred leg speed in auto mode', async () => {

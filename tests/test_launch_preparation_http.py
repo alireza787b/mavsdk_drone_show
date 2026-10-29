@@ -34,6 +34,7 @@ def _probe(
     hw_id="1",
     validity_ms=2_000,
     remaining_valid_ms=None,
+    mission_type=Mission.TAKE_OFF.value,
 ):
     now_ms = int(time.time() * 1_000)
     blockers = [] if ready else ["PX4 armability"]
@@ -47,6 +48,11 @@ def _probe(
         "summary": "ready for mission startup" if ready else "waiting for PX4 armability",
         "observation": {
             "schema_version": 1,
+            **({'mission_type': mission_type, 'admission': {
+                'predicate': 'takeoff_ground_disarmed', 'ready': True,
+                'checks': {name: True for name in ('connection_live', 'connection_continuous',
+                    'armed_fresh', 'landed_state_fresh', 'disarmed', 'on_ground')},
+            }} if mission_type in {10, 4} else {}),
             "observation_id": f"http-probe-{now_ms}",
             "source": "test.health+battery",
             "observed_at_ms": now_ms,
@@ -78,7 +84,7 @@ def _probe(
 
 
 def _prepare(test_client, api_server, command, *, ready=True):
-    api_server._probe_live_armability = AsyncMock(return_value=_probe(ready=ready))
+    api_server._probe_live_armability = AsyncMock(return_value=_probe(ready=ready, mission_type=command['mission_type']))
     return test_client.post(
         "/api/v1/preflight/launch-preparations",
         json={
@@ -127,6 +133,70 @@ def test_lost_launch_response_retry_returns_authoritative_idempotent_ack(
     # command history without probing or mutating again.
     assert api_server._probe_live_armability.await_count == 1
     mock_drone_communicator.process_command.assert_called_once()
+
+
+def test_trajectory_file_must_match_during_prepare_and_commit(
+    test_client, api_server, mock_drone_communicator, monkeypatch, tmp_path,
+):
+    import hashlib
+    route = tmp_path / 'Drone 1.csv'
+    contents = b't,lat,lon,alt\n0,48,2,120\n1,48,2,120\n'
+    route.write_bytes(contents)
+    monkeypatch.setattr(api_server.params, 'get_swarm_trajectory_file_path', lambda _: str(route))
+    command = _command(mission_type=Mission.SWARM_TRAJECTORY.value, takeoff_altitude=None,
+        swarm_trajectory={'revision': 'r1', 'files': {'1': hashlib.sha256(contents).hexdigest()}})
+    prepared = _prepare(test_client, api_server, command)
+    assert prepared.status_code == 200
+    token = prepared.json()['preparation_token']
+    route.write_bytes(b'changed after preparation')
+    denied = test_client.post('/api/v1/drone/commands', json=command,
+        headers={LAUNCH_PREPARATION_TOKEN_HEADER: token})
+    assert denied.json()['status'] == 'rejected'
+    assert 'differs' in str(denied.json())
+    mock_drone_communicator.process_command.assert_not_called()
+    refused = _prepare(test_client, api_server, command)
+    assert refused.status_code == 409
+    assert 'differs' in str(refused.json())
+
+
+@pytest.mark.parametrize('stage', ['prepare', 'commit'])
+@pytest.mark.parametrize('fault', ['missing_mission', 'wrong_mission', 'missing_admission', 'not_on_ground'])
+def test_trajectory_requires_its_own_native_ground_proof_at_prepare_and_commit(
+    test_client, api_server, mock_drone_communicator, monkeypatch, tmp_path, stage, fault,
+):
+    import hashlib
+    route = tmp_path / 'Drone 1.csv'
+    contents = b't,lat,lon,alt\n0,48,2,120\n1,48,2,120\n'
+    route.write_bytes(contents)
+    monkeypatch.setattr(api_server.params, 'get_swarm_trajectory_file_path', lambda _: str(route))
+    command = _command(mission_type=4, takeoff_altitude=None,
+        swarm_trajectory={'revision': 'r1', 'files': {'1': hashlib.sha256(contents).hexdigest()}})
+    probe = _probe(mission_type=4)
+    observation = probe['observation']
+    if fault == 'missing_mission':
+        observation.pop('mission_type')
+    elif fault == 'wrong_mission':
+        observation['mission_type'] = 10
+    elif fault == 'missing_admission':
+        observation.pop('admission')
+    else:
+        observation['admission']['ready'] = False
+        observation['admission']['checks']['on_ground'] = False
+    api_server._probe_live_armability = AsyncMock(return_value=probe)
+    if stage == 'prepare':
+        response = test_client.post('/api/v1/preflight/launch-preparations', json={
+            'schema_version': 1, 'command': command, 'require_global_position': True})
+        assert response.status_code == 503
+        assert 'No launch token' in str(response.json())
+    else:
+        token, _ = api_server._launch_preparation_store.issue(LaunchPreparationBinding.from_command(command))
+        response = test_client.post('/api/v1/drone/commands', json=command,
+            headers={LAUNCH_PREPARATION_TOKEN_HEADER: token})
+        assert response.status_code == 200
+        assert response.json()['status'] == 'rejected'
+        assert 'ground-start readiness' in response.json()['error_detail']
+    mock_drone_communicator.process_command.assert_not_called()
+    api_server._probe_live_armability.assert_awaited_once_with(require_global_position=True, mission_type=4)
 
 
 def test_launch_without_preparation_fails_before_mutation(

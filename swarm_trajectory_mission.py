@@ -86,6 +86,8 @@ import sys
 import time
 import asyncio
 import csv
+import hashlib
+import io
 import math
 import subprocess
 import logging
@@ -116,10 +118,12 @@ from src.flight_timeout_utils import (
     calculate_swarm_rtl_completion_timeout,
 )
 from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_STATE_ROUTE
-from src.mission_startup import arm_with_preflight_gate
+from src.mission_startup import arm_with_preflight_gate, require_native_ground_start, GroundStartRejected
+from src.enums import Mission
 from src.params import Params
 from src.px4_flight_modes import describe_px4_custom_mode
 from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
+from src.trajectory_runtime_state import TrajectoryProgressRecorder
 
 from drone_show_src.utils import (
     read_hw_id,
@@ -314,7 +318,7 @@ def pad_trajectory_for_time_gap(waypoints: list) -> list:
     return padded_waypoints
 
 
-def read_swarm_trajectory_file(position_id: int) -> list:
+def read_swarm_trajectory_file(position_id: int, expected_sha256: str = None) -> list:
     """
     Read and adjust the swarm trajectory waypoints from a CSV file.
     File path: shapes[_sitl]/swarm_trajectory/processed/Drone {position_id}.csv
@@ -334,7 +338,12 @@ def read_swarm_trajectory_file(position_id: int) -> list:
     filename = Params.get_swarm_trajectory_file_path(position_id)
     
     try:
-        with open(filename, newline="") as csvfile:
+        with open(filename, 'rb') as source:
+            contents = source.read()
+        if expected_sha256 is not None and hashlib.sha256(contents).hexdigest() != expected_sha256:
+            raise ValueError('Trajectory file differs from the reviewed package; synchronize and review again')
+        # Parse the same bytes that were hashed, even if sync replaces the file.
+        with io.StringIO(contents.decode('utf-8-sig'), newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -349,7 +358,7 @@ def read_swarm_trajectory_file(position_id: int) -> list:
                     # Positions in lat/lon/alt (global coordinates)
                     px = float(row["lat"])  # lat -> px for processing
                     py = float(row["lon"])  # lon -> py for processing
-                    pz = float(row.get("alt", 0.0))  # alt -> pz for processing
+                    pz = float(row["alt"])  # altitude must never default to sea level
 
                     # Velocities in NED
                     vx = float(row.get("vx", 0.0))
@@ -362,6 +371,13 @@ def read_swarm_trajectory_file(position_id: int) -> list:
                     az = float(row.get("az", 0.0))
 
                     yaw = float(row.get("yaw", 0.0))
+                    if not all(math.isfinite(value) for value in
+                               (t, px, py, pz, vx, vy, vz, ax, ay, az, yaw)):
+                        raise ValueError("Trajectory coordinates and motion values must be finite")
+                    if not -90 <= px <= 90 or not -180 <= py <= 180:
+                        raise ValueError("Trajectory latitude/longitude is outside geographic bounds")
+                    if t < 0 or (waypoints and t <= waypoints[-1][0]):
+                        raise ValueError("Trajectory time must be nonnegative and strictly increasing")
                     ledr = clamp_led_value(row.get("ledr", 255))
                     ledg = clamp_led_value(row.get("ledg", 255))
                     ledb = clamp_led_value(row.get("ledb", 255))
@@ -386,10 +402,9 @@ def read_swarm_trajectory_file(position_id: int) -> list:
                             ledb,
                         )
                     )
-                except ValueError as ve:
-                    logger.error(f"Invalid data type in row {idx}: {row}. Error: {ve}")
-                except KeyError as ke:
-                    logger.error(f"Missing key in row {idx}: {row}. Error: {ke}")
+                except (ValueError, KeyError) as error:
+                    # Skipping a bad sample would silently change the flown route.
+                    raise ValueError(f"Invalid trajectory row {idx + 2}: {error}") from error
 
             logger.info(f"Trajectory file '{filename}' loaded with {len(waypoints)} waypoints.")
 
@@ -418,7 +433,8 @@ async def perform_swarm_trajectory(
     launch_lat: float,
     launch_lon: float,
     launch_alt: float,
-    end_behavior: str = None
+    end_behavior: str = None,
+    progress_recorder=None,
 ):
     """
     Executes the swarm trajectory with initial vertical climb phase and configurable end behavior.
@@ -490,6 +506,8 @@ async def perform_swarm_trajectory(
     while waypoint_index < total_waypoints:
         try:
             now = time.time()
+            if progress_recorder and not initial_climb_completed:
+                progress_recorder.report('takeoff', duration_s=waypoints[-1][0], sample_count=total_waypoints)
             elapsed = now - start_time
             waypoint = waypoints[waypoint_index]
             t_wp = waypoint[0]
@@ -655,6 +673,10 @@ async def perform_swarm_trajectory(
 
                 await drone.offboard.set_position_global(gp)
 
+                if progress_recorder:
+                    progress_recorder.report('trajectory', trajectory_time_s=t_wp,
+                        duration_s=waypoints[-1][0], sample_index=waypoint_index, sample_count=total_waypoints)
+
                 # Update LED color
                 led_controller.set_color(ledr, ledg, ledb)
 
@@ -720,6 +742,9 @@ async def perform_swarm_trajectory(
     # End-of-Mission Behavior Execution
     # -----------------------------------
     logger.info(f"*** TRAJECTORY COMPLETE *** Executing end behavior: {end_behavior}")
+    if progress_recorder:
+        progress_recorder.report('finishing', trajectory_time_s=waypoints[-1][0],
+            duration_s=waypoints[-1][0], sample_index=total_waypoints - 1, sample_count=total_waypoints)
     led_controller.set_color(0, 255, 255)  # Cyan for end behavior
 
     await execute_end_behavior(drone, end_behavior, launch_lat, launch_lon, launch_alt, last_velocity)
@@ -1347,7 +1372,7 @@ async def pre_flight_checks(drone: System):
         raise
 
 
-async def arming_and_starting_offboard_mode(drone: System, global_reference: dict):
+async def arming_and_starting_offboard_mode(drone: System, global_reference: dict, *, on_arm_attempt=None):
     """
     Arm the drone and start offboard mode.
 
@@ -1358,6 +1383,16 @@ async def arming_and_starting_offboard_mode(drone: System, global_reference: dic
             bounded fallback to the current global position sample if needed.
     """
     logger = logging.getLogger(__name__)
+    # Outside the cleanup handler: rejecting an airborne/unconfirmed vehicle
+    # must not issue HOLD, DISARM or LAND to a vehicle we never controlled.
+    await require_native_ground_start(drone)
+    arm_requested = False
+
+    def mark_arm_attempt():
+        nonlocal arm_requested
+        arm_requested = True
+        if on_arm_attempt is not None:
+            on_arm_attempt()
     
     try:
         # Initialize LED controller
@@ -1385,16 +1420,18 @@ async def arming_and_starting_offboard_mode(drone: System, global_reference: dic
         else:
             logger.info("Skipping position offset computation (global position check disabled or no global reference).")
 
-        # Step 2: Set flight mode to Hold as a safety precaution
-        logger.info("Setting Hold flight mode.")
-        await drone.action.hold()
-
-        # Step 3: Wait for PX4 armability, then arm with bounded retries.
+        # No mode command is sent until native ground/readiness admission has
+        # passed and this process has issued its first arm request.
         await arm_with_preflight_gate(
             drone,
             require_global_position=bool(Params.REQUIRE_GLOBAL_POSITION and global_reference),
             logger=logger,
+            mission_type=Mission.SWARM_TRAJECTORY.value,
+            on_arm_attempt=mark_arm_attempt,
         )
+        arm_requested = True
+        logger.info("Setting Hold flight mode after arming.")
+        await drone.action.hold()
 
         # Step 4: Set an initial offboard velocity setpoint
         logger.info("Setting initial velocity setpoint for offboard mode.")
@@ -1423,6 +1460,8 @@ async def arming_and_starting_offboard_mode(drone: System, global_reference: dic
         logger.info("LED set to white: Drone is ready to fly.")
 
     except OffboardError as error:
+        if not arm_requested:
+            raise GroundStartRejected('Ground mission stopped before acquiring flight control') from error
         # Handle specific Offboard mode errors
         logger.error(f"Offboard error encountered: {error}")
         await drone.action.disarm()
@@ -1430,6 +1469,8 @@ async def arming_and_starting_offboard_mode(drone: System, global_reference: dic
         raise
 
     except Exception as e:
+        if not arm_requested:
+            raise GroundStartRejected(f'Ground mission stopped before arming: {e}') from e
         # Handle general exceptions and ensure the drone is disarmed
         logger.exception("Unexpected error during arming and starting offboard mode.")
         await drone.action.disarm()
@@ -2136,7 +2177,9 @@ def stop_mavsdk_server(mavsdk_server):
 async def run_swarm_trajectory_mission(
     synchronized_start_time,
     position_id_override=None,
-    end_behavior_override=None
+    end_behavior_override=None,
+    expected_trajectory_sha256=None,
+    command_id=None,
 ):
     """
     Run the swarm trajectory mission with the provided configurations.
@@ -2149,6 +2192,13 @@ async def run_swarm_trajectory_mission(
     logger = logging.getLogger(__name__)
     mavsdk_server = None
     drone = None
+    progress = TrajectoryProgressRecorder(command_id, expected_trajectory_sha256)
+    progress.report('starting')
+    control_started = False
+
+    def mark_control_started():
+        nonlocal control_started
+        control_started = True
     
     try:
         global HW_ID, position_id
@@ -2205,6 +2255,14 @@ async def run_swarm_trajectory_mission(
             position_id = drone_config.pos_id
             logger.info(f"Using position ID from config: {position_id} (HW_ID: {HW_ID})")
 
+        # Validate the complete route before waiting for launch or arming.
+        waypoints = read_swarm_trajectory_file(position_id=position_id, expected_sha256=expected_trajectory_sha256)
+        if len(waypoints) < 10:
+            logger.error("Trajectory too short: %s waypoints", len(waypoints))
+            sys.exit(1)
+        logger.info("Loaded trajectory for position ID %s with %s waypoints (%.1fs).",
+                    position_id, len(waypoints), waypoints[-1][0] - waypoints[0][0])
+
         # Step 6: Handle synchronized start time (shared policy with drone_show.py)
         start_decision = evaluate_synchronized_start(
             synchronized_start_time,
@@ -2223,27 +2281,8 @@ async def run_swarm_trajectory_mission(
             log_method(start_decision.reason)
 
         # Step 7: Arm and enter Offboard
-        await arming_and_starting_offboard_mode(drone, global_reference)
-
-        # Step 8: Load trajectory file with validation
-        try:
-            waypoints = read_swarm_trajectory_file(position_id=position_id)
-            logger.info(f"Loaded trajectory for position ID {position_id} with {len(waypoints)} waypoints.")
-
-            # Validate trajectory data
-            if len(waypoints) < 10:
-                raise ValueError(f"Trajectory too short: {len(waypoints)} waypoints")
-
-            # Check trajectory duration
-            trajectory_duration = waypoints[-1][0] - waypoints[0][0]
-            logger.info(f"Trajectory duration: {trajectory_duration:.1f} seconds")
-
-            if trajectory_duration < 10:
-                logger.warning(f"Short trajectory duration: {trajectory_duration:.1f}s")
-
-        except Exception as e:
-            logger.error(f"CRITICAL - Failed to load trajectory: {e}")
-            sys.exit(1)
+        await arming_and_starting_offboard_mode(drone, global_reference, on_arm_attempt=mark_control_started)
+        control_started = True
 
         # Step 9: Execute the swarm trajectory mission
         await perform_swarm_trajectory(
@@ -2252,15 +2291,22 @@ async def run_swarm_trajectory_mission(
             global_reference,
             synchronized_start_time,
             launch_lat, launch_lon, launch_alt,
-            end_behavior=end_behavior_override
+            end_behavior=end_behavior_override,
+            progress_recorder=progress,
         )
 
         logger.info("Mission completed successfully.")
+        progress.report('completed')
         sys.exit(0)
 
+    except GroundStartRejected as error:
+        progress.report('failed')
+        logger.error('%s; no flight-control command was issued.', error)
+        sys.exit(1)
     except Exception:
+        progress.report('failed')
         logger.exception("Error running drone.")
-        if drone is not None:
+        if drone is not None and control_started:
             try:
                 await stop_offboard_mode(drone)
             except Exception:
@@ -2286,6 +2332,8 @@ def main():
     Main function to run the swarm trajectory mission.
     """
     parser = argparse.ArgumentParser(description='Swarm Trajectory Mission Script')
+    parser.add_argument('--trajectory_sha256', help='Reviewed trajectory content identity')
+    parser.add_argument('--command_id', help='Managed execution identity for progress reporting')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
     parser.add_argument(
         '--position_id',
@@ -2332,6 +2380,8 @@ def main():
                 synchronized_start_time,
                 position_id_override=args.position_id,
                 end_behavior_override=args.end_behavior,
+                expected_trajectory_sha256=args.trajectory_sha256,
+                command_id=args.command_id,
             )
         )
     except Exception:

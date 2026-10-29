@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import { useMapContext } from '../../contexts/MapContext';
 import { buildDocsUrl, getRouteDoc } from '../../config/routeDocs';
 import { GIT_BRANCH, GIT_REPO } from '../../version';
-import '../../styles/MapCommon.css';
 
 const SESSION_KEY = 'mds_fallback_banner_dismissed';
 const MAPBOX_GUIDE_URL = buildDocsUrl(getRouteDoc('/globe-view'), {

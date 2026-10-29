@@ -48,6 +48,13 @@ describe('missionIdentityUtils', () => {
   });
 
   test('getIdentityDoctrineCopy keeps subsystem identity rules explicit', () => {
+    expect(getIdentityDoctrineCopy('swarm-trajectory')).toEqual(
+      expect.objectContaining({
+        chips: expect.arrayContaining([
+          expect.objectContaining({ label: 'Route', detail: 'H -> file hash' }),
+        ]),
+      })
+    );
     expect(getIdentityDoctrineCopy('swarm-design')).toEqual(
       expect.objectContaining({
         title: expect.stringContaining('Follow chains stay on hardware'),

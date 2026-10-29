@@ -31,7 +31,6 @@ import {
   formatMetricDistance,
   summarizeMissionGeometry,
 } from '../../utilities/missionGeometry';
-import '../../styles/MissionPlanning.css';
 
 const TOOL_DEFINITIONS = [
   { id: 'point', label: 'Point', icon: <FaMapMarkerAlt />, type: MISSION_GEOMETRY_TYPES.POINT },
@@ -67,6 +66,7 @@ function ModalShell({
   onClose,
   closeLabel = 'Close dialog',
   dismissible = true,
+  appearance = 'default',
 }) {
   const titleId = useId();
 
@@ -96,7 +96,7 @@ function ModalShell({
 
   return ReactDOM.createPortal(
     <div
-      className="mission-dialog"
+      className={`mission-dialog${appearance === 'console' ? ' operator-console' : ''}`}
       role="presentation"
       onMouseDown={(event) => {
         if (dismissible && event.target === event.currentTarget) {
@@ -140,6 +140,7 @@ ModalShell.propTypes = {
   onClose: PropTypes.func,
   closeLabel: PropTypes.string,
   dismissible: PropTypes.bool,
+  appearance: PropTypes.oneOf(['default', 'console']),
 };
 
 export function MissionMapWorkspace({
@@ -421,12 +422,15 @@ export function MissionJobProgressDialog({
   onCancel = null,
   onRetry = null,
   onClose,
+  appearance = 'default',
 }) {
   const status = job.status || 'running';
   const failed = ['failed', 'timeout', 'canceled'].includes(status);
   const complete = ['succeeded', 'completed'].includes(status);
   const terminal = failed || complete;
-  const progressValue = Math.max(0, Math.min(100, Number(job.progressPercent ?? job.progress ?? 0)));
+  const reportedProgress = job.progressPercent ?? job.progress;
+  const hasMeasuredProgress = typeof reportedProgress === 'number' && Number.isFinite(reportedProgress);
+  const progressValue = hasMeasuredProgress ? Math.max(0, Math.min(100, reportedProgress)) : 0;
   const tone = failed ? 'danger' : complete ? 'neutral' : 'warning';
 
   return (
@@ -436,6 +440,7 @@ export function MissionJobProgressDialog({
       tone={tone}
       onClose={onClose}
       dismissible={terminal}
+      appearance={appearance}
       footer={(
         <>
           {onCancel && !terminal ? (
@@ -461,8 +466,10 @@ export function MissionJobProgressDialog({
           <StatusBadge tone={getToneForStatus(status)}>{status}</StatusBadge>
           {job.phase ? <span>{job.phase}</span> : null}
         </div>
-        <div className="mission-job-progress__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(progressValue)}>
-          <span style={{ width: `${progressValue}%` }} />
+        <div className="mission-job-progress__bar" role="progressbar" aria-label="Processing progress"
+          aria-valuemin="0" aria-valuemax="100" aria-valuenow={hasMeasuredProgress ? Math.round(progressValue) : undefined}
+          aria-valuetext={hasMeasuredProgress ? undefined : 'Processing'}>
+          {hasMeasuredProgress && <span style={{ width: `${progressValue}%` }} />}
         </div>
         {job.message ? <p>{job.message}</p> : null}
         {job.error ? (
@@ -495,6 +502,7 @@ MissionJobProgressDialog.propTypes = {
   onCancel: PropTypes.func,
   onRetry: PropTypes.func,
   onClose: PropTypes.func.isRequired,
+  appearance: PropTypes.oneOf(['default', 'console']),
 };
 
 export function MissionReviewLaunchDialog({

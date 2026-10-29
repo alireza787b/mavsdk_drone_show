@@ -4,7 +4,6 @@
 import React from 'react';
 import { useMapContext } from '../../contexts/MapContext';
 import { MAP_PROVIDERS } from '../../config/mapConfig';
-import '../../styles/MapCommon.css';
 
 const MapProviderToggle = () => {
   const { provider, setProvider, isMapboxAvailable, mapboxToken } = useMapContext();

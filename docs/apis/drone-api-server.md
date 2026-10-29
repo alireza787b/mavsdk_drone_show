@@ -9,10 +9,14 @@
 
 ## Overview
 
-Launch readiness may be action-specific (`mission_type`). For Takeoff, the
+Launch readiness may be action-specific (`mission_type`). For Takeoff and
+ground-start Swarm Trajectory (Mission 4), the
 prepared observation includes `admission.predicate=takeoff_ground_disarmed`,
 its exact native checks and matching mission type. A ready health result alone
-does not authorize Takeoff. Recovery invalidates unused preparations and fences
+does not authorize these ground starts. Both prepare and commit require the
+matching mission's native Disarmed + On-ground decision; the trajectory executor
+rechecks it before any flight-control command. Pre-ownership rejection does not
+trigger Hold, disarm or landing cleanup. Recovery invalidates unused preparations and fences
 commit-time installation; replaying the same recovery does not create a new
 flight intent. State telemetry exposes PX4 `landed_state`, its timestamp and
 age; home-relative altitude is not a substitute for landed state.

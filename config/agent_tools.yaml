@@ -3814,9 +3814,66 @@ tools:
         maxLength: 160
         pattern: ^[A-Za-z0-9_.:-]+$
         description: QuickScout mission id.
+- id: mds.swarm_trajectories.workspace.read
+  title: Read trajectory mission workspace
+  description: Read mission-owned layout, route preview, package readiness and reviewed launch identity.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/swarm-trajectories/workspace
+  required_role: viewer
+  runtime_modes: [read_only, sitl, real]
+  side_effects: []
+  sensitivity: [mission_state, fleet_identity]
+  tags: [swarm, trajectory, planning]
+  docs: [docs/features/swarm-trajectory.md]
+  safety_notes:
+  - Package readiness is not aircraft armability or proof of terrain and collision clearance.
+
+- id: mds.swarm_trajectories.formation.read
+  title: Read mission-owned trajectory formation
+  description: Read the planned trajectory formation snapshot and revision, separate from live Smart Swarm.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/swarm-trajectories/formation
+  required_role: viewer
+  runtime_modes: [read_only, sitl, real]
+  side_effects: []
+  sensitivity: [mission_state, fleet_identity]
+  tags: [swarm, trajectory, formation]
+  docs: [docs/features/swarm-trajectory.md]
+  safety_notes:
+  - Planned formation is not evidence of aircraft position or flight readiness.
+
+- id: mds.swarm_trajectories.operation.read
+  title: Read trajectory operation status
+  description: Read tracked trajectory commands, recovery actions, fleet freshness and reported execution state.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/swarm-trajectories/operation
+  required_role: viewer
+  runtime_modes: [read_only, sitl, real]
+  side_effects: []
+  sensitivity: [mission_state, fleet_identity]
+  tags: [swarm, trajectory, operation]
+  docs: [docs/features/swarm-trajectory.md]
+  safety_notes:
+  - Commanded trajectory progress is not measured tracking accuracy; stale reports are not live truth.
+
 - id: mds.swarm_trajectories.leaders.read
   title: Read swarm trajectory leaders
-  description: Read top-level swarm trajectory leaders from configured swarm state.
+  description: Read top-level trajectory leaders from the mission-owned formation snapshot or initial live-layout draft.
   exposure: allow
   risk_class: sensitive_observe
   boundary: gcs

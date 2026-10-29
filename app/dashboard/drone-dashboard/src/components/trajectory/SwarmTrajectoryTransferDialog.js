@@ -50,6 +50,7 @@ const SwarmTrajectoryTransferDialog = ({
   loading = false,
   submitting = false,
   selectedLeaderId = '',
+  lockedLeaderId = null,
   onSelectLeaderId,
   error = '',
   successMessage = '',
@@ -66,7 +67,10 @@ const SwarmTrajectoryTransferDialog = ({
     return null;
   }
 
-  const selectedCluster = clusters.find((cluster) => Number(cluster.leader_id) === Number(selectedLeaderId));
+  const locked = lockedLeaderId !== null && lockedLeaderId !== undefined && lockedLeaderId !== '';
+  const visibleClusters = clusters.filter((cluster) => !locked || Number(cluster.leader_id) === Number(lockedLeaderId));
+  const targetMatchesLock = !locked || Number(selectedLeaderId) === Number(lockedLeaderId);
+  const selectedCluster = visibleClusters.find((cluster) => Number(cluster.leader_id) === Number(selectedLeaderId));
   const selectedClusterMeta = selectedCluster ? getClusterStateMeta(selectedCluster) : null;
   const selectedClusterExpectedDroneCount = selectedCluster?.expected_drone_count
     || (selectedCluster ? 1 + (selectedCluster.follower_count || 0) : null);
@@ -98,8 +102,8 @@ const SwarmTrajectoryTransferDialog = ({
         <div className="swarm-transfer-dialog__header">
           <h3 id="swarm-transfer-dialog-title">Assign Leader Path</h3>
           <p>
-            Assign the current planned path to a top leader cluster. Follower paths are regenerated later
-            from the current <Link to="/swarm-design">Swarm Design</Link> during processing.
+            Assign the planned path to {locked ? `Leader ${lockedLeaderId}` : 'a top leader cluster'}.
+            Follower paths are generated from this mission’s Formation during processing.
           </p>
         </div>
 
@@ -200,23 +204,20 @@ const SwarmTrajectoryTransferDialog = ({
 
         {loading ? (
           <div className="swarm-transfer-loading">Loading current swarm clusters...</div>
-        ) : clusters.length === 0 ? (
+        ) : visibleClusters.length === 0 ? (
           <div className="swarm-transfer-empty">
-            <p>No top leaders are available yet.</p>
-            <p>
-              Configure the hierarchy first in <Link to="/swarm-design">Swarm Design</Link>, then
-              reopen this transfer flow.
-            </p>
-            <div className="swarm-transfer-inline-actions">
+            <p>{locked ? `Leader ${lockedLeaderId} is not in this mission’s Formation.` : 'No top leaders are available yet.'}</p>
+            <p>Review the mission Formation, then reopen this assignment.</p>
+            {!locked && <div className="swarm-transfer-inline-actions">
               <button type="button" onClick={onOpenSwarmDesign}>
-                Open Swarm Design
+                Review Formation
               </button>
-            </div>
+            </div>}
           </div>
         ) : (
           <>
             <div className="swarm-transfer-clusters">
-              {clusters.map((cluster) => {
+              {visibleClusters.map((cluster) => {
                 const selected = Number(selectedLeaderId) === Number(cluster.leader_id);
                 const tone = getClusterStatusTone(cluster);
                 const meta = getClusterStateMeta(cluster);
@@ -230,6 +231,7 @@ const SwarmTrajectoryTransferDialog = ({
                     key={cluster.leader_id}
                     className={`swarm-transfer-cluster-card ${selected ? 'selected' : ''}`}
                     onClick={() => onSelectLeaderId(cluster.leader_id)}
+                    disabled={locked}
                   >
                     <div className="swarm-transfer-cluster-card__header">
                       <div>
@@ -309,7 +311,7 @@ const SwarmTrajectoryTransferDialog = ({
               follower paths, plots, and commit-ready outputs.
             </div>
 
-            {successMessage ? (
+            {successMessage && !locked ? (
               <div className="swarm-transfer-inline-actions">
                 <button type="button" onClick={onOpenSwarmTrajectory}>
                   Open Swarm Trajectory
@@ -326,7 +328,7 @@ const SwarmTrajectoryTransferDialog = ({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={loading || submitting || !selectedLeaderId || clusters.length === 0}
+            disabled={loading || submitting || !selectedLeaderId || !selectedCluster || !targetMatchesLock}
           >
             {submitting ? 'Uploading...' : missionReadiness.posture.transferLabel}
           </button>
@@ -352,6 +354,7 @@ SwarmTrajectoryTransferDialog.propTypes = {
   loading: PropTypes.bool,
   submitting: PropTypes.bool,
   selectedLeaderId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  lockedLeaderId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   onSelectLeaderId: PropTypes.func.isRequired,
   error: PropTypes.string,
   successMessage: PropTypes.string,

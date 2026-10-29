@@ -247,6 +247,14 @@ class DroneConfig:
         self._state.smart_swarm_request = value
 
     @property
+    def swarm_trajectory_request(self) -> Optional[Dict[str, Any]]:
+        return self._state.swarm_trajectory_request
+
+    @swarm_trajectory_request.setter
+    def swarm_trajectory_request(self, value: Optional[Dict[str, Any]]):
+        self._state.swarm_trajectory_request = value
+
+    @property
     def auto_global_origin(self) -> Optional[bool]:
         return self._state.auto_global_origin
 

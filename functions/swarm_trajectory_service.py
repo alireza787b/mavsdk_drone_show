@@ -5,6 +5,7 @@ Swarm trajectory service helpers shared by the FastAPI surface.
 from __future__ import annotations
 
 import logging
+import hashlib
 import math
 import io
 import tempfile
@@ -19,7 +20,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import pandas as pd
 
 from config import load_swarm
-from functions.swarm_analyzer import analyze_swarm_structure, fetch_swarm_data, find_ultimate_leader
+from functions.swarm_analyzer import analyze_swarm_structure, find_ultimate_leader
+from functions.trajectory_formation import read_formation, save_formation, fetch_swarm_data
 from functions.swarm_kml_generator import generate_cluster_kml, generate_kml_for_drone
 from functions.swarm_session_manager import SwarmSessionManager
 from functions.swarm_trajectory_processor import (
@@ -63,8 +65,20 @@ def _processing_failure_status_code(result: Dict) -> int:
 
 
 def _load_swarm_structure() -> Dict:
-    swarm_data = load_swarm()
+    swarm_data = read_formation(get_swarm_trajectory_folders()['base'], fallback=load_swarm)['assignments']
     return analyze_swarm_structure(swarm_data)
+
+
+def get_formation_payload() -> Dict:
+    return {'success': True, **read_formation(get_swarm_trajectory_folders()['base'], fallback=load_swarm)}
+
+
+def save_formation_payload(assignments: List[Dict], revision: str) -> Dict:
+    try:
+        return {'success': True, **save_formation(assignments, revision,
+                base=get_swarm_trajectory_folders()['base'], fallback=load_swarm)}
+    except ValueError as exc:
+        raise SwarmTrajectoryError(str(exc), 409) from exc
 
 
 def _collect_drone_ids(directory: str) -> List[int]:
@@ -666,12 +680,49 @@ def process_trajectories_payload(force_clear: bool = False, auto_reload: bool = 
     )
 
 
+def get_dispatch_package_payload(target_hw_ids: List[str]) -> Dict:
+    """Read an exact launch identity; refuse files changed while being reviewed."""
+    manager = SwarmSessionManager()
+    session = manager.get_current_session()
+    if session is None or not session.processed_outputs_hash:
+        raise SwarmTrajectoryError('Generate a verified trajectory package before starting', 409)
+    if manager.detect_changes()['requires_full_reprocess']:
+        raise SwarmTrajectoryError('Trajectory package changed; regenerate before starting', 409)
+    files = {}
+    for hardware_id in target_hw_ids:
+        numeric_id = int(hardware_id)
+        if numeric_id < 1 or str(numeric_id) != str(hardware_id):
+            raise SwarmTrajectoryError('Invalid aircraft identity', 400)
+        path = Path(manager.folders['processed']) / f'Drone {numeric_id}.csv'
+        with path.open('rb') as source:
+            files[str(numeric_id)] = hashlib.file_digest(source, 'sha256').hexdigest()
+    after = manager.get_current_session()
+    if (after is None or after.session_id != session.session_id
+            or manager.generate_processed_outputs_hash() != session.processed_outputs_hash):
+        raise SwarmTrajectoryError('Trajectory package changed during review; retry', 409)
+    return {'revision': session.session_id, 'files': files}
+
+
 def get_processing_recommendation_payload() -> Dict:
     recommendation = get_processing_recommendation()
     return {
         "success": True,
         "recommendation": recommendation,
     }
+
+
+def get_workspace_payload() -> Dict:
+    status_payload = get_processing_status_payload()
+    validation = get_validation_payload(status_payload)
+    identity = None
+    if validation['ready']:
+        identity = get_dispatch_package_payload([str(i) for i in validation['processed_drone_ids']])
+        if identity['revision'] != status_payload['status']['session']['session_id']:
+            raise SwarmTrajectoryError('Package changed; refresh mission review', 409)
+    return {'status': status_payload['status'], 'validation': validation,
+            'formation': get_formation_payload(), 'launch_identity': identity,
+            'preview': get_preview_payload(max_points_per_drone=200, status_payload=status_payload),
+            'simulation_mode': Params.sim_mode, 'timestamp': int(time.time() * 1000)}
 
 
 def get_processing_status_payload() -> Dict:
@@ -698,7 +749,8 @@ def get_processing_status_payload() -> Dict:
         top_leaders = structure["top_leaders"]
         follow_map = _build_follow_map(structure)
         processed_leaders = [drone_id for drone_id in processed_drones if drone_id in top_leaders]
-        processed_followers = [drone_id for drone_id in processed_drones if drone_id not in top_leaders]
+        processed_followers = [drone_id for drone_id in processed_drones
+                               if follow_map.get(drone_id) not in (None, 0)]
         clusters, cluster_summary = _build_cluster_status(
             structure=structure,
             raw_leaders=raw_leaders,
@@ -710,7 +762,7 @@ def get_processing_status_payload() -> Dict:
         missing_uploaded_leaders = [leader_id for leader_id in top_leaders if leader_id not in raw_leaders]
     except Exception as e:
         logger.warning("Could not analyze swarm structure for status: %s", e)
-        processed_leaders = processed_drones
+        processed_leaders = []
         processed_followers = []
         clusters = []
         top_leaders = []
@@ -740,6 +792,7 @@ def get_processing_status_payload() -> Dict:
             "processed_drones": processed_drones,
             "processed_leaders": processed_leaders,
             "processed_followers": processed_followers,
+            "unassigned_processed_drones": sorted(set(processed_drones) - set(follow_map)),
             "follow_map": follow_map,
             "leader_count": len(processed_leaders),
             "follower_count": len(processed_followers),
@@ -767,8 +820,8 @@ def get_processing_status_payload() -> Dict:
     }
 
 
-def get_validation_payload() -> Dict:
-    status_payload = get_processing_status_payload()
+def get_validation_payload(status_payload=None) -> Dict:
+    status_payload = status_payload if status_payload is not None else get_processing_status_payload()
     status = status_payload["status"]
     blockers: List[Dict[str, Any]] = []
     warnings: List[Dict[str, Any]] = []
@@ -781,8 +834,17 @@ def get_validation_payload() -> Dict:
     }
     expected_drone_ids = sorted(follow_map.keys())
     missing_drone_ids = sorted(set(expected_drone_ids) - set(processed_drone_ids))
+    unassigned_ids = sorted(set(processed_drone_ids) - set(expected_drone_ids))
     cluster_summary = status.get("cluster_summary") or {}
     workspace_state = cluster_summary.get("overall_state") or "unknown"
+
+    if follow_map and unassigned_ids:
+        advisories.append(_swarm_issue(
+            "swarm_trajectory_unassigned_outputs",
+            f"{len(unassigned_ids)} retained output file(s) are not used by this mission. "
+            "Inspect Outside mission in Review if needed.",
+            "advisory", details={"drone_ids": unassigned_ids},
+        ))
 
     if workspace_state == "unknown":
         blockers.append(_swarm_issue(
@@ -911,10 +973,10 @@ def get_validation_payload() -> Dict:
     }
 
 
-def get_preview_payload(max_points_per_drone: int = 500) -> Dict:
-    status_payload = get_processing_status_payload()
+def get_preview_payload(max_points_per_drone: int = 500, status_payload=None) -> Dict:
+    status_payload = status_payload if status_payload is not None else get_processing_status_payload()
     status = status_payload["status"]
-    validation = get_validation_payload()
+    validation = get_validation_payload(status_payload=status_payload)
     processed_dir = Path(status_payload["folders"]["processed"])
     processed_drone_ids = sorted(int(drone_id) for drone_id in status.get("processed_drones", []))
     follow_map = {
@@ -933,7 +995,9 @@ def get_preview_payload(max_points_per_drone: int = 500) -> Dict:
         direct_leader_id = follow_map.get(drone_id)
         top_leader_id, leader_error = _resolve_top_leader(drone_id, follow_map)
         role = "leader" if direct_leader_id == 0 else "follower" if direct_leader_id is not None else "unknown"
-        if leader_error:
+        if leader_error == 'missing_swarm_assignment':
+            preview_warnings.append('Not assigned in this mission. Review Formation and regenerate paths.')
+        elif leader_error:
             preview_warnings.append(f"Leader relationship issue: {leader_error}.")
 
         drones.append({
@@ -1081,7 +1145,7 @@ def create_processing_job_payload(force_clear: bool = False, auto_reload: bool =
             job_id,
             status="running",
             phase="processing",
-            progress_percent=20,
+            progress_percent=None,
             message="Processing leader/follower trajectories.",
         )
         try:
@@ -1099,7 +1163,7 @@ def create_processing_job_payload(force_clear: bool = False, auto_reload: bool =
                 job_id,
                 status="failed",
                 phase="failed",
-                progress_percent=100,
+                progress_percent=None,
                 error_code="swarm_trajectory_processing_failed",
                 error_message=exc.message,
                 message=exc.message,
@@ -1110,7 +1174,7 @@ def create_processing_job_payload(force_clear: bool = False, auto_reload: bool =
                 job_id,
                 status="failed",
                 phase="failed",
-                progress_percent=100,
+                progress_percent=None,
                 error_code="swarm_trajectory_internal_error",
                 error_message=str(exc),
                 message="Swarm Trajectory processing failed.",

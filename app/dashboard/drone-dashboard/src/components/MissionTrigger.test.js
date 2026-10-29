@@ -7,8 +7,8 @@ jest.mock('./DashboardSmartSwarmStart', () => ({ review, onReview, onBack }) => 
   ? <div>Swarm review<button onClick={onBack}>Back to missions</button></div>
   : <button onClick={onReview}>Smart Swarm</button>);
 
-jest.mock('./MissionCard', () => ({ label, onClick }) => (
-  <button onClick={onClick}>{label}</button>
+jest.mock('./MissionCard', () => ({ label, onClick, href }) => (href
+  ? <a href={href}>{label}</a> : <button onClick={onClick}>{label}</button>
 ));
 
 jest.mock('./MissionDetails', () => (props) => (
@@ -69,7 +69,7 @@ describe('MissionTrigger', () => {
     expect(screen.getByRole('button', { name: 'Drone Show' })).toBeInTheDocument();
   });
 
-  test('includes strict synchronized execution policy for swarm trajectory dispatch', () => {
+  test('Swarm Route opens the canonical workspace instead of a duplicate dispatch form', () => {
     const onSendCommand = jest.fn();
 
     render(
@@ -80,21 +80,8 @@ describe('MissionTrigger', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Swarm Route'));
-    fireEvent.click(screen.getByText('send'));
-
-    expect(onSendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mission_type: DRONE_MISSION_TYPES.SWARM_TRAJECTORY,
-        uiMeta: expect.objectContaining({
-          details: expect.arrayContaining([
-            expect.objectContaining({
-              label: 'Execution policy',
-              value: expect.stringMatching(/queue for the shared trigger/i),
-            }),
-          ]),
-        }),
-      })
-    );
+    expect(screen.getByRole('link', { name: 'Swarm Route' })).toHaveAttribute('href', '/swarm-trajectory');
+    expect(screen.queryByText('send')).not.toBeInTheDocument();
+    expect(onSendCommand).not.toHaveBeenCalled();
   });
 });

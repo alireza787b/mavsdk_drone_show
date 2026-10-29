@@ -65,7 +65,8 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
     const timer = setTimeout(() => setNotice(null), 10000);
     return () => clearTimeout(timer);
   }, [notice]);
-  useEffect(() => { setShowOtherQueue(false); }, [contextKey, targetIds.join(',')]);
+  const targetScopeKey = targetIds.join(',');
+  useEffect(() => { setShowOtherQueue(false); }, [contextKey, targetScopeKey]);
 
   const active = ACTIVE.has(job?.state);
   const inScope = job?.target_drone_ids?.every((id) => targetIds.includes(String(id)));
@@ -159,7 +160,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
         onCancel={() => setConfirmation(null)} onConfirm={start} busy={busy}
         message={confirmation ? (
           <div className="swarm-confirm-summary swarm-confirm-summary--managed-return">
-            <p><strong>Managed Return</strong> stops the show and sends aircraft home in the displayed order.</p>
+            <p><strong>Managed Return</strong> confirms Hold, then sends the selected aircraft home in the displayed order.</p>
             <label className="swarm-return-field">Interval between aircraft
               <span><input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
                 onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</span>

@@ -7,11 +7,13 @@ import os
 import json
 import hashlib
 import logging
+import tempfile
+import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 
-from functions.swarm_analyzer import fetch_swarm_data
+from functions.trajectory_formation import fetch_swarm_data
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ class ProcessingSession:
     total_drones: int
     parameters_hash: str
     raw_inputs_hash: str = ""
+    processed_outputs_hash: str = ""
 
 class SwarmSessionManager:
     """Manages swarm trajectory processing sessions and change detection"""
@@ -129,16 +132,40 @@ class SwarmSessionManager:
             logger.error(f"Failed to load session: {e}")
             return None
 
+    def generate_processed_outputs_hash(self) -> str:
+        """Bind validation to output contents, not merely existing filenames."""
+        directory = self.folders['processed']
+        records = []
+        if os.path.isdir(directory):
+            for filename in sorted(os.listdir(directory)):
+                if not (filename.startswith('Drone ') and filename.endswith('.csv')):
+                    continue
+                with open(os.path.join(directory, filename), 'rb') as source:
+                    digest = hashlib.file_digest(source, 'sha256').hexdigest()
+                records.append((filename, digest))
+        return hashlib.sha256(json.dumps(records).encode()).hexdigest()
+
     def save_session(self, session: ProcessingSession):
         """Save processing session to file"""
         try:
             os.makedirs(os.path.dirname(self.session_file), exist_ok=True)
-            with open(self.session_file, 'w') as f:
-                json.dump(asdict(session), f, indent=2)
+            temporary_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', dir=os.path.dirname(self.session_file),
+                                                 prefix='.session-', delete=False) as f:
+                    temporary_path = f.name
+                    json.dump(asdict(session), f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temporary_path, self.session_file)
+            finally:
+                if temporary_path and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
             logger.info(f"Saved processing session {session.session_id}")
 
         except Exception as e:
             logger.error(f"Failed to save session: {e}")
+            raise
 
     def get_uploaded_leaders(self) -> List[int]:
         """Get list of leaders that have uploaded trajectory files"""
@@ -192,6 +219,7 @@ class SwarmSessionManager:
             'swarm_structure_changed': False,
             'parameters_changed': False,
             'trajectory_files_changed': False,
+            'processed_outputs_changed': False,
             'new_uploads': [],
             'missing_uploads': [],
             'leader_structure_changed': False,
@@ -204,6 +232,15 @@ class SwarmSessionManager:
             changes['safe_to_incremental'] = False
             logger.info("No previous session found - full processing required")
             return changes
+
+        try:
+            outputs_hash = self.generate_processed_outputs_hash()
+        except OSError:
+            outputs_hash = None
+        if not current_session.processed_outputs_hash or outputs_hash != current_session.processed_outputs_hash:
+            changes['processed_outputs_changed'] = True
+            changes['requires_full_reprocess'] = True
+            changes['safe_to_incremental'] = False
 
         # Check swarm structure changes
         if current_fingerprint != current_session.swarm_fingerprint:
@@ -241,19 +278,34 @@ class SwarmSessionManager:
 
         return changes
 
-    def create_processing_session(self, processed_leaders: List[int], total_drones: int) -> ProcessingSession:
+    def input_identity(self) -> Dict[str, str]:
+        identity = {
+            'swarm_fingerprint': self.generate_swarm_fingerprint(),
+            'parameters_hash': self.generate_parameters_hash(),
+            'raw_inputs_hash': self.generate_raw_inputs_hash(),
+        }
+        if any(value == 'unknown' for value in identity.values()):
+            raise ValueError('Trajectory inputs could not be fingerprinted; retry generation')
+        return identity
+
+    def create_processing_session(self, processed_leaders: List[int], total_drones: int,
+                                  expected_inputs: Optional[Dict[str, str]] = None) -> ProcessingSession:
         """Create a new processing session"""
-        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_id = uuid.uuid4().hex
         timestamp = datetime.now().isoformat()
+        identity = self.input_identity()
+        if expected_inputs is not None and identity != expected_inputs:
+            raise ValueError('Trajectory inputs changed during generation; regenerate the package')
 
         session = ProcessingSession(
             session_id=session_id,
             timestamp=timestamp,
-            swarm_fingerprint=self.generate_swarm_fingerprint(),
+            swarm_fingerprint=identity['swarm_fingerprint'],
             processed_leaders=processed_leaders,
             total_drones=total_drones,
-            parameters_hash=self.generate_parameters_hash(),
-            raw_inputs_hash=self.generate_raw_inputs_hash(),
+            parameters_hash=identity['parameters_hash'],
+            raw_inputs_hash=identity['raw_inputs_hash'],
+            processed_outputs_hash=self.generate_processed_outputs_hash(),
         )
 
         self.save_session(session)
@@ -305,7 +357,7 @@ class SwarmSessionManager:
                     'details': [
                         'Swarm structure has been modified',
                         'Existing trajectories are incompatible',
-                        'All data will be cleared and reprocessed'
+                        'Previous outputs remain available until a complete replacement is generated'
                     ],
                     'requires_confirmation': True
                 })
@@ -316,7 +368,7 @@ class SwarmSessionManager:
                     'details': [
                         'Processing parameters have been modified',
                         'Existing trajectories may be inconsistent',
-                        'All data will be cleared and reprocessed'
+                        'Previous outputs remain available until a complete replacement is generated'
                     ],
                     'requires_confirmation': True
                 })
@@ -338,7 +390,7 @@ class SwarmSessionManager:
                     'details': [
                         'Top leaders have been modified',
                         'Formation structure is now incompatible',
-                        'All data will be cleared and reprocessed'
+                        'Previous outputs remain available until a complete replacement is generated'
                     ],
                     'requires_confirmation': True
                 })
@@ -349,7 +401,7 @@ class SwarmSessionManager:
                     'details': [
                         f'{len(uploaded_leaders)} trajectory files ready',
                         'Starting fresh ensures all data is consistent',
-                        'Previous processed data will be cleared'
+                        'Previous outputs remain available until a complete replacement is generated'
                     ],
                     'requires_confirmation': True
                 })

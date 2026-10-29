@@ -130,8 +130,15 @@ const normalizeNoticeTone = (tone = 'info') => {
   return 'info';
 };
 
-const TrajectoryPlanning = () => {
+const TrajectoryPlanning = ({
+  embedded = false,
+  scopedLeaderId = null,
+  initialWaypoints = [],
+  onWaypointsChange,
+  onAssigned,
+}) => {
   const navigate = useNavigate();
+  const scoped = scopedLeaderId !== null && scopedLeaderId !== undefined && scopedLeaderId !== '';
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN ||
                      process.env.REACT_APP_MAPBOX_TOKEN ||
@@ -148,10 +155,22 @@ const TrajectoryPlanning = () => {
   const terrainRefreshTokenRef = useRef(new Map());
   const persistedSignatureRef = useRef('');
   const autoSaveSignatureRef = useRef('');
-  const waypointsRef = useRef([]);
+  // The workspace keys this editor by mission mode and leader. Hydrate once,
+  // rather than reimporting parent draft updates over an in-progress edit.
+  const initialWaypointsRef = useRef(null);
+  if (initialWaypointsRef.current === null) {
+    initialWaypointsRef.current = calculateWaypointSpeeds(initialWaypoints.map((waypoint) => ({
+      ...waypoint,
+      // Preserve older per-leader drafts without changing an AGL route to MSL.
+      altitudeReference: String(waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL).toLowerCase(),
+    })));
+  }
+  const waypointsRef = useRef(initialWaypointsRef.current);
+  const draftChangeCallbackRef = useRef(onWaypointsChange);
+  draftChangeCallbackRef.current = onWaypointsChange;
   
   // Core state
-  const [waypoints, setWaypoints] = useState([]);
+  const [waypoints, setWaypoints] = useState(initialWaypointsRef.current);
   const [selectedWaypointId, setSelectedWaypointId] = useState(null);
   const [isAddingWaypoint, setIsAddingWaypoint] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
@@ -175,7 +194,7 @@ const TrajectoryPlanning = () => {
     loading: false,
     submitting: false,
     clusters: [],
-    selectedLeaderId: '',
+    selectedLeaderId: scoped ? scopedLeaderId : '',
     error: '',
     successMessage: '',
   });
@@ -188,13 +207,17 @@ const TrajectoryPlanning = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingWaypointPosition, setPendingWaypointPosition] = useState(null);
 
-  // Default viewport settings
-  const [viewState, setViewState] = useState({
-    longitude: 51.2721,
-    latitude: 35.7262,
-    zoom: 12,
-    pitch: showTerrain ? 60 : 0,
-    bearing: 0
+  const [viewState, setViewState] = useState(() => {
+    const anchor = initialWaypointsRef.current.find((waypoint) => (
+      Number.isFinite(waypoint.latitude) && Number.isFinite(waypoint.longitude)
+    ));
+    return {
+      longitude: anchor?.longitude ?? 0,
+      latitude: anchor?.latitude ?? 0,
+      zoom: anchor ? 15 : 2,
+      pitch: 60,
+      bearing: 0,
+    };
   });
 
   useEffect(() => {
@@ -208,7 +231,7 @@ const TrajectoryPlanning = () => {
 
   const initializeServices = useCallback(() => {
     stateManagerRef.current.setInitialState({
-      waypoints: [],
+      waypoints: initialWaypointsRef.current,
       selectedWaypointId: null,
     });
   }, []);
@@ -253,6 +276,7 @@ const TrajectoryPlanning = () => {
   // Update history status when waypoints change
   useEffect(() => {
     waypointsRef.current = waypoints;
+    draftChangeCallbackRef.current?.(waypoints);
   }, [waypoints]);
 
   useEffect(() => {
@@ -441,7 +465,7 @@ const TrajectoryPlanning = () => {
       {
         label: 'Planner Scope',
         value: 'Top leaders • Global MSL',
-        detail: "Followers are generated later from the current Swarm Design hierarchy and offsets around each leader waypoint's instantaneous global position. The authored route stays global lat/lon with stored MSL altitude; PX4 launch/home truth is only used during execution checks and recovery.",
+        detail: "Followers are generated later from the mission Formation hierarchy and offsets around each leader waypoint's instantaneous global position. The authored route stays global lat/lon with stored MSL altitude; PX4 launch/home truth is only used during execution checks and recovery.",
       },
       {
         label: 'Current Path',
@@ -548,8 +572,12 @@ const TrajectoryPlanning = () => {
       // Recalculated immediately after insertion; keep the transient shape stable.
       speedFeasible: true,
       terrainInfo: waypointData.terrainInfo,
-      groundElevation: waypointData.groundElevation || 0,
-      terrainAccurate: waypointData.terrainAccurate !== false,
+      groundElevation: Number.isFinite(waypointData.groundElevation) ? waypointData.groundElevation : null,
+      terrainAccurate: waypointData.terrainAccurate === true,
+      terrainError: waypointData.terrainError || '',
+      terrainSource: waypointData.terrainSource || '',
+      terrainConfidence: waypointData.terrainConfidence || '',
+      terrainSampleTime: waypointData.terrainSampleTime ?? null,
       time: waypointData.timeFromStart,
       speed: 0, // Export/storage alias; recalculated immediately after insertion.
       index: waypoints.length + 1,
@@ -613,7 +641,7 @@ const TrajectoryPlanning = () => {
 
       if (terrainPatch.terrainAccurate === false) {
         setOperationNotice(
-          `${currentWaypoint.name || 'Waypoint'} terrain context was refreshed with estimated elevation at the new coordinates. Review clearance before launch.`,
+          `${currentWaypoint.name || 'Waypoint'} terrain is unavailable at the new position. ${String(currentWaypoint.altitudeReference).toLowerCase() === ALTITUDE_REFERENCE.AGL ? 'Resolve terrain or use MSL before assigning.' : 'Stored MSL altitude is unchanged.'}`,
           'warning'
         );
         issuedTerrainNotice = true;
@@ -680,6 +708,34 @@ const TrajectoryPlanning = () => {
       setSelectedWaypointId(null);
     }
   }, [waypoints, selectedWaypointId]);
+
+  const moveWaypoint = useCallback((waypointId, direction) => {
+    const current = waypointsRef.current;
+    const fromIndex = current.findIndex((waypoint) => waypoint.id === waypointId);
+    const toIndex = fromIndex + (direction === 'up' ? -1 : direction === 'down' ? 1 : 0);
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= current.length || toIndex === fromIndex) return;
+
+    const reordered = [...current];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    // Keep explicit time slots in route order; recompute speed-driven ETAs and
+    // inbound headings using the same calculator as drag and field edits.
+    const reflowed = calculateWaypointSpeeds(reordered.map((waypoint, index) => ({
+      ...waypoint,
+      name: `Waypoint ${index + 1}`,
+      index: index + 1,
+      timeFromStart: current[index].timeFromStart,
+      time: current[index].timeFromStart,
+      timingMode: index === 0 ? TIMING_MODES.MANUAL_TIME : waypoint.timingMode,
+    })));
+    stateManagerRef.current.executeAction(
+      ACTION_TYPES.MOVE_WAYPOINT,
+      { waypointId, waypoints: reflowed },
+      `Move waypoint ${fromIndex + 1} ${direction}`
+    );
+    setWaypoints(reflowed);
+    clearOperationNotice();
+  }, [clearOperationNotice]);
 
   const handleMarkerDragEnd = useCallback(async (waypointId, newPosition) => {
     try {
@@ -756,7 +812,7 @@ const TrajectoryPlanning = () => {
     }
 
     const result = await storageRef.current.saveTrajectory(name, waypoints, {
-      createdWith: 'Advanced Route Editor v3.1',
+      createdWith: 'MDS Swarm Trajectory',
       stats: trajectoryStats
     });
 
@@ -775,11 +831,15 @@ const TrajectoryPlanning = () => {
     const result = await storageRef.current.loadTrajectory(identifier);
     
     if (result.success) {
-      const trajectory = result.trajectory;
+      const terrainSummary = await resolveImportedTrajectoryTerrainContext(result.trajectory.waypoints || []);
+      const trajectory = { ...result.trajectory, waypoints: terrainSummary.waypoints };
       applyTrajectoryToPlanner(
         trajectory,
         'Loaded'
       );
+      if (terrainSummary.unavailableCount > 0) {
+        setOperationNotice('Terrain is unavailable for part of this route. Resolve AGL waypoints or use MSL before assigning.', 'warning');
+      }
       setShowLoadDialog(false);
     } else {
       setOperationNotice(`Load failed: ${result.error}`, 'error');
@@ -825,7 +885,7 @@ const TrajectoryPlanning = () => {
       }
 
       if (terrainSummary.estimatedCount > 0) {
-        importNotes.push(`${terrainSummary.estimatedCount} waypoint${terrainSummary.estimatedCount === 1 ? '' : 's'} use estimated terrain data; review clearance before launch.`);
+        importNotes.push(`${terrainSummary.estimatedCount} waypoint${terrainSummary.estimatedCount === 1 ? '' : 's'} have unresolved terrain. Resolve AGL waypoints or use MSL before assigning.`);
       }
 
       if (result.nameConflict) {
@@ -845,7 +905,7 @@ const TrajectoryPlanning = () => {
 
   // Auto-save functionality
   const autoSave = useCallback(async () => {
-    if (waypoints.length === 0) return;
+    if (scoped || waypoints.length === 0) return;
 
     const result = await storageRef.current.autoSave(waypoints, {
       autoSavedAt: Date.now(),
@@ -855,7 +915,7 @@ const TrajectoryPlanning = () => {
     if (result.success) {
       markAutoSavedPlannerDraft(trajectoryName, waypoints, Date.now());
     }
-  }, [markAutoSavedPlannerDraft, trajectoryName, trajectoryStats, waypoints]);
+  }, [markAutoSavedPlannerDraft, scoped, trajectoryName, trajectoryStats, waypoints]);
 
   // Initialize services on component mount
   useEffect(() => {
@@ -864,11 +924,12 @@ const TrajectoryPlanning = () => {
   }, [initializeServices, loadAvailableTrajectories]);
 
   useEffect(() => {
+    if (scoped) return undefined;
     const autoSaveInterval = setInterval(autoSave, 30000);
     return () => {
       clearInterval(autoSaveInterval);
     };
-  }, [autoSave]);
+  }, [autoSave, scoped]);
 
   // Enhanced map interaction handlers
   const handleMapClick = useCallback((event) => {
@@ -1016,7 +1077,9 @@ const TrajectoryPlanning = () => {
 
     getSwarmClusterStatus()
       .then((data) => {
-        const clusters = [...(data.clusters || [])].sort(
+        const clusters = [...(data.clusters || [])].filter(
+          (cluster) => !scoped || Number(cluster.leader_id) === Number(scopedLeaderId)
+        ).sort(
           (a, b) => Number(a.leader_id) - Number(b.leader_id)
         );
 
@@ -1025,9 +1088,11 @@ const TrajectoryPlanning = () => {
           loading: false,
           clusters,
           selectedLeaderId:
+            (scoped ? scopedLeaderId : null) ||
             clusters.find((cluster) => Number(cluster.leader_id) === Number(prev.selectedLeaderId))?.leader_id ||
             clusters[0]?.leader_id ||
             '',
+          error: scoped && clusters.length === 0 ? 'This leader is no longer in the mission Formation. Review the Formation before assigning a route.' : '',
         }));
       })
       .catch((loadError) => {
@@ -1039,7 +1104,7 @@ const TrajectoryPlanning = () => {
           error: loadError?.response?.data?.error || loadError.message || 'Failed to load swarm cluster status.',
         }));
       });
-  }, [clearOperationNotice, setOperationNotice, waypoints.length]);
+  }, [clearOperationNotice, scoped, scopedLeaderId, setOperationNotice, waypoints.length]);
 
   const closeSwarmTransferDialog = useCallback(() => {
     setShowSwarmTransferDialog(false);
@@ -1053,6 +1118,15 @@ const TrajectoryPlanning = () => {
   const handleUploadCurrentTrajectory = useCallback(async (leaderId) => {
     if (waypoints.length === 0) {
       throw new Error('No trajectory is currently loaded in the planner.');
+    }
+    if (scoped && Number(leaderId) !== Number(scopedLeaderId)) {
+      throw new Error('Assign this route only to the selected mission leader.');
+    }
+    if (scoped && waypoints.some((waypoint) => (
+      String(waypoint.altitudeReference).toLowerCase() === ALTITUDE_REFERENCE.AGL
+      && (waypoint.terrainAccurate !== true || waypoint.terrainError)
+    ))) {
+      throw new Error('Resolve terrain elevation for all AGL waypoints, or use MSL altitude, before assigning this route.');
     }
 
     const result = await uploadLeaderTrajectoryCsv({
@@ -1071,17 +1145,22 @@ const TrajectoryPlanning = () => {
         ? `Leader ${leaderId} path assigned. ${plannerMissionReadiness.posture.summary}`
         : result.message || `Leader ${leaderId} path assigned. Review and process the formation on Swarm Trajectory.`;
 
-    setOperationNotice(uploadMessage, uploadTone, {
-      actionLabel: 'Open Swarm Trajectory',
-      dismissLabel: 'Stay in Planner',
-      actionHandler: () => navigate('/swarm-trajectory'),
-    });
+    if (scoped) {
+      setOperationNotice(`Route assigned to Leader ${leaderId}.`, uploadTone);
+      onAssigned?.(leaderId, result);
+    } else {
+      setOperationNotice(uploadMessage, uploadTone, {
+        actionLabel: 'Open Swarm Trajectory',
+        dismissLabel: 'Stay in Planner',
+        actionHandler: () => navigate('/swarm-trajectory'),
+      });
+    }
 
     return result;
-  }, [navigate, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, plannerMissionReadiness.posture.summary, setOperationNotice, waypoints]);
+  }, [navigate, onAssigned, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, plannerMissionReadiness.posture.summary, scoped, scopedLeaderId, setOperationNotice, waypoints]);
 
   const handleSendTrajectoryToSwarm = useCallback(async () => {
-    const leaderId = swarmTransferState.selectedLeaderId;
+    const leaderId = scoped ? scopedLeaderId : swarmTransferState.selectedLeaderId;
 
     if (!leaderId || waypoints.length === 0) {
       return;
@@ -1109,8 +1188,15 @@ const TrajectoryPlanning = () => {
                 `Path assigned to Leader ${leaderId}. Next step: process the swarm formation.`,
       }));
 
+      // The mission workspace refreshes its own state after the acknowledged
+      // assignment. A secondary status refresh must not relabel that success as
+      // a failed upload or consult another authoring source.
+      if (scoped) return;
+
       const refreshed = await getSwarmClusterStatus();
-      const clusters = [...(refreshed.clusters || [])].sort(
+      const clusters = [...(refreshed.clusters || [])].filter(
+        (cluster) => !scoped || Number(cluster.leader_id) === Number(scopedLeaderId)
+      ).sort(
         (a, b) => Number(a.leader_id) - Number(b.leader_id)
       );
 
@@ -1125,7 +1211,7 @@ const TrajectoryPlanning = () => {
         error: submitError?.response?.data?.error || submitError.message || 'Failed to upload trajectory.',
       }));
     }
-  }, [handleUploadCurrentTrajectory, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, swarmTransferState.selectedLeaderId, waypoints.length]);
+  }, [handleUploadCurrentTrajectory, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, scoped, scopedLeaderId, swarmTransferState.selectedLeaderId, waypoints.length]);
 
   const openExportDialog = useCallback(() => {
     if (waypoints.length === 0) {
@@ -1252,11 +1338,11 @@ const TrajectoryPlanning = () => {
   const plannerHeader = (
     <div className="trajectory-header">
       <div className="header-left">
-        <div className="trajectory-header__identity">
+        {!embedded && <div className="trajectory-header__identity">
           <h1>Advanced Route Editor</h1>
           <StatusBadge tone={plannerStatusTone}>{`Planner: ${plannerMissionReadiness.posture.label}`}</StatusBadge>
           <DocsLink route="/trajectory-planning" compact />
-        </div>
+        </div>}
         <SearchBar onLocationSelect={handleLocationSelect} />
         <MapProviderToggle />
       </div>
@@ -1273,7 +1359,9 @@ const TrajectoryPlanning = () => {
       loading={swarmTransferState.loading}
       submitting={swarmTransferState.submitting}
       selectedLeaderId={swarmTransferState.selectedLeaderId}
+      lockedLeaderId={scoped ? scopedLeaderId : null}
       onSelectLeaderId={(leaderId) => {
+        if (scoped && Number(leaderId) !== Number(scopedLeaderId)) return;
         setSwarmTransferState((prev) => ({
           ...prev,
           selectedLeaderId: leaderId,
@@ -1290,7 +1378,7 @@ const TrajectoryPlanning = () => {
       stats={trajectoryStats}
       missionReadiness={plannerMissionReadiness}
       onOpenSwarmTrajectory={() => navigate('/swarm-trajectory')}
-      onOpenSwarmDesign={() => navigate('/swarm-design')}
+      onOpenSwarmDesign={() => navigate('/swarm-trajectory?tab=plan')}
     />
   );
 
@@ -1336,7 +1424,7 @@ const TrajectoryPlanning = () => {
   // Leaflet fallback: show Leaflet map when Mapbox unavailable
   if (useLeaflet) {
     return (
-      <div className="trajectory-planning">
+      <div className={`trajectory-planning${embedded ? ' trajectory-planning--embedded' : ''}`}>
         <input
           ref={importInputRef}
           type="file"
@@ -1376,9 +1464,9 @@ const TrajectoryPlanning = () => {
             {plannerNoticeBanner}
 
             <div className="map-container">
-              <MapFallbackBanner />
+              {!embedded && <MapFallbackBanner />}
               <LeafletMapBase
-                center={[viewState.latitude || 35.7262, viewState.longitude || 51.2721]}
+                center={[viewState.latitude ?? 0, viewState.longitude ?? 0]}
                 zoom={viewState.zoom || 12}
                 defaultLayer="esriSatellite"
                 className="trajectory-map-surface"
@@ -1442,7 +1530,7 @@ const TrajectoryPlanning = () => {
             onSelectWaypoint={setSelectedWaypointId}
             onUpdateWaypoint={updateWaypoint}
             onDeleteWaypoint={deleteWaypoint}
-            onMoveWaypoint={() => {}}
+            onMoveWaypoint={moveWaypoint}
             onFlyTo={flyToWaypoint}
           />
         </div>
@@ -1468,7 +1556,7 @@ const TrajectoryPlanning = () => {
   }
 
   return (
-    <div className="trajectory-planning">
+    <div className={`trajectory-planning${embedded ? ' trajectory-planning--embedded' : ''}`}>
       <input
         ref={importInputRef}
         type="file"
@@ -1651,7 +1739,7 @@ const TrajectoryPlanning = () => {
             onSelectWaypoint={setSelectedWaypointId}
           onUpdateWaypoint={updateWaypoint}
           onDeleteWaypoint={deleteWaypoint}
-          onMoveWaypoint={() => {}}
+          onMoveWaypoint={moveWaypoint}
             onFlyTo={flyToWaypoint}
           />
         </div>

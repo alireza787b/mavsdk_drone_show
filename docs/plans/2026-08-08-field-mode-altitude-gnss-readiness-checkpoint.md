@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-08
 
-**Scope:** Catch-A-Drone two-node real-aircraft deployment
+**Scope:** Private two-node real-aircraft deployment
 
 **Status:** software handoff ready for a controlled field retest; props-on
 flight remains blocked until the GNSS/estimator gate below passes
@@ -190,7 +190,7 @@ remain fail-closed, so these do not justify delaying the controlled retest.
 The authoritative release objects are:
 
 - official: `v5.5.117-field-mode-altitude-gnss-readiness`
-- Catch-A-Drone private: `cad-v5.5.117-field-mode-altitude-gnss-readiness`
+- private deployment: its corresponding private release tag
 
 Both tags must be created only after their exact commits pass CI. Production
 GCS and both nodes must then be clean on the private tagged commit, with the GCS

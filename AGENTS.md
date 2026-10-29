@@ -39,6 +39,9 @@ Do not assume the environment. Detect it first.
 - If behavior changes, update the relevant docs and any validation tooling in the same phase.
 - If repeated findings show the agent docs are incomplete, propose or apply a focused update when the user approves.
 - If the current branch/worktree is dirty, do not overwrite unrelated user changes.
+- Before publishing customer-derived work, inspect both final files and outgoing
+  history for private deployment details. Preserve customer identities, fleet
+  configuration, mission assets and local changes when integrating upstream.
 - Do not perform destructive cleanup or reset actions unless explicitly required and safe.
 
 ## Read First
@@ -150,6 +153,10 @@ Rebuild and redistribute the SITL image when one of these is true:
 - documented public behavior depends on new runtime/image contents
 
 Do not rebuild the public image for docs-only clarifications unless exact image-to-commit provenance is a deliberate release goal.
+
+A source prerelease with unit/UI evidence is not a pinned SITL image or hardware
+clearance. State the accepted mission scope and unfinished capabilities explicitly;
+do not label a partial workspace checkpoint as a validated flight release.
 
 ## Logging and Evidence
 

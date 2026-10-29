@@ -109,7 +109,7 @@ def install_fetch_mock(client: CDPClient, active: dict[str, bool], writes: list[
     client.command("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
 
 
-def install_browser_mock(client: CDPClient, fleet_size: int = 2) -> None:
+def install_browser_mock(client: CDPClient, fleet_size: int = 2, *, extra_fixtures: dict | None = None) -> None:
     """Mock axios' browser transports before the React bundle is evaluated.
 
     This avoids depending on Chrome's Fetch wildcard behavior, which changed
@@ -167,6 +167,12 @@ def install_browser_mock(client: CDPClient, fleet_size: int = 2) -> None:
         return new Response(result.body, {status: result.status, headers: {'Content-Type': result.type}});
       };
     })();'''
+    if extra_fixtures is not None:
+        source = source.replace('const fixture = (path) =>', 'const baseFixture = (path) =>')
+        source = source.replace('const isApi =',
+            'window.__mdsExtraFixtures = ' + json.dumps(extra_fixtures) + '; '
+            'const fixture = (path) => Object.hasOwn(window.__mdsExtraFixtures, path) '
+            '? json(window.__mdsExtraFixtures[path]) : baseFixture(path); const isApi =')
     if fleet_size != 2:
         source = source.replace("const json = (value)", f"fleet.splice(0, fleet.length, ...Array.from({{length: {fleet_size}}}, (_, i) => ({{...fleet[0], hw_id: i+1, pos_id: i+1, name: 'AIRCRAFT-' + (i+1)}}))); const json = (value)")
         source = source.replace("position_ids: [1, 2]", "position_ids: fleet.map(d => d.pos_id)")

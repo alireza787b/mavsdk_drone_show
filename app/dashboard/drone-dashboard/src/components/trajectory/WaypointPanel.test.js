@@ -35,6 +35,30 @@ const renderPanel = (overrides = {}) => {
 };
 
 describe('WaypointPanel', () => {
+  it('offers bounded accessible reorder controls without selecting another waypoint', () => {
+    const { props } = renderPanel({ waypoints: [
+      baseWaypoint,
+      { ...baseWaypoint, id: 'wp-2', name: 'Waypoint 2', timeFromStart: 30 },
+    ] });
+    expect(screen.getByRole('button', { name: 'Move Waypoint 1 earlier' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Waypoint 2 later' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Move Waypoint 1 later' }));
+    expect(props.onMoveWaypoint).toHaveBeenLastCalledWith('wp-1', 'down');
+    fireEvent.click(screen.getByRole('button', { name: 'Move Waypoint 2 earlier' }));
+    expect(props.onMoveWaypoint).toHaveBeenLastCalledWith('wp-2', 'up');
+    expect(props.onSelectWaypoint).not.toHaveBeenCalled();
+  });
+
+  it('disables reorder controls while a waypoint has an unfinished field edit', () => {
+    renderPanel({ waypoints: [
+      baseWaypoint,
+      { ...baseWaypoint, id: 'wp-2', name: 'Waypoint 2', timeFromStart: 30 },
+    ] });
+    fireEvent.click(screen.getByText('100.0m', { selector: '.detail-value.editable' }));
+    expect(screen.getByRole('button', { name: 'Move Waypoint 1 later' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Waypoint 2 earlier' })).toBeDisabled();
+  });
+
   it('shows inline validation when altitude edits are out of range', () => {
     const { props } = renderPanel();
 

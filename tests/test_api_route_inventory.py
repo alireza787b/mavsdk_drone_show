@@ -132,6 +132,9 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/simurgh/tools",
         "/api/v1/simurgh/tools/{tool_id}",
         "/api/v1/swarm-trajectories/leaders",
+        "/api/v1/swarm-trajectories/formation",
+        "/api/v1/swarm-trajectories/operation",
+        "/api/v1/swarm-trajectories/workspace",
         "/api/v1/swarm-trajectories/recommendation",
         "/api/v1/swarm-trajectories/status",
         "/api/v1/swarm-trajectories/validate",
@@ -262,6 +265,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/findings/{finding_id}",
     },
     "PUT": {
+        "/api/v1/swarm-trajectories/formation",
         "/api/v1/config/fleet",
         "/api/v1/config/swarm",
         "/api/v1/fleet/sidecars/connectivity/profile",

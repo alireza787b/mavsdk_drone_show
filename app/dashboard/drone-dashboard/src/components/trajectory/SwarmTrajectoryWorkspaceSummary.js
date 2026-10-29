@@ -64,14 +64,11 @@ const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, com
       </div>
 
       <div className="swarm-workspace-summary__links" aria-label="Related mission tools">
-        <Link to="/swarm-design" className="swarm-workspace-summary__link">
-          Open Swarm Design
+        <Link to="/swarm-trajectory?tab=plan" className="swarm-workspace-summary__link">
+          Mission Plan
         </Link>
-        <Link to="/trajectory-planning" className="swarm-workspace-summary__link">
-          Advanced Route Editor
-        </Link>
-        <Link to="/" className="swarm-workspace-summary__link">
-          Open Mission Trigger
+        <Link to="/swarm-trajectory" className="swarm-workspace-summary__link">
+          Operate
         </Link>
       </div>
 

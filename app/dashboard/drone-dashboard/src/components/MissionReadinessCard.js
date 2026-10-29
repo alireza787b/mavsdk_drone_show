@@ -165,10 +165,10 @@ const MissionReadinessCard = ({
           <MdSmartToy className="empty-icon" aria-hidden="true" />
           <div className="empty-text">
             <h4>No Clusters Found</h4>
-            <p>Configure the swarm in Swarm Design, then prepare the leader route and package in Swarm Trajectory. Use Advanced Route Editor only for lower-level route edits.</p>
+            <p>Choose the mission formation and prepare its routes in Swarm Trajectory Plan.</p>
           </div>
-          <Link to="/swarm-design" className="fix-link">
-            Configure Swarm →
+          <Link to="/swarm-trajectory?tab=plan" className="fix-link">
+            Plan mission →
           </Link>
         </div>
       </div>
@@ -213,9 +213,8 @@ const MissionReadinessCard = ({
   }
 
   const actionLinks = [
-    { label: 'Swarm Design', to: '/swarm-design' },
-    { label: 'Swarm Trajectory', to: '/swarm-trajectory' },
-    { label: 'Advanced Route Editor', to: '/trajectory-planning' },
+    { label: 'Mission Plan', to: '/swarm-trajectory?tab=plan' },
+    { label: 'Operate', to: '/swarm-trajectory' },
   ];
 
   return (

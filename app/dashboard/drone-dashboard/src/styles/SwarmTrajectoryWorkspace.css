@@ -1,0 +1,34 @@
+.trajectory-console { min-width: 0; }
+.trajectory-formation { padding-block: 12px; border-bottom: 1px solid var(--color-border-primary); }
+.trajectory-formation summary { cursor: pointer; padding-block: 8px; }
+.trajectory-formation summary span { margin-left: 12px; font-size: .85rem; color: var(--color-text-secondary); }
+.trajectory-formation__scroll { overflow-x: auto; margin-block: 12px; }
+.trajectory-formation table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.trajectory-formation th, .trajectory-formation td { padding: 8px; text-align: left; border-bottom: 1px solid var(--color-border-primary); }
+.trajectory-formation input, .trajectory-formation select { padding: 8px; min-height: 40px; max-width: 140px; background: var(--color-bg-secondary); color: var(--color-text-primary); border: 1px solid var(--color-border-primary); border-radius: 2px; }
+.trajectory-formation__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.trajectory-console__tabs { display: flex; border-bottom: 1px solid var(--color-border-primary); margin-bottom: var(--spacing-lg); }
+.trajectory-console__tabs button { color: var(--color-text-secondary); background: transparent; border: 0; border-radius: 0; padding: 12px 24px; border-bottom: 3px solid transparent; cursor: pointer; }
+.trajectory-console__tabs button[aria-current] { color: var(--color-text-primary); border-bottom-color: var(--color-primary); }
+.trajectory-console__command-rail { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 16px 0; border-block: 1px solid var(--color-border-primary); }
+.trajectory-console__command-rail label { display: grid; gap: 6px; color: var(--color-text-secondary); font-size: .8rem; }
+.trajectory-console__command-rail input, .trajectory-console__command-rail select { color: var(--color-text-primary); background: var(--color-bg-secondary); border: 1px solid var(--color-border-primary); border-radius: 2px; min-height: 42px; padding: 8px; }
+.trajectory-console__command-rail input { width: 90px; }
+.trajectory-console .operator-button { border-radius: 2px; min-height: 42px; display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
+.trajectory-console__return { border-color: var(--color-danger); }
+.trajectory-console__other { margin-left: auto; position: relative; }
+.trajectory-console__other summary { cursor: pointer; padding: 12px; }
+.trajectory-console__other[open] { min-width: 220px; }
+.trajectory-console__status { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; padding: 16px 0; color: var(--color-text-secondary); font-size: .85rem; }
+.trajectory-console__status strong { color: var(--color-text-primary); }
+.trajectory-console__status button { border: 0; background: none; color: var(--color-primary); cursor: pointer; }
+.trajectory-console__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; }
+.trajectory-console h2 { font-size: .9rem; font-weight: 600; margin-block: 12px; }
+.trajectory-console__preview { min-width: 0; }
+.trajectory-console__preview .swarm-route-sketch { width: 100%; height: clamp(260px, 45vh, 600px); border-radius: 0; }
+.trajectory-console__aircraft { min-width: 0; max-height: 65vh; overflow: auto; }
+.trajectory-console__aircraft-row { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) auto; gap: 8px; padding: 14px 0; border-top: 1px solid var(--color-border-primary); font-size: .85rem; }
+.trajectory-console__aircraft-row > :last-child { grid-column: 1 / -1; color: var(--color-text-secondary); }
+.trajectory-console__notice { color: var(--color-text-secondary); font-size: .85rem; }
+@media (max-width: 800px) { .trajectory-console__body { grid-template-columns: minmax(0, 1fr); } .trajectory-console__other { margin-left: 0; } }
+@media (max-width: 480px) { .trajectory-console__command-rail > button { flex: 1 1 45%; } .trajectory-console__command-rail > button:first-of-type { flex-basis: 100%; } .trajectory-console__command-rail label:first-child { flex: 1 1 180px; } .trajectory-console__command-rail label:nth-child(2) { flex: 0 0 90px; } .trajectory-console__command-rail select { width: 100%; } }

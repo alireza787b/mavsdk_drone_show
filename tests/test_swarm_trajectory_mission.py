@@ -20,8 +20,66 @@ sys.modules.setdefault(
 import swarm_trajectory_mission as stm
 
 
+@pytest.mark.parametrize("bad_row", [
+    "1,nan,51,120", "1,35,inf,120", "1,91,51,120",
+    "1,35,181,120", "1,35,51,", "0,35,51,120", "-1,35,51,120",
+])
+def test_trajectory_reader_rejects_invalid_sample_instead_of_skipping(tmp_path, monkeypatch, bad_row):
+    route = tmp_path / "route.csv"
+    route.write_text("t,lat,lon,alt\n0,35,51,120\n" + bad_row + "\n2,35,51,120\n")
+    monkeypatch.setattr(stm.Params, "get_swarm_trajectory_file_path", lambda _: str(route))
+    with pytest.raises(SystemExit) as error:
+        stm.read_swarm_trajectory_file(1)
+    assert error.value.code == 1
+
+
+def test_trajectory_reader_requires_explicit_altitude(tmp_path, monkeypatch):
+    route = tmp_path / "route.csv"
+    route.write_text("t,lat,lon\n0,35,51\n1,35,51\n")
+    monkeypatch.setattr(stm.Params, "get_swarm_trajectory_file_path", lambda _: str(route))
+    with pytest.raises(SystemExit):
+        stm.read_swarm_trajectory_file(1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("load_result", [None, []])
+async def test_invalid_route_never_arms_or_executes(monkeypatch, load_result):
+    drone = MagicMock()
+    drone.telemetry.position.return_value = _stream_once(SimpleNamespace(
+        latitude_deg=35.0, longitude_deg=51.0, absolute_altitude_m=120.0))
+    monkeypatch.setattr(stm, "start_mavsdk_server", MagicMock(return_value=object()))
+    monkeypatch.setattr(stm, "stop_mavsdk_server", MagicMock())
+    monkeypatch.setattr(stm.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(stm, "initial_setup_and_connection", AsyncMock(return_value=drone))
+    monkeypatch.setattr(stm, "pre_flight_checks", AsyncMock(return_value={}))
+    reader = MagicMock(side_effect=SystemExit(1)) if load_result is None else MagicMock(return_value=load_result)
+    monkeypatch.setattr(stm, "read_swarm_trajectory_file", reader)
+    arm = AsyncMock()
+    execute = AsyncMock()
+    monkeypatch.setattr(stm, "arming_and_starting_offboard_mode", arm)
+    monkeypatch.setattr(stm, "perform_swarm_trajectory", execute)
+    with pytest.raises(SystemExit) as error:
+        await stm.run_swarm_trajectory_mission(None, position_id_override=1)
+    assert error.value.code == 1
+    arm.assert_not_awaited()
+    execute.assert_not_awaited()
+
+
 async def _stream_once(value):
     yield value
+
+
+def test_trajectory_reader_verifies_exact_reviewed_bytes(tmp_path, monkeypatch):
+    import hashlib
+    route = tmp_path / 'route.csv'
+    contents = b't,lat,lon,alt\n0,35,51,120\n1,35,51,121\n'
+    route.write_bytes(contents)
+    monkeypatch.setattr(stm.Params, 'get_swarm_trajectory_file_path', lambda _: str(route))
+    digest = hashlib.sha256(contents).hexdigest()
+    assert len(stm.read_swarm_trajectory_file(1, expected_sha256=digest)) == 2
+    route.write_bytes(contents.replace(b'121', b'125'))
+    with pytest.raises(SystemExit):
+        stm.read_swarm_trajectory_file(1, expected_sha256=digest)
 
 
 async def _stream_once_position(relative_altitude_m):
@@ -314,6 +372,7 @@ async def test_execute_end_behavior_raises_when_all_recoveries_fail():
 
 @pytest.mark.asyncio
 async def test_arming_and_starting_offboard_mode_uses_shared_prearm_gate(monkeypatch):
+    monkeypatch.setattr(stm, 'require_native_ground_start', AsyncMock())
     drone = MagicMock()
     drone.action.hold = AsyncMock()
     drone.offboard.set_velocity_body = AsyncMock()
@@ -329,11 +388,94 @@ async def test_arming_and_starting_offboard_mode_uses_shared_prearm_gate(monkeyp
     drone.action.hold.assert_awaited_once()
     arm_with_preflight_gate.assert_awaited_once()
     assert arm_with_preflight_gate.await_args.kwargs["require_global_position"] is False
+    assert arm_with_preflight_gate.await_args.kwargs['mission_type'] == stm.Mission.SWARM_TRAJECTORY.value
     drone.offboard.start.assert_awaited_once()
+
+
+def _native_ground_state_drone(armed, landed):
+    drone = MagicMock()
+    async def connection():
+        yield SimpleNamespace(is_connected=True)
+        await stm.asyncio.Event().wait()
+    drone.core.connection_state = connection
+    drone.telemetry.armed.side_effect = lambda: _stream_once(armed)
+    drone.telemetry.landed_state.side_effect = lambda: _stream_once(SimpleNamespace(name=landed))
+    return drone
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('armed,landed', [(True, 'ON_GROUND'), (False, 'IN_AIR'), (False, 'UNKNOWN')])
+async def test_native_ground_rejection_issues_no_executor_control_commands(armed, landed):
+    drone = _native_ground_state_drone(armed, landed)
+    with pytest.raises(stm.GroundStartRejected):
+        await stm.arming_and_starting_offboard_mode(drone, None)
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
+
+
+@pytest.mark.asyncio
+async def test_second_prearm_gate_failure_does_not_hold_or_disarm_before_ownership(monkeypatch):
+    drone = _native_ground_state_drone(False, 'ON_GROUND')
+    monkeypatch.setattr(stm.Params, 'REQUIRE_GLOBAL_POSITION', False)
+    monkeypatch.setattr(stm.LEDController, 'get_instance', MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(stm, 'arm_with_preflight_gate', AsyncMock(side_effect=RuntimeError('ground proof expired')))
+    with pytest.raises(stm.GroundStartRejected, match='before arming'):
+        await stm.arming_and_starting_offboard_mode(drone, None)
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
+
+
+@pytest.mark.asyncio
+async def test_ground_rejection_in_outer_runner_does_not_land_or_stop_pilot_vehicle(monkeypatch):
+    drone = _native_ground_state_drone(True, 'IN_AIR')
+    drone.telemetry.position.return_value = _stream_once(SimpleNamespace(
+        latitude_deg=35.0, longitude_deg=51.0, absolute_altitude_m=120.0))
+    monkeypatch.setattr(stm, 'start_mavsdk_server', MagicMock(return_value=object()))
+    monkeypatch.setattr(stm, 'stop_mavsdk_server', MagicMock())
+    monkeypatch.setattr(stm.asyncio, 'sleep', AsyncMock())
+    monkeypatch.setattr(stm, 'initial_setup_and_connection', AsyncMock(return_value=drone))
+    monkeypatch.setattr(stm, 'pre_flight_checks', AsyncMock(return_value={}))
+    monkeypatch.setattr(stm, 'read_swarm_trajectory_file', MagicMock(return_value=[
+        (float(i), 35.0, 51.0, 120.0) for i in range(11)]))
+    stop = AsyncMock()
+    land = AsyncMock()
+    current_armed = AsyncMock(return_value=True)
+    monkeypatch.setattr(stm, 'stop_offboard_mode', stop)
+    monkeypatch.setattr(stm, 'perform_landing', land)
+    monkeypatch.setattr(stm, '_get_current_armed_state', current_armed)
+    with pytest.raises(SystemExit) as error:
+        await stm.run_swarm_trajectory_mission(None, position_id_override=1)
+    assert error.value.code == 1
+    stop.assert_not_awaited()
+    land.assert_not_awaited()
+    current_armed.assert_not_awaited()
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
+
+
+@pytest.mark.asyncio
+async def test_preflight_failure_before_ownership_does_not_trigger_outer_flight_cleanup(monkeypatch):
+    drone = MagicMock()
+    monkeypatch.setattr(stm, 'start_mavsdk_server', MagicMock(return_value=object()))
+    monkeypatch.setattr(stm, 'stop_mavsdk_server', MagicMock())
+    monkeypatch.setattr(stm.asyncio, 'sleep', AsyncMock())
+    monkeypatch.setattr(stm, 'initial_setup_and_connection', AsyncMock(return_value=drone))
+    monkeypatch.setattr(stm, 'pre_flight_checks', AsyncMock(side_effect=RuntimeError('no preflight state')))
+    stop = AsyncMock()
+    land = AsyncMock()
+    monkeypatch.setattr(stm, 'stop_offboard_mode', stop)
+    monkeypatch.setattr(stm, 'perform_landing', land)
+    with pytest.raises(SystemExit):
+        await stm.run_swarm_trajectory_mission(None, position_id_override=1)
+    stop.assert_not_awaited()
+    land.assert_not_awaited()
+    assert drone.action.mock_calls == []
+    assert drone.offboard.mock_calls == []
 
 
 @pytest.mark.asyncio
 async def test_arming_and_starting_offboard_mode_skips_drift_for_fallback_reference(monkeypatch):
+    monkeypatch.setattr(stm, 'require_native_ground_start', AsyncMock())
     drone = MagicMock()
     drone.action.hold = AsyncMock()
     drone.offboard.set_velocity_body = AsyncMock()
@@ -428,6 +570,8 @@ def test_main_defers_immediate_start_until_local_startup_gate(monkeypatch):
         start_time=None,
         position_id=None,
         end_behavior=None,
+        trajectory_sha256=None,
+        command_id=None,
     )
     logger = MagicMock()
     mission_mock = MagicMock(return_value="fake-coro")
@@ -447,6 +591,8 @@ def test_main_defers_immediate_start_until_local_startup_gate(monkeypatch):
         None,
         position_id_override=None,
         end_behavior_override=None,
+        expected_trajectory_sha256=None,
+        command_id=None,
     )
     asyncio_run.assert_called_once_with("fake-coro")
 

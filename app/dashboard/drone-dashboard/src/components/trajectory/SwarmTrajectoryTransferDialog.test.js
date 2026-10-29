@@ -1,10 +1,41 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import SwarmTrajectoryTransferDialog from './SwarmTrajectoryTransferDialog';
 
 describe('SwarmTrajectoryTransferDialog', () => {
+  const lockedDialogProps = {
+    isOpen: true,
+    onClose: jest.fn(), onSubmit: jest.fn(), onSelectLeaderId: jest.fn(),
+    onOpenSwarmTrajectory: jest.fn(), onOpenSwarmDesign: jest.fn(),
+    clusters: [
+      { leader_id: 1, follower_ids: [2], follower_count: 1 },
+      { leader_id: 99, follower_ids: [], follower_count: 0 },
+    ],
+    selectedLeaderId: 1,
+    lockedLeaderId: 1,
+    missionReadiness: {
+      posture: { tone: 'success', label: 'Ready', summary: 'Route ready', transferLabel: 'Assign Route' },
+      blockers: [], advisories: [], notes: [],
+    },
+  };
+
+  test('locks embedded assignment to the mission leader without a live Formation navigation escape', () => {
+    render(<MemoryRouter><SwarmTrajectoryTransferDialog {...lockedDialogProps} successMessage="Assigned" /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: /Leader 1.*follower/i })).toBeDisabled();
+    expect(screen.queryByText('Leader 99')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Swarm Design' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Swarm Trajectory' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Assign Route' }));
+    expect(lockedDialogProps.onSubmit).toHaveBeenCalled();
+  });
+
+  test('does not allow a selected target outside the mission leader lock', () => {
+    render(<MemoryRouter><SwarmTrajectoryTransferDialog {...lockedDialogProps} selectedLeaderId={99} /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Assign Route' })).toBeDisabled();
+  });
+
   test('summarizes timing and heading intent without duplicating posture in the summary grid', () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

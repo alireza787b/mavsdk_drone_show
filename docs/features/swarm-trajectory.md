@@ -2,8 +2,8 @@
 
 Status: active hardening and operator validation
 Mission type: `4` (`SWARM_TRAJECTORY`)
-Primary page: `Swarm Trajectory`
-Advanced editor: `Advanced Route Editor` (`/trajectory-planning`)
+Primary page: `Swarm Trajectory` (`/swarm-trajectory`), with `Plan` / `Operate` tabs
+Legacy `/trajectory-planning` bookmarks redirect to `Plan`; there is one route editor.
 
 Swarm Trajectory is the MDS global-coordinate trajectory workflow for processed leader/follower swarm missions. It is different from QuickScout: QuickScout produces PX4 Mission-style SAR packages, while Swarm Trajectory processes precise leader routes into per-drone MDS trajectory files for coordinated Mission Type 4 execution.
 
@@ -17,27 +17,115 @@ Related docs:
 
 ## Operator Workflow
 
-1. Open `Swarm Design` and verify the intended leaders, followers, offsets, and clusters.
-2. Open `Swarm Trajectory`.
-3. In `Plan or Import Leader Route`, choose a top leader.
-4. Click the leader-route map to add waypoints, or use the compact numeric form for precise entry.
-5. Each map click selects the new waypoint and fills the latitude, longitude, altitude, time, speed, and heading fields.
-6. Use `Auto ETA` for normal route authoring: the planner derives waypoint time from distance, altitude change, and preferred speed. Use `Fixed time` only when the arrival time must be pinned.
-7. Use `Auto yaw` for normal arrival-leg heading. Use `Manual` only when the leader must hold a specific heading at a waypoint.
-8. Edit, delete, select from the map, or reorder draft waypoints on the page. Route time, required speed, climb/descent, and yaw summaries reflow after each change.
-9. Choose altitude input:
-   - `MSL` stores the entered altitude directly.
-   - `AGL` queries terrain/elevation and stores the derived MSL mission altitude.
-10. Click `Assign to Leader` to upload the drafted route as that leader's raw CSV.
-11. Optionally use CSV upload for legacy/imported leader routes.
-12. Click `Process Swarm Trajectory Package`.
-13. Watch the processing job dialog. It shows phase, progress, cancel request state, success, failure, and retry state.
-14. Review validation blockers, warnings, cluster status, leader/follower preview paths, plots, and downloadable outputs.
-15. Commit outputs when the deployment needs git traceability or propagation.
-16. Transfer/launch from the Dashboard Mission Trigger as Mission Type 4 after readiness is clear.
-17. Clear/reset only when intentionally removing the active route package.
+**Plan → Formation → Route → Generate → Review → Operate.**
+Planning and assigning routes do not arm aircraft. Unlike live Smart Swarm, this
+mission starts from the ground and executes precomputed paths.
 
-The old trajectory-planning route remains available as `Advanced Route Editor` for lower-level route editing while its map authoring tools are migrated into Swarm Trajectory. The primary operator workflow no longer requires starting there for normal leader-route authoring.
+These screenshots show the candidate UI with simulated two-aircraft SITL data;
+they do not establish real-flight readiness. Coordinated Pause/Resume is not
+enabled in this checkpoint.
+
+### 1. Choose the mission formation
+
+Open **Plan → Formation**. Check aircraft, leader links, frame and offsets, then
+**Save mission layout**. **Copy Smart Swarm** only imports a draft; it does not
+change live Smart Swarm.
+
+On first use, this is already the current Smart Swarm layout as an unsaved draft.
+Save it unchanged for the clean default, or customize the mission's links, frames
+and offsets before saving. Later Smart Swarm edits do not change the saved mission
+layout. Copy Smart Swarm is an explicit refresh, not continuous live linking.
+
+![Mission-owned Formation and save controls](../assets/swarm-trajectory/01-formation.png)
+
+### 2. Create and assign each leader route
+
+In **Route**, choose the leader. Add waypoints on the map, edit coordinates or
+drag points; Undo/Redo restores edits. Use preferred-speed timing for normal
+authoring, fixed arrival times only when required. MSL is entered directly;
+AGL requires verified backend terrain.
+
+Use the assignment control and confirm its leader. After acknowledgement the
+workspace opens **Generate**. Repeat for other leaders when needed.
+
+**Save draft / Library** use the browser route library, not aircraft or repository
+sync. Import/Export are available here; **Uploads** is the alternate raw-CSV path.
+
+![Leader-scoped route editor, undo, library and assignment controls](../assets/swarm-trajectory/02-route.png)
+
+### 3. Generate the formation paths
+
+Open **Generate** and choose **Generate paths**. This generates follower
+paths from the assigned leader routes and mission Formation. Wait for the job's
+actual result; indeterminate progress is not a percentage or a success signal.
+
+![Generate paths from the uploaded leader routes](../assets/swarm-trajectory/03-process.png)
+
+### 4. Review and synchronize
+
+Open **Review**. Check validation, cluster paths, altitude/time envelope and
+available plots before continuing. Fix a reported blocker and regenerate when
+needed.
+
+Review opens a geographic **Map**, with **Overview** for a basemap-independent
+path sketch. Select aircraft in the legend to show/hide paths; use **Fit** to
+frame visible routes. Colors and hardware identities stay stable when filtering.
+Large fleets have a searchable, scrollable legend.
+
+Saved files without a current formation assignment appear under **Outside
+mission**, hidden by default. They are not counted as followers or selected for
+launch. Inspect them explicitly if needed; review does not
+silently delete retained files or assign new aircraft.
+
+**Publish package** records and pushes to the configured repository.
+**Record package** only records it on this GCS. Neither is the browser
+library's Save draft. Same-host SITL can share generated files; hardware deployments must
+synchronize and verify the matching package on the nodes before launch.
+
+![Package review, validation and repository save controls](../assets/swarm-trajectory/04-review.png)
+
+### 5. Review and start
+
+Open **Operate**, select the complete cluster and confirm every aircraft is
+fresh, disarmed and on the ground. Set the start delay, choose **Start mission**,
+review the targets and confirm. This command includes takeoff and route execution;
+do not manually take off first for Mission 4.
+
+![Ground-start confirmation with frozen aircraft and package scope](../assets/swarm-trajectory/05-start-review.png)
+
+### 6. Monitor execution
+
+Watch mission phase, aircraft mode, battery and route progress. Route time is the
+commanded execution clock, not a measured tracking-accuracy claim. Stale progress
+or missing telemetry requires investigation, not an assumption of completion.
+
+![Simulated active mission and per-aircraft route progress](../assets/swarm-trajectory/06-monitor.png)
+
+### 7. End or return
+
+| Control | Result |
+|---------|--------|
+| **Hold** | Ends the current route and requests Hold. Resume is not enabled yet. |
+| **Immediate Return** | Hands control to each aircraft's native PX4 RTL. |
+| **Other actions → Managed Return** | Confirms Hold, then dispatches RTL sequentially; default interval 10 seconds. |
+
+Managed Return is a timed dispatch sequence, not collision avoidance. RTL paths
+may overlap; a delay is not a guarantee that the previous aircraft has landed.
+
+![Immediate Return confirmation](../assets/swarm-trajectory/07-return-review.png)
+
+If a Start receipt is uncertain, use **Recover receipt** to recover the original
+request identity; do not create repeated new starts. Clear/reset is only for
+intentionally removing a package.
+
+The old basic map/form editor has been removed. Existing route-editor bookmarks
+open the same mission Plan, and the browser library uses its existing storage keys.
+Scoped drafts do not use the former global autosave/pruning behavior.
+
+Terrain verification is explicit: absent or failed verification stays unverified
+through library and CSV roundtrips. Legacy files cannot gain terrain authority
+merely by being saved again. Re-resolve old AGL routes before field use; a historical
+`true` flag written by an older client is not independent terrain evidence.
 
 ## Product Semantics
 
@@ -46,12 +134,12 @@ Swarm Trajectory uses global latitude/longitude and stored MSL altitude througho
 | Concept | Meaning |
 |---------|---------|
 | Leader route | The operator-authored path for a top leader. |
-| Follower path | A generated per-drone route derived from the leader route and `swarm.json` offsets. |
+| Follower path | A generated per-drone route derived from the leader route and mission-owned formation offsets. |
 | Cluster | A top leader plus the followers that depend on it directly or through a nested chain. |
 | Validation | Backend readiness truth for commit/transfer/launch review. |
 | Preview | Downsampled processed paths and cluster relationships for visualization. |
 | Commit | Git record/sync boundary for generated artifacts, not a safety guarantee by itself. |
-| Dashboard Mission Type 4 | The actual execution dispatch surface. |
+| Operate Start | Mission Type 4 dispatch using the same command tracking and node readiness as other control surfaces. |
 
 This mode is not live Smart Swarm. Smart Swarm is the live leader/follower control mode. Swarm Trajectory generates individual per-drone files before execution.
 
@@ -62,16 +150,67 @@ Swarm Trajectory is MDS/offboard-style trajectory execution. PX4 Offboard-style 
 Operator-visible safety rules:
 
 - Only top leaders are authored or uploaded manually.
-- Follower outputs are generated from the current swarm hierarchy and offsets.
+- Follower outputs are generated from the mission-owned hierarchy and offsets.
 - Validation blocks commit/transfer when the processed package cannot be trusted.
 - Unknown swarm structure, missing clusters, missing leader uploads, stale processed outputs, and missing processed drones are blockers.
 - Partial outputs are visible as partial, not launch-ready.
 - AGL is an authoring convenience. The package stores MSL altitude.
 - Terrain/elevation lookup failure blocks AGL waypoint save unless the operator switches to MSL input.
 - The first waypoint is the route entry anchor; later waypoints define route motion.
+- Start requires fresh native Disarmed + On-ground evidence at preparation,
+  commit and executor entry. It does not switch an airborne vehicle into a
+  ground-start mission. A rejected pre-ownership start sends no flight-control
+  commands or landing/disarm cleanup.
 - Map-authored waypoints default to automatic ETA and automatic arrival yaw after the route-entry anchor.
 - Fixed-time waypoints calculate required inbound speed and are blocked when they exceed the configured safe envelope.
-- Dashboard launch readiness remains the final dispatch gate.
+- Server dispatch and node checks remain authoritative; green UI is not an arming guarantee.
+
+The mission formation is saved as `swarm_trajectory/formation.json`. Before its
+first save, live formation data is offered as a draft; first processing snapshots
+it. Later live Smart Swarm changes do not alter this mission. Saving a different
+mission layout invalidates generated outputs and requires regeneration.
+
+Operate reports per-aircraft native flight state and commanded route time. Route
+time is execution evidence, not measured spatial tracking accuracy. Reports are
+command-scoped, rate-limited and marked stale when unavailable. Route completion
+is separate from the configured return/landing behavior and terminal confirmation.
+Unconfirmed Start requests retain their identity across refresh and require an
+explicit `Recover receipt` action; opening this page never dispatches a command.
+The current interim Hold is terminal; coordinated Pause/Resume is not enabled yet.
+Active tracked trajectory missions reject package-mutating API requests.
+
+The aircraft loads and validates its processed route before arming or entering
+Offboard. Invalid rows reject the entire file instead of being skipped. Global
+coordinates and motion values must be finite, altitude must be explicit, and
+timestamps must be nonnegative and strictly increasing. Leader CSV imports use
+the same strict timestamp rule. These checks validate input integrity; they do
+not establish terrain clearance or collision-free flight.
+
+Every launch also checks canonical package readiness on the server, including
+explicit whole-fleet requests. Missing validation or a stale/incomplete package
+rejects dispatch; warnings alone do not. Processing sessions record output content
+hashes, so modifying, adding or removing generated CSVs requires regeneration.
+Older sessions without output hashes must be regenerated once before launch.
+
+GCS dispatch attaches `swarm_trajectory: {revision, files}` to Mission 4 commands.
+`files` maps hardware IDs to SHA-256 hashes of reviewed generated CSVs. Updated
+nodes require this identity for managed launches and reject a missing/mismatched
+file before arming. The executor parses the same bytes it hashes, retaining the
+loaded trajectory in memory for the run. Files generated for hardware IDs are not
+selected using Drone Show position-slot assignments. Update server and nodes
+together and regenerate legacy packages before field testing; old nodes may reject
+the new command field. Direct CLI validation remains available independently.
+
+Regeneration builds a candidate away from active output files. Failed or partial
+generation preserves the previous package; a complete replacement is published
+with its session written last. Publication errors roll back outputs and session.
+If rollback itself fails, the error identifies retained recovery files. This is
+not an atomic multi-directory switch or an active-flight revision-pinning contract.
+Inputs changed during generation prevent publication under a new input identity.
+
+Route drafts are isolated by leader and REAL/SITL mode and recovered from browser
+storage when available. Switching leader does not reassign the previous draft.
+Blank coordinates are invalid; explicit zero latitude/longitude is valid.
 
 ## Altitude And Terrain
 
@@ -106,6 +245,9 @@ The canonical API namespace is `/api/v1/swarm-trajectories/*`. The old versionle
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | `GET` | `/api/v1/swarm-trajectories/leaders` | Read top leaders, follower hierarchy, and upload status. |
+| `GET` | `/api/v1/swarm-trajectories/workspace` | Read package review, preview, mission layout and launch identity. |
+| `GET` | `/api/v1/swarm-trajectories/operation` | Read tracked execution/recovery and fresh per-aircraft reports. |
+| `GET` / `PUT` | `/api/v1/swarm-trajectories/formation` | Read/save independent mission layout using revision conflict detection. |
 | `POST` | `/api/v1/swarm-trajectories/upload/{leader_id}` | Upload one leader CSV. |
 | `GET` | `/api/v1/swarm-trajectories/status` | Read raw/processed/plot counts and cluster state. |
 | `GET` | `/api/v1/swarm-trajectories/recommendation` | Read whether processing is needed. |
@@ -185,7 +327,7 @@ Frontend:
 - `app/dashboard/drone-dashboard/src/components/mission-planning/`
 - `app/dashboard/drone-dashboard/src/services/droneApiService.js`
 - `app/dashboard/drone-dashboard/src/services/gcsApiService.js`
-- `app/dashboard/drone-dashboard/src/utilities/swarmTrajectoryDraft.js`
+- `app/dashboard/drone-dashboard/src/utilities/trajectoryTerrainContext.js`
 
 Runtime:
 
@@ -199,7 +341,7 @@ Tests:
 - `tests/test_gcs_swarm_trajectory_routes.py`
 - `app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.test.js`
 - `app/dashboard/drone-dashboard/src/pages/TrajectoryPlanning.test.js`
-- `app/dashboard/drone-dashboard/src/utilities/swarmTrajectoryDraft.test.js`
+- `app/dashboard/drone-dashboard/src/utilities/trajectoryTerrainContext.test.js`
 
 ## Validation Checklist
 

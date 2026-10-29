@@ -436,6 +436,7 @@ class DroneCommunicator:
                 ("quickscout_return_behavior", None),
                 ("precision_move_request_file", None),
                 ("smart_swarm_request", command_data.get("smart_swarm")),
+                ("swarm_trajectory_request", command_data.get("swarm_trajectory")),
                 ("auto_global_origin", command_data.get("auto_global_origin")),
                 ("use_global_setpoints", command_data.get("use_global_setpoints")),
             ]
