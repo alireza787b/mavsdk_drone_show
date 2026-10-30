@@ -77,21 +77,25 @@ def main():
                 client.wait_for("Boolean(document.querySelector('.swarm-ops select')?.value)", timeout_s=30)
                 client.evaluate("[...document.querySelectorAll('.swarm-ops button')].find(b=>b.textContent.trim()==='Takeoff').click()")
                 client.wait_for("[...document.querySelectorAll('[role=dialog] button')].some(b=>b.textContent.startsWith('Arm & take off')&&!b.disabled)", timeout_s=15)
-                assert client.evaluate("document.querySelector('.takeoff-review__wait input').checked")
+                assert client.evaluate("document.querySelector('.takeoff-review__modes input').checked")
                 assert client.evaluate("[...document.querySelectorAll('.takeoff-review__member input')].every(c=>c.checked)")
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-01-ready.png')
+                client.evaluate("document.querySelectorAll('.takeoff-review__modes input')[1].click()")
+                assert client.evaluate("document.querySelectorAll('.takeoff-review__modes input')[1].checked")
+                guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-07-independent.png')
+                client.evaluate("document.querySelector('.takeoff-review__modes input').click()")
                 client.evaluate("window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].valid_for_ms=0; window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].targets[1]={hw_id:'2',status:'blocked',valid_for_ms:0,reason:'Heading estimate unstable',coordinated_takeoff_supported:true}")
                 client.wait_for("document.querySelector('.takeoff-review').textContent.includes('Heading estimate unstable')", timeout_s=8)
                 assert client.evaluate("[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.startsWith('Arm & take off')).disabled")
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-02-blocked.png')
                 client.evaluate("document.querySelectorAll('.takeoff-review__member input')[1].click()")
                 client.wait_for("[...document.querySelectorAll('[role=dialog] button')].some(b=>b.textContent==='Arm & take off · 1 aircraft'&&!b.disabled)", timeout_s=8)
-                assert client.evaluate("document.querySelector('[aria-label=\"Select all aircraft\"]').indeterminate")
+                assert client.evaluate("document.querySelector('.takeoff-review__selection').textContent.includes('1 of 2')")
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-05-selection.png')
                 client.evaluate("document.querySelectorAll('.takeoff-review__member input')[0].click()")
                 assert client.evaluate("[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent.startsWith('Arm & take off')).disabled")
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-06-none.png')
-                client.evaluate("window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].valid_for_ms=5000; window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].targets[1]={hw_id:'2',status:'ready',valid_for_ms:5000,coordinated_takeoff_supported:true}; document.querySelector('[aria-label=\"Select all aircraft\"]').click()")
+                client.evaluate("window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].valid_for_ms=5000; window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].targets[1]={hw_id:'2',status:'ready',valid_for_ms:5000,coordinated_takeoff_supported:true}; [...document.querySelectorAll('.takeoff-review__bulk button')].find(b=>b.textContent==='Select all').click()")
                 client.wait_for("[...document.querySelectorAll('[role=dialog] button')].some(b=>b.textContent==='Arm & take off · 2 aircraft'&&!b.disabled)", timeout_s=8)
                 status = dict(command_id='ui-takeoff-1', mission_type=10, target_drones=['1', '2'], phase='executing',
                     outcome=None, observed_at=int(time.time()*1000), timeout_at=int(time.time()*1000)+60000,
@@ -112,7 +116,7 @@ def main():
                 assert not client.runtime_exceptions, client.runtime_exceptions
                 assert layout(client)['documentWidth'] <= width + 2, layout(client)
                 results.append(dict(theme=theme, viewport=viewport, simulated_posts=2, external_api_writes=0,
-                                    ready=True, blocked=True, selection=True, none=True, arming=True, cancelled=True))
+                                    ready=True, independent=True, blocked=True, selection=True, none=True, arming=True, cancelled=True))
             finally:
                 if client:
                     try: client.command('Browser.close')
@@ -129,11 +133,12 @@ def capture_combined_guide(output):
     """Capture an HTML contact sheet of unmodified UI screenshots, not AI mockups."""
     cards = [
         ('01-ready', '1 · Review height and preselected aircraft'),
-        ('05-selection', '2 · Excluded aircraft remain visible'),
-        ('06-none', '3 · No selection, no launch'),
-        ('02-blocked', '4 · A selected blocker prevents launch'),
-        ('03-arming', '5 · Confirm once; selection is locked'),
-        ('04-cancelled', '6 · Cancellation requires disarm evidence'),
+        ('07-independent', '2 · Launch mode is a separate choice'),
+        ('05-selection', '3 · Excluded aircraft remain visible'),
+        ('06-none', '4 · No selection, no launch'),
+        ('02-blocked', '5 · A selected blocker prevents launch'),
+        ('03-arming', '6 · Confirm once; selection is locked'),
+        ('04-cancelled', '7 · Cancellation requires disarm evidence'),
     ]
     figures = ''.join(f'<figure><figcaption>{title}</figcaption><img src="data:image/png;base64,'
         + base64.b64encode((output/f'dark-desktop-{name}.png').read_bytes()).decode('ascii')

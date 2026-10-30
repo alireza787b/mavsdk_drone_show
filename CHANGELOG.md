@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Takeoff reserves checkboxes for aircraft inclusion. Stable Select all/Clear
+  actions replace the master checkbox, and a distinct Launch mode radio group
+  separates All armed first from Independent execution. Confirmed operations
+  show a compact immutable settings summary. Native command behaviour is unchanged.
+
 - Takeoff review preselects its initiating aircraft scope and adds per-aircraft
   checkboxes, select-all, muted excluded rows and an explicit confirmation count.
   Selection freezes on confirmation and survives uncertain receipt recovery;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { ConfirmDialog } from './ui';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { getBackendURL } from '../config/apiConfig';
@@ -45,7 +45,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
   const submitLock = useRef(false);
   const mounted = useRef(true);
   const callbacksRef = useRef(null);
-  const allCheckbox = useRef(null);
+  const launchModeId = useId();
   const submittedPayload = useRef(restored);
   const attemptKey = useRef(intent.idempotency_key);
   const { commandLifecycleCallbacks } = useCommandActivity();
@@ -75,9 +75,6 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
     setReadiness(null);
     setError('');
   };
-  useEffect(() => {
-    if (allCheckbox.current) allCheckbox.current.indeterminate = targets.length > 0 && targets.length < roster.length;
-  }, [targets, roster]);
 
   const rememberPending = (payload) => {
     try {
@@ -204,15 +201,15 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
       {!inProgress ? <>
         <label className="takeoff-review__height">Takeoff height <span><input aria-label="Takeoff height" type="number" min="0.1" step="1"
           value={height} onChange={(event) => setHeight(event.target.value)} disabled={busy} /> m</span></label>
-        {multiple && <label className="takeoff-review__wait"><input type="checkbox" checked={waitForAll}
-          onChange={(event) => setWaitForAll(event.target.checked)} disabled={busy} /> Wait for all aircraft</label>}
         {!validHeight && <p role="alert">Enter a positive height.</p>}
-      </> : <div className="takeoff-review__progress" role="status">{progress}{progressCount}</div>}
+      </> : <><div className="takeoff-review__progress" role="status">{progress}{progressCount}</div>
+        <div className="takeoff-review__summary">{height} m · {multiple ? (waitForAll ? 'All armed first' : 'Independent') : 'Single aircraft'}</div></>}
       <div className="takeoff-review__selection">
-        {roster.length > 1 && <label className="takeoff-review__select-all"><input ref={allCheckbox} type="checkbox"
-          aria-label="Select all aircraft" checked={targets.length === roster.length} disabled={inProgress || busy}
-          onChange={(event) => selectTargets(event.target.checked ? roster : [])} />All</label>}
-        <span aria-live="polite">{targets.length} of {roster.length} aircraft</span>
+        <span aria-live="polite">Aircraft · {targets.length} of {roster.length}</span>
+        {!inProgress && roster.length > 1 && <div className="takeoff-review__bulk">
+          <button type="button" disabled={busy || targets.length === roster.length} onClick={() => selectTargets(roster)}>Select all</button>
+          <button type="button" disabled={busy || !targets.length} onClick={() => selectTargets([])}>Clear</button>
+        </div>}
       </div>
       <ul className="takeoff-review__aircraft" aria-label="Takeoff aircraft">
         {rows.map((row) => {
@@ -231,6 +228,18 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
             <span><b>{label}</b>{reason && status !== 'ready' && <small>{reason}</small>}</span></li>;
         })}
       </ul>
+      {!inProgress && <fieldset className="takeoff-review__launch" aria-describedby={`${launchModeId}-help`}>
+        <legend>Launch mode</legend>
+        {multiple ? <>
+          <div className="takeoff-review__modes">
+            <label><input type="radio" name={launchModeId} checked={waitForAll} disabled={busy}
+              onChange={() => { if (!submitLock.current) setWaitForAll(true); }} />All armed first</label>
+            <label><input type="radio" name={launchModeId} checked={!waitForAll} disabled={busy}
+              onChange={() => { if (!submitLock.current) setWaitForAll(false); }} />Independent</label>
+          </div>
+          <p id={`${launchModeId}-help`}>{waitForAll ? 'Launch after all selected aircraft confirm armed on the ground.' : 'Aircraft launch without waiting for one another to arm.'}</p>
+        </> : <p id={`${launchModeId}-help`}>{targets.length ? 'Single aircraft' : 'Select aircraft'}</p>}
+      </fieldset>}
       {coordination?.reason && coordination.reason !== progress && <p role="status">{coordination.reason}</p>}
       {error && <p role="alert">{typeof error === 'string' ? error : 'Takeoff unavailable. Check aircraft status.'}</p>}
     </div>} />;

@@ -9,13 +9,15 @@ are airborne and settled.
 1. Select the aircraft or complete swarm cluster and choose **Takeoff**. The
    initiating page's aircraft are already checked; unrelated aircraft are not
    added to this review.
-2. Set **Takeoff height**. For multiple aircraft, leave **Wait for all aircraft**
-   checked. Check the names and live readiness rows.
+2. Set **Takeoff height**. Check the names and live readiness rows. Aircraft
+   checkboxes only control inclusion in this Takeoff.
 3. Check the aircraft count. Untick an aircraft only if it should not take off;
-   its row stays visible as **Not included**. **All** selects or clears the
+   its row stays visible as **Not included**. **Select all** and **Clear** change the
    review roster. Resolve selected **Blocked** or **Unavailable** rows before
    confirming; **Checking** is not permission to launch.
-4. Clear the launch area, then choose **Arm & take off** once. Motors may start
+4. For a group, leave **Launch mode → All armed first** selected unless you
+   intentionally want **Independent** execution. Clear the launch area, then
+   choose **Arm & take off** once. Motors may start
    during arming. There is no second confirmation while aircraft are armed.
 5. Watch **Arming → Taking off → Airborne**. Before launch release,
    **Cancel launch** cancels the operation; **Close** only closes the dialog.
@@ -41,14 +43,17 @@ attempt and normally disarms aircraft it armed when fresh telemetry confirms
 they are still on the ground. An unconfirmed recovery requires pilot attention;
 it is not displayed as successful disarming. Retry is always an explicit action.
 
-**Wait for all aircraft** coordinates arming and launch release. It cannot make
+**All armed first** coordinates arming and launch release. It cannot make
 independent PX4 aircraft take off atomically. A rejection or communications failure
 after release can still produce a partial launch. Pending releases are cancelled;
 conditional Hold recovery must not override pilot takeover, a newer command or
 native Return/Land. The failed aircraft retains its own failed-climb recovery.
 
-Unchecking the option explicitly chooses independent Takeoff. It does not bypass
+Choosing **Independent** explicitly selects independent Takeoff. It does not bypass
 PX4 preflight checks. Single-aircraft Takeoff keeps its existing execution path.
+The dialog shows **Single aircraft** when only one is selected. Re-selecting a
+group restores its previous mode. After confirmation, a compact height/mode
+summary replaces the settings; bulk-selection actions are hidden.
 
 ## Deployment and verification
 

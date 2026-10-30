@@ -2,10 +2,20 @@
 .takeoff-review .takeoff-review__height { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
 .takeoff-review__height > span { display:flex; align-items:center; gap:.5rem; }
 .takeoff-review__height input { box-sizing:border-box; width:100px; min-height:40px; border:1px solid var(--color-border-secondary); border-radius:0; padding:.5rem; background:var(--color-bg-secondary); color:var(--color-text-primary); font:inherit; }
-.takeoff-review .takeoff-review__wait { display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; }
 .takeoff-review input[type=checkbox] { appearance:auto; width:18px !important; min-width:18px !important; height:18px !important; min-height:18px !important; margin:0; accent-color:var(--color-primary); }
 .takeoff-review__selection { display:flex; justify-content:space-between; align-items:center; gap:.75rem; min-height:40px; font-size:.82rem; color:var(--color-text-secondary); }
-.takeoff-review .takeoff-review__select-all { display:flex; align-items:center; gap:.6rem; min-height:40px; margin:0; cursor:pointer; }
+.takeoff-review__bulk { display:flex; gap:.8rem; }
+.takeoff-review__bulk button { min-height:44px; padding:0 .25rem; border:0; border-radius:0; background:transparent; color:var(--color-text-primary); font:inherit; cursor:pointer; }
+.takeoff-review__bulk button:disabled { color:var(--color-text-secondary); cursor:default; }
+.takeoff-review__launch { border:0; padding:0; margin:1rem 0 0; min-width:0; }
+.takeoff-review__launch legend { padding:0; margin-bottom:.5rem; font-size:.85rem; font-weight:600; }
+.takeoff-review__modes { display:grid; grid-template-columns:1fr 1fr; }
+.takeoff-review .takeoff-review__modes label { position:relative; display:flex; align-items:center; justify-content:center; min-height:44px; margin:0; padding:.25rem; border:1px solid var(--color-border-secondary); font-size:.85rem; cursor:pointer; }
+.takeoff-review__modes label + label { border-left:0; }
+.takeoff-review__modes input { position:absolute; opacity:0; width:1px; height:1px; }
+.takeoff-review__modes label:has(input:checked) { background:var(--color-bg-secondary); box-shadow:inset 0 -3px var(--color-text-primary); font-weight:600; }
+.takeoff-review__modes label:has(input:focus-visible),.takeoff-review__bulk button:focus-visible { outline:2px solid var(--color-primary); outline-offset:3px; }
+.takeoff-review__launch p,.takeoff-review__summary { margin:.5rem 0; color:var(--color-text-secondary); font-size:.8rem; }
 .takeoff-review .takeoff-review__member { display:flex; align-items:center; gap:.6rem; min-width:0; min-height:40px; margin:0; cursor:pointer; }
 .takeoff-review__member strong { color:var(--color-text-primary); }
 .takeoff-review__aircraft { list-style:none; padding:0; margin:0; max-height:45dvh; overflow-y:auto; border-top:1px solid var(--color-border-primary); }
@@ -17,7 +27,7 @@
 .takeoff-review__aircraft--blocked b,.takeoff-review__aircraft--failed b { color:var(--color-danger-text); }
 .takeoff-review__aircraft--excluded { background:var(--color-bg-secondary); }
 .takeoff-review__aircraft--excluded .takeoff-review__member strong,.takeoff-review__aircraft--excluded b { color:var(--color-text-secondary); }
-.takeoff-review__member:has(input:disabled),.takeoff-review__select-all:has(input:disabled) { cursor:default; }
+.takeoff-review__member:has(input:disabled) { cursor:default; }
 .takeoff-review__progress { margin-bottom:1rem; font-weight:600; }
 .takeoff-review > [role=alert] { color:var(--color-danger-text); font-size:.85rem; }
 .takeoff-review > [role=status]:not(.takeoff-review__progress) { font-size:.85rem; }
