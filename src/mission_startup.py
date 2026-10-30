@@ -24,6 +24,29 @@ from src.command_execution_contract import mission_requires_ground_start
 from src.params import Params
 
 
+
+def _positive_finite_float(value, default: float) -> float:
+    """Return value when it is a finite float > 0; otherwise return default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if math.isfinite(parsed) and parsed > 0.0:
+        return parsed
+    return float(default)
+
+
+def _non_negative_finite_float(value, default: float) -> float:
+    """Return value when it is a finite float >= 0; otherwise return default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if math.isfinite(parsed) and parsed >= 0.0:
+        return parsed
+    return float(default)
+
+
 _DEFAULT_LAUNCH_BATTERY_MIN_REMAINING_PERCENT = 30.0
 _STATUS_TEXT_MAX_ITEMS = 8
 _STATUS_TEXT_MAX_CHARS = 240
@@ -426,14 +449,26 @@ async def probe_offboard_armability(
     logger = logger or logging.getLogger(__name__)
     if mission_requires_ground_start(mission_type):
         require_global_position = True
-    wait_timeout = float(timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0))
+    wait_timeout = _positive_finite_float(
+        timeout or getattr(Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 15.0),
+        15.0,
+    )
     # Sampling a set of native streams is not a health-poll interval. Closing
     # subscriptions every 0.5 s can repeatedly miss 1 Hz landed/battery updates.
     # Reuse the coherent-observation budget; complete samples return early and
-    # the outer launch deadline remains authoritative.
-    sample_timeout = max(ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
-        float(getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5)))
-    stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
+    # the outer launch deadline remains authoritative. Non-finite poll budgets
+    # fall back before that floor so nan/inf cannot stretch the sample wait.
+    sample_timeout = max(
+        ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+        _positive_finite_float(
+            getattr(Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.5),
+            0.5,
+        ),
+    )
+    try:
+        stable_samples = max(1, int(getattr(Params, "OFFBOARD_ARM_HEALTH_STABLE_SAMPLES", 1)))
+    except (TypeError, ValueError, OverflowError):
+        stable_samples = 1
     minimum_battery_percent = _launch_battery_minimum_percent(logger)
 
     deadline = time.monotonic() + wait_timeout
@@ -583,9 +618,21 @@ async def arm_with_preflight_gate(
     Wait for armability, then arm with bounded retries on transient denials.
     """
     logger = logger or logging.getLogger(__name__)
-    max_attempts = max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)))
-    retry_delay = float(getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0))
-    arm_action_timeout = max(1.0, float(getattr(Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0)))
+    try:
+        max_attempts = max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)))
+    except (TypeError, ValueError, OverflowError):
+        max_attempts = 3
+    retry_delay = _non_negative_finite_float(
+        getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0),
+        2.0,
+    )
+    arm_action_timeout = max(
+        1.0,
+        _positive_finite_float(
+            getattr(Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0),
+            15.0,
+        ),
+    )
 
     status_text_ring = deque(maxlen=_STATUS_TEXT_MAX_ITEMS)
     denial_evidence = deque(maxlen=_STATUS_TEXT_MAX_ITEMS)
