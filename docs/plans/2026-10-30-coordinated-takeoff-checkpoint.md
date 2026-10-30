@@ -3,14 +3,16 @@
 ## Accepted operator behavior
 
 One reusable Takeoff dialog for Dashboard, Smart Swarm and aircraft actions:
-height, page-scoped roster, native readiness and **Wait for all aircraft**
+height, page-scoped roster, native readiness and **All armed first** launch mode
 (default on for a group). One **Arm & take off** confirmation. Closing is not
 cancellation. Abort decisions remain **Cancelling** until recovery evidence is
 received; unconfirmed recovery never becomes a green success.
 
 The initiating aircraft are preselected. Operators can explicitly exclude and
 reinclude rows before confirmation; excluded rows remain visible and muted.
-Select-all/none and the confirmation count make the scope visible. Selection
+Select all/Clear actions and the confirmation count make the scope visible. Only
+aircraft use checkboxes; Launch mode is a separate, visible radio selector.
+Selection
 locks on confirmation, including uncertain receipt recovery; single-aircraft
 subsets use native independent Takeoff. Saved formation and complete-cluster
 Start Swarm selection are not modified.
@@ -44,8 +46,8 @@ later deployed for inspection after both aircraft were confirmed powered off;
 this does not establish installed-board revision or flight clearance.
 
 The final integrated backend run passed **570 tests**; the frontend passed
-**94 tests in 10 suites** after the selection follow-up. The strict production
-frontend build passed. The browser-only probe passed 24 simulated states across dark/light desktop/mobile,
+**95 tests in 10 suites** after the control-separation follow-up. The strict production
+frontend build passed. The browser-only probe passed 28 simulated states across dark/light desktop/mobile,
 with zero external API writes. Logs use `/tmp/mds-coordinated-*`.
 
 Real two-node PX4 SITL caught issues not represented by unit mocks:
@@ -115,6 +117,9 @@ UI-only follow-up validation covers default scope, explicit exclusion,
 select-all/none, blocked reasons at zero group lease, frozen selection and exact
 subset receipt recovery. The combined operator guide uses unmodified captured
 UI examples; all command responses in browser evidence are simulated.
+The Launch mode radio group also passed native keyboard-arrow navigation in
+each browser case. After confirmation, height/mode remain visible as an immutable
+summary while bulk selection actions disappear. No flight semantics changed.
 Shared Takeoff and Jog dialog styles load once in the app shell, avoiding
 route-dependent stylesheet ordering. The combined guide is linked from the
 [operator steps](../guides/coordinated-takeoff.md).

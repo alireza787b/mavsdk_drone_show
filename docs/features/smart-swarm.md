@@ -369,7 +369,7 @@ Important operator rule:
 - normal Smart Swarm starts are cluster-first: the page opens the first executable
   saved cluster and shows the full leader/follower roster before confirmation;
   a leader-only target is rejected before dispatch
-- multi-aircraft standalone Takeoff defaults to **Wait for all aircraft**:
+- multi-aircraft standalone Takeoff defaults to **Launch mode → All armed first**:
   confirm native readiness, arm all, then release takeoff only after every
   selected aircraft confirms armed on ground. The shared dialog includes height,
   per-aircraft reasons and progress. See the

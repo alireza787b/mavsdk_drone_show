@@ -100,7 +100,8 @@ barrier reduces partial launches, but final PX4 and node checks remain
 per-aircraft and cannot make physical takeoff atomic.
 
 Standalone **Takeoff** opens one shared review: height, exact aircraft and live
-readiness. For a group, **Wait for all aircraft** is checked by default. **Arm &
+readiness. Checkboxes select aircraft; Select all/Clear manage the list. For a
+group, **Launch mode → All armed first** is selected by default. **Arm &
 take off** arms the group, then releases takeoff only after every aircraft
 confirms armed on the ground. **Cancel launch** is available before release;
 **Close** only closes the dialog. See [Coordinated Takeoff](coordinated-takeoff.md)

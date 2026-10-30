@@ -80,9 +80,12 @@ def main():
                 assert client.evaluate("document.querySelector('.takeoff-review__modes input').checked")
                 assert client.evaluate("[...document.querySelectorAll('.takeoff-review__member input')].every(c=>c.checked)")
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-01-ready.png')
-                client.evaluate("document.querySelectorAll('.takeoff-review__modes input')[1].click()")
-                assert client.evaluate("document.querySelectorAll('.takeoff-review__modes input')[1].checked")
+                client.evaluate("document.querySelector('.takeoff-review__modes input').focus()")
+                client.command('Input.dispatchKeyEvent', dict(type='keyDown', key='ArrowRight', code='ArrowRight', windowsVirtualKeyCode=39))
+                client.command('Input.dispatchKeyEvent', dict(type='keyUp', key='ArrowRight', code='ArrowRight', windowsVirtualKeyCode=39))
+                client.wait_for("document.querySelectorAll('.takeoff-review__modes input')[1].checked", timeout_s=3)
                 guide_screenshot(client, '[role=dialog]', args.output_dir/f'{theme}-{viewport}-07-independent.png')
+                client.evaluate("document.activeElement.blur()")
                 client.evaluate("document.querySelector('.takeoff-review__modes input').click()")
                 client.evaluate("window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].valid_for_ms=0; window.__mdsExtraFixtures['/api/v1/commands/takeoff-readiness'].targets[1]={hw_id:'2',status:'blocked',valid_for_ms:0,reason:'Heading estimate unstable',coordinated_takeoff_supported:true}")
                 client.wait_for("document.querySelector('.takeoff-review').textContent.includes('Heading estimate unstable')", timeout_s=8)
@@ -116,7 +119,7 @@ def main():
                 assert not client.runtime_exceptions, client.runtime_exceptions
                 assert layout(client)['documentWidth'] <= width + 2, layout(client)
                 results.append(dict(theme=theme, viewport=viewport, simulated_posts=2, external_api_writes=0,
-                                    ready=True, independent=True, blocked=True, selection=True, none=True, arming=True, cancelled=True))
+                                    ready=True, independent=True, keyboard=True, blocked=True, selection=True, none=True, arming=True, cancelled=True))
             finally:
                 if client:
                     try: client.command('Browser.close')
