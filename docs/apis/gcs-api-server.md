@@ -5,6 +5,10 @@
 **Base URL:** `http://localhost:5030`
 **Documentation:** `/docs` (Swagger UI) | `/redoc` (ReDoc)
 
+Standalone multi-aircraft Takeoff supports the command-bound all-armed barrier,
+native read-only readiness and pre-release cancellation. See the
+[Coordinated Takeoff API and operator guide](../guides/coordinated-takeoff.md).
+
 ---
 
 ## Table of Contents

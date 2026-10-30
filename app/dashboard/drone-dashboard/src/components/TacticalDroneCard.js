@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 import { ConfirmDialog } from './ui';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
+import TakeoffDialog from './TakeoffDialog';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
@@ -288,7 +289,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       </div>
 
       <ConfirmDialog
-        open={Boolean(pendingAction)}
+        open={Boolean(pendingAction) && pendingAction.actionType !== DRONE_ACTION_TYPES.TAKE_OFF}
         title="Confirm Drone Action"
         message={pendingAction ? `${pendingAction.help}. Confirm ${pendingAction.label} for ${actionTargetLabel}?` : ''}
         confirmLabel={pendingAction?.label || 'Confirm'}
@@ -296,6 +297,11 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
         onConfirm={() => submitActionCommand(pendingAction)}
         onCancel={() => setPendingAction(null)}
       />
+
+      <TakeoffDialog open={pendingAction?.actionType === DRONE_ACTION_TYPES.TAKE_OFF}
+        command={{ mission_type: DRONE_ACTION_TYPES.TAKE_OFF, trigger_time: 0, target_drone_ids: [String(hwId)],
+          uiMeta: { operatorLabel: 'Takeoff', targetLabel: actionTargetLabel } }}
+        aircraft={[drone]} onClose={() => setPendingAction(null)} />
 
       <PrecisionMoveDialog
         isOpen={precisionMoveOpen}

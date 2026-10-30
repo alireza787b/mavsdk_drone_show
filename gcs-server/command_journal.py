@@ -29,6 +29,7 @@ import stat
 import threading
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from coordinated_takeoff import durable_params
 
 
 SCHEMA_VERSION = 1
@@ -78,7 +79,7 @@ def _command_payload(command: Any) -> dict[str, Any]:
         "mission_type": command.mission_type,
         "mission_name": command.mission_name,
         "target_drones": list(command.target_drones),
-        "params": dict(command.params),
+        "params": durable_params(command.params),
         "status": _enum_value(command.status),
         "phase": _enum_value(command.phase),
         "outcome": _enum_value(command.outcome) if command.outcome is not None else None,

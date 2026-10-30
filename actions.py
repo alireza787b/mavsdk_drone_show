@@ -50,6 +50,8 @@ from src.action_runners import (
     load_request_payload,
 )
 from src.action_runners.precision_move import precision_move
+from src.action_runners.coordinated_takeoff import load_takeoff_coordinator
+from src.action_state_sampler import ActionStateSampler
 from src.action_result_protocol import (
     TerminalActionResult,
     emit_terminal_result,
@@ -1262,7 +1264,12 @@ async def safe_action(func, *args, **kwargs):
 
 
 async def _run_takeoff(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
-    return await safe_action(takeoff, context.drone, invocation.altitude)
+    coordinator = load_takeoff_coordinator()
+    if coordinator is None:
+        return await safe_action(takeoff, context.drone, invocation.altitude)
+    async with ActionStateSampler(context.drone) as sampler:
+        coordinator.sampler = sampler
+        return await safe_action(takeoff, context.drone, invocation.altitude, coordinator=coordinator)
 
 
 async def _run_land(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
@@ -1393,7 +1400,7 @@ async def ensure_ready_for_flight(drone, timeout: float | None = None):
         raise LaunchReadinessError(result)
     return result["ready"]
 
-async def takeoff(drone, altitude):
+async def takeoff(drone, altitude, *, coordinator=None):
     """
     Arms and takes off to the specified altitude (in meters).
     """
@@ -1430,6 +1437,8 @@ async def takeoff(drone, altitude):
                 retryable=True,
             )
 
+        if coordinator is not None:
+            await coordinator.prepare(drone)
         _safe_led_call(led_controller, "set_color", 255, 255, 0)
         await asyncio.sleep(0.5)
         await drone.action.set_takeoff_altitude(target_altitude)
@@ -1473,22 +1482,25 @@ async def takeoff(drone, altitude):
         # Every actual arm attempt repeats native health/battery and ground
         # admission together, including retries after a transient denial.
         arm_phase_started = True
-        await arm_with_preflight_gate(
-            drone,
-            require_global_position=True,
-            logger=logger,
-            mission_type=Mission.TAKE_OFF.value,
-        )
-        await wait_until_armed_state(
-            drone,
-            True,
-            timeout=Params.TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC,
-        )
+        if coordinator is None:
+            await arm_with_preflight_gate(drone, require_global_position=True,
+                logger=logger, mission_type=Mission.TAKE_OFF.value)
+        else:
+            await coordinator.arm(lambda on_attempt: arm_with_preflight_gate(drone,
+                require_global_position=True, logger=logger,
+                mission_type=Mission.TAKE_OFF.value, on_arm_attempt=on_attempt))
+        armed_confirmation = wait_until_armed_state(drone, True,
+            timeout=Params.TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC)
+        if coordinator is None:
+            await armed_confirmation
+        else:
+            await coordinator.bounded(armed_confirmation)
         _safe_led_call(led_controller, "set_color", 255, 255, 255)
-        await asyncio.sleep(0.5)
-        baseline = await observe_authoritative_vehicle_state(
-            drone, required_fields=("armed", "landed_state", "absolute_altitude_m"),
-        )
+        if coordinator is None:
+            await asyncio.sleep(0.5)
+        baseline_request = observe_authoritative_vehicle_state(
+            drone, required_fields=("armed", "landed_state", "absolute_altitude_m"))
+        baseline = await baseline_request if coordinator is None else await coordinator.bounded(baseline_request)
         if not baseline.complete or baseline.armed is not True or baseline.landed_state != "ON_GROUND":
             raise ActionSafetyError(
                 code="TAKEOFF_BASELINE_UNAVAILABLE", phase="precondition",
@@ -1496,6 +1508,14 @@ async def takeoff(drone, altitude):
                 evidence={"observation": baseline.as_dict()},
             )
         baseline_altitude = baseline.field_value("absolute_altitude_m")
+        if coordinator is not None:
+            baseline = await coordinator.wait_for_release(drone, lambda vehicle:
+                observe_authoritative_vehicle_state(vehicle,
+                    required_fields=("armed", "landed_state", "absolute_altitude_m")))
+            baseline_altitude = baseline.field_value("absolute_altitude_m")
+            if baseline_altitude is None:
+                raise ActionSafetyError(code="TAKEOFF_BASELINE_UNAVAILABLE", phase="precondition",
+                    message="Fresh absolute-altitude baseline missing at coordinated release.")
         takeoff_command_may_have_started = True
         await drone.action.takeoff()
         await wait_until_landed_state(
@@ -1559,15 +1579,40 @@ async def takeoff(drone, altitude):
         _set_final_vehicle_state(final_vehicle_state)
     except BaseException as primary_error:
         _safe_led_call(led_controller, "turn_off")
-        if not arm_phase_started:
+        if not arm_phase_started or (coordinator is not None and coordinator.deadline is None):
             raise
 
-        cleanup_confirmed, final_vehicle_state, cleanup_evidence = (
-            await _shielded_takeoff_cleanup(
-                drone,
-                takeoff_command_may_have_started=takeoff_command_may_have_started,
-            )
-        )
+        if coordinator is not None and takeoff_command_may_have_started and isinstance(primary_error, asyncio.CancelledError):
+            # This process only monitors native PX4 takeoff: it publishes no
+            # Offboard setpoints. A newer tracked recovery owns Hold/RTL/Land.
+            # Do not turn its cooperative handoff into an unsolicited landing.
+            observation = await _best_effort_state_observation(drone)
+            _set_final_vehicle_state(_final_state_from_observation(observation,
+                recovery_action=None, recovery_status="native_takeoff_monitor_released"))
+            _set_action_cleanup_evidence({"cleanup": "native_takeoff_monitor_release",
+                "cleanup_confirmed": True, "vehicle_recovery_confirmed": False,
+                "land_command_attempted": False, "disarm_command_attempted": False})
+            raise
+
+        if coordinator is not None and not takeoff_command_may_have_started:
+            try:
+                await coordinator.report("failed", coordinator.latest_observation,
+                    reason="Takeoff aborted before coordinated release.")
+            except Exception:
+                logger.warning("Could not report coordinated takeoff abort; local cleanup continues.")
+        if coordinator is not None and not takeoff_command_may_have_started:
+            observation = await _best_effort_state_observation(drone)
+            if observation is not None and (observation.armed is False or observation.on_ground):
+                cleanup_confirmed, final_vehicle_state, cleanup_evidence = await _shielded_verified_disarm_cleanup(
+                    drone, initial_observation=observation)
+            else:
+                cleanup_confirmed = False
+                cleanup_evidence = {"cleanup": "coordinated_takeoff_abort", "disarm_blocked": "fresh ground state unavailable"}
+                final_vehicle_state = _final_state_from_observation(observation,
+                    recovery_action=None, recovery_status="disarm_unconfirmed")
+        else:
+            cleanup_confirmed, final_vehicle_state, cleanup_evidence = await _shielded_takeoff_cleanup(
+                drone, takeoff_command_may_have_started=takeoff_command_may_have_started)
         cleanup_evidence["cleanup_confirmed"] = cleanup_confirmed
         _set_action_cleanup_evidence(cleanup_evidence)
         _set_final_vehicle_state(final_vehicle_state)
@@ -1584,6 +1629,13 @@ async def takeoff(drone, altitude):
     # Optional indication must not retain flight-action ownership after the
     # authoritative airborne confirmation (including on nodes without LEDs).
     _safe_led_call(led_controller, "set_color", 0, 255, 0)
+    if coordinator is not None:
+        try:
+            await coordinator.report("airborne", completion_state)
+        except Exception:
+            # Native airborne completion is already authoritative. A failed
+            # optional progress callback must not initiate LAND recovery.
+            logger.warning("Coordinated takeoff completed; airborne callback was not acknowledged.")
     logger.info("Takeoff successful.")
 
 async def land(drone):

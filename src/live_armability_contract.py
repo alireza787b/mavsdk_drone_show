@@ -68,6 +68,7 @@ class LiveArmabilityTrustEnvelope(BaseModel):
     observation: Optional[LaunchReadinessObservation] = None
     remaining_valid_ms: StrictInt = Field(..., ge=0)
     server_processing_ms: StrictInt = Field(..., ge=0)
+    coordinated_takeoff_supported: StrictBool = False
 
     @field_validator("hw_id", "summary")
     @classmethod

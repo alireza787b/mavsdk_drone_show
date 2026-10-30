@@ -61,6 +61,8 @@ from mds_logging.api_schemas import (
     OnboardUlogSummaryResponse,
 )
 from src.live_armability_contract import LiveArmabilityTrustEnvelope
+from src.async_stream_utils import managed_async_stream
+from src.px4_flight_modes import decode_px4_custom_mode, PX4_MAIN_MODE_AUTO
 from src.command_execution_contract import (
     DroneExecutionOutcome,
     format_pending_superseded_execution_error,
@@ -239,6 +241,7 @@ class ReadinessMessageResponse(BaseModel):
 class DroneStateResponse(BaseModel):
     """Drone state response"""
     pos_id: Any
+    current_command_id: Optional[str] = None
     smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
     trajectory_execution: Optional[TrajectoryRuntimeState] = None
     detected_pos_id: Any
@@ -431,6 +434,7 @@ class _LaunchCommitAdmission:
 class LiveArmabilityResponse(LiveArmabilityTrustEnvelope):
     """Full node response extending the shared trust-bearing envelope."""
 
+    coordinated_takeoff_supported: bool = True
     blockers: List[str] = Field(default_factory=list)
     armable: bool = False
     global_position_ok: bool = False
@@ -1581,22 +1585,21 @@ class DroneAPIServer:
             5.0,
         )
         deadline = time.monotonic() + connect_timeout
-        connection_iter = drone.core.connection_state().__aiter__()
+        async with managed_async_stream(drone.core.connection_state) as connection_iter:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Timed out waiting for local MAVSDK connection.")
 
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("Timed out waiting for local MAVSDK connection.")
+                try:
+                    state = await asyncio.wait_for(connection_iter.__anext__(), timeout=min(1.0, remaining))
+                except asyncio.TimeoutError:
+                    continue
+                except StopAsyncIteration as exc:
+                    raise RuntimeError("MAVSDK connection stream ended before connection was confirmed.") from exc
 
-            try:
-                state = await asyncio.wait_for(connection_iter.__anext__(), timeout=min(1.0, remaining))
-            except asyncio.TimeoutError:
-                continue
-            except StopAsyncIteration as exc:
-                raise RuntimeError("MAVSDK connection stream ended before connection was confirmed.") from exc
-
-            if state.is_connected:
-                return
+                if state.is_connected:
+                    return
 
     async def _probe_live_armability(self, require_global_position: bool = True, mission_type: int | None = None) -> Dict[str, Any]:
         probe_started_monotonic = time.monotonic()
@@ -1911,6 +1914,10 @@ class DroneAPIServer:
             )
 
         command_data = command.model_dump(mode="json", exclude_none=True)
+        if command_data.get("takeoff_mode") == "coordinated" and not command_data.get("command_report_capability"):
+            return _LaunchCommitAdmission(command=command, launch_required=True, authorized=False,
+                error_code=CommandErrorCode.INVALID_FORMAT.value,
+                error_detail="Coordinated Takeoff requires command-bound callback authority")
         command_id = command_data.get("command_id")
         if type(command_id) is str and command_id:
             semantic_identity = self._command_semantic_identity(command_data)
@@ -2078,6 +2085,7 @@ class DroneAPIServer:
     def _serialize_drone_state_payload(self, drone_state: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize raw communicator state into the canonical HTTP/WebSocket payload shape."""
         payload = dict(drone_state)
+        payload['current_command_id'] = self._effective_control_command_id()
         server_time_ms = int(time.time() * 1000)
         raw_update_time = payload.get('update_time')
         try:
@@ -2102,6 +2110,33 @@ class DroneAPIServer:
             now_ms=server_time_ms,
         ).model_dump()
         return DroneStateResponse.model_validate(payload).model_dump()
+
+    def _effective_control_command_id(self) -> Optional[str]:
+        """Queued command authority takes precedence over an older subprocess."""
+        current = getattr(self.drone_config, "current_command_id", None)
+        if isinstance(current, str) and current:
+            return current
+        setup = getattr(self.drone_config, "drone_setup", None)
+        active = getattr(setup, "_active_mission_command_id", None)
+        return active if isinstance(active, str) and active else None
+
+    def _conditional_takeoff_hold_ready(self, expected: str) -> bool:
+        """Pure native snapshot fence, called under the command transaction lock."""
+        config = self.drone_config
+        if self._effective_control_command_id() != expected or int(config.mission) != Mission.TAKE_OFF.value:
+            return False
+        now = int(time.time() * 1000)
+        for field in ("heartbeat_timestamp_ms", "landed_state_timestamp_ms"):
+            timestamp = getattr(config, field, None)
+            if type(timestamp) not in (int, float) or not 0 <= now - timestamp <= 1000:
+                return False
+        try:
+            main, sub = decode_px4_custom_mode(getattr(config, "custom_mode", None))
+        except (TypeError, ValueError):
+            return False
+        return (getattr(config, "is_armed", None) is True
+            and getattr(config, "landed_state", None) in (2, 3)
+            and main == PX4_MAIN_MODE_AUTO and sub in (2, 10))
 
     @staticmethod
     def _serialize_swarm_state_payload(swarm_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -2316,6 +2351,7 @@ class DroneAPIServer:
 
             return LaunchPreparationResponse(
                 status="prepared",
+                coordinated_takeoff_supported=True,
                 command_id=command_id,
                 target_hw_id=local_hw_id,
                 mission_type=command.mission_type,
@@ -2600,6 +2636,17 @@ class DroneAPIServer:
                     )
 
                 previous_command_id = state_snapshot.command_id
+                expected_control = command_data.get("expected_control_command_id")
+                if expected_control is not None and not self._conditional_takeoff_hold_ready(expected_control):
+                    response = CommandAckResponse(status="rejected", command_id=command_id,
+                        hw_id=hw_id, pos_id=pos_id, current_state=current_state,
+                        mission_type=mission_type, trigger_time=trigger_time,
+                        message="Takeoff recovery no longer owns this aircraft; no Hold command sent",
+                        error_code=CommandErrorCode.INVALID_FORMAT.value,
+                        error_detail="Original command or fresh native Takeoff control changed",
+                        timestamp=timestamp)
+                    return self._finalize_command_idempotency(idempotency_record, response,
+                        phase="rejected", outcome="rejected")
                 superseded_pending_command = (
                     current_state == State.MISSION_READY.value
                     and previous_command_id

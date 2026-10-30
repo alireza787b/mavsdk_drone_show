@@ -83,6 +83,7 @@ from src.enums import CommandErrorCode, CommandOutcome, CommandPhase, CommandSta
 from src.execution_evidence import normalize_execution_evidence
 from mds_logging import get_logger
 from command_journal import CommandJournal, CommandJournalError
+from coordinated_takeoff import CoordinatedTakeoffTrackerMixin, public_snapshot as takeoff_snapshot
 
 logger = get_logger("command_tracker")
 
@@ -227,7 +228,7 @@ class TrackedCommand:
     error_summary: Optional[str] = None
 
 
-class CommandTracker:
+class CommandTracker(CoordinatedTakeoffTrackerMixin):
     """
     Thread-safe command lifecycle tracker.
 
@@ -269,6 +270,7 @@ class CommandTracker:
         self._commands: OrderedDict[str, TrackedCommand] = OrderedDict()
         self._idempotency_index: Dict[str, str] = {}
         self._lock = asyncio.Lock()
+        self._takeoff_boot_id = secrets.token_urlsafe(24)
         # Durable runtimes derive capabilities from a versioned host-local key
         # owned by CommandJournal. Isolated in-memory trackers retain an
         # ephemeral key so direct unit tests do not write host state.
@@ -295,6 +297,10 @@ class CommandTracker:
                     self._stats[key] = max(0, int(persisted_stats[key]))
             for payload in persisted_commands:
                 command = self._tracked_command_from_journal(payload)
+                barrier = command.params.get('_coordinated_takeoff')
+                if barrier and command.phase != CommandPhase.TERMINAL and barrier.get('phase') != 'airborne':
+                    barrier.update(phase='aborted', reason='Ground system restarted; review and retry takeoff')
+                    self._journal.save_command(command, stats=self._stats, event_type='takeoff_restart_fenced')
                 self._commands[command.command_id] = command
                 if command.idempotency_key:
                     if command.idempotency_key in self._idempotency_index:
@@ -2063,6 +2069,8 @@ class CommandTracker:
                     continue
                 if swarm:
                     command.params["_swarm_stop_requested"] = True
+                if command.params.get('_coordinated_takeoff'):
+                    command.params['_coordinated_takeoff'].update(phase='aborted', reason='Stopped by a newer recovery command')
                 pending = not command.execution_starts and not command.executions
                 if swarm:
                     pending = not command.params.get("_swarm_engaged")
@@ -2598,7 +2606,8 @@ class CommandTracker:
             'mission_type': command.mission_type,
             'mission_name': command.mission_name,
             'target_drones': list(command.target_drones),  # Copy list too
-            'params': dict(command.params),  # Copy dict
+            'params': {key: value for key, value in command.params.items() if key != '_coordinated_takeoff'},
+            'coordinated_takeoff': takeoff_snapshot(command),
             'swarm_runtime': runtime_summary(command.params, command.target_drones,
                                               terminal=self._is_terminal(command)),
             'status': command.status.value,

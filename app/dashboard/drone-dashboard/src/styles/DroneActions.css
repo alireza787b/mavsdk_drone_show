@@ -52,7 +52,7 @@
 
 .action-configuration-grid {
     display: grid;
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--spacing-lg);
     align-items: start;
 }
@@ -133,17 +133,6 @@
     gap: var(--spacing-sm);
     align-items: stretch;
     margin-top: var(--spacing-sm);
-}
-
-.takeoff-section {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-base);
-    background: var(--color-surface-muted);
-    padding: var(--spacing-base);
-    border-radius: var(--border-radius-base);
-    border: 1px solid var(--color-border-primary);
-    flex-wrap: wrap;
 }
 
 .action-schedule {
@@ -233,34 +222,6 @@
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
-}
-
-.takeoff-section label {
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-}
-
-.takeoff-section__hint {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-.altitude-input {
-    min-width: 80px;
-    padding: var(--spacing-sm);
-    border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-    background: var(--color-bg-quaternary);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-base);
-    transition: var(--transition-base);
-}
-
-.altitude-input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-border);
 }
 
 .action-button {
@@ -551,16 +512,6 @@
         font-size: 0.72rem;
     }
 
-    .takeoff-section {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--spacing-sm);
-    }
-
-    .altitude-input {
-        width: 100%;
-    }
-
     .modal-content {
         padding: var(--spacing-lg);
         margin: var(--spacing-base);
@@ -623,7 +574,6 @@
 
 /* Focus states for accessibility */
 .action-button:focus-visible,
-.altitude-input:focus-visible,
 .confirm-button:focus-visible,
 .cancel-button:focus-visible {
     outline: 2px solid var(--color-primary) !important;

@@ -125,6 +125,14 @@ class DroneConfig:
         self._state.runtime_takeoff_altitude = value
 
     @property
+    def takeoff_mode(self) -> Optional[str]:
+        return self._state.takeoff_mode
+
+    @takeoff_mode.setter
+    def takeoff_mode(self, value: Optional[str]):
+        self._state.takeoff_mode = value
+
+    @property
     def all_configs(self) -> Dict[int, Dict[str, float]]:
         """All drone position configurations."""
         return self._config_data.all_configs

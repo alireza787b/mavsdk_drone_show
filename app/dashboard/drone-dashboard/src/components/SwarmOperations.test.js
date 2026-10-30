@@ -9,6 +9,7 @@ const mockMonitors = [];
 jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: {}, commandMonitors: mockMonitors }) }));
 jest.mock('./SequentialReturnControl', () => ({ targetIds, compact }) => <button>Return {compact ? targetIds.join(',') : 'legacy'}</button>);
 const decisions = Object.fromEntries(['1', '2'].map((id) => [id, { hw_id: id, status: 'ready', message: 'Ready', valid_for_ms: 10000 }]));
+const takeoffReadiness = { valid_for_ms: 10000, targets: ['1', '2'].map((hw_id) => ({ hw_id, status: 'ready', coordinated_takeoff_supported: true })) };
 const preview = { runtime_mode: 'SITL', revision: 'revision', start_admissions: decisions, clusters: [{ cluster_id: '1', members: [
   { hw_id: '1', follow: '0', available: true, armed: false, frame: 'ned' },
   { hw_id: '2', follow: '1', available: true, armed: false, frame: 'ned', offset_x: 6 },
@@ -16,7 +17,7 @@ const preview = { runtime_mode: 'SITL', revision: 'revision', start_admissions: 
 beforeEach(() => {
   jest.clearAllMocks(); sessionStorage.clear();
   mockMonitors.length = 0;
-  fetchGcsResource.mockResolvedValue({ data: preview });
+  fetchGcsResource.mockImplementation((path) => Promise.resolve({ data: path.startsWith('/api/v1/commands/takeoff-readiness') ? takeoffReadiness : preview }));
   submitCommandWithLifecycleFeedback.mockResolvedValue({ command_id: 'test' });
 });
 async function mounted() {
@@ -42,7 +43,8 @@ test('takeoff is separate, default 10 m and cancelled confirmation sends nothing
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }));
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm Takeoff' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled());
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Arm & take off' }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(expect.objectContaining({ mission_type: 10, takeoff_altitude: 10, target_drone_ids: ['1', '2'] }), expect.anything()));
 });
 test('reviewed revision changes block dispatch', async () => {
@@ -154,14 +156,19 @@ test('disappeared explicit cluster does not silently become another cluster', as
     expect(screen.getByRole('button', { name: 'Start Swarm' })).toBeDisabled();
   } finally { jest.useRealTimers(); }
 });
-test('takeoff in mixed state explicitly targets only the grounded drone', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { ...preview, clusters: [{ ...preview.clusters[0], members: [
+test('takeoff never silently removes the airborne member of a reviewed cluster', async () => {
+  const mixedPreview = { ...preview, clusters: [{ ...preview.clusters[0], members: [
     preview.clusters[0].members[0], { ...preview.clusters[0].members[1], armed: true, landed_state: 2, relative_altitude_m: -5 },
-  ] }] } });
+  ] }] };
+  fetchGcsResource.mockImplementation((path) => Promise.resolve({ data: path.startsWith('/api/v1/commands/takeoff-readiness')
+    ? { ...takeoffReadiness, targets: [takeoffReadiness.targets[0], { hw_id: '2', status: 'blocked', reason: 'Aircraft already airborne' }] }
+    : mixedPreview }));
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));
-  expect(within(screen.getByRole('dialog')).getByText('Drone 1')).toBeInTheDocument();
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm Takeoff' }));
-  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(expect.objectContaining({ target_drone_ids: ['1'] }), expect.anything()));
+  expect(within(screen.getByRole('dialog')).getByText('Aircraft 1')).toBeInTheDocument();
+  expect(within(screen.getByRole('dialog')).getByText('Aircraft 2')).toBeInTheDocument();
+  await screen.findByText('Aircraft already airborne');
+  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 test('single-drone recovery requires the explicit advanced selector', async () => {
   await mounted();

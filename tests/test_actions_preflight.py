@@ -43,6 +43,92 @@ sys.modules.setdefault("mavsdk.offboard", mavsdk_offboard_module)
 sys.modules.setdefault("mavsdk.action", types.SimpleNamespace(ActionError=Exception))
 
 import actions  # noqa: E402
+from src.action_runners.coordinated_takeoff import CoordinatedTakeoffGate
+
+
+def _coordinated_action_fixture(mocker):
+    ground = _vehicle_state(armed=True)
+    airborne = _vehicle_state(armed=True, landed_state="IN_AIR", relative_altitude_m=10)
+    coordinator = CoordinatedTakeoffGate(dict(command_id="op", hw_id="1", capability="x"*43, url="http://127.0.0.1"))
+    coordinator.prepare = mocker.AsyncMock()
+    coordinator.lease_seconds = 8
+    coordinator.report = mocker.AsyncMock()
+    coordinator.wait_for_release = mocker.AsyncMock(return_value=ground)
+    async def arm(drone, **kwargs):
+        kwargs["on_arm_attempt"]()
+    mocker.patch("actions.arm_with_preflight_gate", new=mocker.AsyncMock(side_effect=arm))
+    mocker.patch("actions.ensure_ready_for_flight", new=mocker.AsyncMock(return_value=True))
+    mocker.patch("actions._optional_led_controller", return_value=None)
+    mocker.patch("actions.observe_authoritative_vehicle_state", new=mocker.AsyncMock(side_effect=[_vehicle_state(), ground]))
+    mocker.patch("actions.wait_until_armed_state", new=mocker.AsyncMock())
+    mocker.patch("actions.wait_until_landed_state", new=mocker.AsyncMock(return_value="IN_AIR"))
+    mocker.patch("actions.wait_for_authoritative_airborne_state", new=mocker.AsyncMock(return_value=airborne))
+    mocker.patch("actions.asyncio.sleep", new=mocker.AsyncMock())
+    drone = SimpleNamespace(action=SimpleNamespace(set_takeoff_altitude=mocker.AsyncMock(), takeoff=mocker.AsyncMock(),
+        land=mocker.AsyncMock(), disarm=mocker.AsyncMock()))
+    return coordinator, drone, ground, airborne
+
+
+@pytest.mark.asyncio
+async def test_coordinated_takeoff_sends_no_takeoff_before_group_release(mocker):
+    gate, drone, ground, _ = _coordinated_action_fixture(mocker)
+    waiting, release = asyncio.Event(), asyncio.Event()
+    async def barrier(*args):
+        waiting.set()
+        await release.wait()
+        return ground
+    gate.wait_for_release.side_effect = barrier
+    task = asyncio.create_task(actions.takeoff(drone, 10, coordinator=gate))
+    await asyncio.wait_for(waiting.wait(), timeout=2)
+    drone.action.takeoff.assert_not_awaited()
+    release.set()
+    await task
+    drone.action.takeoff.assert_awaited_once()
+    assert gate.report.await_args.args[0] == "airborne"
+
+
+@pytest.mark.asyncio
+async def test_coordinated_cancel_before_release_disarms_only_confirmed_ground(mocker):
+    gate, drone, ground, _ = _coordinated_action_fixture(mocker)
+    gate.wait_for_release.side_effect = asyncio.CancelledError()
+    mocker.patch("actions._best_effort_state_observation", new=mocker.AsyncMock(return_value=ground))
+    cleanup = mocker.patch("actions._shielded_verified_disarm_cleanup", new=mocker.AsyncMock(return_value=(True, {}, {})))
+    land_cleanup = mocker.patch("actions._shielded_takeoff_cleanup", new=mocker.AsyncMock())
+    with pytest.raises(asyncio.CancelledError):
+        await actions.takeoff(drone, 10, coordinator=gate)
+    cleanup.assert_awaited_once()
+    land_cleanup.assert_not_awaited()
+    drone.action.takeoff.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coordinated_abort_unknown_state_never_disarms_or_lands(mocker):
+    gate, drone, _, _ = _coordinated_action_fixture(mocker)
+    gate.wait_for_release.side_effect = RuntimeError("Peer rejected arming")
+    mocker.patch("actions._best_effort_state_observation", new=mocker.AsyncMock(return_value=None))
+    disarm_cleanup = mocker.patch("actions._shielded_verified_disarm_cleanup", new=mocker.AsyncMock())
+    land_cleanup = mocker.patch("actions._shielded_takeoff_cleanup", new=mocker.AsyncMock())
+    with pytest.raises(Exception):
+        await actions.takeoff(drone, 10, coordinator=gate)
+    disarm_cleanup.assert_not_awaited()
+    land_cleanup.assert_not_awaited()
+    assert actions._LAST_ACTION_CLEANUP_EVIDENCE["cleanup_confirmed"] is False
+    drone.action.takeoff.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coordinated_monitor_cancellation_does_not_land_over_new_hold(mocker):
+    gate, drone, _, airborne = _coordinated_action_fixture(mocker)
+    mocker.patch("actions.wait_until_landed_state", new=mocker.AsyncMock(side_effect=asyncio.CancelledError()))
+    mocker.patch("actions._best_effort_state_observation", new=mocker.AsyncMock(return_value=airborne))
+    land_cleanup = mocker.patch("actions._shielded_takeoff_cleanup", new=mocker.AsyncMock())
+    with pytest.raises(asyncio.CancelledError):
+        await actions.takeoff(drone, 10, coordinator=gate)
+    land_cleanup.assert_not_awaited()
+    drone.action.land.assert_not_awaited()
+    drone.action.disarm.assert_not_awaited()
+    assert actions._LAST_ACTION_CLEANUP_EVIDENCE["vehicle_recovery_confirmed"] is False
+    assert actions._LAST_FINAL_VEHICLE_STATE["recovery_status"] == "native_takeoff_monitor_released"
 
 
 def test_action_contract_has_no_parallel_px4_parameter_mutation_authority():

@@ -46,6 +46,7 @@ from src.gcs_api_routes import (
 )
 from src.gcs_auth_client import gcs_auth_headers
 from src.swarm_runtime_state import read_runtime_swarm_assignment
+from src.action_runners.coordinated_takeoff import TAKEOFF_CONTEXT_FD_ENV
 
 logger = get_logger("drone_setup")
 
@@ -1024,6 +1025,7 @@ class DroneSetup:
             control_release_write_fd = None
             ownership_token = uuid.uuid4().hex
             swarm_context = None
+            takeoff_context = None
             try:
                 process_kwargs = {
                     "stdout": asyncio.subprocess.PIPE,
@@ -1035,6 +1037,7 @@ class DroneSetup:
                 }
                 child_env = os.environ.copy()
                 child_env.pop("MDS_BORROW_MAVSDK_SERVER", None)
+                child_env.pop(TAKEOFF_CONTEXT_FD_ENV, None)
                 for name in (CONTROL_RELEASE_FD_ENV, CONTROL_RELEASE_OWNER_ENV, CONTROL_RELEASE_COMMAND_ENV):
                     child_env.pop(name, None)
                 if mission_type != Mission.SMART_SWARM.value and self._can_overlap_leader_role_session():
@@ -1065,6 +1068,20 @@ class DroneSetup:
                         env=child_env,
                         pass_fds=(action_result_write_fd,),
                     )
+                    if mission_type == Mission.TAKE_OFF.value and getattr(self.drone_config, "takeoff_mode", None) == "coordinated":
+                        capability = self._get_command_report_capability(command_id)
+                        if not command_id or not capability:
+                            raise ValueError("Coordinated Takeoff requires command-bound callback authority")
+                        url = self._build_command_report_url("/api/v1/command-reports/takeoff-stage")
+                        if not url:
+                            raise ValueError("Coordinated Takeoff requires a configured GCS callback")
+                        takeoff_context = tempfile.TemporaryFile(mode="w+")
+                        json.dump({"command_id": command_id, "hw_id": str(self.drone_config.hw_id),
+                            "url": url, "capability": capability}, takeoff_context)
+                        takeoff_context.flush()
+                        takeoff_context.seek(0)
+                        child_env[TAKEOFF_CONTEXT_FD_ENV] = str(takeoff_context.fileno())
+                        process_kwargs["pass_fds"] += (takeoff_context.fileno(),)
                 try:
                     process = await asyncio.create_subprocess_exec(
                         *command,
@@ -1089,6 +1106,8 @@ class DroneSetup:
                     control_release_write_fd = None
                 if swarm_context is not None:
                     swarm_context.close()
+                if takeoff_context is not None:
+                    takeoff_context.close()
                 process_key = self._build_process_key(script_name, command_id)
                 process_record = RunningMissionProcess(
                     process_key=process_key,
@@ -1119,6 +1138,8 @@ class DroneSetup:
             except Exception as e:
                 if swarm_context is not None:
                     swarm_context.close()
+                if takeoff_context is not None:
+                    takeoff_context.close()
                 for result_fd in (action_result_write_fd, action_result_read_fd,
                                   control_release_write_fd, control_release_read_fd):
                     if result_fd is not None:
@@ -2081,6 +2102,7 @@ class DroneSetup:
         self.drone_config.mission = Mission.NONE.value
         self.drone_config.state = State.IDLE.value
         self.drone_config.runtime_takeoff_altitude = None  # Clear runtime override
+        self.drone_config.takeoff_mode = None
         self._log_mission_result(success, "Mission finished." if success else "Mission failed.")
 
     # --------------------- MISSION HANDLER HELPERS ---------------------

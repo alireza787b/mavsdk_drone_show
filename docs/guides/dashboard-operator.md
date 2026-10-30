@@ -99,6 +99,13 @@ do not repeat a command merely to force a green state. A fleet preparation
 barrier reduces partial launches, but final PX4 and node checks remain
 per-aircraft and cannot make physical takeoff atomic.
 
+Standalone **Takeoff** opens one shared review: height, exact aircraft and live
+readiness. For a group, **Wait for all aircraft** is checked by default. **Arm &
+take off** arms the group, then releases takeoff only after every aircraft
+confirms armed on the ground. **Cancel launch** is available before release;
+**Close** only closes the dialog. See [Coordinated Takeoff](coordinated-takeoff.md)
+for cancellation and recovery indications.
+
 Mission-specific reminders:
 
 - Drone Show uses one canonical `/drone-show` workspace. **Design / Setup** is
@@ -129,6 +136,7 @@ Mission-specific reminders:
 ## Related Guides
 
 - [Fleet Ops](fleet-ops.md)
+- [Coordinated Takeoff](coordinated-takeoff.md)
 - [Runtime Config Sources](runtime-config-sources.md)
 - [SITL Control](sitl-control.md)
 - [Smart Swarm](../features/smart-swarm.md)

@@ -49,6 +49,7 @@ def _build_communicator(tmp_path: Path, monkeypatch, *, config_type=FailOnceConf
         use_global_setpoints=True,
         takeoff_altitude=17.0,
         runtime_takeoff_altitude=17.0,
+        takeoff_mode='independent',
     )
     params = SimpleNamespace(
         enable_udp_telemetry=False,
@@ -76,6 +77,7 @@ def _command_snapshot(config):
         "use_global_setpoints",
         "takeoff_altitude",
         "runtime_takeoff_altitude",
+        "takeoff_mode",
     )
     return {field: getattr(config, field) for field in fields}
 
@@ -88,6 +90,35 @@ def _transaction_debris(root: Path):
         for path in root.rglob("*")
         if path.is_file() and (".stage-" in path.name or ".backup-" in path.name)
     ]
+
+
+def test_takeoff_mode_is_command_owned_and_cleared_by_recovery(tmp_path, monkeypatch):
+    communicator, config, _ = _build_communicator(tmp_path, monkeypatch)
+    communicator.process_command(dict(mission_type=Mission.TAKE_OFF.value, trigger_time=0,
+                                      command_id='group-launch', takeoff_mode='coordinated'))
+    assert config.takeoff_mode == 'coordinated'
+    communicator.process_command(dict(mission_type=Mission.HOLD.value, trigger_time=0,
+                                      command_id='pilot-hold'))
+    assert config.takeoff_mode is None
+
+
+def test_takeoff_mode_participates_in_transactional_rollback(tmp_path, monkeypatch):
+    communicator, config, _ = _build_communicator(tmp_path, monkeypatch)
+    before = _command_snapshot(config)
+    config.arm_set_failure('takeoff_altitude')
+    with pytest.raises(CommandInstallationRejected):
+        communicator.process_command(dict(mission_type=Mission.TAKE_OFF.value, trigger_time=0,
+                                          command_id='group-launch', takeoff_mode='coordinated'))
+    assert _command_snapshot(config) == before
+
+
+def test_invalid_takeoff_mode_cannot_modify_prior_command(tmp_path, monkeypatch):
+    communicator, config, _ = _build_communicator(tmp_path, monkeypatch)
+    before = _command_snapshot(config)
+    with pytest.raises(CommandInstallationRejected):
+        communicator.process_command(dict(mission_type=Mission.TAKE_OFF.value, trigger_time=0,
+                                          command_id='group-launch', takeoff_mode='force'))
+    assert _command_snapshot(config) == before
 
 
 def test_invalid_origin_rejects_without_mutating_prior_command_or_origin(

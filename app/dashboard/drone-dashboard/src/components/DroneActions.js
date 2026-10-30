@@ -78,7 +78,6 @@ const DroneActions = ({
   onRequestPrecisionMove,
   targetCount = 0,
   takeoffAltitude = 10,
-  onTakeoffAltitudeChange = () => {},
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
   runtimeMode = 'unknown',
@@ -233,20 +232,6 @@ const DroneActions = ({
       </div>
 
       <div className="action-configuration-grid">
-        <div className="takeoff-section">
-          <label htmlFor="takeoff-altitude">Takeoff Altitude (m)</label>
-          <input
-            type="number"
-            id="takeoff-altitude"
-            value={takeoffAltitude}
-            onChange={(e) => onTakeoffAltitudeChange(Number(e.target.value))}
-            min="1"
-            max="1000"
-            className="altitude-input"
-          />
-          <span className="takeoff-section__hint">Used by Take Off only.</span>
-        </div>
-
         <details
           className="action-schedule"
           open={scheduleOpen}
@@ -354,7 +339,6 @@ DroneActions.propTypes = {
   onRequestPrecisionMove: PropTypes.func.isRequired,
   targetCount: PropTypes.number,
   takeoffAltitude: PropTypes.number,
-  onTakeoffAltitudeChange: PropTypes.func,
   referenceNowMs: PropTypes.number,
   clockOffsetLabel: PropTypes.string,
   runtimeMode: PropTypes.oneOf(['real', 'sitl', 'unknown']),

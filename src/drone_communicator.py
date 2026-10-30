@@ -224,6 +224,7 @@ class DroneCommunicator:
             "global_position_valid": global_position_valid,
             "global_position_timestamp_ms": global_position_timestamp_ms,
             "landed_state": getattr(self.drone_config, "landed_state", None),
+            "current_command_id": getattr(self.drone_config, "current_command_id", None),
             "landed_state_timestamp_ms": safe_int(getattr(self.drone_config, "landed_state_timestamp_ms", 0)),
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "source_frame": "local_ned" if safe_int(local_ned.get("time_boot_ms")) > 0 else "global_lla_ned",
@@ -429,6 +430,7 @@ class DroneCommunicator:
             # previous command family.
             updates: List[Tuple[str, Any]] = [
                 ("runtime_takeoff_altitude", None),
+                ("takeoff_mode", None),
                 ("update_branch", None),
                 ("ground_test_request_file", None),
                 ("quickscout_mission_id", None),
@@ -469,6 +471,10 @@ class DroneCommunicator:
                     )
 
             if mission == Mission.TAKE_OFF.value:
+                takeoff_mode = command_data.get("takeoff_mode")
+                if takeoff_mode not in (None, "coordinated", "independent"):
+                    raise ValueError("takeoff_mode must be coordinated or independent")
+                updates.append(("takeoff_mode", takeoff_mode))
                 assigned_altitude = float(
                     command_data.get("takeoff_altitude", self.params.default_takeoff_alt)
                 )

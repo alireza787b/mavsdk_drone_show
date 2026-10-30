@@ -9,6 +9,14 @@
 
 ## Overview
 
+Coordinated standalone Takeoff uses the existing preparation/command lifecycle.
+Readiness and preparation responses explicitly advertise
+`coordinated_takeoff_supported`; absent support is false. Each action owns its
+bounded armed wait and authenticated stage callbacks. Conditional group-failure
+Hold checks the expected active command and fresh native takeoff state under the
+node command lock, without overriding pilot control. See
+[Coordinated Takeoff](../guides/coordinated-takeoff.md).
+
 Launch readiness may be action-specific (`mission_type`). For Takeoff and
 ground-start Swarm Trajectory (Mission 4), the
 prepared observation includes `admission.predicate=takeoff_ground_disarmed`,

@@ -1,0 +1,18 @@
+.takeoff-review { min-width:0; color:var(--color-text-primary); }
+.takeoff-review .takeoff-review__height { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+.takeoff-review__height > span { display:flex; align-items:center; gap:.5rem; }
+.takeoff-review__height input { box-sizing:border-box; width:100px; min-height:40px; border:1px solid var(--color-border-secondary); border-radius:0; padding:.5rem; background:var(--color-bg-secondary); color:var(--color-text-primary); font:inherit; }
+.takeoff-review .takeoff-review__wait { display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; }
+.takeoff-review__wait input { appearance:auto; width:18px !important; min-width:18px !important; height:18px !important; min-height:18px !important; margin:0; accent-color:var(--color-primary); }
+.takeoff-review__aircraft { list-style:none; padding:0; margin:0; max-height:45dvh; overflow-y:auto; border-top:1px solid var(--color-border-primary); }
+.takeoff-review__aircraft li { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:1rem; padding:.75rem 0; border-bottom:1px solid var(--color-border-primary); }
+.takeoff-review__aircraft strong,.takeoff-review__aircraft li > span { display:flex; flex-direction:column; gap:.25rem; min-width:0; overflow-wrap:anywhere; }
+.takeoff-review__aircraft small { color:var(--color-text-secondary); font-size:.76rem; font-weight:400; }
+.takeoff-review__aircraft b { font-size:.85rem; font-weight:500; text-transform:capitalize; color:var(--color-warning-text); }
+.takeoff-review__aircraft--ready b,.takeoff-review__aircraft--airborne b { color:var(--color-success-text); }
+.takeoff-review__aircraft--blocked b,.takeoff-review__aircraft--failed b { color:var(--color-danger-text); }
+.takeoff-review__progress { margin-bottom:1rem; font-weight:600; }
+.takeoff-review > [role=alert] { color:var(--color-danger-text); font-size:.85rem; }
+.takeoff-review > [role=status]:not(.takeoff-review__progress) { font-size:.85rem; }
+.takeoff-review > button { margin-top:.75rem; }
+@media(max-width:480px) { .takeoff-review__height input { font-size:16px; } .takeoff-review__aircraft li { gap:.5rem; } }

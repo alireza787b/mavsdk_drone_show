@@ -14,6 +14,7 @@ import {
 import { ConfirmDialog } from './ui';
 import InfoHint from './InfoHint';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
+import TakeoffDialog from './TakeoffDialog';
 import { buildActionCommand } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
@@ -336,7 +337,7 @@ const DroneCriticalCommands = ({
       </div>
 
       <ConfirmDialog
-        open={modalOpen}
+        open={modalOpen && pendingAction?.actionType !== DRONE_ACTION_TYPES.TAKE_OFF}
         title={pendingAction?.tone === 'danger' ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
@@ -349,6 +350,11 @@ const DroneCriticalCommands = ({
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
+
+      <TakeoffDialog open={modalOpen && pendingAction?.actionType === DRONE_ACTION_TYPES.TAKE_OFF}
+        command={{ mission_type: DRONE_ACTION_TYPES.TAKE_OFF, trigger_time: 0, target_drone_ids: [String(droneId)],
+          uiMeta: { operatorLabel: 'Takeoff', targetLabel: resolvedTargetLabel } }}
+        aircraft={[{ hw_id: droneId, name: resolvedTargetLabel }]} onClose={handleCancel} />
 
       <PrecisionMoveDialog
         isOpen={precisionMoveDialogOpen}

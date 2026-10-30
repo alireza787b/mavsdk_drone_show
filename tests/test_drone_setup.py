@@ -1057,6 +1057,39 @@ class TestScriptExecution:
         assert lifecycle["state"] == State.MISSION_EXECUTING.value
 
     @pytest.mark.asyncio
+    async def test_coordinated_takeoff_context_uses_anonymous_fd_not_command_line(self):
+        import json
+        from src.drone_setup import DroneSetup
+        from src.action_runners.coordinated_takeoff import TAKEOFF_CONTEXT_FD_ENV
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800
+        params.COMMAND_IDEMPOTENCY_MAX_HISTORY = 256
+        params.GCS_IP, params.gcs_api_port = "127.0.0.1", 5030
+        config = create_mock_drone_config()
+        config.current_command_id, config.mission, config.takeoff_mode = "group-op", Mission.TAKE_OFF.value, "coordinated"
+        setup = DroneSetup(params, config)
+        setup.register_command_report_capability("group-op", "secret"*9)
+        process = Mock(pid=4321, returncode=None)
+        captured = {}
+        async def spawn(*args, **kwargs):
+            descriptor = int(kwargs["env"][TAKEOFF_CONTEXT_FD_ENV])
+            captured.update(json.loads(os.read(descriptor, 8192)))
+            assert descriptor in kwargs["pass_fds"]
+            assert "secret" not in str(args)
+            return process
+        def task(coro):
+            coro.close()
+            return Mock()
+        with patch('src.drone_setup.os.path.isfile', return_value=True), \
+             patch('src.drone_setup.asyncio.create_subprocess_exec', side_effect=spawn), \
+             patch('src.drone_setup.asyncio.create_task', side_effect=task):
+            result = await setup.execute_mission_script("actions.py", "--action=takeoff --altitude=10")
+        assert result[0]
+        assert captured == dict(command_id="group-op", hw_id="1", capability="secret"*9,
+            url="http://127.0.0.1:5030/api/v1/command-reports/takeoff-stage")
+
+    @pytest.mark.asyncio
     async def test_execute_reserves_launching_lifecycle_before_subprocess_creation(self):
         """Duplicate lookup sees accepted ownership during the detach/spawn gap."""
         from src.drone_setup import DroneSetup

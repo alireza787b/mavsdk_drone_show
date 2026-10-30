@@ -1401,6 +1401,10 @@ tools:
       takeoff_altitude:
         type: number
         exclusiveMinimum: 0
+      takeoff_mode:
+        type: string
+        enum: [coordinated, independent]
+        description: Standalone TAKE_OFF only. Groups default to coordinated arming; independent must be explicitly requested and confirmed.
       precision_move:
         type: object
         additionalProperties: false

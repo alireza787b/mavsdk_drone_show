@@ -141,6 +141,7 @@ class LaunchPreparationResponse(BaseModel):
 
     schema_version: Literal[1] = LAUNCH_PREPARATION_SCHEMA_VERSION
     status: Literal["prepared", "rejected"]
+    coordinated_takeoff_supported: StrictBool = False
     command_id: StrictStr = Field(..., min_length=1, max_length=200)
     target_hw_id: StrictStr = Field(..., min_length=1, max_length=64)
     mission_type: StrictInt

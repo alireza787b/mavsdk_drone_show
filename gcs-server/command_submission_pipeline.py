@@ -239,6 +239,10 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
     """Complete timeout estimation, readiness, and dispatch for one tracker ID."""
     deps = work.deps
     tracker = work.tracker
+    coordinated_takeoff = work.mission_type_int == 10 and work.command_data.get('takeoff_mode') == 'coordinated' and len(work.target_hw_ids) > 1
+    if coordinated_takeoff:
+        if not await tracker.initialize_coordinated_takeoff(work.command_id, deps.Params):
+            return
     await asyncio.to_thread(
         ensure_sitl_callback_endpoint_matches,
         deps,
@@ -261,6 +265,8 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
             launch_preparation,
         )
         if not launch_preparation["all_prepared"]:
+            if coordinated_takeoff:
+                await tracker.abort_coordinated_takeoff(work.command_id, 'A required aircraft failed preflight')
             return
         launch_preparation_tokens = launch_preparation["preparation_tokens"]
 
@@ -294,6 +300,10 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
     if not await tracker.update_deadline_before_dispatch(work.command_id, timeout_at_ms):
         return
 
+    if coordinated_takeoff:
+        status = await tracker.get_status(work.command_id)
+        if not status or (status.get('coordinated_takeoff') or {}).get('phase') == 'aborted':
+            return
     if not await tracker.mark_submitted(work.command_id):
         status = await tracker.get_status(work.command_id)
         if status and status.get("phase") == CommandPhase.TERMINAL.value:
@@ -310,6 +320,10 @@ async def run_tracked_submission(work: TrackedSubmissionWork) -> None:
         allow_legacy_update_envelope=work.allow_legacy_update_envelope,
     )
     await record_command_acknowledgements(tracker, work.command_id, results)
+    if coordinated_takeoff:
+        status = await tracker.get_status(work.command_id)
+        if any(row.get('category') != 'accepted' for row in ((status or {}).get('acks') or {}).get('details', {}).values()):
+            await tracker.abort_coordinated_takeoff(work.command_id, 'A required aircraft did not accept takeoff')
 
 
 async def terminalize_submission_failure(

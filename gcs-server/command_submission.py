@@ -291,6 +291,11 @@ async def submit_tracked_command(
 
     target_hw_ids = [str(drone["hw_id"]) for drone in actual_targets]
 
+    if resolved_mission == deps.Mission.TAKE_OFF:
+        mode = (command_data.get('takeoff_mode') or 'coordinated') if len(target_hw_ids) > 1 else 'independent'
+        command_data['takeoff_mode'] = mode
+        dispatch_payload['takeoff_mode'] = mode
+
     if resolved_mission == deps.Mission.SMART_SWARM:
         from smart_swarm_service import build_preview
         from smart_swarm_targets import validate_cluster_targets

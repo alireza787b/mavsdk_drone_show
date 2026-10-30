@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
+import TakeoffDialog from './TakeoffDialog';
 import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
 import { ConfirmDialog } from './ui';
@@ -77,7 +78,7 @@ const CommandSender = ({
   const [internalSelectedClusterScope, setInternalSelectedClusterScope] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [precisionMoveDialogOpen, setPrecisionMoveDialogOpen] = useState(false);
-  const [takeoffAltitude, setTakeoffAltitude] = useState(10);
+  const takeoffAltitude = 10;
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -496,6 +497,13 @@ const CommandSender = ({
     const preparedCommand = prepareCommandForDispatch(commandData);
     if (!preparedCommand) {
       return;
+    }
+    if (Number(preparedCommand.mission_type) === DRONE_ACTION_TYPES.TAKE_OFF) {
+      // Freeze the reviewed whole-fleet scope; never expand it later at submit.
+      preparedCommand.target_drone_ids = preparedCommand.target_drone_ids?.length
+        ? [...preparedCommand.target_drone_ids]
+        : drones.map((drone) => String(drone[FIELD_NAMES.HW_ID]));
+      delete preparedCommand.target_scope;
     }
 
     const missionName = getCommandName(preparedCommand.mission_type);
@@ -999,7 +1007,6 @@ const CommandSender = ({
             onRequestPrecisionMove={handleRequestPrecisionMove}
             targetCount={targetCount}
             takeoffAltitude={takeoffAltitude}
-            onTakeoffAltitudeChange={setTakeoffAltitude}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
             runtimeMode={runtimeMode}
@@ -1021,7 +1028,7 @@ const CommandSender = ({
       />
 
       <ConfirmDialog
-        open={modalOpen}
+        open={modalOpen && Number(currentCommandData?.mission_type) !== DRONE_ACTION_TYPES.TAKE_OFF}
         title="Confirm Command"
         message={renderConfirmationMessage()}
         confirmLabel={
@@ -1034,6 +1041,9 @@ const CommandSender = ({
         onConfirm={handleConfirmSendCommand}
         onCancel={handleCancelSendCommand}
       />
+
+      <TakeoffDialog open={modalOpen && Number(currentCommandData?.mission_type) === DRONE_ACTION_TYPES.TAKE_OFF}
+        command={currentCommandData} aircraft={drones} onClose={handleCancelSendCommand} />
 
       {/* Loading Spinner */}
       {loading && (

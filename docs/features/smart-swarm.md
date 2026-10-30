@@ -369,11 +369,14 @@ Important operator rule:
 - normal Smart Swarm starts are cluster-first: the page opens the first executable
   saved cluster and shows the full leader/follower roster before confirmation;
   a leader-only target is rejected before dispatch
-- a multi-drone Take Off is not physically atomic after dispatch: every node
-  repeats its own final readiness and ground checks, so one aircraft can still
-  reject while another accepts. For the first field validation, launch and
-  confirm each aircraft individually, let both settle in Hold, and only then
-  start the exact Smart Swarm cluster.
+- multi-aircraft standalone Takeoff defaults to **Wait for all aircraft**:
+  confirm native readiness, arm all, then release takeoff only after every
+  selected aircraft confirms armed on ground. The shared dialog includes height,
+  per-aircraft reasons and progress. See the
+  [Coordinated Takeoff guide](../guides/coordinated-takeoff.md).
+  Launch is not physically atomic after release: one aircraft can still reject
+  while another accepts. Verify each aircraft is airborne and settled before
+  starting the exact Smart Swarm cluster. PX4 checks are unchanged.
 
 ### Runtime ownership and leader changes
 

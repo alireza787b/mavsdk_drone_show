@@ -74,6 +74,8 @@ def _build_precision_move_policy_payload(params: Any) -> dict[str, Any]:
 
 def create_command_router(deps: Any) -> APIRouter:
     router = APIRouter()
+    from api_routes.takeoff import create_takeoff_router
+    router.include_router(create_takeoff_router(deps))
 
     @router.get(
         "/api/v1/commands/policy/precision-move",
@@ -227,6 +229,9 @@ def create_command_router(deps: Any) -> APIRouter:
                 detail="Execution report conflicts with the recorded command lifecycle",
             )
 
+        if not report.success:
+            from api_routes.takeoff import fail_coordinated_takeoff
+            await fail_coordinated_takeoff(deps, report.command_id, report.error_message or 'A required aircraft failed takeoff', report.hw_id)
         status = await tracker.get_status(report.command_id)
         command_status = CommandStatus(status["status"]) if status else CommandStatus.FAILED
 

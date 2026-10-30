@@ -307,6 +307,14 @@ class CommandPayloadRequest(BaseModel):
         gt=0,
         description="Takeoff altitude override in meters",
     )
+    takeoff_mode: Optional[Literal["coordinated", "independent"]] = Field(
+        None,
+        description="Standalone Takeoff coordination; GCS defaults groups to coordinated execution",
+    )
+    expected_control_command_id: Optional[str] = Field(
+        None, min_length=1, max_length=200,
+        description="Conditional HOLD recovery: reject if this operation no longer owns native takeoff",
+    )
     update_branch: Optional[str] = Field(
         None,
         min_length=1,
@@ -349,6 +357,13 @@ class CommandPayloadRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_mission_payload(self) -> "CommandPayloadRequest":
+        if self.takeoff_mode is not None and self.mission_type != Mission.TAKE_OFF.value:
+            raise ValueError("takeoff_mode is only valid for TAKE_OFF")
+        if self.expected_control_command_id is not None:
+            if self.mission_type != Mission.HOLD.value:
+                raise ValueError("expected_control_command_id is only valid for HOLD")
+            if self.expected_control_command_id != self.expected_control_command_id.strip():
+                raise ValueError("expected_control_command_id must be canonical")
         if self.swarm_trajectory is not None and self.mission_type != Mission.SWARM_TRAJECTORY.value:
             raise ValueError('swarm_trajectory is only valid for SWARM_TRAJECTORY')
         if self.smart_swarm is not None and self.mission_type != Mission.SMART_SWARM.value:

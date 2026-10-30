@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Standalone multi-aircraft Takeoff adds a command-bound all-armed barrier and
+  shared operator dialog across Dashboard, Smart Swarm and aircraft cards.
+  Native readiness, bounded waiting, pre-release cancellation and verified
+  ground cleanup replace independent arming/launch by default for groups.
+  Independent mode remains explicit; PX4 checks and tuning are unchanged.
+  Coordinated release reduces partial launches but is not atomic flight.
+
 - Swarm Trajectory route entry delays reflow preferred-speed legs instead of
   treating calculated arrivals as fixed deadlines. Explicit zero values, minute
   rounding, editable controls and dark/mobile fields are corrected. Editor

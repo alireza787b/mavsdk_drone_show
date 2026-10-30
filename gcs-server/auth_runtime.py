@@ -34,6 +34,7 @@ MACHINE_ENDPOINTS = {
     ("POST", "/api/v1/fleet/node-boot-status"),
     ("POST", "/api/v1/command-reports/execution-start"),
     ("POST", "/api/v1/command-reports/execution-result"),
+    ("POST", "/api/v1/command-reports/takeoff-stage"),
     ("POST", "/api/v1/fleet/candidates/announce"),
 }
 ADMIN_PREFIXES = (

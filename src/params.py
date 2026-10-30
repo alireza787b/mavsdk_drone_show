@@ -424,6 +424,14 @@ class Params:
     ACTION_VEHICLE_CONNECTION_TIMEOUT_SEC = 10  # PX4 connection deadline after MAVSDK starts
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ARMED_CONFIRM_TIMEOUT_SEC = 10  # Fresh armed-state confirmation after the arm RPC
+    # Group Takeoff only. These do not override PX4 arming or auto-disarm settings.
+    COORDINATED_TAKEOFF_ARM_BARRIER_TIMEOUT_SEC = 8.0
+    COORDINATED_TAKEOFF_REPORT_MAX_AGE_SEC = 1.0
+    COORDINATED_TAKEOFF_RELEASE_DELAY_SEC = 1.5
+    COORDINATED_TAKEOFF_RELEASE_GUARD_SEC = 0.5
+    COORDINATED_TAKEOFF_REPORT_INTERVAL_SEC = 0.2
+    COORDINATED_TAKEOFF_STATE_RATE_HZ = 5.0  # Local SDK observations, not remote GCS telemetry
+    COORDINATED_TAKEOFF_CLOCK_TOLERANCE_SEC = 0.5
     TAKEOFF_STATE_TRANSITION_TIMEOUT_SEC = 15  # PX4 TAKING_OFF/IN_AIR transition deadline
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
     TAKEOFF_FINAL_STATE_CONFIRM_TIMEOUT_SEC = 20  # Bound the coherent IN_AIR terminal-state confirmation phase
