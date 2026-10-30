@@ -3,10 +3,17 @@
 ## Accepted operator behavior
 
 One reusable Takeoff dialog for Dashboard, Smart Swarm and aircraft actions:
-height, frozen aircraft roster, native readiness and **Wait for all aircraft**
+height, page-scoped roster, native readiness and **Wait for all aircraft**
 (default on for a group). One **Arm & take off** confirmation. Closing is not
 cancellation. Abort decisions remain **Cancelling** until recovery evidence is
 received; unconfirmed recovery never becomes a green success.
+
+The initiating aircraft are preselected. Operators can explicitly exclude and
+reinclude rows before confirmation; excluded rows remain visible and muted.
+Select-all/none and the confirmation count make the scope visible. Selection
+locks on confirmation, including uncertain receipt recovery; single-aircraft
+subsets use native independent Takeoff. Saved formation and complete-cluster
+Start Swarm selection are not modified.
 
 Group execution requires every participant's fresh armed/ground proof before a
 shared release. Independent mode is explicit. PX4 checks, flight tuning and live
@@ -31,12 +38,14 @@ partial launch; this is not physically atomic takeoff.
 
 ## Evidence and remaining acceptance
 
-All builds/tests run on the remote validation host. Production and real aircraft
-have not received this feature. The previous deployed RC2 remains unchanged.
+All builds/tests run on the remote validation host. Initial validation was
+isolated from production and real aircraft. The server/UI source candidate was
+later deployed for inspection after both aircraft were confirmed powered off;
+this does not establish installed-board revision or flight clearance.
 
 The final integrated backend run passed **570 tests**; the frontend passed
-**86 tests in 9 suites**. The strict production frontend build passed. The
-browser-only probe passed 16 simulated states across dark/light desktop/mobile,
+**94 tests in 10 suites** after the selection follow-up. The strict production
+frontend build passed. The browser-only probe passed 24 simulated states across dark/light desktop/mobile,
 with zero external API writes. Logs use `/tmp/mds-coordinated-*`.
 
 Real two-node PX4 SITL caught issues not represented by unit mocks:
@@ -102,8 +111,16 @@ private data and integrate only shared files into the private deployment.
 Aircraft revision/readiness verification remains required online;
 source or UI acceptance is not hardware flight clearance or a rebuilt image.
 
-Production rollout remains separately gated on confirmation that no real flight
-or test is running. Required before field clearance: finish the repeat-sortie
+UI-only follow-up validation covers default scope, explicit exclusion,
+select-all/none, blocked reasons at zero group lease, frozen selection and exact
+subset receipt recovery. The combined operator guide uses unmodified captured
+UI examples; all command responses in browser evidence are simulated.
+Shared Takeoff and Jog dialog styles load once in the app shell, avoiding
+route-dependent stylesheet ordering. The combined guide is linked from the
+[operator steps](../guides/coordinated-takeoff.md).
+
+Any rollout that restarts flight services remains gated on confirmation that no
+real flight or test is running. Required before field clearance: finish the repeat-sortie
 probe investigation, verify the installed node revisions/capabilities, and
 validate the relevant remaining fault-injection cases. A packaged/pinned runtime
 release additionally requires a rebuilt SITL image once build headroom is

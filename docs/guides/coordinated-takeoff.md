@@ -29,13 +29,12 @@ after closing and reopening the same review.
 
 The captures below use simulated browser responses, not real aircraft telemetry.
 
-![Takeoff height, selected aircraft and coordination option](../assets/coordinated-takeoff/01-ready.png)
+![Takeoff review, selection, blocked readiness, arming and confirmed cancellation](../assets/coordinated-takeoff/takeoff-workflow-combined.png)
 
-![A blocked aircraft and its actionable reason](../assets/coordinated-takeoff/02-blocked.png)
-
-![Arming progress with separate cancellation and close controls](../assets/coordinated-takeoff/03-arming.png)
-
-![Cancellation confirmed only after both aircraft report disarmed](../assets/coordinated-takeoff/04-cancelled.png)
+Full-size views: [Ready](../assets/coordinated-takeoff/01-ready.png),
+[Blocked](../assets/coordinated-takeoff/02-blocked.png),
+[Arming](../assets/coordinated-takeoff/03-arming.png),
+[Cancelled](../assets/coordinated-takeoff/04-cancelled.png).
 
 If arming fails, the group receives no takeoff release. The system cancels the
 attempt and normally disarms aircraft it armed when fresh telemetry confirms
