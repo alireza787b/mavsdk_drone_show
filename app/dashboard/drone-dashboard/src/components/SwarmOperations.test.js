@@ -43,8 +43,8 @@ test('takeoff is separate, default 10 m and cancelled confirmation sends nothing
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }));
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled());
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Arm & take off' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled());
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(expect.objectContaining({ mission_type: 10, takeoff_altitude: 10, target_drone_ids: ['1', '2'] }), expect.anything()));
 });
 test('reviewed revision changes block dispatch', async () => {
@@ -167,7 +167,7 @@ test('takeoff never silently removes the airborne member of a reviewed cluster',
   expect(within(screen.getByRole('dialog')).getByText('Aircraft 1')).toBeInTheDocument();
   expect(within(screen.getByRole('dialog')).getByText('Aircraft 2')).toBeInTheDocument();
   await screen.findByText('Aircraft already airborne');
-  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 test('single-drone recovery requires the explicit advanced selector', async () => {

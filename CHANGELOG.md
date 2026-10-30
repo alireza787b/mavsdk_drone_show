@@ -9,6 +9,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Takeoff review preselects its initiating aircraft scope and adds per-aircraft
+  checkboxes, select-all, muted excluded rows and an explicit confirmation count.
+  Selection freezes on confirmation and survives uncertain receipt recovery;
+  single-aircraft subsets retain independent execution. Blocked reasons remain
+  visible even with a zero group-readiness lease. Swarm Start scope is unchanged.
+
 - Standalone multi-aircraft Takeoff adds a command-bound all-armed barrier and
   shared operator dialog across Dashboard, Smart Swarm and aircraft cards.
   Native readiness, bounded waiting, pre-release cancellation and verified

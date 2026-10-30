@@ -18,17 +18,21 @@ export default function TakeoffDialog({ open, command, aircraft = [], beforeSubm
 }
 
 function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
+  // The initiating page defines the review boundary, not the entire fleet.
+  const [roster] = useState(() => [...command.target_drone_ids].map(String));
   const [pendingKey] = useState(() => `mds-takeoff:${getBackendURL()}:${[...command.target_drone_ids].map(String).sort().join(',')}`);
   const [restored] = useState(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(pendingKey));
       return saved?.mission_type === 10 && typeof saved.idempotency_key === 'string'
-        && [...saved.target_drone_ids].map(String).sort().join(',') === [...command.target_drone_ids].map(String).sort().join(',') ? saved : null;
+        && Array.isArray(saved.target_drone_ids) && saved.target_drone_ids.length > 0
+        && saved.target_drone_ids.every((id) => roster.includes(String(id))) ? saved : null;
     } catch (_) { return null; }
   });
   const [intent] = useState(() => restored || ({ ...command, target_drone_ids: [...command.target_drone_ids].map(String),
     idempotency_key: command.idempotency_key || createCommandIdempotencyKey() }));
   const [height, setHeight] = useState(intent.takeoff_altitude ?? 10);
+  const [targets, setTargets] = useState(() => intent.target_drone_ids.map(String));
   const [waitForAll, setWaitForAll] = useState(intent.takeoff_mode !== 'independent');
   const [readiness, setReadiness] = useState(null);
   const [submitted, setSubmitted] = useState(null);
@@ -42,26 +46,39 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
   const submitLock = useRef(false);
   const mounted = useRef(true);
   const callbacksRef = useRef(null);
+  const allCheckbox = useRef(null);
+  const submittedPayload = useRef(restored);
+  const attemptKey = useRef(intent.idempotency_key);
   const { commandLifecycleCallbacks } = useCommandActivity();
   callbacksRef.current = commandLifecycleCallbacks;
-  const targets = intent.target_drone_ids;
   const multiple = targets.length > 1;
   const coordinated = multiple && waitForAll;
   const validHeight = String(height).trim() !== '' && Number.isFinite(Number(height)) && Number(height) > 0;
-  const rows = targets.map((id) => {
+  const rows = roster.map((id) => {
+    const selected = targets.includes(id);
     const native = readiness?.targets?.find((row) => String(row.hw_id) === id);
     const member = aircraft.find((row) => String(row.hw_id ?? row.hw_ID) === id);
     const name = member?.callsign || member?.name || `Aircraft ${id}`;
     const unsupported = native?.status === 'ready' && coordinated && native.coordinated_takeoff_supported !== true;
-    return { id, name, status: unsupported ? 'blocked' : native?.status || 'checking',
+    return { id, name, selected, status: unsupported ? 'blocked' : native?.status || 'checking',
       reason: unsupported ? 'Software update required for coordinated takeoff' : native?.reason };
   });
-  const ready = rows.length > 0 && rows.every((row) => row.status === 'ready');
+  const ready = targets.length > 0 && rows.filter((row) => row.selected).every((row) => row.status === 'ready');
   const inProgress = Boolean(attemptStarted || submitted || uncertain);
   const phase = coordination?.phase;
   // An abort is a decision, not proof that motor/flight cleanup finished.
   const terminal = snapshot?.isTerminal === true;
   const canCancel = submitted?.command_id && coordinated && ['checking', 'arming'].includes(phase) && !terminal;
+
+  const selectTargets = (next) => {
+    if (inProgress || submitLock.current) return;
+    setTargets(roster.filter((id) => next.includes(id)));
+    setReadiness(null);
+    setError('');
+  };
+  useEffect(() => {
+    if (allCheckbox.current) allCheckbox.current.indeterminate = targets.length > 0 && targets.length < roster.length;
+  }, [targets, roster]);
 
   const rememberPending = (payload) => {
     try {
@@ -71,7 +88,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
   };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
-    if (inProgress) return undefined;
+    if (inProgress || targets.length === 0) return undefined;
     let live = true, timer, expiry;
     const poll = async () => {
       try {
@@ -84,11 +101,23 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
         const processing = Number(data?.server_processing_ms ?? 0);
         const transport = Number.isFinite(processing) && processing >= 0 && processing <= roundTrip + 20
           ? Math.max(0, roundTrip - processing) : roundTrip;
-        const remaining = Number(data?.valid_for_ms) - transport;
+        // Blocked rows have a zero group lease. Preserve their reason, and
+        // expire only ready evidence using each selected aircraft's own lease.
+        const reviewedRows = (data?.targets || []).filter((row) => targets.includes(String(row.hw_id)))
+          .map((row) => {
+            const remaining = Number(row.valid_for_ms ?? data.valid_for_ms) - transport;
+            return row.status === 'ready' && !(Number.isFinite(remaining) && remaining > 0)
+              ? { ...row, status: 'checking', reason: undefined }
+              : { ...row, remaining };
+          });
+        const leases = reviewedRows.filter((row) => row.status === 'ready').map((row) => row.remaining);
         if (live) {
           clearTimeout(expiry);
-          setReadiness(Number.isFinite(remaining) && remaining > 0 ? data : null);
-          if (remaining > 0) expiry = setTimeout(() => live && setReadiness(null), remaining);
+          setReadiness({ targets: reviewedRows });
+          if (leases.length) expiry = setTimeout(() => live && setReadiness((previous) => previous && ({
+            targets: previous.targets.map((row) => row.status === 'ready'
+              ? { ...row, status: 'checking', reason: undefined } : row),
+          })), Math.min(...leases));
         }
       } catch (_) { if (live) setReadiness(null); }
       finally { if (live) timer = setTimeout(poll, 1500); }
@@ -114,14 +143,19 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
     setBusy(true); setAttemptStarted(true); setError('');
     try {
       if (uncertain) {
-        const { data } = await fetchGcsResource('/api/v1/commands/lookup', { params: { idempotency_key: intent.idempotency_key } });
-        const response = trackCommandReceipt(intent, data, lifecycle);
+        const { data } = await fetchGcsResource('/api/v1/commands/lookup', { params: { idempotency_key: submittedPayload.current.idempotency_key } });
+        const response = trackCommandReceipt(submittedPayload.current, data, lifecycle);
         rememberPending(null);
         if (mounted.current) { setSubmitted(response); setUncertain(false); }
         return;
       }
-      const payload = { ...intent, takeoff_altitude: Number(height),
-        ...(multiple ? { takeoff_mode: coordinated ? 'coordinated' : 'independent' } : {}) };
+      const payload = { ...intent, idempotency_key: attemptKey.current,
+        target_drone_ids: [...targets], takeoff_altitude: Number(height),
+        uiMeta: { ...intent.uiMeta, targetLabel: `${targets.length} aircraft`,
+          targetDescriptor: targets.map((id) => rows.find((row) => row.id === id).name).join(', ') } };
+      delete payload.takeoff_mode;
+      if (multiple) payload.takeoff_mode = coordinated ? 'coordinated' : 'independent';
+      submittedPayload.current = payload;
       rememberPending(payload);
       await beforeSubmit?.();
       const response = await submitCommandWithLifecycleFeedback(payload, lifecycle);
@@ -134,6 +168,8 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
         if (mounted.current) setError('Receipt unavailable. Check this launch again before retrying.');
       } else {
         rememberPending(null);
+        submittedPayload.current = null;
+        attemptKey.current = createCommandIdempotencyKey();
         if (mounted.current) { setAttemptStarted(false); setError(exc?.response?.data?.detail?.message || exc?.response?.data?.detail || exc?.message || 'Takeoff unavailable'); }
       }
     } finally {
@@ -161,7 +197,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
   const progressCount = phase === 'arming' ? ` ${coordination.armed_count ?? 0}/${coordination.total ?? targets.length}` : '';
 
   return <ConfirmDialog open appearance="console" title="Takeoff"
-    confirmLabel={uncertain ? 'Check command' : !inProgress ? 'Arm & take off' : terminal ? 'Done' : canCancel ? 'Cancel launch' : progress}
+    confirmLabel={uncertain ? 'Check command' : !inProgress ? `Arm & take off · ${targets.length} aircraft` : terminal ? 'Done' : canCancel ? 'Cancel launch' : progress}
     confirmDisabled={(!inProgress && (!ready || !validHeight)) || (inProgress && !uncertain && !terminal && !canCancel)} busy={busy} allowDismissWhileBusy
     cancelLabel={inProgress ? 'Close' : 'Cancel'} onCancel={onClose}
     onConfirm={inProgress && !uncertain ? (canCancel ? cancelLaunch : onClose) : submit}
@@ -173,16 +209,26 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
           onChange={(event) => setWaitForAll(event.target.checked)} disabled={busy} /> Wait for all aircraft</label>}
         {!validHeight && <p role="alert">Enter a positive height.</p>}
       </> : <div className="takeoff-review__progress" role="status">{progress}{progressCount}</div>}
+      <div className="takeoff-review__selection">
+        {roster.length > 1 && <label className="takeoff-review__select-all"><input ref={allCheckbox} type="checkbox"
+          aria-label="Select all aircraft" checked={targets.length === roster.length} disabled={inProgress || busy}
+          onChange={(event) => selectTargets(event.target.checked ? roster : [])} />All</label>}
+        <span aria-live="polite">{targets.length} of {roster.length} aircraft</span>
+      </div>
       <ul className="takeoff-review__aircraft" aria-label="Takeoff aircraft">
         {rows.map((row) => {
           const execution = coordination?.targets?.[row.id];
           const final = finalState(row.id);
           const recoveryState = final?.armed === false ? 'disarmed'
             : final?.outcome === 'held' ? 'hold_confirmed' : terminal ? 'recovery_unconfirmed' : 'checking_aircraft';
-          const status = inProgress ? (phase === 'aborted' ? recoveryState : execution?.state || 'checking') : row.status;
-          const label = inProgress ? (status.replaceAll('_', ' ')) : { ready: 'Ready', blocked: 'Blocked', checking: 'Checking', unavailable: 'Unavailable' }[status] || 'Checking';
-          const reason = inProgress ? execution?.reason : row.reason;
-          return <li key={row.id} className={`takeoff-review__aircraft--${status}`}><strong>{row.name}<small>H{row.id}</small></strong>
+          const status = !row.selected ? 'excluded' : inProgress ? (phase === 'aborted' ? recoveryState : execution?.state || 'checking') : row.status;
+          const label = !row.selected ? 'Not included' : inProgress ? (status.replaceAll('_', ' ')) : { ready: 'Ready', blocked: 'Blocked', checking: 'Checking', unavailable: 'Unavailable' }[status] || 'Checking';
+          const reason = row.selected && (inProgress ? execution?.reason : row.reason);
+          return <li key={row.id} className={`takeoff-review__aircraft--${status}`}>
+            <label className="takeoff-review__member"><input type="checkbox" checked={row.selected}
+              aria-label={`Include ${row.name} (H${row.id})`} disabled={inProgress || busy}
+              onChange={(event) => selectTargets(event.target.checked ? [...targets, row.id] : targets.filter((id) => id !== row.id))} />
+              <strong>{row.name}<small>H{row.id}</small></strong></label>
             <span><b>{label}</b>{reason && status !== 'ready' && <small>{reason}</small>}</span></li>;
         })}
       </ul>

@@ -6,16 +6,26 @@ are airborne and settled.
 
 ## Operator steps
 
-1. Select the aircraft or complete swarm cluster and choose **Takeoff**.
+1. Select the aircraft or complete swarm cluster and choose **Takeoff**. The
+   initiating page's aircraft are already checked; unrelated aircraft are not
+   added to this review.
 2. Set **Takeoff height**. For multiple aircraft, leave **Wait for all aircraft**
    checked. Check the names and live readiness rows.
-3. Resolve any **Blocked** or **Unavailable** row. Its reason identifies the
-   aircraft needing attention. **Checking** is not permission to launch.
+3. Check the aircraft count. Untick an aircraft only if it should not take off;
+   its row stays visible as **Not included**. **All** selects or clears the
+   review roster. Resolve selected **Blocked** or **Unavailable** rows before
+   confirming; **Checking** is not permission to launch.
 4. Clear the launch area, then choose **Arm & take off** once. Motors may start
    during arming. There is no second confirmation while aircraft are armed.
 5. Watch **Arming → Taking off → Airborne**. Before launch release,
    **Cancel launch** cancels the operation; **Close** only closes the dialog.
 6. Verify each aircraft's actual flight state before starting Smart Swarm.
+
+Selection locks on confirmation. Excluding an aircraft affects only this
+Takeoff, not the saved formation or the complete-cluster **Start Swarm** action.
+No aircraft is automatically excluded because it is blocked. An uncertain
+submission retains its exact selected subset for receipt recovery, including
+after closing and reopening the same review.
 
 The captures below use simulated browser responses, not real aircraft telemetry.
 

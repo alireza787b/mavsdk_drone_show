@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 async function ready(props = {}) {
   const result = render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} {...props} />);
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled());
   return result;
 }
 
@@ -31,7 +31,7 @@ test('review is read-only and multi-aircraft defaults to the armed barrier', asy
   expect(screen.getAllByText('Ready')).toHaveLength(2);
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
   fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '15' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
   expect(submitCommandWithLifecycleFeedback.mock.calls[0][0]).toEqual(expect.objectContaining({
     target_drone_ids: ['1', '2'], takeoff_altitude: 15, takeoff_mode: 'coordinated', idempotency_key: expect.any(String),
@@ -43,7 +43,7 @@ test('blocked aircraft remains visible and prevents group confirmation', async (
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
   await screen.findByText('Heading estimate unstable');
   expect(screen.getByText('Wing')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 
@@ -52,7 +52,7 @@ test('unavailable evidence never becomes green or actionable', async () => {
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
   await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
   expect(screen.getAllByText('Checking')).toHaveLength(2);
-  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
 });
 
 test('native probe processing is not subtracted twice from the returned freshness lease', async () => {
@@ -72,7 +72,7 @@ test('native probe processing is not subtracted twice from the returned freshnes
 test('independent mode is explicit and does not hide a member', async () => {
   await ready();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Wait for all aircraft' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalled());
   expect(submitCommandWithLifecycleFeedback.mock.calls[0][0]).toEqual(expect.objectContaining({ takeoff_mode: 'independent', target_drone_ids: ['1', '2'] }));
 });
@@ -81,15 +81,18 @@ test('older software cannot silently fall back to independent launch', async () 
   fetchGcsResource.mockResolvedValue({ data: { valid_for_ms: 5000, targets: native.targets.map((row) => ({ ...row, coordinated_takeoff_supported: false })) } });
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
   await screen.findAllByText('Software update required for coordinated takeoff');
-  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Wait for all aircraft' }));
-  expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled();
 });
 
 test('single-aircraft dialog uses the same height review without the checkbox', async () => {
   await ready({ command: { ...command, target_drone_ids: ['1'] } });
-  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  expect(screen.queryByRole('checkbox', { name: 'Wait for all aircraft' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('checkbox', { name: 'Select all aircraft' })).not.toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
+  expect(screen.queryByText('Wing')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalled());
   expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].takeoff_mode).toBeUndefined();
 });
@@ -105,7 +108,7 @@ test('closing review sends no command', async () => {
 test('progress reuses the tracked command and Cancel launch is separate from Close', async () => {
   const onClose = jest.fn();
   await ready({ onClose });
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalled());
   const lifecycle = submitCommandWithLifecycleFeedback.mock.calls[0][1];
   await act(async () => lifecycle.onStatusUpdate({ isTerminal: false }, { coordinated_takeoff: {
@@ -127,7 +130,7 @@ test('progress reuses the tracked command and Cancel launch is separate from Clo
 
 test('cancelled cleanup is shown confirmed only from terminal aircraft evidence', async () => {
   await ready();
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalled());
   const lifecycle = submitCommandWithLifecycleFeedback.mock.calls[0][1];
   await act(async () => lifecycle.onStatusUpdate({ isTerminal: false }, {
@@ -159,17 +162,17 @@ test('expired readiness becomes Checking even if the next request never resolves
       .mockImplementation(() => new Promise(() => {}));
     render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
     await act(async () => {});
-    expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled();
     await act(async () => { jest.advanceTimersByTime(2100); });
-    expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   } finally { jest.useRealTimers(); }
 });
 
 test('StrictMode remount still receives progress without duplicate submission', async () => {
   render(<React.StrictMode><TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} /></React.StrictMode>);
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off' })).toBeEnabled());
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
   await act(async () => submitCommandWithLifecycleFeedback.mock.calls[0][1].onStatusUpdate({}, {
     coordinated_takeoff: { phase: 'arming', armed_count: 1, total: 2 },
@@ -180,16 +183,117 @@ test('StrictMode remount still receives progress without duplicate submission', 
 test('uncertain receipt survives close/reopen and is recovered without resubmission', async () => {
   submitCommandWithLifecycleFeedback.mockRejectedValue(Object.assign(new Error('Network error'), { code: 'ERR_NETWORK' }));
   const first = await ready();
-  fireEvent.click(screen.getByRole('button', { name: 'Arm & take off' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await screen.findByRole('button', { name: 'Check command' });
   const sent = submitCommandWithLifecycleFeedback.mock.calls[0][0];
   first.unmount();
   fetchGcsResource.mockResolvedValue({ data: { accepted_for_tracking: true, command_id: 'recovered-1' } });
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
-  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('checkbox', { name: 'Wait for all aircraft' })).not.toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Check command' }));
   await waitFor(() => expect(trackCommandReceipt).toHaveBeenCalledWith(expect.objectContaining({
     idempotency_key: sent.idempotency_key, takeoff_altitude: 10, takeoff_mode: 'coordinated',
   }), expect.anything(), expect.anything()));
   expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1);
+});
+
+test('incoming scope is selected by default, without adding aircraft outside that scope', async () => {
+  await ready({ command: { ...command, target_drone_ids: ['2'] } });
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeChecked();
+  expect(screen.queryByText('Scout')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Arm & take off · 1 aircraft' })).toBeEnabled();
+});
+
+test('zero group lease preserves the blocked reason; explicit exclusion changes only Takeoff targets', async () => {
+  fetchGcsResource.mockResolvedValue({ data: { valid_for_ms: 0, targets: [
+    { ...native.targets[0], valid_for_ms: 5000 },
+    { hw_id: '2', status: 'blocked', valid_for_ms: 0, reason: 'Heading estimate unstable' },
+  ] } });
+  render(<TakeoffDialog open command={{ ...command, takeoff_mode: 'coordinated', uiMeta: { targetLabel: 'Cluster 1' } }} aircraft={aircraft} onClose={jest.fn()} />);
+  await screen.findByText('Heading estimate unstable');
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeChecked();
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Include Wing (H2)' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off · 1 aircraft' })).toBeEnabled());
+  expect(screen.getByText('Wing').closest('li')).toHaveClass('takeoff-review__aircraft--excluded');
+  expect(screen.getByText('Not included')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Select all aircraft' })).toBePartiallyChecked();
+  expect(fetchGcsResource).toHaveBeenLastCalledWith('/api/v1/commands/takeoff-readiness?target_drone_ids=1');
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
+  const sent = submitCommandWithLifecycleFeedback.mock.calls[0][0];
+  expect(sent.target_drone_ids).toEqual(['1']);
+  expect(sent.takeoff_mode).toBeUndefined();
+  expect(sent.uiMeta.targetLabel).toBe('1 aircraft');
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeDisabled();
+  expect(screen.getByText('Not included')).toBeInTheDocument();
+});
+
+test('select all supports none and restore, with no launch or empty readiness request', async () => {
+  await ready();
+  const calls = fetchGcsResource.mock.calls.length;
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select all aircraft' }));
+  expect(screen.getByText('0 of 2 aircraft')).toBeInTheDocument();
+  expect(screen.getAllByText('Not included')).toHaveLength(2);
+  expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
+  expect(fetchGcsResource).toHaveBeenCalledTimes(calls);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select all aircraft' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Arm & take off · 2 aircraft' })).toBeEnabled());
+  expect(screen.getByRole('checkbox', { name: 'Wait for all aircraft' })).toBeChecked();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+});
+
+test('selection freezes before asynchronous preparation finishes', async () => {
+  let finish;
+  await ready({ beforeSubmit: () => new Promise((resolve) => { finish = resolve; }) });
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeDisabled();
+  expect(screen.getByRole('checkbox', { name: 'Select all aircraft' })).toBeDisabled();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+  await act(async () => finish());
+  expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].target_drone_ids).toEqual(['1', '2']);
+});
+
+test('uncertain subset survives close/reopen with exactly the reviewed payload and no resubmit', async () => {
+  submitCommandWithLifecycleFeedback.mockRejectedValue(Object.assign(new Error('Network error'), { code: 'ERR_NETWORK' }));
+  const first = await ready();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Include Wing (H2)' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
+  await screen.findByRole('button', { name: 'Check command' });
+  const sent = submitCommandWithLifecycleFeedback.mock.calls[0][0];
+  first.unmount();
+  fetchGcsResource.mockResolvedValue({ data: { command_id: 'recovered-1', accepted_for_tracking: true } });
+  render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Check command' }));
+  await waitFor(() => expect(trackCommandReceipt).toHaveBeenCalledWith(sent, expect.anything(), expect.anything()));
+  expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1);
+});
+
+test('after a definite rejection an edited selection gets a new identity and ambiguous recovery uses that identity', async () => {
+  submitCommandWithLifecycleFeedback.mockRejectedValueOnce({ response: { status: 409, data: { detail: 'Review required' } } })
+    .mockRejectedValueOnce(Object.assign(new Error('Network error'), { code: 'ERR_NETWORK' }));
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
+  await screen.findByText('Review required');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Include Wing (H2)' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
+  await screen.findByRole('button', { name: 'Check command' });
+  const first = submitCommandWithLifecycleFeedback.mock.calls[0][0];
+  const second = submitCommandWithLifecycleFeedback.mock.calls[1][0];
+  expect(second.idempotency_key).not.toBe(first.idempotency_key);
+  expect(second.target_drone_ids).toEqual(['1']);
+  fetchGcsResource.mockResolvedValue({ data: { command_id: 'recovered-2', accepted_for_tracking: true } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check command' }));
+  await waitFor(() => expect(fetchGcsResource).toHaveBeenLastCalledWith('/api/v1/commands/lookup', {
+    params: { idempotency_key: second.idempotency_key },
+  }));
+  expect(trackCommandReceipt).toHaveBeenCalledWith(second, expect.anything(), expect.anything());
+  expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2);
 });
