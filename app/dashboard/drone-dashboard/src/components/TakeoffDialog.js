@@ -5,7 +5,6 @@ import { getBackendURL } from '../config/apiConfig';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
 import { createCommandIdempotencyKey, isAmbiguousSubmissionTransportFailure } from '../services/droneApiService';
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
-import '../styles/TakeoffDialog.css';
 
 const PHASES = { checking: 'Checking', arming: 'Arming', released: 'Taking off', airborne: 'Airborne', aborted: 'Launch cancelled' };
 

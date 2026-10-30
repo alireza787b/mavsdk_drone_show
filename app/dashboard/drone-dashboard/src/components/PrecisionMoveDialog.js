@@ -13,7 +13,6 @@ import {
 import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import { getPrecisionMovePolicyResponse } from '../services/gcsApiService';
 import { getActionExecutionPolicy } from '../utilities/commandExecutionPolicy';
-import '../styles/PrecisionMoveDialog.css';
 
 const MOVE_STEP_OPTIONS = [0.25, 0.5, 1, 2, 5];
 const YAW_STEP_OPTIONS = [15, 30, 45, 90];

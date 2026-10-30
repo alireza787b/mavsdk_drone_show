@@ -27,6 +27,8 @@ import './styles/MapCommon.css';
 import './styles/SearchBar.css';
 import './styles/IdentityDoctrineStrip.css';
 import './styles/MissionPlanning.css';
+import './styles/PrecisionMoveDialog.css';
+import './styles/TakeoffDialog.css';
 
 import SidebarMenu from './components/SidebarMenu';
 import RouteDocsShortcut from './components/RouteDocsShortcut';
