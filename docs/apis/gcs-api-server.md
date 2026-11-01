@@ -1172,6 +1172,26 @@ The older verb-style GCS swarm configuration aliases were retired on 2026-04-03.
 #### `GET /api/v1/config/swarm`
 Get the canonical swarm configuration resource.
 
+The response includes an `ETag` derived from the existing normalized formation
+revision and `Cache-Control: no-cache`. `If-None-Match` supports weak validators,
+multiple validators and `*`; a match returns `304` without a body.
+
+#### `WS /ws/swarm-config`
+
+Read-only formation watch, authorized through the existing WebSocket auth path.
+Node clients supply the existing bearer header; no new credential mode is added.
+On connection and after a change, messages use `type: swarm_config` with the
+complete canonical resource under `data` (`version`, `revision`, `assignments`).
+The assignments array is nonempty and normalized. Heartbeat messages use
+`{"type":"heartbeat"}` at idle intervals of 15 seconds. Delivery is latest-state,
+not an event log: reconnect obtains a current snapshot. Slow clients are
+disconnected after a 5-second send timeout. Existing runtime reports, rather
+than transport receipt, determine effective installation. No handover commands
+are carried on this stream. Existing HTTP/MCP read tools remain authoritative
+and need no streaming adapter.
+
+#### Canonical formation resource
+
 **Response:**
 ```json
 {
@@ -1280,6 +1300,12 @@ The canonical response returns the normalized assignment resource, including the
 defaulted offset fields and frame for each assignment.
 
 #### `PATCH /api/v1/config/swarm/assignments/{hw_id}`
+
+Revision-aware clients may include `revision` and
+`acknowledged_unavailable_hw_ids`, as with PUT. A stale revision returns `409`
+without saving; receipt metadata is never written into an aircraft assignment.
+Legacy payloads remain accepted during rollout. Both paths use the same atomic
+canonical persistence and watch notification boundary.
 Patch a saved swarm assignment for one hardware drone.
 
 This is the canonical replacement for the older leader-only naming. The live

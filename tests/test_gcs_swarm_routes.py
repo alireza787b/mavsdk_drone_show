@@ -110,6 +110,33 @@ def test_swarm_router_rejects_stale_revision_before_writing():
     deps.save_swarm.assert_not_called()
 
 
+def test_assignment_patch_rejects_stale_revision_before_writing():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_swarm_router(deps))
+    with TestClient(app) as client:
+        response = client.patch('/api/v1/config/swarm/assignments/2',
+                                json={'revision': '0' * 64, 'offset_x': 9})
+    assert response.status_code == 409
+    deps.save_swarm.assert_not_called()
+
+
+def test_revision_patch_preserves_receipt_metadata_outside_assignment():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_swarm_router(deps))
+    with TestClient(app) as client:
+        response = client.patch('/api/v1/config/swarm/assignments/2', json={
+            'revision': topology_revision(deps.load_swarm()),
+            'acknowledged_unavailable_hw_ids': ['2'], 'offset_x': 9,
+        })
+    assert response.status_code == 200
+    persisted = deps.save_swarm.call_args.args[0][1]
+    assert persisted['offset_x'] == 9
+    assert 'revision' not in persisted
+    assert 'acknowledged_unavailable_hw_ids' not in persisted
+
+
 def test_revision_apply_requires_explicit_unavailable_confirmation():
     deps = _make_deps()
     before = deps.load_swarm()

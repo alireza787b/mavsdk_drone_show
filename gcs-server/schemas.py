@@ -154,6 +154,9 @@ class SwarmAssignmentPatchRequest(BaseModel):
     """Patch payload for one saved swarm assignment."""
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
+    revision: Optional[str] = Field(None, pattern=r'^[a-f0-9]{64}$')
+    acknowledged_unavailable_hw_ids: List[str] = Field(default_factory=list)
+
     follow: Optional[int] = Field(None, ge=0, description="Leader hw_id to follow (0 = independent)")
     offset_x: Optional[float] = Field(None, description="Offset axis 1: North (ned) or Forward (body), meters")
     offset_y: Optional[float] = Field(None, description="Offset axis 2: East (ned) or Right (body), meters")

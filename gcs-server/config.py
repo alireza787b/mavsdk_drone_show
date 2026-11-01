@@ -9,6 +9,9 @@ Shared utilities:
 - Git operations: functions/git_manager.py
 """
 import os
+import json
+import stat
+import tempfile
 from params import Params
 from collections import defaultdict
 
@@ -59,9 +62,29 @@ def load_swarm(file_path=None):
 
 def save_swarm(swarm, file_path=None):
     """Save swarm config as JSON with version wrapper."""
-    path = file_path or SWARM_FILE_PATH
+    path = os.path.realpath(file_path or SWARM_FILE_PATH)
     wrapped = {"version": 1, "assignments": swarm}
-    save_json(wrapped, path)
+    # Readers/watchers must see a complete old or new document, never a
+    # truncated intermediate file. Persistence failures must reach the caller.
+    directory = os.path.dirname(os.path.abspath(path))
+    os.makedirs(directory, exist_ok=True)
+    mode = stat.S_IMODE(os.stat(path).st_mode) if os.path.exists(path) else 0o644
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False) as stream:
+            temporary = stream.name
+            json.dump(wrapped, stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and os.path.exists(temporary):
+            os.unlink(temporary)
+    if path == os.path.realpath(SWARM_FILE_PATH):
+        from formation_watch import notify_formation_saved
+        notify_formation_saved()
 
 
 def get_gcs_git_report():

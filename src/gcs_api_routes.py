@@ -35,6 +35,7 @@ GCS_SITL_CONTROL_OPERATION_ROUTE_TEMPLATE = "/api/v1/system/sitl/operations/{ope
 GCS_CONFIG_FLEET_ROUTE = "/api/v1/config/fleet"
 GCS_CONFIG_FLEET_VALIDATION_ROUTE = "/api/v1/config/fleet/validation"
 GCS_CONFIG_SWARM_ROUTE = "/api/v1/config/swarm"
+GCS_WS_SWARM_CONFIG_ROUTE = "/ws/swarm-config"
 GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE = "/api/v1/config/swarm/assignments/{hw_id}"
 GCS_ORIGIN_ROUTE = "/api/v1/origin"
 GCS_ORIGIN_COMPUTE_ROUTE = "/api/v1/origin/compute"

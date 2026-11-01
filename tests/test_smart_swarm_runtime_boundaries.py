@@ -13,15 +13,90 @@ import subprocess
 import sys
 import time
 import types
+from contextlib import asynccontextmanager
 from unittest.mock import Mock
 from unittest.mock import AsyncMock
 
 import pytest
 from smart_swarm_src.control_authority import ControlAuthority
+from smart_swarm_src.assignment_recovery import LocalRecoveryOverride
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SIGNAL_HARNESS = REPO_ROOT / "tests" / "helpers" / "smart_swarm_signal_harness.py"
+
+
+@pytest.mark.asyncio
+async def test_formation_installs_reference_before_starting_new_follower(swarm_runtime, monkeypatch):
+    runtime = swarm_runtime
+    target = [{'hw_id': 1, 'follow': 0},
+              {'hw_id': 2, 'follow': 1, 'offset_x': 12, 'offset_y': -3, 'offset_z': 2, 'frame': 'body'}]
+
+    class Subscription:
+        def __init__(self, *_args, **_kwargs):
+            pass
+        @asynccontextmanager
+        async def run(self):
+            yield self
+        async def updates(self):
+            yield target
+
+    monkeypatch.setattr(runtime, 'FormationSubscription', Subscription)
+    monkeypatch.setattr(runtime, 'HW_ID', 2)
+    monkeypatch.setattr(runtime, 'DRONE_CONFIG', {'2': {'ip': 'node2'}})
+    monkeypatch.setattr(runtime, 'SWARM_CONFIG', {})
+    monkeypatch.setattr(runtime, 'IS_LEADER', True)
+    monkeypatch.setattr(runtime, 'LEADER_FAILOVER_IN_PROGRESS', False)
+    monkeypatch.setattr(runtime, 'RECOVERY_OVERRIDE', LocalRecoveryOverride())
+    monkeypatch.setattr(runtime, 'OFFSETS', {'x': 1, 'y': 0, 'z': 0})
+    monkeypatch.setattr(runtime, 'FRAME', 'ned')
+    publish = Mock()
+    monkeypatch.setattr(runtime, 'publish_runtime_assignment', publish)
+
+    async def become_follower(*_args):
+        assert runtime.OFFSETS == {'x': 12, 'y': -3, 'z': 2}
+        assert runtime.FRAME == 'body'
+        publish.assert_not_called()
+        await asyncio.sleep(0)
+        runtime.IS_LEADER = False
+        runtime.LEADER_HW_ID = '1'
+        return True
+
+    monkeypatch.setattr(runtime, 'transition_to_follower_mode', become_follower)
+    await runtime.update_swarm_config_periodically(object())
+    publish.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_subscription_preserves_local_recovery_override(swarm_runtime, monkeypatch):
+    runtime = swarm_runtime
+    target = runtime.parse_swarm_entries(runtime.normalize_topology([
+        {'hw_id': 1, 'follow': 0}, {'hw_id': 2, 'follow': 1, 'offset_x': 6}]))
+    recovery = LocalRecoveryOverride()
+    recovery.remember(target['2'], {**target['2'], 'follow': 0})
+    class Subscription:
+        def __init__(self, *_args, **_kwargs):
+            pass
+        @asynccontextmanager
+        async def run(self):
+            yield self
+        async def updates(self):
+            yield list(target.values())
+    monkeypatch.setattr(runtime, 'FormationSubscription', Subscription)
+    monkeypatch.setattr(runtime, 'HW_ID', 2)
+    monkeypatch.setattr(runtime, 'DRONE_CONFIG', {'2': {"ip": "node2"}})
+    monkeypatch.setattr(runtime, 'SWARM_CONFIG', {})
+    monkeypatch.setattr(runtime, 'RECOVERY_OVERRIDE', recovery)
+    monkeypatch.setattr(runtime, 'LEADER_FAILOVER_IN_PROGRESS', False)
+    monkeypatch.setattr(runtime, 'IS_LEADER', True)
+    monkeypatch.setattr(runtime, 'OFFSETS', {'x': 6, 'y': 0, 'z': 0})
+    monkeypatch.setattr(runtime, 'FRAME', 'ned')
+    monkeypatch.setattr(runtime, 'publish_runtime_assignment', Mock())
+    transition = AsyncMock()
+    monkeypatch.setattr(runtime, 'transition_to_follower_mode', transition)
+    await runtime.update_swarm_config_periodically(object())
+    transition.assert_not_awaited()
+    assert runtime.SWARM_CONFIG['2']['follow'] == 0
 
 
 @pytest.fixture(scope="module")

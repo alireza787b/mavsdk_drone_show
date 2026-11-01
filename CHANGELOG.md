@@ -9,6 +9,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm configuration delivery adds authenticated latest-state WebSocket
+  snapshots, conditional HTTP reconciliation and bounded reconnect/fallback.
+  Canonical saves are atomic and notify before Git publication; invalid snapshots
+  retain the current plan. Reference fields install before new follower tasks
+  start, and PATCH supports revision-aware receipts. Motion telemetry, gains,
+  leader-loss policy and existing role-change semantics are unchanged. Continuous
+  moving leader handover is not implemented or flight-cleared by this change.
+
 - Takeoff reserves checkboxes for aircraft inclusion. Stable Select all/Clear
   actions replace the master checkbox, and a distinct Launch mode radio group
   separates All armed first from Independent execution. Confirmed operations

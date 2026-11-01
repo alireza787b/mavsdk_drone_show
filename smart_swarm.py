@@ -55,6 +55,7 @@ from src.smart_swarm_contract import normalize_topology, topology_revision
 from smart_swarm_src.control_authority import ControlAuthority
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 from smart_swarm_src.formation_acknowledgement import effective_revision
+from smart_swarm_src.config_transport import FormationSubscription
 import aiohttp 
 
 from smart_swarm_src.leader_motion import project_leader_motion
@@ -1040,7 +1041,7 @@ def stop_mavsdk_server(mavsdk_server, timeout_sec: float = 5.0):
 
 async def update_swarm_config_periodically(drone):
     """
-    Periodically fetches the swarm configuration from the GCS API endpoint and updates
+    Watches/reconciles the GCS configuration and serially updates
     global parameters such as role, formation offsets, and leader information.
 
     If a role change is detected (e.g., switching from follower to leader or vice versa),
@@ -1059,29 +1060,30 @@ async def update_swarm_config_periodically(drone):
         logger.error(f"[Periodic Update] Cannot resolve drone config for HW_ID={HW_ID}")
         return
 
-    # Shared session for connection reuse
-    async with aiohttp.ClientSession() as session:
-        while True:
+    subscription = FormationSubscription(
+        f"http://{Params.GCS_IP}:{Params.gcs_api_port}{GCS_CONFIG_SWARM_ROUTE}",
+        gcs_auth_headers(),
+        fallback_sec=Params.SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC,
+        reconcile_sec=Params.SMART_SWARM_CONFIG_RECONCILE_INTERVAL_SEC,
+        request_timeout_sec=Params.SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC,
+        backoff_max_sec=Params.SMART_SWARM_CONFIG_BACKOFF_MAX_SEC,
+    )
+    async with subscription.run():
+        async for entries in subscription.updates():
             try:
                 if LEADER_FAILOVER_IN_PROGRESS:
                     await asyncio.sleep(0.25)
                     continue
-                logger.debug("[Periodic Update] Checking swarm configuration")
-                refreshed = await refresh_swarm_config_from_gcs(
-                    logger,
-                    source_label="periodic update",
-                    session=session,
-                )
-                if not refreshed:
-                    await asyncio.sleep(Params.SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC)
-                    continue
+                incoming = parse_swarm_entries(normalize_topology(entries))
+                if RECOVERY_OVERRIDE.assignment is not None and str_hw_id in incoming:
+                    incoming[str_hw_id] = RECOVERY_OVERRIDE.resolve(incoming[str_hw_id])
+                replace_swarm_config(list(incoming.values()), "GCS formation subscription")
 
                 # Grab this drone's new config
                 new_cfg = SWARM_CONFIG.get(str(HW_ID))
                 if new_cfg is None:
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
-                    publish_runtime_assignment(new_cfg)
                     config_changed = False
                     # Determine new role/offsets/frame
                     new_offsets     = {
@@ -1105,10 +1107,16 @@ async def update_swarm_config_periodically(drone):
                         if new_is_leader:
                             await transition_to_leader_mode(drone, logger, "config update")
                         else:
+                            # No follower controller exists yet: install the complete
+                            # reference before any new controller task can execute.
+                            OFFSETS.update(new_offsets)
+                            FRAME = new_frame
                             await transition_to_follower_mode(drone, new_leader, logger, "config update")
                     elif not new_is_leader and _follower_task_missing('control_task'):
                         # A role change can wait behind a leader action. Retry
                         # against the latest assignment, not a stale queued one.
+                        OFFSETS.update(new_offsets)
+                        FRAME = new_frame
                         await transition_to_follower_mode(drone, new_leader, logger, "pending role change")
 
                     # Handle leader change if drone is a follower
@@ -1143,12 +1151,13 @@ async def update_swarm_config_periodically(drone):
 
                     if config_changed:
                         bump_formation_config_version("swarm config update")
+                    # This is effective-state telemetry, never a desired-state receipt.
+                    publish_runtime_assignment()
 
             except Exception as e:
                 logger.exception(f"[Periodic Update] Error fetching/updating swarm config: {e}")
 
-            # Wait before next poll
-            await asyncio.sleep(Params.SMART_SWARM_CONFIG_REFRESH_INTERVAL_SEC)
+            # The subscription owns retries, reconnects and bounded HTTP fallback.
 
 
 

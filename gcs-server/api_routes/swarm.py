@@ -3,8 +3,10 @@
 import asyncio
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from auth_runtime import authorize_websocket
+from formation_watch import FormationWatch, matches_etag
 
 from schemas import (
     SwarmAssignment,
@@ -16,6 +18,7 @@ from schemas import (
     SwarmPublishRequest,
 )
 from src.smart_swarm_contract import topology_revision
+from src.gcs_api_routes import GCS_WS_SWARM_CONFIG_ROUTE
 from swarm_design_service import formation_status, validate_apply_observation
 
 
@@ -220,6 +223,25 @@ def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -
 def create_swarm_router(deps: Any) -> APIRouter:
     router = APIRouter()
     write_lock = asyncio.Lock()
+    watch = FormationWatch(lambda: deps.load_swarm())
+
+    @router.websocket(GCS_WS_SWARM_CONFIG_ROUTE)
+    async def watch_swarm_config(websocket: WebSocket):
+        if await authorize_websocket(websocket) is None:
+            return
+        await websocket.accept()
+        try:
+            async with watch.subscribe() as updates:
+                while True:
+                    try:
+                        resource = await asyncio.wait_for(updates.get(), timeout=15)
+                        message = {"type": "swarm_config", "data": resource}
+                    except asyncio.TimeoutError:
+                        message = {"type": "heartbeat"}
+                    await asyncio.wait_for(websocket.send_json(message), timeout=5)
+        except (WebSocketDisconnect, OSError, asyncio.TimeoutError, RuntimeError):
+            # Slow/disconnected clients recover with a fresh snapshot, not replay.
+            return
 
     @router.get("/api/v1/config/swarm/status", tags=["Swarm"])
     async def get_swarm_status():
@@ -244,9 +266,14 @@ def create_swarm_router(deps: Any) -> APIRouter:
             )
 
     @router.get("/api/v1/config/swarm", response_model=SwarmConfig, tags=["Swarm"])
-    async def get_swarm_config():
+    async def get_swarm_config(request: Request, response: Response):
         try:
-            return SwarmConfig.model_validate(_build_swarm_config_resource(deps.load_swarm()))
+            resource = _build_swarm_config_resource(deps.load_swarm())
+            headers = {"ETag": f'"{resource["revision"]}"', "Cache-Control": "no-cache"}
+            if matches_etag(request.headers.get("if-none-match"), resource["revision"]):
+                return Response(status_code=304, headers=headers)
+            response.headers.update(headers)
+            return SwarmConfig.model_validate(resource)
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -320,10 +347,24 @@ def create_swarm_router(deps: Any) -> APIRouter:
 
     async def patch_assignment(hw_id, payload):
         try:
-            data = payload.model_dump(exclude_unset=True, exclude_none=True)
+            data = payload.model_dump(exclude_unset=True, exclude_none=True,
+                                      exclude={"revision", "acknowledged_unavailable_hw_ids"})
 
             if not data:
                 raise HTTPException(status_code=400, detail="No swarm assignment changes provided")
+            if payload.revision:
+                before = deps.load_swarm() or []
+                if topology_revision(before) != payload.revision:
+                    raise HTTPException(409, "Swarm layout changed; refresh before applying")
+                proposed = [dict(entry) for entry in before]
+                member = next((entry for entry in proposed if int(entry["hw_id"]) == hw_id), None)
+                if member is None:
+                    raise HTTPException(404, "Swarm assignment not found")
+                member.update(data)
+                _validate_swarm_cycle_constraints(proposed)
+                await validate_apply_observation(deps, before, proposed, payload.acknowledged_unavailable_hw_ids)
+                if topology_revision(deps.load_swarm() or []) != payload.revision:
+                    raise HTTPException(409, "Swarm layout changed during review; reload before applying")
             updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, {"hw_id": hw_id, **data})
 
             return SwarmAssignmentUpdateResponse(

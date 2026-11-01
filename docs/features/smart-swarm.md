@@ -85,7 +85,7 @@ The normal operator path is:
 
 Edits are kept in a browser-local draft until explicitly applied. **Apply plan**
 writes the validated formation to the GCS; running Smart Swarm nodes may observe
-that revision through their normal configuration polling. **Save to repo** applies
+that revision through the configuration watch with HTTP reconciliation. **Save to repo** applies
 a changed draft first, then commits/pushes that exact revision when repository
 write access is available. An already-applied plan is published without reapplying.
 Repository failure does not undo a successful Apply; retry saves to the repo only.
@@ -126,7 +126,7 @@ by fresh telemetry. Unconfirmed work remains visible; dismissing a failure notic
 does not cancel a command. Full command history remains in the existing activity/log surfaces.
 
 **Apply during flight:** editing alone sends nothing. Applying changes the GCS
-configuration that running swarm processes poll. If affected aircraft are
+configuration that running swarm processes watch and reconcile. If affected aircraft are
 unreachable, **Apply anyway** explicitly accepts that reachable aircraft may
 change first and others may adopt the plan on reconnect. This is not simultaneous
 dispatch or collision avoidance. The readback strip separates **Applied** (effective
@@ -549,11 +549,31 @@ That workflow captures:
 
 ### Current transport behavior and next-step roadmap
 
+The configuration watch sends a complete revisioned snapshot on connection and
+after canonical saves, before optional Git publication. Slow clients keep only
+the latest snapshot. Reconnect uses jittered backoff capped at 15 seconds and
+always resynchronizes current state; missed edits are not replayed as commands.
+One server reader also checks for external Git/file replacement every second
+while clients are subscribed. Invalid/empty snapshots retain the last valid plan.
+Configuration connectivity alone never triggers Hold or changes leader-loss policy.
+
+Both push and HTTP feed the same serial installer. Existing applied-revision
+reports remain the evidence of installation, not simply receipt or arrival at a
+formation position. Older servers continue to work through HTTP fallback.
+This transport changes neither leader-motion telemetry nor flight gains.
+
+**Acceptance boundary:** source/transport tests are not flight acceptance. Moving
+leader handover remains a separate unfinished capability; current transitions
+still use the existing Hold/ownership path. Do not use faster delivery as proof
+of synchronized role changes or collision avoidance.
+
 Current runtime contract:
 
 - follower-to-leader state is websocket-primary with bounded reconnect/backoff
 - follower-to-leader HTTP fallback is still available and intentionally kept
-- follower-to-GCS assignment refresh remains periodic HTTP polling
+- all active roles subscribe to the authenticated GCS formation watch; HTTP
+  reconciliation runs every 30 seconds while connected, or every 2 seconds
+  while disconnected (plus request duration)
 - follower-to-GCS leader-change notify remains HTTP POST
 - stale-data and transport-loss handling share the same failover path
 
@@ -567,7 +587,8 @@ Why this is the correct current design:
 Why it is still not the final large-scale architecture:
 
 - GCS-side live telemetry views are still a mix of polling and streams
-- assignment refresh is still HTTP polling rather than push-driven
+- formation delivery is recoverable desired-state synchronization, not a
+  simultaneous multi-aircraft authority-transfer protocol
 - real-world degraded networks can still benefit from transport metrics, confidence scoring, and richer outage analytics
 
 Recommended next industrial path:
@@ -869,5 +890,7 @@ paused leader resumes telemetry after unpause.
 
 - richer operator-facing swarm stop/hold state reporting
 - smarter cluster-level leader election policies
-- transport optimization beyond HTTP polling if very large swarms require it
+- coordinated moving leader handover with verified successor motion ownership,
+  parent-first activation and durable recovery evidence; the current role-change
+  path is not a validated continuous moving handover
 - UI playback and incident review tied to unified logging
