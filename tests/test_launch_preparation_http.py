@@ -298,6 +298,25 @@ def test_relaxed_preparation_cannot_bypass_strict_commit_readiness(
     mock_drone_communicator.process_command.assert_not_called()
 
 
+def test_rejected_preparation_without_observation_preserves_blocker(
+    test_client, api_server, mock_drone_communicator,
+):
+    probe = _probe(ready=False)
+    probe["observation"] = None
+    probe["blockers"] = ["native safety telemetry unavailable"]
+    api_server._probe_live_armability = AsyncMock(return_value=probe)
+    response = test_client.post(
+        "/api/v1/preflight/launch-preparations",
+        json={"schema_version": 1, "command": _command(), "require_global_position": True},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+    assert response.json()["coordinated_takeoff_supported"] is True
+    assert response.json()["preparation_token"] is None
+    assert "native safety telemetry unavailable" in response.json()["error_detail"]
+    mock_drone_communicator.process_command.assert_not_called()
+
+
 def test_node_restart_invalidates_uncommitted_launch_token(
     test_client,
     api_server,
@@ -331,6 +350,7 @@ def test_blocked_readiness_never_issues_token(
     assert response.json()["status"] == "rejected"
     assert response.json()["preparation_token"] is None
     assert response.json()["token_ttl_ms"] == 0
+    assert response.json()["coordinated_takeoff_supported"] is True
     mock_drone_communicator.process_command.assert_not_called()
 
 

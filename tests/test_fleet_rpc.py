@@ -57,6 +57,27 @@ def _callback_capabilities(drones):
     }
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('prepared', [False, True])
+async def test_coordinated_capability_check_preserves_preflight_rejection(prepared):
+    from fleet_rpc import FleetRPCService
+    async def respond(request):
+        payload = _prepared_launch_payload(request)
+        payload['coordinated_takeoff_supported'] = False
+        if not prepared:
+            payload.update(status='rejected', ready=False, summary='Battery safety telemetry unavailable',
+                           preparation_token=None, token_ttl_ms=0, observation=None)
+        return httpx.Response(200, json=payload)
+    drones = _drones(1)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        result = await FleetRPCService(_params(), client=client).prepare_launch(drones,
+            {'mission_type': 10, 'trigger_time': 0, 'command_id': 'native-blocker', 'takeoff_mode': 'coordinated'},
+            callback_capabilities=_callback_capabilities(drones))
+    assert not result['all_prepared']
+    summary = result['results']['1']['summary']
+    assert summary == ('Update aircraft software for coordinated takeoff' if prepared else 'Battery safety telemetry unavailable')
+
+
 def _launch_tokens(drones):
     return {
         str(drone["hw_id"]): f"prepare-{drone['hw_id']}-" + ("x" * 48)

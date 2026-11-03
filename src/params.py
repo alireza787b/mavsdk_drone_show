@@ -233,7 +233,11 @@ class Params:
     SMART_SWARM_CONFIG_BACKOFF_MAX_SEC = 15.0
     SMART_SWARM_SOURCE_MAX_AGE_SEC = 0.75
     SMART_SWARM_OWN_STATE_MAX_AGE_SEC = 0.75
-    SMART_SWARM_HARD_STALE_TIMEOUT_SEC = 2.5
+    SMART_SWARM_HARD_STALE_TIMEOUT_SEC = _positive_env_float(
+        'MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', 2.5)
+    if SMART_SWARM_HARD_STALE_TIMEOUT_SEC <= SMART_SWARM_SOURCE_MAX_AGE_SEC:
+        logger.warning('Leader hard-stale timeout must exceed source freshness; using 2.5 seconds')
+        SMART_SWARM_HARD_STALE_TIMEOUT_SEC = 2.5
     SMART_SWARM_LEADER_STATE_TIMEOUT_SEC = 1.0   # Per-request timeout for follower -> leader state fetches
     SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS swarm config refresh
     SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS leader-change notify
@@ -289,6 +293,16 @@ class Params:
     SMART_SWARM_LEADER_RECOVERY_STABLE_SEC = _safe_float(
         os.getenv("MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC", "1"), 1.0
     )
+    if not (
+        math.isfinite(SMART_SWARM_LEADER_RECOVERY_WAIT_SEC)
+        and math.isfinite(SMART_SWARM_LEADER_RECOVERY_STABLE_SEC)
+        and 0 < SMART_SWARM_LEADER_RECOVERY_STABLE_SEC < SMART_SWARM_LEADER_RECOVERY_WAIT_SEC
+    ):
+        # Reject malformed configuration at startup rather than throwing from
+        # LeaderRecoveryWindow before a protective Hold can be requested.
+        logger.warning('Invalid leader recovery timing; using wait=10s and stable=1s')
+        SMART_SWARM_LEADER_RECOVERY_WAIT_SEC = 10.0
+        SMART_SWARM_LEADER_RECOVERY_STABLE_SEC = 1.0
 
     
     csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)

@@ -2406,6 +2406,12 @@ class TestCommandEndpoints:
 
         coordinator = DeferredSubmissionCoordinator()
         monkeypatch.setattr(app_fastapi, "command_submission_coordinator", coordinator)
+        # These are in-process route tests with synthetic aircraft, not a
+        # rehearsal against any Docker fleet running beside pytest. The real
+        # callback endpoint guard has separate mismatch/exception coverage.
+        monkeypatch.setattr(app_fastapi, "sitl_control_service", SimpleNamespace(
+            callback_endpoint_mismatches=lambda _targets: [],
+        ), raising=False)
         return coordinator
 
     def test_submit_command_rejects_malformed_json(self, test_client):

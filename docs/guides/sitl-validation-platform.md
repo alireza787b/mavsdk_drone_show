@@ -53,6 +53,34 @@ The current reusable validators cover:
 
 ## Built-In Templates
 
+For the two-aircraft live-formation Apply rehearsal, including reference-frame
+changes and temporary leader loss, use an isolated SITL GCS and exactly two saved
+formation members:
+
+```bash
+python3 tools/validate_swarm_design_apply.py \
+  --base-url http://127.0.0.1:5031 --leader-id 1 --follower-id 2 \
+  --exercise-frame-changes --leader-outage-seconds 4.5 \
+  --output-dir /path/to/evidence
+```
+
+The outage option verifies local Docker identity, fleet IP and callback port
+before pausing the simulator. It refuses a remote or mismatched fleet. Use the
+default Hold/recovery policy: an outage must exceed the hard-stale threshold and
+allow a stable return within the recovery window. The tool verifies paired
+Takeoff, effective installation, formation settling, 10m spacing, Body/NED
+reacquisition, protective Hold/rejoin, unchanged saved roles, Hold-preserving
+Apply, Land and configuration restore. It does not test continuous moving leader
+handover. A running process must match its SITL system configuration too: set
+`MDS_GCS_SYSTEM_CONFIG` to the isolated configuration path instead of inheriting
+the production `/etc/mds/gcs.env`; never relax the validator's mode guard.
+
+To test expiry instead of automatic rejoin, use
+`--leader-outage-seconds 14 --expect-recovery-expired` with the default 2.5s
+hard-stale/10s recovery window. The follower must remain held after data returns;
+the rehearsal then uses explicit Stop/Start and verifies following again. Adapt
+the outage to the configured timing; this option does not change runtime policy.
+
 List the built-in templates:
 
 ```bash

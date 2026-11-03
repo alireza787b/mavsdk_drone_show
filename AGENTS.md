@@ -104,6 +104,9 @@ Never hardcode `/opt`, `/root`, hostnames, repo URLs, or branch names without ve
 5. Validate locally
    - run the narrowest checks that prove the fix
    - expand only as needed
+   - keep unit/API tests independent of neighboring Docker fleets and host
+     callback settings; mock discovery there and reserve real discovery for
+     runtime validators, without weakening production endpoint guards
 6. Validate end to end
    - rerun the real operator workflow when behavior affects runtime missions or release paths
 7. Update docs

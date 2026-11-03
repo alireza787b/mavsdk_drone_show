@@ -9,6 +9,23 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Launch preparation reports native readiness rejections before compatibility
+  hints; modern rejected responses advertise coordinated-Takeoff support.
+  Missing native observations reject without issuing launch authority.
+  Smart Swarm guides include privacy-reviewed reference-frame and measured
+  staggered-return illustrations.
+
+- GCS telemetry now polls peers independently with bounded async connections and
+  outage backoff. Offline demo/fleet entries no longer serially age healthy
+  aircraft snapshots. Route tests isolate host Docker discovery; production
+  callback-endpoint guards remain enforced. Formation watch authentication now
+  matches machine HTTP configuration reads under dashboard-only login.
+- Leader hard-stale timing is configurable through advanced node settings;
+  malformed recovery timings fall back safely at startup. Existing defaults,
+  automatic-promotion policy and motion gains are unchanged. The SITL Apply
+  rehearsal adds Body/NED changes, 10m spacing and guarded local leader-outage
+  validation with verified restore/landing evidence.
+
 - Smart Swarm configuration delivery adds authenticated latest-state WebSocket
   snapshots, conditional HTTP reconciliation and bounded reconnect/fallback.
   Canonical saves are atomic and notify before Git publication; invalid snapshots

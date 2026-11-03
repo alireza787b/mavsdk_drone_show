@@ -1,5 +1,11 @@
 # Formation delivery and moving handover checkpoint
 
+Continuation: the [November 3 validation report](2026-11-03-formation-delivery-validation.md)
+records accepted two-aircraft configuration-delivery rehearsals and the deferred
+image rebuild. The moving-handover work below remains required; transport
+acceptance is not acceptance of that separate capability. The original slice's
+pre-validation status below is historical.
+
 ## Accepted design
 
 Use recoverable latest-state delivery for formation configuration, independent

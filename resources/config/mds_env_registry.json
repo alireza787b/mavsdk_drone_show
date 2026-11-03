@@ -2,6 +2,28 @@
   "version": 1,
   "entries": [
     {
+      "name": "MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC",
+      "title": "Leader data hard-stale timeout (seconds)",
+      "scope": "node",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/local.env",
+      "value_type": "float",
+      "default": 2.5,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "node_service",
+      "apply_action": "restart_node_service",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/features/smart-swarm.md",
+      "consumers": ["src/params.py"],
+      "notes": "Protective Hold starts after this accepted-data age. Must be finite, positive and greater than the source freshness threshold. Configure while grounded; default unchanged.",
+      "owner": "flight-runtime"
+    },
+    {
       "name": "MDS_SMART_SWARM_LEADER_LOSS_STRATEGY",
       "title": "Follower leader-loss response",
       "scope": "node",

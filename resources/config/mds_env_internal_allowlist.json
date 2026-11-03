@@ -41,6 +41,12 @@
   ],
   "keys": [
     {
+      "name": "MDS_TAKEOFF_CONTEXT_FD",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Inherited coordinated-Takeoff context descriptor supplied by the mission supervisor; never persist or expose as an operator setting."
+    },
+    {
       "name": "MDS_BORROW_MAVSDK_SERVER",
       "domain": "runtime",
       "scope": "process",

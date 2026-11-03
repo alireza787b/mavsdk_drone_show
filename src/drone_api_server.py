@@ -2200,6 +2200,7 @@ class DroneAPIServer:
             if target_hw_id != local_hw_id:
                 return LaunchPreparationResponse(
                     status="rejected",
+                    coordinated_takeoff_supported=True,
                     command_id=command_id,
                     target_hw_id=local_hw_id,
                     mission_type=command.mission_type,
@@ -2252,6 +2253,7 @@ class DroneAPIServer:
             if envelope.hw_id != local_hw_id:
                 return LaunchPreparationResponse(
                     status="rejected",
+                    coordinated_takeoff_supported=True,
                     command_id=command_id,
                     target_hw_id=local_hw_id,
                     mission_type=command.mission_type,
@@ -2273,6 +2275,7 @@ class DroneAPIServer:
             if not envelope.ready:
                 return LaunchPreparationResponse(
                     status="rejected",
+                    coordinated_takeoff_supported=True,
                     command_id=command_id,
                     target_hw_id=local_hw_id,
                     mission_type=command.mission_type,
@@ -2288,7 +2291,7 @@ class DroneAPIServer:
                     ),
                     error_code=CommandErrorCode.PREFLIGHT_FAILED.value,
                     error_detail=(
-                        "; ".join(envelope.observation.blockers)
+                        "; ".join(envelope.observation.blockers if envelope.observation else envelope.blockers)
                         or "Current PX4 launch readiness conditions were not met"
                     ),
                 )

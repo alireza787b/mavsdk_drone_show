@@ -3,10 +3,34 @@
 from __future__ import annotations
 
 import importlib
+import runpy
+from pathlib import Path
+
+import pytest
 
 from src.settings.deployment_profile import load_deployment_profile
 from src.settings.identity import resolve_hw_id_info
 from src.settings.runtime import resolve_runtime_mode
+
+
+@pytest.mark.parametrize('wait,stable,expected', [
+    ('20', '2', (20, 2)), ('0', '1', (10, 1)), ('10', '10', (10, 1)),
+    ('nan', '1', (10, 1)), ('10', 'inf', (10, 1)), ('-1', '1', (10, 1)),
+])
+def test_recovery_timing_cannot_fail_before_protective_hold(monkeypatch, tmp_path, wait, stable, expected):
+    monkeypatch.setenv('MDS_LOCAL_ENV_FILE', str(tmp_path / 'absent.env'))
+    monkeypatch.setenv('MDS_SMART_SWARM_LEADER_RECOVERY_WAIT_SEC', wait)
+    monkeypatch.setenv('MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC', stable)
+    params = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/params.py'))['Params']
+    assert (params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC, params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC) == expected
+
+
+@pytest.mark.parametrize('value,expected', [('4', 4), ('0', 2.5), ('nan', 2.5), ('0.5', 2.5)])
+def test_hard_stale_timing_is_configurable_and_consistent(monkeypatch, tmp_path, value, expected):
+    monkeypatch.setenv('MDS_LOCAL_ENV_FILE', str(tmp_path / 'absent.env'))
+    monkeypatch.setenv('MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', value)
+    params = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/params.py'))['Params']
+    assert params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC == expected
 
 
 def test_resolve_runtime_mode_prefers_mds_mode(monkeypatch, tmp_path):

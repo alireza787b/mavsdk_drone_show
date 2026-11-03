@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 390" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Swarm reference frames and Managed Return</title>
+  <desc id="desc">NED spacing stays aligned to North and East. Body spacing turns with the followed aircraft's heading. Managed Return first holds the selected group then issues native RTL commands at staggered times, not after each landing.</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#7891a4"/></marker></defs>
+  <rect width="960" height="390" fill="#101c28"/>
+  <g font-family="sans-serif" fill="#e2edf3">
+    <text x="24" y="32" font-size="19">SMART SWARM / REFERENCE AND RETURN</text>
+    <g stroke="#384c5e"><path d="M320 55V360M640 55V360"/></g>
+    <g font-size="17"><text x="24" y="77">NED · EARTH-FIXED</text><text x="344" y="77">BODY · HEADING-RELATIVE</text><text x="664" y="77">MANAGED RETURN</text></g>
+    <g stroke="#7891a4" stroke-width="2" fill="none" marker-end="url(#arrow)"><path d="M72 280V113"/><path d="M72 280H275"/><path d="M380 276L485 120"/><path d="M380 276L583 276"/></g>
+    <g font-size="13" fill="#b2c6d3"><text x="47" y="110">N</text><text x="282" y="285">E</text><text x="487" y="114">Forward</text><text x="555" y="300">Right</text></g>
+    <g stroke="#58c8bd" stroke-width="2" stroke-dasharray="6 5"><path d="M167 260V151"/><path d="M416 260L483 160"/></g>
+    <g fill="#58c8bd"><circle cx="167" cy="151" r="10"/><circle cx="483" cy="160" r="10"/></g>
+    <g fill="#f0bd65"><path d="M167 244L180 271L167 265L154 271Z"/><path d="M422 244L427 273L414 264L400 264Z"/></g>
+    <g font-size="14"><text x="185" y="155">Follower</text><text x="185" y="267">Leader ↗</text><text x="498" y="164">Follower</text><text x="440" y="264">Leader ↗</text></g>
+    <g font-size="13" fill="#b2c6d3"><text x="24" y="330">North offset stays north as leader turns.</text><text x="344" y="330">Forward offset rotates as leader turns.</text><text x="24" y="350">Plan view · horizontal spacing only.</text><text x="344" y="350">Heading belongs to the followed aircraft.</text></g>
+    <g stroke="#7891a4" stroke-width="2" marker-end="url(#arrow)"><path d="M688 140H923"/></g>
+    <g font-size="14"><text x="680" y="120">HOLD ALL</text><text x="680" y="180">t = 0 · RTL aircraft A</text><text x="680" y="217">t ≥ 10 s · RTL aircraft B</text><text x="680" y="254">t ≥ 20 s · RTL aircraft C</text></g>
+    <g font-size="13" fill="#b2c6d3"><text x="664" y="310">Each aircraft uses its own PX4 return.</text><text x="664" y="330">Delay spaces commands, not landings.</text><text x="664" y="350">No automatic altitude or path separation.</text></g>
+  </g>
+</svg>

@@ -546,10 +546,6 @@ class FleetRPCService:
                         "error_detail": "Command ID, hardware ID, mission, or immutable payload fingerprint differed",
                         "drone_ip": drone.get("ip"),
                     }
-                if command_data.get('takeoff_mode') == 'coordinated' and not envelope.coordinated_takeoff_supported:
-                    return dict(drone_id=drone_id, success=False, ready=False, prepare_state='blocked',
-                        category='blocked', summary='Update aircraft software for coordinated takeoff',
-                        error_code=CommandErrorCode.PREFLIGHT_FAILED.value)
                 if envelope.status != "prepared":
                     return {
                         "drone_id": drone_id,
@@ -569,6 +565,11 @@ class FleetRPCService:
                         "error_detail": envelope.error_detail,
                         "drone_ip": drone.get("ip"),
                     }
+
+                if command_data.get('takeoff_mode') == 'coordinated' and not envelope.coordinated_takeoff_supported:
+                    return dict(drone_id=drone_id, success=False, ready=False, prepare_state='blocked',
+                        category='blocked', summary='Update aircraft software for coordinated takeoff',
+                        error_code=CommandErrorCode.PREFLIGHT_FAILED.value)
 
                 if not ground_start_observation_ready(mission, envelope.observation):
                     return {

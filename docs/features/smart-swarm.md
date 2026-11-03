@@ -66,6 +66,14 @@ Validator note:
 
 ## Operator Model
 
+![NED and Body spacing, and staggered native RTL](../assets/smart-swarm/frames-and-return.svg)
+
+The diagram is conceptual, not live telemetry. NED horizontal spacing stays
+earth-fixed; Body spacing follows the parent's heading. Managed Return staggers
+native RTL submissions; it does not separate return paths. Changing leaders is
+not a continuous motion handover: review roles while stopped for the normal
+operator workflow. Continuous moving handover remains outside the accepted scope.
+
 ### Design Swarm workflow
 
 The **Design Swarm** tab is one linked formation workspace. Top, Front, Side, 3D,
@@ -146,6 +154,12 @@ issuance, not between landings. Return paths may overlap and each aircraft uses
 its configured PX4 return height and home position; the dialog does not invent
 or override those values. Globe remains the geographic view; the Swarm page
 uses a compact relationship/status diagram instead.
+
+![Measured two-aircraft SITL return at a 10-second command interval](../assets/smart-swarm/sequential-return-sitl.png)
+
+Measured SITL example: the dashed lines mark RTL submissions, not landing
+clearance. Height is relative to each aircraft's own home. This run illustrates
+the queue; it does not prove separation for other homes, heights or return paths.
 
 ### Hold Swarm
 
@@ -403,6 +417,15 @@ Automatic promotion is disabled by default. Advanced deployment settings in
 `/etc/mds/local.env` are `MDS_SMART_SWARM_LEADER_LOSS_STRATEGY=hold_recover`,
 `MDS_SMART_SWARM_LEADER_RECOVERY_WAIT_SEC=10`, and
 `MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC=1`. These are not dashboard switches.
+
+`MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC=2.5` controls when stale leader data
+initiates protective Hold. It is available in advanced node configuration and
+must exceed the accepted-source freshness threshold. All timing changes require
+a grounded node-service restart. Invalid/non-finite recovery timing or a stable
+interval not shorter than the wait window logs a warning and restores 10s/1s
+defaults at startup, rather than failing when protective recovery is needed.
+Automatic promotion remains disabled by default; these settings do not change
+saved roles or make an unvalidated moving handover available.
 Change them only while grounded and restart the affected runtime. For deliberate
 multi-level failover, set the strategy to `upstream_or_hold` consistently on GCS
 and nodes; after the recovery window it follows a cycle-safe upstream leader,
@@ -587,6 +610,10 @@ Why this is the correct current design:
 Why it is still not the final large-scale architecture:
 
 - GCS-side live telemetry views are still a mix of polling and streams
+- GCS telemetry polls now run independently per aircraft with bounded async
+  connections and backoff for unreachable peers, so offline fleet entries do
+  not serially delay healthy aircraft. Native timestamps and stale thresholds
+  are unchanged; this is observation transport, not a guidance-gain change.
 - formation delivery is recoverable desired-state synchronization, not a
   simultaneous multi-aircraft authority-transfer protocol
 - real-world degraded networks can still benefit from transport metrics, confidence scoring, and richer outage analytics

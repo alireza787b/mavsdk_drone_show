@@ -25,6 +25,7 @@ import asyncio
 import math
 import traceback
 import threading
+from fleet_telemetry import FleetTelemetryPoller
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -371,60 +372,25 @@ class BackgroundServices:
         log_system_event("Background services stopped", "INFO", "system")
 
     async def _poll_telemetry(self):
-        """Poll telemetry from all drones asynchronously"""
-        import requests
-
+        """Monitor peers independently; preserve native freshness and bounded I/O."""
+        def publish(drone, data, error):
+            hw_id, ip = str(drone['hw_id']), drone['ip']
+            with telemetry_lock:
+                telemetry_data_all_drones[hw_id] = (
+                    _build_background_telemetry_record(hw_id, ip, data) if data is not None
+                    else _build_background_unavailable_record(
+                        hw_id=hw_id, pos_id=drone.get('pos_id', 0), ip=ip,
+                        error_message=error, existing=telemetry_data_all_drones.get(hw_id),
+                    )
+                )
         while self.running:
+            poller = FleetTelemetryPoller(Params, lambda: list(self.drones), publish)
             try:
-                # Use thread pool for blocking requests
-                loop = asyncio.get_event_loop()
-
-                for drone in self.drones:
-                    if not self.running:
-                        break
-
-                    hw_id = str(drone['hw_id'])
-                    ip = drone['ip']
-
-                    try:
-                        # Run blocking request in thread pool
-                        url = f"http://{ip}:{Params.drone_api_port}{DRONE_STATE_ROUTE}"
-                        response = await loop.run_in_executor(
-                            None,
-                            lambda u=url: requests.get(u, timeout=Params.GCS_TELEMETRY_REQUEST_TIMEOUT_SEC)
-                        )
-
-                        if response.status_code == 200:
-                            data = response.json()
-                            with telemetry_lock:
-                                telemetry_data_all_drones[hw_id] = _build_background_telemetry_record(hw_id, ip, data)
-                        else:
-                            with telemetry_lock:
-                                telemetry_data_all_drones[hw_id] = _build_background_unavailable_record(
-                                    hw_id=hw_id,
-                                    pos_id=drone.get("pos_id", 0),
-                                    ip=ip,
-                                    error_message=f"Drone telemetry endpoint returned HTTP {response.status_code}.",
-                                    existing=telemetry_data_all_drones.get(hw_id),
-                                )
-
-                    except Exception:
-                        with telemetry_lock:
-                            telemetry_data_all_drones[hw_id] = _build_background_unavailable_record(
-                                hw_id=hw_id,
-                                pos_id=drone.get("pos_id", 0),
-                                ip=ip,
-                                error_message="Unable to reach the drone telemetry endpoint.",
-                                existing=telemetry_data_all_drones.get(hw_id),
-                            )
-
-                # Sleep between polls
-                await asyncio.sleep(Params.telem_poll_interval)
-
+                await poller.run()
             except asyncio.CancelledError:
-                break
-            except Exception as e:
-                log_system_error(f"Telemetry polling error: {e}", "telemetry")
+                raise
+            except Exception as exc:
+                log_system_error(f"Telemetry monitoring failed: {exc}", "telemetry")
                 await asyncio.sleep(5)
 
     async def _poll_git_status(self):
