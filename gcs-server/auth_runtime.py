@@ -252,12 +252,17 @@ class MDSAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-async def authorize_websocket(websocket: WebSocket) -> dict[str, Any] | None:
+async def authorize_websocket(websocket: WebSocket, *, machine_endpoint: bool = False) -> dict[str, Any] | None:
     """Authorize a WebSocket connection when optional auth is enabled."""
     service = build_auth_service()
     settings = service.settings
     if not settings.any_auth_enabled:
         return {"kind": "disabled", "role": "admin", "username": "auth-disabled"}
+    if machine_endpoint and not settings.api_auth_enabled:
+        # Match the existing read-only machine HTTP resource: dashboard login
+        # alone must not silently disable node configuration delivery. Full
+        # API auth still requires a valid bearer/session below.
+        return {"kind": "machine", "role": "viewer", "username": "node-config-watch"}
 
     bearer_token = _extract_bearer_token(websocket.headers.get("Authorization"))
     if bearer_token is None:

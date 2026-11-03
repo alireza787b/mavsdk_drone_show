@@ -1180,6 +1180,9 @@ multiple validators and `*`; a match returns `304` without a body.
 
 Read-only formation watch, authorized through the existing WebSocket auth path.
 Node clients supply the existing bearer header; no new credential mode is added.
+Dashboard-only login preserves the existing machine HTTP resource's trusted-network
+access. Enabling full API authentication requires credentials for both HTTP and
+the watch; ordinary dashboard WebSockets retain their existing login requirement.
 On connection and after a change, messages use `type: swarm_config` with the
 complete canonical resource under `data` (`version`, `revision`, `assignments`).
 The assignments array is nonempty and normalized. Heartbeat messages use

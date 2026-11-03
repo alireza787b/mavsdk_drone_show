@@ -227,7 +227,7 @@ def create_swarm_router(deps: Any) -> APIRouter:
 
     @router.websocket(GCS_WS_SWARM_CONFIG_ROUTE)
     async def watch_swarm_config(websocket: WebSocket):
-        if await authorize_websocket(websocket) is None:
+        if await authorize_websocket(websocket, machine_endpoint=True) is None:
             return
         await websocket.accept()
         try:

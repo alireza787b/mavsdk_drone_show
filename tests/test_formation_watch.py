@@ -84,7 +84,7 @@ def test_config_get_conditional_read():
 
 
 def test_watch_authorizes_before_accept(monkeypatch):
-    async def deny(socket):
+    async def deny(socket, **_kwargs):
         await socket.close(code=1008)
         return None
     monkeypatch.setattr('api_routes.swarm.authorize_websocket', deny)
@@ -98,7 +98,7 @@ def test_watch_authorizes_before_accept(monkeypatch):
 
 
 def test_watch_initial_resource(monkeypatch):
-    async def allow(_):
+    async def allow(_, **_kwargs):
         return {'kind': 'test'}
     monkeypatch.setattr('api_routes.swarm.authorize_websocket', allow)
     app = FastAPI()
@@ -107,6 +107,26 @@ def test_watch_initial_resource(monkeypatch):
         with client.websocket_connect('/ws/swarm-config') as socket:
             message = socket.receive_json()
             assert message == {'type': 'swarm_config', 'data': snapshot(formation())}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('api_auth,machine,allowed', [(False, True, True), (True, True, False), (False, False, False)])
+async def test_machine_watch_matches_http_auth_posture(monkeypatch, api_auth, machine, allowed):
+    from unittest.mock import AsyncMock
+    from auth_runtime import authorize_websocket
+    service = SimpleNamespace(
+        settings=SimpleNamespace(any_auth_enabled=True, api_auth_enabled=api_auth),
+        authenticate_bearer=lambda *_args, **_kwargs: None,
+        verify_session=lambda *_args: None,
+    )
+    monkeypatch.setattr('auth_runtime.build_auth_service', lambda: service)
+    socket = SimpleNamespace(headers={}, query_params={}, cookies={}, client=None, close=AsyncMock())
+    result = await authorize_websocket(socket, machine_endpoint=machine)
+    assert bool(result) is allowed
+    if allowed:
+        socket.close.assert_not_awaited()
+    else:
+        socket.close.assert_awaited_once_with(code=1008)
 
 
 @pytest.mark.asyncio
