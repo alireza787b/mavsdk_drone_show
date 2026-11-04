@@ -123,6 +123,16 @@ hardware and position IDs, and **Show IDs** adds them to plot labels.
 
 ### Operate display
 
+**Telemetry delayed** means the current aircraft sample is unavailable or the
+preview fetch failed, not proof the aircraft is powered off. Cached formation
+membership remains visible, but stale telemetry cannot claim current airborne,
+grounded or preflight status. A separate stale controller report is
+**Unconfirmed**; a fresh controller failure still appears as **Failed**.
+Replacing a running swarm with Hold or another command normally ends the old
+operation as **superseded**, not a successful completed flight and not an
+unexpected controller failure. The old operation's replacement notice is
+informational; separately verify the new Hold/Return result on every aircraft.
+
 Operate is read-only except for explicit flight controls. Its diagram shows live
 roles and flight/following status, not geographic spacing or editable offsets.
 Secondary actions and links are behind the header overflow control. Hold remains

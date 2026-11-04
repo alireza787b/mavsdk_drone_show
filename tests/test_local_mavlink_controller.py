@@ -313,6 +313,31 @@ def test_process_status_text_surfaces_px4_blocker(mock_drone_config):
     assert mock_drone_config.status_messages
 
 
+@pytest.mark.parametrize('message,preflight,blocked', [
+    ('Disarming denied: not landed', False, False),
+    ('Disarm denied: airborne', False, False),
+    ('Arming denied: heading estimate unstable', True, True),
+    ('Arm denied: GPS invalid', True, True),
+    ('Takeoff denied: not ready', True, True),
+    ('Preflight Fail: GPS drift', True, True),
+    ('Prearm check: sensors warming', True, False),
+])
+def test_status_text_classification_matches_complete_phrases(message, preflight, blocked):
+    result = LocalMavlinkController._classify_status_text(message, 'warning')
+    assert result == {'category': 'preflight' if preflight else 'system', 'blocks_readiness': blocked}
+
+
+def test_disarming_denied_is_retained_without_becoming_preflight_blocker(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    controller.process_status_text(SimpleNamespace(
+        text='Disarming denied: not landed', severity=2, id=0, chunk_seq=0,
+    ))
+    assert any(row['message'] == 'Disarming denied: not landed'
+               and row['category'] == 'system' for row in mock_drone_config.status_messages)
+    assert not any('disarming denied' in row['message'].lower()
+                   for row in mock_drone_config.preflight_blockers)
+
+
 def test_open_mavlink_connection_uses_explicit_udpin(mock_drone_config, monkeypatch):
     controller = build_controller(mock_drone_config)
     controller.local_mavlink_port = 12550

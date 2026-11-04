@@ -276,3 +276,31 @@ test('native returning telemetry takes precedence over a Hold receipt', async ()
     expect(screen.getAllByText(/Returning/).length).toBeGreaterThan(0);
   } finally { jest.useRealTimers(); }
 });
+
+test('failed preview keeps formation but does not present cached flight or preflight facts as current', async () => {
+  jest.useFakeTimers();
+  try {
+    const cached = { ...preview, clusters: [{ ...preview.clusters[0], members:
+      preview.clusters[0].members.map((m) => ({ ...m, landed_state: 1,
+        readiness_status: 'blocked', readiness_summary: 'Heading estimate unstable' })) }] };
+    fetchGcsResource.mockResolvedValue({ data: cached });
+    await mounted();
+    expect(screen.getAllByText(/Grounded/)).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Drone 1' }));
+    expect(screen.getAllByText(/Heading estimate unstable/).length).toBeGreaterThan(0);
+    fetchGcsResource.mockRejectedValue(new Error('Telemetry request timed out'));
+    await act(async () => { jest.advanceTimersByTime(2500); });
+    expect(screen.getByText('Telemetry delayed')).toBeInTheDocument();
+    expect(screen.getAllByText(/Unknown · Telemetry delayed/)).toHaveLength(2);
+    expect(screen.queryByText(/Grounded|Disarmed|Airborne/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Heading estimate unstable/)).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Swarm formation' })).toHaveValue('1');
+    expect(screen.getByRole('button', { name: 'Drone 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hold Swarm' })).toBeEnabled();
+    expect(cached.clusters[0].members.every((m) => m.available)).toBe(true);
+    fetchGcsResource.mockResolvedValue({ data: cached });
+    await act(async () => { jest.advanceTimersByTime(2500); });
+    expect(screen.getAllByText(/Grounded/)).toHaveLength(2);
+    expect(screen.getAllByText(/Heading estimate unstable/).length).toBeGreaterThan(0);
+  } finally { jest.useRealTimers(); }
+});

@@ -9,6 +9,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- PX4 status-text classification matches complete phrases so an airborne
+  `Disarming denied` event is preserved without becoming an `Arming denied`
+  preflight blocker. Swarm Operate distinguishes delayed telemetry from
+  confirmed offline state and does not present cached flight/preflight facts
+  as current after a preview failure.
+- Typed command supersession is presented as an informational replacement,
+  rather than a generic execution failure. Genuine failures retain warnings;
+  stored execution counts, outcomes and flight authority are unchanged.
+
 - Takeoff review uses a separate bounded five-second advisory status lifetime,
   instead of flashing Ready for a sub-second native execution lease. Slow or
   stalled refreshes still expire; native launch preparation, PX4 checks and

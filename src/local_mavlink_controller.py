@@ -1,6 +1,7 @@
 #src\local_mavlink_controller.py
 import logging
 import math
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -292,11 +293,11 @@ class LocalMavlinkController:
     def _classify_status_text(message: str, severity: str) -> Dict[str, Any]:
         lowered = message.lower()
         is_preflight = any(
-            token in lowered
+            re.search(r'\b' + re.escape(token) + r'\b', lowered) is not None
             for token in ('preflight', 'prearm', 'arm denied', 'arming denied', 'takeoff denied')
         )
         blocks_readiness = any(
-            token in lowered
+            re.search(r'\b' + re.escape(token) + r'\b', lowered) is not None
             for token in ('preflight fail', 'prearm fail', 'arm denied', 'arming denied', 'takeoff denied')
         )
         category = 'preflight' if is_preflight else 'system'

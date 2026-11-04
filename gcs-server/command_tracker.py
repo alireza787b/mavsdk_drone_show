@@ -1867,17 +1867,21 @@ class CommandTracker(CoordinatedTakeoffTrackerMixin):
                 event_data={"success": bool(success)},
             )
 
+        execution_label = (
+            normalized_outcome.value if normalized_outcome is not None
+            else 'success' if success else 'failed'
+        )
         if recorded_late_execution:
             logger.info(
                 f"Late execution recorded without lifecycle mutation: {hw_id} -> "
-                f"{'success' if success else 'failed'} for {command_id[:8]}..."
+                f"{execution_label} for {command_id[:8]}..."
             )
         else:
             logger.info(
-                f"Execution recorded: {hw_id} -> {'success' if success else 'failed'} "
+                f"Execution recorded: {hw_id} -> {execution_label} "
                 f"for {command_id[:8]}... ({command.executions_received}/{command.acks_accepted})"
             )
-            if not success:
+            if not success and normalized_outcome != DroneExecutionOutcome.SUPERSEDED:
                 reason = self._compact_execution_reason(error_message)
                 if not reason and exit_code is not None:
                     reason = f"exit code {exit_code}"

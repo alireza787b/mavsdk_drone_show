@@ -25,7 +25,9 @@ export function swarmDiagramRows(members) {
 }
 
 export function swarmNodeStatus(member, node, { stale = false, hasSession = false, now = Date.now() } = {}) {
-  if (!member.available) return { label: 'Offline', tone: 'warning', symbol: '×' };
+  // The cluster preview reports telemetry freshness, not aircraft power or
+  // VPN reachability. A missing/stale sample cannot establish "Offline".
+  if (!member.available) return { label: 'Telemetry delayed', tone: 'warning', symbol: '?' };
   if (!hasSession) return { label: 'Not following', tone: 'neutral', symbol: '—' };
   if (stale || !node || !Number.isFinite(node.received_at_ms) || now - node.received_at_ms > 15000) {
     return { label: 'Unconfirmed', tone: 'warning', symbol: '?' };

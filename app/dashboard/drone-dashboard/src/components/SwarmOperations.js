@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaArrowUp, FaPlay, FaPause, FaEllipsisH } from 'react-icons/fa';
 import { fetchGcsResource } from '../services/gcsApiService';
 import { isAmbiguousSubmissionTransportFailure } from '../services/droneApiService';
@@ -128,7 +128,11 @@ export default function SwarmOperations() {
   // A disappeared explicit cluster is intentionally NOT replaced by another.
   const cluster = selection.key === storageKey
     ? clusters.find((item) => item.cluster_id === selection.id) : null;
-  const members = cluster?.members || EMPTY_MEMBERS;
+  // Keep the saved relationship/selection visible across a failed preview,
+  // without presenting cached flight or readiness fields as current evidence.
+  const members = useMemo(() => previewError
+    ? (cluster?.members || EMPTY_MEMBERS).map((member) => ({ ...member, available: false }))
+    : cluster?.members || EMPTY_MEMBERS, [cluster, previewError]);
   const ids = members.map((m) => m.hw_id);
   const names = members.map(memberLabel);
   const states = Object.fromEntries(members.map((m) => [m.hw_id, memberFlightState(m)]));
@@ -330,11 +334,11 @@ export default function SwarmOperations() {
         }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
-        {inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
+        {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
         <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
       </div>}
-      {members.some((m) => m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
-        {members.filter((m) => m.readiness_status === 'blocked').map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
+      {members.some((m) => m.available && m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
+        {members.filter((m) => m.available && m.readiness_status === 'blocked').map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
       </p>}
       <div className="swarm-ops__actions">
         <button type="button" className="operator-button operator-button--ghost"

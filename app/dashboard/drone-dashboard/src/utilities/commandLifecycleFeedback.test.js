@@ -600,6 +600,23 @@ describe('commandLifecycleFeedback', () => {
     );
   });
 
+  it('presents a typed normal replacement as information, not failed aircraft', async () => {
+    sendDroneCommand.mockResolvedValue(commandReceipt({ command_id: 'swarm-stopped', mission_type: 102 }));
+    getCommandStatus.mockResolvedValue({
+      command_id: 'swarm-stopped', phase: 'terminal', outcome: 'superseded',
+      acks: { expected: 1, received: 1, accepted: 1 },
+      executions: { expected: 1, succeeded: 0, failed: 1 },
+    });
+    await submitCommandWithLifecycleFeedback({
+      mission_type: 102, trigger_time: 0, target_drone_ids: ['1'],
+      uiMeta: { operatorLabel: 'Hold' },
+    });
+    await flushMicrotasks();
+    expect(toast.info).toHaveBeenCalledWith('Hold was replaced by a newer command.');
+    expect(toast.warn).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it('projects per-target failures into a bounded sanitized issue summary', () => {
     const longReason = `Vertical position estimate is not settled.\n${'x'.repeat(240)}`;
     const preparationDetails = Object.fromEntries(

@@ -6,6 +6,21 @@
 
 ## Architecture
 
+PX4 status text is retained as an event; its severity is not itself evidence
+of a failed current launch check. Classification must match complete phrases:
+`Arming denied` is a launch blocker, while `Disarming denied: not landed` is
+a distinct in-flight event and must not match the embedded substring `arming
+denied`. Preserve the latter in history and investigate its command/RC source;
+do not hide it or relax native disarm protection.
+
+For field evidence collection, distinguish the node's staged ULog job from the
+file saved on the analysis host. Download status responses wrap state inside
+`job`; `job.status == "ready"` is not proof the client has fetched the bytes.
+Only confirm shutdown after every selected flight file matches its expected
+size, has a valid ULog header and has a recorded checksum. Preserve partial
+coverage explicitly on failure. ULog inventory dates may describe file ending;
+use embedded GPS/boot timestamps to align the actual flight, not file recency.
+
 All MDS components share a single logging contract via the `mds_logging` package:
 
 ```

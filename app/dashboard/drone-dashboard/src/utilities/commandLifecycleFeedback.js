@@ -718,8 +718,8 @@ function buildTerminalToast(status, commandLabel) {
       };
     case 'superseded':
       return {
-        level: 'warning',
-        message: `${commandLabel} was superseded by a newer command${summarySuffix}.`,
+        level: 'info',
+        message: `${commandLabel} was replaced by a newer command.`,
       };
     case 'cancelled':
       return {

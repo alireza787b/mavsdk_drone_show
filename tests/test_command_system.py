@@ -792,6 +792,29 @@ class TestCommandTracker:
         assert status['outcome'] == 'failed'
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('outcome', ['superseded', 'failed'])
+    async def test_execution_logging_uses_typed_outcome_without_hiding_real_failure(
+        self, tracker, caplog, outcome,
+    ):
+        import logging
+        command_id = await tracker.create_command(mission_type=2, target_drones=['1'])
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger='mds.command_tracker'):
+            await tracker.record_execution(
+                command_id, hw_id='1', success=False, outcome=outcome,
+                error_message='Replaced by newer command; cleanup unconfirmed' if outcome == 'failed'
+                else 'Superseded by a newer command before completion',
+            )
+        assert any(f'-> {outcome} for' in record.message for record in caplog.records)
+        warnings = [record for record in caplog.records
+                    if record.levelno >= logging.WARNING and 'Execution failure detail' in record.message]
+        assert bool(warnings) is (outcome == 'failed')
+        status = await tracker.get_status(command_id)
+        assert status['executions']['failed'] == 1
+        assert status['outcome'] == outcome
+
+    @pytest.mark.asyncio
     async def test_legacy_cleanup_unconfirmed_message_is_not_safe_supersede(self, tracker):
         """Broad legacy text matching must not hide an unconfirmed cleanup."""
         command_id = await tracker.create_command(mission_type=10, target_drones=['1'])
