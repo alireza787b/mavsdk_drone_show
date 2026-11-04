@@ -4,6 +4,13 @@ Dashboard, Smart Swarm and aircraft-card Takeoff controls open the same review.
 Takeoff does not start following; start Smart Swarm separately after both aircraft
 are airborne and settled.
 
+Readiness rows are a bounded advisory preview, refreshed while the review is
+open. A ready preview expires after at most five seconds without renewal
+(network transit reduces this interval). It is not a launch authorization:
+confirmation obtains fresh command-bound native proof before arming. Execution
+leases and the all-armed barrier are unchanged. This separation avoids making
+an operator race a sub-second button over a field link.
+
 ## Operator steps
 
 1. Select the aircraft or complete swarm cluster and choose **Takeoff**. The

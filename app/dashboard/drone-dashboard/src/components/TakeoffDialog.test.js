@@ -168,15 +168,18 @@ test('cancelled cleanup is shown confirmed only from terminal aircraft evidence'
   expect(screen.getAllByText('disarmed')).toHaveLength(2);
 });
 
-test('expired readiness becomes Checking even if the next request never resolves', async () => {
+test('short native lease does not flicker review; stalled preview still expires', async () => {
   jest.useFakeTimers();
   try {
-    fetchGcsResource.mockResolvedValueOnce({ data: { ...native, valid_for_ms: 2000 } })
+    fetchGcsResource.mockResolvedValueOnce({ data: { ...native, valid_for_ms: 30 } })
       .mockImplementation(() => new Promise(() => {}));
     render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
     await act(async () => {});
     expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled();
     await act(async () => { jest.advanceTimersByTime(2100); });
+    expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled();
+    expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(3100); });
     expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   } finally { jest.useRealTimers(); }

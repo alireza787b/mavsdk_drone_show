@@ -7,6 +7,10 @@ import { createCommandIdempotencyKey, isAmbiguousSubmissionTransportFailure } fr
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
 
 const PHASES = { checking: 'Checking', arming: 'Arming', released: 'Taking off', airborne: 'Airborne', aborted: 'Launch cancelled' };
+// Human review is advisory, not the command-bound native authorization lease.
+// The node rechecks readiness before arming; a sub-second execution lease must
+// not make the operator race a flashing button over a field data link.
+const REVIEW_STATUS_MAX_AGE_MS = 5000;
 
 // One review and one owned command, shared by every standalone Takeoff entry.
 // Native readiness is advisory here; node admission is repeated at execution.
@@ -97,11 +101,11 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
         const processing = Number(data?.server_processing_ms ?? 0);
         const transport = Number.isFinite(processing) && processing >= 0 && processing <= roundTrip + 20
           ? Math.max(0, roundTrip - processing) : roundTrip;
-        // Blocked rows have a zero group lease. Preserve their reason, and
-        // expire only ready evidence using each selected aircraft's own lease.
+        // Preserve blocked reasons. Review status has a separate bounded
+        // display lifetime; it never extends a node's execution authority.
         const reviewedRows = (data?.targets || []).filter((row) => targets.includes(String(row.hw_id)))
           .map((row) => {
-            const remaining = Number(row.valid_for_ms ?? data.valid_for_ms) - transport;
+            const remaining = REVIEW_STATUS_MAX_AGE_MS - transport;
             return row.status === 'ready' && !(Number.isFinite(remaining) && remaining > 0)
               ? { ...row, status: 'checking', reason: undefined }
               : { ...row, remaining };

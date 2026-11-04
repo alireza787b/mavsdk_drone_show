@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Takeoff review uses a separate bounded five-second advisory status lifetime,
+  instead of flashing Ready for a sub-second native execution lease. Slow or
+  stalled refreshes still expire; native launch preparation, PX4 checks and
+  the all-armed barrier remain unchanged.
+
 - Launch preparation reports native readiness rejections before compatibility
   hints; modern rejected responses advertise coordinated-Takeoff support.
   Missing native observations reject without issuing launch authority.
