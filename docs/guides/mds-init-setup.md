@@ -35,6 +35,42 @@ The `mds_node_init.sh` script is an enterprise-grade bootstrap system that confi
 
 ## Quick Start
 
+### Commission a new board without changing a working fleet
+
+Use this order for a first board or an additional aircraft:
+
+1. **Access:** record the human/admin SSH login, reachable LAN/VPN address and
+   sudo access. A VPN device name is not necessarily its Linux login. Confirm
+   the board model, OS, architecture, free storage and stable power before install.
+2. **Identity:** reserve a unique hardware ID on GCS. A hostname, callsign,
+   position slot and leader/follower role are different settings. Do not copy
+   another aircraft's `node_identity.json`, credentials or complete SD image.
+3. **Install:** use the public wrapper below; supply the intended GCS address
+   and repo/branch. Keep an already-working VPN with `--skip-netbird`. Private
+   repositories need a separately authorized **read-only** node credential,
+   never the GCS write key. Preview an existing checkout with `--dry-run` before
+   resuming or changing it; do not treat wrapper bootstrap as a no-write preview.
+4. **Enroll:** announce the candidate, review it in **Fleet Enrollment**, and
+   accept it as an additional aircraft rather than replacing an existing one.
+   Publish the private fleet manifest and verify node sync. Announce alone does
+   not add a drone to the fleet or make it ready for flight.
+5. **Connect the flight controller:** MDS runs on the Linux companion; PX4
+   normally runs on the separate flight controller. A companion with no FC can
+   be provisioned, but cannot pass aircraft readiness. Confirm the actual
+   carrier-board wiring, serial device and baud rate rather than copying
+   settings from a different board. Missing FC telemetry is not a reason to
+   relax preflight checks or install PX4 SITL on real hardware.
+6. **Verify:** confirm services, current repo commit, native telemetry, home and
+   RC/failsafe state. Review the complete formation while all aircraft are
+   landed/disarmed; confirm offsets and frame, then verify all affected nodes
+   received the same saved plan. Check unattended sync once more after a
+   planned restart before field testing. Do not arm from this installation guide.
+
+Changing roles on the ground is a saved formation update, not continuous
+in-flight leader handover. Launch-position-derived offsets are not automatically
+captured by adding a new node. See [Smart Swarm](../features/smart-swarm.md) for
+the currently supported operational scope.
+
 ### Option 1: One-Line Installation (Recommended)
 
 Use this on a fresh companion-computer host that does not already have the MDS
@@ -164,10 +200,12 @@ node.
 SSH into the companion computer:
 
 ```bash
-ssh pi@raspberrypi.local
+ssh <human-admin-user>@<node-ip-or-hostname>
 ```
 
-Update the system:
+Check the installed OS updates with your site administrator. On a new, unused
+board, update packages before installing MDS; do not run an unattended OS upgrade
+on an aircraft already in operation:
 
 ```bash
 sudo apt update && sudo apt upgrade -y

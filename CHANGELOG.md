@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Companion commissioning guide now separates admin access, durable identity,
+  installation, enrollment, FC connection and final readiness. It documents
+  existing-VPN preservation, per-node read-only Git access and ground-only
+  topology changes without confusing companion provisioning with PX4 readiness.
+
 - PX4 status-text classification matches complete phrases so an airborne
   `Disarming denied` event is preserved without becoming an `Arming denied`
   preflight blocker. Swarm Operate distinguishes delayed telemetry from

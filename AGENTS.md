@@ -52,6 +52,8 @@ Before substantial work, inspect the current repo state and then read only the d
 2. `docs/README.md`
 3. `CHANGELOG.md`
 4. Task-specific docs:
+   - companion bootstrap/enrollment: `docs/guides/mds-init-setup.md`,
+     `docs/guides/fleet-sync-and-secrets.md`, `docs/guides/custom-repo-workflow.md`
    - SITL bootstrap/runtime: `docs/guides/sitl-comprehensive.md`
    - custom image/release flow: `docs/guides/advanced-sitl.md`, `docs/guides/sitl-custom-release-workflow.md`
    - full SITL agent loop: `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md`
