@@ -512,6 +512,39 @@ If you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wir
 - `MAV_1_MODE = Onboard (2)`
 - `SER_TEL2_BAUD = 921600`
 
+#### CM5 on the Holybro carrier
+
+The [Holybro CM4/5 carrier](https://docs.holybro.com/autopilot/pixhawk-baseboards/pixhawk-rpi-cm4-5-baseboard/connections-and-ports)
+supports either compute module. Its internal TELEM2 connection uses GPIO14/15
+and optional flow-control GPIO16/17. The carrier and the compute module are
+different components; a CM5 product listing alone does not identify its carrier.
+
+Do not copy a CM4's `/dev/ttyS0` setting onto a CM5. On Pi 5-class hardware,
+`/dev/serial0` may instead point to the dedicated debug UART (`ttyAMA10`),
+which can already host the Linux console. Check the actual device and console:
+
+```bash
+ls -l /dev/serial* /dev/ttyAMA* 2>/dev/null
+cat /proc/cmdline
+dtoverlay -h uart0-pi5
+pinctrl get 14-17
+```
+
+For this confirmed carrier, a fresh CM5 image may need the GPIO UART enabled
+in `/boot/firmware/config.txt` using `dtoverlay=uart0-pi5` (add `,ctsrts` when
+using its connected hardware flow-control pins). Back up the boot configuration,
+follow the [Raspberry Pi UART documentation](https://www.raspberrypi.com/documentation/computers/configuration.html#configure-device-tree-overlays-for-uarts),
+and reboot the **companion**, not the flight controller. Verify the resulting
+device, normally `/dev/ttyAMA0`, and actual incoming PX4 telemetry before passing
+that device with `--mavlink-uart` and the matching baud with `--mavlink-baud`.
+Do not point MAVLink routing at an active console or assume another carrier
+uses these pins. This is host-specific setup, not a fleet-wide serial default.
+
+After reinstalling the companion OS, recheck GPIO overlays, network access and
+the new VPN address, then provision a fresh per-node Git credential. Settings
+stored on the separate PX4 flight controller do not restore Linux UART settings.
+Retire an obsolete deploy key only after verifying its replacement works.
+
 If you want the web dashboard reachable from the LAN or VPN, expose it explicitly:
 
 ```bash
