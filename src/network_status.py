@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import socket
 import subprocess
@@ -29,13 +30,22 @@ def _env_float(name: str, default: float, minimum: float | None = None) -> float
         value = float(os.getenv(name, str(default)))
     except (TypeError, ValueError):
         value = default
+    else:
+        # Non-finite env values must not poison socket/subprocess timeouts.
+        if not math.isfinite(value):
+            value = default
     return max(minimum, value) if minimum is not None else value
 
 
 def _env_int(name: str, default: int, minimum: int | None = None) -> int:
     try:
-        value = int(float(os.getenv(name, str(default))))
-    except (TypeError, ValueError):
+        # Guard non-finite floats before int() (OverflowError on ±inf in CPython).
+        parsed = float(os.getenv(name, str(default)))
+        if not math.isfinite(parsed):
+            value = default
+        else:
+            value = int(parsed)
+    except (TypeError, ValueError, OverflowError):
         value = default
     return max(minimum, value) if minimum is not None else value
 
