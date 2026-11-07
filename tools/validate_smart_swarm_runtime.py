@@ -220,7 +220,7 @@ def wait_api_ready(client: ApiClient, timeout: int = 60):
     def _ready():
         try:
             return client.get_json(GCS_SYSTEM_HEALTH_ROUTE)
-        except urllib.error.URLError:
+        except (urllib.error.URLError, RuntimeError):
             return False
 
     return wait_for(_ready, label="GCS API health endpoint", timeout=timeout, interval=2.0)

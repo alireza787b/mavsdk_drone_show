@@ -1,6 +1,11 @@
 import copy
 import time
 import argparse
+from types import SimpleNamespace
+import urllib.error
+from unittest.mock import Mock
+
+from tools import validate_smart_swarm_runtime as runtime_validator
 
 from tools.validate_smart_swarm_runtime import (
     _is_idle_baseline_row,
@@ -12,6 +17,23 @@ from tools.validate_smart_swarm_runtime import (
     restore_assignments,
     sitl_container_name,
 )
+
+
+def test_wait_api_ready_retries_raw_and_wrapped_transport_errors(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(runtime_validator, 'time', SimpleNamespace(
+        time=lambda: clock[0],
+        sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    ))
+    health = {'status': 'healthy'}
+    client = SimpleNamespace(get_json=Mock(side_effect=[
+        urllib.error.URLError('connection refused'),
+        RuntimeError('GET /api/v1/system/health failed against test API: connection refused'),
+        health,
+    ]))
+    assert runtime_validator.wait_api_ready(client, timeout=10) is health
+    assert client.get_json.call_count == 3
+    assert clock[0] == 4.0
 
 
 def test_telemetry_has_ids_requires_full_selected_fleet():

@@ -39,7 +39,7 @@ import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Set, Tuple
+from typing import Dict, Any, Optional, List, Set, Tuple, Literal
 from urllib.parse import quote
 
 # FastAPI imports
@@ -316,6 +316,20 @@ class DroneStateResponse(BaseModel):
     ip: str
 
 
+class SwarmCaptureActivity(BaseModel):
+    """Read-only local controller/action evidence, not a flight readiness gate."""
+    schema_version: Literal[1] = 1
+    state: int
+    mission: int
+    flight_mode: int
+    swarm_active: bool
+    heartbeat_timestamp_ms: int
+    is_armed: bool
+    landed_state: Optional[int] = None
+    landed_state_timestamp_ms: int
+    valid_for_ms: int = Field(ge=0)
+
+
 class SwarmStateResponse(BaseModel):
     hw_id: int
     pos_id: int
@@ -334,6 +348,8 @@ class SwarmStateResponse(BaseModel):
     stream_seq: int = 0
     global_position_valid: bool = False
     global_position_timestamp_ms: int = 0
+    gps_fix_type: int = 0
+    capture_activity: Optional[SwarmCaptureActivity] = None
     position_source: str = "unavailable"
     source_frame: str = "global_lla_ned"
     source_time_boot_ms: int = 0

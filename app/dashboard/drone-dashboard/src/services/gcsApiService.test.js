@@ -63,6 +63,7 @@ import {
   resolveGcsRoute,
   resolveGcsRouteKey,
   saveSwarmConfigResponse,
+  previewSwarmCaptureResponse,
   unwrapFleetTelemetryPayload,
   unwrapSwarmConfigPayload,
 } from './gcsApiService';
@@ -908,5 +909,17 @@ describe('gcsApiService', () => {
         },
       })
     );
+  });
+
+  it('sends capture as a read-only preview with inactive scope only in the Apply body', async () => {
+    axios.post.mockResolvedValue({ data: { saved: false, commands_sent: false } });
+    const request = { revision: 'r1', assignments: [], cluster_id: '1', frame: 'body', height_mode: 'keep' };
+    await previewSwarmCaptureResponse(request);
+    expect(axios.post).toHaveBeenCalledWith('http://gcs.test:5030/api/v1/config/swarm/capture-preview', request,
+      authConfig({ timeout: 15000 }));
+    await saveSwarmConfigResponse([], { revision: 'r1', requireInactiveHwIds: ['1', '2'] });
+    expect(axios.put).toHaveBeenCalledWith('http://gcs.test:5030/api/v1/config/swarm',
+      { version: 1, assignments: [], revision: 'r1', require_inactive_hw_ids: ['1', '2'] },
+      authConfig({ params: { commit: 'false' } }));
   });
 });

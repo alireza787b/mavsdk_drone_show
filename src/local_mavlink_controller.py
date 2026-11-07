@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from pymavlink import mavutil
 
+from src.attitude_math import body_rates_to_heading_rate_deg_s
 from src.px4_flight_modes import (
     PX4_MAIN_MODE_AUTO,
     PX4_MAIN_MODE_OFFBOARD,
@@ -822,13 +823,15 @@ class LocalMavlinkController:
 
     def process_attitude(self, msg):
         """
-        Process the ATTITUDE message and update the yaw value.
+        Process ATTITUDE yaw and its Euler heading derivative from body rates.
         """
         if msg.yaw is not None and math.isfinite(msg.yaw):
             self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
-            yaw_rate = getattr(msg, 'yawspeed', None)
-            self.drone_config.yaw_rate_deg_s = (
-                math.degrees(yaw_rate) if yaw_rate is not None and math.isfinite(yaw_rate) else None
+            self.drone_config.yaw_rate_deg_s = body_rates_to_heading_rate_deg_s(
+                getattr(msg, 'roll', None),
+                getattr(msg, 'pitch', None),
+                getattr(msg, 'pitchspeed', None),
+                getattr(msg, 'yawspeed', None),
             )
             # Only ATTITUDE may refresh heading age. Position/heartbeat traffic
             # must not make an old body-frame heading look current.

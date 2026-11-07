@@ -735,13 +735,14 @@ export async function getSwarmConfigResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.swarmConfig, config);
 }
 
-export async function saveSwarmConfigResponse(payload, { commit = false, revision = '', acknowledgedUnavailableIds = [], ...config } = {}) {
+export async function saveSwarmConfigResponse(payload, { commit = false, revision = '', acknowledgedUnavailableIds = [], requireInactiveHwIds = [], ...config } = {}) {
   const payloadBody = {
     version: 1,
     assignments: payload,
   };
   if (revision) payloadBody.revision = revision;
   if (acknowledgedUnavailableIds.length) payloadBody.acknowledged_unavailable_hw_ids = acknowledgedUnavailableIds;
+  if (requireInactiveHwIds.length) payloadBody.require_inactive_hw_ids = requireInactiveHwIds;
   return putGcsResource(GCS_ROUTE_KEYS.saveSwarmConfig, payloadBody, {
     ...config,
     params: {
@@ -749,6 +750,10 @@ export async function saveSwarmConfigResponse(payload, { commit = false, revisio
       commit: commit ? 'true' : 'false',
     },
   });
+}
+
+export function previewSwarmCaptureResponse(payload, config = {}) {
+  return postGcsResource('/api/v1/config/swarm/capture-preview', payload, { timeout: 15000, ...config });
 }
 
 export function getSwarmDesignStatusResponse(config = {}) {

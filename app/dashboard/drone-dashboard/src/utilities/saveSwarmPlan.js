@@ -2,12 +2,13 @@ import { saveSwarmConfigResponse, publishSwarmConfigResponse } from '../services
 
 /** Apply a captured draft, then publish only the revision actually acknowledged. */
 export async function saveSwarmPlan({ assignments, revision, needsApply, publish,
-  acknowledgedUnavailableIds = [], onApplied = () => {}, onPublishing = () => {} }) {
+  acknowledgedUnavailableIds = [], requireInactiveHwIds = [], onApplied = () => {}, onPublishing = () => {} }) {
   let applied = false;
   let response;
   if (needsApply) {
     response = await saveSwarmConfigResponse(assignments, {
       commit: false, ...(revision ? { revision } : {}), acknowledgedUnavailableIds,
+      ...(requireInactiveHwIds.length ? { requireInactiveHwIds } : {}),
     });
     applied = true;
     revision = response?.data?.config?.revision;

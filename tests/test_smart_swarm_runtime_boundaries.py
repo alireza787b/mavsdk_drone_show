@@ -313,6 +313,106 @@ def test_new_source_motion_replaces_sample_after_intervening_prediction(
     assert swarm_runtime.LEADER_STATE['update_time'] == pytest.approx(42.1)
 
 
+def test_heading_projection_uses_its_own_source_clock_after_runtime_normalization(
+    swarm_runtime, monkeypatch,
+):
+    now_ms = 1_800_000_000_000
+    monkeypatch.setattr(swarm_runtime, 'time', types.SimpleNamespace(
+        time=lambda: now_ms / 1000.0, monotonic=lambda: 42.0))
+    sample = _valid_global_sample(now_ms)
+    sample.update(attitude_timestamp_ms=now_ms - 300, yaw_deg=359.0, yaw_rate_deg_s=20.0)
+    assert swarm_runtime.apply_leader_state_sample(sample, 'websocket')
+    assert swarm_runtime.LEADER_STATE['update_time'] == pytest.approx(41.9)
+    assert swarm_runtime.LEADER_STATE['attitude_update_time'] == pytest.approx(41.7)
+    assert swarm_runtime.project_leader_heading(
+        swarm_runtime.LEADER_STATE, now_s=42.1, max_prediction_s=1.0,
+    ) == pytest.approx(7.0)
+    assert swarm_runtime.LEADER_STATE['yaw'] == 359.0
+
+
+@pytest.mark.parametrize('frame', ['ned', 'body'])
+@pytest.mark.parametrize('new_leader', ['1', '3'])
+@pytest.mark.parametrize('local_height_bias_m', [0.0, 1.25])
+def test_capture_runtime_reconstruction_with_independent_origins_and_local_height_bias(
+    swarm_runtime, monkeypatch, frame, new_leader, local_height_bias_m,
+):
+    import navpy
+    from swarm_capture_service import captured_assignments, planned_heights
+
+    # Three physical aircraft, chained parent links and independent headings.
+    # Absolute MSL height and each aircraft's EKF origin are deliberately unequal.
+    reference = (47.397742, 8.545594, 488.0)
+    physical_ned = {'1': (0.0, 0.0, -20.0), '2': (6.0, -2.0, -22.0),
+                    '3': (1.0, 5.0, -23.5)}
+    positions = {hw: navpy.ned2lla(ned, *reference, latlon_unit='deg', alt_unit='m', model='wgs84')
+                 for hw, ned in physical_ned.items()}
+    draft = [{'hw_id': '1', 'follow': '0'},
+             {'hw_id': '2', 'follow': '1', 'offset_z': 2.0},
+             {'hw_id': '3', 'follow': '2', 'offset_z': 1.5}]
+    heights = planned_heights(draft)
+    headings = {'1': 37.0, '2': 248.0, '3': 115.0}
+    common_reference = positions['1']
+    observations = {}
+    for hw, lla in positions.items():
+        north, east, _ = navpy.lla2ned(*lla, *common_reference,
+                                      latlon_unit='deg', alt_unit='m', model='wgs84')
+        observations[hw] = dict(north_m=float(north), east_m=float(east),
+                                planned_up_m=heights[hw], heading_deg=headings[hw])
+    candidate = captured_assignments(draft, observations, list(positions), new_leader, frame, 'keep')
+    for hw, relative_up in planned_heights(candidate).items():
+        assert relative_up == pytest.approx(heights[hw] - heights[new_leader])
+    for member in candidate:
+        hw, parent = str(member['hw_id']), str(member['follow'])
+        if parent == '0':
+            continue
+        origin = navpy.ned2lla([11.0 * int(hw), -7.0 * int(hw), 4.0 * int(hw)], *reference,
+                               latlon_unit='deg', alt_unit='m', model='wgs84')
+        monkeypatch.setattr(swarm_runtime, 'REFERENCE_POS', dict(
+            latitude=float(origin[0]), longitude=float(origin[1]), altitude=float(origin[2])))
+        parent_lla = positions[parent]
+        measurement = swarm_runtime.build_leader_measurement_from_sample(dict(
+            position_lat=float(parent_lla[0]), position_long=float(parent_lla[1]),
+            position_alt=float(parent_lla[2]), velocity_north=0.0, velocity_east=0.0, velocity_down=0.0))
+        own = navpy.lla2ned(*positions[hw], *origin, latlon_unit='deg', alt_unit='m', model='wgs84')
+        x, y = member['offset_x'], member['offset_y']
+        if frame == 'body':
+            x, y = swarm_runtime.transform_body_to_nea(x, y, headings[parent])
+        target = (measurement['pos_n'] + x, measurement['pos_e'] + y,
+                  measurement['pos_d'] - member['offset_z'])
+        # Tangent-frame rotations differ by microradians across this local site;
+        # allow millimetres, never hide metres of origin/altitude disagreement.
+        assert target[:2] == pytest.approx(tuple(own[:2]), abs=0.001)
+        # Capture is not an estimator calibration: an inconsistent local height
+        # still produces that error, even when captured global geometry is exact.
+        reported_own_down = own[2] - local_height_bias_m
+        assert target[2] - reported_own_down == pytest.approx(local_height_bias_m, abs=0.001)
+
+
+def test_capture_keeps_planned_height_instead_of_claiming_zero_vertical_error(
+    swarm_runtime, monkeypatch,
+):
+    import navpy
+    from swarm_capture_service import captured_assignments
+
+    origin = (47.397742, 8.545594, 488.0)
+    monkeypatch.setattr(swarm_runtime, 'REFERENCE_POS', dict(
+        latitude=origin[0], longitude=origin[1], altitude=origin[2]))
+    parent = navpy.ned2lla([0.0, 0.0, -20.0], *origin,
+                           latlon_unit='deg', alt_unit='m', model='wgs84')
+    own = (6.0, 0.0, -24.0)  # Actually 4 m above parent, planned difference is 2 m.
+    draft = [{'hw_id': '1', 'follow': '0'}, {'hw_id': '2', 'follow': '1', 'offset_z': 2.0}]
+    candidate = captured_assignments(draft, {
+        '1': dict(north_m=0.0, east_m=0.0, planned_up_m=0.0),
+        '2': dict(north_m=6.0, east_m=0.0, planned_up_m=2.0),
+    }, ['1', '2'], '1', 'ned', 'keep')
+    leader = swarm_runtime.build_leader_measurement_from_sample(dict(
+        position_lat=float(parent[0]), position_long=float(parent[1]), position_alt=float(parent[2]),
+        velocity_north=0.0, velocity_east=0.0, velocity_down=0.0))
+    follower = next(member for member in candidate if member['hw_id'] == '2')
+    target_down = leader['pos_d'] - follower['offset_z']
+    assert target_down - own[2] == pytest.approx(2.0, abs=0.001)
+
+
 @pytest.mark.parametrize(
     ("case", "expected_code"),
     (

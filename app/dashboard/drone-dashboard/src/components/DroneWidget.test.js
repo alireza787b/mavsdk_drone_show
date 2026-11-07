@@ -142,6 +142,35 @@ describe('DroneWidget command scope state', () => {
     expect(screen.getByText('No Data')).toBeInTheDocument();
   });
 
+  test('does not present cached arm, mode, mission or idle state as live after link loss', () => {
+    const { container } = renderWidget({
+      drone: {
+        update_time: Date.now() - 120000,
+        heartbeat_last_seen: Date.now() - 120000,
+        telemetry_available: false,
+        is_armed: true,
+        flight_mode: 67371008,
+        mission: 2,
+        state: 0,
+      },
+    });
+    expect(container.querySelector('.drone-widget')).toHaveClass('runtime-offline');
+    expect(screen.getByRole('status')).toHaveTextContent('Offline');
+    expect(screen.getByText('ARM STATE UNKNOWN')).toBeInTheDocument();
+    expect(container.querySelector('.mode-badge')).toHaveTextContent('Unavailable');
+    expect(container.querySelector('.mission-badge')).toHaveTextContent('Unavailable');
+    expect(container.querySelector('.mission-state-badge')).toHaveTextContent('Unavailable');
+    expect(container.querySelector('.drone-widget')).not.toHaveClass('armed');
+  });
+
+  test('ages cached telemetry using the parent clock without a new data response', () => {
+    const now = Date.now();
+    const drone = { ...baseDrone, update_time: now, heartbeat_last_seen: now };
+    const { container } = renderWidget({ drone, nowMs: now + 65000 });
+    expect(container.querySelector('.drone-widget')).toHaveClass('runtime-offline');
+    expect(screen.queryByText('DISARMED')).not.toBeInTheDocument();
+  });
+
   test('does not present raw GPS fix as a valid map position', () => {
     renderWidget({
       drone: {

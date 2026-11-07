@@ -6,6 +6,7 @@ import hashlib
 import json
 import time
 from collections.abc import Mapping
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
@@ -38,6 +39,7 @@ from schemas import (
     SubmitCommandRequest,
 )
 from target_command_payloads import per_target_payload_digests, validate_per_target_payloads
+from swarm_configuration_guard import configuration_lock
 _ensure_sitl_callback_endpoint_matches = ensure_sitl_callback_endpoint_matches
 
 
@@ -504,35 +506,43 @@ async def submit_tracked_command(
     command_id: Optional[str] = None
     launched = False
     try:
-        creation_result = await tracker.create_or_replay_command(
-            mission_type=mission_type_int,
-            target_drones=target_hw_ids,
-            params={
-                "trigger_time": trigger_time,
-                **(
-                    {"per_target_payload_sha256": per_target_payload_digests(normalized_per_target_payloads)}
-                    if normalized_per_target_payloads
-                    else {}
-                ),
-                **{
-                    k: v
-                    for k, v in command_data.items()
-                    if k not in [
-                        "idempotency_key",
-                        "mission_type",
-                        "trigger_time",
-                        "target_drone_ids",
-                        "target_scope",
-                    ]
+        # Sampling/preflight happens outside this short local transaction.
+        # A capture-derived inactive Apply and every generic Smart Swarm Start
+        # registration share it, including Starts without an explicit session.
+        async with (configuration_lock(deps) if resolved_mission == deps.Mission.SMART_SWARM else nullcontext()):
+            if resolved_mission == deps.Mission.SMART_SWARM:
+                from src.smart_swarm_contract import topology_revision
+                if (command_data.get('smart_swarm') or {}).get('revision') != topology_revision(deps.load_swarm() or []):
+                    raise HTTPException(409, 'Swarm configuration changed during Start review; review the saved layout')
+            creation_result = await tracker.create_or_replay_command(
+                mission_type=mission_type_int,
+                target_drones=target_hw_ids,
+                params={
+                    "trigger_time": trigger_time,
+                    **(
+                        {"per_target_payload_sha256": per_target_payload_digests(normalized_per_target_payloads)}
+                        if normalized_per_target_payloads
+                        else {}
+                    ),
+                    **{
+                        k: v
+                        for k, v in command_data.items()
+                        if k not in [
+                            "idempotency_key",
+                            "mission_type",
+                            "trigger_time",
+                            "target_drone_ids",
+                            "target_scope",
+                        ]
+                    },
                 },
-            },
-            timeout_ms=provisional_timeout_ms,
-            idempotency_key=idempotency_key,
-            request_fingerprint=request_fingerprint,
-            preparation_required=launch_preparation_required,
-            start_preparing=True,
-            completion_authority=completion_authority,
-        )
+                timeout_ms=provisional_timeout_ms,
+                idempotency_key=idempotency_key,
+                request_fingerprint=request_fingerprint,
+                preparation_required=launch_preparation_required,
+                start_preparing=True,
+                completion_authority=completion_authority,
+            )
         command_id = creation_result.command_id
 
         if creation_result.replayed:

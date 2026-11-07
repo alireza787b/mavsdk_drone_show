@@ -90,8 +90,10 @@
 
 .drone-widget.runtime-offline,
 .drone-widget.runtime-never-seen {
-    filter: grayscale(0.75) saturate(0.45);
-    opacity: 0.58;
+    --widget-left-accent: var(--color-danger);
+    filter: none;
+    opacity: 1;
+    border-color: var(--color-danger-border);
 }
 
 .drone-widget.runtime-initializing {
@@ -108,28 +110,38 @@
 
 .drone-widget__link-overlay {
     align-items: center;
-    background:
-        radial-gradient(circle at center, rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.72), rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.38));
-    border: 1px solid rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.34);
-    border-radius: var(--border-radius-lg);
-    color: var(--color-text-secondary);
+    background: var(--color-danger-light);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--border-radius-sm);
+    color: var(--color-danger);
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     font-size: 0.72rem;
     font-weight: var(--font-weight-bold);
     gap: 6px;
-    inset: 44px 14px auto 14px;
+    margin: 0 0 var(--spacing-sm);
     justify-content: center;
-    min-height: 72px;
+    min-height: 32px;
     pointer-events: none;
-    position: absolute;
+    position: static;
     text-transform: uppercase;
     z-index: var(--widget-overlay-layer);
 }
 
 .drone-widget__link-overlay svg {
-    color: var(--color-text-muted);
-    font-size: 1.35rem;
+    color: currentColor;
+    font-size: 1rem;
+}
+
+.drone-widget.runtime-never-seen {
+    --widget-left-accent: var(--color-text-tertiary);
+    border-color: var(--color-border-primary);
+}
+
+.drone-widget.runtime-never-seen .drone-widget__link-overlay {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-secondary);
+    border-color: var(--color-border-primary);
 }
 
 .drone-widget.runtime-initializing .drone-widget__link-overlay {

@@ -48,3 +48,17 @@ test('undo during a gesture cancels only that gesture', () => {
   expect(result.current.isEditing).toBe(false);
   expect(result.current.canUndo).toBe(true);
 });
+
+test('capture offsets, frozen headings and inactive guard share one undo transaction', () => {
+  const { result } = renderHook(() => useSwarmDesignDraft(initial));
+  const metadata = { previewHeadings: { 1: 90 }, capture: { captureId: 'capture-1', hwIds: ['1', '2'] } };
+  act(() => result.current.replace([{ ...initial[0] }, { ...initial[1], offset_x: 9 }], metadata));
+  expect(result.current.metadata).toEqual(metadata);
+  act(() => result.current.undo());
+  expect(result.current.assignments).toEqual(initial);
+  expect(result.current.metadata).toEqual({});
+  act(() => result.current.redo());
+  expect(result.current.metadataRef.current).toEqual(metadata);
+  act(() => result.current.edit('2', { offset_x: 12 }));
+  expect(result.current.metadata.capture.hwIds).toEqual(['1', '2']);
+});

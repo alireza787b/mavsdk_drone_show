@@ -58,7 +58,11 @@ from smart_swarm_src.formation_acknowledgement import effective_revision
 from smart_swarm_src.config_transport import FormationSubscription
 import aiohttp 
 
-from smart_swarm_src.leader_motion import project_leader_motion
+from smart_swarm_src.leader_motion import (
+    leader_heading_rate_deg_s,
+    project_leader_heading,
+    project_leader_motion,
+)
 from smart_swarm_src.leader_recovery import LeaderRecoveryWindow
 from smart_swarm_src.failover import choose_leader_loss_response
 from smart_swarm_src.assignment_recovery import LocalRecoveryOverride, recovery_assignment
@@ -251,28 +255,11 @@ def should_use_local_ned(sample: dict) -> bool:
 
 
 def estimate_yaw_rate_deg_s(sample: dict, measurement_time: float) -> float:
-    """Prefer streamed yaw-rate, otherwise estimate it from successive samples."""
-    streamed = sample.get("yaw_rate_deg_s", None)
-    if streamed is not None:
-        try:
-            if math.isfinite(float(streamed)):
-                return float(streamed)
-        except (TypeError, ValueError):
-            pass
-
-    previous_yaw = LEADER_STATE.get("yaw")
-    previous_time = LEADER_STATE.get("attitude_timestamp_ms")
-    current_yaw = float(sample.get("yaw_deg", sample.get("yaw", 0.0)))
-
-    if previous_yaw is None or previous_time is None:
-        return 0.0
-
-    dt = (float(sample['attitude_timestamp_ms']) - previous_time) / 1000.0
-    if dt <= 0:
-        return 0.0
-
-    delta = (current_yaw - previous_yaw + 180.0) % 360.0 - 180.0
-    return delta / dt
+    """Use the attitude source clock, never the compatibility arrival-time argument."""
+    return leader_heading_rate_deg_s(
+        sample, LEADER_STATE,
+        max_sample_interval_s=float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC),
+    )
 
 
 def build_leader_measurement_from_sample(sample: dict):
@@ -1743,7 +1730,9 @@ async def control_loop(drone: System):
             leader_vel_n = predicted_state[3]
             leader_vel_e = predicted_state[4]
             leader_vel_d = predicted_state[5]
-            leader_yaw = LEADER_STATE.get('yaw', 0.0)
+            leader_yaw = project_leader_heading(
+                LEADER_STATE, now_s=current_time,
+                max_prediction_s=float(Params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC))
             leader_yaw_rate_deg_s = LEADER_STATE.get('yaw_rate_deg_s', 0.0)
 
             if FRAME == "body":

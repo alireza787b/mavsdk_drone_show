@@ -134,6 +134,46 @@ class TrajectoryFormationResponse(TrajectoryFormationRequest):
 
 class SwarmConfigApplyRequest(SwarmConfig):
     acknowledged_unavailable_hw_ids: List[str] = Field(default_factory=list)
+    require_inactive_hw_ids: List[str] = Field(default_factory=list,
+        description="Optional capture-derived draft guard; unknown/active nodes reject without writing")
+
+    @field_validator('require_inactive_hw_ids')
+    @classmethod
+    def validate_inactive_ids(cls, values):
+        if any(not hw.isdecimal() or int(hw) <= 0 or str(int(hw)) != hw for hw in values):
+            raise ValueError('Inactive scope requires canonical positive hardware IDs')
+        return sorted(set(values), key=int)
+
+    @model_validator(mode='after')
+    def require_guarded_revision(self):
+        if self.require_inactive_hw_ids and (len(self.revision) != 64 or any(c not in '0123456789abcdef' for c in self.revision)):
+            raise ValueError('An inactive-only Apply requires the reviewed formation revision')
+        return self
+
+
+class SwarmCapturePreviewRequest(BaseModel):
+    """Frozen position capture into an unsaved full-formation draft."""
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+    assignments: List[SwarmAssignment] = Field(min_length=1)
+    cluster_id: str = Field(pattern=r'^[1-9][0-9]*$')
+    frame: Literal['ned', 'body'] = 'ned'
+    height_mode: Literal['keep', 'level'] = 'keep'
+    leader_hw_id: Optional[str] = Field(None, pattern=r'^[1-9][0-9]*$')
+
+
+class SwarmCapturePreviewResponse(BaseModel):
+    capture_id: str
+    captured_at_ms: int
+    revision: str
+    cluster_id: str
+    assignments: List[SwarmAssignment]
+    headings: Dict[str, float]
+    observations: Dict[str, Dict[str, Any]]
+    reference: Dict[str, float]
+    height_mode: Literal['keep', 'level']
+    saved: Literal[False] = False
+    commands_sent: Literal[False] = False
 
 
 class SwarmPublishRequest(BaseModel):

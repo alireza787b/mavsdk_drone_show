@@ -498,3 +498,46 @@ async def test_strict_sync_zero_trigger_is_finalized_only_after_prepare_barrier(
     }
     assert status["params"]["trigger_time"] == committed_trigger
     await coordinator.stop()
+
+
+@pytest.mark.asyncio
+async def test_generic_swarm_start_rechecks_revision_inside_shared_apply_lock():
+    from swarm_configuration_guard import configuration_lock
+
+    saved = [{'hw_id': 1, 'follow': 0}, {'hw_id': 2, 'follow': 1, 'offset_x': 5}]
+    deps, tracker, coordinator = _submission_deps(swarm=saved, fleet_config=[
+        {'hw_id': '1', 'pos_id': 1, 'ip': '127.0.0.1'},
+        {'hw_id': '2', 'pos_id': 2, 'ip': '127.0.0.2'}])
+    reviewed = asyncio.Event()
+    rpc = deps.get_fleet_rpc_service()
+    original_review = rpc.review_swarm_start
+
+    async def review(drones):
+        result = await original_review(drones)
+        reviewed.set()
+        return result
+
+    rpc.review_swarm_start = review
+    await coordinator.start()
+    task = None
+    try:
+        async with configuration_lock(deps):
+            task = asyncio.create_task(submit_tracked_command(deps, SubmitCommandRequest(
+                mission_type=2, target_drone_ids=['1', '2'], idempotency_key='capture-apply-race')))
+            await asyncio.wait_for(reviewed.wait(), timeout=1)
+            await asyncio.sleep(0)
+            assert await tracker.get_active_commands() == []
+            # Equivalent to a canonical Apply completing while this Start was
+            # still reviewing: it must not register its old implicit snapshot.
+            saved[1]['offset_x'] = 9
+        with pytest.raises(HTTPException) as error:
+            await task
+        assert error.value.status_code == 409
+        assert 'changed during Start review' in error.value.detail
+        assert await tracker.get_active_commands() == []
+        assert rpc.dispatch_calls == []
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        await coordinator.stop()

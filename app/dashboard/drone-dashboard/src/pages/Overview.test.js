@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import useFetch from '../hooks/useFetch';
@@ -73,6 +73,27 @@ describe('Overview', () => {
     expect(await screen.findByRole('heading', { name: 'No valid drone data' })).toBeInTheDocument();
     expect(screen.getByText('When telemetry resumes, aircraft cards will populate here automatically.')).toBeInTheDocument();
     expect(screen.getByLabelText('Command dispatch')).toBeInTheDocument();
+  });
+
+  test('expires active cards even when subsequent telemetry requests never finish', async () => {
+    jest.useFakeTimers();
+    const now = Date.now();
+    getFleetTelemetryResponse
+      .mockResolvedValueOnce({ data: { 1: { hw_id: '1', pos_id: 1,
+        update_time: now, timestamp: now, heartbeat_last_seen: now,
+        telemetry_available: true, is_armed: true } }, headers: {} })
+      .mockImplementation(() => new Promise(() => {}));
+    const view = renderOverview();
+    try {
+      expect(await screen.findByText('Drone 1')).toBeInTheDocument();
+      await act(async () => { jest.advanceTimersByTime(65000); });
+      expect(screen.queryByText('Drone 1')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'All', exact: true }));
+      expect(screen.getByText('Drone 1')).toBeInTheDocument();
+    } finally {
+      view.unmount();
+      jest.useRealTimers();
+    }
   });
 
   test('renders compact fleet metrics and commandable drone cards', async () => {

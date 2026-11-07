@@ -193,6 +193,11 @@ class DroneCommunicator:
             and self._is_valid_global_position(getattr(self.drone_config, "position", None))
         )
         home_position_set = getattr(self.drone_config, "px4_home_position_set", False) is True
+        activity_timestamps = [safe_int(getattr(self.drone_config, key, 0)) for key in (
+            "heartbeat_timestamp_ms", "landed_state_timestamp_ms")]
+        activity_valid_for_ms = (max(0, self._local_mavlink_stale_threshold_ms() - max(
+            emitted_at_ms - timestamp for timestamp in activity_timestamps))
+            if all(0 < timestamp <= emitted_at_ms for timestamp in activity_timestamps) else 0)
         altitude_report = build_altitude_report(
             position=getattr(self.drone_config, "position", None),
             local_position_ned=local_ned,
@@ -223,6 +228,19 @@ class DroneCommunicator:
             "stream_seq": safe_int(getattr(self.drone_config, "telemetry_sequence", 0)),
             "global_position_valid": global_position_valid,
             "global_position_timestamp_ms": global_position_timestamp_ms,
+            "gps_fix_type": safe_int(getattr(self.drone_config, "gps_fix_type", 0)),
+            "capture_activity": {
+                "schema_version": 1,
+                "state": safe_int(self.drone_config.state, State.UNKNOWN.value),
+                "mission": safe_int(self.drone_config.mission, Mission.UNKNOWN.value),
+                "flight_mode": safe_int(getattr(self.drone_config, "custom_mode", 0)),
+                "swarm_active": live_swarm.get("active") is True,
+                "heartbeat_timestamp_ms": safe_int(getattr(self.drone_config, "heartbeat_timestamp_ms", 0)),
+                "is_armed": bool(self.drone_config.is_armed),
+                "landed_state": getattr(self.drone_config, "landed_state", None),
+                "landed_state_timestamp_ms": safe_int(getattr(self.drone_config, "landed_state_timestamp_ms", 0)),
+                "valid_for_ms": activity_valid_for_ms,
+            },
             "landed_state": getattr(self.drone_config, "landed_state", None),
             "current_command_id": getattr(self.drone_config, "current_command_id", None),
             "landed_state_timestamp_ms": safe_int(getattr(self.drone_config, "landed_state_timestamp_ms", 0)),

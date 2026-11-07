@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-toastify';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import SwarmDesignWorkspace from '../components/SwarmDesignWorkspace';
+import SwarmCaptureDialog from '../components/SwarmCaptureDialog';
 import { preservePositionPatch } from '../utilities/swarmFormationGeometry';
 import { getBackendURL } from '../config/apiConfig';
 import useSwarmDesignDraft from '../hooks/useSwarmDesignDraft';
@@ -42,6 +43,7 @@ import {
 
 const CSV_HEADERS = ['hw_id', 'follow', 'offset_x', 'offset_y', 'offset_z', 'frame'];
 const DRAFT_KEY = `mds.swarmDesign.draft.v2:${getBackendURL()}`;
+const EMPTY_PREVIEW_HEADINGS = {};
 
 function hasIncompleteNumericValue(value) {
   if (typeof value !== 'string') {
@@ -172,13 +174,16 @@ function SwarmSaveProgress({ progress }) {
 
 function SwarmDesign() {
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('tab') === 'design' || searchParams.get('drone') ? 'formation' : 'operate');
-  const [previewHeadings, setPreviewHeadings] = useState({});
+  const [tab, setTab] = useState(searchParams.get('tab') === 'formation' || searchParams.get('tab') === 'design' || searchParams.get('drone') || searchParams.get('capture') === '1' ? 'formation' : 'operate');
   const draftHistory = useSwarmDesignDraft();
   const { assignments: workingAssignments, assignmentsRef: workingRef,
     reset: setWorkingAssignments, begin: beginEdit, end: endEdit,
     undo: undoEdit, redo: redoEdit } = draftHistory;
   const handledRouteDroneRef = useRef('');
+  const handledCaptureRouteRef = useRef(false);
+  const previewHeadings = draftHistory.metadata.previewHeadings || EMPTY_PREVIEW_HEADINGS;
+  const draftCapture = draftHistory.metadata.capture;
+  const [captureRequest, setCaptureRequest] = useState(null);
 
   const [configData, setConfigData] = useState([]);
   const [serverSwarmData, setServerSwarmData] = useState([]);
@@ -250,6 +255,7 @@ function SwarmDesign() {
           .filter(Boolean);
         const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);
         let initialAssignments = assignments;
+        let initialMetadata = {};
         try {
           const savedDraft = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || 'null');
           const draftAssignments = Array.isArray(savedDraft) ? savedDraft : savedDraft?.assignments;
@@ -258,7 +264,8 @@ function SwarmDesign() {
           if (sameBase && Array.isArray(draftAssignments) && draftAssignments.length === assignments.length
             && draftAssignments.every((entry) => assignments.some((assignment) => String(assignment.hw_id) === String(entry.hw_id)))) {
             initialAssignments = buildWorkingSwarmAssignments(normalizedConfig, draftAssignments).assignments;
-            if (savedDraft.previewHeadings && typeof savedDraft.previewHeadings === 'object') setPreviewHeadings(savedDraft.previewHeadings);
+            initialMetadata = { previewHeadings: savedDraft.previewHeadings || {},
+              ...(savedDraft.capture?.hwIds?.length ? { capture: savedDraft.capture } : {}) };
           } else if (Array.isArray(draftAssignments)) {
             setRecoverableDraft(savedDraft);
           }
@@ -271,7 +278,7 @@ function SwarmDesign() {
         setServerSwarmData(normalizedSwarm);
         setServerSwarmRevision(String(swarmResponse?.data?.revision || ''));
         setBaselineAssignments(assignments);
-        setWorkingAssignments(initialAssignments);
+        setWorkingAssignments(initialAssignments, initialMetadata);
         setSelectedDroneId((currentId) => assignments.some((assignment) => assignment.hw_id === currentId) ? currentId : firstDroneId);
       } catch (error) {
         console.error('Error fetching Smart Swarm data:', error);
@@ -292,9 +299,10 @@ function SwarmDesign() {
         base: baselineAssignments,
         assignments: workingAssignments,
         previewHeadings,
+        capture: draftCapture,
       })); } catch { setDraftStorageError(true); }
     }
-  }, [baselineAssignments, workingAssignments, recoverableDraft, previewHeadings]);
+  }, [baselineAssignments, workingAssignments, recoverableDraft, previewHeadings, draftCapture]);
 
   const refreshGitStatus = async () => {
     setGitStatusLoading(true);
@@ -346,6 +354,42 @@ function SwarmDesign() {
     }
   }, [requestedDroneId, selectedDroneId, viewModel.drones, viewModel.dronesById]);
 
+  useEffect(() => {
+    if (handledCaptureRouteRef.current || searchParams.get('capture') !== '1'
+      || !serverSwarmRevision || !workingAssignments.length || hasBlockingIssues || hasIncompleteInputs) return;
+    const cluster = viewModel.clusters.find((item) => item.id === viewModel.dronesById[requestedDroneId]?.clusterRootId)
+      || viewModel.clusters.find((item) => item.type === 'cluster' && item.drones.length > 1);
+    handledCaptureRouteRef.current = true;
+    if (!cluster || cluster.drones.length < 2) return;
+    setCaptureRequest({ clusterId: cluster.id, hwIds: cluster.drones.map((drone) => String(drone.hw_id)),
+      assignments: toSwarmApiPayload(workingAssignments), revision: serverSwarmRevision,
+      frame: cluster.drones.filter((drone) => drone.follow !== '0').every((drone) => drone.frame === 'body') ? 'body' : 'ned' });
+  }, [searchParams, serverSwarmRevision, workingAssignments, hasBlockingIssues, hasIncompleteInputs,
+    requestedDroneId, viewModel]);
+
+  const openCapture = (clusterId) => {
+    const cluster = viewModel.clusters.find((item) => item.id === String(clusterId));
+    if (!cluster || cluster.drones.length < 2 || hasBlockingIssues || hasIncompleteInputs || saving) return;
+    setCaptureRequest({ clusterId: cluster.id, hwIds: cluster.drones.map((drone) => String(drone.hw_id)),
+      assignments: toSwarmApiPayload(workingRef.current), revision: serverSwarmRevision,
+      frame: cluster.drones.filter((drone) => drone.follow !== '0').every((drone) => drone.frame === 'body') ? 'body' : 'ned' });
+  };
+
+  const handleUseCapture = (candidate, snapshot, settings) => {
+    // Snapshot and draft must still belong to the reviewed revision.
+    if (!captureRequest || snapshot.revision !== serverSwarmRevision) return;
+    draftHistory.replace(candidate.assignments.map(normalizeSwarmAssignment), {
+      previewHeadings: { ...previewHeadings, ...candidate.headings },
+      capture: { captureId: snapshot.capture_id, capturedAtMs: snapshot.captured_at_ms,
+        heightMode: settings.heightMode,
+        hwIds: [...new Set([...(draftCapture?.hwIds || []), ...candidate.hwIds])] },
+    });
+    setSelectedDroneId(candidate.clusterId);
+    setSaveReport(null);
+    setSaveProgress(null);
+    setCaptureRequest(null);
+  };
+
   const refreshFromServer = async () => {
     const [swarmResponse, configResponse] = await Promise.all([
       getSwarmConfigResponse(),
@@ -364,7 +408,7 @@ function SwarmDesign() {
     setServerSwarmData(normalizedSwarm);
     setServerSwarmRevision(String(swarmResponse?.data?.revision || ''));
     setBaselineAssignments(assignments);
-    setWorkingAssignments(assignments);
+    setWorkingAssignments(assignments, { previewHeadings });
   };
 
   const handleAssignmentChange = (hwId, patch) => {
@@ -416,7 +460,7 @@ function SwarmDesign() {
           .filter(Boolean);
         const importedResult = buildWorkingSwarmAssignments(configData, importedAssignments);
 
-        draftHistory.replace(importedResult.assignments);
+        draftHistory.replace(importedResult.assignments, { previewHeadings });
         setSaveReport(null);
         setSaveProgress(null);
 
@@ -523,7 +567,7 @@ function SwarmDesign() {
       ),
       onConfirm: () => {
         setConfirmDialog(null);
-        draftHistory.replace(baselineAssignments);
+        draftHistory.replace(baselineAssignments, { previewHeadings });
         try { window.localStorage.removeItem(DRAFT_KEY); } catch { setDraftStorageError(true); }
         setSaveReport(null);
         setSaveProgress(null);
@@ -534,7 +578,8 @@ function SwarmDesign() {
 
   const saveSwarmData = async (withCommit, acknowledgedUnavailableIds = [], captured = null) => {
     const request = captured || { assignments: toSwarmApiPayload(workingRef.current),
-      revision: serverSwarmRevision, needsApply: canUpdateSwarm };
+      revision: serverSwarmRevision, needsApply: canUpdateSwarm,
+      requireInactiveHwIds: draftCapture?.hwIds || [] };
     const operation = withCommit ? 'commit' : 'update';
     setSaveOperation(operation);
     setSaving(true);
@@ -556,7 +601,7 @@ function SwarmDesign() {
           setServerSwarmData(normalized);
           setServerSwarmRevision(String(data.config?.revision || ''));
           setBaselineAssignments(next);
-          setWorkingAssignments(next);
+          setWorkingAssignments(next, { previewHeadings });
         },
         onPublishing: () => setSaveProgress(buildSwarmSaveProgress({ title: 'Saving to repository',
           message: '', withCommit: true, stepStates: ['done', 'active', 'pending'] })),
@@ -673,7 +718,8 @@ function SwarmDesign() {
       return;
     }
 
-    const request = { assignments: toSwarmApiPayload(workingRef.current), revision: serverSwarmRevision, needsApply: canUpdateSwarm };
+    const request = { assignments: toSwarmApiPayload(workingRef.current), revision: serverSwarmRevision, needsApply: canUpdateSwarm,
+      requireInactiveHwIds: draftCapture?.hwIds || [] };
     const summaryLines = [withCommit ? `${canUpdateSwarm ? 'Apply this plan, then' : 'Save the applied plan:'} commit and push to the repository.` : `${dirtyIds.length} aircraft changed. Update the GCS plan.`];
     setConfirmDialog({
       title: withCommit ? 'Save plan to repository?' : 'Apply plan?',
@@ -795,13 +841,20 @@ function SwarmDesign() {
         <span>{viewModel.summary.totalDrones} aircraft</span>
         <span>{viewModel.summary.clusterCount} cluster{viewModel.summary.clusterCount === 1 ? '' : 's'}</span>
         <span>{dirtyIds.length ? `${dirtyIds.length} unsaved` : 'Plan saved'}</span>
+        {draftCapture && <span className="swarm-capture-stamp" role="status" data-help="Frozen aircraft spacing in this browser draft. No aircraft commands sent.">
+          Draft capture · {Number.isFinite(new Date(draftCapture.capturedAtMs).getTime())
+            ? <time dateTime={new Date(draftCapture.capturedAtMs).toISOString()}>{new Date(draftCapture.capturedAtMs).toLocaleString()}</time>
+            : 'Time unavailable'}
+        </span>}
       </div>
       <SwarmSaveProgress progress={saveProgress} />
       {draftStorageError && <p role="status">Draft recovery unavailable in this browser. Export before closing.</p>}
       {recoverableDraft && <div className="swarm-draft-recovery" role="status">
         <span>A previous draft differs from the current GCS plan.</span>
         <button type="button" onClick={() => {
-          setWorkingAssignments(buildWorkingSwarmAssignments(configData, recoverableDraft.assignments).assignments);
+          setWorkingAssignments(buildWorkingSwarmAssignments(configData, recoverableDraft.assignments).assignments,
+            { previewHeadings: recoverableDraft.previewHeadings || {},
+              ...(recoverableDraft.capture?.hwIds?.length ? { capture: recoverableDraft.capture } : {}) });
           setRecoverableDraft(null);
         }}>Restore draft</button>
         <button type="button" onClick={() => setRecoverableDraft(null)}>Use GCS plan</button>
@@ -864,10 +917,14 @@ function SwarmDesign() {
         onChange={handleAssignmentChange} onEditBegin={beginEdit} onEditEnd={endEdit}
         onUndo={undoEdit} onRedo={redoEdit} canUndo={draftHistory.canUndo} canRedo={draftHistory.canRedo}
         onReset={handleRevert} canReset={hasStagedChanges}
-        previewHeadings={previewHeadings} onHeadingChange={(id, value) => setPreviewHeadings((current) => ({ ...current, [id]: value }))}
+        onCapture={openCapture} captureDisabled={hasBlockingIssues || hasIncompleteInputs || !serverSwarmRevision}
+        previewHeadings={previewHeadings} onHeadingChange={(id, value) => draftHistory.replace(workingRef.current,
+          { ...draftHistory.metadataRef.current, previewHeadings: { ...previewHeadings, [id]: value } })}
         disabled={saving} />
 
       </section>
+      {captureRequest && <SwarmCaptureDialog request={captureRequest} configData={configData}
+        onUse={handleUseCapture} onClose={() => setCaptureRequest(null)} />}
       <ConfirmDialog
         open={Boolean(confirmDialog)}
         title={confirmDialog?.title || 'Confirm Smart Swarm action'}

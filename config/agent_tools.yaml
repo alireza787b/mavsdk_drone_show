@@ -1752,6 +1752,8 @@ tools:
   - docs/features/swarm-trajectory.md
   safety_notes:
   - Swarm configuration is planned data, not live spacing.
+  - Capturing current spacing is an explicit operator workflow; reading this
+    resource does not measure positions, apply a draft or start following.
 - id: mds.shows.skybrush.read
   title: Read SkyBrush show summary
   description: Read processed SkyBrush show summary from the GCS.

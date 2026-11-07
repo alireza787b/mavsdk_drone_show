@@ -14,3 +14,11 @@ test('publication failure records the successful Apply and exact returned revisi
   await expect(saveSwarmPlan({ needsApply: true, publish: true, revision: 'old' })).rejects.toMatchObject({ saveStage: 'publish', planApplied: true, appliedRevision: 'new' });
   expect(publishSwarmConfigResponse).toHaveBeenCalledWith('new');
 });
+
+test('captured drafts require the complete captured scope inactive at Apply', async () => {
+  saveSwarmConfigResponse.mockResolvedValue({ data: { config: { revision: 'new' } } });
+  await saveSwarmPlan({ assignments: [], needsApply: true, publish: false, revision: 'old', requireInactiveHwIds: ['1', '2'] });
+  expect(saveSwarmConfigResponse).toHaveBeenCalledWith([], {
+    commit: false, revision: 'old', acknowledgedUnavailableIds: [], requireInactiveHwIds: ['1', '2'],
+  });
+});

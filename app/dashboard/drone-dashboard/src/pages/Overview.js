@@ -57,6 +57,7 @@ function normalizeNodeBootStatusMap(nodeBootPayload) {
 }
 
 const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
+  const [runtimeNowMs, setRuntimeNowMs] = useState(Date.now);
   const [drones, setDrones] = useState([]);
   const [configByHwId, setConfigByHwId] = useState({});
   const [expandedDrone, setExpandedDrone] = useState(null);
@@ -80,6 +81,18 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
     () => normalizeNodeBootStatusMap(nodeBootStatusFetched),
     [nodeBootStatusFetched]
   );
+
+  // Link age must advance even when every HTTP poll fails or hangs. Poll success
+  // is not the clock that owns aircraft freshness.
+  useEffect(() => {
+    const tick = () => setRuntimeNowMs(Date.now());
+    const timer = window.setInterval(tick, 1000);
+    window.addEventListener('focus', tick);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', tick);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -224,7 +237,7 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
     };
 
     drones.forEach((drone) => {
-      const runtimeStatus = getDroneRuntimeStatus(drone, Date.now());
+      const runtimeStatus = getDroneRuntimeStatus(drone, runtimeNowMs);
       const readiness = getDroneReadinessModel(drone, runtimeStatus);
 
       if (runtimeStatus.level === 'online') {
@@ -239,13 +252,13 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
         summary.ready += 1;
       }
 
-      if (drone?.[FIELD_NAMES.IS_ARMED]) {
+      if (runtimeStatus.level === 'online' && drone?.[FIELD_NAMES.IS_ARMED]) {
         summary.armed += 1;
       }
     });
 
     return summary;
-  }, [drones]);
+  }, [drones, runtimeNowMs]);
 
   const swarmAssignments = React.useMemo(
     () => unwrapSwarmConfigPayload(swarmDataFetched),
@@ -275,7 +288,7 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
   }, [clusterScope, visibleClusters]);
 
   const filteredDrones = React.useMemo(() => {
-    const nowMs = Date.now();
+    const nowMs = runtimeNowMs;
 
     return drones.filter((drone) => {
       const hwId = normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID);
@@ -302,16 +315,16 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
         case 'ready':
           return readiness.isReady;
         case 'armed':
-          return Boolean(drone?.[FIELD_NAMES.IS_ARMED]);
+          return runtimeStatus.level === 'online' && Boolean(drone?.[FIELD_NAMES.IS_ARMED]);
         case 'online':
           return runtimeStatus.level === 'online';
         default:
           return true;
       }
     });
-  }, [cardFilter, droneQuery, drones, visibleClusterHwIds]);
+  }, [cardFilter, droneQuery, drones, visibleClusterHwIds, runtimeNowMs]);
   const visibleCommandScopeIds = React.useMemo(() => {
-    const nowMs = Date.now();
+    const nowMs = runtimeNowMs;
     return filteredDrones
       .filter((drone) => {
         const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
@@ -319,7 +332,7 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
       })
       .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
       .filter(Boolean);
-  }, [filteredDrones]);
+  }, [filteredDrones, runtimeNowMs]);
   const commandClusterTargetIds = React.useMemo(() => {
     if (!swarmViewModel || !commandClusterScope) {
       return [];
@@ -677,6 +690,7 @@ const Overview = ({ setSelectedDrone, runtimeMode = 'unknown' }) => {
           >
             <DroneWidget
               drone={drone}
+              nowMs={runtimeNowMs}
               isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
               toggleDroneDetails={toggleDroneDetails}
               setSelectedDrone={setSelectedDrone}

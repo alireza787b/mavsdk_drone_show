@@ -33,6 +33,7 @@ function ClusterThumbnail({ members, headings, labels }) {
 export default function SwarmDesignWorkspace({ assignments, configData, selectedId, onSelect,
   onChange, onEditBegin, onEditEnd, onUndo, onRedo, canUndo, canRedo,
   onReset, canReset = false,
+  onCapture, captureDisabled = false,
   previewHeadings = EMPTY_HEADINGS, onHeadingChange, disabled = false }) {
   const model = useMemo(() => buildSwarmViewModel(assignments, configData), [assignments, configData]);
   const [view, setView] = useState('top');
@@ -46,6 +47,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
   const [search, setSearch] = useState('');
   const selected = model.dronesById[String(selectedId)];
   const cluster = model.clusters.find((item) => item.id === scope)
+    || model.clusters.find((item) => item.id === selected?.clusterRootId)
     || model.clusters.find((item) => item.type === 'cluster');
   const select = (id) => {
     onSelect(id);
@@ -97,8 +99,8 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
         <button className="formation-cluster-label" type="button" aria-pressed={scope !== 'all' && cluster?.id === group.id} onClick={() => setScope(group.id)}>{group.title}</button>
         {group.drones.filter((drone) => `${label(drone)} ${drone.hw_id}`.toLowerCase().includes(search.toLowerCase())).map((drone) =>
           <button className="formation-aircraft" type="button" key={drone.hw_id} aria-pressed={String(selectedId) === String(drone.hw_id)} onClick={() => select(drone.hw_id)}>
-            <span className="formation-role" aria-label={drone.follow === '0' ? 'Leader' : 'Follower'}>{drone.follow === '0' ? '◆' : '↳'}</span>
-            <span>{label(drone)}</span><small>{aircraftIdentity(identityRows.find((item) => String(item.hw_id) === String(drone.hw_id)) || drone)} · {drone.follow === '0' ? 'Leader' : `→ ${label(model.dronesById[drone.follow] || { hw_id: drone.follow })}`}</small>
+            <span className="formation-role" aria-label={drone.follow === '0' ? 'Leader' : drone.role === 'relayLeader' ? 'Relay' : 'Follower'}>{drone.follow === '0' ? '◆' : '↳'}</span>
+            <span>{label(drone)}</span><small>{aircraftIdentity(identityRows.find((item) => String(item.hw_id) === String(drone.hw_id)) || drone)} · {drone.follow === '0' ? 'Leader' : `${drone.role === 'relayLeader' ? 'Relay ' : ''}→ ${label(model.dronesById[drone.follow] || { hw_id: drone.follow })}`}</small>
           </button>)}
       </section>)}
     </nav>
@@ -106,7 +108,9 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
       <div className="formation-tools">
         <div role="tablist" aria-label="Formation view">{views.map(([id, text]) =>
           <button type="button" role="tab" key={id} aria-selected={layout === 'single' && view === id} onClick={() => chooseView(id)}>{text}</button>)}</div>
-        <div><button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
+        <div>{onCapture && <button type="button" disabled={disabled || captureDisabled || scope === 'all' || !cluster || cluster.drones.length < 2}
+          onClick={() => onCapture(cluster.id)} title="Copy current aircraft spacing into this draft">Capture</button>}
+          <button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
           <button type="button" aria-label="Redo formation edit" disabled={!canRedo || disabled} onClick={onRedo}>↷ Redo</button>
           <button type="button" disabled={!canReset || disabled} onClick={onReset}>Reset draft</button></div>
       </div>
@@ -139,7 +143,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
     </section>
     <aside className="formation-inspector" aria-label="Aircraft spacing">
       {selected && draft ? <>
-        <header><strong>{label(selected)}</strong><span className="formation-identity-with-help">{aircraftIdentity(selectedIdentity || selected)}<InfoHint content="Hardware ID identifies the physical aircraft. Position ID identifies its mission slot." label="Aircraft identity help" placement="bottom" /></span><span>{draft.follow === '0' ? 'Leader' : 'Follower'}</span></header>
+        <header><strong>{label(selected)}</strong><span className="formation-identity-with-help">{aircraftIdentity(selectedIdentity || selected)}<InfoHint content="Hardware ID identifies the physical aircraft. Position ID identifies its mission slot." label="Aircraft identity help" placement="bottom" /></span><span>{draft.follow === '0' ? 'Leader' : selected.role === 'relayLeader' ? 'Relay' : 'Follower'}</span></header>
         <fieldset disabled={disabled}>
           <label>Follows<select value={draft.follow} onChange={(event) => onChange(selectedId, { follow: event.target.value })}>
             <option value="0">Independent leader</option>{parentCandidates.map((item) => <option value={item.hw_id} key={item.hw_id}>{label(item)}</option>)}</select></label>
@@ -154,7 +158,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
           </>}
         </fieldset>
         <div className="formation-heading"><div className="formation-field-title"><label htmlFor="formation-preview-heading">Preview heading</label><InfoHint icon="?" hoverable placement="left" label="About preview heading" content={`Design-only heading of ${names[headingId] || `H${headingId}`}: 0° North, 90° East. It rotates Body-frame previews, never commands yaw or aircraft movement.`} /></div>
-          <span className="formation-unit-input"><input id="formation-preview-heading" type="number" step="5" min="0" max="359" disabled={disabled} value={previewHeadings[headingId] || 0} onChange={(event) => onHeadingChange(headingId, Number(event.target.value))} /><span>°</span></span></div>
+          <span className="formation-unit-input"><FormationNumberInput id="formation-preview-heading" min="0" max="359.999" disabled={disabled} value={previewHeadings[headingId] || 0} onChange={(event) => onHeadingChange(headingId, Number(event.target.value))} /><span>°</span></span></div>
         {selected.warnings?.map((warning) => <p className="formation-issue" role="status" key={warning.code}>{warning.message}</p>)}
       </> : <p>Select an aircraft</p>}
     </aside>

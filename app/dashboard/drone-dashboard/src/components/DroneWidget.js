@@ -42,9 +42,10 @@ const DroneWidget = ({
   setSelectedDrone,
   commandScopeState = 'out',
   onToggleCommandScope = null,
+  nowMs,
 }) => {
   const navigate = useNavigate();
-  const currentTimeInMs = Date.now();
+  const currentTimeInMs = nowMs ?? Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
   const rawNodeBootStatus = drone.node_boot_status || drone.nodeBootStatus || null;
   const nodeBootStatus = classifyNodeBootStatus(rawNodeBootStatus, currentTimeInMs);
@@ -279,9 +280,9 @@ const DroneWidget = ({
     <div
       className={`drone-widget ${
         isReadyToArm ? 'ready-to-arm' : 'not-ready-to-arm'
-      } ${isArmed ? 'armed' : 'disarmed'} ${
-        missionReady ? 'mission-ready' : ''
-      } ${missionExecuting ? 'mission-executing' : ''} ${
+      } ${telemetryTrusted && isArmed ? 'armed' : 'disarmed'} ${
+        telemetryTrusted && missionReady ? 'mission-ready' : ''
+      } ${telemetryTrusted && missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
       } ${nodeBootStatus.active ? 'runtime-initializing' : ''} boot-${nodeBootStatus.state} ${scopeClass} command-scope-${commandScopeState} runtime-${runtimeStatus.indicatorClass}`}
       data-command-scope={commandScopeState}
@@ -294,8 +295,8 @@ const DroneWidget = ({
         </div>
       )}
       {showLinkOverlay && (
-        <div className="drone-widget__link-overlay" aria-hidden="true" data-help={linkOverlayHelp}>
-          <FaBroadcastTower />
+        <div className="drone-widget__link-overlay" role="status" data-help={linkOverlayHelp}>
+          <FaBroadcastTower aria-hidden="true" />
           <span>{linkOverlayLabel}</span>
         </div>
       )}
@@ -385,8 +386,9 @@ const DroneWidget = ({
 
       {/* Critical Status Badges */}
       <div className="critical-status">
-        <span className={`status-badge ${isArmed ? 'armed' : 'disarmed'}`}>
-          {isArmed ? 'ARMED' : 'DISARMED'}
+        <span className={`status-badge ${telemetryTrusted ? (isArmed ? 'armed' : 'disarmed') : 'unknown'}`}
+          title={telemetryTrusted ? undefined : 'Current arm state is unavailable; cached telemetry is not live evidence.'}>
+          {telemetryTrusted ? (isArmed ? 'ARMED' : 'DISARMED') : 'ARM STATE UNKNOWN'}
         </span>
         <span className={`status-badge ${readinessBadgeClass}`}>
           {isReadyToArm ? 'READY' : readiness.statusLabel.toUpperCase()}
@@ -461,8 +463,8 @@ const DroneWidget = ({
         {/* Flight Mode */}
         <div className="data-item full-width">
           <span className="data-label">Flight Mode</span>
-          <span className={`mode-badge ${flightModeCategory}`}>
-            {flightModeTitle}
+          <span className={`mode-badge ${telemetryTrusted ? flightModeCategory : 'unknown'}`}>
+            {telemetryTrusted ? flightModeTitle : 'Unavailable'}
           </span>
         </div>
 
@@ -471,12 +473,12 @@ const DroneWidget = ({
           <span className="data-label">Mission</span>
           <div className="data-value-inline">
             <span
-              className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
-              data-help={missionDisplay.badgeTooltip}
+              className={`mission-badge ${telemetryTrusted ? missionDisplay.currentMissionStatusClass : 'unknown'}`}
+              data-help={telemetryTrusted ? missionDisplay.badgeTooltip : 'Current mission is unavailable.'}
             >
-              {missionDisplay.currentMissionName}
+              {telemetryTrusted ? missionDisplay.currentMissionName : 'Unavailable'}
             </span>
-            {hasCurrentMission && (
+            {telemetryTrusted && hasCurrentMission && (
               <span className="data-item__meta-chip" data-help={missionDisplay.badgeTooltip}>
                 Active
               </span>
@@ -488,9 +490,9 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">State</span>
           <span className={`mission-state-badge ${
-            missionExecuting ? 'executing' : missionReady ? 'ready' : 'idle'
+            !telemetryTrusted ? 'unknown' : missionExecuting ? 'executing' : missionReady ? 'ready' : 'idle'
           }`}>
-            {missionStateName}
+            {telemetryTrusted ? missionStateName : 'Unavailable'}
           </span>
         </div>
 
@@ -588,6 +590,7 @@ DroneWidget.propTypes = {
   setSelectedDrone: PropTypes.func,
   commandScopeState: PropTypes.oneOf(['out', 'selected', 'cluster', 'all']),
   onToggleCommandScope: PropTypes.func,
+  nowMs: PropTypes.number,
 };
 
 export default DroneWidget;

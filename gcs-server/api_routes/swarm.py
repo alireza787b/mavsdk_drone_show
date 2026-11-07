@@ -16,10 +16,14 @@ from schemas import (
     SwarmConfigSaveResponse,
     SwarmConfigApplyRequest,
     SwarmPublishRequest,
+    SwarmCapturePreviewRequest,
+    SwarmCapturePreviewResponse,
 )
 from src.smart_swarm_contract import topology_revision
 from src.gcs_api_routes import GCS_WS_SWARM_CONFIG_ROUTE
 from swarm_design_service import formation_status, validate_apply_observation
+from swarm_configuration_guard import configuration_lock
+from swarm_capture_service import capture_preview, inactive_scope, read_inactive_scope, recheck_inactive_scope
 
 
 def _normalize_swarm_hw_id(value: Any) -> Optional[int]:
@@ -247,6 +251,10 @@ def create_swarm_router(deps: Any) -> APIRouter:
     async def get_swarm_status():
         return await formation_status(deps)
 
+    @router.post("/api/v1/config/swarm/capture-preview", response_model=SwarmCapturePreviewResponse, tags=["Swarm"])
+    async def preview_capture(payload: SwarmCapturePreviewRequest):
+        return await capture_preview(deps, payload)
+
     @router.post("/api/v1/config/swarm/publish", response_model=SwarmConfigSaveResponse, tags=["Swarm"])
     async def publish_swarm(payload: SwarmPublishRequest):
         # Publishing persists the already-applied resource; it cannot install a draft.
@@ -304,8 +312,16 @@ def create_swarm_router(deps: Any) -> APIRouter:
                 if topology_revision(deps.load_swarm() or []) != current_revision:
                     raise HTTPException(409, "Swarm layout changed during review; reload before applying")
 
+            protected = inactive_scope(before, swarm_data, payload.require_inactive_hw_ids) if payload.require_inactive_hw_ids else []
+            observations = await read_inactive_scope(deps, protected) if protected else None
+
             deps.log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
-            deps.save_swarm(swarm_data)
+            async with configuration_lock(deps):
+                if payload.revision and topology_revision(deps.load_swarm() or []) != current_revision:
+                    raise HTTPException(409, "Swarm layout changed during review; reload before applying")
+                if protected:
+                    await recheck_inactive_scope(deps, protected, observations)
+                deps.save_swarm(swarm_data)
             deps.log_system_event("✅ Swarm configuration saved successfully", "INFO", "swarm")
 
             should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
@@ -365,7 +381,10 @@ def create_swarm_router(deps: Any) -> APIRouter:
                 await validate_apply_observation(deps, before, proposed, payload.acknowledged_unavailable_hw_ids)
                 if topology_revision(deps.load_swarm() or []) != payload.revision:
                     raise HTTPException(409, "Swarm layout changed during review; reload before applying")
-            updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, {"hw_id": hw_id, **data})
+            async with configuration_lock(deps):
+                if payload.revision and topology_revision(deps.load_swarm() or []) != payload.revision:
+                    raise HTTPException(409, "Swarm layout changed during review; reload before applying")
+                updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, {"hw_id": hw_id, **data})
 
             return SwarmAssignmentUpdateResponse(
                 status="success",

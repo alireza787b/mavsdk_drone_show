@@ -357,6 +357,7 @@ export default function SwarmOperations() {
       </div>
       {advanced && <div className="swarm-ops__advanced">
         <a href="/swarm-design?tab=formation">Design Swarm</a>
+        {cluster && <a href={`/swarm-design?tab=formation&capture=1&drone=${encodeURIComponent(cluster.cluster_id)}`}>Capture spacing</a>}
         <a href="/globe-view">Globe</a>
         <label>Recovery targets <select aria-label="Recovery targets" value={individual} onChange={(e) => setIndividual(e.target.value)}>
           <option value="">Entire cluster</option>{members.map((m) => <option key={m.hw_id} value={m.hw_id}>{memberLabel(m)} only</option>)}

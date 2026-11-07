@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import math
 from types import SimpleNamespace
 import pytest
 from unittest.mock import Mock
@@ -533,13 +534,29 @@ def test_process_battery_status_marks_unknown_optional_values_unavailable(mock_d
 
 def test_process_attitude_tracks_yaw_rate(mock_drone_config):
     controller = build_controller(mock_drone_config)
-    msg = SimpleNamespace(yaw=1.0, yawspeed=0.5)
+    msg = SimpleNamespace(yaw=1.0, roll=0.0, pitch=0.0, pitchspeed=0.0, yawspeed=0.5)
 
     controller.process_attitude(msg)
 
     assert mock_drone_config.yaw > 0
     assert mock_drone_config.yaw_rate_deg_s > 28.0
     assert mock_drone_config.attitude_timestamp_ms > 0
+
+
+def test_process_attitude_reports_euler_heading_rate_not_tilted_body_z_rate(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(yaw=1.0, roll=math.pi / 6, pitch=math.pi / 4,
+                          pitchspeed=0.4, yawspeed=0.5)
+    controller.process_attitude(msg)
+    expected = math.degrees((0.4 * math.sin(msg.roll) + 0.5 * math.cos(msg.roll)) / math.cos(msg.pitch))
+    assert mock_drone_config.yaw_rate_deg_s == pytest.approx(expected)
+
+
+def test_process_attitude_marks_singular_heading_rate_unavailable(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    controller.process_attitude(SimpleNamespace(
+        yaw=1.0, roll=0.0, pitch=math.pi / 2, pitchspeed=0.0, yawspeed=0.5))
+    assert mock_drone_config.yaw_rate_deg_s is None
 
 
 @pytest.mark.parametrize("yaw", [None, float('nan'), float('inf')])

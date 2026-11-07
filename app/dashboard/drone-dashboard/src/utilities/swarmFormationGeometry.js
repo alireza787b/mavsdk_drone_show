@@ -93,24 +93,36 @@ export function projectFormationPoint(point, plane = 'top', viewFrame = 'ned', v
   return plane === 'top' ? { x: view.axis2, y: view.axis1 } : { x: view[plane === 'north-up' ? 'axis1' : 'axis2'], y: view.up };
 }
 
-export const createDraftHistory = (assignments) => ({ present: assignments, past: [], future: [], gesture: null });
+export const createDraftHistory = (assignments, metadata = {}) => ({ present: assignments, metadata,
+  past: [], future: [], pastMetadata: [], futureMetadata: [], gesture: null, gestureMetadata: null });
 export function draftHistoryReducer(state, action) {
   const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   switch (action.type) {
-    case 'reset': return createDraftHistory(action.assignments);
-    case 'begin': return state.gesture ? state : { ...state, gesture: state.present };
+    case 'reset': return createDraftHistory(action.assignments, action.metadata);
+    case 'begin': return state.gesture ? state : { ...state, gesture: state.present, gestureMetadata: state.metadata };
     case 'edit': {
       const next = action.assignments || state.present.map((item) => String(item.hw_id) === String(action.id) ? { ...item, ...action.patch } : item);
-      if (equal(next, state.present)) return state;
-      return { ...state, present: next, past: state.gesture ? state.past : [...state.past, state.present].slice(-100), future: [] };
+      const metadata = action.metadata === undefined ? state.metadata : action.metadata;
+      if (equal(next, state.present) && equal(metadata, state.metadata)) return state;
+      return { ...state, present: next, metadata,
+        past: state.gesture ? state.past : [...state.past, state.present].slice(-100), future: [],
+        pastMetadata: state.gesture ? state.pastMetadata : [...state.pastMetadata, state.metadata].slice(-100), futureMetadata: [] };
     }
     case 'end': {
       if (!state.gesture) return state;
-      if (action.cancelled) return { ...state, present: state.gesture, gesture: null };
-      return { ...state, past: equal(state.present, state.gesture) ? state.past : [...state.past, state.gesture].slice(-100), gesture: null };
+      if (action.cancelled) return { ...state, present: state.gesture, metadata: state.gestureMetadata, gesture: null, gestureMetadata: null };
+      const unchanged = equal(state.present, state.gesture) && equal(state.metadata, state.gestureMetadata);
+      return { ...state, past: unchanged ? state.past : [...state.past, state.gesture].slice(-100),
+        pastMetadata: unchanged ? state.pastMetadata : [...state.pastMetadata, state.gestureMetadata].slice(-100), gesture: null, gestureMetadata: null };
     }
-    case 'undo': return !state.past.length || state.gesture ? state : { present: state.past[state.past.length - 1], past: state.past.slice(0, -1), future: [state.present, ...state.future], gesture: null };
-    case 'redo': return !state.future.length || state.gesture ? state : { present: state.future[0], past: [...state.past, state.present], future: state.future.slice(1), gesture: null };
+    case 'undo': return !state.past.length || state.gesture ? state : { ...state,
+      present: state.past[state.past.length - 1], metadata: state.pastMetadata[state.pastMetadata.length - 1],
+      past: state.past.slice(0, -1), pastMetadata: state.pastMetadata.slice(0, -1),
+      future: [state.present, ...state.future], futureMetadata: [state.metadata, ...state.futureMetadata] };
+    case 'redo': return !state.future.length || state.gesture ? state : { ...state,
+      present: state.future[0], metadata: state.futureMetadata[0],
+      past: [...state.past, state.present], pastMetadata: [...state.pastMetadata, state.metadata],
+      future: state.future.slice(1), futureMetadata: state.futureMetadata.slice(1) };
     default: return state;
   }
 }

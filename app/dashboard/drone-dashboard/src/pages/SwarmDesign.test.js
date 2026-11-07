@@ -9,12 +9,14 @@ jest.mock('../components/DroneGraph', () => ({ selectedDroneId, onSelectDrone })
 jest.mock('../services/gcsApiService', () => ({
   getFleetConfigResponse: jest.fn(), getUnifiedGitStatusResponse: jest.fn(), getSwarmConfigResponse: jest.fn(),
   saveSwarmConfigResponse: jest.fn(), getSwarmDesignStatusResponse: jest.fn(), publishSwarmConfigResponse: jest.fn(),
+  previewSwarmCaptureResponse: jest.fn(),
   unwrapSwarmConfigPayload: (payload) => Array.isArray(payload) ? payload : payload?.assignments || [],
 }));
 
 const { default: SwarmDesign } = require('./SwarmDesign');
 const { getFleetConfigResponse, getUnifiedGitStatusResponse, getSwarmConfigResponse,
-  saveSwarmConfigResponse, getSwarmDesignStatusResponse, publishSwarmConfigResponse } = require('../services/gcsApiService');
+  saveSwarmConfigResponse, getSwarmDesignStatusResponse, publishSwarmConfigResponse,
+  previewSwarmCaptureResponse } = require('../services/gcsApiService');
 const { toast } = require('react-toastify');
 const { GIT_REPO } = require('../version');
 const initialAssignments = [
@@ -51,6 +53,13 @@ beforeEach(() => {
     return { data: { status: 'success', config: server, application: { revision: 'revision-2', nodes: [] } } };
   });
   publishSwarmConfigResponse.mockResolvedValue({ data: { status: 'success', git_result: { success: true, pushed: true } } });
+  previewSwarmCaptureResponse.mockResolvedValue({ data: {
+    capture_id: 'capture-1', captured_at_ms: 1794052800000, revision: 'revision-1', cluster_id: '1',
+    saved: false, commands_sent: false, height_mode: 'keep', headings: { 1: 90, 2: 0 },
+    assignments: initialAssignments,
+    observations: { 1: { north_m: 0, east_m: 0, planned_up_m: 0, heading_deg: 90 },
+      2: { north_m: 9, east_m: 2, planned_up_m: 0, heading_deg: 0 } },
+  } });
 });
 
 test('renders real linked canvas and inspector with Operate separate', async () => {
@@ -248,4 +257,92 @@ test('missing names use hardware IDs and never invent a position ID', async () =
   expect(screen.getByLabelText('Aircraft spacing')).toHaveTextContent('H2 · P9');
   fireEvent.click(screen.getAllByRole('button', { name: 'H1, leader origin' })[0]);
   expect(screen.getByLabelText('Aircraft spacing')).not.toHaveTextContent('P1');
+});
+
+test('Capture is frozen, local, undoable and guards the later explicit Apply', async () => {
+  renderPage(); await selectFollower();
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
+  expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Body' }));
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Same height' }));
+  fireEvent.change(within(dialog).getByRole('combobox', { name: /Leader/ }), { target: { value: '2' } });
+  expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Use capture' }));
+  expect(screen.getByText(/Draft capture/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Aircraft spacing')).toHaveTextContent('NET-LEADER');
+  fireEvent.click(screen.getByRole('button', { name: 'Undo formation edit' }));
+  expect(screen.queryByText(/Draft capture/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Redo formation edit' }));
+  expect(screen.getByText(/Draft capture/)).toBeInTheDocument();
+  await confirmApply();
+  expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.arrayContaining([
+    expect.objectContaining({ hw_id: 2, follow: 0 }), expect.objectContaining({ hw_id: 1, follow: 2, offset_x: -9, offset_y: -2 }),
+  ]), { commit: false, revision: 'revision-1', acknowledgedUnavailableIds: [], requireInactiveHwIds: ['1', '2'] });
+});
+
+test('Capture errors preserve the existing draft and Refresh is explicit', async () => {
+  previewSwarmCaptureResponse.mockRejectedValueOnce({ response: { data: { detail: { code: 'position_stale', hw_id: '2', message: 'Position is stale.' } } } });
+  renderPage(); await editNorth('8');
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  await within(dialog).findByText('H2: Position is stale.');
+  expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeDisabled();
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(8);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }));
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
+  expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(2);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(8);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
+
+test('captured draft recovery preserves the inactive guard and headings', async () => {
+  const first = renderPage(); await selectFollower();
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Use capture' }));
+  first.unmount();
+  renderPage(); await selectFollower();
+  expect(screen.getByText(/Draft capture/)).toBeInTheDocument();
+  expect(screen.getByLabelText(/Preview heading/)).toHaveValue(90);
+  await confirmApply();
+  expect(saveSwarmConfigResponse.mock.calls[0][1].requireInactiveHwIds).toEqual(['1', '2']);
+});
+
+test('changing frozen NED capture to Body rejects missing heading without resampling', async () => {
+  const response = await previewSwarmCaptureResponse();
+  previewSwarmCaptureResponse.mockClear();
+  previewSwarmCaptureResponse.mockResolvedValueOnce({ data: { ...response.data,
+    observations: { ...response.data.observations,
+      1: { ...response.data.observations[1], heading_deg: null } },
+  } });
+  renderPage(); await selectFollower();
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Body' }));
+  expect(within(dialog).getByText('H1: heading unavailable. Refresh capture.')).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeDisabled();
+  expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'NED' }));
+  expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled();
+});
+
+test('a partial observation response cannot be used as a full cluster capture', async () => {
+  const response = await previewSwarmCaptureResponse();
+  previewSwarmCaptureResponse.mockClear();
+  previewSwarmCaptureResponse.mockResolvedValueOnce({ data: { ...response.data,
+    observations: { 1: response.data.observations[1] },
+  } });
+  renderPage(); await editNorth('8');
+  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  await within(dialog).findByText('The complete formation was not captured. Refresh before using it.');
+  expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeDisabled();
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(8);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
 });

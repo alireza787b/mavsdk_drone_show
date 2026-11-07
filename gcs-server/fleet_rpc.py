@@ -241,6 +241,36 @@ class FleetRPCService:
                 values[key] = unavailable(drone)
         return values
 
+    async def read_swarm_samples(self, drones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Bounded read-only native samples; retain source clocks and local RTT.
+
+        Capture validates identity, source ages and local runtime activity. A
+        transport success alone does not establish usable position evidence.
+        """
+        client = await self._client_or_start()
+        timeout = min(2.0, max(0.2, float(getattr(self.params, 'GCS_COMMAND_HTTP_TIMEOUT_SEC', 5))))
+
+        def unavailable(drone):
+            return {'sample': {}, 'error': 'Native swarm sample unavailable'}
+
+        async def read(drone):
+            started = time.monotonic()
+            try:
+                response = await client.get(
+                    f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_SWARM_STATE_ROUTE}", timeout=timeout)
+                response.raise_for_status()
+                sample = response.json()
+                if not isinstance(sample, dict) or str(sample.get('hw_id')) != _normalize_drone_id(drone):
+                    return unavailable(drone)
+                received = time.monotonic()
+                return {'sample': sample, 'round_trip_ms': max(0, int((received - started) * 1000)),
+                        'received_at_ms': int(time.time() * 1000), 'received_monotonic': received}
+            except (httpx.HTTPError, ValueError, TypeError):
+                return unavailable(drone)
+
+        return await self._bounded_map(drones, read, recovery=False,
+            deadline_sec=timeout, deadline_result=unavailable)
+
     async def review_takeoff(self, drones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """Read mission-specific native admission without reserving or arming."""
         client = await self._client_or_start()
