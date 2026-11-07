@@ -43,11 +43,18 @@ fetch_latest_version() {
 
 # Get currently installed MAVSDK version
 get_installed_version() {
-    if [[ -x "${MAVSDK_BINARY}" ]]; then
-        "${MAVSDK_BINARY}" --version 2>/dev/null | head -1 | grep -oP 'v[\d.]+' || echo ""
-    else
-        echo ""
+    # MAVSDK 3.x has no --version option: it treats that argument as a
+    # connection URL and may wait forever. Use hash-bound install provenance.
+    local version expected_hash actual_hash
+    version=$(state_get_value "mavsdk_version" "")
+    expected_hash=$(state_get_value "mavsdk_sha256" "")
+    if [[ -x "${MAVSDK_BINARY}" && -n "$version" && -n "$expected_hash" ]]; then
+        actual_hash=$(sha256sum "${MAVSDK_BINARY}" | awk '{print $1}')
+        if [[ "$actual_hash" == "$expected_hash" ]]; then
+            printf '%s\n' "$version"
+        fi
     fi
+    return 0
 }
 
 # =============================================================================
@@ -147,13 +154,10 @@ verify_mavsdk_binary() {
         return 1
     fi
 
-    # Test that it runs
-    local version
-    version=$("${MAVSDK_BINARY}" --version 2>&1 | head -1)
-
-    if [[ -n "$version" ]]; then
-        log_success "MAVSDK binary verified: $version"
-        state_set_value "mavsdk_version" "$version"
+    # --help exits without opening vehicle transports. Bound even this probe
+    # so a broken/incompatible executable cannot stall provisioning.
+    if timeout --kill-after=1s 5s "${MAVSDK_BINARY}" --help >/dev/null 2>&1; then
+        log_success "MAVSDK binary CLI verified"
         return 0
     fi
 
@@ -285,6 +289,8 @@ run_mavsdk_phase() {
 
     # Verify the binary
     verify_mavsdk_binary || return 1
+    state_set_value "mavsdk_version" "$target_version"
+    state_set_value "mavsdk_sha256" "$(sha256sum "${MAVSDK_BINARY}" | awk '{print $1}')"
 
     log_success "MAVSDK installation complete"
     return 0

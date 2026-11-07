@@ -180,9 +180,13 @@ verify_mavsdk() {
         return 1
     fi
 
+    if ! verify_mavsdk_binary; then
+        verify_set_result "mavsdk" "FAIL:Executable CLI check failed"
+        return 1
+    fi
     local version
-    version=$("${MDS_INSTALL_DIR}/mavsdk_server" --version 2>&1 | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
-    verify_set_result "mavsdk" "PASS:${version}"
+    version=$(get_installed_version)
+    verify_set_result "mavsdk" "PASS:${version:-CLI verified; version unrecorded}"
     return 0
 }
 

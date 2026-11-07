@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Companion MAVSDK verification uses a bounded, transport-free `--help` probe
+  instead of the unsupported `--version` argument. Installed version provenance
+  is bound to the binary hash, preventing fresh setup and final verification
+  from hanging or reporting a version for replaced bytes.
+
 - Fresh companion identity setup no longer references the retired inline-token
   variable under strict shell mode. Credential rendering preserves externally
   provisioned files and records only their configured paths.
