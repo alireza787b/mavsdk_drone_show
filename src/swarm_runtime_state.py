@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 from pathlib import Path
@@ -36,12 +37,24 @@ def build_runtime_swarm_assignment(
     source = assignment or {}
     follow_value = force_follow if force_follow is not None else source.get("follow", 0)
 
+    def _finite_offset(key: str) -> float:
+        raw = source.get(key, 0.0)
+        try:
+            value = float(raw or 0.0)
+        except (TypeError, ValueError):
+            logger.debug("Non-numeric swarm offset %s=%r; using 0.0", key, raw)
+            return 0.0
+        if not math.isfinite(value):
+            logger.debug("Non-finite swarm offset %s=%r; using 0.0", key, raw)
+            return 0.0
+        return value
+
     payload = {
         "hw_id": int(hw_id),
         "follow": int(follow_value or 0),
-        "offset_x": float(source.get("offset_x", 0.0) or 0.0),
-        "offset_y": float(source.get("offset_y", 0.0) or 0.0),
-        "offset_z": float(source.get("offset_z", 0.0) or 0.0),
+        "offset_x": _finite_offset("offset_x"),
+        "offset_y": _finite_offset("offset_y"),
+        "offset_z": _finite_offset("offset_z"),
         "frame": str(source.get("frame", "body") or "body").lower(),
     }
     if session_id or active is not None:
