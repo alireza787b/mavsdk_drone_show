@@ -19,9 +19,17 @@ from src.params import Params
 
 def _coerce_non_negative_altitude(relative_altitude_m) -> float | None:
     try:
-        return max(0.0, float(relative_altitude_m))
+        altitude_m = float(relative_altitude_m)
     except (TypeError, ValueError):
         return None
+
+    # NaN / ±inf are not credible altitude telemetry. Treat them like parse
+    # failures so callers use the intentional minimum-wait defaults instead of
+    # letting max(0.0, nan) collapse to 0.0 and quietly inflate the budget.
+    if not math.isfinite(altitude_m):
+        return None
+
+    return max(0.0, altitude_m)
 
 
 def _non_negative_param(params, name: str, default: float) -> float:
