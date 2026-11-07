@@ -924,7 +924,7 @@ run_mavlink_auto_config() {
     MAVLINK_MANAGEMENT_MODE="fleet-merge"
     validate_mavlink_push_endpoint "${MAVLINK_PUSH_ENDPOINT:-}" || return 1
 
-    if is_raspberry_pi; then
+    if [[ "${MAVLINK_INPUT_TYPE:-uart}" == "uart" ]] && is_raspberry_pi; then
         if check_serial_console_enabled || ! check_uart_enabled; then
             log_info "Applying Raspberry Pi UART boot configuration fixes"
             auto_fix_uart_config || return 1
@@ -941,22 +941,26 @@ run_mavlink_auto_config() {
         log_success "mavlink-router already installed"
     fi
 
-    # Step 2: Auto-detect UART
-    uart_device=$(detect_uart_device)
-    log_info "Auto-detected UART device: $uart_device"
+    # Explicit host transport facts take precedence over auto-detection.
+    uart_device=""
+    if [[ "${MAVLINK_INPUT_TYPE:-uart}" == "uart" ]]; then
+        uart_device="${MAVLINK_UART:-$(detect_uart_device)}"
+        log_info "Using UART device: $uart_device"
+    fi
 
     # Step 3: Use default baud rate
     baud_rate="${MAVLINK_BAUD:-57600}"
     log_info "Using baud rate: $baud_rate"
 
     # Step 4: Build endpoints list
-    endpoints="$(append_mavlink_push_endpoint "$MDS_DEFAULT_ENDPOINTS")" || return 1
+    endpoints="$(append_mavlink_push_endpoint "${MAVLINK_ENDPOINTS:-$MDS_DEFAULT_ENDPOINTS}")" || return 1
     if [[ -n "${MAVLINK_PUSH_ENDPOINT:-}" ]]; then
         log_info "Added explicit MAVLink push endpoint: ${MAVLINK_PUSH_ENDPOINT}"
     fi
 
     # Step 5: Run configuration
-    run_mavlink_configure_headless "$uart_device" "$baud_rate" "$endpoints" "uart" || return 1
+    run_mavlink_configure_headless "$uart_device" "$baud_rate" "$endpoints" \
+        "${MAVLINK_INPUT_TYPE:-uart}" "${MAVLINK_INPUT_PORT:-14550}" || return 1
 
     # Step 6: Verify service
     verify_mavlink_service || return 1

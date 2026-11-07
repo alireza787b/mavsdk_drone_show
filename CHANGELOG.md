@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Bootstrap sidecar updates preserve local environment ownership/permissions,
+  so the service user can still load REAL mode and its GCS endpoint. MAVLink
+  auto-configuration honors explicit UART, endpoints and UDP input overrides
+  instead of silently replacing them with auto-detected defaults.
+
 - Companion MAVSDK verification uses a bounded, transport-free `--help` probe
   instead of the unsupported `--version` argument. Installed version provenance
   is bound to the binary hash, preventing fresh setup and final verification

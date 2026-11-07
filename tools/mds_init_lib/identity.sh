@@ -308,9 +308,14 @@ remove_local_env_value() {
     fi
 
     local tmp_file
-    tmp_file=$(mktemp) || return 1
-    grep -v "^${key}=" "${MDS_LOCAL_ENV}" > "${tmp_file}" || true
-    mv "${tmp_file}" "${MDS_LOCAL_ENV}"
+    tmp_file=$(mktemp "${MDS_LOCAL_ENV}.XXXXXX") || return 1
+    if ! awk -v key="$key" 'index($0, key "=") != 1' "${MDS_LOCAL_ENV}" > "$tmp_file" ||
+        ! chmod --reference="${MDS_LOCAL_ENV}" "$tmp_file" ||
+        ! chown --reference="${MDS_LOCAL_ENV}" "$tmp_file" ||
+        ! mv "$tmp_file" "${MDS_LOCAL_ENV}"; then
+        rm -f "$tmp_file"
+        return 1
+    fi
 }
 
 # =============================================================================
