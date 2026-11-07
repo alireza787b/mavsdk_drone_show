@@ -409,6 +409,36 @@ systemctl status coordinator
 systemctl status git_sync_mds
 ```
 
+Also check the effective configuration **as the runtime user**, not only as root:
+
+```bash
+sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && venv/bin/python -c "from src.params import Params; print(Params.runtime_mode, Params.GCS_IP)"'
+```
+
+For real hardware this must report `real` and the intended GCS address. A
+root-readable identity report or an active service does not prove the runtime
+user can read `/etc/mds/local.env`. Keep that file readable by the runtime user;
+credential **contents** belong in separately protected secret files. Repeat this
+check and verify live FC telemetry and successful Git fetch after a companion
+reboot. Do not clear readiness failures merely to make the dashboard green.
+
+### MAVLink identity and optional LEDs
+
+MDS hardware ID, fleet position, hostname, callsign and PX4 `MAV_SYS_ID` are
+separate identities. Each aircraft sharing QGC or another MAVLink network needs
+a unique MAVLink system ID. Set it while grounded/disarmed, verify parameter
+readback, then reboot the FC as required and verify the **transmitted heartbeat
+system ID**. A companion reboot alone does not reboot the separate FC.
+
+The legacy `rpi_ws281x` PWM/DMA backend is selected only on known supported
+pre-RP1 Raspberry Pi hardware. Importing its Python package is not proof of
+hardware compatibility. CM5/Pi5 use the existing optional `Pi5Neo` SPI backend
+when installed and correctly wired/configured; otherwise LED feedback remains
+disabled. Do not enable SPI or install a different kernel driver merely to hide
+an LED warning. LED feedback is not required for Smart Swarm; light-show LED
+hardware needs its own acceptance test. A native driver crash is a real process
+failure, even if a successful action result was emitted before shutdown.
+
 ## Enrollment Follow-Up
 
 Bootstrap and candidate announce do not finish fleet enrollment on their own.

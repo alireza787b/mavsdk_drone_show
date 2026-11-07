@@ -6,20 +6,21 @@ import threading
 from mds_logging import get_logger
 from typing import Union, Tuple, TYPE_CHECKING
 from src.params import Params
+from src.led_backends import legacy_pwm_backend_supported
 
 # Import LED color definitions
 if TYPE_CHECKING:
     from src.led_colors import LEDState
 
 # ===================================================================================
-# LED LIBRARY IMPORTS - SAFE FAILOVER APPROACH
+# LED LIBRARY IMPORTS - HARDWARE-ELIGIBLE BACKENDS
 # ===================================================================================
 #
-# Current approach: Try Pi 4 method (rpi_ws281x) first, fallback to Pi 5 (Pi5Neo)
-# This ensures backward compatibility while supporting new hardware.
+# Do not initialize the legacy PWM/DMA driver on RP1-based or unknown boards.
+# Optional LED support must not introduce an unsupported native driver into
+# action processes: Python exception handling cannot contain a native crash.
 #
 # TODO (Future Production): Implement board-specific configuration system
-#   - Add board detection module (Pi 4, Pi 5, Jetson, etc.)
 #   - Move LED config to per-board profiles in params.py
 #   - Support multiple LED controllers (WS2812, APA102, etc.)
 #   - Add board capability detection and validation
@@ -33,29 +34,25 @@ Color = None
 Pi5Neo = None
 
 if not Params.sim_mode:
-    # Try Raspberry Pi 4 library first (default, proven method)
-    try:
-        from rpi_ws281x import PixelStrip, Color
-        LED_LIBRARY = 'rpi_ws281x'
-        print("[LED] Loaded rpi_ws281x library (Pi 4 default)")
-    except ImportError:
-        print("[LED] rpi_ws281x not available, trying Pi5Neo...")
-        # Fallback to Raspberry Pi 5 library
+    if legacy_pwm_backend_supported():
+        try:
+            from rpi_ws281x import PixelStrip, Color
+            LED_LIBRARY = 'rpi_ws281x'
+        except ImportError:
+            pass
+    if LED_LIBRARY is None:
         try:
             from Pi5Neo import Pi5Neo
             LED_LIBRARY = 'Pi5Neo'
-            print("[LED] Loaded Pi5Neo library (Pi 5 fallback)")
         except ImportError:
-            LED_LIBRARY = None
-            print("[LED] WARNING: No LED library available - LED support disabled")
-            print("[LED] Install: pip install rpi-ws281x (Pi 4) OR pip install Pi5Neo (Pi 5)")
+            pass
 
 
 class LEDController:
     """
     LEDController is a singleton class that provides methods to control a WS2812 LED strip.
 
-    Supports multiple hardware platforms with automatic fallback:
+    Supports hardware-eligible backends:
       - Raspberry Pi 4/3/2: rpi_ws281x library (PWM/DMA-based)
       - Raspberry Pi 5: Pi5Neo library (SPI-based)
       - Future: TODO - Add Jetson, custom boards via config system
@@ -64,9 +61,9 @@ class LEDController:
       - GPIO 10 (SPI0 MOSI) - Works on all Pi models
 
     Safety:
-      - Never crashes main system if LED hardware fails
-      - Gracefully degrades to no-LED operation
-      - All methods wrapped in try-except for robustness
+      - Unsupported legacy native backends are excluded before initialization
+      - Missing optional backends degrade to no-LED operation
+      - Python exceptions are handled; native drivers still require qualification
     """
     _instance = None
     _lock = threading.Lock()

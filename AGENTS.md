@@ -116,6 +116,12 @@ Never hardcode `/opt`, `/root`, hostnames, repo URLs, or branch names without ve
      runtime validators, without weakening production endpoint guards
 6. Validate end to end
    - rerun the real operator workflow when behavior affects runtime missions or release paths
+   - for fresh companions, verify effective REAL mode/GCS settings as the service
+     user after sidecar reconciliation and reboot; service activity and a
+     root-readable install report are not proof of runtime configuration access
+   - verify incoming FC telemetry on the configured transport and transmitted
+     MAVLink identity; optional native hardware drivers need platform eligibility
+     checks, and a successful result envelope never overrides a crashed process
 7. Update docs
    - update only the relevant docs, guides, or changelog entries
 8. Decide release impact

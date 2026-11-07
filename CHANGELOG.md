@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Optional LEDs select the legacy PWM/DMA backend only on supported pre-RP1
+  Raspberry Pi hardware. CM5/Pi5 and unknown boards avoid its native initialization
+  and use the existing SPI backend when available, otherwise no LEDs. This
+  prevents an observed CM5 shutdown segfault without hiding failed action exits.
+
 - Bootstrap sidecar updates preserve local environment ownership/permissions,
   so the service user can still load REAL mode and its GCS endpoint. MAVLink
   auto-configuration honors explicit UART, endpoints and UDP input overrides
