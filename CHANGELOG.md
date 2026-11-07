@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Fresh companion identity setup no longer references the retired inline-token
+  variable under strict shell mode. Credential rendering preserves externally
+  provisioned files and records only their configured paths.
+
 - Fleet credential guidance distinguishes account, deploy and maintenance SSH
   keys; recommends distinct read-only aircraft keys, documents organization-owner
   policy control and preserves working access during verified migration.

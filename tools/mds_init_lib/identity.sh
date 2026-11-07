@@ -187,16 +187,8 @@ setup_local_env() {
             ;;
     esac
 
-    if [[ -n "$gcs_api_token" ]]; then
-        if [[ -z "$gcs_api_token_file" ]]; then
-            gcs_api_token_file="/root/.mds/keys/gcs_api_token"
-        fi
-        mkdir -p "$(dirname "$gcs_api_token_file")"
-        chmod 700 "$(dirname "$gcs_api_token_file")" 2>/dev/null || true
-        printf '%s\n' "$gcs_api_token" > "$gcs_api_token_file"
-        chmod 600 "$gcs_api_token_file"
-        log_success "Stored GCS API token in root-readable file: ${gcs_api_token_file}"
-    elif [[ -n "$gcs_api_token_file" && ! -r "$gcs_api_token_file" ]]; then
+    # Credentials are provisioned separately; init records the file path only.
+    if [[ -n "$gcs_api_token_file" && ! -r "$gcs_api_token_file" ]]; then
         log_warn "GCS API token file configured but not readable yet: ${gcs_api_token_file}"
     fi
 
