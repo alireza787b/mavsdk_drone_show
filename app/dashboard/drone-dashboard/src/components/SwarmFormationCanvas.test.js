@@ -42,6 +42,20 @@ test('canvas zoom never modifies the formation', () => {
   expect(onAssignmentChange).not.toHaveBeenCalled();
 });
 
+test('read-only capture supports inspection but never keyboard edits, with explicit stale live markers', () => {
+  const select = jest.fn();
+  const { onAssignmentChange, onEditBegin } = setup({ readOnly: true, onSelect: select,
+    overlayPositions: [{ id: '2', north: 6, east: 2, up: 1, stale: true }] });
+  expect(screen.getByRole('group', { name: 'Capture top view' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Select', exact: true })).not.toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'H2, delayed estimated position' })).toHaveClass('is-stale');
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Drone 2, formation position' }), { key: 'ArrowUp' });
+  fireEvent.click(screen.getByRole('button', { name: 'Drone 2, formation position' }));
+  expect(select).toHaveBeenCalledWith('2');
+  expect(onAssignmentChange).not.toHaveBeenCalled();
+  expect(onEditBegin).not.toHaveBeenCalled();
+});
+
 test('pointer drag uses SVG screen transform and Escape restores the gesture start', () => {
   const previousPointerEvent = window.PointerEvent;
   window.PointerEvent = MouseEvent;

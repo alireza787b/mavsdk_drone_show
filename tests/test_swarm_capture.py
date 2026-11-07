@@ -125,6 +125,41 @@ async def test_capture_level_and_keep_do_not_import_noisy_measured_height(monkey
 
 
 @pytest.mark.asyncio
+async def test_current_airborne_heights_use_common_msl_and_preserve_other_clusters(monkeypatch):
+    def measured(records, index):
+        for hw, record in records.items():
+            record['sample']['position_alt'] = 120 + int(hw) * .7
+            record['sample']['relative_altitude_m'] = 500 * int(hw)
+    deps, _, _ = _deps(monkeypatch, mutate=measured)
+    result = await capture_preview(deps, _request(deps, height_mode='current', leader_hw_id='3'))
+    by_id = {str(m['hw_id']): m for m in result['assignments']}
+    assert result['current_heights_available'] is True
+    assert by_id['1']['offset_z'] == pytest.approx(-.7)
+    assert by_id['2']['offset_z'] == pytest.approx(-.7)
+    assert by_id['4']['offset_z'] == pytest.approx(2.1)
+    assert by_id['5'] == deps.load_swarm()[4]
+    assert result['observations']['3']['current_up_m'] == pytest.approx(1.4)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('grounded,unstable', [(True, False), (False, True)])
+async def test_current_height_capability_is_native_and_mode_specific(monkeypatch, grounded, unstable):
+    def evidence(records, index):
+        if grounded:
+            records['2']['sample']['capture_activity'].update(is_armed=False, landed_state=1)
+        if unstable:
+            records['2']['sample']['position_alt'] += index * 2
+    deps, _, _ = _deps(monkeypatch, mutate=evidence)
+    snapshot = await capture_preview(deps, _request(deps))
+    assert snapshot['current_heights_available'] is False
+    assert snapshot['current_heights_reason']
+    # A direct API client cannot bypass the disabled UI option.
+    with pytest.raises(HTTPException) as error:
+        await capture_preview(deps, _request(deps, height_mode='current'))
+    assert error.value.detail['code'] == 'capture_current_heights_unavailable'
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('field,value,code', [
     ('global_position_timestamp_ms', 0, 'capture_timestamp_invalid'),
     ('global_position_timestamp_ms', 9999999, 'capture_timestamp_invalid'),

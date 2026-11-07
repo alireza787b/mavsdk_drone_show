@@ -1,5 +1,8 @@
 import { normalizeComparableId } from './missionIdentityUtils';
 
+// Human labels are separate from the stable ned/body storage/API contract.
+export const formationReferenceLabel = (frame) => frame === 'body' ? 'Leader-relative' : 'Geographic';
+
 const nameOf = (aircraft) => String(aircraft.callsign || '').trim() || String(aircraft.alias || '').trim();
 
 export function aircraftIdentity(aircraft) {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { fetchGcsResource, putGcsResource } from '../../services/gcsApiService';
 import { OperatorNotice } from '../ui';
+import { formationReferenceLabel } from '../../utilities/swarmDesignPresentation';
 
 export default function TrajectoryFormationPanel({ formation, fleet = [], onSaved, readOnly = false }) {
   const [draft, setDraft] = useState(null);
@@ -40,7 +41,7 @@ export default function TrajectoryFormationPanel({ formation, fleet = [], onSave
           <option value="0">Leader</option>{rows.filter((d) => String(d.hw_id) !== id).map((d) => <option key={d.hw_id} value={d.hw_id}>
             {fleet.find((f) => String(f.hw_id) === String(d.hw_id))?.name || `H${d.hw_id}`}</option>)}</select></td>
           <td><select aria-label={`${name} frame`} value={row.frame || 'ned'} disabled={readOnly || busy} onChange={(e) => change(id, 'frame', e.target.value)}>
-            <option value="ned">NED</option><option value="body">Body</option></select></td>
+            <option value="ned">{formationReferenceLabel('ned')}</option><option value="body">{formationReferenceLabel('body')}</option></select></td>
           {['offset_x', 'offset_y', 'offset_z'].map((axis) => <td key={axis}><input aria-label={`${name} ${axis}`} type="number" step="any"
             value={row[axis] ?? 0} disabled={readOnly || busy} onChange={(e) => change(id, axis, e.target.value === '' ? null : Number(e.target.value))} /></td>)}
         </tr>; })}</tbody></table></div>

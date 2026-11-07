@@ -21,4 +21,9 @@
 .swarm-formation-canvas__node.is-selected circle:not(.swarm-formation-canvas__hit), .swarm-formation-canvas__node.is-selected path { fill:var(--color-success); stroke:var(--color-text-primary); stroke-width:3; }
 .swarm-formation-canvas__node.is-descendant circle:not(.swarm-formation-canvas__hit) { stroke:var(--color-success); stroke-width:3; }
 .swarm-formation-canvas__empty { padding:var(--spacing-lg); color:var(--color-text-secondary); }
+.swarm-formation-canvas.is-readonly .swarm-formation-canvas__node { cursor:pointer; }
+.swarm-formation-canvas__live { pointer-events:none; }
+.swarm-formation-canvas__live circle { fill:none; stroke:var(--color-text-primary); stroke-width:2; }
+.swarm-formation-canvas__live.is-stale { opacity:.45; stroke-dasharray:3 3; }
+.swarm-formation-canvas__live text { fill:var(--color-text-primary); font-size:12px; paint-order:stroke; stroke:var(--color-bg-primary); stroke-width:4px; }
 @media (max-width:600px) { .swarm-formation-canvas__scale { width:100%; margin-left:0; } }

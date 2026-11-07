@@ -116,6 +116,9 @@ def run(args):
         for frame in ('ned', 'body'):
             snapshot = capture(frame)
             evidence('ground_capture_' + frame, capture=snapshot)
+        if args.ground_inspect_seconds:
+            evidence('ground_inspection_window', duration_sec=args.ground_inspect_seconds)
+            time.sleep(args.ground_inspect_seconds)
         apply(snapshot)
         flight_attempted = True
         receipt = client.submit_command(Mission.TAKE_OFF.value, ids, 'Capture rehearsal coordinated Takeoff',
@@ -149,6 +152,31 @@ def run(args):
             stability_samples=3, max_velocity=3.)
         evidence('body_rotation_followed', errors=errors, telemetry=client.get_telemetry())
         command(Mission.HOLD.value, 'Hold before hover capture')
+        # Establish a nonzero physical height difference: Current must be
+        # measured, not merely equal to an already-level planned formation.
+        command(Mission.PRECISION_MOVE.value, 'Establish measured height difference', [ids[0]], {'precision_move': {
+            'frame': 'ned', 'translation_m': {'north': 0., 'east': 0., 'up': .75},
+            'yaw': {'mode': 'hold_current'}, 'speed_m_s': .5}})
+        def current_capture():
+            try:
+                return capture(height_mode='current')
+            except ValidationHttpError:
+                return False
+        current = wait_for(current_capture, label='settled current-height capture', timeout=45, interval=2)
+        by_id = current['observations']
+        require(current['current_heights_available'] is True, 'Current height capability not confirmed')
+        for member in current['assignments']:
+            hw, parent = str(member['hw_id']), str(member['follow'])
+            if int(hw) in ids and parent != '0':
+                expected_up = by_id[hw]['altitude_msl_m'] - by_id[parent]['altitude_msl_m']
+                require(abs(member['offset_z'] - expected_up) < 1e-6, 'Current height used a different altitude datum')
+        evidence('hover_capture_current_heights', capture=current)
+        if args.hover_inspect_seconds:
+            evidence('hover_inspection_window', duration_sec=args.hover_inspect_seconds)
+            time.sleep(args.hover_inspect_seconds)
+        apply(current)
+        start_and_settle()
+        command(Mission.HOLD.value, 'Hold before level reroot capture')
         # Two timestamped capture samples, not a blind sleep, establish settling.
         last_error = None
         def settled_capture():
@@ -203,4 +231,6 @@ if __name__ == '__main__':
     parser.add_argument('--cluster-id', type=int, required=True)
     parser.add_argument('--output-dir', type=Path, required=True)
     parser.add_argument('--inspect-seconds', type=int, choices=range(0, 61), default=0)
+    parser.add_argument('--ground-inspect-seconds', type=int, choices=range(0, 121), default=0)
+    parser.add_argument('--hover-inspect-seconds', type=int, choices=range(0, 121), default=0)
     run(parser.parse_args())

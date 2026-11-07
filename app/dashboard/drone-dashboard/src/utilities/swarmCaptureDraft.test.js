@@ -1,4 +1,4 @@
-import { deriveSwarmCaptureDraft, swarmCaptureError } from './swarmCaptureDraft';
+import { createSwarmCaptureRequest, deriveSwarmCaptureDraft, swarmCaptureError } from './swarmCaptureDraft';
 
 const assignments = [
   { hw_id: '1', follow: '0', frame: 'ned', offset_x: 0, offset_y: 0, offset_z: 0 },
@@ -48,4 +48,27 @@ test('missing Body heading blocks reinterpretation instead of inventing North', 
 
 test('structured errors name the affected aircraft', () => {
   expect(swarmCaptureError({ response: { data: { detail: { code: 'stale', hw_id: '2', message: 'Position is stale.' } } } })).toBe('H2: Position is stale.');
+});
+
+test('Current heights require native capability and use estimated shared Up, not the plan', () => {
+  const captured = { ...snapshot, current_heights_available: true, observations: Object.fromEntries(
+    Object.entries(snapshot.observations).map(([id, observation]) => [id, { ...observation, current_up_m: Number(id) * .5 }])) };
+  const result = deriveSwarmCaptureDraft(assignments, captured, { leaderId: '3', frame: 'body', heightMode: 'current' });
+  expect(result.assignments[0].offset_z).toBe(-.5);
+  expect(result.assignments[1].offset_z).toBe(-.5);
+  expect(result.assignments[3]).toEqual(assignments[3]);
+  expect(() => deriveSwarmCaptureDraft(assignments, { ...captured, current_heights_available: false },
+    { leaderId: '3', frame: 'ned', heightMode: 'current' })).toThrow('settled airborne');
+  captured.observations[2].current_up_m = null;
+  expect(() => deriveSwarmCaptureDraft(assignments, captured,
+    { leaderId: '3', frame: 'ned', heightMode: 'current' })).toThrow('current height unavailable');
+});
+
+test('sole cluster needs no selection; multiple clusters preserve context, never silently choose', () => {
+  const a = { id: '1', drones: assignments.slice(0, 3) };
+  const b = { id: '4', drones: [{ ...assignments[0], hw_id: '4' }, { ...assignments[1], hw_id: '5', follow: '4' }] };
+  expect(createSwarmCaptureRequest({ clusters: [a] }, assignments, 'r').clusterId).toBe('1');
+  expect(createSwarmCaptureRequest({ clusters: [a, b] }, assignments, 'r').clusterId).toBeNull();
+  expect(createSwarmCaptureRequest({ clusters: [a, b] }, assignments, 'r', '4').clusterId).toBe('4');
+  expect(createSwarmCaptureRequest({ clusters: [] }, assignments, 'r')).toBeNull();
 });

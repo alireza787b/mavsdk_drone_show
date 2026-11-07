@@ -175,7 +175,7 @@ resources:
   mime_type: text/markdown
   audience: operator
   sensitivity: public
-  summary: Planned or captured formation, NED and Body references, takeoff,
+  summary: Planned or visually captured formation, Geographic (NED) and Leader-relative (Body),
     following, Hold, explicit role changes and independent-aircraft return.
   tags:
   - swarm

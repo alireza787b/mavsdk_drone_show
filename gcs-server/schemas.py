@@ -158,7 +158,7 @@ class SwarmCapturePreviewRequest(BaseModel):
     assignments: List[SwarmAssignment] = Field(min_length=1)
     cluster_id: str = Field(pattern=r'^[1-9][0-9]*$')
     frame: Literal['ned', 'body'] = 'ned'
-    height_mode: Literal['keep', 'level'] = 'keep'
+    height_mode: Literal['keep', 'level', 'current'] = 'keep'
     leader_hw_id: Optional[str] = Field(None, pattern=r'^[1-9][0-9]*$')
 
 
@@ -171,7 +171,9 @@ class SwarmCapturePreviewResponse(BaseModel):
     headings: Dict[str, float]
     observations: Dict[str, Dict[str, Any]]
     reference: Dict[str, float]
-    height_mode: Literal['keep', 'level']
+    height_mode: Literal['keep', 'level', 'current']
+    current_heights_available: bool = False
+    current_heights_reason: Optional[str] = None
     saved: Literal[False] = False
     commands_sent: Literal[False] = False
 

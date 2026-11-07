@@ -207,9 +207,10 @@ def captured_assignments(draft, observations, cluster_hw_ids, leader_hw_id, fram
             x, y = math.cos(yaw) * north + math.sin(yaw) * east, -math.sin(yaw) * north + math.cos(yaw) * east
         else:
             x, y = north, east
+        height_field = 'current_up_m' if height_mode == 'current' else 'planned_up_m'
         member.update(offset_x=x, offset_y=y, offset_z=(
-            observations[hw]['planned_up_m'] - observations[parent]['planned_up_m']
-            if height_mode == 'keep' else 0.0))
+            observations[hw][height_field] - observations[parent][height_field]
+            if height_mode != 'level' else 0.0))
     normalize_topology(candidate)
     return candidate
 
@@ -251,8 +252,22 @@ async def capture_preview(deps, request):
     reference_position = positions[request.cluster_id]
     reference = (reference_position['latitude'], reference_position['longitude'], reference_position['altitude_msl'])
     observations, earliest, latest = {}, [], []
+    current_heights_reason = None
     for hw in ids:
         position, prior = positions[hw], first_positions[hw]
+        activity = second[hw]['sample']['capture_activity']
+        prior_activity = first[hw]['sample']['capture_activity']
+        # Keep-plan and level capture do not import GNSS/barometric height noise.
+        # Current heights are an explicit airborne-only option using one MSL datum,
+        # never unrelated local-down or above-home coordinates.
+        height_reason = None
+        if any(a.get('is_armed') is not True or a.get('landed_state') != 2
+               for a in (activity, prior_activity)):
+            height_reason = 'Current heights require every aircraft hovering. On the ground, use Keep plan or Same height.'
+        elif abs(position['altitude_msl'] - prior['altitude_msl']) > CAPTURE_MAX_DRIFT_M:
+            height_reason = f'H{hw}: Height changed during capture. Let the aircraft settle and Refresh.'
+        if current_heights_reason is None and height_reason:
+            current_heights_reason = height_reason
         if position['position_timestamp_ms'] <= prior['position_timestamp_ms']:
             reject('capture_position_not_advancing', 'Position samples did not advance during capture. Refresh telemetry.', hw)
         north, east, down = navpy.lla2ned(position['latitude'], position['longitude'], position['altitude_msl'],
@@ -274,9 +289,12 @@ async def capture_preview(deps, request):
         latest.append(received - source_age)
         observations[hw] = {**position, 'altitude_msl_m': position['altitude_msl'],
             'north_m': float(north), 'east_m': float(east), 'planned_up_m': heights[hw],
+            'current_up_m': position['altitude_msl'] - reference[2],
             'received_at_ms': second[hw]['received_at_ms'], 'round_trip_ms': second[hw]['round_trip_ms']}
     if max(latest) - min(earliest) > CAPTURE_MAX_SKEW_MS:
         reject('capture_samples_incoherent', 'Aircraft samples are too far apart in time. Refresh after links settle.')
+    if request.height_mode == 'current' and current_heights_reason:
+        reject('capture_current_heights_unavailable', current_heights_reason)
     candidate = captured_assignments(draft, observations, ids, leader, request.frame, request.height_mode)
     async with configuration_lock(deps):
         if topology_revision(deps.load_swarm() or []) != current_revision:
@@ -286,5 +304,7 @@ async def capture_preview(deps, request):
             'revision': current_revision, 'cluster_id': leader, 'assignments': candidate,
             'headings': {hw: p['heading_deg'] for hw, p in positions.items() if p['heading_deg'] is not None},
             'observations': observations, 'height_mode': request.height_mode,
+            'current_heights_available': current_heights_reason is None,
+            'current_heights_reason': current_heights_reason,
             'reference': {'latitude': reference[0], 'longitude': reference[1], 'altitude_msl_m': reference[2]},
             'saved': False, 'commands_sent': False}

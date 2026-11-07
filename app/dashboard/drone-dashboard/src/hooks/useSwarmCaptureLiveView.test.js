@@ -1,0 +1,31 @@
+import { act, renderHook } from '@testing-library/react';
+import useSwarmCaptureLiveView from './useSwarmCaptureLiveView';
+import useGcsResourcePolling from './useGcsResourcePolling';
+import { captureLivePositions } from '../utilities/swarmCaptureLiveView';
+jest.mock('./useGcsResourcePolling', () => jest.fn());
+jest.mock('../utilities/swarmCaptureLiveView', () => ({ captureLivePositions: jest.fn(() => []), captureViewReference: () => null }));
+beforeEach(() => { jest.useFakeTimers(); jest.clearAllMocks(); captureLivePositions.mockReturnValue([]); });
+afterEach(() => jest.useRealTimers());
+const row = { hw_id: '1', global_position_timestamp_ms: 1000, position_lat: 35, position_long: 51, position_alt: 120 };
+test('frozen telemetry ages despite successful HTTP, advancing samples reset, and unmount clears the clock', () => {
+  let response = { data: { telemetry: { 1: row } }, requestedAt: performance.now(), error: null };
+  useGcsResourcePolling.mockImplementation(() => response);
+  const { rerender, unmount } = renderHook(() => useSwarmCaptureLiveView(['1'], null, '1'));
+  act(() => jest.advanceTimersByTime(6000));
+  expect(captureLivePositions.mock.calls.at(-1)[3]['1']).toBeGreaterThanOrEqual(6000);
+  response = { data: { telemetry: { 1: { ...row, global_position_timestamp_ms: 2000 } } }, requestedAt: performance.now() };
+  rerender();
+  expect(captureLivePositions.mock.calls.at(-1)[3]['1']).toBe(0);
+  response = { data: null, error: new Error('Network unavailable') }; rerender();
+  expect(captureLivePositions.mock.calls.at(-1)[0]['1'].global_position_timestamp_ms).toBe(2000);
+  expect(captureLivePositions.mock.calls.at(-1)[4]).toBe(true);
+  unmount(); expect(jest.getTimerCount()).toBe(0);
+});
+test('an initially missing sample does not latch the age clock permanently', () => {
+  let response = { data: { telemetry: {} }, requestedAt: performance.now() };
+  useGcsResourcePolling.mockImplementation(() => response);
+  const { rerender } = renderHook(() => useSwarmCaptureLiveView(['1'], null, '1'));
+  act(() => jest.advanceTimersByTime(10000));
+  response = { data: { telemetry: { 1: row } }, requestedAt: performance.now() }; rerender();
+  expect(captureLivePositions.mock.calls.at(-1)[3]['1']).toBe(0);
+});

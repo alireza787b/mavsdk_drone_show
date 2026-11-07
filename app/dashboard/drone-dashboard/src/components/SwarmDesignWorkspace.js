@@ -3,7 +3,7 @@ import SwarmFormationCanvas from './SwarmFormationCanvas';
 import DroneGraph from './DroneGraph';
 import FormationNumberInput from './FormationNumberInput';
 import InfoHint from './InfoHint';
-import { aircraftIdentity, buildAircraftLabels } from '../utilities/swarmDesignPresentation';
+import { aircraftIdentity, buildAircraftLabels, formationReferenceLabel } from '../utilities/swarmDesignPresentation';
 import { buildSwarmViewModel } from '../utilities/swarmDesignUtils';
 import { resolveFormationPositions } from '../utilities/swarmFormationGeometry';
 import '../styles/SwarmDesignWorkspace.css';
@@ -108,8 +108,8 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
       <div className="formation-tools">
         <div role="tablist" aria-label="Formation view">{views.map(([id, text]) =>
           <button type="button" role="tab" key={id} aria-selected={layout === 'single' && view === id} onClick={() => chooseView(id)}>{text}</button>)}</div>
-        <div>{onCapture && <button type="button" disabled={disabled || captureDisabled || scope === 'all' || !cluster || cluster.drones.length < 2}
-          onClick={() => onCapture(cluster.id)} title="Copy current aircraft spacing into this draft">Capture</button>}
+        <div>{onCapture && <button type="button" disabled={disabled || captureDisabled || !model.clusters.some(item => item.drones.length > 1)}
+          onClick={() => onCapture(scope === 'all' ? null : cluster?.id)} data-help="Copy current aircraft spacing into this draft">Capture</button>}
           <button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
           <button type="button" aria-label="Redo formation edit" disabled={!canRedo || disabled} onClick={onRedo}>↷ Redo</button>
           <button type="button" disabled={!canReset || disabled} onClick={onReset}>Reset draft</button></div>
@@ -117,7 +117,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
       <div className="formation-display-tools">
         <div role="group" aria-label="Editor layout"><button type="button" aria-pressed={layout === 'single'} onClick={() => changeLayout('single')}>Single</button>
           <button type="button" aria-pressed={layout === 'quad'} onClick={() => changeLayout('quad')}>Four views</button></div>
-        <span className="formation-axis-reference">{viewFrame === 'body' ? `Body · ${names[headingId] || `H${headingId}`} · ${viewHeading}°` : 'NED · North / East / Up'}</span>
+        <span className="formation-axis-reference">{viewFrame === 'body' ? `${formationReferenceLabel(viewFrame)} · ${names[headingId] || `H${headingId}`} · ${viewHeading}°` : 'Geographic · North / East / Up'}</span>
         <div className="formation-viewport-tools" role="group" aria-label="View controls">
           <button type="button" onClick={() => emitViewportCommand('fit')}>Fit all</button>
           <button type="button" disabled={!selectedId} onClick={() => emitViewportCommand('focus')}>Focus all</button>
@@ -148,9 +148,9 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
           <label>Follows<select value={draft.follow} onChange={(event) => onChange(selectedId, { follow: event.target.value })}>
             <option value="0">Independent leader</option>{parentCandidates.map((item) => <option value={item.hw_id} key={item.hw_id}>{label(item)}</option>)}</select></label>
           {draft.follow !== '0' && <>
-            <div className="formation-field-title"><label htmlFor="formation-reference">Reference</label><InfoHint icon="?" hoverable placement="left" label="About coordinate frames" content="NED keeps North/East spacing as the leader turns. Body rotates Forward/Right spacing with the followed aircraft. In MDS, Above is positive in both frames." /></div>
+            <div className="formation-field-title"><label htmlFor="formation-reference">Reference</label><InfoHint icon="?" hoverable placement="left" label="About coordinate frames" content="Geographic (NED) keeps North/East spacing as the leader turns. Leader-relative (Body) rotates Forward/Right spacing with the followed aircraft. Above is positive in both references." /></div>
             <select id="formation-reference" value={draft.frame} onChange={(event) => onChange(selectedId, { frame: event.target.value })}>
-              <option value="ned">NED · North/East</option><option value="body">Body · Forward/Right</option></select>
+              <option value="ned">Geographic · North/East</option><option value="body">Leader-relative · Forward/Right</option></select>
             {['offset_x', 'offset_y', 'offset_z'].map((key, index) => <label key={key}>
               {(draft.frame === 'body' ? ['Forward', 'Right', 'Above'] : ['North', 'East', 'Above'])[index]}
               <span className="formation-unit-input"><FormationNumberInput aria-label={`${key} metres`} value={draft[key]} onChange={(event) => onChange(selectedId, { [key]: event.target.value })} /><span>m</span></span>

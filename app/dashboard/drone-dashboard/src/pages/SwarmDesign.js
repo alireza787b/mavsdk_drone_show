@@ -12,6 +12,7 @@ import { toast } from 'react-toastify';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import SwarmDesignWorkspace from '../components/SwarmDesignWorkspace';
 import SwarmCaptureDialog from '../components/SwarmCaptureDialog';
+import { createSwarmCaptureRequest } from '../utilities/swarmCaptureDraft';
 import { preservePositionPatch } from '../utilities/swarmFormationGeometry';
 import { getBackendURL } from '../config/apiConfig';
 import useSwarmDesignDraft from '../hooks/useSwarmDesignDraft';
@@ -357,22 +358,15 @@ function SwarmDesign() {
   useEffect(() => {
     if (handledCaptureRouteRef.current || searchParams.get('capture') !== '1'
       || !serverSwarmRevision || !workingAssignments.length || hasBlockingIssues || hasIncompleteInputs) return;
-    const cluster = viewModel.clusters.find((item) => item.id === viewModel.dronesById[requestedDroneId]?.clusterRootId)
-      || viewModel.clusters.find((item) => item.type === 'cluster' && item.drones.length > 1);
     handledCaptureRouteRef.current = true;
-    if (!cluster || cluster.drones.length < 2) return;
-    setCaptureRequest({ clusterId: cluster.id, hwIds: cluster.drones.map((drone) => String(drone.hw_id)),
-      assignments: toSwarmApiPayload(workingAssignments), revision: serverSwarmRevision,
-      frame: cluster.drones.filter((drone) => drone.follow !== '0').every((drone) => drone.frame === 'body') ? 'body' : 'ned' });
+    setCaptureRequest(createSwarmCaptureRequest(viewModel, toSwarmApiPayload(workingAssignments),
+      serverSwarmRevision, viewModel.dronesById[requestedDroneId]?.clusterRootId));
   }, [searchParams, serverSwarmRevision, workingAssignments, hasBlockingIssues, hasIncompleteInputs,
     requestedDroneId, viewModel]);
 
   const openCapture = (clusterId) => {
-    const cluster = viewModel.clusters.find((item) => item.id === String(clusterId));
-    if (!cluster || cluster.drones.length < 2 || hasBlockingIssues || hasIncompleteInputs || saving) return;
-    setCaptureRequest({ clusterId: cluster.id, hwIds: cluster.drones.map((drone) => String(drone.hw_id)),
-      assignments: toSwarmApiPayload(workingRef.current), revision: serverSwarmRevision,
-      frame: cluster.drones.filter((drone) => drone.follow !== '0').every((drone) => drone.frame === 'body') ? 'body' : 'ned' });
+    if (hasBlockingIssues || hasIncompleteInputs || saving) return;
+    setCaptureRequest(createSwarmCaptureRequest(viewModel, toSwarmApiPayload(workingRef.current), serverSwarmRevision, clusterId));
   };
 
   const handleUseCapture = (candidate, snapshot, settings) => {

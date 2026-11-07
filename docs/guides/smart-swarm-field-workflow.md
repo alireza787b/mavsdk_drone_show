@@ -9,10 +9,10 @@ never arms or starts a mission.
 
 | Reference | What happens when the leader turns its nose |
 |---|---|
-| **NED** | North/East spacing stays fixed geographically. |
-| **Body** | Forward/Right spacing rotates with the followed aircraft's heading. |
+| **Geographic** | North/East spacing stays fixed geographically. Technical name: NED. |
+| **Leader-relative** | Forward/Right spacing rotates with the followed aircraft's heading. Technical name: Body. |
 
-Body follows heading, not direction of travel. Moving sideways without turning
+Leader-relative follows heading, not direction of travel. Moving sideways without turning
 the nose does not rotate the formation. In both references, **Above** is positive
 up; the formation does not tilt with the aircraft's pitch or roll. Followers
 also turn their own noses toward the followed aircraft's heading.
@@ -22,8 +22,9 @@ also turn their own noses toward the followed aircraft's heading.
 1. Open **Smart Swarm → Design** and select the intended cluster.
 2. Check the leader and each **Follows** relationship. Aircraft labels identify
    physical hardware; changing mission slots does not change these relationships.
-3. Select **NED** or **Body**, then edit spacing using the fields or drag the
-   aircraft in the linked views. Body values are Forward, Right and Above.
+3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields
+   or drag the aircraft in the linked views. Leader-relative values are Forward,
+   Right and Above.
 4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.
    Preview heading changes the drawing only; it does not command yaw.
    If the device cannot display 3D, use the linked 2D views and spacing fields.
@@ -42,26 +43,53 @@ capture. Leave room for independent aircraft operation; the following procedure
 does not control cable tension or a shared suspended load.
 
 1. Place the aircraft, or establish a stable hover using the normal pilot controls.
-2. In **Design**, select **Capture**. The complete current cluster is selected.
+2. In **Design**, select **Capture**. With one cluster it opens automatically;
+   there is no extra aircraft or cluster selection.
    You can also use **Capture spacing** from Operate's secondary actions.
-3. Check **Leader** and **NED / Body**.
-4. Choose **Keep plan** to preserve the planned height offsets, or **Same height**
-   to set the captured cluster's follower height offsets to zero. Same height
-   means a common intended flight height, not zero height above each separate home.
-5. Inspect the capture and choose **Use capture**. This changes the draft only.
+3. Inspect Top and Side. Filled markers show the frozen **Capture**; outlined
+   markers show **Live** aircraft estimates. Dashed/dim outlines and **Delayed**
+   mean the live feed is not current. Live positions never move the captured draft.
+4. Leave **Leader**, reference and **Keep plan** unchanged for the usual setup,
+   or select the intended choices below.
+5. Choose **Use capture**. This changes the draft only.
 6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in
    Capture obtains new measurements. Changing leader, frame or height choice in
-   the capture dialog recalculates from the same frozen measurements.
+   the capture dialog recalculates from the same frozen measurements. A failed
+   refresh retains the drawing but disables Use until a complete refresh succeeds.
 7. Select **Apply plan**, or **Save to repo** to apply and publish.
 
 ![Capture current spacing with leader, reference and height choices](../assets/smart-swarm/capture-01-options.png)
 
 ![Captured spacing in the linked formation views](../assets/smart-swarm/capture-02-design.png)
 
+| Height | Use it when |
+|---|---|
+| **Keep plan** (default) | The saved relative heights are already correct. |
+| **Same height** | All aircraft should follow at the same intended height. |
+| **Current** | Preserve the estimated height differences of a settled airborne cluster. |
+
+**Current** is available only when native samples confirm every member is airborne
+and its height was stable during capture. It uses the common PX4 global MSL datum,
+never each aircraft's separate height above home or local-down origin. This copies
+estimates, not surveyed physical heights. A disabled Current option has an info
+control explaining what to resolve. The other height options remain available.
+
+![Current heights selected during a settled airborne capture](../assets/smart-swarm/capture-current-heights.png)
+
+### More than one cluster
+
+Capture keeps the cluster selected in Design or Operate. Its **Formation** selector
+appears only when there are multiple formations with followers. From **All clusters**,
+choose the intended formation first; capture does not silently choose or combine
+independent leaders. Each capture replaces only that cluster's draft spacing.
+Capture another cluster if needed, then review and Apply the complete draft;
+Undo reverses one capture at a time. Single-aircraft independent leaders have no
+relative spacing to capture. Roles, heights and spacing of other clusters stay intact.
+
 Capture records PX4's estimated horizontal spacing, not surveyed physical
 spacing. It does not calibrate GNSS, heading, home or altitude. Planned heights
-are retained or explicitly levelled; measured GNSS height differences are not
-silently saved as vertical offsets. Turning the leader after a Body capture
+are retained by default; estimated heights are copied only with explicit Current.
+Turning the leader after a Leader-relative capture
 rotates its future targets. Review again if positions or heading have changed.
 
 Capture never drops an unavailable member and never silently stops a running
@@ -81,7 +109,7 @@ does not turn a pre-start capture into an unnoticed active update.
    QGC takeoff is supported too; an earlier MDS Takeoff command is not required.
 4. Select **Start Swarm**, review the formation and confirm. Wait for follower
    engagement on every member before moving the leader.
-5. Begin with gentle translation. For Body, test a slow heading change separately:
+5. Begin with gentle translation. For Leader-relative, test a slow heading change separately:
    followers need additional motion to travel around the leader as it turns.
 
 ![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)
@@ -101,7 +129,7 @@ ready to resume. RC takeover remains independent of the networked request.
 | Task | Operator sequence |
 |---|---|
 | Adjust spacing during an unloaded flight | Edit in Design → review → Apply plan. Following aircraft acquire the new targets smoothly within their limits. |
-| Change NED to Body without changing the intended preview shape | Change Reference in Design; review using the correct preview heading before Apply. |
+| Change Geographic to Leader-relative without changing the intended preview shape | Change Reference in Design; review using the correct preview heading before Apply. |
 | Choose a new leader before starting | Capture → choose Leader → inspect the resulting Links and spacing → Use capture → Apply plan. |
 | Choose a new leader while airborne | Hold the cluster → confirm following stopped → let aircraft settle → capture with the new leader → Apply → explicitly Start Swarm. |
 | Reuse the same formation tomorrow | Save to repo; review it again before the next start. |

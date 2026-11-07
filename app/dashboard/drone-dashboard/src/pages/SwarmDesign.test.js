@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('react-toastify', () => ({ toast: { error: jest.fn(), info: jest.fn(), success: jest.fn(), warning: jest.fn() } }));
 jest.mock('../components/SwarmRuntimeControls', () => () => <div data-testid="operate-controls" />);
+jest.mock('../hooks/useSwarmCaptureLiveView', () => () => ({ positions: [], freshCount: 0, loading: false }));
 jest.mock('../components/SwarmFormation3D', () => ({ selectedId, onSelect }) => <div data-testid="3d-view"><span>Selected {selectedId}</span><button onClick={() => onSelect('2')}>Select follower in 3D</button></div>);
 jest.mock('../components/DroneGraph', () => ({ selectedDroneId, onSelectDrone }) => <div data-testid="graph-view"><span>Selected {selectedDroneId}</span><button onClick={() => onSelectDrone('2')}>Select follower in graph</button></div>);
 jest.mock('../services/gcsApiService', () => ({
@@ -265,7 +266,7 @@ test('Capture is frozen, local, undoable and guards the later explicit Apply', a
   const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
   await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
   expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
-  fireEvent.click(within(dialog).getByRole('radio', { name: 'Body' }));
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Leader-relative' }));
   fireEvent.click(within(dialog).getByRole('radio', { name: 'Same height' }));
   fireEvent.change(within(dialog).getByRole('combobox', { name: /Leader/ }), { target: { value: '2' } });
   expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
@@ -324,11 +325,11 @@ test('changing frozen NED capture to Body rejects missing heading without resamp
   fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
   const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
   await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
-  fireEvent.click(within(dialog).getByRole('radio', { name: 'Body' }));
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Leader-relative' }));
   expect(within(dialog).getByText('H1: heading unavailable. Refresh capture.')).toBeInTheDocument();
   expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeDisabled();
   expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
-  fireEvent.click(within(dialog).getByRole('radio', { name: 'NED' }));
+  fireEvent.click(within(dialog).getByRole('radio', { name: 'Geographic' }));
   expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled();
 });
 

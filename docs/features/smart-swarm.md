@@ -66,6 +66,10 @@ Validator note:
 
 ## Operator Model
 
+Operator controls say **Geographic** for `ned` and **Leader-relative** for `body`.
+The stored/API values and coordinate math are unchanged. NED and Body remain the
+technical terms in help, logs and configuration documentation.
+
 For illustrated field steps, including capture, takeoff, following, Hold and
 return, use the [Smart Swarm operator workflow](../guides/smart-swarm-field-workflow.md).
 
@@ -85,6 +89,22 @@ Links shows the leader/follower relationship, not geographic spacing. Body-frame
 geometry uses an explicit design-preview heading; live telemetry never moves a
 draft underneath the operator. Independent clusters are shown separately and
 do not imply saved spacing between their leaders.
+
+Capture opens the only cluster automatically, or preserves the selected cluster
+when several exist. Its Top/Side preview reuses the design renderer in read-only
+mode: filled positions are the frozen capture and outlined positions are live
+estimates from the existing GCS fleet cache. Viewing adds no aircraft RPC polling;
+native two-sample validation remains exclusive to explicit capture/Refresh.
+Delayed or nonadvancing samples are marked, including during successful but
+frozen HTTP responses. Live data cannot edit an assignment or satisfy capture
+authority. Changing cluster cancels/ignores the old capture request.
+
+Height capture defaults to Keep plan. Same height zeroes relative heights;
+Current explicitly copies estimated common-MSL differences only for a fully
+airborne, settled cluster. This does not calibrate independent altitude estimates.
+Current's availability and reason come from the backend's frozen observations,
+not separate UI thresholds. A captured draft still requires inactive, revision-aware
+Apply; other clusters and existing in-flight edit behavior remain unchanged.
 
 The normal operator path is:
 

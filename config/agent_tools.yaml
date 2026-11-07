@@ -1752,6 +1752,8 @@ tools:
   - docs/features/swarm-trajectory.md
   safety_notes:
   - Swarm configuration is planned data, not live spacing.
+  - Operator labels Geographic and Leader-relative map to ned and body; do not rewrite API values.
+  - Capture live markers are advisory cached telemetry; Current heights require the explicit native airborne capture capability, not subtraction of above-home heights.
   - Capturing current spacing is an explicit operator workflow; reading this
     resource does not measure positions, apply a draft or start following.
 - id: mds.shows.skybrush.read

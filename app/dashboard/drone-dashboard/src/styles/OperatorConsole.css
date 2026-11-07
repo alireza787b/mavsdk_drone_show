@@ -34,6 +34,7 @@
 }
 .operator-console label { display: grid; gap: var(--spacing-xs); }
 .operator-console .operator-confirm-dialog__panel { width: min(100%, 38rem); }
+.operator-confirm-dialog__panel.operator-confirm-dialog__panel--wide { width: min(100%, 70rem); }
 .operator-console .operator-confirm-dialog__actions {
   position: sticky;
   bottom: 0;

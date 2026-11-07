@@ -65,12 +65,17 @@ python3 tools/validate_swarm_capture.py \
 The rehearsal verifies ground NED/Body capture without saving or dispatch,
 guarded Apply, coordinated Takeoff, native role engagement before moving the
 leader, translation, Body yaw rotation, rejection of active capture, Hold,
-settled airborne capture with reroot/level heights, explicit restart, Managed
+settled airborne Current-height capture after a deliberate vertical displacement,
+MSL-datum verification, Apply/restart, then reroot/level heights, Managed
 Return, disarm and configuration restore. Geometry matching alone is not proof
 that following has engaged, especially immediately after capturing current
 positions. The validator waits for effective native role reports first.
 It refuses REAL mode before mutations. This is an unloaded flight rehearsal,
 not a suspended-load/net validation.
+
+For screenshot/manual inspection windows, add `--ground-inspect-seconds 90`
+and/or `--hover-inspect-seconds 90`. These pause the validator only in the named
+stationary phase; they do not weaken capture, mode guards or cleanup.
 
 For the two-aircraft live-formation Apply rehearsal, including reference-frame
 changes and temporary leader loss, use an isolated SITL GCS and exactly two saved

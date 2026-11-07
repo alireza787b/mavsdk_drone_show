@@ -12,6 +12,7 @@ import SwarmClusterDiagram from './SwarmClusterDiagram';
 import TakeoffDialog from './TakeoffDialog';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
 import { swarmStartReadiness, swarmStartValidUntil } from '../utilities/swarmStartReadiness';
+import { formationReferenceLabel } from '../utilities/swarmDesignPresentation';
 import '../styles/SwarmOperations.css';
 
 const PREVIEW = '/api/v1/swarm/runtime/preview';
@@ -387,7 +388,7 @@ export default function SwarmOperations() {
           <strong>{confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })).join(' · ')}</strong>
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
-            <ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {m.frame === 'body' ? 'Body' : 'NED'}</li>)}</ul></>}
+            <ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {formationReferenceLabel(m.frame)}</li>)}</ul></>}
           {confirmation.excluded.length > 0 && <p>Partial formation · excludes Drone {confirmation.excluded.join(', ')}.</p>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}
           {confirmation.action === 'land' && <p>Land at current positions.</p>}

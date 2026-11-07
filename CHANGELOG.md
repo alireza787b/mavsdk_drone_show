@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm capture adds linked read-only Top/Side views with distinct live
+  aircraft and frozen capture markers. One-cluster setup is automatic; multiple
+  clusters preserve explicit scope and ignore obsolete responses. Current
+  airborne heights are an explicit native-validated common-MSL option alongside
+  Keep plan and Same height. Operator reference labels are Geographic and
+  Leader-relative; `ned`/`body` contracts and flight tuning are unchanged.
+
 - Smart Swarm can capture settled aircraft spacing into its existing editable
   draft, with NED/Body references, explicit leader choice and planned/level
   heights. Capture is read-only; revision-aware inactive Apply remains separate

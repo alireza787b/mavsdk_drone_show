@@ -33,7 +33,7 @@ const DEFAULT_FORM_STATE = Object.freeze({
 
 const FRAME_LABELS = {
   body: {
-    label: 'Body frame',
+    label: 'Aircraft-relative',
     statusLabel: 'AIRCRAFT',
     primary: 'Forward (+) / Back (-)',
     secondary: 'Right (+) / Left (-)',
@@ -42,7 +42,7 @@ const FRAME_LABELS = {
     description: 'Move relative to the current heading.',
   },
   ned: {
-    label: 'NED frame',
+    label: 'Geographic',
     statusLabel: 'MAP',
     primary: 'North (+) / South (-)',
     secondary: 'East (+) / West (-)',

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 827,
+  "chunk_count": 828,
   "chunks": [
     {
       "audience": "operator",
@@ -1667,7 +1667,7 @@
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
@@ -1680,7 +1680,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "85d97a96b44422b17f4176226739de5287b459e240b5289bffcdf05c7f279538",
+      "content_hash": "576b00c9db3048e5170c2f757cea4a980ddd52e2164f6c18949f04db3cfb49db",
       "heading": "Choose how the formation turns",
       "id": "mds.smart_swarm_operator_workflow:002-01-choose-how-the-formation-turns",
       "links": [],
@@ -1688,20 +1688,20 @@
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "## Choose how the formation turns\n\n| Reference | What happens when the leader turns its nose |\n|---|---|\n| **NED** | North/East spacing stays fixed geographically. |\n| **Body** | Forward/Right spacing rotates with the followed aircraft's heading. |\n\nBody follows heading, not direction of travel. Moving sideways without turning\nthe nose does not rotate the formation. In both references, **Above** is positive\nup; the formation does not tilt with the aircraft's pitch or roll. Followers\nalso turn their own noses toward the followed aircraft's heading.",
+      "text": "## Choose how the formation turns\n\n| Reference | What happens when the leader turns its nose |\n|---|---|\n| **Geographic** | North/East spacing stays fixed geographically. Technical name: NED. |\n| **Leader-relative** | Forward/Right spacing rotates with the followed aircraft's heading. Technical name: Body. |\n\nLeader-relative follows heading, not direction of travel. Moving sideways without turning\nthe nose does not rotate the formation. In both references, **Above** is positive\nup; the formation does not tilt with the aircraft's pitch or roll. Followers\nalso turn their own noses toward the followed aircraft's heading.",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "fa8520ab33feee7fe72edb7fcd7e030c18b2b40ab37d84cc28b4f54ac065ba09",
+      "content_hash": "7449090e803f5eae24e7300e2b46296a0dea2bd62f40d52da350f53185597ecc",
       "heading": "Prepare a planned formation",
       "id": "mds.smart_swarm_operator_workflow:003-01-prepare-a-planned-formation",
       "links": [],
@@ -1709,20 +1709,20 @@
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "## Prepare a planned formation\n\n1. Open **Smart Swarm → Design** and select the intended cluster.\n2. Check the leader and each **Follows** relationship. Aircraft labels identify\n physical hardware; changing mission slots does not change these relationships.\n3. Select **NED** or **Body**, then edit spacing using the fields or drag the\n aircraft in the linked views. Body values are Forward, Right and Above.\n4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.\n Preview heading changes the drawing only; it does not command yaw.\n If the device cannot display 3D, use the linked 2D views and spacing fields.\n5. Choose **Apply plan**. Use **Save to repo** when the formation should also be\n published for fleet startup synchronization.\n\n**Apply plan** persists on this GCS until replaced. It is not a temporary flight\nsession. Repository publication and effective aircraft adoption are reported\nseparately; neither means that aircraft have reached their target positions.",
+      "text": "## Prepare a planned formation\n\n1. Open **Smart Swarm → Design** and select the intended cluster.\n2. Check the leader and each **Follows** relationship. Aircraft labels identify\n physical hardware; changing mission slots does not change these relationships.\n3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields\n or drag the aircraft in the linked views. Leader-relative values are Forward,\n Right and Above.\n4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.\n Preview heading changes the drawing only; it does not command yaw.\n If the device cannot display 3D, use the linked 2D views and spacing fields.\n5. Choose **Apply plan**. Use **Save to repo** when the formation should also be\n published for fleet startup synchronization.\n\n**Apply plan** persists on this GCS until replaced. It is not a temporary flight\nsession. Repository publication and effective aircraft adoption are reported\nseparately; neither means that aircraft have reached their target positions.",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "a48bc39eee3b477fbdbd7b4431be46d2a9a664be966a09ced98adcd363fa5e25",
+      "content_hash": "4d568636a49b735a556aaae64a2b66ac83771f38a94aa487dd7874892a243893",
       "heading": "Capture the spacing already on the field",
       "id": "mds.smart_swarm_operator_workflow:004-01-capture-the-spacing-already-on-the-field",
       "links": [],
@@ -1730,20 +1730,20 @@
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "## Capture the spacing already on the field\n\nUse capture while all aircraft in the selected cluster are stationary on the\nground, or settled in flight with Smart Swarm stopped. It is not moving-flight\ncapture. Leave room for independent aircraft operation; the following procedure\ndoes not control cable tension or a shared suspended load.\n\n1. Place the aircraft, or establish a stable hover using the normal pilot controls.\n2. In **Design**, select **Capture**. The complete current cluster is selected.\n You can also use **Capture spacing** from Operate's secondary actions.\n3. Check **Leader** and **NED / Body**.\n4. Choose **Keep plan** to preserve the planned height offsets, or **Same height**\n to set the captured cluster's follower height offsets to zero. Same height\n means a common intended flight height, not zero height above each separate home.\n5. Inspect the capture and choose **Use capture**. This changes the draft only.\n6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in\n Capture obtains new measurements. Changing leader, frame or height choice in\n the capture dialog recalculates from the same frozen measurements.\n7. Select **Apply plan**, or **Save to repo** to apply and publish.\n\n![Capture current spacing with leader, reference and height choices](../assets/smart-swarm/capture-01-options.png)\n\n![Captured spacing in the linked formation views](../assets/smart-swarm/capture-02-design.png)\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nare retained or explicitly levelled; measured GNSS height differences are not\nsilently saved as vertical offsets. Turning the leader after a Body capture\nrotates its future targets. Review again if positions or heading have changed.",
+      "text": "## Capture the spacing already on the field\n\nUse capture while all aircraft in the selected cluster are stationary on the\nground, or settled in flight with Smart Swarm stopped. It is not moving-flight\ncapture. Leave room for independent aircraft operation; the following procedure\ndoes not control cable tension or a shared suspended load.\n\n1. Place the aircraft, or establish a stable hover using the normal pilot controls.\n2. In **Design**, select **Capture**. With one cluster it opens automatically;\n there is no extra aircraft or cluster selection.\n You can also use **Capture spacing** from Operate's secondary actions.\n3. Inspect Top and Side. Filled markers show the frozen **Capture**; outlined\n markers show **Live** aircraft estimates. Dashed/dim outlines and **Delayed**\n mean the live feed is not current. Live positions never move the captured draft.\n4. Leave **Leader**, reference and **Keep plan** unchanged for the usual setup,\n or select the intended choices below.\n5. Choose **Use capture**. This changes the draft only.\n6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in\n Capture obtains new measurements. Changing leader, frame or height choice in\n the capture dialog recalculates from the same frozen measurements. A failed\n refresh retains the drawing but disables Use until a complete refresh succeeds.\n7. Select **Apply plan**, or **Save to repo** to apply and publish.\n\n![Capture current spacing with leader, reference and height choices](../assets/smart-swarm/capture-01-options.png)\n\n![Captured spacing in the linked formation views](../assets/smart-swarm/capture-02-design.png)\n\n| Height | Use it when |\n|---|---|\n| **Keep plan** (default) | The saved relative heights are already correct. |\n| **Same height** | All aircraft should follow at the same intended height. |\n| **Current** | Preserve the estimated height differences of a settled airborne cluster. |",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "65edaad897528bcfacf2916916a90757b884d27519d701030dd36a58fc624d36",
+      "content_hash": "f09078c9047d74532d15a621d50202123ea3452397682dfb7314c7df330e4e38",
       "heading": "Capture the spacing already on the field",
       "id": "mds.smart_swarm_operator_workflow:004-02-capture-the-spacing-already-on-the-field",
       "links": [],
@@ -1751,35 +1751,56 @@
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "Capture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold Swarm**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
+      "text": "**Current** is available only when native samples confirm every member is airborne\nand its height was stable during capture. It uses the common PX4 global MSL datum,\nnever each aircraft's separate height above home or local-down origin. This copies\nestimates, not surveyed physical heights. A disabled Current option has an info\ncontrol explaining what to resolve. The other height options remain available.\n\n![Current heights selected during a settled airborne capture](../assets/smart-swarm/capture-current-heights.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "1c0ac89fa2e825611ca5197d8d80baf8b5ca1649cdfaedab068d770d040569c6",
-      "heading": "Take off and start following",
-      "id": "mds.smart_swarm_operator_workflow:005-01-take-off-and-start-following",
+      "content_hash": "d132f380e0f6ade4027f5c8cf54517401b648a54b73036b5e52ae24122e976a0",
+      "heading": "More than one cluster",
+      "id": "mds.smart_swarm_operator_workflow:005-01-more-than-one-cluster",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "## Take off and start following\n\n1. Open **Operate**. Confirm the intended complete cluster and fresh aircraft\n states. Resolve any named PX4 or connectivity blocker.\n2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,\n **All armed first** waits for every selected aircraft before releasing takeoff.\n It reduces partial launches; it cannot make a distributed launch atomic.\n3. Confirm takeoff and watch every aircraft reach a stable hover. Manual/RC or\n QGC takeoff is supported too; an earlier MDS Takeoff command is not required.\n4. Select **Start Swarm**, review the formation and confirm. Wait for follower\n engagement on every member before moving the leader.\n5. Begin with gentle translation. For Body, test a slow heading change separately:\n followers need additional motion to travel around the leader as it turns.\n\n![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)\n\n![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)",
+      "text": "### More than one cluster\n\nCapture keeps the cluster selected in Design or Operate. Its **Formation** selector\nappears only when there are multiple formations with followers. From **All clusters**,\nchoose the intended formation first; capture does not silently choose or combine\nindependent leaders. Each capture replaces only that cluster's draft spacing.\nCapture another cluster if needed, then review and Apply the complete draft;\nUndo reverses one capture at a time. Single-aircraft independent leaders have no\nrelative spacing to capture. Roles, heights and spacing of other clusters stay intact.\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nare retained by default; estimated heights are copied only with explicit Current.\nTurning the leader after a Leader-relative capture\nrotates its future targets. Review again if positions or heading have changed.\n\nCapture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold Swarm**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "3dd379c9b4f23379b0fd9aaf9b4378ba54e959f80e35dc5aae4df534e4184b9f",
+      "heading": "Take off and start following",
+      "id": "mds.smart_swarm_operator_workflow:006-01-take-off-and-start-following",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "## Take off and start following\n\n1. Open **Operate**. Confirm the intended complete cluster and fresh aircraft\n states. Resolve any named PX4 or connectivity blocker.\n2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,\n **All armed first** waits for every selected aircraft before releasing takeoff.\n It reduces partial launches; it cannot make a distributed launch atomic.\n3. Confirm takeoff and watch every aircraft reach a stable hover. Manual/RC or\n QGC takeoff is supported too; an earlier MDS Takeoff command is not required.\n4. Select **Start Swarm**, review the formation and confirm. Wait for follower\n engagement on every member before moving the leader.\n5. Begin with gentle translation. For Leader-relative, test a slow heading change separately:\n followers need additional motion to travel around the leader as it turns.\n\n![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)\n\n![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -1787,13 +1808,13 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "1144f59967f03971580aa9639ddd9a26a73bb23ba33903f64639e83d6114fb33",
       "heading": "Pause and resume",
-      "id": "mds.smart_swarm_operator_workflow:006-01-pause-and-resume",
+      "id": "mds.smart_swarm_operator_workflow:007-01-pause-and-resume",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
@@ -1806,22 +1827,22 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "4bc2e95c4aa2121285350ce0a807639f9cf150e331531de6fe28b90c0153c2dc",
+      "content_hash": "95dc55f0debc940777592fa6c70be051ffd0fce733d6abf87983f452cf65ae5c",
       "heading": "Change spacing or roles",
-      "id": "mds.smart_swarm_operator_workflow:007-01-change-spacing-or-roles",
+      "id": "mds.smart_swarm_operator_workflow:008-01-change-spacing-or-roles",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
         "formation",
         "capture"
       ],
-      "text": "## Change spacing or roles\n\n| Task | Operator sequence |\n|---|---|\n| Adjust spacing during an unloaded flight | Edit in Design → review → Apply plan. Following aircraft acquire the new targets smoothly within their limits. |\n| Change NED to Body without changing the intended preview shape | Change Reference in Design; review using the correct preview heading before Apply. |\n| Choose a new leader before starting | Capture → choose Leader → inspect the resulting Links and spacing → Use capture → Apply plan. |\n| Choose a new leader while airborne | Hold the cluster → confirm following stopped → let aircraft settle → capture with the new leader → Apply → explicitly Start Swarm. |\n| Reuse the same formation tomorrow | Save to repo; review it again before the next start. |\n| Use a different field arrangement | Capture again; do not assume yesterday's spacing matches today's placement. |\n\nChanging leaders preserves existing relay links by reversing the path to the new\nleader; it does not silently flatten a complex cluster. Inspect **Links** after\nthe change. Continuous leader replacement while the formation is moving is not\nthis workflow. Independent clusters remain independent.\n\nOrdinary deliberate in-flight edits use the existing update/readback workflow.\nThe capture workflow is more specific: its Apply requires stopped following.\n**Applied** means configuration installed, not position reached. Missing aircraft\nmay not adopt an ordinary update at the same time; do not assume simultaneous motion.",
+      "text": "## Change spacing or roles\n\n| Task | Operator sequence |\n|---|---|\n| Adjust spacing during an unloaded flight | Edit in Design → review → Apply plan. Following aircraft acquire the new targets smoothly within their limits. |\n| Change Geographic to Leader-relative without changing the intended preview shape | Change Reference in Design; review using the correct preview heading before Apply. |\n| Choose a new leader before starting | Capture → choose Leader → inspect the resulting Links and spacing → Use capture → Apply plan. |\n| Choose a new leader while airborne | Hold the cluster → confirm following stopped → let aircraft settle → capture with the new leader → Apply → explicitly Start Swarm. |\n| Reuse the same formation tomorrow | Save to repo; review it again before the next start. |\n| Use a different field arrangement | Capture again; do not assume yesterday's spacing matches today's placement. |\n\nChanging leaders preserves existing relay links by reversing the path to the new\nleader; it does not silently flatten a complex cluster. Inspect **Links** after\nthe change. Continuous leader replacement while the formation is moving is not\nthis workflow. Independent clusters remain independent.\n\nOrdinary deliberate in-flight edits use the existing update/readback workflow.\nThe capture workflow is more specific: its Apply requires stopped following.\n**Applied** means configuration installed, not position reached. Missing aircraft\nmay not adopt an ordinary update at the same time; do not assume simultaneous motion.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -1829,13 +1850,13 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "d70671b51ea00ad260ab2838a068bda039f17e739b39e8352ddb467407aef202",
       "heading": "Return and land",
-      "id": "mds.smart_swarm_operator_workflow:008-01-return-and-land",
+      "id": "mds.smart_swarm_operator_workflow:009-01-return-and-land",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
@@ -1850,13 +1871,13 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "de567cd079e29c86249caecb0e933f1267b187c5fc86db00a90f7733fa86aeba",
       "heading": "Resolve a blocked step",
-      "id": "mds.smart_swarm_operator_workflow:009-01-resolve-a-blocked-step",
+      "id": "mds.smart_swarm_operator_workflow:010-01-resolve-a-blocked-step",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
@@ -6404,7 +6425,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "a3863719ef20a7d735b897d72a28e3efac7789801a73c581901584eaf06d21ba",
+      "content_hash": "54eab12ebace1e17fdb604ccd6ea5d957d73d7d8f725d998de2a4f9578e03158",
       "heading": "Capture current formation",
       "id": "mds.gcs_api:019-01-capture-current-formation",
       "links": [],
@@ -6417,13 +6438,13 @@
         "api",
         "gcs"
       ],
-      "text": "#### Capture current formation\n\n`POST /api/v1/config/swarm/capture-preview` reads a complete settled cluster into\nan unsaved candidate. It sends no flight commands and writes neither the GCS\nconfiguration nor Git. It uses native estimator positions, independently dated\nheadings and activity evidence; a successful HTTP connection alone is not valid\ncapture evidence. Both grounded and settled airborne aircraft are supported;\nactive following, pending Start and native recovery/transition modes are not.\n\nThe request contains the current `revision`, complete draft `assignments`,\n`cluster_id`, optional `leader_hw_id`, `frame` (`ned` or `body`) and `height_mode`.\nHeight mode is `keep` (retain planned relative heights) or `level` (zero relative\nheights). Neither copies measured GNSS height differences. Offsets use Up-positive\nvertical values in both NED and Body. Leader replacement reverses the path to the\nnew root; off-path relay branches and unrelated clusters remain intact.\n\nThe response contains `capture_id`, `captured_at_ms`, base `revision`, resulting\n`cluster_id`, complete candidate `assignments`, sampled `headings`, frozen\n`observations`, temporary projection `reference`, and explicit `saved:false`,\n`commands_sent:false`. The temporary reference is not a PX4 home or saved show\norigin. The browser may rederive candidate roles/frame/heights from these frozen\nobservations; only explicit Refresh takes new measurements.\n\nTyped HTTP 409 failures identify a `code`, actionable `message` and, where\napplicable, `hw_id`. Do not partially apply a failed cluster capture or invent\nheading/position defaults. Old nodes without native capture evidence need updating.",
+      "text": "#### Capture current formation\n\n`POST /api/v1/config/swarm/capture-preview` reads a complete settled cluster into\nan unsaved candidate. It sends no flight commands and writes neither the GCS\nconfiguration nor Git. It uses native estimator positions, independently dated\nheadings and activity evidence; a successful HTTP connection alone is not valid\ncapture evidence. Both grounded and settled airborne aircraft are supported;\nactive following, pending Start and native recovery/transition modes are not.\n\nThe request contains the current `revision`, complete draft `assignments`,\n`cluster_id`, optional `leader_hw_id`, `frame` (`ned` or `body`) and `height_mode`.\nHeight mode is `keep` (retain planned relative heights), `level` (zero relative\nheights), or explicit `current` (estimated relative heights from a common PX4 MSL\ndatum). Current requires both native sampling epochs to confirm every member\narmed/airborne and height change within the existing capture-drift confidence bound;\notherwise it rejects with `capture_current_heights_unavailable`. Keep/level do not\nacquire this additional requirement and never import measured height differences.\nOffsets use Up-positive\nvertical values in both NED and Body. Leader replacement reverses the path to the\nnew root; off-path relay branches and unrelated clusters remain intact.\n\nThe response contains `capture_id`, `captured_at_ms`, base `revision`, resulting\n`cluster_id`, complete candidate `assignments`, sampled `headings`, frozen\n`observations`, temporary projection `reference`, `current_heights_available`,\n`current_heights_reason`, and explicit `saved:false`,\n`commands_sent:false`. The temporary reference is not a PX4 home or saved show\norigin. The browser may rederive candidate roles/frame/heights from these frozen\nobservations; only explicit Refresh takes new measurements.",
       "title": "GCS API server guide"
     },
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "f4b043958a1edeb7e2b39447b864112006c33c79f9c393a1fb8f6e2c89ffccf4",
+      "content_hash": "23982870d1943772504626c3e053f29d07e52dfe503234d3ff9c5af7c5c8c280",
       "heading": "Capture current formation",
       "id": "mds.gcs_api:019-02-capture-current-formation",
       "links": [],
@@ -6436,7 +6457,7 @@
         "api",
         "gcs"
       ],
-      "text": "Capture-derived drafts use existing `PUT /api/v1/config/swarm?commit=false` with\nthe normal base `revision` and `require_inactive_hw_ids`. This optional precondition\nchecks affected old/new dependencies and fresh native activity, and serializes\nthe final save against GCS Smart Swarm Start registration. Unknown or active\naircraft reject without writing; this path does not offer Apply anyway. Normal\nintentional active formation edits retain their existing semantics. This local\nguard is not a distributed flight reservation.\n\nAfter uncertain Apply responses, read the canonical resource/revision rather than\nresampling or blindly submitting another operation. Repository publication uses\nthe existing revision-bound publish endpoint. Preview is an operator API; adding\nit here does not implicitly expose a new Simurgh/MCP tool or grant flight authority.\n\nSee the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md).",
+      "text": "Each observation contains `planned_up_m` and `current_up_m`. The latter is its\nestimated MSL height minus the frozen reference height, not a local-down or\nabove-home value. `current_heights_available:false` is not a failure of keep/level;\nthe reason explains why only Current is unavailable. UI labels Geographic and\nLeader-relative map to unchanged `ned` and `body` values.\n\nThe modal's hollow live markers use the existing `GET /api/v1/fleet/telemetry`\ncache, never a second aircraft polling service or a capture result used for saving.\nOnly explicit Capture/Refresh performs native validation. A viewer/MCP read of\nconfiguration or telemetry does not apply a capture or dispatch a mission.\n\nTyped HTTP 409 failures identify a `code`, actionable `message` and, where\napplicable, `hw_id`. Do not partially apply a failed cluster capture or invent\nheading/position defaults. Old nodes without native capture evidence need updating.\n\nCapture-derived drafts use existing `PUT /api/v1/config/swarm?commit=false` with\nthe normal base `revision` and `require_inactive_hw_ids`. This optional precondition\nchecks affected old/new dependencies and fresh native activity, and serializes\nthe final save against GCS Smart Swarm Start registration. Unknown or active\naircraft reject without writing; this path does not offer Apply anyway. Normal\nintentional active formation edits retain their existing semantics. This local\nguard is not a distributed flight reservation.\n\nAfter uncertain Apply responses, read the canonical resource/revision rather than\nresampling or blindly submitting another operation. Repository publication uses\nthe existing revision-bound publish endpoint. Preview is an operator API; adding\nit here does not implicitly expose a new Simurgh/MCP tool or grant flight authority.\n\nSee the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md).",
       "title": "GCS API server guide"
     },
     {
@@ -16314,13 +16335,13 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "chunk_count": 10,
-      "content_hash": "aca9bbf85ee93d93bb120d778fa3fdbea28fe50d84958af42da8a91509a7c5df",
+      "chunk_count": 11,
+      "content_hash": "f1376c8ed351dce67d5ca84be4ae28aa81d33279d2b8f25888072fb3f59efd9c",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "route_hint": null,
-      "summary": "Planned or captured formation, NED and Body references, takeoff, following, Hold, explicit role changes and independent-aircraft return.",
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
       "tags": [
         "swarm",
         "operator",
@@ -16415,7 +16436,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 155,
-      "content_hash": "77798773a9ef1f9a402ab2adb6a1d99ccc507c957de5e0fb403481327e721aa8",
+      "content_hash": "7af29a2de619c7b275b563bd0c6d69e8a57cc49a65450a7d846addf28516807b",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

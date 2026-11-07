@@ -173,17 +173,34 @@ active following, pending Start and native recovery/transition modes are not.
 
 The request contains the current `revision`, complete draft `assignments`,
 `cluster_id`, optional `leader_hw_id`, `frame` (`ned` or `body`) and `height_mode`.
-Height mode is `keep` (retain planned relative heights) or `level` (zero relative
-heights). Neither copies measured GNSS height differences. Offsets use Up-positive
+Height mode is `keep` (retain planned relative heights), `level` (zero relative
+heights), or explicit `current` (estimated relative heights from a common PX4 MSL
+datum). Current requires both native sampling epochs to confirm every member
+armed/airborne and height change within the existing capture-drift confidence bound;
+otherwise it rejects with `capture_current_heights_unavailable`. Keep/level do not
+acquire this additional requirement and never import measured height differences.
+Offsets use Up-positive
 vertical values in both NED and Body. Leader replacement reverses the path to the
 new root; off-path relay branches and unrelated clusters remain intact.
 
 The response contains `capture_id`, `captured_at_ms`, base `revision`, resulting
 `cluster_id`, complete candidate `assignments`, sampled `headings`, frozen
-`observations`, temporary projection `reference`, and explicit `saved:false`,
+`observations`, temporary projection `reference`, `current_heights_available`,
+`current_heights_reason`, and explicit `saved:false`,
 `commands_sent:false`. The temporary reference is not a PX4 home or saved show
 origin. The browser may rederive candidate roles/frame/heights from these frozen
 observations; only explicit Refresh takes new measurements.
+
+Each observation contains `planned_up_m` and `current_up_m`. The latter is its
+estimated MSL height minus the frozen reference height, not a local-down or
+above-home value. `current_heights_available:false` is not a failure of keep/level;
+the reason explains why only Current is unavailable. UI labels Geographic and
+Leader-relative map to unchanged `ned` and `body` values.
+
+The modal's hollow live markers use the existing `GET /api/v1/fleet/telemetry`
+cache, never a second aircraft polling service or a capture result used for saving.
+Only explicit Capture/Refresh performs native validation. A viewer/MCP read of
+configuration or telemetry does not apply a capture or dispatch a mission.
 
 Typed HTTP 409 failures identify a `code`, actionable `message` and, where
 applicable, `hw_id`. Do not partially apply a failed cluster capture or invent

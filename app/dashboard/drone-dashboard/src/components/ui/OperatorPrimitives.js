@@ -373,6 +373,7 @@ export function ConfirmDialog({
   busy = false,
   allowDismissWhileBusy = false,
   appearance = 'default',
+  size = 'default',
   confirmDisabled = false,
   onConfirm,
   onCancel,
@@ -444,7 +445,7 @@ export function ConfirmDialog({
       <section
         ref={panelRef}
         tabIndex={-1}
-        className={`operator-confirm-dialog__panel operator-confirm-dialog__panel--${tone}`}
+        className={`operator-confirm-dialog__panel operator-confirm-dialog__panel--${tone}${size === 'wide' ? ' operator-confirm-dialog__panel--wide' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -482,6 +483,7 @@ export function ConfirmDialog({
 }
 
 ConfirmDialog.propTypes = {
+  size: PropTypes.oneOf(['default', 'wide']),
   open: PropTypes.bool.isRequired,
   allowDismissWhileBusy: PropTypes.bool,
   title: PropTypes.string.isRequired,

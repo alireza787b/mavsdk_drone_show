@@ -25,6 +25,11 @@ Do not assume the environment. Detect it first.
 - Prefer the existing repo workflows and docs over inventing new ones mid-task.
 - Treat git as the source of truth. Do not normalize `docker commit` as a release workflow.
 - Keep a single source of truth for configuration and operator behavior.
+- Separate operator reference names (Geographic / Leader-relative) from stable
+  `ned` / `body` contracts. Live capture-preview markers are advisory GCS-cache
+  data, never saved geometry or proof of capture authority; only the explicit
+  native capture bundle may feed a captured draft. Relative heights require a
+  common altitude datum, not subtraction of separate above-home/local origins.
 - Distinguish Linux maintenance SSH keys, GitHub account keys and repository
   deploy keys. Never infer read-only scope from a filename or pull-only usage;
   verify authorization before copying or rotating credentials. Keep per-node

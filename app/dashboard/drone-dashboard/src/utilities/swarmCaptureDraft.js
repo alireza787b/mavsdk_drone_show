@@ -7,12 +7,26 @@ const finite = (value, field, id) => {
   return Number(value);
 };
 
+export function createSwarmCaptureRequest(model, assignments, revision, clusterId = null) {
+  const clusters = model.clusters.filter(item => item.drones.length > 1).map(item => ({
+    clusterId: item.id, hwIds: item.drones.map(drone => String(drone.hw_id)),
+    frame: item.drones.filter(drone => drone.follow !== '0').every(drone => drone.frame === 'body') ? 'body' : 'ned',
+  }));
+  if (!clusters.length) return null;
+  const selected = clusters.find(item => item.clusterId === String(clusterId));
+  return { assignments, revision, clusters,
+    clusterId: selected?.clusterId || (clusters.length === 1 ? clusters[0].clusterId : null) };
+}
+
 /** Reinterpret one frozen observation bundle. Never fetch telemetry or flatten relay links. */
 export function deriveSwarmCaptureDraft(assignments, snapshot, { leaderId, frame, heightMode }) {
-  if (!['ned', 'body'].includes(frame) || !['keep', 'level'].includes(heightMode)) {
+  if (!['ned', 'body'].includes(frame) || !['keep', 'level', 'current'].includes(heightMode)) {
     throw new Error('Choose a reference and height option.');
   }
   const observations = snapshot?.observations || {};
+  if (heightMode === 'current' && snapshot?.current_heights_available !== true) {
+    throw new Error(snapshot?.current_heights_reason || 'Current heights require a settled airborne capture. Refresh capture.');
+  }
   const ids = Object.keys(observations);
   const scope = new Set(ids);
   const leader = String(leaderId);
@@ -43,7 +57,8 @@ export function deriveSwarmCaptureDraft(assignments, snapshot, { leaderId, frame
     const delta = {
       north: finite(own.north_m, 'North position', id) - finite(reference.north_m, 'North position', follow),
       east: finite(own.east_m, 'East position', id) - finite(reference.east_m, 'East position', follow),
-      up: heightMode === 'level' ? 0
+      up: heightMode === 'level' ? 0 : heightMode === 'current'
+        ? finite(own.current_up_m, 'current height', id) - finite(reference.current_up_m, 'current height', follow)
         : finite(own.planned_up_m, 'planned height', id) - finite(reference.planned_up_m, 'planned height', follow),
     };
     const heading = frame === 'body' ? finite(reference.heading_deg, 'heading', follow) : 0;
