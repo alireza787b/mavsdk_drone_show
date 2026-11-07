@@ -279,7 +279,8 @@ sudo ./tools/mds_node_init.sh -d 1 \
 For private customer repositories, provision repo access before expecting reboot
 sync to work unattended:
 
-1. Generate a separate read-only SSH key for each drone or provisioned image.
+1. Generate a separate read-only SSH key on each drone after imaging; do not
+   include a shared private Git key in a reusable board image.
 2. Add the public key under GitHub repository **Settings -> Deploy keys** without
    write access.
 3. Put the private key on the node with owner `droneshow` and mode `0600`.

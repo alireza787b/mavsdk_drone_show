@@ -71,6 +71,12 @@ Important rules:
 | Custom SITL image build for private repo | temporary read-only `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE` | build happens inside a containerized prep flow; final image must not contain secrets |
 
 Practical recommendation:
+
+Use the [fleet credential matrix](fleet-sync-and-secrets.md#recommended-private-repo-credential-matrix)
+for key ownership, maintenance-vs-Git separation and safe migration. An account
+SSH key inherits user permissions; using it only for pulls does not limit it
+to read-only access.
+
 - GCS: SSH write key only if it must push customer changes
 - GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTO_PUSH=false`
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine

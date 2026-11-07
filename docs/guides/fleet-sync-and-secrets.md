@@ -144,9 +144,28 @@ Do not:
 
 ### Recommended private-repo credential matrix
 
+An SSH deploy key is still an SSH key. The distinction is **where GitHub
+authorizes its public half**, not the transport or the key filename:
+
+- **Account SSH key:** attached to a user; inherits that account's repository
+  permissions. A service that only runs `git fetch` does not make its credential
+  read-only. Avoid personal-account keys as the steady-state aircraft model.
+- **Repository deploy key:** attached to one repository; explicitly select
+  read-only for aircraft. Generate a distinct key on each board, so access can
+  be revoked independently. Do not share a private key across a fleet or clone
+  it into an SD image; generate credentials after cloning that image.
+- **Maintenance SSH key:** logs into Linux hosts through `authorized_keys`.
+  It is separate from Git access and must not be registered as a Git credential.
+
+For a small single-repository fleet, use per-aircraft read-only deploy keys and
+a separate repository-scoped GCS write credential only when publishing is
+required. For larger/multi-repository deployments, prefer a GitHub App, with a
+tested token-renewal path; an App token file without renewal will eventually
+stop unattended sync. Public stock demos continue to use credential-free HTTPS.
+
 | Runtime | Access | Recommended credential | Notes |
 |---------|--------|------------------------|-------|
-| Drone / companion node | Read-only | Repository deploy key, read-only | Best current fit for one repo per fleet; private key stays on that node or provisioned image. |
+| Drone / companion node | Read-only | Distinct per-node repository deploy key | Best current fit for one repo per fleet; private key stays on that node, not a reusable image. |
 | Private SITL / validation host | Read-only | Token file or read-only deploy key | Use disposable credentials for temporary CI/SITL hosts. |
 | GCS publishing host | Write, only if publish-from-GCS is enabled | Separate write-capable deploy key or GitHub App | Do not copy this credential to drones. |
 | Multi-repo / enterprise automation | Fine-grained read/write | GitHub App | Preferred long-term model when token lifecycle and repo scoping matter. |
@@ -169,11 +188,23 @@ Primary references:
 - GitHub Docs: [Restricting deploy keys in your organization](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-organization-settings/restricting-deploy-keys-in-your-organization)
 - GitHub Changelog: [Repository deploy keys are controlled by enterprise and organization policy](https://github.blog/changelog/2024-10-23-repository-deploy-keys-are-controlled-by-enterprise-and-organization-policy-ga/)
 
-If adding deploy keys is blocked in a customer repository, ask the repository or
-organization owner to check **Organization Settings -> Member privileges ->
+If adding deploy keys is blocked in a customer repository, ask the organization
+owner to check **Organization Settings -> Member privileges ->
 Deploy keys** and any enterprise repository-management policy. If policy should
 stay locked down, use a GitHub App or approved machine-user flow instead of
 trying to bypass the restriction.
+
+Repository administration alone does not grant organization-owner permission.
+A 404 on the organization settings link does not prove the setting is absent;
+check the signed-in account and its organization role. The deploy-key policy is
+organization-wide, so explain that scope before asking an owner to enable it.
+
+For existing nodes, migrate one grounded aircraft at a time: identify the actual
+key/account mapping without exposing private material, provision the replacement
+read-only credential, configure its existing secret-path setting, verify a fetch
+as the runtime user, then verify boot sync. Preserve working credentials until
+their replacement is proven. Check other consumers before revoking an old key;
+never force-reset a dirty checkout to conceal an authentication failure.
 
 ## 4. How A Fleet Change Should Propagate
 

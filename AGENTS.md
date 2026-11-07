@@ -25,6 +25,11 @@ Do not assume the environment. Detect it first.
 - Prefer the existing repo workflows and docs over inventing new ones mid-task.
 - Treat git as the source of truth. Do not normalize `docker commit` as a release workflow.
 - Keep a single source of truth for configuration and operator behavior.
+- Distinguish Linux maintenance SSH keys, GitHub account keys and repository
+  deploy keys. Never infer read-only scope from a filename or pull-only usage;
+  verify authorization before copying or rotating credentials. Keep per-node
+  private Git credentials out of reusable images and preserve working access
+  until replacements and unattended sync are verified.
 - Preserve the stock lab/SITL path as a zero-setup, plug-and-play experience.
   Warn clearly about its trusted-network security posture, but do not make
   beginner demos depend on production credential provisioning.

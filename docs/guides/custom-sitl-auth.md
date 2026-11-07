@@ -43,6 +43,10 @@ Store it on the GCS host only, for example:
 Do not mount this write key into SITL containers.
 Do not bake it into Docker images.
 
+This is a repository-scoped deploy key, not a personal-account SSH key.
+For GitHub App alternatives, maintenance-key separation and migration rules,
+use the [fleet credential matrix](fleet-sync-and-secrets.md#recommended-private-repo-credential-matrix).
+
 If the GCS is intentionally read-only, set:
 
 ```env

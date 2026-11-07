@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Fleet credential guidance distinguishes account, deploy and maintenance SSH
+  keys; recommends distinct read-only aircraft keys, documents organization-owner
+  policy control and preserves working access during verified migration.
+
 - Companion commissioning guide now separates admin access, durable identity,
   installation, enrollment, FC connection and final readiness. It documents
   existing-VPN preservation, per-node read-only Git access and ground-only
