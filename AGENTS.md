@@ -63,7 +63,8 @@ Before substantial work, inspect the current repo state and then read only the d
    - custom image/release flow: `docs/guides/advanced-sitl.md`, `docs/guides/sitl-custom-release-workflow.md`
    - full SITL agent loop: `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md`
    - Drone Show: `docs/features/drone-show.md`
-   - Smart Swarm: `docs/features/smart-swarm.md`
+   - Smart Swarm: `docs/features/smart-swarm.md`,
+     `docs/guides/smart-swarm-field-workflow.md`
    - Simurgh Operator / agent-safe MCP foundation: `docs/guides/simurgh-operator.md`, `docs/agent-context/README.md`
    - origin/coordinates: `docs/features/origin-system.md`, `docs/control-modes-and-coordinates.md`
    - logs/debugging: `docs/guides/logging-system.md`

@@ -169,6 +169,20 @@ resources:
   - clients
   - integrations
   searchable: true
+- id: mds.smart_swarm_operator_workflow
+  title: Smart Swarm operator workflow
+  path: docs/guides/smart-swarm-field-workflow.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Planned or captured formation, NED and Body references, takeoff,
+    following, Hold, explicit role changes and independent-aircraft return.
+  tags:
+  - swarm
+  - operator
+  - formation
+  - capture
+  searchable: true
 - id: mds.init_setup
   title: MDS init setup
   path: docs/guides/mds-init-setup.md

@@ -17,6 +17,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | understand the main dashboard and dispatch scope | [Dashboard Operator Guide](guides/dashboard-operator.md) |
 | fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
+| capture spacing and operate a live formation step by step | [Smart Swarm Operator Workflow](guides/smart-swarm-field-workflow.md) |
 | inspect Smart Swarm tracking quality | [Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md) |
 | package runtime proof reports | [Runtime Evidence Reporting](guides/runtime-evidence-reporting.md) |
 | plan QuickScout or Swarm Trajectory missions | [Mission Planning Workspace](features/mission-planning-workspace.md) |

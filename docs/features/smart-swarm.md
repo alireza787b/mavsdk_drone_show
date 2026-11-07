@@ -66,6 +66,9 @@ Validator note:
 
 ## Operator Model
 
+For illustrated field steps, including capture, takeoff, following, Hold and
+return, use the [Smart Swarm operator workflow](../guides/smart-swarm-field-workflow.md).
+
 ![NED and Body spacing, and staggered native RTL](../assets/smart-swarm/frames-and-return.svg)
 
 The diagram is conceptual, not live telemetry. NED horizontal spacing stays
@@ -188,16 +191,9 @@ networked flight-mode request, not a replacement for the pilot's RC takeover.
 
 ### Design persistence workflow
 
-The `Swarm Design` page separates local assignment saves from fleet-wide Git
-write-back during the current compatibility phase:
-
-- `Draft` stays in the browser and never changes the GCS or aircraft.
-- `Apply` writes the current validated `swarm.json` assignment set on the GCS.
-- `Publish` commits and pushes the already-applied plan so nodes can receive it
-  through the repository sync path.
-- A failed commit or push is reported as local-save success plus Git write-back
-  failure, never as complete success.
-- Progress distinguishes the local save, commit, and remote push.
+Use the **Apply plan** and **Save to repo** controls described above. A failed
+repository publication does not undo a successful GCS Apply; retry publication
+without reapplying. Progress distinguishes the GCS save, commit and remote push.
 
 Offset fields accept signed meter values. On mobile, use the normal text
 keyboard if the numeric keyboard does not expose a minus key.

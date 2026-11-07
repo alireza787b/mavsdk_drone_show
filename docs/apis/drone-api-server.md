@@ -550,11 +550,23 @@ The live motion routes are `GET /api/v1/swarm/state` and `WS /ws/swarm-state`.
 They carry independent `global_position_timestamp_ms` and
 `attitude_timestamp_ms` (companion receipt epoch milliseconds). Only a valid
 ATTITUDE message refreshes heading age; heartbeat/position traffic does not.
-`yaw_rate_deg_s` is nullable when unavailable, allowing the follower to derive
-rate from successive heading-source timestamps. Both transports preserve the
+`yaw_rate_deg_s` is Euler heading rate computed from ATTITUDE roll, pitch and
+body-axis rates, not simply body-z angular velocity. It is nullable when
+unavailable, allowing the follower to derive rate from successive heading-source
+timestamps. Heading prediction uses that independent attitude clock and the
+existing bounded prediction horizon. Both transports preserve the
 same fields. Smart Swarm requires fresh finite position and heading; mixed
 versions missing the attitude timestamp must be synchronized before testing.
 See [Smart Swarm motion policy](../features/smart-swarm.md#motion-profile-and-heading-freshness).
+
+The native state also carries `capture_activity` schema version 1: current MDS
+state/mission, PX4 mode, whether a Smart Swarm controller is active, timestamped
+armed/landed evidence and a node-derived `valid_for_ms` lifetime. The GCS subtracts
+round-trip and collection time rather than comparing host wall clocks. Activity
+freshness follows the native MAVLink policy, separately from the faster position
+and heading sample ages. `follow_mode` may describe a saved assignment and is
+not proof that following is active. Consumers must not infer inactivity from
+missing fields on an older node.
 
 **Endpoint:** `GET /api/v1/swarm/config`
 

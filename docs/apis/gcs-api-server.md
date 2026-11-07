@@ -162,6 +162,50 @@ Example reconcile request:
 
 ### Sequential Smart Swarm Return
 
+#### Capture current formation
+
+`POST /api/v1/config/swarm/capture-preview` reads a complete settled cluster into
+an unsaved candidate. It sends no flight commands and writes neither the GCS
+configuration nor Git. It uses native estimator positions, independently dated
+headings and activity evidence; a successful HTTP connection alone is not valid
+capture evidence. Both grounded and settled airborne aircraft are supported;
+active following, pending Start and native recovery/transition modes are not.
+
+The request contains the current `revision`, complete draft `assignments`,
+`cluster_id`, optional `leader_hw_id`, `frame` (`ned` or `body`) and `height_mode`.
+Height mode is `keep` (retain planned relative heights) or `level` (zero relative
+heights). Neither copies measured GNSS height differences. Offsets use Up-positive
+vertical values in both NED and Body. Leader replacement reverses the path to the
+new root; off-path relay branches and unrelated clusters remain intact.
+
+The response contains `capture_id`, `captured_at_ms`, base `revision`, resulting
+`cluster_id`, complete candidate `assignments`, sampled `headings`, frozen
+`observations`, temporary projection `reference`, and explicit `saved:false`,
+`commands_sent:false`. The temporary reference is not a PX4 home or saved show
+origin. The browser may rederive candidate roles/frame/heights from these frozen
+observations; only explicit Refresh takes new measurements.
+
+Typed HTTP 409 failures identify a `code`, actionable `message` and, where
+applicable, `hw_id`. Do not partially apply a failed cluster capture or invent
+heading/position defaults. Old nodes without native capture evidence need updating.
+
+Capture-derived drafts use existing `PUT /api/v1/config/swarm?commit=false` with
+the normal base `revision` and `require_inactive_hw_ids`. This optional precondition
+checks affected old/new dependencies and fresh native activity, and serializes
+the final save against GCS Smart Swarm Start registration. Unknown or active
+aircraft reject without writing; this path does not offer Apply anyway. Normal
+intentional active formation edits retain their existing semantics. This local
+guard is not a distributed flight reservation.
+
+After uncertain Apply responses, read the canonical resource/revision rather than
+resampling or blindly submitting another operation. Repository publication uses
+the existing revision-bound publish endpoint. Preview is an operator API; adding
+it here does not implicitly expose a new Simurgh/MCP tool or grant flight authority.
+
+See the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md).
+
+#### Runtime and return APIs
+
 `GET /api/v1/swarm/runtime/preview` supplies the saved topology revision,
 clusters, runtime mode and advisory per-member telemetry to both operation
 surfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,

@@ -9,6 +9,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm can capture settled aircraft spacing into its existing editable
+  draft, with NED/Body references, explicit leader choice and planned/level
+  heights. Capture is read-only; revision-aware inactive Apply remains separate
+  from Start and repository publication. Linked-view undo includes capture
+  headings and evidence. Illustrated field instructions cover the full workflow.
+- Body following converts body-axis angular rates to heading rate and projects
+  heading from its independent attitude sample clock. Gains, limits and
+  leader-loss policy are unchanged.
+- Overview ages link status independently of HTTP polling success. Offline
+  cards keep a readable link label and no longer claim cached arm/mode/mission
+  states as current.
+
 - Optional LEDs select the legacy PWM/DMA backend only on supported pre-RP1
   Raspberry Pi hardware. CM5/Pi5 and unknown boards avoid its native initialization
   and use the existing SPI backend when available, otherwise no LEDs. This

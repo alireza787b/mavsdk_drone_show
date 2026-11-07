@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 219
+candidate_count: 227
 candidates:
 - callable: false
   classification:
@@ -1518,6 +1518,46 @@ candidates:
     operation_id: get_command_statistics_api_v1_commands_statistics_get
     path: /api/v1/commands/statistics
     summary: Get Command Statistics
+    tags:
+    - Commands
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - keyword:takeoff
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.commands.takeoff.readiness
+  parameters:
+  - description: ''
+    in: query
+    name: target_drone_ids
+    required: true
+    schema:
+      items:
+        type: string
+      title: Target Drone Ids
+      type: array
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: readiness_api_v1_commands_takeoff_readiness_get
+    path: /api/v1/commands/takeoff-readiness
+    summary: Readiness
     tags:
     - Commands
 - callable: false
@@ -4205,6 +4245,39 @@ candidates:
     review_reasons:
     - manual_review_required_before_registry_promotion
   has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.trajectories.formation
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/TrajectoryFormationResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_formation_api_v1_swarm_trajectories_formation_get
+    path: /api/v1/swarm-trajectories/formation
+    summary: Get Formation
+    tags:
+    - Swarm Trajectories
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
   id: candidate.gcs.get.api.v1.swarm.trajectories.leaders
   parameters: []
   promotion_contract:
@@ -4225,6 +4298,38 @@ candidates:
     operation_id: get_swarm_leaders_api_v1_swarm_trajectories_leaders_get
     path: /api/v1/swarm-trajectories/leaders
     summary: Get Swarm Leaders
+    tags:
+    - Swarm Trajectories
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.trajectories.operation
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_operation_api_v1_swarm_trajectories_operation_get
+    path: /api/v1/swarm-trajectories/operation
+    summary: Get Operation
     tags:
     - Swarm Trajectories
 - callable: false
@@ -4480,6 +4585,39 @@ candidates:
     operation_id: validate_processed_package_api_v1_swarm_trajectories_validate_get
     path: /api/v1/swarm-trajectories/validate
     summary: Validate Processed Package
+    tags:
+    - Swarm Trajectories
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.swarm.trajectories.workspace
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/SwarmTrajectoryWorkspaceResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_workspace_api_v1_swarm_trajectories_workspace_get
+    path: /api/v1/swarm-trajectories/workspace
+    summary: Get Workspace
     tags:
     - Swarm Trajectories
 - callable: false
@@ -6220,6 +6358,49 @@ candidates:
     inferred_sensitivity: []
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
+    - keyword:takeoff
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.command.reports.takeoff.stage
+  parameters:
+  - description: ''
+    in: header
+    name: X-MDS-Command-Report-Capability
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: X-Mds-Command-Report-Capability
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/TakeoffStageResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: stage_api_v1_command_reports_takeoff_stage_post
+    path: /api/v1/command-reports/takeoff-stage
+    summary: Stage
+    tags:
+    - Commands
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
     - command/control route
     - non_get_method
     - request_body_present
@@ -6243,6 +6424,46 @@ candidates:
     operation_id: submit_command_api_v1_commands_post
     path: /api/v1/commands
     summary: Submit Command
+    tags:
+    - Commands
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - command/control route
+    - keyword:launch
+    - non_get_method
+  has_request_body: false
+  id: candidate.gcs.post.api.v1.commands.by.command.id.cancel.launch
+  parameters:
+  - description: ''
+    in: path
+    name: command_id
+    required: true
+    schema:
+      title: Command Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: cancel_api_v1_commands__command_id__cancel_launch_post
+    path: /api/v1/commands/{command_id}/cancel-launch
+    summary: Cancel
     tags:
     - Commands
 - callable: false
@@ -6279,6 +6500,41 @@ candidates:
     summary: Validate Config Route
     tags:
     - Configuration
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - configuration
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.config.swarm.capture.preview
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/SwarmCapturePreviewResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: preview_capture_api_v1_config_swarm_capture_preview_post
+    path: /api/v1/config/swarm/capture-preview
+    summary: Preview Capture
+    tags:
+    - Swarm
 - callable: false
   classification:
     default_registry_exposure: exclude
@@ -8425,6 +8681,40 @@ candidates:
     eligible_read_only_mcp_candidate: false
     inferred_risk_class: operate
     inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.put.api.v1.swarm.trajectories.formation
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/TrajectoryFormationResponse'
+  review_status: needs_review
+  source:
+    method: PUT
+    operation_id: save_formation_api_v1_swarm_trajectories_formation_put
+    path: /api/v1/swarm-trajectories/formation
+    summary: Save Formation
+    tags:
+    - Swarm Trajectories
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
     - fleet_identity
     - configuration
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
@@ -8539,15 +8829,15 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 54a4603fa3af6c84264443eb5e95edb0fd01329cec3808581dc9380acfca8c1c
+  openapi_sha256: 0d4f819560e5e9b67c34ba363f7e40558a2f9dc308fc74767e268432800ad3f3
   title: GCS Server API
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 82
-    promoted_eligible_candidate_count: 82
+    eligible_read_only_candidate_count: 85
+    promoted_eligible_candidate_count: 85
     promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
-    registry_route_count: 100
+    registry_route_count: 103
     unpromoted_eligible_by_area: []
     unpromoted_eligible_candidate_count: 0
