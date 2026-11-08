@@ -1,9 +1,11 @@
-import React, { lazy, Suspense, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { FaHistory } from 'react-icons/fa';
 import SwarmFormationCanvas from './SwarmFormationCanvas';
 import DroneGraph from './DroneGraph';
 import FormationNumberInput from './FormationNumberInput';
 import InfoHint from './InfoHint';
 import SwarmFormationSource from './SwarmFormationSource';
+import { ActionIconButton } from './ui/OperatorPrimitives';
 import { aircraftIdentity, buildAircraftLabels, formationReferenceLabel } from '../utilities/swarmDesignPresentation';
 import { buildSwarmViewModel } from '../utilities/swarmDesignUtils';
 import { resolveFormationPositions } from '../utilities/swarmFormationGeometry';
@@ -37,6 +39,7 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
   onCapture, captureDisabled = false,
   previewHeadings = EMPTY_HEADINGS, onHeadingChange, disabled = false }) {
   const model = useMemo(() => buildSwarmViewModel(assignments, configData), [assignments, configData]);
+  const editorRef = useRef(null);
   const [view, setView] = useState('top');
   const [layout, setLayout] = useState('quad');
   const [linkedViews, setLinkedViews] = useState(true);
@@ -92,8 +95,9 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
     if (view === 'links') setView('top');
   };
   return <>
-    <SwarmFormationSource onSaved={onReset} onCapture={() => onCapture?.(scope === 'all' ? null : cluster?.id)}
-      savedCurrent={!canReset} disabled={disabled || !assignments.length}
+    <SwarmFormationSource onPlan={() => editorRef.current?.focus()}
+      onCapture={() => onCapture?.(scope === 'all' ? null : cluster?.id)}
+      disabled={disabled || !assignments.length}
       captureDisabled={!onCapture || captureDisabled || !model.clusters.some(item => item.drones.length > 1)} />
     <div className="formation-workspace">
     <nav className="formation-roster" aria-label="Formation aircraft">
@@ -109,12 +113,15 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
           </button>)}
       </section>)}
     </nav>
-    <section className="formation-stage" aria-label="Formation editor">
+    <section ref={editorRef} tabIndex={-1} className="formation-stage" aria-label="Formation editor">
       <div className="formation-tools">
         <div role="tablist" aria-label="Formation view">{views.map(([id, text]) =>
           <button type="button" role="tab" key={id} aria-selected={layout === 'single' && view === id} onClick={() => chooseView(id)}>{text}</button>)}</div>
-        <div><button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
+        <div className="formation-history" role="group" aria-label="Draft history"><button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
           <button type="button" aria-label="Redo formation edit" disabled={!canRedo || disabled} onClick={onRedo}>↷ Redo</button>
+          <ActionIconButton label="Revert to saved plan" icon={<FaHistory />} className="formation-revert"
+            disabled={!canReset || disabled || !onReset} onClick={onReset}
+            title="Revert all draft edits to the saved plan. Confirmation and Undo are available.">Revert</ActionIconButton>
         </div>
       </div>
       <div className="formation-display-tools">

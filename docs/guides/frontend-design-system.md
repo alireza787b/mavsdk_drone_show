@@ -117,6 +117,10 @@ SPA-local `docs/...` URLs that can 404 behind the dashboard server.
 
 ### Formation capture
 
+Keep planning/capture workflow choices separate from editing commands. Place
+Revert with Undo/Redo, never use a setup selector as a disguised reset. Both
+workflows share one draft and retain explicit Use capture / Apply boundaries.
+
 Use a dominant read-only scene with identifiable aircraft silhouettes and one
 short primary action. Default to interactive 3D; expose flat views beside it,
 not as extra permanent panels. Mouse, touch and keyboard camera controls must

@@ -329,7 +329,7 @@ export default function SwarmOperations() {
           onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /></button>
       </header>
       <SwarmFormationSource
-        savedHref={`/swarm-design?tab=formation&plan=saved${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
+        planHref={`/swarm-design?tab=formation${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         disabled={busy} captureDisabled={!cluster || members.length < 2} />
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}

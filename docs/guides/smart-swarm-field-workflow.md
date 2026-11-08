@@ -20,8 +20,9 @@ also turn their own noses toward the followed aircraft's heading.
 ## Prepare a planned formation
 
 1. Open **Smart Swarm → Design** and select the intended cluster. The **Formation**
-   strip provides **Saved plan** (restore arrow) and **Capture positions**
-   (aircraft/crosshair symbol). Keep the saved plan for ordinary planned flights.
+   strip provides **Plan formation** (layout symbol) and **Capture positions**
+   (aircraft/crosshair symbol). Planning starts from the saved layout or your
+   existing draft; it does not reset your work.
 2. Check the leader and each **Follows** relationship. Aircraft labels identify
    physical hardware; changing mission slots does not change these relationships.
 3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields
@@ -39,13 +40,19 @@ also turn their own noses toward the followed aircraft's heading.
 session. Repository publication and effective aircraft adoption are reported
 separately; neither means that aircraft have reached their target positions.
 
-**Saved plan** refers to the applied plan loaded from the GCS, not a new repository
-pull. Choosing it after editing confirms replacement of the draft; **Undo** can
-restore those edits. **Capture positions** previews measurements into that same
-draft. These are starting actions, not two flight-control modes. Operate exposes
-the same two shortcuts while keeping Takeoff and Start Swarm separate.
+**Plan formation** opens the editable workspace. **Capture positions** previews
+measurements and adds them to that same draft only after **Use capture**. Switching
+setup workflows does not discard edits. These are setup modes, not flight-control
+modes; Takeoff and Start Swarm remain separate.
 
-![Formation starting actions: Saved plan and Capture positions](../assets/smart-swarm/formation-start.png)
+**Revert** is a separate restore-arrow action beside **Undo / Redo**. It replaces
+the draft with the saved GCS plan after confirmation, and remains undoable. It is
+always visible, disabled when there is nothing to revert. It does not pull Git,
+start capture, Apply, or change which setup workflow is open.
+
+![Formation setup: Plan formation and Capture positions](../assets/smart-swarm/formation-start.png)
+
+![Revert is separate from setup, beside Undo and Redo](../assets/smart-swarm/formation-edit-tools.png)
 
 An older browser draft is optional under the collapsed **Unsaved draft** control.
 **Restore draft** opens it for review, with Undo; **Discard draft** keeps the saved

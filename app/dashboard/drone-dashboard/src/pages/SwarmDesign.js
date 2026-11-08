@@ -551,8 +551,8 @@ function SwarmDesign() {
     }
 
     setConfirmDialog({
-      title: 'Use saved plan?',
-      confirmLabel: 'Use saved plan',
+      title: 'Revert to saved plan?',
+      confirmLabel: 'Revert draft',
       message: (
         <p>Replace {dirtyIds.length} draft change{dirtyIds.length === 1 ? '' : 's'} with the saved plan? Undo remains available.</p>
       ),
@@ -562,7 +562,7 @@ function SwarmDesign() {
         try { window.localStorage.removeItem(DRAFT_KEY); } catch { setDraftStorageError(true); }
         setSaveReport(null);
         setSaveProgress(null);
-        toast.info('Saved plan loaded. Undo is available.');
+        toast.info('Draft reverted. Undo is available.');
       },
     });
   };

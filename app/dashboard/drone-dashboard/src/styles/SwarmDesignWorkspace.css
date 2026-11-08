@@ -15,6 +15,9 @@
 .formation-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-border-primary); padding:0 8px; gap:8px; }
 .formation-tools button { padding:10px; font-size:.8rem; border-bottom:2px solid transparent; }
 .formation-tools button[aria-selected=true] { color:var(--color-text-primary); border-bottom-color:var(--color-info); }
+.formation-history { display:flex; align-items:center; gap:var(--spacing-xs); }
+.formation-tools .formation-revert { border-inline-start:1px solid var(--color-border-primary); margin-inline-start:var(--spacing-xs); min-width:44px; min-height:44px; }
+.formation-stage:focus-visible { outline:2px solid var(--color-info); outline-offset:-2px; }
 .formation-inspector { position:relative; z-index:var(--z-popover); min-width:0; overflow:visible; border-left:1px solid var(--color-border-primary); padding:16px; }
 .formation-inspector header { display:flex; flex-direction:column; gap:4px; margin-bottom:20px; }
 .formation-inspector header span,.formation-preview-note { font-size:.75rem; color:var(--color-text-secondary); }

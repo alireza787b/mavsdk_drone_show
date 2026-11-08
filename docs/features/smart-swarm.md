@@ -6,10 +6,11 @@
 
 ## Overview
 
-Design and Operate expose a compact graphical **Formation** strip: **Saved plan**
-reviews the applied GCS layout; **Capture positions** previews settled aircraft
-spacing into an editable draft. These do not select a live flight mode, pull a
-repository, apply changes or launch aircraft. Apply and Start remain explicit.
+Design and Operate expose a compact graphical **Formation** strip: **Plan formation**
+opens the editable saved layout or existing draft; **Capture positions** previews
+settled aircraft spacing. These setup workflows share one draft and never silently
+reset it. **Revert** is a separate history action. Neither workflow selects a live
+flight mode, pulls a repository, applies changes or launches aircraft. Apply and Start remain explicit.
 Optional browser recovery lives under **Unsaved draft**, not a blocking banner.
 
 Smart Swarm is the live, cooperative formation mode in MDS. Each drone uses a saved swarm assignment file:
@@ -136,7 +137,7 @@ write access is available. An already-applied plan is published without reapplyi
 Repository failure does not undo a successful Apply; retry saves to the repo only.
 These outcomes are separate from aircraft synchronization; the page reports
 each outcome independently. Import and export remain under the Files menu.
-**Saved plan** restores the last loaded/applied GCS plan locally after confirmation
+The separate **Revert** icon restores the last loaded/applied GCS plan locally after confirmation
 and is undoable; **Undo** reverses the last complete edit or drag.
 
 **Four views** is the default and shows Top, Front, Side and 3D together; a panel

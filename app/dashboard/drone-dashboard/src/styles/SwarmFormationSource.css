@@ -1,14 +1,12 @@
 .formation-source { display:flex; align-items:center; flex-wrap:wrap; gap:var(--spacing-sm); padding-block:var(--spacing-sm); border-bottom:1px solid var(--color-border-primary); min-width:0; }
 .formation-source__label { margin-right:var(--spacing-sm); font-size:var(--font-size-sm); font-weight:var(--font-weight-bold); color:var(--color-text-secondary); }
 .formation-source .formation-source__action { min-height:48px; border-radius:2px; box-shadow:none; text-decoration:none; background:var(--color-bg-primary); color:var(--color-text-primary); border:1px solid var(--color-border-primary); padding:var(--spacing-sm) var(--spacing-md); }
-.formation-source .formation-source__action.is-current { border-bottom:2px solid var(--color-info); }
 .formation-source .formation-source__action:hover:not(:disabled):not([aria-disabled=true]) { background:var(--color-bg-tertiary); }
 .formation-source .formation-source__action:focus-visible { outline:2px solid var(--color-info); outline-offset:2px; }
 .formation-source .formation-source__action[aria-disabled=true] { opacity:.4; cursor:default; }
 .formation-source .operator-action-icon-button__icon { width:32px; height:26px; }
 .formation-source .operator-action-icon-button__icon > svg { width:100%; height:100%; }
 .formation-source .operator-action-icon-button__text { display:inline-flex; align-items:center; gap:var(--spacing-sm); }
-.formation-source .formation-source__check { width:12px; height:12px; color:var(--color-info); }
 .formation-source .formation-source__crosshair { fill:none; stroke:currentColor; stroke-width:2; }
 .formation-source .aircraft-silhouette { fill:currentColor; }
 .formation-source .aircraft-silhouette__arms { fill:none; stroke:currentColor; stroke-width:4; }

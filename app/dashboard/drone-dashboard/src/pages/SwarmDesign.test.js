@@ -261,15 +261,36 @@ test('unreachable acknowledgement continues the entire Save to repo workflow', a
   await waitFor(() => expect(publishSwarmConfigResponse).toHaveBeenCalledWith('revision-2'));
 });
 
-test('Saved plan is confirmed, local-only and undoable', async () => {
-  renderPage(); await editNorth('9'); fireEvent.click(screen.getByRole('button', { name: 'Saved plan' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Use saved plan?' });
+test('separate Revert icon is confirmed, local-only and undoable', async () => {
+  renderPage(); await editNorth('9'); fireEvent.click(screen.getByRole('button', { name: 'Revert to saved plan' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Revert to saved plan?' });
   expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Use saved plan' }));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Revert draft' }));
   expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(6);
   fireEvent.click(screen.getByRole('button', { name: 'Undo formation edit' }));
   expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
   expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
+
+test('planning and capture do not implicitly revert the current draft', async () => {
+  renderPage(); await editNorth('9');
+  const source = screen.getByRole('group', { name: 'Formation starting point' });
+  expect(within(source).queryByRole('button', { name: /Revert/ })).not.toBeInTheDocument();
+  fireEvent.click(within(source).getByRole('button', { name: 'Plan formation' }));
+  expect(screen.getByRole('region', { name: 'Formation editor' })).toHaveFocus();
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(within(source).getByRole('button', { name: 'Capture positions' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByRole('spinbutton', { name: 'offset_x metres' })).toHaveValue(9);
+  expect(saveSwarmConfigResponse).not.toHaveBeenCalled();
+});
+
+test('Revert remains visible but disabled when the plan has no edits', async () => {
+  renderPage(); await selectFollower();
+  expect(screen.getByRole('button', { name: 'Revert to saved plan' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Revert to saved plan' })).toBeDisabled();
 });
 
 test('Four views share the selected draft without dispatching or publishing', async () => {

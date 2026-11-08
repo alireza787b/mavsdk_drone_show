@@ -75,8 +75,8 @@ test('finishing takeoff automatically enables confirmation but never sends Start
 test('formation setup links are visible, scoped and never dispatch a command', async () => {
   await mounted();
   const source = screen.getByRole('group', { name: 'Formation starting point' });
-  expect(within(source).getByRole('link', { name: 'Saved plan' }))
-    .toHaveAttribute('href', '/swarm-design?tab=formation&plan=saved&drone=1');
+  expect(within(source).getByRole('link', { name: 'Plan formation' }))
+    .toHaveAttribute('href', '/swarm-design?tab=formation&drone=1');
   expect(within(source).getByRole('link', { name: 'Capture positions' }))
     .toHaveAttribute('href', '/swarm-design?tab=formation&capture=1&drone=1');
   expect(screen.queryByRole('link', { name: 'Capture spacing' })).not.toBeInTheDocument();
@@ -260,7 +260,7 @@ test('Globe stays in overflow and setup links are not duplicated there', async (
   fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
   expect(screen.getByRole('link', { name: 'Globe' })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Design Swarm' })).not.toBeInTheDocument();
-  expect(screen.getAllByRole('link', { name: 'Saved plan' })).toHaveLength(1);
+  expect(screen.getAllByRole('link', { name: 'Plan formation' })).toHaveLength(1);
 });
 
 test('a newer mission removes an old Hold receipt presentation', async () => {
