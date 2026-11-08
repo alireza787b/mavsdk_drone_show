@@ -7,6 +7,7 @@ import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/SwarmFormation3D.css';
 
 const EMPTY = {};
+const DEFAULT_MOVEMENT_PLANE = 'all';
 
 function Aircraft({ label, selected, leader, colors, onSelect }) {
   return <>
@@ -23,7 +24,7 @@ function Aircraft({ label, selected, leader, colors, onSelect }) {
   </>;
 }
 
-export function EditableAircraft({ assignment, position, parentPosition, previewHeadings, onAssignmentChange, onEditBegin, onEditEnd, plane = 'horizontal', viewFrame = 'ned', viewHeading = 0, children }) {
+export function EditableAircraft({ assignment, position, parentPosition, previewHeadings, onAssignmentChange, onEditBegin, onEditEnd, plane = DEFAULT_MOVEMENT_PLANE, viewFrame = 'ned', viewHeading = 0, children }) {
   const transform = useRef();
   const aircraft = useRef();
   const dragging = useRef(false);
@@ -160,7 +161,7 @@ class SceneBoundary extends React.Component {
 /** Lazy-load this component from Design; it has no network or aircraft side effects. */
 export default function SwarmFormation3D({ assignments, configData = [], selectedId, onSelect, onAssignmentChange, previewHeadings = EMPTY, onEditBegin, onEditEnd, clusterId, viewFrame = 'ned', viewHeading = 0, aircraftLabels = EMPTY, compact = false, linkedViews = false, viewportCommand = null, onViewportCommand }) {
   const [fitRequest, setFitRequest] = useState(0);
-  const [plane, setPlane] = useState('horizontal');
+  const [plane, setPlane] = useState(DEFAULT_MOVEMENT_PLANE);
   const [editing, setEditing] = useState(false);
   const [zoomRequest, setZoomRequest] = useState({ sequence: 0, factor: 1 });
   const [focusRequest, setFocusRequest] = useState(0);
@@ -195,7 +196,7 @@ export default function SwarmFormation3D({ assignments, configData = [], selecte
       <button type="button" disabled={editing} aria-label="Zoom 3D view out" onClick={() => linkedViews ? onViewportCommand?.('zoom-out') : zoom(1.25)}>−</button>
       <button type="button" disabled={editing || !selectedId} onClick={() => linkedViews ? onViewportCommand?.('focus') : setFocusRequest((value) => value + 1)}>Focus</button>
       <label className="swarm-formation-3d__plane">Move <select aria-label="3D movement plane" value={plane} disabled={editing} onChange={(event) => setPlane(event.target.value)}>
-        <option value="horizontal">{axes.axis1} / {axes.axis2}</option><option value="east-up">{axes.axis2} / Up</option><option value="north-up">{axes.axis1} / Up</option>
+        <option value="all">All directions</option><option value="horizontal">{axes.axis1} / {axes.axis2}</option><option value="east-up">{axes.axis2} / Up</option><option value="north-up">{axes.axis1} / Up</option>
       </select></label>
     </div>
     {geometry.error ? <p role="status">Resolve the follow chain to preview this formation.</p>

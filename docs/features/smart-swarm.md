@@ -146,8 +146,10 @@ All views use the selected aircraft's reference: North/East for NED, or the
 followed aircraft's Forward/Right axes at its explicit preview heading for Body.
 Top changes both horizontal axes; Front changes East/Right and Up; Side changes
 North/Forward and Up. Viewing orientation never changes saved offsets.
-The 3D move tool
-offers constrained Horizontal, East/Up and North/Up planes. Roots are fixed local
+The 3D move tool starts with **All directions**, so a selected follower has
+horizontal and Up handles. **Move** also offers optional horizontal and vertical
+plane restrictions. Height edits update **Above** in the same undoable draft;
+no flight command is sent. Roots are fixed local
 origins, not geographic destinations. A changed relay moves its dependent branch;
 children retain their relative offsets. Frame changes and reparenting within one
 cluster preserve preview positions. Joining independent clusters requires a separate

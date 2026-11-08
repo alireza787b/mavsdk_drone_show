@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaCheck, FaProjectDiagram } from 'react-icons/fa';
+import { FaCheck, FaUndoAlt } from 'react-icons/fa';
 import { AircraftSilhouette } from './SwarmAircraftSymbol';
 import { ActionIconButton } from './ui/OperatorPrimitives';
 import '../styles/SwarmFormationSource.css';
@@ -29,9 +29,9 @@ export default function SwarmFormationSource({ onSaved, onCapture, savedHref, ca
   savedCurrent = false, disabled = false, captureDisabled = false }) {
   return <div className="formation-source" role="group" aria-label="Formation starting point">
     <span className="formation-source__label">Formation</span>
-    <SourceAction label="Saved plan" icon={<FaProjectDiagram />} onClick={onSaved} href={savedHref}
+    <SourceAction label="Saved plan" icon={<FaUndoAlt />} onClick={onSaved} href={savedHref}
       disabled={disabled} current={savedCurrent}
-      help="Use the saved plan loaded by this editor. This does not pull from the repository or send a flight command." />
+      help="Restore the saved plan loaded by this editor. Undo remains available in Design. This does not pull from the repository or send a flight command." />
     <SourceAction label="Capture positions" icon={<CaptureSymbol />} onClick={onCapture} href={captureHref}
       disabled={disabled || captureDisabled}
       help="Preview current aircraft spacing, then choose whether to use it. No flight command is sent." />

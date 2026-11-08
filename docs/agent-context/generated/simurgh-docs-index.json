@@ -1,5 +1,5 @@
 {
-  "chunk_count": 829,
+  "chunk_count": 830,
   "chunks": [
     {
       "audience": "operator",
@@ -1701,7 +1701,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "d7ebae0510fbef040ba4af93b7ed2840e1562cdb40e03440fdd30bb8d49f2036",
+      "content_hash": "281da299a5fa817bbda098581a11869ad12994b8de2a6e211d26c7462cac0bbe",
       "heading": "Prepare a planned formation",
       "id": "mds.smart_swarm_operator_workflow:003-01-prepare-a-planned-formation",
       "links": [],
@@ -1716,7 +1716,28 @@
         "formation",
         "capture"
       ],
-      "text": "## Prepare a planned formation\n\n1. Open **Smart Swarm → Design** and select the intended cluster. The **Formation**\n strip provides **Saved plan** (layout symbol) and **Capture positions**\n (aircraft/crosshair symbol). Keep the saved plan for ordinary planned flights.\n2. Check the leader and each **Follows** relationship. Aircraft labels identify\n physical hardware; changing mission slots does not change these relationships.\n3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields\n or drag the aircraft in the linked views. Leader-relative values are Forward,\n Right and Above.\n4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.\n Preview heading changes the drawing only; it does not command yaw.\n If the device cannot display 3D, use the linked 2D views and spacing fields.\n5. Choose **Apply plan**. Use **Save to repo** when the formation should also be\n published for fleet startup synchronization.\n\n**Apply plan** persists on this GCS until replaced. It is not a temporary flight\nsession. Repository publication and effective aircraft adoption are reported\nseparately; neither means that aircraft have reached their target positions.\n\n**Saved plan** refers to the applied plan loaded from the GCS, not a new repository\npull. Choosing it after editing confirms replacement of the draft; **Undo** can\nrestore those edits. **Capture positions** previews measurements into that same\ndraft. These are starting actions, not two flight-control modes. Operate exposes\nthe same two shortcuts while keeping Takeoff and Start Swarm separate.\n\n![Formation starting actions: Saved plan and Capture positions](../assets/smart-swarm/formation-start.png)\n\nAn older browser draft is optional under the collapsed **Unsaved draft** control.\n**Restore draft** opens it for review, with Undo; **Discard draft** keeps the saved\nplan. Neither action applies a plan or sends a command. A draft already matching\nthe applied plan does not raise a recovery notice.\n\n![Optional draft recovery with styled Restore and Discard controls](../assets/smart-swarm/formation-draft-recovery.png)",
+      "text": "## Prepare a planned formation\n\n1. Open **Smart Swarm → Design** and select the intended cluster. The **Formation**\n strip provides **Saved plan** (restore arrow) and **Capture positions**\n (aircraft/crosshair symbol). Keep the saved plan for ordinary planned flights.\n2. Check the leader and each **Follows** relationship. Aircraft labels identify\n physical hardware; changing mission slots does not change these relationships.\n3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields\n or drag the aircraft in the linked views. Leader-relative values are Forward,\n Right and Above.\n4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.\n Preview heading changes the drawing only; it does not command yaw.\n If the device cannot display 3D, use the linked 2D views and spacing fields.\n In editable 3D, select a follower and drag its Up arrow to edit Above; all\n directions are available by default. Move-plane restrictions are optional.\n5. Choose **Apply plan**. Use **Save to repo** when the formation should also be\n published for fleet startup synchronization.\n\n**Apply plan** persists on this GCS until replaced. It is not a temporary flight\nsession. Repository publication and effective aircraft adoption are reported\nseparately; neither means that aircraft have reached their target positions.\n\n**Saved plan** refers to the applied plan loaded from the GCS, not a new repository\npull. Choosing it after editing confirms replacement of the draft; **Undo** can\nrestore those edits. **Capture positions** previews measurements into that same\ndraft. These are starting actions, not two flight-control modes. Operate exposes\nthe same two shortcuts while keeping Takeoff and Start Swarm separate.\n\n![Formation starting actions: Saved plan and Capture positions](../assets/smart-swarm/formation-start.png)\n\nAn older browser draft is optional under the collapsed **Unsaved draft** control.\n**Restore draft** opens it for review, with Undo; **Discard draft** keeps the saved\nplan. Neither action applies a plan or sends a command. A draft already matching\nthe applied plan does not raise a recovery notice.",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "cf8d2a018e31d72383bdf38db64b3914e003b947b9fff08a7dc84047cff72b53",
+      "heading": "Prepare a planned formation",
+      "id": "mds.smart_swarm_operator_workflow:003-02-prepare-a-planned-formation",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "![Optional draft recovery with styled Restore and Discard controls](../assets/smart-swarm/formation-draft-recovery.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -16354,8 +16375,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "chunk_count": 11,
-      "content_hash": "5a4ecc1e5e25349d3073abdb5fab5bdae94a5c63ca0712e8814156453a9becea",
+      "chunk_count": 12,
+      "content_hash": "ac7e244bb5383c5b7732b090c0e66ebca778139f56dd90deffd153faf34161bc",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",

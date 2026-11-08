@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Swarm Design 3D starts with all movement axes visible, including Up. Horizontal
+  and vertical plane locks remain optional; dragging still edits the local draft
+  only and follows the same NED/Body and undo/cancel contracts. The always-visible
+  Saved plan action uses a restore-arrow icon; Undo remains a separate draft edit.
 - Smart Swarm exposes graphical Saved plan / Capture positions starting actions
   in Design and Operate. Recovery is a compact optional Unsaved draft control
   using shared button styles; restoring legacy browser drafts preserves follow

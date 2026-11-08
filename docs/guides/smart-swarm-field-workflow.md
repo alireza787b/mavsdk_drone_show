@@ -20,7 +20,7 @@ also turn their own noses toward the followed aircraft's heading.
 ## Prepare a planned formation
 
 1. Open **Smart Swarm → Design** and select the intended cluster. The **Formation**
-   strip provides **Saved plan** (layout symbol) and **Capture positions**
+   strip provides **Saved plan** (restore arrow) and **Capture positions**
    (aircraft/crosshair symbol). Keep the saved plan for ordinary planned flights.
 2. Check the leader and each **Follows** relationship. Aircraft labels identify
    physical hardware; changing mission slots does not change these relationships.
@@ -30,6 +30,8 @@ also turn their own noses toward the followed aircraft's heading.
 4. Review Top, Front, Side and 3D. **Links** shows relationships, not distances.
    Preview heading changes the drawing only; it does not command yaw.
    If the device cannot display 3D, use the linked 2D views and spacing fields.
+   In editable 3D, select a follower and drag its Up arrow to edit Above; all
+   directions are available by default. Move-plane restrictions are optional.
 5. Choose **Apply plan**. Use **Save to repo** when the formation should also be
    published for fleet startup synchronization.
 

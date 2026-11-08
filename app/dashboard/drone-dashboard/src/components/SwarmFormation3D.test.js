@@ -1,18 +1,21 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { EditableAircraft } from './SwarmFormation3D';
+import SwarmFormation3D, { EditableAircraft } from './SwarmFormation3D';
+import { formationToScene, relativeToWorld } from '../utilities/swarmFormationGeometry';
 
 const mockReset = jest.fn();
 const mockAttachments = [];
+let mockPosition;
 jest.mock('@react-three/fiber', () => ({ Canvas: () => null, useThree: jest.fn() }));
 jest.mock('@react-three/drei', () => {
   const React = require('react');
   return {
     Html: () => null, Line: () => null, OrbitControls: () => null,
-    TransformControls: React.forwardRef(({ onMouseDown, onMouseUp, onObjectChange, object, children }, ref) => {
+    TransformControls: React.forwardRef(({ onMouseDown, onMouseUp, onObjectChange, object, children, showX, showY, showZ }, ref) => {
       mockAttachments.push(object);
-      React.useImperativeHandle(ref, () => ({ object: { position: { x: 5, y: 8, z: -10 } }, reset: mockReset }));
-      return <div data-testid="gizmo" data-explicit-object={Boolean(object)} data-has-children={Boolean(children)}>
+      React.useImperativeHandle(ref, () => ({ object: { position: mockPosition }, reset: mockReset }));
+      return <div data-testid="gizmo" data-explicit-object={Boolean(object)} data-has-children={Boolean(children)}
+        data-axis-x={showX} data-axis-y={showY} data-axis-z={showZ}>
         <button onClick={onMouseDown}>Begin</button><button onClick={onObjectChange}>Move</button>
         <button onClick={onMouseUp}>End</button>{children}
       </div>;
@@ -28,7 +31,51 @@ function setup(props = {}) {
   return callbacks;
 }
 
-beforeEach(() => { jest.clearAllMocks(); mockAttachments.length = 0; });
+beforeEach(() => { jest.clearAllMocks(); mockAttachments.length = 0; mockPosition = { x: 5, y: 8, z: -10 }; });
+
+test('the editor opens with all directions, including the vertical handle', () => {
+  render(<SwarmFormation3D assignments={[
+    { hw_id: '1', follow: '0', frame: 'ned', offset_x: 0, offset_y: 0, offset_z: 0 },
+    { hw_id: '2', follow: '1', frame: 'ned', offset_x: 6, offset_y: 2, offset_z: 1 },
+  ]} selectedId="2" onSelect={jest.fn()} onAssignmentChange={jest.fn()} />);
+  expect(screen.getByRole('combobox', { name: '3D movement plane' })).toHaveValue('all');
+  expect(screen.getByRole('option', { name: 'All directions' })).toBeInTheDocument();
+});
+
+test('all three handles are visible by default; plane locks are deliberate', () => {
+  const instance = setup();
+  for (const axis of ['x', 'y', 'z']) expect(screen.getByTestId('gizmo')).toHaveAttribute(`data-axis-${axis}`, 'true');
+  expect(instance.onAssignmentChange).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['horizontal', true, false, true], ['east-up', true, true, false], ['north-up', false, true, true],
+])('explicit %s plane retains the corresponding axes', (plane, x, y, z) => {
+  setup({ plane });
+  for (const [axis, visible] of [['x', x], ['y', y], ['z', z]]) {
+    expect(screen.getByTestId('gizmo')).toHaveAttribute(`data-axis-${axis}`, String(visible));
+  }
+});
+
+test.each(['ned', 'body'])('a vertical-only %s drag changes Above, not horizontal spacing', frame => {
+  const heading = frame === 'body' ? 67 : 0;
+  const assignment = { hw_id: '2', follow: '1', frame, offset_x: 6, offset_y: -2, offset_z: 1 };
+  const parentPosition = { north: 10, east: 20, up: 3 };
+  const offset = relativeToWorld(assignment, heading);
+  const position = { north: parentPosition.north + offset.north, east: parentPosition.east + offset.east, up: 4 };
+  const [x, y, z] = formationToScene(position, frame, heading);
+  mockPosition = { x, y, z };
+  const callbacks = setup({ assignment, position, parentPosition, previewHeadings: { 1: heading }, viewFrame: frame, viewHeading: heading });
+  fireEvent.click(screen.getByText('Begin'));
+  mockPosition.y += 2;
+  fireEvent.click(screen.getByText('Move'));
+  const patch = callbacks.onAssignmentChange.mock.calls[0][1];
+  expect(patch.offset_x).toBeCloseTo(6);
+  expect(patch.offset_y).toBeCloseTo(-2);
+  expect(patch.offset_z).toBeCloseTo(3);
+  fireEvent.click(screen.getByText('End'));
+  expect(callbacks.onEditEnd).toHaveBeenCalledWith({ cancelled: false });
+});
 
 test('3D handles use the aircraft position, convert axes and emit only deliberate drag edits', () => {
   const callbacks = setup();
