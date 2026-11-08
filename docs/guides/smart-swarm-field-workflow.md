@@ -19,7 +19,9 @@ also turn their own noses toward the followed aircraft's heading.
 
 ## Prepare a planned formation
 
-1. Open **Smart Swarm → Design** and select the intended cluster.
+1. Open **Smart Swarm → Design** and select the intended cluster. The **Formation**
+   strip provides **Saved plan** (layout symbol) and **Capture positions**
+   (aircraft/crosshair symbol). Keep the saved plan for ordinary planned flights.
 2. Check the leader and each **Follows** relationship. Aircraft labels identify
    physical hardware; changing mission slots does not change these relationships.
 3. Select **Geographic** or **Leader-relative**, then edit spacing using the fields
@@ -35,6 +37,21 @@ also turn their own noses toward the followed aircraft's heading.
 session. Repository publication and effective aircraft adoption are reported
 separately; neither means that aircraft have reached their target positions.
 
+**Saved plan** refers to the applied plan loaded from the GCS, not a new repository
+pull. Choosing it after editing confirms replacement of the draft; **Undo** can
+restore those edits. **Capture positions** previews measurements into that same
+draft. These are starting actions, not two flight-control modes. Operate exposes
+the same two shortcuts while keeping Takeoff and Start Swarm separate.
+
+![Formation starting actions: Saved plan and Capture positions](../assets/smart-swarm/formation-start.png)
+
+An older browser draft is optional under the collapsed **Unsaved draft** control.
+**Restore draft** opens it for review, with Undo; **Discard draft** keeps the saved
+plan. Neither action applies a plan or sends a command. A draft already matching
+the applied plan does not raise a recovery notice.
+
+![Optional draft recovery with styled Restore and Discard controls](../assets/smart-swarm/formation-draft-recovery.png)
+
 ## Capture the spacing already on the field
 
 Use capture while all aircraft in the selected cluster are stationary on the
@@ -43,9 +60,9 @@ capture. Leave room for independent aircraft operation; the following procedure
 does not control cable tension or a shared suspended load.
 
 1. Place the aircraft, or establish a stable hover using the normal pilot controls.
-2. In **Design**, select **Capture**. With one cluster it opens automatically;
+2. In **Design**, select **Capture positions**. With one cluster it opens automatically;
    there is no extra aircraft or cluster selection.
-   You can also use **Capture spacing** from Operate's secondary actions.
+   The same **Capture positions** shortcut is visible directly in Operate.
 3. Inspect the **3D** formation. Drag to orbit; right-drag or Shift-drag to pan.
    On touch, one finger orbits, two fingers pan and pinch zooms. Fit restores
    the whole view. **Top / Front / Side** give flat views without changing spacing.

@@ -9,6 +9,7 @@ import { holdNodeStatus, memberFlightState, memberLabel, movementSummary } from 
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
+import SwarmFormationSource from './SwarmFormationSource';
 import TakeoffDialog from './TakeoffDialog';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
 import { swarmStartReadiness, swarmStartValidUntil } from '../utilities/swarmStartReadiness';
@@ -327,6 +328,10 @@ export default function SwarmOperations() {
           aria-label="Other actions" title="Other actions" aria-expanded={advanced}
           onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /></button>
       </header>
+      <SwarmFormationSource
+        savedHref={`/swarm-design?tab=formation&plan=saved${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
+        captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
+        disabled={busy} captureDisabled={!cluster || members.length < 2} />
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
         statuses={Object.fromEntries(members.map((m) => {
           const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
@@ -357,8 +362,6 @@ export default function SwarmOperations() {
           }} />
       </div>
       {advanced && <div className="swarm-ops__advanced">
-        <a href="/swarm-design?tab=formation">Design Swarm</a>
-        {cluster && <a href={`/swarm-design?tab=formation&capture=1&drone=${encodeURIComponent(cluster.cluster_id)}`}>Capture spacing</a>}
         <a href="/globe-view">Globe</a>
         <label>Recovery targets <select aria-label="Recovery targets" value={individual} onChange={(e) => setIndividual(e.target.value)}>
           <option value="">Entire cluster</option>{members.map((m) => <option key={m.hw_id} value={m.hw_id}>{memberLabel(m)} only</option>)}

@@ -72,6 +72,17 @@ test('finishing takeoff automatically enables confirmation but never sends Start
   } finally { jest.useRealTimers(); }
 });
 
+test('formation setup links are visible, scoped and never dispatch a command', async () => {
+  await mounted();
+  const source = screen.getByRole('group', { name: 'Formation starting point' });
+  expect(within(source).getByRole('link', { name: 'Saved plan' }))
+    .toHaveAttribute('href', '/swarm-design?tab=formation&plan=saved&drone=1');
+  expect(within(source).getByRole('link', { name: 'Capture positions' }))
+    .toHaveAttribute('href', '/swarm-design?tab=formation&capture=1&drone=1');
+  expect(screen.queryByRole('link', { name: 'Capture spacing' })).not.toBeInTheDocument();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+});
+
 test('stale or absent node evidence cannot enable Start', async () => {
   fetchGcsResource.mockResolvedValue({ data: { ...preview, start_admissions: {} } });
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Start Swarm' }));
@@ -243,12 +254,13 @@ test('a terminal swarm cannot keep displaying Following after recovery', async (
   expect(screen.getByRole('button', { name: 'Start Swarm' })).toBeEnabled();
 });
 
-test('navigation links are in the overflow, not repeated on the main surface', async () => {
+test('Globe stays in overflow and setup links are not duplicated there', async () => {
   await mounted();
   expect(screen.queryByRole('link', { name: 'Globe' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
   expect(screen.getByRole('link', { name: 'Globe' })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Design Swarm' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Design Swarm' })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: 'Saved plan' })).toHaveLength(1);
 });
 
 test('a newer mission removes an old Hold receipt presentation', async () => {

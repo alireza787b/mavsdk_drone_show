@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm exposes graphical Saved plan / Capture positions starting actions
+  in Design and Operate. Recovery is a compact optional Unsaved draft control
+  using shared button styles; restoring legacy browser drafts preserves follow
+  relationships, and equivalent/applied drafts no longer trigger false conflicts.
+  Plan application and mission execution remain separate explicit actions.
 - Capture opens in lightweight interactive 3D with aircraft silhouettes, camera
   controls and Top/Front/Side views. Height choices use diagrams; leader/reference
   controls are collapsed. Native capture recommends Same height on the ground

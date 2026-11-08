@@ -34,6 +34,10 @@ Do not assume the environment. Detect it first.
   two-epoch recommendation. Never infer grounded/airborne from armed alone or
   silently zero mixed/unknown aircraft heights. Preserve deliberate operator
   choices on Refresh; camera gestures never edit capture geometry.
+- Treat saved-plan and current-position capture as draft starting actions, not
+  live flight modes. Browser recovery must preserve follow relationships and
+  capture guards, including legacy draft arrays. Compare normalized plan content,
+  not serialization order, before presenting a draft conflict.
 - Distinguish Linux maintenance SSH keys, GitHub account keys and repository
   deploy keys. Never infer read-only scope from a filename or pull-only usage;
   verify authorization before copying or rotating credentials. Keep per-node

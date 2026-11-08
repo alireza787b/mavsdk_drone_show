@@ -3,6 +3,7 @@ import SwarmFormationCanvas from './SwarmFormationCanvas';
 import DroneGraph from './DroneGraph';
 import FormationNumberInput from './FormationNumberInput';
 import InfoHint from './InfoHint';
+import SwarmFormationSource from './SwarmFormationSource';
 import { aircraftIdentity, buildAircraftLabels, formationReferenceLabel } from '../utilities/swarmDesignPresentation';
 import { buildSwarmViewModel } from '../utilities/swarmDesignUtils';
 import { resolveFormationPositions } from '../utilities/swarmFormationGeometry';
@@ -90,7 +91,11 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
     if (next === 'quad') setVisitedViews((previous) => new Set([...previous, 'top', 'front', 'side', '3d']));
     if (view === 'links') setView('top');
   };
-  return <div className="formation-workspace">
+  return <>
+    <SwarmFormationSource onSaved={onReset} onCapture={() => onCapture?.(scope === 'all' ? null : cluster?.id)}
+      savedCurrent={!canReset} disabled={disabled || !assignments.length}
+      captureDisabled={!onCapture || captureDisabled || !model.clusters.some(item => item.drones.length > 1)} />
+    <div className="formation-workspace">
     <nav className="formation-roster" aria-label="Formation aircraft">
       <label className="formation-search">
         <input type="search" aria-label="Find aircraft" placeholder="Find aircraft" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
@@ -108,11 +113,9 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
       <div className="formation-tools">
         <div role="tablist" aria-label="Formation view">{views.map(([id, text]) =>
           <button type="button" role="tab" key={id} aria-selected={layout === 'single' && view === id} onClick={() => chooseView(id)}>{text}</button>)}</div>
-        <div>{onCapture && <button type="button" disabled={disabled || captureDisabled || !model.clusters.some(item => item.drones.length > 1)}
-          onClick={() => onCapture(scope === 'all' ? null : cluster?.id)} data-help="Copy current aircraft spacing into this draft">Capture</button>}
-          <button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
+        <div><button type="button" aria-label="Undo formation edit" disabled={!canUndo || disabled} onClick={onUndo}>↶ Undo</button>
           <button type="button" aria-label="Redo formation edit" disabled={!canRedo || disabled} onClick={onRedo}>↷ Redo</button>
-          <button type="button" disabled={!canReset || disabled} onClick={onReset}>Reset draft</button></div>
+        </div>
       </div>
       <div className="formation-display-tools">
         <div role="group" aria-label="Editor layout"><button type="button" aria-pressed={layout === 'single'} onClick={() => changeLayout('single')}>Single</button>
@@ -162,5 +165,5 @@ export default function SwarmDesignWorkspace({ assignments, configData, selected
         {selected.warnings?.map((warning) => <p className="formation-issue" role="status" key={warning.code}>{warning.message}</p>)}
       </> : <p>Select an aircraft</p>}
     </aside>
-  </div>;
+  </div></>;
 }

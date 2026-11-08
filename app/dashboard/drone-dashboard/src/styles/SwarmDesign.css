@@ -32,4 +32,8 @@
 .swarm-apply-status .is-applied { color:var(--color-success); }
 .swarm-apply-status .is-pending,.swarm-apply-status .is-not_reachable { color:var(--color-warning); }
 .swarm-confirm-summary ul { padding-left:18px; }
+.swarm-draft-recovery { border-bottom:1px solid var(--color-border-primary); color:var(--color-text-secondary); font-size:var(--font-size-sm); }
+.swarm-draft-recovery summary { width:fit-content; padding-block:var(--spacing-xs); gap:var(--spacing-sm); }
+.swarm-draft-recovery__body { display:flex; align-items:center; flex-wrap:wrap; gap:var(--spacing-sm); padding-bottom:var(--spacing-sm); }
+.swarm-draft-recovery__body > span { flex-basis:100%; }
 @media(max-width:600px) { .swarm-design-summary { flex-wrap:wrap; gap:8px 16px; } }
