@@ -115,6 +115,21 @@ SPA-local `docs/...` URLs that can 404 behind the dashboard server.
 
 ## Change Checklist
 
+### Formation capture
+
+Use a dominant read-only scene with identifiable aircraft silhouettes and one
+short primary action. Default to interactive 3D; expose flat views beside it,
+not as extra permanent panels. Mouse, touch and keyboard camera controls must
+never edit geometry. Distinguish frozen capture from advisory live estimates
+using shape/stroke, not color alone. Only the selected aircraft needs offset details.
+Keep leader/reference changes in progressive disclosure. Native whole-cluster
+capture evidence chooses contextual defaults; explicit operator selections survive
+Refresh. Never trade a silent height/role change for fewer clicks.
+
+These principles are informed by [Auterion's operator/advanced-feature separation](https://docs.auterion.com/hardware-integration/flight-controller-customization/amcs-advanced-mode)
+and [DJI Pilot's primary view with compact contextual controls](https://dl.djicdn.com/downloads/m200_v2/20200515/M200_Series_V2_User_Manual_en.pdf).
+They are design references, not evidence of MDS certification or equivalent safety.
+
 Before closing a frontend slice:
 
 - Run `python3 tools/audit_frontend_ui.py`.

@@ -191,6 +191,15 @@ The response contains `capture_id`, `captured_at_ms`, base `revision`, resulting
 origin. The browser may rederive candidate roles/frame/heights from these frozen
 observations; only explicit Refresh takes new measurements.
 
+`flight_state` is `grounded`, `airborne`, or `mixed`, based on the whole cluster
+across both native epochs. Grounded includes an armed aircraft confirmed ON_GROUND;
+arming alone is not flight. Airborne requires armed plus IN_AIR throughout.
+`recommended_height_mode` is `level` for grounded, `current` for airborne with
+Current capability, otherwise `null`. It is UI advice, not an implicit API mutation;
+request default `keep` is unchanged for compatibility. The UI initializes from the
+recommendation, preserves explicit choices, and requires a choice when none is
+recommended. Clients must not use cached live markers to select these defaults.
+
 Each observation contains `planned_up_m` and `current_up_m`. The latter is its
 estimated MSL height minus the frozen reference height, not a local-down or
 above-home value. `current_heights_available:false` is not a failure of keep/level;

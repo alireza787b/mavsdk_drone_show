@@ -385,8 +385,9 @@ export function ConfirmDialog({
     if (!open) return undefined;
     const previousFocus = document.activeElement;
     const panel = panelRef.current;
-    const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
-      .filter((element) => !element.disabled && !element.closest('[hidden]'));
+    const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, summary, a[href], [tabindex="0"]')]
+      .filter((element) => !element.disabled && !element.closest('[hidden]')
+        && (!element.closest('details:not([open])') || element.closest('summary')));
     // Start on Cancel, never on the flight-command confirmation.
     (panel.querySelector('[data-dialog-cancel]') || panel).focus();
     const trapFocus = (event) => {

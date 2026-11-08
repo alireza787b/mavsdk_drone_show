@@ -56,6 +56,7 @@ beforeEach(() => {
   publishSwarmConfigResponse.mockResolvedValue({ data: { status: 'success', git_result: { success: true, pushed: true } } });
   previewSwarmCaptureResponse.mockResolvedValue({ data: {
     capture_id: 'capture-1', captured_at_ms: 1794052800000, revision: 'revision-1', cluster_id: '1',
+    flight_state: 'grounded', recommended_height_mode: 'level',
     saved: false, commands_sent: false, height_mode: 'keep', headings: { 1: 90, 2: 0 },
     assignments: initialAssignments,
     observations: { 1: { north_m: 0, east_m: 0, planned_up_m: 0, heading_deg: 90 },
@@ -266,6 +267,7 @@ test('Capture is frozen, local, undoable and guards the later explicit Apply', a
   const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
   await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
   expect(previewSwarmCaptureResponse).toHaveBeenCalledTimes(1);
+  fireEvent.click(within(dialog).getByText('Adjust formation'));
   fireEvent.click(within(dialog).getByRole('radio', { name: 'Leader-relative' }));
   fireEvent.click(within(dialog).getByRole('radio', { name: 'Same height' }));
   fireEvent.change(within(dialog).getByRole('combobox', { name: /Leader/ }), { target: { value: '2' } });
@@ -325,6 +327,7 @@ test('changing frozen NED capture to Body rejects missing heading without resamp
   fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
   const dialog = await screen.findByRole('dialog', { name: 'Capture current spacing' });
   await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByText('Adjust formation'));
   fireEvent.click(within(dialog).getByRole('radio', { name: 'Leader-relative' }));
   expect(within(dialog).getByText('H1: heading unavailable. Refresh capture.')).toBeInTheDocument();
   expect(within(dialog).getByRole('button', { name: 'Use capture' })).toBeDisabled();

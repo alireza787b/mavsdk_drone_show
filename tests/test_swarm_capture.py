@@ -90,6 +90,10 @@ async def test_capture_returns_frozen_full_draft_without_writes_or_commands(monk
     result = await capture_preview(deps, _request(deps, frame=frame, leader_hw_id='3'))
     by_id = {str(m['hw_id']): m for m in result['assignments']}
     assert result['saved'] is False and result['commands_sent'] is False
+    assert result['flight_state'] == ('grounded' if grounded else 'airborne')
+    assert result['recommended_height_mode'] == ('level' if grounded else 'current')
+    # Recommendation does not reinterpret an explicit or legacy keep request.
+    assert result['height_mode'] == 'keep'
     assert result['revision'] == topology_revision(original)
     assert result['cluster_id'] == '3'
     assert len(result['observations']) == 4
@@ -157,6 +161,46 @@ async def test_current_height_capability_is_native_and_mode_specific(monkeypatch
     with pytest.raises(HTTPException) as error:
         await capture_preview(deps, _request(deps, height_mode='current'))
     assert error.value.detail['code'] == 'capture_current_heights_unavailable'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('scenario,expected_state', [
+    ('mixed_members', 'mixed'),
+    ('changed_epoch', 'mixed'),
+    ('disarmed_airborne', 'mixed'),
+    ('unstable_airborne_height', 'airborne'),
+])
+async def test_capture_height_recommendation_never_guesses_for_uncertain_or_unstable_states(monkeypatch, scenario, expected_state):
+    def evidence(records, index):
+        if scenario == 'mixed_members':
+            records['2']['sample']['capture_activity'].update(is_armed=False, landed_state=1)
+        elif scenario == 'changed_epoch' and index == 0:
+            for record in records.values():
+                record['sample']['capture_activity'].update(is_armed=False, landed_state=1)
+        elif scenario == 'disarmed_airborne':
+            records['2']['sample']['capture_activity'].update(is_armed=False, landed_state=2)
+        elif scenario == 'unstable_airborne_height':
+            records['2']['sample']['position_alt'] += index * 2
+    deps, rpc, _ = _deps(monkeypatch, mutate=evidence)
+    result = await capture_preview(deps, _request(deps, height_mode='level'))
+    assert result['flight_state'] == expected_state
+    assert result['recommended_height_mode'] is None
+    assert result['current_heights_available'] is False
+    assert result['height_mode'] == 'level'
+    deps.save_swarm.assert_not_called()
+    rpc.dispatch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_grounded_recommendation_does_not_misclassify_armed_ground_as_airborne(monkeypatch):
+    def evidence(records, index):
+        for record in records.values():
+            record['sample']['capture_activity'].update(is_armed=True, landed_state=1)
+    deps, _, _ = _deps(monkeypatch, mutate=evidence)
+    result = await capture_preview(deps, _request(deps))
+    assert result['flight_state'] == 'grounded'
+    assert result['recommended_height_mode'] == 'level'
+    assert result['current_heights_available'] is False
 
 
 @pytest.mark.asyncio

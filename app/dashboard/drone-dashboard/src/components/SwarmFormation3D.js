@@ -10,12 +10,15 @@ const EMPTY = {};
 
 function Aircraft({ label, selected, leader, colors, onSelect }) {
   return <>
-    <mesh onClick={(event) => { event.stopPropagation(); onSelect(); }}>
-      {leader ? <octahedronGeometry args={[0.4]} /> : <boxGeometry args={[0.55, 0.16, 0.55]} />}
-      <meshBasicMaterial color={selected ? colors.success : colors.info} />
-    </mesh>
+    <group onClick={(event) => { event.stopPropagation(); onSelect(); }}>
+      <mesh><boxGeometry args={[.2,.12,.35]}/><meshBasicMaterial color={selected?colors.success:colors.info}/></mesh>
+      {[-Math.PI/4,Math.PI/4].map(angle=><mesh key={angle} rotation={[0,angle,0]}><boxGeometry args={[.75,.05,.055]}/><meshBasicMaterial color={selected?colors.success:colors.info}/></mesh>)}
+      {[[-.25,-.25],[.25,-.25],[-.25,.25],[.25,.25]].map(([x,z])=><mesh key={`${x}:${z}`} position={[x,.04,z]}>
+        <cylinderGeometry args={[.14,.14,.025,20]}/><meshBasicMaterial color={selected?colors.success:colors.info}/>
+      </mesh>)}
+    </group>
     <Html center position={[0, 0.65, 0]} style={{ pointerEvents: 'none' }}>
-      <span className={`swarm-formation-3d__label ${selected ? 'is-selected' : ''}`}>{label}</span>
+      <span className={`swarm-formation-3d__label ${selected ? 'is-selected' : ''}`}>{leader?'★ ':''}{label}</span>
     </Html>
   </>;
 }

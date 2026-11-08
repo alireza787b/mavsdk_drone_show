@@ -91,17 +91,25 @@ draft underneath the operator. Independent clusters are shown separately and
 do not imply saved spacing between their leaders.
 
 Capture opens the only cluster automatically, or preserves the selected cluster
-when several exist. Its Top/Side preview reuses the design renderer in read-only
-mode: filled positions are the frozen capture and outlined positions are live
+when several exist. Its read-only preview opens in interactive orthographic 3D,
+with Top/Front/Side switches, multirotor silhouettes and a leader star. It uses
+the shared formation-coordinate model; its small vector renderer does not need
+WebGL. Mouse/touch orbit, pan and zoom only change the camera. Solid positions
+are the frozen capture and ghost positions are live
 estimates from the existing GCS fleet cache. Viewing adds no aircraft RPC polling;
 native two-sample validation remains exclusive to explicit capture/Refresh.
 Delayed or nonadvancing samples are marked, including during successful but
 frozen HTTP responses. Live data cannot edit an assignment or satisfy capture
 authority. Changing cluster cancels/ignores the old capture request.
 
-Height capture defaults to Keep plan. Same height zeroes relative heights;
-Current explicitly copies estimated common-MSL differences only for a fully
-airborne, settled cluster. This does not calibrate independent altitude estimates.
+Height defaults come from both native capture epochs: a whole grounded cluster
+selects Same height; a fully airborne settled cluster with valid Current capability
+selects Current. Mixed/inconsistent evidence or unstable airborne height recommends
+nothing; the operator must explicitly choose an available option. Explicit choices
+survive Refresh; otherwise a new capture updates the recommendation. Same height
+zeroes relative heights; Current copies estimated common-MSL differences. This
+does not calibrate independent altitude estimates. Leader/reference settings are
+collapsed under Adjust formation and never implicitly changed.
 Current's availability and reason come from the backend's frozen observations,
 not separate UI thresholds. A captured draft still requires inactive, revision-aware
 Apply; other clusters and existing in-flight edit behavior remain unchanged.

@@ -115,6 +115,8 @@ def run(args):
         require(all(baseline[str(hw)].get('is_armed') is False for hw in ids), 'Begin disarmed')
         for frame in ('ned', 'body'):
             snapshot = capture(frame)
+            require(snapshot['flight_state'] == 'grounded' and snapshot['recommended_height_mode'] == 'level',
+                    'Grounded cluster must recommend Same height from native evidence')
             evidence('ground_capture_' + frame, capture=snapshot)
         if args.ground_inspect_seconds:
             evidence('ground_inspection_window', duration_sec=args.ground_inspect_seconds)
@@ -165,6 +167,8 @@ def run(args):
         current = wait_for(current_capture, label='settled current-height capture', timeout=45, interval=2)
         by_id = current['observations']
         require(current['current_heights_available'] is True, 'Current height capability not confirmed')
+        require(current['flight_state'] == 'airborne' and current['recommended_height_mode'] == 'current',
+                'Settled airborne cluster must recommend Current heights')
         for member in current['assignments']:
             hw, parent = str(member['hw_id']), str(member['follow'])
             if int(hw) in ids and parent != '0':

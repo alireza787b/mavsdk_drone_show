@@ -185,6 +185,27 @@ def planned_heights(members):
     return {hw: height(hw) for hw in by_id}
 
 
+def capture_flight_state(first, second, hw_ids):
+    """Classify the complete capture across both native sampling epochs.
+
+    Arming alone is not airborne. A ground arm state may legitimately change
+    without moving; ON_GROUND evidence still selects level heights. An airborne
+    recommendation requires armed/IN_AIR throughout. Disagreement never chooses
+    a default on the operator's behalf; keep/level capture is still usable.
+    """
+    states = []
+    for records in (first, second):
+        for hw in hw_ids:
+            activity = records[hw]['sample']['capture_activity']
+            if activity['landed_state'] == 1:
+                states.append('grounded')
+            elif activity['landed_state'] == 2 and activity['is_armed'] is True:
+                states.append('airborne')
+            else:
+                return 'mixed'
+    return states[0] if states and len(set(states)) == 1 else 'mixed'
+
+
 def captured_assignments(draft, observations, cluster_hw_ids, leader_hw_id, frame, height_mode):
     """Derive an editable candidate from one frozen bundle, preserving other clusters."""
     candidate = [dict(member) for member in draft]
@@ -295,6 +316,9 @@ async def capture_preview(deps, request):
         reject('capture_samples_incoherent', 'Aircraft samples are too far apart in time. Refresh after links settle.')
     if request.height_mode == 'current' and current_heights_reason:
         reject('capture_current_heights_unavailable', current_heights_reason)
+    flight_state = capture_flight_state(first, second, ids)
+    recommended_height_mode = ('level' if flight_state == 'grounded' else
+                               'current' if flight_state == 'airborne' and current_heights_reason is None else None)
     candidate = captured_assignments(draft, observations, ids, leader, request.frame, request.height_mode)
     async with configuration_lock(deps):
         if topology_revision(deps.load_swarm() or []) != current_revision:
@@ -306,5 +330,7 @@ async def capture_preview(deps, request):
             'observations': observations, 'height_mode': request.height_mode,
             'current_heights_available': current_heights_reason is None,
             'current_heights_reason': current_heights_reason,
+            'flight_state': flight_state,
+            'recommended_height_mode': recommended_height_mode,
             'reference': {'latitude': reference[0], 'longitude': reference[1], 'altitude_msl_m': reference[2]},
             'saved': False, 'commands_sent': False}

@@ -1752,6 +1752,7 @@ tools:
   - docs/features/swarm-trajectory.md
   safety_notes:
   - Swarm configuration is planned data, not live spacing.
+  - Capture defaults are native whole-cluster advice (grounded level, settled airborne current, mixed none); read-only telemetry cannot choose or apply them.
   - Operator labels Geographic and Leader-relative map to ned and body; do not rewrite API values.
   - Capture live markers are advisory cached telemetry; Current heights require the explicit native airborne capture capability, not subtraction of above-home heights.
   - Capturing current spacing is an explicit operator workflow; reading this

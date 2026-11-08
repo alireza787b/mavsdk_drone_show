@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Capture opens in lightweight interactive 3D with aircraft silhouettes, camera
+  controls and Top/Front/Side views. Height choices use diagrams; leader/reference
+  controls are collapsed. Native capture recommends Same height on the ground
+  and Current in settled flight; mixed/uncertain states require a choice. Explicit
+  selections survive Refresh. Existing Apply/Start boundaries and tuning are unchanged.
 - Smart Swarm capture adds linked read-only Top/Side views with distinct live
   aircraft and frozen capture markers. One-cluster setup is automatic; multiple
   clusters preserve explicit scope and ignore obsolete responses. Current

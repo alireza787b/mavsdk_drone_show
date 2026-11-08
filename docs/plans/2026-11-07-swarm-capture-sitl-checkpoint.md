@@ -78,6 +78,24 @@ All real aircraft remained outside the flight rehearsal.
 
 ## Remaining acceptance boundaries
 
+### November 8 capture-scene extension
+
+The capture dialog now uses a lightweight orthographic 3D vector scene by default,
+with orbit/pan/pinch/zoom and Top/Front/Side views. This read-only capture scene
+does not require WebGL; the earlier WebGL limitation applies to the separate
+editable Design renderer, not to this capture preview. Silhouettes, a leader star,
+ghost live estimates and illustrated height choices replace the text-heavy panel.
+Native two-epoch recommendations select Same height on confirmed ground and
+Current in settled flight. Explicit choices survive Refresh; mixed/inconsistent
+states and unstable airborne height require a deliberate available choice.
+
+The extension passed 54 capture/RPC tests, 88 focused UI tests and 15 docs/MCP
+tests. The three-aircraft SITL workflow verified ground/hover recommendations,
+following, measured Current-height Apply/rejoin, reroot, Managed Return and
+grounded cleanup. Built-browser checks cover all camera views, mouse orbit,
+mobile touch pinch/pan, dark mode and unchanged draft/configuration boundaries.
+No flight gains, limits, PX4 parameters or leader-loss policy changed.
+
 Confirm current code/configuration readback when real aircraft are powered on.
 Complete new-aircraft RC/navigation/calibration/power checks before individual
 flight testing. Sustained high-rate turns, continuous moving leader handover,

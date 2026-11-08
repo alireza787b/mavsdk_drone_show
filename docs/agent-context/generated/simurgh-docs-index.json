@@ -1,5 +1,5 @@
 {
-  "chunk_count": 828,
+  "chunk_count": 829,
   "chunks": [
     {
       "audience": "operator",
@@ -1722,7 +1722,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "4d568636a49b735a556aaae64a2b66ac83771f38a94aa487dd7874892a243893",
+      "content_hash": "caac2d46327d39035d2ef8333b918659ff9cf4079fa73b15e891dd756b99d991",
       "heading": "Capture the spacing already on the field",
       "id": "mds.smart_swarm_operator_workflow:004-01-capture-the-spacing-already-on-the-field",
       "links": [],
@@ -1737,13 +1737,13 @@
         "formation",
         "capture"
       ],
-      "text": "## Capture the spacing already on the field\n\nUse capture while all aircraft in the selected cluster are stationary on the\nground, or settled in flight with Smart Swarm stopped. It is not moving-flight\ncapture. Leave room for independent aircraft operation; the following procedure\ndoes not control cable tension or a shared suspended load.\n\n1. Place the aircraft, or establish a stable hover using the normal pilot controls.\n2. In **Design**, select **Capture**. With one cluster it opens automatically;\n there is no extra aircraft or cluster selection.\n You can also use **Capture spacing** from Operate's secondary actions.\n3. Inspect Top and Side. Filled markers show the frozen **Capture**; outlined\n markers show **Live** aircraft estimates. Dashed/dim outlines and **Delayed**\n mean the live feed is not current. Live positions never move the captured draft.\n4. Leave **Leader**, reference and **Keep plan** unchanged for the usual setup,\n or select the intended choices below.\n5. Choose **Use capture**. This changes the draft only.\n6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in\n Capture obtains new measurements. Changing leader, frame or height choice in\n the capture dialog recalculates from the same frozen measurements. A failed\n refresh retains the drawing but disables Use until a complete refresh succeeds.\n7. Select **Apply plan**, or **Save to repo** to apply and publish.\n\n![Capture current spacing with leader, reference and height choices](../assets/smart-swarm/capture-01-options.png)\n\n![Captured spacing in the linked formation views](../assets/smart-swarm/capture-02-design.png)\n\n| Height | Use it when |\n|---|---|\n| **Keep plan** (default) | The saved relative heights are already correct. |\n| **Same height** | All aircraft should follow at the same intended height. |\n| **Current** | Preserve the estimated height differences of a settled airborne cluster. |",
+      "text": "## Capture the spacing already on the field\n\nUse capture while all aircraft in the selected cluster are stationary on the\nground, or settled in flight with Smart Swarm stopped. It is not moving-flight\ncapture. Leave room for independent aircraft operation; the following procedure\ndoes not control cable tension or a shared suspended load.\n\n1. Place the aircraft, or establish a stable hover using the normal pilot controls.\n2. In **Design**, select **Capture**. With one cluster it opens automatically;\n there is no extra aircraft or cluster selection.\n You can also use **Capture spacing** from Operate's secondary actions.\n3. Inspect the **3D** formation. Drag to orbit; right-drag or Shift-drag to pan.\n On touch, one finger orbits, two fingers pan and pinch zooms. Fit restores\n the whole view. **Top / Front / Side** give flat views without changing spacing.\n Solid aircraft show the frozen **Capture**; ghost outlines show **Live**\n aircraft estimates. A star marks the leader. Dashed/dim outlines and **Delayed**\n mean the live feed is not current. Live positions never move the captured draft.\n4. Check **Height**: grounded defaults to **Same height**; settled airborne defaults\n to **Current**. Leave the selected choice for the usual workflow. To change\n leader or reference, expand **Adjust formation**; these remain as planned by default.\n5. Choose **Use capture**. This changes the draft only.\n6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in\n Capture obtains new measurements. Changing leader, frame or height choice in\n the capture dialog recalculates from the same frozen measurements. A failed\n refresh retains the drawing but disables Use until a complete refresh succeeds.\n7. Select **Apply plan**, or **Save to repo** to apply and publish.\n\n![Capture current spacing with leader, reference and height choices](../assets/smart-swarm/capture-01-options.png)\n\n![Captured spacing in the linked formation views](../assets/smart-swarm/capture-02-design.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "f09078c9047d74532d15a621d50202123ea3452397682dfb7314c7df330e4e38",
+      "content_hash": "be4f1e14936dcaf92bac9f26dd9e42802af23260aa21f53e61087748c8fb8c49",
       "heading": "Capture the spacing already on the field",
       "id": "mds.smart_swarm_operator_workflow:004-02-capture-the-spacing-already-on-the-field",
       "links": [],
@@ -1758,13 +1758,13 @@
         "formation",
         "capture"
       ],
-      "text": "**Current** is available only when native samples confirm every member is airborne\nand its height was stable during capture. It uses the common PX4 global MSL datum,\nnever each aircraft's separate height above home or local-down origin. This copies\nestimates, not surveyed physical heights. A disabled Current option has an info\ncontrol explaining what to resolve. The other height options remain available.\n\n![Current heights selected during a settled airborne capture](../assets/smart-swarm/capture-current-heights.png)",
+      "text": "| Height | Use it when |\n|---|---|\n| **Same height** (ground default) | All aircraft should follow at the same intended height. |\n| **Current** (settled-airborne default) | Preserve the estimated height differences of the captured cluster. |\n| **Keep plan** | Retain the saved relative heights. |\n\n**Current** is available only when native samples confirm every member is airborne\nand its height was stable during capture. It uses the common PX4 global MSL datum,\nnever each aircraft's separate height above home or local-down origin. This copies\nestimates, not surveyed physical heights. A disabled Current option has an info\ncontrol explaining what to resolve. Mixed/uncertain states or unstable airborne\nheight have no automatic choice: select the intended available Height explicitly.\nOnce you deliberately select Height, Refresh preserves that choice. Before a\ndeliberate selection, a new successful capture can update the automatic default.\nThe scene shows the chosen heights before Use capture; nothing moves until a\nseparate explicit mission action. Symbols are not physical footprints and the\ngrid is a reference plane, not terrain. The read-only 3D scene also works without WebGL.\n\n![Current heights selected during a settled airborne capture](../assets/smart-swarm/capture-current-heights.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "d132f380e0f6ade4027f5c8cf54517401b648a54b73036b5e52ae24122e976a0",
+      "content_hash": "1f0db48e474a98f9e5f6256701842d975a5d4111ff28d21dd67a0700d91a7e4e",
       "heading": "More than one cluster",
       "id": "mds.smart_swarm_operator_workflow:005-01-more-than-one-cluster",
       "links": [],
@@ -1779,7 +1779,7 @@
         "formation",
         "capture"
       ],
-      "text": "### More than one cluster\n\nCapture keeps the cluster selected in Design or Operate. Its **Formation** selector\nappears only when there are multiple formations with followers. From **All clusters**,\nchoose the intended formation first; capture does not silently choose or combine\nindependent leaders. Each capture replaces only that cluster's draft spacing.\nCapture another cluster if needed, then review and Apply the complete draft;\nUndo reverses one capture at a time. Single-aircraft independent leaders have no\nrelative spacing to capture. Roles, heights and spacing of other clusters stay intact.\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nare retained by default; estimated heights are copied only with explicit Current.\nTurning the leader after a Leader-relative capture\nrotates its future targets. Review again if positions or heading have changed.\n\nCapture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold Swarm**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
+      "text": "### More than one cluster\n\nCapture keeps the cluster selected in Design or Operate. Its **Formation** selector\nappears only when there are multiple formations with followers. From **All clusters**,\nchoose the intended formation first; capture does not silently choose or combine\nindependent leaders. Each capture replaces only that cluster's draft spacing.\nCapture another cluster if needed, then review and Apply the complete draft;\nUndo reverses one capture at a time. Single-aircraft independent leaders have no\nrelative spacing to capture. Roles, heights and spacing of other clusters stay intact.\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nfollow the visible Height choice; estimated height differences are copied when\nCurrent is selected, including the automatic settled-airborne selection.\nTurning the leader after a Leader-relative capture\nrotates its future targets. Review again if positions or heading have changed.\n\nCapture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold Swarm**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -6444,7 +6444,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "23982870d1943772504626c3e053f29d07e52dfe503234d3ff9c5af7c5c8c280",
+      "content_hash": "cb7a37a55034d5656dfdfced075556120968626302911f75b297a3e3ea365c81",
       "heading": "Capture current formation",
       "id": "mds.gcs_api:019-02-capture-current-formation",
       "links": [],
@@ -6457,7 +6457,26 @@
         "api",
         "gcs"
       ],
-      "text": "Each observation contains `planned_up_m` and `current_up_m`. The latter is its\nestimated MSL height minus the frozen reference height, not a local-down or\nabove-home value. `current_heights_available:false` is not a failure of keep/level;\nthe reason explains why only Current is unavailable. UI labels Geographic and\nLeader-relative map to unchanged `ned` and `body` values.\n\nThe modal's hollow live markers use the existing `GET /api/v1/fleet/telemetry`\ncache, never a second aircraft polling service or a capture result used for saving.\nOnly explicit Capture/Refresh performs native validation. A viewer/MCP read of\nconfiguration or telemetry does not apply a capture or dispatch a mission.\n\nTyped HTTP 409 failures identify a `code`, actionable `message` and, where\napplicable, `hw_id`. Do not partially apply a failed cluster capture or invent\nheading/position defaults. Old nodes without native capture evidence need updating.\n\nCapture-derived drafts use existing `PUT /api/v1/config/swarm?commit=false` with\nthe normal base `revision` and `require_inactive_hw_ids`. This optional precondition\nchecks affected old/new dependencies and fresh native activity, and serializes\nthe final save against GCS Smart Swarm Start registration. Unknown or active\naircraft reject without writing; this path does not offer Apply anyway. Normal\nintentional active formation edits retain their existing semantics. This local\nguard is not a distributed flight reservation.\n\nAfter uncertain Apply responses, read the canonical resource/revision rather than\nresampling or blindly submitting another operation. Repository publication uses\nthe existing revision-bound publish endpoint. Preview is an operator API; adding\nit here does not implicitly expose a new Simurgh/MCP tool or grant flight authority.\n\nSee the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md).",
+      "text": "`flight_state` is `grounded`, `airborne`, or `mixed`, based on the whole cluster\nacross both native epochs. Grounded includes an armed aircraft confirmed ON_GROUND;\narming alone is not flight. Airborne requires armed plus IN_AIR throughout.\n`recommended_height_mode` is `level` for grounded, `current` for airborne with\nCurrent capability, otherwise `null`. It is UI advice, not an implicit API mutation;\nrequest default `keep` is unchanged for compatibility. The UI initializes from the\nrecommendation, preserves explicit choices, and requires a choice when none is\nrecommended. Clients must not use cached live markers to select these defaults.\n\nEach observation contains `planned_up_m` and `current_up_m`. The latter is its\nestimated MSL height minus the frozen reference height, not a local-down or\nabove-home value. `current_heights_available:false` is not a failure of keep/level;\nthe reason explains why only Current is unavailable. UI labels Geographic and\nLeader-relative map to unchanged `ned` and `body` values.\n\nThe modal's hollow live markers use the existing `GET /api/v1/fleet/telemetry`\ncache, never a second aircraft polling service or a capture result used for saving.\nOnly explicit Capture/Refresh performs native validation. A viewer/MCP read of\nconfiguration or telemetry does not apply a capture or dispatch a mission.\n\nTyped HTTP 409 failures identify a `code`, actionable `message` and, where\napplicable, `hw_id`. Do not partially apply a failed cluster capture or invent\nheading/position defaults. Old nodes without native capture evidence need updating.\n\nCapture-derived drafts use existing `PUT /api/v1/config/swarm?commit=false` with\nthe normal base `revision` and `require_inactive_hw_ids`. This optional precondition\nchecks affected old/new dependencies and fresh native activity, and serializes\nthe final save against GCS Smart Swarm Start registration. Unknown or active\naircraft reject without writing; this path does not offer Apply anyway. Normal\nintentional active formation edits retain their existing semantics. This local\nguard is not a distributed flight reservation.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "54c23a525669cacae5297a41c1d6e43d794a17cb9d2264cc7266be7299262fcc",
+      "heading": "Capture current formation",
+      "id": "mds.gcs_api:019-03-capture-current-formation",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "After uncertain Apply responses, read the canonical resource/revision rather than\nresampling or blindly submitting another operation. Repository publication uses\nthe existing revision-bound publish endpoint. Preview is an operator API; adding\nit here does not implicitly expose a new Simurgh/MCP tool or grant flight authority.\n\nSee the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md).",
       "title": "GCS API server guide"
     },
     {
@@ -16336,7 +16355,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "chunk_count": 11,
-      "content_hash": "f1376c8ed351dce67d5ca84be4ae28aa81d33279d2b8f25888072fb3f59efd9c",
+      "content_hash": "e2e26bdd01492aa1770af275cc5cdb60c25f523a9b44c81cb7b219fdc6c66d36",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -16435,8 +16454,8 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "chunk_count": 155,
-      "content_hash": "7af29a2de619c7b275b563bd0c6d69e8a57cc49a65450a7d846addf28516807b",
+      "chunk_count": 156,
+      "content_hash": "c94c46c3fbd4cb10e95edb5e73f185dfd2e93e6f9e95c2d4724176f9fb8099d7",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

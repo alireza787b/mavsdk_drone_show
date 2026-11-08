@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AircraftSilhouette } from './SwarmAircraftSymbol';
 import { formationViewLabels, moveAssignmentInPlane, projectFormationPoint, resolveFormationPositions } from '../utilities/swarmFormationGeometry';
 import '../styles/SwarmFormationCanvas.css';
 
@@ -175,8 +176,8 @@ export default function SwarmFormationCanvas({ assignments, configData = [], clu
           className={`swarm-formation-canvas__node ${leader ? 'is-leader' : ''} ${point.id === String(selectedId) ? 'is-selected' : ''} ${descendants.has(point.id) ? 'is-descendant' : ''} ${moving === point.id ? 'is-moving' : ''}`}
           transform={`translate(${position.x} ${position.y})`} onPointerDown={(event) => begin(event, point)} onClick={() => onSelect?.(point.id)} onKeyDown={(event) => nudge(event, point)}>
           <circle className="swarm-formation-canvas__hit" r={23} />
-          {leader ? <path d="M 0 -13 L 13 0 L 0 13 L -13 0 Z" /> : <circle r={11} />}
-          {(labelPolicy === 'all' || point.id === String(selectedId)) && <text y={-21} textAnchor="middle">{labelFor(point)}</text>}
+          <AircraftSilhouette />
+          {(labelPolicy === 'all' || point.id === String(selectedId)) && <text y={-31} textAnchor="middle">{leader ? '★ ' : ''}{labelFor(point)}</text>}
         </g>;
       })}
       {overlays.map(point => {

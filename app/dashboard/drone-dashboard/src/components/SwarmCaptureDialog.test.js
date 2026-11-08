@@ -15,6 +15,7 @@ const clusters = [{ clusterId: '1', hwIds: ['1', '2'], frame: 'ned' }, { cluster
 const request = { assignments, revision: 'reviewed', clusters: [clusters[0]], clusterId: '1' };
 const configData = assignments.map(entry => ({ hw_id: entry.hw_id, callsign: `Aircraft ${entry.hw_id}` }));
 const snapshot = (ids = ['1', '2']) => ({ capture_id: 'capture', captured_at_ms: Date.now(), revision: 'reviewed',
+  flight_state: 'airborne', recommended_height_mode: 'current',
   saved: false, commands_sent: false, current_heights_available: true,
   observations: Object.fromEntries(ids.map((id, index) => [id, {
     north_m: index * 5, east_m: index * 2, planned_up_m: index * 2, current_up_m: index * .7, heading_deg: 90,
@@ -27,12 +28,13 @@ const open = (props = {}) => {
 };
 const ready = async () => waitFor(() => expect(screen.getByRole('button', { name: 'Use capture' })).toBeEnabled());
 
-test('one cluster opens ready without a scope selection; the two inspection plots do not change defaults', async () => {
+test('one cluster opens in 3D with Current airborne heights and collapsed adjustments', async () => {
   const { onUse } = open(); await ready();
   expect(screen.queryByRole('combobox', { name: 'Capture formation' })).not.toBeInTheDocument();
-  expect(screen.getByRole('group', { name: 'Capture top view' })).toBeInTheDocument();
-  expect(screen.getByRole('group', { name: 'Capture side view' })).toBeInTheDocument();
-  expect(screen.getByRole('radio', { name: 'Keep plan' })).toBeChecked();
+  expect(screen.getByRole('group', { name: 'Capture 3D view' })).toBeInTheDocument();
+  expect(screen.getByText('Adjust formation').closest('details')).not.toHaveAttribute('open');
+  expect(screen.getByRole('radio', { name: 'Current', exact: true })).toBeChecked();
+  fireEvent.click(screen.getByText('Adjust formation'));
   expect(screen.getByRole('radio', { name: 'Geographic' })).toBeChecked();
   fireEvent.click(screen.getByRole('radio', { name: 'Current', exact: true }));
   fireEvent.click(screen.getByRole('button', { name: 'Use capture' }));
@@ -43,9 +45,11 @@ test('one cluster opens ready without a scope selection; the two inspection plot
 
 test('Current is unavailable without native airborne height evidence', async () => {
   previewSwarmCaptureResponse.mockResolvedValue({ data: { ...snapshot(), current_heights_available: false,
+    flight_state: 'grounded', recommended_height_mode: 'level',
     current_heights_reason: 'All aircraft must be settled airborne.' } });
   open(); await ready();
   expect(screen.getByRole('radio', { name: 'Current', exact: true })).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Same height' })).toBeChecked();
   expect(screen.getByRole('radio', { name: 'Keep plan' })).toBeEnabled();
 });
 
@@ -54,10 +58,32 @@ test('failed refresh retains the drawing, explicitly invalidates Use and leaves 
   previewSwarmCaptureResponse.mockRejectedValueOnce(new Error('Aircraft link delayed. Refresh after it returns.'));
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByText('Aircraft link delayed. Refresh after it returns.');
-  expect(screen.getByRole('group', { name: 'Capture top view' })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Capture 3D view' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Use capture' })).toBeDisabled();
   expect(screen.getByText('Refresh needed')).toBeInTheDocument();
   expect(onUse).not.toHaveBeenCalled();
+});
+
+test('mixed or unavailable recommendation needs an explicit height choice, not a silent default', async () => {
+  previewSwarmCaptureResponse.mockResolvedValue({ data: { ...snapshot(), flight_state: 'mixed', recommended_height_mode: null } });
+  open();
+  await screen.findByText('Choose height before continuing.');
+  expect(screen.getByRole('button', { name: 'Use capture' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('radio', { name: 'Keep plan' }));
+  await ready();
+});
+
+test('a deliberate height choice survives Refresh; automatic default can adapt before a deliberate choice', async () => {
+  const result = open(); await ready();
+  previewSwarmCaptureResponse.mockResolvedValue({ data: { ...snapshot(), flight_state: 'grounded',
+    current_heights_available: false, recommended_height_mode: 'level' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' })); await ready();
+  expect(screen.getByRole('radio', { name: 'Same height' })).toBeChecked();
+  fireEvent.click(screen.getByRole('radio', { name: 'Keep plan' }));
+  previewSwarmCaptureResponse.mockResolvedValue({ data: snapshot() });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' })); await ready();
+  expect(screen.getByRole('radio', { name: 'Keep plan' })).toBeChecked();
+  expect(result.onUse).not.toHaveBeenCalled();
 });
 
 test('All clusters asks for scope; changing it cannot accept an old in-flight response', async () => {

@@ -8829,7 +8829,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 1d93cd845d924cdbdc3dc446f6d3aada925a5008d77c91b937f6b57855c7128f
+  openapi_sha256: 07318cdd59c617619a23cb0f736f4428ef14f56b235cab9d9c51b6549372ae50
   title: GCS Server API
   version: '5.5'
 summary:

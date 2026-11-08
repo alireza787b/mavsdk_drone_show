@@ -174,6 +174,8 @@ class SwarmCapturePreviewResponse(BaseModel):
     height_mode: Literal['keep', 'level', 'current']
     current_heights_available: bool = False
     current_heights_reason: Optional[str] = None
+    flight_state: Literal['grounded', 'airborne', 'mixed'] = 'mixed'
+    recommended_height_mode: Optional[Literal['current', 'level']] = None
     saved: Literal[False] = False
     commands_sent: Literal[False] = False
 

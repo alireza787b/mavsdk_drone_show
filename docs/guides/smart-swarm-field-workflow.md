@@ -46,11 +46,15 @@ does not control cable tension or a shared suspended load.
 2. In **Design**, select **Capture**. With one cluster it opens automatically;
    there is no extra aircraft or cluster selection.
    You can also use **Capture spacing** from Operate's secondary actions.
-3. Inspect Top and Side. Filled markers show the frozen **Capture**; outlined
-   markers show **Live** aircraft estimates. Dashed/dim outlines and **Delayed**
+3. Inspect the **3D** formation. Drag to orbit; right-drag or Shift-drag to pan.
+   On touch, one finger orbits, two fingers pan and pinch zooms. Fit restores
+   the whole view. **Top / Front / Side** give flat views without changing spacing.
+   Solid aircraft show the frozen **Capture**; ghost outlines show **Live**
+   aircraft estimates. A star marks the leader. Dashed/dim outlines and **Delayed**
    mean the live feed is not current. Live positions never move the captured draft.
-4. Leave **Leader**, reference and **Keep plan** unchanged for the usual setup,
-   or select the intended choices below.
+4. Check **Height**: grounded defaults to **Same height**; settled airborne defaults
+   to **Current**. Leave the selected choice for the usual workflow. To change
+   leader or reference, expand **Adjust formation**; these remain as planned by default.
 5. Choose **Use capture**. This changes the draft only.
 6. Review the linked plots. **Undo** restores the previous edit; **Refresh** in
    Capture obtains new measurements. Changing leader, frame or height choice in
@@ -64,15 +68,21 @@ does not control cable tension or a shared suspended load.
 
 | Height | Use it when |
 |---|---|
-| **Keep plan** (default) | The saved relative heights are already correct. |
-| **Same height** | All aircraft should follow at the same intended height. |
-| **Current** | Preserve the estimated height differences of a settled airborne cluster. |
+| **Same height** (ground default) | All aircraft should follow at the same intended height. |
+| **Current** (settled-airborne default) | Preserve the estimated height differences of the captured cluster. |
+| **Keep plan** | Retain the saved relative heights. |
 
 **Current** is available only when native samples confirm every member is airborne
 and its height was stable during capture. It uses the common PX4 global MSL datum,
 never each aircraft's separate height above home or local-down origin. This copies
 estimates, not surveyed physical heights. A disabled Current option has an info
-control explaining what to resolve. The other height options remain available.
+control explaining what to resolve. Mixed/uncertain states or unstable airborne
+height have no automatic choice: select the intended available Height explicitly.
+Once you deliberately select Height, Refresh preserves that choice. Before a
+deliberate selection, a new successful capture can update the automatic default.
+The scene shows the chosen heights before Use capture; nothing moves until a
+separate explicit mission action. Symbols are not physical footprints and the
+grid is a reference plane, not terrain. The read-only 3D scene also works without WebGL.
 
 ![Current heights selected during a settled airborne capture](../assets/smart-swarm/capture-current-heights.png)
 
@@ -88,7 +98,8 @@ relative spacing to capture. Roles, heights and spacing of other clusters stay i
 
 Capture records PX4's estimated horizontal spacing, not surveyed physical
 spacing. It does not calibrate GNSS, heading, home or altitude. Planned heights
-are retained by default; estimated heights are copied only with explicit Current.
+follow the visible Height choice; estimated height differences are copied when
+Current is selected, including the automatic settled-airborne selection.
 Turning the leader after a Leader-relative capture
 rotates its future targets. Review again if positions or heading have changed.
 
