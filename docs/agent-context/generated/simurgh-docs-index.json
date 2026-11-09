@@ -1,5 +1,5 @@
 {
-  "chunk_count": 835,
+  "chunk_count": 844,
   "chunks": [
     {
       "audience": "operator",
@@ -6100,6 +6100,186 @@
       ],
       "text": "## Additional Resources\n\nFor more detailed information, you can consult the following:\n\n- [Portainer Guide by Network Chuck](https://www.youtube.com/watch?v=iX0HbrfRyvc)\n- [My YouTube Playlist on Project History](https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk)\n- [My GitHub Repository](https://github.com/alireza787b/mavsdk_drone_show)\n- [Netbird Knowledge Base](https://docs.netbird.io/)\n- [MAVLink Official Documentation](https://mavlink.io/en/)\n- [QGroundControl Documentation](https://docs.qgroundcontrol.com/master/en/)\n\nFor more tutorials, code samples, and ways to contact me, check out the following resources:\n\n- Email: [p30planets@gmail.com](mailto:p30planets@gmail.com)\n- [My LinkedIn Profile](https://www.linkedin.com/in/alireza787b/)\n\n---\n\n© 2025 Alireza Ghaderi\n\n[mavsdk_drone_show](https://github.com/alireza787b/mavsdk_drone_show) - [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)\n\nThis documentation is licensed under **CC BY-SA 4.0**. Feel free to reuse or modify according to the terms. Please attribute and link back to the original repository.",
       "title": "SITL comprehensive guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "564b1457c839d1614675147f62daf16e04a09bfa1f361aaa7fb011b74bb880f3",
+      "heading": "Overview operator guide",
+      "id": "mds.dashboard_operator:001-01-overview-operator-guide",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "# Overview operator guide\n\nUse **Overview** to check the fleet and send general aircraft commands. Set up,\nstart and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,\n**Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.\n\n[Open the four-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).\nThe screenshots use a synthetic fleet, not aircraft clearance.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "8649e3820df030b654cf672b5a65237747b670f125ffd210522a53a6122ae1d6",
+      "heading": "Check the aircraft",
+      "id": "mds.dashboard_operator:002-01-check-the-aircraft",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the live-aircraft and attention counts.\n3. Open an aircraft by its name or silhouette to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)\n\nCallsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. Position slots appear in inspection.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "ce71ae33e121aee7ff6639c79adcdd0ce81511ba19822d1f55c6314ef003b000",
+      "heading": "Select command targets",
+      "id": "mds.dashboard_operator:003-01-select-command-targets",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Select command targets\n\nA fresh browser session starts with all configured aircraft selected. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- Check an aircraft's box to include or exclude it.\n- **All**, **None** and **Select group** are deliberate selection actions.\n- Search and filters only change what you see. The selected count includes\n hidden aircraft.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "dbc5933d559eaa926184e70b47ee5ff07b2a31e00adba8ffe1c94fadf8d1e079",
+      "heading": "Send a general command",
+      "id": "mds.dashboard_operator:004-01-send-a-general-command",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Send a general command\n\n| Control | Result |\n| --- | --- |\n| **Takeoff** | Opens the shared aircraft/height/readiness review. Groups default to **All armed first** before release. |\n| **Hold** | Commands an airborne aircraft to hold its position; it does not take off. |\n| **Land** | Lands at the aircraft's current position. |\n| **Return** | Sends immediate PX4 RTL. No sequencing or route separation. |\n| **More** | Ground tests, less-used actions and service controls. Read the action review before confirming. |\n\n![Takeoff review keeps aircraft targets separate from the launch mode](../assets/operator-overview/takeoff-review-dark.png)\n\nFor an isolated intervention, inspect an aircraft and use its own controls.\nThese address that aircraft only, independently of the dashboard selection.\n**Move** is available for a currently observed airborne aircraft.\n\nThe motor-arm test is a physical test, not just a connectivity check. On real\naircraft, confirmation requires propellers removed, airframes secured and the\ntest area clear. PX4 and native action checks still apply.\n\n**Return** on Overview is different from **Managed Return** on mission pages.\nManaged Return can stagger RTL commands; it does not guarantee separated flight\npaths. PX4 still controls each return and its configured return height.\n\n![Immediate Return review states its actual behavior](../assets/operator-overview/return-review-dark.png)",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "8c7d4b14da3bfafb4244082e98ef48eb369ce65f9471a9972aa3ccb4dfdfd9b7",
+      "heading": "Read command progress",
+      "id": "mds.dashboard_operator:005-01-read-command-progress",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Read command progress\n\nOpen **Activity** to see recent commands, affected aircraft, execution progress\nand rejection reasons. Activity remains available when you change pages and\nrehydrates from GCS command history after a refresh.\n\nRequest acceptance is not completion. Check partial, rejected or unconfirmed\noutcomes before retrying. An unconfirmed submission retains its request identity;\nits **Check** control looks up the receipt without sending it again. An\nunconfirmed request does not disable unrelated Hold, Land or Return actions;\ntheir own target-bound reviews remain separate. Nothing automatically replays\nwhen the connection returns.\n\nClosing a review or monitor is not a command to stop an aircraft. Use the named\nflight/recovery controls on Overview or the owning mission page.\n\n**Alerts** keeps aircraft-condition episodes separate from command activity.\n**Seen** acknowledges an alert; it does not clear the aircraft's condition.\nWhen Overview is not providing current evidence, the panel says **Last\nobserved** with its age. It does not claim those conditions are current or\nresolved. A GCS outage is one aggregate alert, not a repeating aircraft toast.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "b8ca3f076c263b1726615cb9a10efd6177122ed75cc469c560183ed29d959061",
+      "heading": "Understand unavailable data",
+      "id": "mds.dashboard_operator:006-01-understand-unavailable-data",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Understand unavailable data\n\n**Live** means current telemetry is available. **Heartbeat only**, **Link lost**,\n**Offline** and **Never seen** identify different missing-evidence situations.\nConfigured aircraft remain inspectable when unavailable. **Unknown** does not\nmean disarmed or landed.\n\nLast-known measurements are marked; missing measurements stay unknown. GPS fix\ntype and usable map position are separate. **3D fix → DGPS → RTK float → RTK\nfixed** are receiver fix classifications, not an instruction from PX4 to skip\nRTK. An aircraft can report a GPS fix before a valid global position is ready.\n\nReadiness in a review is action-specific. PX4 and the drone recheck at execution;\na green display cannot guarantee physical takeoff. Position uncertainty in\nmetres is different from stationary drift in metres/second. The dashboard does\nnot bypass PX4 drift, heading, estimator or arming checks.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "0d8db7a9f880cce7922295e3b8dc25ec080f0271e23baa3fefe753eba183b2fb",
+      "heading": "Tablet and phone",
+      "id": "mds.dashboard_operator:007-01-tablet-and-phone",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Tablet and phone\n\nThe same selection and confirmation rules apply. Navigation opens from the\nmenu button; inspection opens as a screen-sized panel. The selected count and\naction rail remain accessible. Secondary information is available by tap and\nkeyboard as well as hover.\n\n![Phone layout retains targets and flight controls](../assets/operator-overview/overview-3-390-light.png)",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "8dbeca7975d491a4bb4060304fd133095b0c32e0b74e1f6a8878cfc61f2ad984",
+      "heading": "Mission workspaces",
+      "id": "mds.dashboard_operator:008-01-mission-workspaces",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Mission workspaces\n\n| Mission | Next step |\n| --- | --- |\n| [Smart Swarm](../features/smart-swarm.md) | Review or capture the formation; use Operate for Takeoff, Start Swarm, Pause and Managed Return. |\n| [Drone Show](../features/drone-show.md) | Import/review the package, check origin and launch slots, select targets/timing, then launch from Operate. |\n| [Custom CSV Show](../features/drone-show.md#custom-csv-mode) | Review the shared local-frame CSV, select aircraft/timing and launch from its Operate tab. |\n| [Swarm Trajectory](../features/swarm-trajectory.md) | Plan, generate and review the package, then Start from Operate. |\n| [QuickScout](../quickscout.md) | Prepare the search package and use its own launch review and monitor. |",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "18d10ad28ededf8f9726127207c14be673e1ab2b03597ca5d89e4803e5d8eedd",
+      "heading": "Related guides",
+      "id": "mds.dashboard_operator:009-01-related-guides",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "## Related guides\n\n- [Coordinated Takeoff](coordinated-takeoff.md)\n- [Fleet Ops](fleet-ops.md)\n- [Telemetry altitude policy](telemetry-altitude-policy.md)\n- [Runtime configuration](runtime-config-sources.md)\n- [SITL Control](sitl-control.md)",
+      "title": "Overview operator guide"
     },
     {
       "audience": "developer",
@@ -16381,7 +16561,7 @@
     }
   ],
   "generated_by": "tools/generate_simurgh_docs_index.py",
-  "resource_count": 20,
+  "resource_count": 21,
   "resources": [
     {
       "audience": "operator",
@@ -16567,6 +16747,23 @@
         "simulation"
       ],
       "title": "SITL comprehensive guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "chunk_count": 9,
+      "content_hash": "55358f8cbc133fa13dc21adfe828e824faf00bdf4a148f87b764cab68823d1a5",
+      "id": "mds.dashboard_operator",
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "title": "Overview operator guide"
     },
     {
       "audience": "developer",

@@ -1,6 +1,6 @@
 # Operator Overview and shared shell redesign
 
-Status: approved for implementation on 2026-11-09. Proceed through verified slices without an approval pause between them; ask only for material external decisions. Isolated validation does not constitute flight clearance.
+Status: implemented on 2026-11-09; see the [validation and remaining boundaries](2026-11-09-operator-overview-validation.md). Isolated validation does not constitute flight clearance.
 
 Assessment baseline: `7f565f25b410a34c56ee38165144f3cbca0cb3be`, inspected on 2026-11-09. Source findings below are inspection evidence, not newly reproduced field incidents. Existing unrelated worktree edits remain outside this plan.
 
@@ -215,6 +215,9 @@ Handoff includes before/after screenshots, a short beginner action guide, update
 - Full Custom Show setup visual redesign beyond the complete required operation path.
 - Fleet enrollment/maintenance and PX4 parameter-editor UX; no PX4 tuning changes are implied here.
 - Mission Config origin/home and hardware-versus-slot clarity; map-provider/offline-tile parity.
+- Dense-map label decluttering and a dedicated crowded-map fixture; the large-fleet
+  acceptance here covers Board/List and selection, not simultaneous readability
+  of 100 permanent map labels.
 - A separate bounded build-tool ADR/spike: [Create React App is deprecated](https://react.dev/blog/2025/02/14/sunsetting-create-react-app), but replacing the toolchain or upgrading React is not a prerequisite for this operational redesign.
 - Optional PWA/install/versioned-cache work; offline command execution remains excluded.
 - Broader database, signed-artifact, high-availability or control-authority modernization belongs to its own approved project.

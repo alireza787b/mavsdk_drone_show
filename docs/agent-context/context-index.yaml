@@ -252,6 +252,18 @@ resources:
   - sitl
   - simulation
   searchable: true
+- id: mds.dashboard_operator
+  title: Overview operator guide
+  path: docs/guides/dashboard-operator.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Fleet inspection, explicit targets, general commands, alerts and mission navigation.
+  tags:
+  - dashboard
+  - operations
+  - selection
+  searchable: true
 - id: mds.gcs_api
   title: GCS API server guide
   path: docs/apis/gcs-api-server.md

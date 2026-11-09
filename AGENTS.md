@@ -203,6 +203,9 @@ do not label a partial workspace checkpoint as a validated flight release.
 
 ## Logging and Evidence
 
+- Give long remote validations their own saved logs/results and bounded process
+  lifetime. If SSH disconnects, reconcile the remote process and final artifact;
+  neither transport failure nor a still-running process proves a test outcome.
 - Prefer unified logs over ad hoc terminal output.
 - Distinguish signal from polling noise.
 - Preserve operator clarity: high-signal `INFO`, actionable `WARNING`, true failures at `ERROR`, detailed loops at `DEBUG`.

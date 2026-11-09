@@ -1,0 +1,40 @@
+{
+  "status": "passed",
+  "scenarios": 1,
+  "results": [
+    {
+      "count": 100,
+      "width": 1440,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 602,
+        "/api/v1/commands/recent": 81,
+        "/api/v1/git/status": 204,
+        "/api/v1/system/runtime-status": 81,
+        "/api/v1/config/fleet": 41,
+        "/api/v1/fleet/telemetry": 1194,
+        "/api/v1/fleet/node-boot-status": 240,
+        "/api/v1/config/swarm": 41,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": {
+        "seconds": 1201,
+        "startHeap": 7552244,
+        "endHeap": 9198744,
+        "selectionP95Ms": 13.100000381469727,
+        "samples": 40
+      }
+    }
+  ]
+}

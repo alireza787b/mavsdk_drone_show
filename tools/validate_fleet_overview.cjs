@@ -73,6 +73,11 @@ async function run() {
       const boxes = page.getByRole('checkbox', { name: /^Select / });
       await page.waitForFunction(count => document.querySelectorAll('.fleet-aircraft input:checked').length === count, count);
       assert.equal(await boxes.count(), count);
+      const guide = await page.locator('.route-docs-shortcut a').boundingBox();
+      const alerts = await page.locator('.fleet-alerts__trigger').boundingBox();
+      assert(guide && guide.width >= 44 && guide.height >= 44, 'Page guide must retain a touch-sized target');
+      assert(alerts && !(guide.x < alerts.x + alerts.width && guide.x + guide.width > alerts.x
+        && guide.y < alerts.y + alerts.height && guide.y + guide.height > alerts.y), 'Page guide must not overlap Alerts');
       if (width <= 960) {
         const navigation = page.locator('.modern-sidebar-wrapper');
         await page.getByRole('button', { name: 'Open navigation menu' }).click();

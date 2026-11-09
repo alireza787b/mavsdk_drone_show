@@ -223,9 +223,8 @@ const AppShell = () => {
                   onChangePassword={auth.changePassword}
                 />
                 <div className={contentClassName}>
-                  <RouteDocsShortcut />
                   <SyncWarningBanner />
-                  <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /></div>
+                  <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /><RouteDocsShortcut /></div>
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
                       {/* Main drone management routes */}

@@ -518,22 +518,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .route-docs-shortcut {
-  position: fixed;
-  top: 0.95rem;
-  right: 1rem;
-  z-index: var(--z-fixed);
+  flex: 0 0 auto;
 }
 
 .route-docs-shortcut .operator-docs-link {
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(10px);
-}
-
-@media (max-width: 768px) {
-  .route-docs-shortcut {
-    top: 0.75rem;
-    right: 0.75rem;
-  }
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 2px;
 }
 
 /* Toast Notification Enhancements - Add to App.css */

@@ -4,6 +4,9 @@ Use **Overview** to check the fleet and send general aircraft commands. Set up,
 start and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,
 **Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.
 
+[Open the four-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).
+The screenshots use a synthetic fleet, not aircraft clearance.
+
 ## Check the aircraft
 
 1. Confirm **REAL** or **SITL** at the top of the page.
@@ -15,6 +18,8 @@ start and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,
 **Map** shows current trusted positions. Switching views keeps the same targets.
 Aircraft without current positions remain in the list; the map provides a link
 to find them. A map marker opens inspection, not command selection.
+
+![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)
 
 Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical
 aircraft even when names are duplicated. Position slots appear in inspection.
@@ -46,6 +51,8 @@ confirming an action, check its aircraft names and count again.
 | **Return** | Sends immediate PX4 RTL. No sequencing or route separation. |
 | **More** | Ground tests, less-used actions and service controls. Read the action review before confirming. |
 
+![Takeoff review keeps aircraft targets separate from the launch mode](../assets/operator-overview/takeoff-review-dark.png)
+
 For an isolated intervention, inspect an aircraft and use its own controls.
 These address that aircraft only, independently of the dashboard selection.
 **Move** is available for a currently observed airborne aircraft.
@@ -57,6 +64,8 @@ test area clear. PX4 and native action checks still apply.
 **Return** on Overview is different from **Managed Return** on mission pages.
 Managed Return can stagger RTL commands; it does not guarantee separated flight
 paths. PX4 still controls each return and its configured return height.
+
+![Immediate Return review states its actual behavior](../assets/operator-overview/return-review-dark.png)
 
 ## Read command progress
 
@@ -103,6 +112,8 @@ The same selection and confirmation rules apply. Navigation opens from the
 menu button; inspection opens as a screen-sized panel. The selected count and
 action rail remain accessible. Secondary information is available by tap and
 keyboard as well as hover.
+
+![Phone layout retains targets and flight controls](../assets/operator-overview/overview-3-390-light.png)
 
 ## Mission workspaces
 

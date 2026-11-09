@@ -1,0 +1,894 @@
+{
+  "status": "passed",
+  "scenarios": 32,
+  "results": [
+    {
+      "count": 1,
+      "width": 390,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 390,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 768,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 768,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 900,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 900,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 1440,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 1,
+      "width": 1440,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 390,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 390,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 768,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 768,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 900,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 900,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 1440,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 2,
+        "/api/v1/commands/active": 2,
+        "/api/v1/commands/recent": 2,
+        "/api/v1/git/status": 6,
+        "/api/v1/system/runtime-status": 2,
+        "/api/v1/config/fleet": 2,
+        "/api/v1/fleet/telemetry": 4,
+        "/api/v1/fleet/node-boot-status": 2,
+        "/api/v1/config/swarm": 2,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 3,
+      "width": 1440,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 390,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 390,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 768,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 768,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 900,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 900,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 1440,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 20,
+      "width": 1440,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 1,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 390,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 390,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 390,
+        "scroll": 390,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 768,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 768,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 768,
+        "scroll": 768,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 900,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 900,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 900,
+        "scroll": 900,
+        "scrollX": 0,
+        "navLeft": -320,
+        "navRight": 0
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 1440,
+      "theme": "dark",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    },
+    {
+      "count": 100,
+      "width": 1440,
+      "theme": "light",
+      "allLive": false,
+      "overflow": {
+        "width": 1440,
+        "scroll": 1440,
+        "scrollX": 0,
+        "navLeft": 0,
+        "navRight": 296
+      },
+      "reads": {
+        "/api/v1/auth/status": 1,
+        "/api/v1/commands/active": 1,
+        "/api/v1/commands/recent": 1,
+        "/api/v1/git/status": 4,
+        "/api/v1/system/runtime-status": 1,
+        "/api/v1/config/fleet": 1,
+        "/api/v1/fleet/telemetry": 2,
+        "/api/v1/fleet/node-boot-status": 1,
+        "/api/v1/config/swarm": 1,
+        "/api/v1/commands/takeoff-readiness": 1
+      },
+      "writes": 0,
+      "errors": [],
+      "soak": null
+    }
+  ]
+}

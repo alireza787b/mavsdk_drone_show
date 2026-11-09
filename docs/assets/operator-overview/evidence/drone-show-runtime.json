@@ -1,0 +1,202 @@
+{
+  "base_url": "http://127.0.0.1:5031",
+  "custom_show_info": {
+    "duration_sec": 100.66,
+    "execution_mode": "local per-drone replay",
+    "exists": true,
+    "filename": "active.csv",
+    "max_altitude": 15.0,
+    "preview_exists": true,
+    "required_columns": [
+      "t",
+      "px",
+      "py",
+      "pz",
+      "vx",
+      "vy",
+      "vz",
+      "ax",
+      "ay",
+      "az",
+      "yaw",
+      "mode"
+    ],
+    "row_count": 2014,
+    "sha256": "26f9ad7a17b546f10d7bc9c79b14dd4a3bc3700a2d0f5a68ce52d8b790e4b394"
+  },
+  "drone_ids": [
+    1,
+    2,
+    3
+  ],
+  "result": "PASS",
+  "runs": {
+    "custom_csv": {
+      "acks": {
+        "accepted": 3,
+        "errors": 0,
+        "expected": 3,
+        "offline": 0,
+        "rejected": 0
+      },
+      "error_summary": null,
+      "executions": {
+        "active": 0,
+        "expected": 3,
+        "failed": 0,
+        "received": 3,
+        "started": 3,
+        "succeeded": 3
+      },
+      "outcome": "completed",
+      "phase": "terminal",
+      "status": "completed"
+    },
+    "global_auto": {
+      "acks": {
+        "accepted": 3,
+        "errors": 0,
+        "expected": 3,
+        "offline": 0,
+        "rejected": 0
+      },
+      "error_summary": null,
+      "executions": {
+        "active": 0,
+        "expected": 3,
+        "failed": 0,
+        "received": 3,
+        "started": 3,
+        "succeeded": 3
+      },
+      "outcome": "completed",
+      "phase": "terminal",
+      "status": "completed"
+    },
+    "global_manual": {
+      "acks": {
+        "accepted": 3,
+        "errors": 0,
+        "expected": 3,
+        "offline": 0,
+        "rejected": 0
+      },
+      "error_summary": null,
+      "executions": {
+        "active": 0,
+        "expected": 3,
+        "failed": 0,
+        "received": 3,
+        "started": 3,
+        "succeeded": 3
+      },
+      "outcome": "completed",
+      "phase": "terminal",
+      "status": "completed"
+    },
+    "local_delayed": {
+      "acks": {
+        "accepted": 3,
+        "errors": 0,
+        "expected": 3,
+        "offline": 0,
+        "rejected": 0
+      },
+      "error_summary": null,
+      "executions": {
+        "active": 0,
+        "expected": 3,
+        "failed": 0,
+        "received": 3,
+        "started": 3,
+        "succeeded": 3
+      },
+      "outcome": "completed",
+      "phase": "terminal",
+      "status": "completed"
+    },
+    "override_drill": {
+      "fleet_land": {
+        "acks": {
+          "accepted": 2,
+          "errors": 0,
+          "expected": 2,
+          "offline": 0,
+          "rejected": 0
+        },
+        "error_summary": null,
+        "executions": {
+          "active": 0,
+          "expected": 2,
+          "failed": 0,
+          "received": 2,
+          "started": 2,
+          "succeeded": 2
+        },
+        "outcome": "completed",
+        "phase": "terminal",
+        "status": "completed"
+      },
+      "show_command": {
+        "acks": {
+          "accepted": 3,
+          "errors": 0,
+          "expected": 3,
+          "offline": 0,
+          "rejected": 0
+        },
+        "error_summary": "Superseded by newer command on all 3 drones",
+        "executions": {
+          "active": 0,
+          "expected": 3,
+          "failed": 3,
+          "received": 3,
+          "started": 3,
+          "succeeded": 0
+        },
+        "outcome": "superseded",
+        "phase": "terminal",
+        "status": "cancelled"
+      },
+      "single_land": {
+        "acks": {
+          "accepted": 1,
+          "errors": 0,
+          "expected": 1,
+          "offline": 0,
+          "rejected": 0
+        },
+        "error_summary": null,
+        "executions": {
+          "active": 0,
+          "expected": 1,
+          "failed": 0,
+          "received": 1,
+          "started": 1,
+          "succeeded": 1
+        },
+        "outcome": "completed",
+        "phase": "terminal",
+        "status": "completed"
+      }
+    }
+  },
+  "scheduled_trigger_delay_fixture_sec": 60,
+  "show_info": {
+    "drone_count": 5,
+    "duration_minutes": 2.88,
+    "duration_ms": 172750.0,
+    "duration_seconds": 52.75,
+    "max_altitude": 39.25
+  },
+  "target_runtime": {
+    "mode": "sitl",
+    "configured_mode": "sitl",
+    "sim_mode": true,
+    "configured_sim_mode": true,
+    "gcs_port": 5031,
+    "sitl_instance_count": 3,
+    "git_auto_push": false,
+    "configured_git_auto_push": false
+  }
+}

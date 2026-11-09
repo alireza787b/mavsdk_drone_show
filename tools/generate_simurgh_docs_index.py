@@ -195,6 +195,7 @@ def _extract_links(text: str) -> list[str]:
 
 def _route_hint(path: Path) -> str | None:
     mapping = {
+        "docs/guides/dashboard-operator.md": "/",
         "docs/features/drone-show.md": "/drone-show",
         "docs/features/swarm-trajectory.md": "/swarm-trajectory",
         "docs/quickscout.md": "/quickscout",

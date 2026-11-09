@@ -177,6 +177,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/sidecars/{sidecar}/policy/apply",
         "/api/v1/fleet/sidecars/{sidecar}/policy/dry-run",
         "/api/v1/fleet/node-boot-status",
+        "/api/v1/config/swarm/capture-preview",
         "/api/v1/fleet/sidecars/{sidecar}/promote-draft",
         "/api/v1/fleet/sidecars/{sidecar}/reconcile/apply",
         "/api/v1/fleet/sidecars/{sidecar}/reconcile/dry-run",
@@ -282,6 +283,7 @@ GCS_EXPECTED_HTTP = {
 }
 
 GCS_EXPECTED_WS = {
+    "/ws/swarm-config",
     "/ws/telemetry",
     "/ws/heartbeats",
     "/ws/git-status",

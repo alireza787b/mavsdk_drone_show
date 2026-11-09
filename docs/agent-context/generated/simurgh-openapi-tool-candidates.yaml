@@ -1759,7 +1759,7 @@ candidates:
     schema:
       items:
         type: string
-      maxItems: 64
+      maxItems: 100
       minItems: 1
       title: Target Drone Ids
       type: array
@@ -2881,7 +2881,16 @@ candidates:
     - manual_review_required_before_registry_promotion
   has_request_body: false
   id: candidate.gcs.get.api.v1.shows.operation.status
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: mission_type
+    required: false
+    schema:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      title: Mission Type
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -8829,7 +8838,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 07318cdd59c617619a23cb0f736f4428ef14f56b235cab9d9c51b6549372ae50
+  openapi_sha256: e6680eabf56ed88d391ffd36830a5c6e9c3a8ad104f1f2c03db7dd5c5d71c0d3
   title: GCS Server API
   version: '5.5'
 summary:

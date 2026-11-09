@@ -96,6 +96,9 @@ describe('App', () => {
       'href',
       expect.stringContaining('/docs/guides/dashboard-operator.md')
     );
+    expect(screen.getByRole('link', { name: /dashboard guide/i }).closest('.shell-operations-strip')).toContainElement(
+      screen.getByTestId('command-activity')
+    );
   });
 
   test('requires login when API auth is enabled even if dashboard auth is open', async () => {

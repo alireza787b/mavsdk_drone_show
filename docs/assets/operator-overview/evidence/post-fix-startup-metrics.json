@@ -1,0 +1,48 @@
+{
+  "scope": "isolated three-node SITL development-source overlay on port 5031; not a pinned image or hardware clearance",
+  "case": "global_auto",
+  "command_id": "f08cdb34-26af-47ef-bc3a-e38bfc5d808a",
+  "requested_trigger_utc": "2026-11-09T14:57:10.000Z",
+  "helper_sha256": "3e0925b0b4f37936b36be2ca74f69fb247160540e30199f1c514257c7c41e431",
+  "effective_settings": {
+    "show_preparation_sec": 10,
+    "general_action_lead_sec": 4,
+    "late_start_tolerance_sec": 1
+  },
+  "nodes": {
+    "1": {
+      "scheduler_spawn_utc": "2026-11-09T14:57:00.090Z",
+      "first_child_log_utc": "2026-11-09T14:57:01.997Z",
+      "preparation_gate_utc": "2026-11-09T14:57:05.786Z",
+      "gate_wait_logged_sec": 4.21,
+      "arming_phase_utc": "2026-11-09T14:57:10.000Z",
+      "arm_attempt_utc": "2026-11-09T14:57:10.795Z"
+    },
+    "2": {
+      "scheduler_spawn_utc": "2026-11-09T14:57:00.493Z",
+      "first_child_log_utc": "2026-11-09T14:57:02.001Z",
+      "preparation_gate_utc": "2026-11-09T14:57:05.883Z",
+      "gate_wait_logged_sec": 4.12,
+      "arming_phase_utc": "2026-11-09T14:57:10.001Z",
+      "arm_attempt_utc": "2026-11-09T14:57:10.839Z"
+    },
+    "3": {
+      "scheduler_spawn_utc": "2026-11-09T14:57:00.275Z",
+      "first_child_log_utc": "2026-11-09T14:57:02.010Z",
+      "preparation_gate_utc": "2026-11-09T14:57:05.821Z",
+      "gate_wait_logged_sec": 4.18,
+      "arming_phase_utc": "2026-11-09T14:57:10.000Z",
+      "arm_attempt_utc": "2026-11-09T14:57:10.842Z"
+    }
+  },
+  "result": {
+    "phase": "terminal",
+    "outcome": "completed",
+    "accepted": 3,
+    "succeeded": 3,
+    "failed": 0
+  },
+  "interpretation": "Preparation completed before the trigger on all three nodes; the unchanged synchronized gate waited until the requested second before entering arming. These are software log timestamps, not proof of simultaneous physical takeoff.",
+  "fixture_reset": "Stock trajectory ends away from configured launch slots. Ground-guarded restart of exactly drone-1, drone-2 and drone-3 preserves overlay and restores simulator spawn positions between cases; no readiness thresholds changed.",
+  "evidence": "post-fix/drone-{1,2,3}/s_20261109_145615.jsonl and corresponding s_20261109_145701 or 145702 child sessions"
+}

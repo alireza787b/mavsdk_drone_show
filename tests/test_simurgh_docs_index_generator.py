@@ -34,7 +34,9 @@ def test_generated_docs_index_is_current_public_and_bounded():
     assert generator.main(["--check"]) == 0
 
     resource_ids = {resource["id"] for resource in artifact["resources"]}
-    assert {"mds.drone_show", "mds.quickscout", "mds.environment_registry", "simurgh.mcp_client_recipes"}.issubset(resource_ids)
+    assert {"mds.dashboard_operator", "mds.drone_show", "mds.quickscout", "mds.environment_registry", "simurgh.mcp_client_recipes"}.issubset(resource_ids)
+    overview = next(resource for resource in artifact["resources"] if resource["id"] == "mds.dashboard_operator")
+    assert overview["route_hint"] == "/"
     mcp_clients = next(resource for resource in artifact["resources"] if resource["id"] == "simurgh.mcp_client_recipes")
     assert mcp_clients["route_hint"] == "/simurgh"
     assert "simurgh.foundation_evals" not in resource_ids
