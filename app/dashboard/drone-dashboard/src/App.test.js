@@ -15,6 +15,7 @@ jest.mock('./components/SidebarMenu', () => ({ collapsed, mobile, mobileOpen }) 
   />
 ));
 jest.mock('./components/SyncWarningBanner', () => () => null);
+jest.mock('./components/CommandActivityPanel', () => () => <section data-testid="command-activity" />);
 jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>);
 jest.mock('./contexts/CommandActivityContext', () => ({
   CommandActivityProvider: ({ children }) => <>{children}</>,
@@ -44,7 +45,6 @@ jest.mock('./pages/QuickScoutPage', () => ({ __esModule: true, default: () => <d
 jest.mock('./pages/FleetEnrollmentPage', () => ({ __esModule: true, default: () => <div data-testid="fleet-enrollment" /> }));
 jest.mock('./pages/SimurghOperatorPage', () => ({ __esModule: true, default: () => <div data-testid="simurgh-operator" /> }));
 jest.mock('./pages/LogViewer', () => ({ __esModule: true, default: () => <div data-testid="log-viewer" /> }));
-jest.mock('./components/DroneDetail', () => ({ __esModule: true, default: () => <div data-testid="drone-detail" /> }));
 
 // Mock services
 jest.mock('./services/logService', () => ({
@@ -80,6 +80,7 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByTestId('sidebar')).toBeInTheDocument();
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
+    expect(screen.getByTestId('command-activity')).toBeInTheDocument();
   });
 
   test('renders sidebar navigation', async () => {
@@ -148,5 +149,12 @@ describe('App', () => {
     expect(await screen.findByTestId('swarm-trajectory')).toBeInTheDocument();
     expect(window.location.pathname + window.location.search).toBe('/swarm-trajectory?tab=plan');
     expect(screen.queryByTestId('trajectory-planning')).not.toBeInTheDocument();
+  });
+
+  test('old aircraft-detail bookmarks resolve to the canonical Overview', async () => {
+    window.history.pushState({}, '', '/drone-detail');
+    render(<App />);
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
   });
 });

@@ -25,6 +25,18 @@ def test_env_registry_loads_without_raw_secret_entries():
     assert not [entry.name for entry in registry.entries.values() if entry.secret]
 
 
+def test_show_preparation_is_visible_and_requires_coordinated_deployment_restart():
+    entry = load_env_registry().require("MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC")
+    assert entry.scope == "deployment"
+    assert entry.default == 10
+    assert entry.value_type == "float"
+    assert entry.ui_visibility == "advanced"
+    assert entry.restart_required == "manual"
+    assert entry.apply_action == "manual"
+    assert entry.editable is False
+    assert entry.source_of_truth == "/etc/mds/gcs.env and /etc/mds/local.env"
+
+
 def test_supervisor_home_override_is_registered_but_resolved_home_is_shell_local():
     registry = load_env_registry()
     entry = registry.require("MDS_USER_HOME")

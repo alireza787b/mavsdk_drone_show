@@ -141,3 +141,6 @@
   .drone-show-workspace__setup .import-feature-grid { grid-template-columns: 1fr; }
   .drone-show-workspace__metric-details { grid-template-columns: 1fr; }
 }
+.drone-show-workspace__selection { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .6rem; }
+.drone-show-workspace__table label { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; }
+.drone-show-workspace__table input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }

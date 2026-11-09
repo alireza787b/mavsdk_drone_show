@@ -142,7 +142,7 @@ Detailed documentation for MDS features:
 | **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, first SITL flow, and validator tool |
 | **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** | Capture expected vs actual follower tracking during leader jogs and frame changes |
 | **[Mission Planning Workspace](features/mission-planning-workspace.md)** | Shared QuickScout and Swarm Trajectory planning UI doctrine, altitude/terrain behavior, degraded-state handling, and job/progress policy |
-| **[Swarm Trajectory](features/swarm-trajectory.md)** | Single-page leader-route authoring, validation, preview, processing, commit/transfer, and Dashboard Mission Type 4 workflow for leader/follower trajectories |
+| **[Swarm Trajectory](features/swarm-trajectory.md)** | Leader-route authoring, validation, preview, processing, commit/transfer, and launch/monitoring from its own Operate tab |
 | **[QuickScout](quickscout.md)** | SAR/recon point dispatch, last-known point, polygon area search, multi-vertex corridor planning, launch review, and monitoring |
 | **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |

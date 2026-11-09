@@ -41,6 +41,36 @@
   ],
   "keys": [
     {
+      "name": "MDS_OVERVIEW_URL",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Served-build URL for the isolated, browser-fulfilled Overview acceptance runner; never persisted as runtime configuration."
+    },
+    {
+      "name": "MDS_OVERVIEW_OUTPUT",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Artifact directory for isolated Overview browser acceptance screenshots and summaries."
+    },
+    {
+      "name": "MDS_OVERVIEW_COUNTS",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Synthetic aircraft-count matrix for isolated Overview browser acceptance; does not create or command nodes."
+    },
+    {
+      "name": "MDS_OVERVIEW_WIDTHS",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Viewport-width matrix for isolated Overview browser acceptance."
+    },
+    {
+      "name": "MDS_OVERVIEW_THEMES",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Theme matrix for isolated Overview browser acceptance."
+    },
+    {
       "name": "MDS_TAKEOFF_CONTEXT_FD",
       "domain": "runtime",
       "scope": "process",

@@ -1,7 +1,7 @@
 # Smart Swarm Guide
 
 **Mission Type:** `2` (`SMART_SWARM`)  
-**Primary UI Surface:** `Swarm Design` page  
+**Primary UI Surface:** `Smart Swarm` (`/swarm-design`), with `Operate` / `Design Swarm` tabs
 **Runtime Model:** live leader-follower formation with saved follow chains and in-flight reassignment
 
 ## Overview
@@ -53,11 +53,11 @@ For a clean first Smart Swarm demo in SITL:
    ```bash
    bash app/linux_dashboard_start.sh --sitl
    ```
-3. open `Overview` and wait until the target drones show `READY` with live telemetry
-4. open `Swarm Design` and verify the saved SITL assignments from `swarm_sitl.json`
-5. use `Design Swarm` Top, Side, 3D and Links views to preview the intended cluster
-6. use `Smart Swarm Runtime` to review `Formation Preview` and the live readiness snapshot for either the selected drone or selected cluster
-7. start Smart Swarm for the intended scope
+3. open `Overview` to inspect aircraft identity, live telemetry and any conditions needing attention
+4. open `Smart Swarm` → `Design Swarm` and verify the saved SITL assignments from `swarm_sitl.json`
+5. use Top, Side, 3D and Links views to preview the intended cluster
+6. open `Operate`, select the saved cluster and review its aircraft; use **Takeoff** if needed, then wait for the aircraft to be airborne and settled
+7. choose **Start Swarm**, review the exact formation scope and native readiness, then confirm; use **Managed Return** on the same page when appropriate
 8. if you want the full branch acceptance run from the command line, use:
    ```bash
    python3 tools/validate_smart_swarm_runtime.py
@@ -239,12 +239,15 @@ Smart Swarm now has two clean command scopes:
 
 ### 1. Single-drone commands
 
-Use the normal drone action controls when you want to affect only one aircraft.
+Use Overview's general aircraft actions when you want to affect only one
+aircraft. New mission starts belong on that mission's dedicated page with its
+own reviewed targets, not on Overview.
 
 Examples:
+
 - send `RTL` to one drone
 - send `LAND` to one drone
-- send a new mission to one drone
+- select one aircraft in the relevant mission workspace when that mission supports a single-aircraft scope
 
 These commands stay scoped to that drone. They do **not** automatically cancel Smart Swarm on unrelated drones.
 
@@ -254,14 +257,15 @@ Important caveat:
 - that can mean continued following, upstream reassignment, or self-hold, depending on topology and live health
 - so command scope stays local, but topology side effects can still propagate through the follow chain
 
-### 2. Normal Dashboard start
+### 2. Normal Smart Swarm start
 
-The normal field flow is intentionally short: take off using MDS, QGroundControl,
-or the RC, let the aircraft stabilize, then open `Overview` and select **Smart
-Swarm** beside `Drone Show`. Review the brief leader/offset/status summary,
-click **Start Smart Swarm**, then **Confirm start**. Opening the card never
+Open **Smart Swarm → Operate**, select the saved cluster and review its
+leader/offset/status summary. Use **Takeoff** there, or take off through
+QGroundControl or RC, and let the aircraft stabilize. Choose **Start Swarm** and
+confirm the reviewed aircraft. Opening the page or changing inspection never
 sends a command. MDS resolves the saved executable cluster and starts the complete
-dependency-closed cluster. The takeoff does not have to come from MDS.
+dependency-closed cluster. The takeoff does not have to come from MDS. Overview
+retains fleet awareness and general aircraft actions, not a second swarm launcher.
 
 The Start review reads each selected aircraft's own admission decision. A
 single status shows `Checking aircraft`, `Finishing takeoff`, a named blocker,
@@ -294,29 +298,24 @@ leader cannot be bypassed because its descendants would be orphaned.
 
 ### 3. Advanced Swarm runtime commands
 
-Use the `Smart Swarm Runtime` panel on the `Swarm Design` page when the intent is live Smart Swarm control:
+Use **Smart Swarm → Operate** for live Smart Swarm control:
 
-- `Start Smart Swarm`
-- `Stop Swarm (Hold)`
-- `Land Swarm`
-- `RTL Swarm`
+- **Start Swarm** for the reviewed saved cluster
+- **Hold Swarm** for the displayed cluster
+- **Managed Return** for sequential RTL
+- **Other actions → Stop following / Land here / Immediate RTL** for explicit recovery
 
-The runtime panel supports:
-
-- `Selected Drone`
-- `Selected Cluster`
-
-Specific cluster selections in `Formation Analysis` also drive the cluster-scoped runtime target. The `All executable clusters` option is analysis-only and does not issue one command across the full fleet.
-The runtime panel defaults to `Selected Drone`, so choose `Selected Cluster`
-and verify the named target list in the confirmation when both aircraft should
-receive Hold, Land, or RTL. An ambiguous, stale, or non-executable cluster
-selection blocks cluster commands instead of silently choosing another cluster.
-The runtime preview/targets use the saved assignment; unsaved formation edits
+The Operate cluster selection is independent of formation inspection and
+Overview's general aircraft selection. **Other actions → Recovery targets**
+selects the entire cluster or one named aircraft for individual recovery; inspect
+the exact target list before confirming. An ambiguous, stale, or non-executable
+cluster blocks cluster commands instead of silently choosing another cluster.
+Runtime preview and targets use the saved assignment; unsaved formation edits
 do not silently change a recovery target set.
 
-`Stop Swarm (Hold)` ends following and commands PX4 Hold on each selected
-airborne drone; resuming requires an explicit Start. `Land Swarm` commands each
-selected drone to land at its current position. `RTL Swarm` ends following and
+**Hold Swarm / Stop following** ends following and commands PX4 Hold on each selected
+airborne drone; resuming requires an explicit Start. **Land here** commands each
+selected drone to land at its current position. **Immediate RTL** ends following and
 commands each selected drone's own PX4 Return mode. It is **not** a coordinated
 formation return: PX4 may climb, choose different paths/destinations, or reject
 Return if its position/home requirements are unmet. MDS recovery commands
@@ -328,8 +327,8 @@ This keeps swarm intent explicit instead of overloading the generic command send
 
 ### Sequential Return
 
-On the same runtime panel, select the drone or cluster, set **RTL interval**
-(default **10 seconds**, range 1–300 seconds), then **Sequential Return**.
+On **Smart Swarm → Operate**, select the saved cluster and choose **Managed Return**.
+Review the **Return interval** (default **10 seconds**, range 1–300 seconds).
 The confirmation lists the exact aircraft order and relative dispatch times.
 MDS ends following and confirms Hold on all selected aircraft, then dispatches
 each aircraft's normal PX4 RTL in that order. The interval is a minimum between
@@ -354,14 +353,19 @@ does not claim that the aircraft have landed. Plan battery reserve for the
 waiting interval as well as each return flight. This initial version adds no
 formation, leader-election, PX4 parameter or estimator changes.
 
-The dashboard Smart Swarm card uses the same tracked session contract as the
-advanced runtime; it does not use the generic mission scheduling form. The
-advanced page remains the place for multiple clusters and recovery controls.
-Start requires a complete saved follow chain, so choose `Selected Cluster`
-when the selected drone is a follower; leader-only starts and per-drone
-recovery remain available.
+The dedicated Operate page owns the tracked swarm session contract, cluster
+selection and recovery controls; it does not use a generic mission scheduling
+form. Start requires a complete saved follow chain. Individual recovery remains
+an explicit **Other actions** choice, not a change to Start's cluster scope.
 
-These runtime commands now publish into the same shared command lifecycle stream as `Command Control` and per-drone airborne overrides. That means the backend-backed live/recent command monitor can recover command context after refresh/navigation instead of keeping Smart Swarm runtime actions as toast-only events.
+Overview's general **Return** means immediate native PX4 RTL for its selected
+aircraft. It is not Managed Return and does not create a sequential return queue.
+See the [Dashboard Operator Guide](../guides/dashboard-operator.md) for general actions.
+
+These runtime commands publish into the same shared command activity as
+Overview's general aircraft actions. The backend-backed live/recent monitor
+recovers command context after refresh/navigation; runtime actions are not
+toast-only events.
 
 Mixed-mission leader rule:
 
@@ -381,15 +385,15 @@ Mixed-mission leader rule:
 
 ### Formation preview and live readiness
 
-Overview and the dedicated **Operate** tab share one saved-cluster control panel:
-**Takeoff → Start Swarm → Return** are separate confirmed actions, never a combined
+The dedicated **Smart Swarm → Operate** tab owns the saved-cluster control panel:
+**Takeoff → Start Swarm → Managed Return** are separate confirmed actions, never a combined
 automatic mission. The first saved cluster is the initial default. The runtime
 selection is retained for this GCS/mode browser session and is independent of
 drone inspection, formation plots and general dashboard dispatch selection.
 If the selected cluster disappears, select again; MDS never substitutes another.
 The **Design Swarm** tab holds editing, graphs, imports, exports and publishing.
 
-Return defaults to **Sequential RTL · 10 s** with the order and interval in its
+Managed Return defaults to **Sequential RTL · 10 s** with the order and interval in its
 confirmation. This is timed dispatch, not collision avoidance or waiting for
 each aircraft to land. Paths may overlap. Immediate RTL, Land here and explicit
 individual-aircraft recovery are in **Other actions**. **Stop following** commands
@@ -826,6 +830,10 @@ Cycle protection is enforced in two places:
 That prevents live leader changes from silently introducing a loop into the follow chain.
 
 ## Runtime Guarantees Added In This Audit
+
+The UI-default bullet below records the earlier runtime panel. For the current
+saved-cluster Operate scope and individual recovery controls, see
+[Advanced Swarm runtime commands](#3-advanced-swarm-runtime-commands).
 
 - dedicated leader-state stream at `WS /ws/swarm-state` with `GET /api/v1/swarm/state` fallback
 - expected leader identity, producer validity, finite motion values, and

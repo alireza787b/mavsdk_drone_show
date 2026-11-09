@@ -228,3 +228,14 @@
         align-items: stretch;
     }
 }
+.custom-show-operate { display: grid; gap: .75rem; min-width: 0; }
+.custom-show-operate p { margin: 0; }
+.custom-show-operate code { overflow-wrap: anywhere; }
+.custom-show-operate__toolbar { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.custom-show-operate__toolbar label { display: grid; gap: .3rem; }
+.custom-show-operate__toolbar input { min-height: 2.75rem; color: var(--color-text-primary); background: var(--color-bg-secondary); border: 1px solid var(--color-border-primary); }
+.custom-show-operate__aircraft { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: .5rem; }
+.custom-show-operate__aircraft label { display: grid; grid-template-columns: 2.75rem 1fr; align-items: center; border-bottom: 1px solid var(--color-border-primary); padding: .5rem; }
+.custom-show-operate__aircraft input { width: 1.25rem; height: 1.25rem; }
+.custom-show-operate__aircraft span { grid-column: 2; color: var(--color-text-secondary); }
+.custom-show-operate .operator-button { min-height: 2.75rem; }

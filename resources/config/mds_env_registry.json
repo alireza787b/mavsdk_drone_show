@@ -2,6 +2,28 @@
   "version": 1,
   "entries": [
     {
+      "name": "MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC",
+      "title": "Synchronized show executor preparation lead (seconds)",
+      "scope": "deployment",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/gcs.env and /etc/mds/local.env",
+      "value_type": "float",
+      "default": 10,
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "advanced",
+      "restart_required": "manual",
+      "apply_action": "manual",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/features/drone-show.md",
+      "consumers": ["src/params.py", "src/mission_timing.py", "src/drone_setup.py", "src/drone_api_server.py", "gcs-server/command_execution_policy.py"],
+      "notes": "Finite positive preparation budget for Drone Show, Custom CSV and Hover Test only. Match GCS and all participating nodes, then restart while grounded. Configure through the existing env files or process environment; single-host UI Apply is intentionally unavailable for this coordinated setting. Does not advance arming, change the exact trigger or late-start tolerance, or alter other actions.",
+      "owner": "flight-runtime"
+    },
+    {
       "name": "MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC",
       "title": "Leader data hard-stale timeout (seconds)",
       "scope": "node",

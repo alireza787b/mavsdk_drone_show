@@ -80,6 +80,7 @@ from src.launch_preparation_protocol import (
     calculate_launch_preparation_token_ttl_sec,
     immutable_command_payload_sha256,
 )
+from src.mission_timing import SYNCHRONIZED_SHOW_EXECUTOR_MISSIONS, mission_commit_lead_seconds
 
 logger = get_logger("drone_api")
 
@@ -1101,19 +1102,14 @@ class DroneAPIServer:
         # Launch authority is deliberately process-local and short-lived. A
         # node restart invalidates every uncommitted preparation; the existing
         # command-history bound also caps token memory without a second knob.
-        def typed_nonnegative_setting(name: str, default: float) -> float:
-            raw = getattr(params, name, default)
-            if type(raw) not in {int, float} or not math.isfinite(float(raw)):
-                return default
-            return max(0.0, float(raw))
-
         self._launch_preparation_store = LaunchPreparationStore(
             ttl_sec=calculate_launch_preparation_token_ttl_sec(params=params),
             max_records=int(self._command_idempotency_max_records),
-            minimum_post_barrier_lead_sec=(
-                typed_nonnegative_setting("trigger_sooner_seconds", 0.0)
-                + typed_nonnegative_setting("COMMAND_SYNC_DISPATCH_GUARD_SEC", 1.0)
-            ),
+            minimum_post_barrier_lead_sec=mission_commit_lead_seconds(None, params=params),
+            minimum_post_barrier_lead_sec_by_mission={
+                mission.value: mission_commit_lead_seconds(mission, params=params)
+                for mission in SYNCHRONIZED_SHOW_EXECUTOR_MISSIONS
+            },
         )
         self._command_followup_tasks: Set[asyncio.Task] = set()
         self._command_followup_max_tasks = 32

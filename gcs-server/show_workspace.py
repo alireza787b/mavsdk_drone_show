@@ -43,6 +43,8 @@ def build_workspace_snapshot(deps):
     }
 
 
-async def build_operation_snapshot(deps):
+async def build_operation_snapshot(deps, mission_type=None):
     from mission_operation import build_mission_operation_snapshot
-    return await build_mission_operation_snapshot(deps, mission_types=SHOW_MISSIONS, operation_kind='show')
+    return await build_mission_operation_snapshot(
+        deps, mission_types={mission_type} if mission_type is not None else SHOW_MISSIONS,
+        operation_kind='show')

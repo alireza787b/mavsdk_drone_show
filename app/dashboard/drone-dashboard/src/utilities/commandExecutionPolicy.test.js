@@ -34,6 +34,12 @@ describe('commandExecutionPolicy', () => {
     ).toMatch(/abort instead of joining late/i);
   });
 
+  test('zero-trigger synchronized missions describe checks before scheduling, not immediate flight', () => {
+    const policy = getMissionExecutionPolicy(DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV, { isImmediate: true });
+    expect(policy).toMatch(/checks run first.*coordinator then schedules/i);
+    expect(policy).not.toMatch(/accept immediately/i);
+  });
+
   test('describes immediate launch actions and non-schedulable maintenance actions consistently', () => {
     expect(isSchedulableActionKey('TAKE_OFF')).toBe(true);
     expect(isStrictSyncActionKey('HOVER_TEST')).toBe(true);

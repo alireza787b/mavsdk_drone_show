@@ -618,6 +618,19 @@ The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonic
 
 `distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to PX4's authoritative home position; dashboards should show `n/a` until current position is valid and `home_position_set=true`. A companion fallback cache is not authoritative home.
 
+#### `GET /api/v1/fleet/action-readiness`
+
+Read cached, freshness-bounded readiness evidence for 1–100 `target_drone_ids`
+query entries (repeat the query parameter for each aircraft). More than 100
+entries returns HTTP 422. The response deduplicates IDs in first-requested order;
+missing, unavailable or stale telemetry cannot count as ready. The matching
+`mds.fleet.action_readiness.read` tool also accepts up to 100 unique IDs.
+
+This read-only check performs no per-aircraft RPC and does not grant command
+authority. Configuration, heartbeat and locked telemetry snapshots are acquired
+separately; they are not one fleet-wide atomic observation. Native command
+admission still rechecks readiness.
+
 ---
 
 ### Heartbeat
@@ -1031,6 +1044,11 @@ target hardware IDs, operation kind, telemetry age/freshness, armed state, and
 battery percentage. It derives state from the command tracker and does not
 create or alter commands.
 
+The optional `mission_type=1` (SkyBrush) or `mission_type=3` (Custom CSV)
+query filters the recorded show/recovery history for its owning workspace.
+Omitting it preserves the combined projection. Other values are rejected.
+The fleet inventory is not changed by this history filter.
+
 Example shape:
 ```json
 {
@@ -1057,6 +1075,10 @@ Download processed show files as ZIP.
 
 #### `GET /api/v1/shows/custom`
 Get metadata for the active custom replay CSV.
+
+`sha256` is the current GCS CSV fingerprint for operator review. It is not a
+drone-side package receipt or a binding that guarantees the installed file on
+every aircraft. The field is absent/null when no active file is available.
 
 **Response:**
 ```json
@@ -1782,6 +1804,17 @@ Important semantics:
 - `timeout_at` in the tracking resource is authoritative and already includes any future trigger delay plus the expected execution/cleanup window; clients must not guess a separate flat timeout.
 - tracker timeout budgets are mission-aware instead of one flat timeout: short actions use action-specific budgets, while Drone Show, Custom CSV, and Swarm Trajectory derive longer tracking windows from the active mission assets plus cleanup buffers.
 - if `trigger_time` schedules the command in the future, that waiting period is reflected in authoritative `timeout_at`; delayed-command clients continue monitoring that resource instead of imposing a shorter local timeout.
+- For Drone Show, Custom CSV and Hover Test, GCS dispatch deadlines, node commit
+  admission and executor scheduling share a 10-second Python/MAVSDK preparation
+  lead (`MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC`, finite positive override matched
+  on GCS and nodes). This starts setup earlier, not arming: the original trigger,
+  one-second late-start abort and live native checks are unchanged. Other mission
+  and recovery scheduling keeps its existing lead.
+- For strict synchronized missions, `trigger_time=0` means as soon as safely
+  synchronized: GCS selects one future trigger after the readiness barrier.
+  An explicit timestamp is preserved only if the bounded dispatch/preparation
+  window still fits after that barrier; otherwise it is rejected, not silently
+  moved. Preparation timeouts are maximum budgets, not a fixed operator delay.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `mission_type=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
 - there is currently no separate command-specific cancel resource. Live cancellation goes through `POST /api/v1/commands` with `mission_type=0` so the cancel action is actually dispatched to drones.

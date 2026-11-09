@@ -230,6 +230,47 @@ class TestScheduleMission:
         assert earlier_trigger == trigger_time - 4
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('mission,lead', [
+        (Mission.DRONE_SHOW_FROM_CSV, 10), (Mission.CUSTOM_CSV_DRONE_SHOW, 10), (Mission.HOVER_TEST, 10),
+        (Mission.LAND, 4), (Mission.HOLD, 4), (Mission.RETURN_RTL, 4), (Mission.KILL_TERMINATE, 4),
+        (Mission.TAKE_OFF, 4), (Mission.SWARM_TRAJECTORY, 4), (Mission.QUICKSCOUT, 4),
+    ])
+    async def test_scheduler_uses_preparation_lead_only_for_gated_show_executors(self, mission, lead):
+        from src.drone_setup import DroneSetup
+        params = Mock(trigger_sooner_seconds=4, SYNCHRONIZED_SHOW_PREPARATION_SEC=10)
+        drone_config = create_mock_drone_config()
+        drone_config.mission = mission.value
+        drone_config.state = State.MISSION_READY.value
+        drone_config.trigger_time = 200
+        setup = DroneSetup(params, drone_config)
+        handler = AsyncMock(return_value=(False, 'test'))
+        setup.mission_handlers[mission.value] = handler
+        with patch('src.drone_setup.time.time', return_value=190):
+            await setup.schedule_mission()
+        handler.assert_awaited_once_with(190, 200 - lead)
+        assert drone_config.trigger_time == 200
+
+    @pytest.mark.asyncio
+    async def test_earlier_show_preparation_preserves_the_actual_child_trigger(self):
+        from src.drone_setup import DroneSetup
+        params = Mock(trigger_sooner_seconds=4, SYNCHRONIZED_SHOW_PREPARATION_SEC=10,
+            main_offboard_executer='drone_show.py')
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.DRONE_SHOW_FROM_CSV.value
+        drone_config.state = State.MISSION_READY.value
+        drone_config.trigger_time = 200
+        setup = DroneSetup(params, drone_config)
+        setup.execute_mission_script = AsyncMock(return_value=(True, 'started'))
+        with patch('src.drone_setup.time.time', return_value=189):
+            await setup.schedule_mission()
+        setup.execute_mission_script.assert_not_awaited()
+        with patch('src.drone_setup.time.time', return_value=190):
+            await setup.schedule_mission()
+        args = setup.execute_mission_script.await_args.args
+        assert args[0] == 'drone_show.py'
+        assert '--start_time=200' in args[1]
+
+    @pytest.mark.asyncio
     async def test_scheduler_holds_shared_state_transaction_through_handler(self):
         """An HTTP override cannot interleave after handler selection."""
         from src.drone_setup import DroneSetup

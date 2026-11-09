@@ -33,6 +33,9 @@ import './styles/TakeoffDialog.css';
 import SidebarMenu from './components/SidebarMenu';
 import RouteDocsShortcut from './components/RouteDocsShortcut';
 import SyncWarningBanner from './components/SyncWarningBanner';
+import CommandActivityPanel from './components/CommandActivityPanel';
+import { FleetAlertsProvider } from './features/fleet-overview/FleetAlertsContext';
+import FleetAlertsPanel from './features/fleet-overview/FleetAlertsPanel';
 import ErrorBoundary from './components/ErrorBoundary';
 import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
 
@@ -45,7 +48,6 @@ import './App.css';
 // Lazy loaded — heavy visualization pages (three.js, plotly, cytoscape, mapbox)
 const Overview = lazy(() => import('./pages/Overview'));
 const MissionConfig = lazy(() => import('./pages/MissionConfig'));
-const Detail = lazy(() => import('./components/DroneDetail'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
 const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
 const GlobeView = lazy(() => import('./pages/GlobeView'));
@@ -135,7 +137,6 @@ const AuthGate = ({ children }) => {
 };
 
 const AppShell = () => {
-  const [selectedDrone, setSelectedDrone] = useState(null);
   const [isMobile, setIsMobile] = useState(getIsMobileViewport);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(getIsMobileViewport);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -186,6 +187,7 @@ const AppShell = () => {
         v7_relativeSplatPath: true,
       }}
     >
+      <FleetAlertsProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}`}>
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
                   <>
@@ -223,22 +225,21 @@ const AppShell = () => {
                 <div className={contentClassName}>
                   <RouteDocsShortcut />
                   <SyncWarningBanner />
+                  <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /></div>
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
                       {/* Main drone management routes */}
-                      <Route path="/drone-show" element={<DroneShowWorkspace />} />
-                      <Route path="/drone-show-design" element={<DroneShowWorkspace />} />
+                      <Route path="/drone-show" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
+                      <Route path="/drone-show-design" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/swarm-design" element={<SwarmDesign />} />
                       <Route path="/mission-config" element={<MissionConfig />} />
                       <Route path="/fleet-enrollment" element={<FleetEnrollmentPage />} />
                       <Route path="/fleet-ops" element={<FleetOpsPage />} />
                       <Route path="/fleet-ops/wifi" element={<FleetOpsWifiPage />} />
                       <Route path="/fleet-ops/mavlink" element={<FleetOpsMavlinkPage />} />
-                      <Route path="/drone-detail" element={selectedDrone
-                        ? <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
-                        : <Navigate to="/" replace />} />
-                      <Route path="/manage-drone-show" element={<DroneShowWorkspace />} />
-                      <Route path="/custom-show" element={<CustomShowPage />} />
+                      <Route path="/drone-detail" element={<Navigate to="/" replace />} />
+                      <Route path="/manage-drone-show" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
+                      <Route path="/custom-show" element={<CustomShowPage runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/globe-view" element={<GlobeView />} />
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
                       <Route path="/px4-parameters" element={<Px4ParametersPage />} />
@@ -257,10 +258,10 @@ const AppShell = () => {
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 
                       {/* Backward-compatible alias used by workflow guidance */}
-                      <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} runtimeMode={runtimeStatus.mode} />} />
+                      <Route path="/mission-control" element={<Overview runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} />} />
 
                       {/* Default route */}
-                      <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} runtimeMode={runtimeStatus.mode} />} />
+                      <Route path="/" element={<Overview runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} />} />
                     </Routes>
                   </Suspense>
                 </div>
@@ -282,6 +283,7 @@ const AppShell = () => {
                 bodyClassName="toast-body"
                 progressClassName="toast-progress"
               />
+      </FleetAlertsProvider>
     </Router>
   );
 };

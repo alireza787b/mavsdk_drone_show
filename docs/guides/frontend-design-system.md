@@ -10,12 +10,15 @@ the current state, risk, and next safe action obvious from a quick scan.
 
 Use this information hierarchy:
 
-1. Always visible: icon, status, count, short label, primary action.
-2. On hover, tap, or info affordance: meaning, cause, risk, secondary metadata.
+1. Always visible: aircraft identity, status, target count/scope, runtime mode,
+   stale or unknown evidence, primary action, and actionable partial/uncertain results.
+2. On hover, tap, or info affordance: supplementary meaning, cause, and secondary metadata.
 3. In linked docs or drill-down views: setup instructions, policy, full context.
 
 If a sentence explains policy or workflow, it usually belongs in a tooltip,
 expandable detail block, or guide, not as permanent page chrome.
+Action consequences and safety-critical uncertainty are exceptions: keep them
+visible at the decision point. Never require hover or color alone to recognize them.
 
 ## Required Page Structure
 
@@ -26,6 +29,10 @@ Top-level pages should use the shared operator primitives:
 - `MetricStrip` for compact summary counts.
 - `OperatorNotice` only for actionable state changes, warnings, or errors.
 - `EmptyState` for no-data, no-capability, and no-filter-result states.
+
+Overview uses the shared application shell with a dedicated flat fleet surface,
+view switch, inspector, and target/action rail. Do not force its aircraft into
+stacked generic cards merely to reproduce another page's composition.
 
 Mobile and tablet layouts are first-class. Primary actions remain visible;
 secondary actions collapse into an overflow menu.
@@ -52,6 +59,31 @@ overflow control on mobile.
 Do not create separate pill/button systems for each page. If a page needs a new
 layout pattern, extend the shared primitive first and keep page CSS limited to
 local spacing.
+
+## Fleet And Mission Ownership
+
+Overview owns fleet awareness and general aircraft commands. Drone Show,
+Custom Show, Smart Swarm, and Swarm Trajectory own their mission execution in
+their dedicated workspaces; do not recreate mission launchers in Overview.
+Managed Return belongs to the relevant mission workspace. Overview Return is
+the immediate native return request, not that ordered workflow.
+
+Overview Board, List, and Map are deliberate views of the same fleet resource
+model, not simultaneous independently polling surfaces. Keep aircraft identity
+and ordering stable. Inspection is separate from command-target selection;
+changing a filter, view, or inspected aircraft must not retarget a command.
+Initialize targets to all configured aircraft only when the roster is known and
+no saved selection exists. Restore deliberate selections, including None, in
+their deployment/runtime/operator context; missing or invalid saved targets
+must never silently widen to All. `Targets -> All` changes command scope;
+`Filter aircraft -> All aircraft` changes visibility only.
+
+Widgets and the inspector consume the shared resource/model freshness and
+source labels. Failed polling must not freeze a fresh badge indefinitely.
+Unavailable evidence stays unavailable: armed alone does not prove airborne,
+and missing telemetry does not prove disarmed or landed. Do not invent readings
+or duplicate native readiness/command policy in a view component. See the
+[Dashboard Operator Guide](dashboard-operator.md) for the complete operator flow.
 
 ## Copy Standard
 

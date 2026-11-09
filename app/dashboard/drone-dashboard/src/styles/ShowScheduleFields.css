@@ -1,0 +1,9 @@
+.show-schedule-fields { display: grid; gap: .6rem; margin-block: .8rem; }
+.show-schedule-fields label { display: grid; gap: .35rem; color: var(--color-text-secondary); }
+.show-schedule-fields input, .show-schedule-fields select {
+  min-height: 2.75rem; min-width: 0; width: 100%; padding: .5rem;
+  color: var(--color-text-primary); background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary); border-radius: 2px; font: inherit;
+}
+.show-schedule-fields small { color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.show-schedule-fields :is(input, select):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

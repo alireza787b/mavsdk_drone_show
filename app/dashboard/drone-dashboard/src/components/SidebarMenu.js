@@ -14,7 +14,7 @@ import {
   FaChevronRight,
   FaLinkedin,
   FaClock,
-  FaCodeBranch,
+  FaInfoCircle,
   FaSearchLocation,
   FaMagic,
   FaClipboardList,
@@ -26,13 +26,11 @@ import {
   FaSignOutAlt,
   FaUserShield,
   FaKey,
-  FaSatelliteDish,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
-import GitInfo from './GitInfo';
 import RuntimeModeBadge from './RuntimeModeBadge';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import { VERSION_DISPLAY } from '../version';
@@ -42,8 +40,46 @@ const getInitialCollapsed = () => {
   if (typeof window === 'undefined') {
     return false;
   }
-  return window.innerWidth < 768;
+  return window.innerWidth <= 960;
 };
+
+function SystemAbout({ gitInfo, onClose }) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    const dialog = dialogRef.current;
+    if (dialog.showModal) dialog.showModal();
+    else dialog.setAttribute('open', '');
+    dialog.querySelector('button')?.focus();
+    return () => { dialog.close?.(); if (previous?.isConnected) previous.focus(); };
+  }, []);
+  const raw = gitInfo.raw || {};
+  return <dialog ref={dialogRef} className="sidebar-system" aria-labelledby="sidebar-system-title"
+    onCancel={(event) => { event.preventDefault(); onClose(); }}
+    onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <header><div><h2 id="sidebar-system-title">System / About</h2><span>MDS · {VERSION_DISPLAY}</span></div>
+      <button type="button" onClick={onClose} aria-label="Close System / About">×</button></header>
+    <section aria-label="Repository information"><h3>Repository</h3><dl>
+      <dt>Repository</dt><dd>{gitInfo.repo || 'Unavailable'}</dd>
+      <dt>Branch</dt><dd>{gitInfo.branch || 'Unavailable'}</dd>
+      <dt>Commit</dt><dd>{gitInfo.commit || 'Unavailable'}</dd>
+    </dl>
+      <details><summary>Commit details</summary><dl>
+        <dt>Author</dt><dd>{raw.author_name || 'Unavailable'}</dd>
+        <dt>Date</dt><dd>{raw.commit_date || 'Unavailable'}</dd>
+        <dt>Message</dt><dd>{raw.commit_message || 'Unavailable'}</dd>
+        <dt>Uncommitted changes</dt><dd>{Array.isArray(raw.uncommitted_changes) ? raw.uncommitted_changes.length : 'Unavailable'}</dd>
+      </dl></details>
+    </section>
+    <section aria-label="Browser clock diagnostics"><h3><FaClock aria-hidden="true" /> Browser clock</h3>
+      <p>Local time and Unix seconds · not a GCS synchronization check.</p><CurrentTime /></section>
+    <footer><span>© {new Date().getFullYear()} MDS</span>
+      <a href="https://joomtalk.ir/" target="_blank" rel="noopener noreferrer">Alireza Ghaderi</a>
+      <a href="https://github.com/alireza787b/mavsdk_drone_show" target="_blank" rel="noopener noreferrer" aria-label="Open MDS GitHub repository"><FaGithub aria-hidden="true" /> GitHub</a>
+      <a href="https://linkedin.com/in/alireza787b" target="_blank" rel="noopener noreferrer" aria-label="Open LinkedIn profile"><FaLinkedin aria-hidden="true" /> LinkedIn</a>
+    </footer>
+  </dialog>;
+}
 
 const SidebarMenu = ({
   collapsed,
@@ -70,6 +106,7 @@ const SidebarMenu = ({
   const [localCollapsed, setLocalCollapsed] = useState(getInitialCollapsed);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -204,6 +241,14 @@ const SidebarMenu = ({
       clearTimeout(tooltipTimerRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (mobile && !mobileOpen) {
+      setAboutOpen(false);
+      setProfileOpen(false);
+      setActiveTooltip(null);
+    }
+  }, [mobile, mobileOpen]);
 
   const clearTooltipTimer = () => {
     if (tooltipTimerRef.current) {
@@ -360,8 +405,9 @@ const SidebarMenu = ({
     : null;
 
   return (
-    <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
+    <div aria-hidden={mobile && !mobileOpen ? true : undefined} className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
       {navTooltip}
+      {aboutOpen && createPortal(<SystemAbout gitInfo={gitInfo} onClose={() => setAboutOpen(false)} />, document.body)}
       {/* Toggle Button */}
       <button
         className="sidebar-toggle"
@@ -401,8 +447,6 @@ const SidebarMenu = ({
                     className="sidebar-runtime-badge"
                   />
                 </Link>
-                <span className="version-meta version-meta--repo">{gitInfo.repo}</span>
-                <span className="version-meta">{gitInfo.runtimeLabel}</span>
               </div>
             </div>
           </div>
@@ -411,6 +455,7 @@ const SidebarMenu = ({
             <span className="brand-icon-collapsed" aria-hidden="true">
               <img src={mdsMark} alt="" />
             </span>
+            <span className="version">{VERSION_DISPLAY}</span>
             <Link
               className="sidebar-runtime-summary-collapsed"
               to="/runtime-admin"
@@ -434,7 +479,7 @@ const SidebarMenu = ({
       </div>
 
       {/* Navigation Menu */}
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" aria-label="Main navigation">
         {menuSections.map((section) => (
           <div className="nav-section" key={section.label}>
             {isCollapsed
@@ -539,110 +584,13 @@ const SidebarMenu = ({
           />
         </div>
 
-        {/* Git Info - Compact */}
-        <div className="footer-item git-info-container">
-          {!isCollapsed ? (
-            <GitInfo collapsed={false} />
-          ) : (
-            <button
-              type="button"
-              className="git-info-icon"
-              aria-label="Show git status hint"
-              onMouseEnter={(event) => handleTooltip('Git Status', event)}
-              onMouseLeave={handleTooltipLeave}
-            >
-              <FaCodeBranch aria-hidden="true" />
-            </button>
-          )}
-        </div>
-
-        {/* Time Widget */}
-        <div className="footer-item time-widget">
-          {!isCollapsed ? (
-            <div className="time-display">
-              <FaClock className="time-icon" />
-              <CurrentTime />
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="time-icon-collapsed"
-              aria-label="Show current time hint"
-              onMouseEnter={(event) => handleTooltip('Time', event)}
-              onMouseLeave={handleTooltipLeave}
-            >
-              <FaClock aria-hidden="true" />
-            </button>
-          )}
-        </div>
-
-        {/* Social Links */}
-        <div className="footer-item social-links">
-          {!isCollapsed ? (
-            <div className="social-expanded">
-              <div className="sidebar-brand-footer">
-                <span>© {new Date().getFullYear()} MDS · {VERSION_DISPLAY}</span>
-                <a
-                  href="https://joomtalk.ir/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Alireza Ghaderi
-                </a>
-              </div>
-              <div className="social-icons">
-                <a
-                  href="https://github.com/alireza787b/mavsdk_drone_show"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Open MDS GitHub repository"
-                >
-                  <FaGithub aria-hidden="true" />
-                </a>
-                <a
-                  href="https://linkedin.com/in/alireza787b"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Open LinkedIn profile"
-                >
-                  <FaLinkedin aria-hidden="true" />
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="social-collapsed">
-              <a
-                href="https://joomtalk.ir/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open Alireza Ghaderi personal page"
-                onMouseEnter={(event) => handleTooltip('Alireza', event)}
-                onMouseLeave={handleTooltipLeave}
-              >
-                <FaSatelliteDish aria-hidden="true" />
-              </a>
-              <a
-                href="https://github.com/alireza787b/mavsdk_drone_show"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open MDS GitHub repository"
-                onMouseEnter={(event) => handleTooltip('GitHub', event)}
-                onMouseLeave={handleTooltipLeave}
-              >
-                <FaGithub aria-hidden="true" />
-              </a>
-              <a
-                href="https://linkedin.com/in/alireza787b"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open LinkedIn profile"
-                onMouseEnter={(event) => handleTooltip('LinkedIn', event)}
-                onMouseLeave={handleTooltipLeave}
-              >
-                <FaLinkedin aria-hidden="true" />
-              </a>
-            </div>
-          )}
+        <div className="footer-item">
+          <button type="button" className="sidebar-system-trigger" aria-label="System / About" aria-haspopup="dialog" aria-expanded={aboutOpen}
+            onClick={() => { closeProfile(); setAboutOpen(true); }}
+            onFocus={(event) => handleTooltip('System / About', event)} onBlur={handleTooltipLeave}
+            onMouseEnter={(event) => handleTooltip('System / About', event)} onMouseLeave={handleTooltipLeave}>
+            <FaInfoCircle aria-hidden="true" />{!isCollapsed && <span>System / About</span>}
+          </button>
         </div>
       </div>
     </div>

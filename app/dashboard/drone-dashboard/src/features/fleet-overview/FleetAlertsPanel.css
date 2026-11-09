@@ -1,0 +1,19 @@
+.fleet-alerts { display: inline-flex; align-items: center; }
+.fleet-alerts__trigger { display: inline-flex; align-items: center; gap: var(--spacing-sm); min-height: 44px; padding: var(--spacing-sm); border: 0; border-radius: var(--border-radius-sm); background: transparent; color: var(--color-text-secondary); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
+.fleet-alerts__trigger.has-alerts { color: var(--color-warning); }
+.fleet-alerts__trigger:hover { background: var(--color-surface-inset); }
+.fleet-alerts__dialog { width: min(42rem, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; overflow: auto; border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-sm); padding: var(--spacing-lg); background: var(--color-bg-primary); color: var(--color-text-primary); }
+.fleet-alerts__dialog::backdrop { background: var(--color-bg-overlay); }
+.fleet-alerts__dialog header { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-base); }
+.fleet-alerts__dialog h2 { margin: 0; font-size: var(--font-size-lg); }
+.fleet-alerts__dialog h3 { font-size: var(--font-size-base); }
+.fleet-alerts__dialog p, .fleet-alerts__entry small { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.fleet-alerts__dialog button, .fleet-alerts__dialog a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: var(--spacing-sm); border: 0; border-radius: var(--border-radius-sm); background: var(--color-surface-inset); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
+.fleet-alerts__dialog header button { min-width: 44px; background: transparent; }
+.fleet-alerts__dialog ul { padding: 0; margin: 0; list-style: none; }
+.fleet-alerts__entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-sm); border-top: 1px solid var(--color-border-secondary); padding: var(--spacing-sm) 0; }
+.fleet-alerts__entry > div:first-child { display: grid; gap: var(--spacing-xs); flex: 1 1 15rem; min-width: 0; overflow-wrap: anywhere; }
+.fleet-alerts__entry.tone-danger strong { color: var(--color-danger); }
+.fleet-alerts__entry-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); }
+.fleet-alerts__dialog summary { display: list-item; min-height: 44px; align-content: center; cursor: pointer; margin-top: var(--spacing-base); }
+.fleet-alerts button:focus-visible, .fleet-alerts__dialog :is(button, a, summary):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

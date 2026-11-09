@@ -25,7 +25,7 @@ from agent_runtime import (
     load_default_policy,
     load_default_tool_registry,
 )
-from agent_runtime.tool_executor import _route_path_with_arguments
+from agent_runtime.tool_executor import _route_path_with_arguments, validate_tool_arguments
 from tests.test_api_route_inventory import GCS_EXPECTED_HTTP
 
 
@@ -120,6 +120,19 @@ def test_read_tool_route_repeats_array_query_arguments():
         "/api/v1/fleet/action-readiness?"
         "target_drone_ids=1&target_drone_ids=3"
     )
+
+
+@pytest.mark.parametrize("target_count", [64, 65, 100, 101])
+def test_action_readiness_tool_matches_http_target_capacity(target_count):
+    tool = load_default_tool_registry().require("mds.fleet.action_readiness.read")
+    arguments = {"target_drone_ids": [str(index) for index in range(1, target_count + 1)]}
+
+    error = validate_tool_arguments(arguments, dict(tool.input_schema))
+
+    if target_count <= 100:
+        assert error is None
+    else:
+        assert error == "Argument target_drone_ids must contain at most 100 item(s)."
 
 
 def test_registry_rejects_target_binding_to_non_array_argument():

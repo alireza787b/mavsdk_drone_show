@@ -47,6 +47,10 @@ from src.gcs_api_routes import (
 from src.gcs_auth_client import gcs_auth_headers
 from src.swarm_runtime_state import read_runtime_swarm_assignment
 from src.action_runners.coordinated_takeoff import TAKEOFF_CONTEXT_FD_ENV
+from src.mission_timing import (
+    mission_preparation_lead_seconds,
+    mission_uses_synchronized_show_executor,
+)
 
 logger = get_logger("drone_setup")
 
@@ -2312,6 +2316,10 @@ class DroneSetup:
             try:
                 trigger_time = int(self.drone_config.trigger_time)
                 trigger_sooner = int(self.params.trigger_sooner_seconds)
+                if mission_uses_synchronized_show_executor(self.drone_config.mission):
+                    trigger_sooner = mission_preparation_lead_seconds(
+                        self.drone_config.mission, params=self.params,
+                    )
                 earlier_trigger_time = trigger_time - trigger_sooner
             except (AttributeError, ValueError, TypeError) as e:
                 logger.error(f"Error calculating trigger time: {e}")

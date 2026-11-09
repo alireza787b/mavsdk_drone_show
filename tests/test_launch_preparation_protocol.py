@@ -210,6 +210,34 @@ def test_post_barrier_trigger_must_retain_node_warmup_and_guard_lead():
     ).consumed
 
 
+@pytest.mark.parametrize('mission,trigger,accepted', [
+    (Mission.DRONE_SHOW_FROM_CSV, 111, False),
+    (Mission.DRONE_SHOW_FROM_CSV, 112, True),
+    (Mission.CUSTOM_CSV_DRONE_SHOW, 111, False),
+    (Mission.HOVER_TEST, 111, False),
+    (Mission.SWARM_TRAJECTORY, 106, True),
+    (Mission.QUICKSCOUT, 106, True),
+])
+def test_per_mission_preparation_lead_does_not_advance_unrelated_executors(mission, trigger, accepted):
+    from src.mission_timing import SYNCHRONIZED_SHOW_EXECUTOR_MISSIONS, mission_commit_lead_seconds
+    params = SimpleNamespace(trigger_sooner_seconds=4, COMMAND_SYNC_DISPATCH_GUARD_SEC=1)
+    store = LaunchPreparationStore(ttl_sec=90, wall_clock=lambda: 100,
+        minimum_post_barrier_lead_sec=mission_commit_lead_seconds(None, params=params),
+        minimum_post_barrier_lead_sec_by_mission={
+            item.value: mission_commit_lead_seconds(item, params=params)
+            for item in SYNCHRONIZED_SHOW_EXECUTOR_MISSIONS
+        })
+    command = _launch_command(mission_type=mission.value, takeoff_altitude=None)
+    token, _ = store.issue(LaunchPreparationBinding.from_command(command))
+    assert store.consume(token, dict(command, trigger_time=trigger)).consumed is accepted
+
+
+@pytest.mark.parametrize('lead', [float('nan'), float('inf'), -1, True, '10'])
+def test_per_mission_preparation_lead_rejects_untyped_or_nonfinite_values(lead):
+    with pytest.raises(ValueError, match='per-mission preparation leads'):
+        LaunchPreparationStore(ttl_sec=90, minimum_post_barrier_lead_sec_by_mission={1: lead})
+
+
 def test_prepare_contract_rejects_compatibility_spellings_and_partial_identity():
     with pytest.raises(ValidationError, match="canonical command fields"):
         LaunchPreparationRequest.model_validate(

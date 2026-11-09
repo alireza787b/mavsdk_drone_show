@@ -386,7 +386,7 @@ def create_core_router(deps: Any) -> APIRouter:
         tags=["Telemetry"],
     )
     async def get_fleet_action_readiness(
-        target_drone_ids: list[str] = Query(..., min_length=1, max_length=64),
+        target_drone_ids: list[str] = Query(..., min_length=1, max_length=100),
     ):
         return _build_fleet_action_readiness_response(deps, target_drone_ids)
 

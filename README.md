@@ -92,11 +92,17 @@ the README.
 
 For a first dashboard-driven Smart Swarm run after SITL launch:
 
-1. open `Overview` and confirm the target drones show `READY` with live telemetry
-2. open `Swarm Design` and review the saved follow chain / cluster layout
-3. take off and stabilize the aircraft by MDS, QGC, or RC
-4. select `Smart Swarm` on `Overview`, review its short formation/status summary, then `Start Smart Swarm` and `Confirm start`
-5. use `Smart Swarm Runtime` for advanced scope and recovery controls (`Stop Swarm (Hold)`, `Land Swarm`, or `RTL Swarm`)
+1. open `Overview` and check aircraft identities, live telemetry and attention items
+2. open `Smart Swarm` and review the saved formation in `Design Swarm`
+3. use `Operate` to take off, or take off with QGC/RC and stabilize
+4. review `Start Swarm`, then confirm the intended cluster
+5. monitor from `Operate`; use Pause/Stop following, Land or Managed Return there when needed
+
+Overview retains general Takeoff, Hold, Land and immediate PX4 Return controls.
+Mission setup/start/monitoring belongs to its dedicated workspace. Overview
+selection is explicit: first-use All or the remembered selection; filtering and
+reconnecting never change its targets. See the
+[Overview operator guide](docs/guides/dashboard-operator.md).
 
 The validated 5-drone Smart Swarm acceptance flow is documented in the Smart
 Swarm and SITL guides, including the operator-safe dashboard path and the

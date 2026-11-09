@@ -9,6 +9,29 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Overview is a flat aircraft Board/List/Map with an identity-based live
+  inspector, explicit targets and general Takeoff/Hold/Land/immediate Return.
+  First-use All and remembered selections (including empty) remain independent
+  of filtering, inspection, arrivals and reconnection. Missing telemetry is no
+  longer replaced by invented GPS or flight state. Shared resource polling is
+  sequential/cancellable, and age advances even when requests stall.
+- Shared navigation moves repository/clock diagnostics into System/About.
+  Command activity survives navigation; bounded session alerts distinguish
+  Seen, clear evidence and last-observed conditions without per-aircraft toasts.
+  The responsive drawer follows one viewport owner across phone/tablet/desktop.
+- Mission launchers now belong to their dedicated workspaces. Custom CSV adds
+  explicit-target local-frame operations; Drone Show adds target subsets and
+  scheduling. Both default to native synchronized **When ready**, retain explicit
+  timing choices and recover ambiguous receipts by lookup without replay.
+  Superseded Overview controllers, styles and five unused direct dependencies
+  are retired; shared command/API identities and native Takeoff remain intact.
+- Fleet action-readiness HTTP/tool capacity is aligned to 100 targets, with
+  cached-evidence evaluation and explicit missing/stale coverage.
+- Drone Show, Custom CSV and Hover Test share a configurable executor preparation
+  lead (10 seconds by default) across GCS timing, node commit and scheduling.
+  The exact synchronized trigger, native preflight/arming and one-second late
+  abort remain unchanged; unrelated action preparation timing is unchanged.
+
 - Formation setup now separates Plan formation / Capture positions from a
   distinct, always-visible Revert action beside Undo/Redo. Opening planning or
   cancelling capture preserves the draft; Revert confirms replacement separately.

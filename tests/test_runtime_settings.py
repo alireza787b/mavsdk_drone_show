@@ -13,6 +13,16 @@ from src.settings.identity import resolve_hw_id_info
 from src.settings.runtime import resolve_runtime_mode
 
 
+@pytest.mark.parametrize('value,expected', [('12.5', 12.5), ('0', 10), ('nan', 10), ('inf', 10), ('invalid', 10)])
+def test_show_preparation_setting_does_not_change_other_timing_contracts(monkeypatch, tmp_path, value, expected):
+    monkeypatch.setenv('MDS_LOCAL_ENV_FILE', str(tmp_path / 'absent.env'))
+    monkeypatch.setenv('MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC', value)
+    params = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/params.py'))['Params']
+    assert params.SYNCHRONIZED_SHOW_PREPARATION_SEC == expected
+    assert params.trigger_sooner_seconds == 4
+    assert params.SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC == 1
+
+
 @pytest.mark.parametrize('wait,stable,expected', [
     ('20', '2', (20, 2)), ('0', '1', (10, 1)), ('10', '10', (10, 1)),
     ('nan', '1', (10, 1)), ('10', 'inf', (10, 1)), ('-1', '1', (10, 1)),

@@ -21,7 +21,8 @@ import {
   MdVisibility,
 } from 'react-icons/md';
 
-import useFetch from '../hooks/useFetch';
+import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
+import CustomShowOperate from '../components/CustomShowOperate';
 import { extractApiErrorMessage } from '../services/apiError';
 import {
   buildGcsUrl,
@@ -41,14 +42,16 @@ function formatDuration(durationSec) {
   return `${durationSec.toFixed(2)}s`;
 }
 
-const CustomShowPage = () => {
+const CustomShowPage = ({ runtimeMode = 'unknown' }) => {
+  const [tab, setTab] = useState('operate');
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [uploadWarnings, setUploadWarnings] = useState([]);
 
-  const { data: customShowInfo, error: customShowError } = useFetch(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=${refreshKey}`);
+  const infoState = useGcsResourcePolling(GCS_ROUTE_KEYS.customShowInfo, 15000, refreshKey);
+  const { data: customShowInfo, error: customShowError } = infoState;
   const hasActiveCustomShow = Boolean(customShowInfo?.exists);
   const previewAvailable = Boolean(customShowInfo?.preview_exists);
   const requiredColumns = customShowInfo?.required_columns?.length
@@ -146,7 +149,7 @@ const CustomShowPage = () => {
       className="custom-show-page"
       eyebrow="Advanced manual mode"
       title="Custom CSV Drone Show"
-      subtitle="Select, validate, preview, then activate a local-frame CSV."
+      subtitle="Prepare and operate a local-frame CSV replay."
       docsRoute="/custom-show"
       status={<StatusBadge tone={hasActiveCustomShow ? 'success' : 'warning'}>{hasActiveCustomShow ? 'Active' : 'No CSV'}</StatusBadge>}
       actions={(
@@ -162,9 +165,11 @@ const CustomShowPage = () => {
     >
       <MetricStrip items={statusItems} label="Custom CSV status" className="custom-show-page__status-strip" />
 
-      <div className="custom-show-page__workflow" aria-label="Custom CSV workflow">
-        <span className="is-current">1 Select</span><span>2 Validate</span><span>3 Preview</span><span>4 Activate</span>
-      </div>
+      <nav className="custom-show-page__workflow" aria-label="Custom CSV workspace">
+        {['operate', 'setup'].map(key => <button type="button" key={key} className="operator-button"
+          aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{key === 'operate' ? 'Operate' : 'Design / Setup'}</button>)}
+      </nav>
+      <div hidden={tab !== 'operate'}><CustomShowOperate infoState={infoState} runtimeMode={runtimeMode} /></div>
 
       {customShowBackendError && (
         <OperatorNotice tone="danger" title="Failed to load active custom CSV metadata" role="alert" className="custom-show-page__banner">
@@ -172,7 +177,7 @@ const CustomShowPage = () => {
         </OperatorNotice>
       )}
 
-      <div className="custom-show-page__grid">
+      {tab === 'setup' && <div className="custom-show-page__grid">
         <Paper className="custom-show-card custom-show-card--upload" elevation={0}>
           <div className="custom-show-card__header">
             <MdCloudUpload className="custom-show-card__icon" />
@@ -319,7 +324,7 @@ const CustomShowPage = () => {
             </Alert>
           )}
         </Paper>
-      </div>
+      </div>}
     </PageShell>
   );
 };

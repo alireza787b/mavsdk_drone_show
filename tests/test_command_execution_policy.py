@@ -7,6 +7,7 @@ from command_execution_policy import (
     CommandSubmissionPolicyError,
     StrictSyncTimingError,
     enforce_command_submission_policy,
+    get_sync_dispatch_deadline,
     mission_is_recovery,
     resolve_strict_sync_trigger_time,
 )
@@ -33,7 +34,31 @@ def test_immediate_strict_sync_resolves_one_bounded_post_barrier_trigger():
         now=100.0,
     )
 
-    assert trigger == 122
+    assert trigger == 128
+
+
+@pytest.mark.parametrize('mission', [Mission.DRONE_SHOW_FROM_CSV, Mission.CUSTOM_CSV_DRONE_SHOW, Mission.HOVER_TEST])
+def test_show_preparation_budget_drives_trigger_and_dispatch_deadline_together(mission):
+    params = _params(SYNCHRONIZED_SHOW_PREPARATION_SEC=12)
+    assert resolve_strict_sync_trigger_time(mission, requested_trigger_time=0, params=params, now=100) == 130
+    assert get_sync_dispatch_deadline(mission, {'trigger_time': 130}, params=params) == 117
+    assert resolve_strict_sync_trigger_time(mission, requested_trigger_time=150, params=params, now=100) == 150
+    with pytest.raises(StrictSyncTimingError):
+        resolve_strict_sync_trigger_time(mission, requested_trigger_time=129, params=params, now=100)
+
+
+@pytest.mark.parametrize('mission', [Mission.SWARM_TRAJECTORY, Mission.QUICKSCOUT])
+def test_other_strict_missions_do_not_inherit_the_show_executor_budget(mission):
+    params = _params(SYNCHRONIZED_SHOW_PREPARATION_SEC=12)
+    assert resolve_strict_sync_trigger_time(mission, requested_trigger_time=0, params=params, now=100) == 122
+    assert get_sync_dispatch_deadline(mission, {'trigger_time': 130}, params=params) == 125
+
+
+@pytest.mark.parametrize('mission', [Mission.LAND, Mission.HOLD, Mission.RETURN_RTL, Mission.KILL_TERMINATE])
+def test_recovery_deadlines_and_explicit_triggers_are_not_advanced(mission):
+    params = _params(SYNCHRONIZED_SHOW_PREPARATION_SEC=12)
+    assert resolve_strict_sync_trigger_time(mission, requested_trigger_time=150, params=params, now=100) == 150
+    assert get_sync_dispatch_deadline(mission, {'trigger_time': 150}, params=params) is None
 
 
 def test_explicit_strict_sync_trigger_fails_closed_when_fanout_window_is_too_short():

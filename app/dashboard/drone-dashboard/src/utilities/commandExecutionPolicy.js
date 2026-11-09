@@ -43,7 +43,7 @@ export const getMissionExecutionPolicy = (missionType, { isImmediate = false } =
   }
 
   return isImmediate
-    ? 'Synchronized offboard launch. Drones accept immediately, but any aircraft that misses the coordinated startup tolerance aborts instead of joining late.'
+    ? 'Aircraft checks run first; the coordinator then schedules a synchronized start. Any aircraft that misses the native startup tolerance aborts instead of joining late.'
     : 'Synchronized offboard launch. Drones queue for the shared trigger; if dispatch or startup slips beyond the safe window, they abort instead of joining late.';
 };
 

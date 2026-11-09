@@ -1,4 +1,5 @@
 import time
+import hashlib
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -35,10 +36,10 @@ class _DummyCommandTracker:
         return [command for command in self.commands if command.get("phase") != "terminal"]
 
     async def get_recent(self, limit=50, status_filter=None, mission_filter=None):
-        rows = self.commands[:limit]
+        rows = self.commands
         if mission_filter:
             rows = [row for row in rows if row.get("mission_type") in mission_filter]
-        return rows
+        return rows[:limit]
 
 
 def _make_deps():
@@ -247,6 +248,29 @@ def test_show_management_router_get_custom_show_info_uses_live_directory_after_r
     assert response.status_code == 200
     assert response.json()["exists"] is True
     assert response.json()["preview_exists"] is True
+    assert response.json()["sha256"] == hashlib.sha256((live_shapes / "active.csv").read_bytes()).hexdigest()
+
+
+def test_show_operation_filters_custom_and_skybrush_history_without_changing_fleet():
+    deps = _make_deps()
+    deps.load_config = lambda: [{"hw_id": "1"}, {"hw_id": "2"}]
+    commands = [
+        {"command_id": "skybrush", "mission_type": 1, "target_drones": ["1"], "phase": "terminal", "outcome": "completed"},
+        {"command_id": "custom", "mission_type": 3, "target_drones": ["2"], "phase": "in_progress", "progress": {"stage": "executing"}},
+    ]
+    deps.get_command_tracker = lambda: _DummyCommandTracker(commands)
+    app = FastAPI()
+    app.include_router(create_show_management_router(deps))
+    with TestClient(app) as client:
+        custom = client.get("/api/v1/shows/operation/status?mission_type=3")
+        normal = client.get("/api/v1/shows/operation/status?mission_type=1")
+        invalid = client.get("/api/v1/shows/operation/status?mission_type=2")
+    assert custom.status_code == normal.status_code == 200
+    assert custom.json()["command_id"] == "custom"
+    assert custom.json()["operation_target_ids"] == ["2"]
+    assert normal.json()["command_id"] == "skybrush"
+    assert len(custom.json()["fleet"]) == 2
+    assert invalid.status_code == 422
 
 
 def test_show_management_router_get_show_plot_uses_live_directory_after_router_creation(tmp_path):

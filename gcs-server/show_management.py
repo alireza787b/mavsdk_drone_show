@@ -1,6 +1,7 @@
 """Shared helpers for GCS drone-show management routes."""
 
 import csv
+import hashlib
 import json
 import os
 import shutil
@@ -416,10 +417,20 @@ def build_custom_show_info_payload(shapes_dir: str) -> Dict[str, Any]:
     if not os.path.exists(csv_path):
         raise HTTPException(status_code=404, detail="Custom CSV not found")
 
+    before = os.stat(csv_path)
     inspected = inspect_custom_show_csv(csv_path)
+    digest = hashlib.sha256()
+    with open(csv_path, "rb") as csv_file:
+        for chunk in iter(lambda: csv_file.read(65536), b""):
+            digest.update(chunk)
+    after = os.stat(csv_path)
+    if (before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns):
+        raise HTTPException(status_code=409, detail="Custom CSV changed during inspection; refresh before review")
     return {
         "exists": True,
         "filename": "active.csv",
+        # Review identity only: the legacy type-3 command does not bind file bytes.
+        "sha256": digest.hexdigest(),
         "row_count": inspected["row_count"],
         "duration_sec": inspected["duration_sec"],
         "max_altitude": inspected["max_altitude"],

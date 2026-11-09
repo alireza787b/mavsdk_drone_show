@@ -99,9 +99,11 @@ def create_show_management_router(deps: Any) -> APIRouter:
         return await asyncio.to_thread(build_workspace_snapshot, deps)
 
     @router.get("/api/v1/shows/operation/status", tags=["Show Management"])
-    async def get_show_operation_status():
+    async def get_show_operation_status(mission_type: Optional[int] = None):
         """Read-only tracker and fleet-presence projection for Drone Show."""
-        return await build_operation_snapshot(deps)
+        if mission_type not in (None, 1, 3):
+            raise HTTPException(status_code=422, detail="Show mission_type must be 1 or 3")
+        return await build_operation_snapshot(deps, mission_type=mission_type)
 
     @router.get("/api/v1/shows/custom", response_model=CustomShowInfoResponse, tags=["Show Management"])
     async def get_custom_show_info():

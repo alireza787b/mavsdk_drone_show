@@ -137,8 +137,9 @@ does not turn a pre-start capture into an unnoticed active update.
 
 ## Take off and start following
 
-1. Open **Operate**. Confirm the intended complete cluster and fresh aircraft
-   states. Resolve any named PX4 or connectivity blocker.
+1. Open **Smart Swarm -> Operate**. Confirm the intended complete cluster and
+   fresh aircraft states. Overview inspection and command targets do not select
+   this cluster. Resolve any named PX4 or connectivity blocker.
 2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,
    **All armed first** waits for every selected aircraft before releasing takeoff.
    It reduces partial launches; it cannot make a distributed launch atomic.
@@ -184,10 +185,13 @@ may not adopt an ordinary update at the same time; do not assume simultaneous mo
 
 ## Return and land
 
-For independent aircraft, choose **Managed Return** on Operate.
+For independent aircraft, choose **Managed Return** on **Smart Swarm -> Operate**.
 Review aircraft order and the interval, then confirm. It requests Hold and submits
 native RTL commands one by one. The default interval is **10 seconds between
 submissions**, not between landings. Watch each aircraft's result.
+
+Overview **Return** submits an immediate native return request to its reviewed
+targets; it does not run the mission workspace's Managed Return sequence.
 
 ![Managed Return review shows aircraft order and command interval](../assets/smart-swarm/capture-05-return.png)
 
@@ -209,7 +213,7 @@ Land here descends at the current location; RTL follows PX4's return procedure.
 | Following or another action active | Finish or explicitly stop that action; confirm the state before retrying. |
 | Plan changed | Keep the draft, review the newer GCS plan, then retry; do not overwrite another operator's work blindly. |
 | Plan applied, repo save failed | The GCS plan is already saved. Resolve Git access and retry repository publication. |
-| Aircraft offline | Use All on Overview to inspect configured offline aircraft. Current flight states are unavailable, not proof of disarm or landing. |
+| Aircraft offline | On Overview choose **Filter aircraft -> Unavailable** (or **All aircraft**) to inspect configured offline aircraft; filtering does not change command targets. **Targets -> All** changes command scope instead. Current flight states are unavailable, not proof of disarm or landing. |
 | Start still finishing takeoff | Wait for the native takeoff transition to finish, then review Start again. |
 
 For detailed configuration, recovery and limits, see the

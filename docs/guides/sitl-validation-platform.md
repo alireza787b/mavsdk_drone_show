@@ -33,6 +33,11 @@ The current reusable validators cover:
   - fleet config validation-only collision checks, metadata-preserving config round-trip, swarm assignment round-trip, origin compute/save/bootstrap/global-origin checks, and exact cleanup restore
 - `drone_show`
   - SkyBrush import, metadata, launch readiness, global/manual/local/custom flows, and override drill
+  - The LOCAL scheduled case uses an explicit 60-second future-delay fixture;
+    override with `validate_drone_show_runtime.py --scheduled-trigger-delay N`
+    (positive integer). This is test input, not a UI default or a production
+    minimum. Native timing admission remains authoritative, and the selected
+    fixture is recorded in the JSON report.
 - `actions`
   - TAKEOFF, HOLD, completed `PRECISION_MOVE`, interrupted `PRECISION_MOVE -> HOLD`, targeted RTL override, remaining-drone LAND, and idle cleanup
 - `smart_swarm`

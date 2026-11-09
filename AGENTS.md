@@ -25,6 +25,15 @@ Do not assume the environment. Detect it first.
 - Prefer the existing repo workflows and docs over inventing new ones mid-task.
 - Treat git as the source of truth. Do not normalize `docker commit` as a release workflow.
 - Keep a single source of truth for configuration and operator behavior.
+- Overview owns explicit general-command targets, never a subscription to
+  visible/online aircraft. Filters, inspection, reconnects and disappearing
+  groups must not retarget a reviewed action. Mission workspaces own mission
+  launch/recovery; close capability gaps before retiring an older entry point.
+- Treat unknown telemetry as unknown, not fabricated GPS/health or evidence of
+  disarm/landing. Inspect aircraft by identity against the current shared model.
+- Shared-shell responsive behavior has one viewport owner. CSS should consume
+  its desktop/mobile state rather than independently deciding whether navigation
+  exists; browser validation must include the intermediate tablet widths.
 - Separate operator reference names (Geographic / Leader-relative) from stable
   `ned` / `body` contracts. Live capture-preview markers are advisory GCS-cache
   data, never saved geometry or proof of capture authority; only the explicit
@@ -62,6 +71,9 @@ Do not assume the environment. Detect it first.
   history for private deployment details. Preserve customer identities, fleet
   configuration, mission assets and local changes when integrating upstream.
 - Do not perform destructive cleanup or reset actions unless explicitly required and safe.
+- Before removing old build/test workspaces, resolve shared dependency symlinks
+  and running-process working directories. A temporary-looking folder can still
+  provide production dependencies. Keep builds/tests on the user-designated host.
 
 ## Read First
 

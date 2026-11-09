@@ -1545,6 +1545,7 @@ class CustomShowInfoResponse(BaseModel):
     """Response for GET /api/v1/shows/custom"""
     exists: bool = Field(..., description="Whether an active custom CSV exists")
     filename: str = Field(..., description="Active custom CSV filename")
+    sha256: Optional[str] = Field(None, description="GCS CSV review fingerprint; not drone-side execution binding")
     row_count: int = Field(..., ge=0, description="Number of trajectory rows")
     duration_sec: float = Field(..., ge=0, description="Total trajectory duration in seconds")
     max_altitude: float = Field(..., ge=0, description="Maximum altitude above launch frame in meters")

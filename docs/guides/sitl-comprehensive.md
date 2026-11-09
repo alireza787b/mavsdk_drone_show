@@ -272,7 +272,6 @@ npm ci
 bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ```
 
-- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5030`.
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI on port `5030`, but the backend now stays single-process by default so telemetry, heartbeats, command tracking, and other in-memory runtime state remain coherent during live SITL operations.
 - Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
@@ -571,12 +570,13 @@ Smart Swarm is the live leader-follower mission mode in MDS. For the current ope
 Current behavior summary:
 
 - single-drone commands remain scoped to the addressed drone
-- swarm-level intent should use the `Smart Swarm Runtime` controls on the `Swarm Design` page
-- use `Overview` to confirm live `READY` state before you start Smart Swarm from the dashboard
-- use `Formation Analysis` to choose a specific cluster; `All executable clusters` is plot-only and does not become one fleet-wide runtime target
+- use `Smart Swarm -> Operate` for cluster Takeoff, Start Swarm, and Managed Return; `Design Swarm` owns formation setup
+- use `Overview` for fleet awareness and general aircraft commands, not mission starts; confirm the complete intended cluster and fresh readiness in `Smart Swarm -> Operate` before starting
+- choose a specific formation in the Smart Swarm workspace; `All clusters` is a combined inspection view, not one fleet-wide runtime target, and Overview target selection does not retarget that formation
 - followers do not silently stop just because one unrelated drone receives an individual override
 - if the addressed drone is a leader or relay leader, followers can still react through leader-loss logic
-- leader-loss handling now defaults to an `upstream_or_hold` policy instead of jumping across unrelated drones
+- leader-loss handling defaults to `hold_recover`: protective Hold with bounded
+  recovery of the same leader, not automatic promotion or an unrelated leader
 
 If you need a proof run that records expected vs actual follower tracking during
 leader jogs and frame changes, use:

@@ -1,7 +1,7 @@
 import React from 'react';
 import SwarmOperations from './SwarmOperations';
 
-// Both entry points use the authoritative saved-cluster preview and start API.
+// The dedicated workspace owns the authoritative saved-cluster control flow.
 export default function SwarmRuntimeControls() {
   return <SwarmOperations />;
 }

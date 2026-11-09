@@ -1,10 +1,5 @@
 // src/constants/droneConstants.js
 import {
-    buildGcsUrl,
-    buildShowPlotUrl,
-    GCS_ROUTE_KEYS,
-} from '../services/gcsApiService';
-import {
     COMMAND_CATALOG,
     COMMAND_METADATA_BY_VALUE,
     getCommandMetadata,
@@ -33,11 +28,6 @@ export const DRONE_MISSION_DISPLAY_ORDER = Object.freeze(COMMAND_CATALOG
     .map((command) => Object.freeze({ key: command.key, value: command.value })));
 
 export const DRONE_ACTION_TYPES = buildTypeMap('action');
-
-export const DRONE_MISSION_IMAGES = {
-    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: buildShowPlotUrl('combined_drone_paths.jpg'),
-    [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: buildGcsUrl(GCS_ROUTE_KEYS.customShowImage),
-};
 
 export const DRONE_MISSION_NAMES = buildNameMap('mission');
 

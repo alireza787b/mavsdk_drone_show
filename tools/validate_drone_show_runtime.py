@@ -73,6 +73,17 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def positive_seconds(value: str) -> int:
+    """Validate an explicit scheduled-case fixture, not a production minimum."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("scheduled trigger delay must be a positive integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("scheduled trigger delay must be a positive integer")
+    return parsed
+
+
 @dataclass
 class CommandRun:
     label: str
@@ -687,6 +698,10 @@ def main() -> int:
         help="Skip recreating SITL containers between internal validation runs",
     )
     parser.add_argument(
+        "--scheduled-trigger-delay", type=positive_seconds, default=60,
+        help="Explicit future-delay fixture for LOCAL scheduling coverage (default 60s; not an operator minimum or UI recommendation)",
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         default=None,
@@ -698,6 +713,7 @@ def main() -> int:
     results: dict[str, Any] = {
         "base_url": args.base_url,
         "drone_ids": args.drone_ids,
+        "scheduled_trigger_delay_fixture_sec": args.scheduled_trigger_delay,
     }
     exit_code = 0
 
@@ -747,7 +763,7 @@ def main() -> int:
                 auto_global_origin=False,
                 use_global_setpoints=False,
                 show_timeout=standard_timeout,
-                trigger_delay=10,
+                trigger_delay=args.scheduled_trigger_delay,
             ).status
         )
         if not args.skip_sitl_reset:

@@ -21,6 +21,9 @@ Related docs:
 Planning and assigning routes do not arm aircraft. Unlike live Smart Swarm, this
 mission starts from the ground and executes precomputed paths.
 
+**Operate** owns mission launch, progress and recovery. Overview is for fleet
+awareness and general aircraft actions; it is not a second Mission Type 4 launcher.
+
 These screenshots show the candidate UI with simulated two-aircraft SITL data;
 they do not establish real-flight readiness. Coordinated Pause/Resume is not
 enabled in this checkpoint.
@@ -126,6 +129,8 @@ telemetry polling or legend changes do not steal the current view.
 
 Managed Return is a timed dispatch sequence, not collision avoidance. RTL paths
 may overlap; a delay is not a guarantee that the previous aircraft has landed.
+Overview's general **Return** is immediate native PX4 RTL for Overview's selected
+aircraft, not this mission's Managed Return queue.
 
 ![Immediate Return confirmation](../assets/swarm-trajectory/07-return-review.png)
 
@@ -282,7 +287,7 @@ Sea-level terrain references are valid. A resolved ground elevation of `0.0 m MS
 | Partial follower output | The affected cluster is shown as partial; review and reprocess before launch. |
 | Processing takes too long | The async processing job dialog shows progress, can request cancel, and ends in a bounded terminal state. |
 | GCS restart during processing | In-memory job state can be lost. Raw and processed trajectory files remain on disk. |
-| Degraded telemetry | Planning artifacts remain reviewable, but Dashboard launch readiness depends on live command/telemetry truth. |
+| Degraded telemetry | Planning artifacts remain reviewable, but Operate launch readiness depends on live command/telemetry truth. |
 
 ## API Surface
 
@@ -367,6 +372,7 @@ Backend:
 
 Frontend:
 
+- `app/dashboard/drone-dashboard/src/pages/SwarmTrajectoryWorkspace.js`
 - `app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js`
 - `app/dashboard/drone-dashboard/src/pages/TrajectoryPlanning.js`
 - `app/dashboard/drone-dashboard/src/components/trajectory/`
@@ -383,6 +389,7 @@ Runtime:
 
 Tests:
 
+- `app/dashboard/drone-dashboard/src/pages/SwarmTrajectoryWorkspace.test.js`
 - `tests/test_swarm_trajectory_service.py`
 - `tests/test_gcs_swarm_trajectory_routes.py`
 - `app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.test.js`
@@ -405,7 +412,7 @@ Before field handoff or a serious SITL demo:
 - Review validation blockers/warnings/advisories.
 - Verify leader and follower preview paths, clusters, and role labels.
 - Commit outputs in the intended writeback mode.
-- Launch from Dashboard Mission Type 4 only after readiness is clear.
+- Launch from **Swarm Trajectory → Operate → Start mission** only after native ground-start readiness and package validation are clear; review the exact cluster and package identity before confirmation.
 - Clear/reset the package and verify validation returns to missing-upload/missing-output state.
 - Repeat with no Mapbox token to confirm Leaflet fallback.
 

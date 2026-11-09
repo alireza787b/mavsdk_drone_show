@@ -339,6 +339,23 @@ def test_node_restart_invalidates_uncommitted_launch_token(
     mock_drone_communicator.process_command.assert_not_called()
 
 
+@pytest.mark.parametrize('mission_type,trigger,accepted', [
+    (Mission.DRONE_SHOW_FROM_CSV.value, 111, False),
+    (Mission.DRONE_SHOW_FROM_CSV.value, 112, True),
+    (Mission.CUSTOM_CSV_DRONE_SHOW.value, 111, False),
+    (Mission.HOVER_TEST.value, 111, False),
+    (Mission.SWARM_TRAJECTORY.value, 106, True),
+    (Mission.QUICKSCOUT.value, 106, True),
+])
+def test_api_constructs_mission_aware_commit_timing_without_weakening_tokens(api_server, mission_type, trigger, accepted):
+    store = api_server._launch_preparation_store
+    store._wall_clock = lambda: 100
+    command = _command(mission_type=mission_type, takeoff_altitude=None)
+    token, _ = store.issue(LaunchPreparationBinding.from_command(command))
+
+    assert store.consume(token, dict(command, trigger_time=trigger)).consumed is accepted
+
+
 def test_blocked_readiness_never_issues_token(
     test_client,
     api_server,

@@ -1562,7 +1562,9 @@ async def test_strict_sync_fanout_never_posts_targets_after_safe_window(monkeypa
             {
                 "mission_type": 1,
                 "command_id": "strict-sync-window",
-                "trigger_time": 1_001,
+                # Default show preparation is ten seconds; the last safe
+                # POST time remains 1001 for this transport-boundary test.
+                "trigger_time": 1_011,
             },
             operation_deadline_sec=1.0,
         )

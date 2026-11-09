@@ -304,6 +304,7 @@ class LaunchPreparationStore:
         monotonic: Any = time.monotonic,
         wall_clock: Any = time.time,
         minimum_post_barrier_lead_sec: float = 0.0,
+        minimum_post_barrier_lead_sec_by_mission: Mapping[int, float] | None = None,
     ) -> None:
         if type(ttl_sec) not in {int, float} or not math.isfinite(float(ttl_sec)):
             raise ValueError("ttl_sec must be a finite number")
@@ -321,6 +322,11 @@ class LaunchPreparationStore:
             )
         if not callable(monotonic) or not callable(wall_clock):
             raise ValueError("launch preparation clocks must be callable")
+        mission_leads = dict(minimum_post_barrier_lead_sec_by_mission or {})
+        for mission, lead in mission_leads.items():
+            if (type(mission) is not int or type(lead) not in {int, float}
+                    or not math.isfinite(float(lead)) or float(lead) < 0):
+                raise ValueError("per-mission preparation leads must be finite non-negative numbers keyed by mission ID")
 
         self._ttl_sec = float(ttl_sec)
         self._max_records = max_records
@@ -329,6 +335,7 @@ class LaunchPreparationStore:
         self._minimum_post_barrier_lead_sec = float(
             minimum_post_barrier_lead_sec
         )
+        self._minimum_post_barrier_lead_sec_by_mission = mission_leads
         self._lock = threading.Lock()
         self._active: OrderedDict[str, _StoredPreparation] = OrderedDict()
         self._consumed: OrderedDict[str, float] = OrderedDict()
@@ -491,7 +498,10 @@ class LaunchPreparationStore:
             mission_requires_strict_sync_dispatch(expected.mission_type)
             and requested.requested_trigger_time > 0
             and requested.requested_trigger_time
-            <= float(self._wall_clock()) + self._minimum_post_barrier_lead_sec
+            <= float(self._wall_clock()) + max(
+                self._minimum_post_barrier_lead_sec,
+                self._minimum_post_barrier_lead_sec_by_mission.get(expected.mission_type, 0.0),
+            )
         ):
             return LaunchPreparationConsumeResult(
                 LaunchPreparationConsumeStatus.MISMATCH,

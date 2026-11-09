@@ -7,6 +7,7 @@ from pathlib import Path
 from mds_logging import get_logger
 from src.settings.deployment_profile import load_deployment_profile
 from src.settings.runtime import preload_local_env, resolve_runtime_mode
+from src.mission_timing import resolve_show_preparation_seconds
 from src.drone_api_routes import (
     DRONE_COMMANDS_ROUTE,
     DRONE_LIVE_ARMABILITY_ROUTE,
@@ -400,6 +401,11 @@ class Params:
     # Sleep Interval for Main Loop
     sleep_interval = 0.1           # Sleep interval for the main loop in seconds
     trigger_sooner_seconds = 4     # Trigger mission a bit early to compensate for initialization
+    # Python/MAVSDK setup only: the show executor still waits for its exact
+    # synchronized timestamp before arming. Does not advance other actions.
+    SYNCHRONIZED_SHOW_PREPARATION_SEC = resolve_show_preparation_seconds(
+        os.environ.get("MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC")
+    )
 
     max_takeoff_alt = 100          # Maximum allowable takeoff altitude
     default_takeoff_alt = 10       # Default takeoff altitude

@@ -8,6 +8,7 @@ import time
 from typing import Any, Mapping
 
 from src.enums import Mission
+from src.mission_timing import mission_commit_lead_seconds
 from src.command_execution_contract import (
     LAUNCH_ARMABILITY_MISSIONS,
     RECOVERY_MISSIONS,
@@ -107,12 +108,12 @@ def get_sync_dispatch_deadline(
     trigger_time = extract_trigger_time_seconds(command_payload)
     if trigger_time is None:
         return None
-    trigger_sooner = max(0.0, float(getattr(params, "trigger_sooner_seconds", 0)))
-    dispatch_guard = max(0.0, float(getattr(params, "COMMAND_SYNC_DISPATCH_GUARD_SEC", 1.0)))
-    return trigger_time - trigger_sooner - dispatch_guard
+    return trigger_time - mission_commit_lead_seconds(mission, params=params)
 
 
-def choose_post_preparation_trigger_time(*, params: Any, now: float | None = None) -> int:
+def choose_post_preparation_trigger_time(
+    *, params: Any, mission: Mission | None = None, now: float | None = None,
+) -> int:
     """Choose one safe fleet trigger after an all-required readiness barrier.
 
     The lead includes the bounded dispatch deadline, node warm-up offset, and
@@ -121,9 +122,8 @@ def choose_post_preparation_trigger_time(*, params: Any, now: float | None = Non
     """
 
     dispatch_budget = max(0.0, float(getattr(params, "GCS_FLEET_DISPATCH_DEADLINE_SEC", 15.0)))
-    trigger_sooner = max(0.0, float(getattr(params, "trigger_sooner_seconds", 0.0)))
-    dispatch_guard = max(0.0, float(getattr(params, "COMMAND_SYNC_DISPATCH_GUARD_SEC", 1.0)))
-    return int(math.ceil(float(now if now is not None else time.time()) + dispatch_budget + trigger_sooner + dispatch_guard + 2.0))
+    return int(math.ceil(float(now if now is not None else time.time()) + dispatch_budget
+                         + mission_commit_lead_seconds(mission, params=params) + 2.0))
 
 
 def resolve_strict_sync_trigger_time(
@@ -147,7 +147,7 @@ def resolve_strict_sync_trigger_time(
             "Strict-sync trigger_time must be a non-negative Unix-second integer"
         )
 
-    earliest_safe = choose_post_preparation_trigger_time(params=params, now=now)
+    earliest_safe = choose_post_preparation_trigger_time(params=params, mission=mission, now=now)
     if requested_trigger_time == 0:
         return earliest_safe
     if requested_trigger_time < earliest_safe:

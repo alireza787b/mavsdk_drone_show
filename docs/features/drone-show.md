@@ -25,8 +25,28 @@ Do not mix these mentally. The standard Drone Show path is the normal operator w
 4. Open `Mission Config` from the workspace when launch geometry or origin needs editing.
 5. Select the launch mode in Design / Setup; **Global · auto correction** is the normal outdoor choice.
 6. Return to **Operate** and wait for the package, validation, safety, and fleet rows to be ready.
-7. Confirm **Launch show** once. Monitor the operation rail and fleet rows from the same page.
-8. Use **Hold**, **Managed return**, **Land here**, or **Abort** only when needed. Recovery controls act on the current show targets.
+7. Select the exact aircraft in **Operate**. Filtering only changes visibility;
+   it never changes the checked aircraft. Every selected show slot must exist in
+   the package and have a unique configured hardware assignment.
+8. Use the default **When ready**, or choose **After delay** / **At time**, then review and confirm
+   **Launch show**. The review freezes the target IDs and requested timing;
+   changing the package, assignment, reference or selection requires a new review.
+   Absolute input uses the browser's local timezone; the review shows UTC and
+   scheduling uses the GCS clock. Existing native synchronized-launch admission
+   still applies, including rejection when the safe timing window is missed.
+   **When ready** requests synchronized startup after aircraft checks; it does
+   not mean immediate flight on acceptance. The coordinator records the actual
+   shared trigger after preparation, and the operation view counts down from
+   that tracked time. Explicit delayed/absolute times are not silently extended.
+9. Monitor the operation rail and fleet rows from the same page.
+10. Use **Hold**, **Managed return**, **Land here**, or **Cancel show** only when needed. Recovery controls act on the recorded show targets, not a newly edited launch selection.
+
+An unconfirmed submission is saved in this browser session before sending.
+**Check receipt** performs a read-only lookup of the original request identity;
+it does not replay the command or issue a new launch after reload. A lookup miss
+remains uncertain. Inspect aircraft and command history before any further action.
+Accepted submissions join the shared command lifecycle and remain visible after
+navigation. A completed command receipt is not independent proof of landing.
 
 The old `/drone-show-design` and `/manage-drone-show` paths remain bookmark-compatible aliases to this same workspace. They are not separate implementations. `Custom Show` remains an advanced CSV-only path and is intentionally kept behind the Setup disclosure.
 
@@ -142,6 +162,15 @@ Drone Show missions are scheduled by canonical `trigger_time` and start through 
 - the operator can launch with a relative delay or specific time-of-day trigger
 - the drone-side scheduler starts preparing slightly early via `trigger_sooner_seconds`
 - the executer waits until the requested synchronized start time before beginning trajectory execution
+- Drone Show, Custom CSV and Hover Test begin Python/MAVSDK setup 10 seconds
+  before the trigger, rather than sharing the shorter general-action lead.
+  `MDS_SYNCHRONIZED_SHOW_PREPARATION_SEC` is an advanced finite-positive setting
+  that must match on GCS and nodes. The actual trigger, late-start protection
+  and native arming checks do not change; Hold, Land and Return are unaffected.
+  This visible deployment-scoped setting is configured in `/etc/mds/gcs.env`
+  and each participating node's `/etc/mds/local.env`, or process environment.
+  A coordinated grounded restart is required; one-sided environment UI Apply
+  is intentionally unavailable. Deploy matching GCS/node code before using it.
 - the dashboard mission scheduler now shows the synchronized execution time using the GCS-aligned UTC clock so operator confirmations and follow-up toasts do not depend on the browser wall clock
 
 Operational guidance:
@@ -278,6 +307,25 @@ For writable production workflows:
 ## Custom CSV Operational Note
 
 Custom CSV now has its own dedicated dashboard surface at `Custom Show`.
+
+Use **Design / Setup** to import and preview `active.csv`, then **Operate** to
+select exact hardware IDs and use When ready, After delay or At time. The confirmation
+always uses native mission type 3 with LOCAL setpoints and no global-origin
+correction. Every selected aircraft replays the same CSV in its own launch frame;
+this is neither a SkyBrush multi-file package nor an implicit Smart Swarm leader
+command. Native command/readiness and mission-conflict guards remain authoritative.
+
+**Active CSV identity** shows a SHA-256 fingerprint of the GCS file for review.
+It is not an immutable drone-side execution binding or proof of fleet file sync.
+Changing that identity invalidates an open launch review. Observe the existing
+repository/package delivery workflow before executing the file on aircraft.
+
+Operate includes Hold, Land here, Immediate RTL and Cancel mission. Recovery
+uses the recorded Custom CSV mission targets, independently of the next launch
+selection. Hold ends execution rather than pausing it; cancel alone does not
+prove Hold or landing; simultaneous native RTL paths may overlap. Custom CSV and
+normal Drone Show have separate operation-history projections. Unconfirmed
+receipts use the same session-persisted, read-only lookup described above.
 
 That page is intentionally separate from the normal SkyBrush Drone Show workspace:
 

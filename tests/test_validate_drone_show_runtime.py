@@ -15,6 +15,19 @@ def _load_validator():
     return module
 
 
+@pytest.mark.parametrize('value', ['0', '-1', 'nan', 'inf', '1.5', 'invalid'])
+def test_scheduled_case_delay_rejects_nonpositive_or_noninteger_values(value):
+    validator = _load_validator()
+    with pytest.raises(validator.argparse.ArgumentTypeError, match='positive integer'):
+        validator.positive_seconds(value)
+
+
+def test_scheduled_case_delay_is_an_explicit_configurable_fixture():
+    validator = _load_validator()
+    assert validator.positive_seconds('60') == 60
+    assert validator.positive_seconds('90') == 90
+
+
 def test_check_deviation_signal_allows_subset_when_unselected_drones_have_no_telemetry():
     validator = _load_validator()
 

@@ -8,7 +8,9 @@ import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
 import { getDroneDisplayIdentity } from '../utilities/dronePresentation';
 import { FIELD_NAMES } from '../constants/fieldMappings';
-import '../styles/CommandSender.css';
+import '../styles/CommandPreflightSummary.css';
+
+const MAX_VISIBLE_EXCEPTIONS = 8;
 
 function normalizeId(value) {
   return String(value ?? '').trim();
@@ -27,14 +29,16 @@ const CommandPreflightSummary = ({
   const [exceptionsExpanded, setExceptionsExpanded] = useState(false);
 
   const summary = useMemo(() => {
-    const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));
-    const isScopedTarget = targetMode !== 'all';
-    const targetDrones = isScopedTarget
-      ? drones.filter((drone) => scopedLookup.has(normalizeId(drone?.[FIELD_NAMES.HW_ID])))
-      : drones;
-
+    const roster = new Map();
+    drones.forEach((drone) => {
+      const hwId = normalizeId(drone?.[FIELD_NAMES.HW_ID]);
+      if (hwId && !roster.has(hwId)) roster.set(hwId, drone);
+    });
+    const scopeIds = targetMode === 'all'
+      ? [...roster.keys()]
+      : [...new Set(targetDroneIds.map(normalizeId).filter(Boolean))];
     const counts = {
-      configured: isScopedTarget ? scopedLookup.size : drones.length,
+      configured: scopeIds.length,
       online: 0,
       degraded: 0,
       unavailable: 0,
@@ -42,33 +46,9 @@ const CommandPreflightSummary = ({
       review: 0,
       blocked: 0,
       armed: 0,
+      disarmed: 0,
+      armUnknown: 0,
     };
-
-    targetDrones.forEach((drone) => {
-      const runtimeStatus = getDroneRuntimeStatus(drone, referenceNowMs);
-      const readiness = getDroneReadinessModel(drone, runtimeStatus);
-
-      if (runtimeStatus.level === 'online') {
-        counts.online += 1;
-      } else if (runtimeStatus.level === 'degraded') {
-        counts.degraded += 1;
-      } else {
-        counts.unavailable += 1;
-      }
-
-      if (readiness.isReady) {
-        counts.ready += 1;
-      } else if (readiness.status === 'warning') {
-        counts.review += 1;
-      } else {
-        counts.blocked += 1;
-      }
-
-      if (drone?.[FIELD_NAMES.IS_ARMED]) {
-        counts.armed += 1;
-      }
-    });
-
     const gcsGitStatus = gitStatusResponse?.gcs_status || null;
     const gitStatusByDrone = gitStatusResponse?.git_status || {};
     let gitInSync = 0;
@@ -76,30 +56,46 @@ const CommandPreflightSummary = ({
     let gitMismatch = 0;
     const exceptions = [];
 
-    targetDrones.forEach((drone) => {
-      const identity = getDroneDisplayIdentity(drone);
-      const hwId = normalizeId(drone?.[FIELD_NAMES.HW_ID]);
+    scopeIds.forEach((hwId) => {
+      const drone = roster.get(hwId);
+      const identity = drone ? getDroneDisplayIdentity(drone) : { primary: `HW ${hwId}` };
       const droneGitStatus = gitStatusByDrone[hwId];
       const runtimeStatus = getDroneRuntimeStatus(drone, referenceNowMs);
       const readiness = getDroneReadinessModel(drone, runtimeStatus);
+      const liveTelemetry = runtimeStatus.level === 'online'
+        && drone?.[FIELD_NAMES.TELEMETRY_AVAILABLE] !== false;
+      const ready = liveTelemetry && readiness.isReady;
 
-      if (runtimeStatus.level !== 'online') {
+      if (liveTelemetry) counts.online += 1;
+      else if (runtimeStatus.level === 'degraded') counts.degraded += 1;
+      else counts.unavailable += 1;
+
+      if (ready) counts.ready += 1;
+      else if (liveTelemetry && readiness.status === 'warning') counts.review += 1;
+      else counts.blocked += 1;
+
+      if (liveTelemetry && drone?.[FIELD_NAMES.IS_ARMED] === true) counts.armed += 1;
+      else if (liveTelemetry && drone?.[FIELD_NAMES.IS_ARMED] === false) counts.disarmed += 1;
+      else counts.armUnknown += 1;
+
+      if (!liveTelemetry) {
         exceptions.push({
           key: `runtime-${hwId}`,
           group: 'link',
           label: identity.primary,
-          detail: runtimeStatus.label,
+          detail: !drone ? 'Selected aircraft unavailable' : runtimeStatus.level === 'online'
+            ? 'Telemetry unavailable' : runtimeStatus.label,
           state: runtimeStatus.level === 'offline' ? 'danger' : 'warning',
         });
       }
 
-      if (!readiness.isReady) {
+      if (!ready) {
         exceptions.push({
           key: `readiness-${hwId}`,
           group: 'readiness',
           label: identity.primary,
-          detail: readiness.statusLabel,
-          state: readiness.status === 'blocked' ? 'danger' : 'warning',
+          detail: liveTelemetry ? readiness.statusLabel : 'Live readiness unavailable',
+          state: !liveTelemetry || readiness.status === 'blocked' ? 'danger' : 'warning',
         });
       } else if (readiness.warnings.length > 0) {
         exceptions.push({
@@ -144,7 +140,7 @@ const CommandPreflightSummary = ({
         unknown: gitUnknown,
         mismatch: gitMismatch,
       },
-      exceptions: exceptions.slice(0, 8),
+      exceptions,
       gcsBranch: gcsGitStatus?.branch || gcsGitStatus?.current_branch || '',
     };
   }, [drones, gitStatusResponse, referenceNowMs, targetDroneIds, targetMode]);
@@ -167,7 +163,7 @@ const CommandPreflightSummary = ({
       label: 'Live Link',
       value: `${summary.counts.online}/${summary.counts.configured}`,
       detail: `${summary.counts.degraded} delayed · ${summary.counts.unavailable} unavailable`,
-      state: summary.counts.unavailable > 0 ? 'danger' : summary.counts.degraded > 0 ? 'warning' : 'good',
+      state: !summary.counts.configured ? 'neutral' : summary.counts.unavailable > 0 ? 'danger' : summary.counts.degraded > 0 ? 'warning' : 'good',
       tooltip: `${summary.counts.online} targets have fresh telemetry, ${summary.counts.degraded} are delayed, and ${summary.counts.unavailable} are currently unavailable.`,
       exceptionCount: metricExceptionCounts.link || 0,
     },
@@ -176,7 +172,7 @@ const CommandPreflightSummary = ({
       label: 'Readiness',
       value: `${summary.counts.ready}/${summary.counts.configured}`,
       detail: `${summary.counts.review} review · ${summary.counts.blocked} blocked`,
-      state: summary.counts.blocked > 0 ? 'danger' : summary.exceptions.some((exception) => exception.group === 'readiness' && exception.state === 'warning') ? 'warning' : 'good',
+      state: !summary.counts.configured ? 'neutral' : summary.counts.blocked > 0 ? 'danger' : summary.exceptions.some((exception) => exception.group === 'readiness' && exception.state === 'warning') ? 'warning' : 'good',
       tooltip: `${summary.counts.ready} targets are ready, ${summary.counts.review} need review, and ${summary.counts.blocked} are blocked for launch or dispatch. Advisory warnings do not block an armable target.`,
       exceptionCount: metricExceptionCounts.readiness || 0,
     },
@@ -184,9 +180,9 @@ const CommandPreflightSummary = ({
       key: 'armed',
       label: 'Armed',
       value: summary.counts.armed,
-      detail: `${summary.counts.configured - summary.counts.armed} disarmed`,
+      detail: `${summary.counts.disarmed} disarmed · ${summary.counts.armUnknown} unknown`,
       state: summary.counts.armed > 0 ? 'warning' : 'neutral',
-      tooltip: `${summary.counts.armed} targets are armed and ${summary.counts.configured - summary.counts.armed} are disarmed.`,
+      tooltip: `${summary.counts.armed} targets are observed armed, ${summary.counts.disarmed} observed disarmed, and ${summary.counts.armUnknown} have unknown or stale arm state.`,
       exceptionCount: 0,
     },
     {
@@ -201,15 +197,17 @@ const CommandPreflightSummary = ({
       exceptionCount: metricExceptionCounts.git || 0,
     },
   ];
-  const displayedExceptions = activeExceptionGroup
+  const matchingExceptions = activeExceptionGroup
     ? summary.exceptions.filter((exception) => exception.group === activeExceptionGroup)
     : summary.exceptions;
-  const hasReadinessBlocker = summary.counts.blocked > 0;
+  const displayedExceptions = matchingExceptions.slice(0, MAX_VISIBLE_EXCEPTIONS);
+  const hasTargets = summary.counts.configured > 0;
+  const hasReadinessBlocker = summary.counts.ready < summary.counts.configured;
   const hasReadinessCaution = summary.exceptions.some(
     (exception) => exception.group === 'readiness' && exception.state === 'warning',
   );
-  const overallState = hasReadinessBlocker ? 'danger' : hasReadinessCaution ? 'warning' : 'good';
-  const overallLabel = hasReadinessBlocker
+  const overallState = !hasTargets ? 'neutral' : hasReadinessBlocker ? 'danger' : hasReadinessCaution ? 'warning' : 'good';
+  const overallLabel = !hasTargets ? 'NO TARGETS' : hasReadinessBlocker
     ? 'NOT READY'
     : hasReadinessCaution
       ? 'READY · CAUTION'
@@ -268,9 +266,10 @@ const CommandPreflightSummary = ({
             type="button"
             className="command-preflight__exceptions-toggle"
             onClick={() => setExceptionsExpanded((current) => !current)}
+            aria-expanded={exceptionsExpanded}
           >
             {activeExceptionGroup ? 'Focused attention' : 'Attention'}
-            <span>({displayedExceptions.length}/{summary.exceptions.length})</span>
+            <span>({displayedExceptions.length}/{matchingExceptions.length})</span>
           </button>
           {exceptionsExpanded ? (
           <div className="command-preflight__exception-list">
@@ -283,6 +282,11 @@ const CommandPreflightSummary = ({
                 <span>{exception.detail}</span>
               </div>
             ))}
+            {matchingExceptions.length > displayedExceptions.length && (
+              <p className="command-preflight__remaining">
+                {matchingExceptions.length - displayedExceptions.length} more entries. Select a metric to narrow the list.
+              </p>
+            )}
           </div>
           ) : null}
         </div>
