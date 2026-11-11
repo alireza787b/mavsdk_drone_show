@@ -19,6 +19,7 @@ test('Operate uses review links and disables unavailable capture', () => {
   render(<SwarmFormationSource planHref="/swarm-design?tab=formation" captureHref="/swarm-design?capture=1" captureDisabled />);
   expect(screen.getByRole('link', { name: 'Plan formation' })).toHaveAttribute('href', '/swarm-design?tab=formation');
   const capture = screen.getByLabelText('Capture positions');
-  expect(capture).toHaveAttribute('aria-disabled', 'true');
+  expect(capture).toBeDisabled();
+  expect(capture).toHaveAttribute('type', 'button');
   expect(capture).not.toHaveAttribute('href');
 });
