@@ -320,12 +320,28 @@ It is not an immutable drone-side execution binding or proof of fleet file sync.
 Changing that identity invalidates an open launch review. Observe the existing
 repository/package delivery workflow before executing the file on aircraft.
 
-Operate includes Hold, Land here, Immediate RTL and Cancel mission. Recovery
+Operate puts Launch, Hold and Immediate RTL first. **Other actions** contains
+Managed Return (the shared sequential RTL queue), Land here and Cancel mission. Recovery
 uses the recorded Custom CSV mission targets, independently of the next launch
 selection. Hold ends execution rather than pausing it; cancel alone does not
 prove Hold or landing; simultaneous native RTL paths may overlap. Custom CSV and
 normal Drone Show have separate operation-history projections. Unconfirmed
 receipts use the same session-persisted, read-only lookup described above.
+
+Design / Setup validates and loads a CSV without starting a flight. The path
+preview uses generated light/dark images, preserving path and start/end colors.
+For an older light-only preview, **Refresh preview** creates both images without
+changing `active.csv`, its fingerprint or aircraft files. Switching tabs retains
+the selected aircraft, timing and uncertain-receipt state. Completed runs sit in
+the collapsed **Last run** section rather than occupying the flight controls.
+
+Mission Config places assignment search, Save & Commit and origin review above
+the aircraft assignments and live launch layout. Plot/map inspection opens the
+same hardware identity for editing; it does not change a command target set.
+Enrollment, identity guidance and import/export tools remain available in
+disclosures. Detected nodes are never enrolled automatically. Configuration save
+review retains duplicate/missing-trajectory guards; changing the review clears
+any previous duplicate-slot acknowledgment.
 
 That page is intentionally separate from the normal SkyBrush Drone Show workspace:
 

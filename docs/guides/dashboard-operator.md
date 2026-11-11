@@ -32,7 +32,10 @@ aircraft even when names are duplicated. **P1**, **P2**, etc. identify position
 slots. Each card centers an aircraft schematic with a small phase marker for
 grounded, airborne, taking off, landing or unknown. The illustration is not an
 airframe footprint, heading or proof that motors stopped. Battery percentage and
-altitude/datum sit on the left; GNSS fix and last-heard age on the right. The
+altitude/datum sit on the left; GNSS fix and stable link state on the right. Exact
+heartbeat age remains in the link hint and inspector diagnostics, not a ticking
+card label. The inspector also shows the **Configured IP**; this is an address
+from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
 warning text. Tap/click the card for satellites, voltage and full measurements.
 Small badges on the schematic distinguish initialization, stale/missing link

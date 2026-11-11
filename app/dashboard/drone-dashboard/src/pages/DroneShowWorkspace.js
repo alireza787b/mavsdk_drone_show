@@ -18,13 +18,9 @@ import ShowReceiptRecovery from '../components/ShowReceiptRecovery';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import { getCommandName } from '../constants/droneConstants';
 import { getMissionExecutionPolicy } from '../utilities/commandExecutionPolicy';
-import { buildShowCommand, formatShowOperationStart, formatShowStart, showReadiness, SHOW_MODES } from '../utilities/droneShowWorkspace';
+import { buildShowCommand, formatShowOperationStart, formatShowStart, showReadiness, SHOW_MODES, SHOW_OPERATION_PHASES as PHASES } from '../utilities/droneShowWorkspace';
 import '../styles/DroneShowWorkspace.css';
 
-const PHASES = { idle: 'Idle', preparing: 'Checking aircraft', awaiting_ack: 'Dispatching',
-  scheduled: 'Scheduled', pending_execution: 'Starting', executing: 'Running', finishing: 'Finishing',
-  completed: 'Complete', partial: 'Partial result', failed: 'Failed', cancelled: 'Cancelled',
-  timeout: 'Unconfirmed', superseded: 'Replaced' };
 const ACTIONS = { launch: 'Launch show', hold: 'Hold', land: 'Land here', rtl: 'Immediate RTL', cancel: 'Cancel show' };
 
 function duration(ms) {

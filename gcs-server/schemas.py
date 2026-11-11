@@ -1575,8 +1575,16 @@ class CustomShowInfoResponse(BaseModel):
     duration_sec: float = Field(..., ge=0, description="Total trajectory duration in seconds")
     max_altitude: float = Field(..., ge=0, description="Maximum altitude above launch frame in meters")
     preview_exists: bool = Field(..., description="Whether a preview image has been generated")
+    preview_themes: Dict[str, bool] = Field(default_factory=dict, description="Available light/dark preview variants")
     execution_mode: str = Field(..., description="Execution mode summary")
     required_columns: List[str] = Field(default_factory=list, description="Required CSV protocol columns")
+
+
+class CustomShowPreviewResponse(BaseModel):
+    """Image-only regeneration result; no change to flight CSV identity."""
+    success: bool
+    preview_generated: bool
+    preview_themes: Dict[str, bool]
 
 
 class CustomShowImportResponse(BaseModel):

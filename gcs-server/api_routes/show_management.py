@@ -1,7 +1,7 @@
 """Show-management routes extracted from the GCS FastAPI monolith."""
 
 import asyncio
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from schemas import (
     CustomShowImportResponse,
     CustomShowInfoResponse,
+    CustomShowPreviewResponse,
     ShowDeploymentRequest,
     ShowDeploymentResponse,
     ShowImportResponse,
@@ -24,6 +25,7 @@ from show_management import (
     import_show_archive,
     list_show_plots_payload,
     resolve_custom_show_image_path,
+    refresh_custom_show_preview,
     resolve_show_plot_path,
 )
 from show_workspace import build_operation_snapshot, build_workspace_snapshot
@@ -245,14 +247,21 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to list directory: {exc}") from exc
 
     @router.get("/api/v1/shows/custom/preview", tags=["Show Management"])
-    async def get_custom_show_image():
+    async def get_custom_show_image(theme: Literal["light", "dark"] = "light"):
         """Get the preview image for the active custom CSV show."""
         try:
-            image_path = resolve_custom_show_image_path(deps.shapes_dir)
+            image_path = resolve_custom_show_image_path(deps.shapes_dir, theme)
             return FileResponse(image_path, media_type="image/png")
         except HTTPException:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post("/api/v1/shows/custom/preview", response_model=CustomShowPreviewResponse, tags=["Show Management"])
+    async def regenerate_custom_show_image():
+        """Regenerate light/dark preview images without changing the active CSV."""
+        return await asyncio.get_running_loop().run_in_executor(
+            None, lambda: refresh_custom_show_preview(deps.shapes_dir)
+        )
 
     return router

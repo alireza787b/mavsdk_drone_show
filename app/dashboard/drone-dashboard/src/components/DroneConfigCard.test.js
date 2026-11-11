@@ -48,7 +48,7 @@ describe('DroneConfigCard', () => {
 
     expect(within(indicators).getByRole('button', { name: /slot/i })).toBeInTheDocument();
     expect(within(indicators).getByText('Aligned')).toBeInTheDocument();
-    expect(within(indicators).getByText('P2')).toBeInTheDocument();
+    expect(within(indicators).getByRole('button', { name: /slot/i })).toHaveAttribute('data-help', expect.stringContaining('P2'));
     expect(within(indicators).getByRole('button', { name: /link/i })).toBeInTheDocument();
     expect(within(indicators).getByText('Simulated')).toBeInTheDocument();
     expect(within(indicators).getByRole('button', { name: /git/i })).toBeInTheDocument();

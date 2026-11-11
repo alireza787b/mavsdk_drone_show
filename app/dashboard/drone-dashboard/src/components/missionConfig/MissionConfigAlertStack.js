@@ -58,7 +58,8 @@ export default function MissionConfigAlertStack({
           <div>
             <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
             <span>
-              {duplicateHwIds.map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
+              {duplicateHwIds.slice(0, 3).map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
+              {duplicateHwIds.length > 3 ? ` · +${duplicateHwIds.length - 3} more` : ''}
             </span>
           </div>
           <span className="mission-config-alert__action">Review</span>
@@ -75,9 +76,10 @@ export default function MissionConfigAlertStack({
           <div>
             <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
             <span>
-              {duplicatePosIds.map((duplicate) => (
-                `${formatShowSlotLabel(duplicate.pos_id)} -> ${duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}`
+              {duplicatePosIds.slice(0, 3).map((duplicate) => (
+                `${formatShowSlotLabel(duplicate.pos_id)} → ${duplicate.hw_ids.slice(0, 3).map((hwId) => formatDroneLabel(hwId)).join(', ')}${duplicate.hw_ids.length > 3 ? '…' : ''}`
               )).join(' • ')}
+              {duplicatePosIds.length > 3 ? ` · +${duplicatePosIds.length - 3} more` : ''}
             </span>
           </div>
           <span className="mission-config-alert__action">Review</span>
@@ -97,7 +99,7 @@ export default function MissionConfigAlertStack({
               {roleSwaps.slice(0, 3).map((drone) => (
                 `${formatDroneLabel(drone.hw_id)} -> ${formatShowSlotLabel(drone.pos_id)}`
               )).join(' • ')}
-              {roleSwaps.length > 0 ? ' • Smart Swarm follow-links stay on hardware IDs.' : ''}
+              {roleSwaps.length > 3 ? ` · +${roleSwaps.length - 3} more` : ''}
             </span>
           </div>
           <span className="mission-config-alert__action">{roleSwaps.length > 3 ? 'View all' : 'Review'}</span>

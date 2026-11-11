@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Custom Show now shares the flat Operate / Design & Setup layout, native
+  scheduling/recovery and themed path previews. Explicit preview regeneration
+  changes images only. Mission Config prioritizes assignments and launch layout,
+  with advanced tools collapsed and a shared accessible save-review dialog.
+  Aircraft inspectors show configured IPs; exact freshness ages move to
+  diagnostics/hints while live, stale and unavailable states remain visible.
+
 - Overview is a flat aircraft Board/List/Map with an identity-based live
   inspector, explicit targets and general Takeoff/Hold/Land/immediate Return.
   First-use Available and remembered selections (including empty) remain independent

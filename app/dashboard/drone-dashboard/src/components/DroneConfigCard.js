@@ -692,10 +692,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
         </div>
         <div className="card-actions">
-          <div className={`status-badge ${heartbeatStatusClass}`}>
+          <div className={`status-badge ${heartbeatStatusClass}`} title={heartbeatAgeSec !== null ? `Last heartbeat ${heartbeatAgeSec}s ago` : undefined}>
             {getHeartbeatIcon()}
             <span className="status-text">{heartbeatStatus}</span>
-            {heartbeatAgeSec !== null && <span className="status-time">({heartbeatAgeSec}s)</span>}
           </div>
         </div>
       </div>
@@ -712,14 +711,13 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
                 className={`operator-indicator operator-indicator--${indicator.tone}${activeInspector === indicator.key ? ' is-active' : ''}`}
                 onClick={() => toggleInspector(indicator.key)}
                 aria-expanded={activeInspector === indicator.key}
-                data-help={indicator.title}
+                data-help={`${indicator.title} ${indicator.note || ''}`.trim()}
               >
                 <span className="operator-indicator__topline">
                   <IndicatorIcon className="operator-indicator__icon" />
                   <span className="operator-indicator__label">{indicator.label}</span>
                 </span>
                 <span className="operator-indicator__value">{indicator.value}</span>
-                <span className="operator-indicator__note">{indicator.note}</span>
               </button>
             );
           })}
@@ -728,7 +726,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div className="drone-card-details-rail">
             <div className="drone-card-details-rail__header">
               <strong>{inspectorButtons.find((indicator) => indicator.key === activeInspector)?.label || 'Details'}</strong>
-              <span>Tap the same indicator again to collapse.</span>
             </div>
             <div className="drone-card-details-rail__content">
               {renderActiveInspectorPanel()}

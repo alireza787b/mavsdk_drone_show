@@ -2,6 +2,7 @@ import React, { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
+import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 
 export function AircraftSymbol({ item }) {
   const state = ({ Grounded: 'grounded', Airborne: 'airborne', 'Taking off': 'taking-off', Landing: 'landing' })[item?.flightState] || 'unknown';
@@ -89,7 +90,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
           displayValue={item.gps.label} stale={item.gps.stale} />
         <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} stale={item.altitude.stale} />
         <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.wifi.current ? ` · Wi-Fi ${Math.round(item.wifi.percent)}%` : ''}`}
-          displayValue={item.availability.label === 'Fresh' ? `${Math.round(item.availability.ageSec)}s ago` : heartbeatText(item.availability)} tone={item.availability.tone} />
+          displayValue={item.availability.label} tone={item.availability.tone} />
       </span>
       <span className="fleet-aircraft__state">
         {item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}
@@ -130,6 +131,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       {!!item.issues.length && <section aria-label="Aircraft alerts"><h3 className="fleet-inspector__alert-title">Aircraft alerts <small>{item.issues.length}</small></h3>
         <ul className="fleet-inspector__issues">{item.issues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul></section>}
       <dl className="fleet-inspector__facts">
+        <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
         <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>
         <dt>Altitude</dt><dd>{altitudeText(item.altitude)}{item.altitude.stale ? ' · last known' : ''}</dd>
@@ -139,9 +141,8 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Flight mode</dt><dd>{item.flightMode.label}{item.flightMode.stale ? ' · last known' : ''}</dd>
         <dt>Mission</dt><dd>{item.mission.label}{item.mission.stale ? ' · last known' : ''}</dd>
         <dt>Readiness</dt><dd>{item.readiness.label}</dd>
-        <dt>Heartbeat</dt><dd>{heartbeatText(item.availability)}</dd>
+        <dt>Link</dt><dd>{item.availability.label}</dd>
         <dt>Wi-Fi signal</dt><dd>{item.wifi.current ? `${Math.round(item.wifi.percent)}%` : 'Unknown'}</dd>
-        <dt>Observed</dt><dd>{item.runtime.telemetryAgeSec == null ? 'Never seen' : `${item.runtime.telemetryAgeSec}s ago`}</dd>
       </dl>
       {MISSION_ROUTES[mission] && <Link className="fleet-workspace-link" to={MISSION_ROUTES[mission]} onClick={onClose}>{item.mission.label} workspace →</Link>}
       <section className="fleet-inspector__actions" aria-label={`Actions for ${item.label} · H${item.id}`}>
@@ -153,6 +154,8 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         {onMore && <button type="button" onClick={() => onMore(item)}>More</button>}
       </section>
       <details><summary>Diagnostics</summary><dl className="fleet-inspector__facts">
+        <dt>Heartbeat age</dt><dd>{heartbeatText(item.availability)}</dd>
+        <dt>Telemetry age</dt><dd>{item.runtime.telemetryAgeSec == null ? 'Never seen' : `${item.runtime.telemetryAgeSec}s ago`}</dd>
         <dt>HDOP / VDOP</dt><dd>{item.gps.hdop ?? '—'} / {item.gps.vdop ?? '—'}</dd>
         <dt>Link evidence</dt><dd>{item.runtime.tooltip}</dd>
         <dt>Battery source</dt><dd>{item.battery.help}</dd>

@@ -5,6 +5,7 @@ import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
 import { sendDroneCommand } from '../services/droneApiService';
 
 jest.mock('../hooks/useGcsResourcePolling');
+jest.mock('./SequentialReturnControl', () => props => <div data-testid="managed-return" data-targets={props.targetIds.join(',')} data-names={JSON.stringify(props.targetNames)}>Managed Return</div>);
 jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: {} }) }));
 jest.mock('../services/droneApiService', () => ({ ...jest.requireActual('../services/droneApiService'), sendDroneCommand: jest.fn() }));
 jest.mock('../utilities/commandLifecycleFeedback', () => ({ trackCommandReceipt: jest.fn() }));
@@ -54,6 +55,9 @@ test('recovery uses recorded mission targets, never the newly selected launch su
     command: { target_drones: ['2'] } } });
   render(<CustomShowOperate infoState={info()} runtimeMode="sitl" />);
   fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+  fireEvent.click(screen.getByText('Other actions'));
+  expect(screen.getByTestId('managed-return')).toHaveAttribute('data-targets', '2');
+  expect(screen.getByTestId('managed-return')).toHaveAttribute('data-names', '["Aircraft 2 (H2)"]');
   fireEvent.click(screen.getByRole('button', { name: 'Cancel mission' }));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByText('Aircraft 2 (H2)')).toBeInTheDocument();

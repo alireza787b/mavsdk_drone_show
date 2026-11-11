@@ -1,7 +1,7 @@
 // src/pages/MissionConfig.js
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import '../styles/MissionConfig.css';
+import '../styles/MissionConfigWorkspace.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Components
@@ -39,7 +39,6 @@ import {
   formatDroneLabel,
   formatShowSlotLabel,
   getDuplicateAssignments,
-  getOnlineDroneCount,
   getRoleSwaps,
   normalizeComparableId,
   normalizeDroneConfigData,
@@ -166,7 +165,6 @@ const MissionConfig = () => {
   const availableHwIds = buildSuggestedHwIds(configData);
   const roleSwaps = getRoleSwaps(configData);
   const { duplicateHwIds, duplicatePosIds } = getDuplicateAssignments(configData);
-  const onlineDroneCount = getOnlineDroneCount(heartbeats);
   const originStatus = useMemo(() => {
     if (originLoading) {
       return 'checking';
@@ -734,12 +732,6 @@ const MissionConfig = () => {
   const draftAssignmentCount = configData.filter((drone) => drone.isNew).length;
   const missionWorkspaceStats = useMemo(
     () => [
-      { label: 'Visible', value: filteredConfigData.length },
-      { label: 'Online', value: onlineDroneCount },
-      { label: 'Role swaps', value: roleSwaps.length },
-      { label: 'Duplicate slots', value: duplicatePosIds.length },
-      { label: 'Draft', value: draftAssignmentCount },
-      { label: 'Pending', value: pendingEnrollmentDrones.length },
       {
         label: 'Origin',
         value: originStatus === 'ready'
@@ -753,7 +745,7 @@ const MissionConfig = () => {
         actionLabel: originStatus === 'ready' ? 'Review' : 'Open',
       },
     ],
-    [draftAssignmentCount, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originStatus, pendingEnrollmentDrones.length, roleSwaps.length]
+    [originStatus]
   );
   const missionAttentionCount = duplicateHwIds.length
     + duplicatePosIds.length
@@ -765,13 +757,6 @@ const MissionConfig = () => {
     ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
     : 'Assignment wall is clear for save review';
   const missionSearchSummary = `${filteredConfigData.length}/${sortedConfigData.length} assignment card${sortedConfigData.length === 1 ? '' : 's'} visible`;
-  const originStatusLabel = originStatus === 'ready'
-    ? 'Origin ready'
-    : originStatus === 'checking'
-      ? 'Origin checking'
-      : originStatus === 'unavailable'
-        ? 'Origin check failed'
-        : 'Origin needed';
 
   const scrollNodeIntoView = (node, block = 'center') => {
     if (!node) {
@@ -834,6 +819,7 @@ const MissionConfig = () => {
   };
 
   const reviewPendingEnrollmentCandidates = () => {
+    if (pendingEnrollmentPanelRef.current) pendingEnrollmentPanelRef.current.open = true;
     scrollNodeIntoView(pendingEnrollmentPanelRef.current, 'start');
   };
 
@@ -883,10 +869,8 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   return (
     <PageShell
-      className="mission-config-container"
-      eyebrow="Configuration"
+      className="mission-config-container operator-console"
       title="Mission Config"
-      subtitle="Assignment wall for slot ownership, identity, and launch readiness."
       icon={<FaClipboardList />}
       docsRoute="/mission-config"
       docsOptions={{
@@ -897,12 +881,6 @@ const MissionConfig = () => {
         <div className="mission-config-page-status">
           <StatusBadge tone={missionAttentionCount > 0 ? 'warning' : 'success'}>
             {missionAttentionCount} review
-          </StatusBadge>
-          <StatusBadge tone="muted">
-            {filteredConfigData.length}/{sortedConfigData.length} visible
-          </StatusBadge>
-          <StatusBadge tone={originStatus === 'ready' ? 'success' : originStatus === 'checking' ? 'muted' : 'warning'}>
-            {originStatusLabel}
           </StatusBadge>
         </div>
       )}
@@ -1012,15 +990,15 @@ const MissionConfig = () => {
 
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
-        <div className="drone-cards slide-in-left" ref={assignmentWallRef}>
+        <div className="drone-cards" ref={assignmentWallRef}>
           <div className="mission-config-card-panel-header">
-            <h3>Assignment wall</h3>
+            <h2>Aircraft assignments</h2>
             <span className="mission-config-card-panel-meta">
               {filteredConfigData.length} visible
             </span>
           </div>
           {filteredConfigData.length > 0 ? (
-            filteredConfigData.map((drone, index) => (
+            filteredConfigData.map((drone) => (
               <div
                 key={drone.hw_id}
                 id={`mission-config-drone-${drone.hw_id}`}
@@ -1054,7 +1032,6 @@ const MissionConfig = () => {
                     )
                   }
                   heartbeatData={heartbeats[drone.hw_id] || null}
-                  style={{ animationDelay: `${index * 0.1}s` }}
                 />
               </div>
             ))
@@ -1066,7 +1043,8 @@ const MissionConfig = () => {
           )}
         </div>
 
-        <div className="initial-launch-plot slide-in-right">
+        <div className="initial-launch-plot">
+          <h2>Launch layout</h2>
           <div className="mission-config-layout-switcher" role="tablist" aria-label="Launch layout view">
             <button
               type="button"
@@ -1093,7 +1071,7 @@ const MissionConfig = () => {
               trajectoryPositionsByPosId={trajectoryPositionsByPosId}
               origin={origin}
               forwardHeading={forwardHeading}
-              onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
+              onDroneClick={(hwId) => { reviewAssignmentCard(hwId, 'all'); setEditingDroneId(normalizeComparableId(hwId)); }}
               onRefresh={handleManualRefresh}
             />
           ) : (
@@ -1104,7 +1082,7 @@ const MissionConfig = () => {
               deviationData={deviationData}
               trajectoryPositionsByPosId={trajectoryPositionsByPosId}
               forwardHeading={forwardHeading}
-              onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
+              onDroneClick={(hwId) => { reviewAssignmentCard(hwId, 'all'); setEditingDroneId(normalizeComparableId(hwId)); }}
             />
           )}
         </div>
@@ -1114,7 +1092,6 @@ const MissionConfig = () => {
         <details className="mission-config-secondary-panel">
           <summary>
             <span>Mission tools</span>
-            <small>Sync, import/export, origin, revert, and reset actions</small>
           </summary>
           <ControlButtons
             addNewDrone={addNewDrone}
@@ -1135,7 +1112,6 @@ const MissionConfig = () => {
         <details className="mission-config-secondary-panel">
           <summary>
             <span>Identity guide</span>
-            <small>Slot ownership, slot reassignment, optional metadata</small>
           </summary>
           <div className="mission-identity-guide__grid">
             <div className="identity-brief-card">
@@ -1167,7 +1143,6 @@ const MissionConfig = () => {
         <details className="mission-config-secondary-panel" ref={missionPreviewPanelRef}>
           <summary>
             <span>Mission preview tools</span>
-            <small>KML export, print, origin state, and forward-heading preview</small>
           </summary>
           <MissionLayout
             configData={configData}
@@ -1178,15 +1153,11 @@ const MissionConfig = () => {
           <div className="heading-controls heading-controls-preview">
             <div className="heading-controls-header">
               <div>
-                <div className="heading-kicker">Preview Only</div>
                 <label htmlFor="headingSlider">
-                  Forward Heading: {forwardHeading}°
+                  Preview heading: {forwardHeading}°
                 </label>
-                <p className="heading-controls-copy">
-                  Updates the mission preview only. Server-backed forward heading workflow is still under development.
-                </p>
               </div>
-              <span className="heading-status-badge">Under development</span>
+              <small>Preview only · not saved</small>
             </div>
             <input
               id="headingSlider"
@@ -1196,9 +1167,6 @@ const MissionConfig = () => {
               value={forwardHeading}
               onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
             />
-            <div className="heading-preview-note">
-              Coming soon: mission-wide save/apply behavior after the operator workflow is finalized.
-            </div>
           </div>
         </details>
       </section>

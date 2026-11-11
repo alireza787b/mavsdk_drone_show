@@ -1,15 +1,15 @@
 // src/components/SaveReviewDialog.js
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
-  FaCheckCircle,
   FaExchangeAlt,
   FaExclamationTriangle,
   FaInfoCircle,
   FaTimesCircle,
 } from 'react-icons/fa';
-import '../styles/SaveReviewDialog.css';
+import { ConfirmDialog } from './ui';
+import '../styles/ConfigSaveReview.css';
 import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
 
 /**
@@ -26,6 +26,7 @@ import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdent
  */
 const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => {
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
+  useEffect(() => setDuplicateAcknowledged(false), [isOpen, validationReport]);
 
   if (!isOpen || !validationReport) return null;
 
@@ -52,20 +53,9 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
   };
 
   return (
-    <>
-      {/* Overlay */}
-      <div className="save-review-overlay" aria-hidden="true"></div>
-
-      {/* Dialog */}
-      <div
-        className="save-review-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="save-review-dialog-title"
-      >
-        <h3 id="save-review-dialog-title">
-          <FaInfoCircle /> Review Configuration Changes
-        </h3>
+    <ConfirmDialog open appearance="console" size="wide" title="Review Configuration Changes"
+      confirmLabel="Confirm and Save" confirmDisabled={!canConfirm} onConfirm={handleConfirm} onCancel={handleCancel}
+      message={<div className="save-review-content">
 
         {hasDuplicateHardwareIds && (
           <div className="review-section error-section">
@@ -197,7 +187,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {!hasChanges && (
           <div className="review-section info-section">
             <p>
-              <FaInfoCircle /> No changes detected. Configuration is already up to date.
+              <FaInfoCircle /> No show-slot changes.
             </p>
           </div>
         )}
@@ -218,36 +208,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="review-buttons">
-          <button
-            className="cancel-button"
-            onClick={handleCancel}
-            aria-label="Cancel"
-          >
-            <FaTimesCircle /> Cancel
-          </button>
-          <button
-            className={`confirm-button ${!canConfirm ? 'disabled' : ''}`}
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            aria-label="Confirm and Save"
-            title={
-              hasDuplicateHardwareIds
-                ? "Cannot save: Duplicate hardware IDs"
-                : hasMissingTrajectories
-                  ? "Cannot save: Missing trajectory files"
-                : hasDuplicates && !duplicateAcknowledged
-                  ? "Please acknowledge collision risk to proceed"
-                  : "Save configuration"
-            }
-          >
-            <FaCheckCircle />
-            {hasDuplicateHardwareIds || hasMissingTrajectories ? 'Cannot Save' : 'Confirm & Save'}
-          </button>
-        </div>
-      </div>
-    </>
+      </div>} />
   );
 };
 

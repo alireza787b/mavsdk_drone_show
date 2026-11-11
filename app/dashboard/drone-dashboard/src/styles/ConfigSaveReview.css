@@ -1,0 +1,11 @@
+.save-review-content { color:var(--color-text-primary); font-size:.86rem; }
+.save-review-content .review-section { border-top:1px solid var(--color-border-primary); padding:.8rem 0; }
+.save-review-content h4 { display:flex; align-items:center; gap:.4rem; font-size:.9rem; margin:0 0 .5rem; }
+.save-review-content p { color:var(--color-text-secondary); line-height:1.5; }
+.save-review-content .error-section h4,.save-review-content .error-text { color:var(--color-danger); }
+.save-review-content .warning-section h4,.save-review-content .warning-text { color:var(--color-warning); }
+.save-review-content table { width:100%; border-collapse:collapse; font-size:.82rem; }
+.save-review-content td,.save-review-content th { padding:.6rem .35rem; border-bottom:1px solid var(--color-border-primary); text-align:left; }
+.save-review-content .review-summary { border-top:1px solid var(--color-border-primary); padding:.8rem 0; font-size:.8rem; }
+.save-review-content label { display:flex; align-items:center; min-height:44px; gap:.6rem; }
+.save-review-content input[type=checkbox] { width:20px; height:20px; flex-shrink:0; accent-color:var(--color-primary); }

@@ -14,18 +14,13 @@ export default function PendingEnrollmentPanel({
   }
 
   return (
-    <section
+    <details
       ref={panelRef}
       className="mission-config-pending-panel"
       aria-label="Detected nodes pending enrollment"
     >
+      <summary>Detected, not enrolled · {candidates.length}</summary>
       <div className="mission-config-pending-panel__header">
-        <div>
-          <h3>Detected, not enrolled</h3>
-          <p>
-            Heartbeat-only nodes stay out of fleet config until reviewed.
-          </p>
-        </div>
         <div className="mission-config-pending-panel__header-actions">
           <span className="mission-config-pending-panel__count">
             {candidates.length} candidate{candidates.length === 1 ? '' : 's'}
@@ -57,14 +52,11 @@ export default function PendingEnrollmentPanel({
               <span>{candidate.mavlink_port ? `Port ${candidate.mavlink_port}` : 'Port pending'}</span>
               <span className={`mission-config-pending-status mission-config-pending-status--${candidate.heartbeatTone}`}>
                 {candidate.heartbeatStatus}
-                {candidate.heartbeatAgeSec !== null ? ` · ${candidate.heartbeatAgeSec}s` : ''}
               </span>
             </div>
-            <p className="mission-config-pending-card__note">
-              {candidate.registration_state === 'conflict'
-                ? `Conflict: ${candidate.conflict_reasons.join(', ')}. Review before editing fleet config.`
-                : 'Use Fleet Enrollment to add or replace this node.'}
-            </p>
+            {candidate.registration_state === 'conflict' && <p className="mission-config-pending-card__note">
+              Conflict: {candidate.conflict_reasons.join(', ')}
+            </p>}
             <div className="mission-config-pending-card__actions">
               <button
                 type="button"
@@ -77,7 +69,7 @@ export default function PendingEnrollmentPanel({
           </article>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
 

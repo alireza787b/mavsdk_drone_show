@@ -1,6 +1,11 @@
 import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import { buildCommandSchedule, COMMAND_SCHEDULE_MODES, formatCommandAbsoluteTime } from './commandScheduling';
 
+export const SHOW_OPERATION_PHASES = { idle: 'Idle', preparing: 'Checking aircraft', awaiting_ack: 'Dispatching',
+  scheduled: 'Scheduled', pending_execution: 'Starting', executing: 'Running', finishing: 'Finishing',
+  completed: 'Complete', partial: 'Partial result', failed: 'Failed', cancelled: 'Cancelled',
+  timeout: 'Unconfirmed', superseded: 'Replaced' };
+
 export function formatShowStart(triggerTimeSec) {
   return Number(triggerTimeSec) === 0 ? 'Synchronized start after aircraft checks' : formatCommandAbsoluteTime(triggerTimeSec);
 }

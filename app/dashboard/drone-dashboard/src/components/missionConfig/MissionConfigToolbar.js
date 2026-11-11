@@ -1,10 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { CircularProgress } from '@mui/material';
-import { FaPlus, FaSave } from 'react-icons/fa';
-
-import ClusterScopeBar from '../ClusterScopeBar';
-import IdentityDoctrineStrip from '../IdentityDoctrineStrip';
+import { FaMapMarkerAlt, FaPlus, FaSave } from 'react-icons/fa';
 
 export default function MissionConfigToolbar({
   headline,
@@ -24,13 +20,14 @@ export default function MissionConfigToolbar({
   clusterScope,
   onClusterScopeChange,
 }) {
+  const origin = stats.find(stat => stat.label === 'Origin');
   return (
     <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
       <div className="mission-config-primary-bar">
-        <div className="mission-config-primary-bar__copy">
-          <span className="mission-config-primary-bar__kicker">Assignment wall</span>
-          <strong>{headline}</strong>
-        </div>
+        <label className="mission-config-search"><span className="mission-config-sr-only">Search</span>
+          <input type="search" value={searchValue} onChange={event => onSearchChange(event.target.value)}
+            placeholder="Find aircraft or slot" title={searchPlaceholder} aria-label="Search assignments by position, hardware ID, or callsign" />
+        </label>
         <div className="mission-config-primary-bar__actions">
           <button
             type="button"
@@ -38,84 +35,32 @@ export default function MissionConfigToolbar({
             onClick={onSave}
             disabled={loading}
           >
-            {loading ? (
-              <>
-                <CircularProgress size={18} color="inherit" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <FaSave />
-                Save & Commit
-              </>
-            )}
+            <FaSave aria-hidden="true" />{loading ? 'Saving…' : 'Save & Commit'}
           </button>
           <button
             type="button"
             className="mission-config-primary-button mission-config-primary-button--add"
             onClick={onAddDrone}
           >
-            <FaPlus />
-            Add Drone
+            <FaPlus aria-hidden="true" />Add aircraft
           </button>
+          <button type="button" className="mission-config-primary-button" onClick={onReviewOrigin}
+            aria-label={`Origin ${origin?.value || 'unknown'} review`}><FaMapMarkerAlt aria-hidden="true" />Origin · <span>{origin?.value || 'Unknown'}</span></button>
         </div>
       </div>
 
-      <IdentityDoctrineStrip surface="mission-config" />
-
       <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
-        <div className="mission-config-ops-toolbar__main">
-          <label className="mission-config-search">
-            <span>Search</span>
-            <input
-              type="search"
-              value={searchValue}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              aria-label="Search assignments by position, hardware ID, or callsign"
-            />
-          </label>
-          <div className="mission-config-ops-toolbar__summary">
-            <p className="mission-config-ops-note">{searchSummary}</p>
-            <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
-              {stats.map((stat) => (
-                <button
-                  key={stat.label}
-                  type="button"
-                  className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
-                  onClick={stat.label === 'Origin' ? onReviewOrigin : undefined}
-                  disabled={stat.label !== 'Origin'}
-                >
-                  <span className="mission-config-ops-stat__label">{stat.label}</span>
-                  <strong className="mission-config-ops-stat__value">{stat.value}</strong>
-                  {stat.actionLabel ? (
-                    <span className="mission-config-ops-stat__action">{stat.actionLabel}</span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mission-config-filter-rails">
+        <span className="mission-config-ops-note" title={headline}>{searchSummary.replace(/assignment cards? visible/, 'aircraft')}</span>
           {assignmentFilterOptions.length > 1 && (
-            <ClusterScopeBar
-              label="Issue focus"
-              options={assignmentFilterOptions}
-              selectedId={assignmentFilter}
-              onSelect={onAssignmentFilterChange}
-            />
+            <select aria-label="Assignment filter" value={assignmentFilter} onChange={event => onAssignmentFilterChange(event.target.value)}>
+              {assignmentFilterOptions.map(option => <option key={option.id} value={option.id}>{option.label} · {option.count}</option>)}
+            </select>
           )}
-
-          {clusterScopeOptions.length > 1 && (
-            <ClusterScopeBar
-              label="Cluster scope"
-              options={clusterScopeOptions}
-              selectedId={clusterScope}
-              onSelect={onClusterScopeChange}
-            />
+          {clusterScopeOptions.filter(option => option.id !== 'all').length > 1 && (
+            <select aria-label="Cluster scope" value={clusterScope} onChange={event => onClusterScopeChange(event.target.value)}>
+              {clusterScopeOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
           )}
-        </div>
       </section>
     </section>
   );

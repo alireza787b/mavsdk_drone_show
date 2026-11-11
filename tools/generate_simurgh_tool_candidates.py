@@ -55,6 +55,9 @@ def canonicalize_openapi_schema(value: Any) -> Any:
         return int(value)
     return value
 MANUAL_UNSAFE_ROUTE_REASONS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("POST", "/api/v1/shows/custom/preview"): (
+        "image regeneration writes show artifacts; dashboard-only maintenance action",
+    ),
     ("GET", "/api/v1/commands/lookup"): (
         "command identity lookup is not a stable operator evidence contract",
     ),

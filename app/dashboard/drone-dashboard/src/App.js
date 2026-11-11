@@ -49,7 +49,7 @@ import './App.css';
 const Overview = lazy(() => import('./pages/Overview'));
 const MissionConfig = lazy(() => import('./pages/MissionConfig'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
-const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
+const CustomShowWorkspace = lazy(() => import('./pages/CustomShowWorkspace'));
 const GlobeView = lazy(() => import('./pages/GlobeView'));
 const DroneShowWorkspace = lazy(() => import('./pages/DroneShowWorkspace'));
 const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectoryWorkspace'));
@@ -238,7 +238,7 @@ const AppShell = () => {
                       <Route path="/fleet-ops/mavlink" element={<FleetOpsMavlinkPage />} />
                       <Route path="/drone-detail" element={<Navigate to="/" replace />} />
                       <Route path="/manage-drone-show" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
-                      <Route path="/custom-show" element={<CustomShowPage runtimeMode={runtimeStatus.mode} />} />
+                      <Route path="/custom-show" element={<CustomShowWorkspace runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/globe-view" element={<GlobeView />} />
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
                       <Route path="/px4-parameters" element={<Px4ParametersPage />} />

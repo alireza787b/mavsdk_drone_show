@@ -1097,6 +1097,7 @@ every aircraft. The field is absent/null when no active file is available.
   "duration_sec": 120.0,
   "max_altitude": 35.0,
   "preview_exists": true,
+  "preview_themes": {"light": true, "dark": true},
   "execution_mode": "local per-drone replay",
   "required_columns": ["t", "px", "py", "pz", "vx", "vy", "vz", "ax", "ay", "az", "yaw", "mode"]
 }
@@ -1161,9 +1162,22 @@ Get specific show plot image.
 The server now rejects path traversal attempts and only serves files inside the configured show-plots directory.
 
 #### `GET /api/v1/shows/custom/preview`
-Get custom drone show trajectory plot image.
+Get the custom drone show trajectory plot image. Optional `theme=light|dark`
+defaults to `light` for existing clients. Missing variants return 404; GET never
+generates files. Invalid themes return 422.
 
 **Response:** PNG image file
+
+#### `POST /api/v1/shows/custom/preview`
+Explicitly regenerate both theme variants from the active CSV. This image-only
+maintenance write does not import, sync or modify the CSV, issue an aircraft
+command, or change its SHA-256 identity. No request body is required. It uses
+the normal authenticated write boundary; it is not a callable Simurgh tool.
+Returns 404 if no active CSV exists, or a validation error for invalid CSV data.
+
+```json
+{"success": true, "preview_generated": true, "preview_themes": {"light": true, "dark": true}}
+```
 
 #### `GET /api/v1/shows/skybrush/metrics`
 Retrieve comprehensive trajectory analysis metrics.

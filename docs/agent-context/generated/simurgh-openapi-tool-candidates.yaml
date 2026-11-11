@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 227
+candidate_count: 228
 candidates:
 - callable: false
   classification:
@@ -2849,7 +2849,18 @@ candidates:
     - stream/download/binary artifact route
   has_request_body: false
   id: candidate.gcs.get.api.v1.shows.custom.preview
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: theme
+    required: false
+    schema:
+      default: light
+      enum:
+      - light
+      - dark
+      title: Theme
+      type: string
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -7449,6 +7460,40 @@ candidates:
     - mission_state
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
+    - image regeneration writes show artifacts; dashboard-only maintenance action
+    - non_get_method
+  has_request_body: false
+  id: candidate.gcs.post.api.v1.shows.custom.preview
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/CustomShowPreviewResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: regenerate_custom_show_image_api_v1_shows_custom_preview_post
+    path: /api/v1/shows/custom/preview
+    summary: Regenerate Custom Show Image
+    tags:
+    - Show Management
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity:
+    - mission_state
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
     - non_get_method
     - request_body_present
   has_request_body: true
@@ -8838,7 +8883,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: c0c2d5924b124c334985c0bf96399c5501a1c94b38ae96cbc95bb2787127b9bb
+  openapi_sha256: 1b86f321c573794c544a1bdeddd27b108e48d57f7cbb984cca27c2ff7f647098
   title: GCS Server API
   version: '5.5'
 summary:

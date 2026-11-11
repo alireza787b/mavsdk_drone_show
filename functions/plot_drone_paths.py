@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from src.params import Params
 
-def save_plot_variants(figure, filename: str, dpi: int) -> None:
+def save_plot_variants(figure, filename: str, dpi: int, **save_options) -> None:
     """Render the same figure in light/dark palettes without changing path colors.
 
     The unsuffixed file remains the light/print-compatible public filename.
@@ -16,7 +16,11 @@ def save_plot_variants(figure, filename: str, dpi: int) -> None:
     """
     from matplotlib.text import Text
 
-    figure.savefig(filename, dpi=dpi, format='jpg')
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {'.jpg', '.jpeg', '.png'}:
+        raise ValueError('Plot variants support JPEG or PNG output')
+    image_format = 'png' if suffix == '.png' else 'jpg'
+    figure.savefig(filename, dpi=dpi, format=image_format, **save_options)
     background, foreground, grid = '#111d2b', '#e3ebf3', '#415268'
     figure.set_facecolor(background)
     for axis in figure.axes:
@@ -38,8 +42,8 @@ def save_plot_variants(figure, filename: str, dpi: int) -> None:
             legend.get_frame().set_edgecolor(grid)
     for text in figure.findobj(Text):
         text.set_color(foreground)
-    dark_path = str(Path(filename).with_name(Path(filename).stem + '_dark.jpg'))
-    figure.savefig(dark_path, dpi=dpi, format='jpg', facecolor=background)
+    dark_path = str(Path(filename).with_name(Path(filename).stem + '_dark' + suffix))
+    figure.savefig(dark_path, dpi=dpi, format=image_format, facecolor=background, **save_options)
 
 def setup_matplotlib_style():
     """
