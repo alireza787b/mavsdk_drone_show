@@ -29,9 +29,12 @@ to find them. A map marker opens inspection, not command selection.
 
 Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical
 aircraft even when names are duplicated. **P1**, **P2**, etc. identify position
-slots. Small state glyphs distinguish grounded, airborne, taking off, landing
-and unknown; they do not represent a particular airframe or prove motors stopped.
-Cards show battery, altitude with datum, GNSS fix/satellites, link age and mission.
+slots. Each card centers an aircraft schematic with a small phase marker for
+grounded, airborne, taking off, landing or unknown. The illustration is not an
+airframe footprint, heading or proof that motors stopped. Battery percentage and
+altitude/datum sit on the left; GNSS fix and last-heard age on the right. The
+current state/mode and any active mission appear below. Only actual issues add
+warning text. Tap/click the card for satellites, voltage and full measurements.
 Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
 appears only when a fresh heartbeat actually reports it, not as inferred radio
 range or end-to-end latency.

@@ -100,7 +100,7 @@ For a first dashboard-driven Smart Swarm run after SITL launch:
 
 Overview retains general Takeoff, Hold, Land and immediate PX4 Return controls.
 Mission setup/start/monitoring belongs to its dedicated workspace. Overview
-selection is explicit: first-use All or the remembered selection; filtering and
+selection is explicit: first-use Available or the remembered selection; filtering and
 reconnecting never change its targets. See the
 [Overview operator guide](docs/guides/dashboard-operator.md).
 

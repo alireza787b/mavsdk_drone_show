@@ -29,11 +29,23 @@ test('tile exposes compact identity, named telemetry and separately addressable 
   expect(screen.getByLabelText('Mission: Smart Swarm')).toBeInTheDocument();
   expect(container.querySelector('.fleet-state-symbol')).toHaveAttribute('data-state', 'grounded');
   expect(container.querySelector('article')).toHaveAttribute('data-readiness', 'unknown');
+  expect(container.querySelector('.fleet-aircraft__schematic')).toBeInTheDocument();
+  expect(container.querySelector('.fleet-aircraft__instruments')).toBeInTheDocument();
+  expect(screen.queryByText('Details')).not.toBeInTheDocument();
+  expect(screen.queryByText(/16\.1\s*V/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select Scout · H7' }));
   expect(props.onToggle).toHaveBeenCalledWith('7');
   expect(props.onInspect).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout · H7' }));
   expect(props.onInspect).toHaveBeenCalledWith('7');
+});
+
+test('normal idle cards omit routine mission prose but retain all details in inspection', () => {
+  tile(aircraft({ mission: DRONE_MISSION_TYPES.NONE }));
+  expect(screen.queryByLabelText(/Mission:/)).not.toBeInTheDocument();
+  expect(screen.getByText('80%')).toBeInTheDocument();
+  expect(screen.getByText('0s ago')).toBeInTheDocument();
+  expect(screen.getByText('RTK fixed')).toBeInTheDocument();
 });
 
 test('stale tile labels cached measurements and cannot infer an aircraft phase or show cached Wi-Fi', () => {

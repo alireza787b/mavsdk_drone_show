@@ -16,8 +16,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   longer replaced by invented GPS or flight state. Shared resource polling is
   sequential/cancellable, and age advances even when requests stall.
 - Overview defaults to heartbeat-observed aircraft (60 seconds), with an earlier
-  configurable stale cue (10 seconds). Cards show compact measured status and
-  decoded flight modes instead of decorative aircraft silhouettes. Optional
+  configurable stale cue (10 seconds). Cards place compact measured status around
+  a central aircraft schematic, with decoded flight modes and phase markers. Optional
   cluster grouping changes only the display. Matching More panels freeze bulk
   or single-aircraft scope; unavailable targets require deliberate removal or
   acknowledgment before a bounded new dispatch. Uncertain receipts remain

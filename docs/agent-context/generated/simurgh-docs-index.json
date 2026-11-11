@@ -6124,7 +6124,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "eb0221e34a41b6e2cb6cb004d64ac468652af90937fcdcb5efad938166ab22b8",
+      "content_hash": "5ce4ff5e9f72c3c554beb2585354990219c79a3e60592a38166185b5518bfb48",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-01-check-the-aircraft",
       "links": [],
@@ -6138,7 +6138,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card says **Stale** and dims; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Selected targets** finds selected aircraft even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)\n\nCallsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Small state glyphs distinguish grounded, airborne, taking off, landing\nand unknown; they do not represent a particular airframe or prove motors stopped.\nCards show battery, altitude with datum, GNSS fix/satellites, link age and mission.\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
+      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card says **Stale** and dims; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Selected targets** finds selected aircraft even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)\n\nCallsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and last-heard age on the right. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
       "title": "Overview operator guide"
     },
     {
@@ -16791,7 +16791,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 10,
-      "content_hash": "d2cf1f311a04f292cad610de9998be428b73b5ebcd9d5f88d75d5321f27e640a",
+      "content_hash": "5cfe845d6b0663f07e156b1a1a63d3820bafc57ccebfc46b2c6ee723e14d1101",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
