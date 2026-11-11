@@ -1,0 +1,130 @@
+{
+  "results": [
+    {
+      "count": 3,
+      "width": 1440,
+      "theme": "dark",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 1024,
+      "theme": "dark",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 820,
+      "theme": "dark",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 768,
+      "theme": "dark",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 390,
+      "theme": "dark",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 1,
+      "width": 1440,
+      "theme": "dark",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 100,
+      "width": 1440,
+      "theme": "dark",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 1440,
+      "theme": "light",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 1024,
+      "theme": "light",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 820,
+      "theme": "light",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 768,
+      "theme": "light",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 3,
+      "width": 390,
+      "theme": "light",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 1,
+      "width": 1440,
+      "theme": "light",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 100,
+      "width": 1440,
+      "theme": "light",
+      "detailed": false,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    }
+  ]
+}

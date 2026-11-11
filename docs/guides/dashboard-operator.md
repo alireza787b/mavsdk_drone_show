@@ -76,6 +76,8 @@ These address that aircraft only, independently of the dashboard selection.
 panel is scoped to that exact hardware ID, not the bulk selection. Opening a
 panel freezes its target set; subsequent filtering or reconnects cannot retarget it.
 
+![More actions uses the same scoped side-panel layout](../assets/operator-overview/more-actions-dark.png)
+
 If a new general action includes unavailable aircraft, the review names them.
 **Remove unavailable** creates a reduced-target review without changing the main
 selection. Alternatively, **Attempt unavailable aircraft** acknowledges one
@@ -83,6 +85,8 @@ bounded dispatch attempt to the exact targets. This is not deferred delivery or
 automatic replay after reconnection. PX4/native checks still apply. Takeoff keeps
 its own live readiness and coordinated-launch checks; this acknowledgment cannot
 bypass them. An unconfirmed command can only be looked up, not edited or resent.
+
+![Unavailable aircraft are named in the action review](../assets/operator-overview/unavailable-target-review-dark.png)
 
 The motor-arm test is a physical test, not just a connectivity check. On real
 aircraft, confirmation requires propellers removed, airframes secured and the

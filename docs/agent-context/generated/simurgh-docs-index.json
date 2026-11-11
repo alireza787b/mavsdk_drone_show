@@ -1,5 +1,5 @@
 {
-  "chunk_count": 845,
+  "chunk_count": 846,
   "chunks": [
     {
       "audience": "operator",
@@ -6164,7 +6164,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "571a171d8684795a0f8359928675c1e532b9303bce2197e5d16ebbd46d641ae4",
+      "content_hash": "2b20355a47d5b8a0e90ff063ce56a10398e6ef08a82e784e00c032b2db602d8e",
       "heading": "Send a general command",
       "id": "mds.dashboard_operator:004-01-send-a-general-command",
       "links": [],
@@ -6178,7 +6178,27 @@
         "operations",
         "selection"
       ],
-      "text": "## Send a general command\n\n| Control | Result |\n| --- | --- |\n| **Takeoff** | Opens the shared aircraft/height/readiness review. Groups default to **All armed first** before release. |\n| **Hold** | Commands an airborne aircraft to hold its position; it does not take off. |\n| **Land** | Lands at the aircraft's current position. |\n| **Return** | Sends immediate PX4 RTL. No sequencing or route separation. |\n| **More** | Ground tests, less-used actions and service controls. Read the action review before confirming. |\n\n![Takeoff review keeps aircraft targets separate from the launch mode](../assets/operator-overview/takeoff-review-dark.png)\n\nFor an isolated intervention, inspect an aircraft and use its own controls.\nThese address that aircraft only, independently of the dashboard selection.\n**Move** is available for a currently observed airborne aircraft. Its **More**\npanel is scoped to that exact hardware ID, not the bulk selection. Opening a\npanel freezes its target set; subsequent filtering or reconnects cannot retarget it.\n\nIf a new general action includes unavailable aircraft, the review names them.\n**Remove unavailable** creates a reduced-target review without changing the main\nselection. Alternatively, **Attempt unavailable aircraft** acknowledges one\nbounded dispatch attempt to the exact targets. This is not deferred delivery or\nautomatic replay after reconnection. PX4/native checks still apply. Takeoff keeps\nits own live readiness and coordinated-launch checks; this acknowledgment cannot\nbypass them. An unconfirmed command can only be looked up, not edited or resent.\n\nThe motor-arm test is a physical test, not just a connectivity check. On real\naircraft, confirmation requires propellers removed, airframes secured and the\ntest area clear. PX4 and native action checks still apply.\n\n**Return** on Overview is different from **Managed Return** on mission pages.\nManaged Return can stagger RTL commands; it does not guarantee separated flight\npaths. PX4 still controls each return and its configured return height.\n\n![Immediate Return review states its actual behavior](../assets/operator-overview/return-review-dark.png)",
+      "text": "## Send a general command\n\n| Control | Result |\n| --- | --- |\n| **Takeoff** | Opens the shared aircraft/height/readiness review. Groups default to **All armed first** before release. |\n| **Hold** | Commands an airborne aircraft to hold its position; it does not take off. |\n| **Land** | Lands at the aircraft's current position. |\n| **Return** | Sends immediate PX4 RTL. No sequencing or route separation. |\n| **More** | Ground tests, less-used actions and service controls. Read the action review before confirming. |\n\n![Takeoff review keeps aircraft targets separate from the launch mode](../assets/operator-overview/takeoff-review-dark.png)\n\nFor an isolated intervention, inspect an aircraft and use its own controls.\nThese address that aircraft only, independently of the dashboard selection.\n**Move** is available for a currently observed airborne aircraft. Its **More**\npanel is scoped to that exact hardware ID, not the bulk selection. Opening a\npanel freezes its target set; subsequent filtering or reconnects cannot retarget it.\n\n![More actions uses the same scoped side-panel layout](../assets/operator-overview/more-actions-dark.png)\n\nIf a new general action includes unavailable aircraft, the review names them.\n**Remove unavailable** creates a reduced-target review without changing the main\nselection. Alternatively, **Attempt unavailable aircraft** acknowledges one\nbounded dispatch attempt to the exact targets. This is not deferred delivery or\nautomatic replay after reconnection. PX4/native checks still apply. Takeoff keeps\nits own live readiness and coordinated-launch checks; this acknowledgment cannot\nbypass them. An unconfirmed command can only be looked up, not edited or resent.\n\n![Unavailable aircraft are named in the action review](../assets/operator-overview/unavailable-target-review-dark.png)\n\nThe motor-arm test is a physical test, not just a connectivity check. On real\naircraft, confirmation requires propellers removed, airframes secured and the\ntest area clear. PX4 and native action checks still apply.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "c44e055ed2e33c9d37b3aa1992ba1d1298039983a75a2e0413a2841e07ba78ba",
+      "heading": "Send a general command",
+      "id": "mds.dashboard_operator:004-02-send-a-general-command",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "**Return** on Overview is different from **Managed Return** on mission pages.\nManaged Return can stagger RTL commands; it does not guarantee separated flight\npaths. PX4 still controls each return and its configured return height.\n\n![Immediate Return review states its actual behavior](../assets/operator-overview/return-review-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -16770,8 +16790,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "chunk_count": 9,
-      "content_hash": "fc2b18e1e731b04984ec5f7091ecd5732cf36bf51c2e3b3ae99a0252be3e3a66",
+      "chunk_count": 10,
+      "content_hash": "d2cf1f311a04f292cad610de9998be428b73b5ebcd9d5f88d75d5321f27e640a",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
