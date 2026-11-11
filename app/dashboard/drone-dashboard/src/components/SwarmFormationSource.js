@@ -13,7 +13,7 @@ function CaptureSymbol() {
 
 function SourceAction({ href, onClick, icon, label, help, disabled }) {
   const className = 'formation-source__action';
-  if (href) return <a href={disabled ? undefined : href} aria-disabled={disabled || undefined}
+  if (href && !disabled) return <a href={href}
     aria-label={label} title={help}
     className={`operator-action-icon-button operator-action-icon-button--neutral operator-action-icon-button--md ${className}`}>
     <span className="operator-action-icon-button__icon" aria-hidden="true">{icon}</span>

@@ -518,6 +518,8 @@
 }
 
 .operator-button {
+  color: var(--color-text-primary);
+  background: var(--operator-control-background);
   min-height: var(--button-height-base);
   border-radius: var(--border-radius-full);
   border: var(--operator-control-border);

@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
-import { MdMyLocation, MdRefresh } from 'react-icons/md';
+import { MdRefresh } from 'react-icons/md';
 import { formatCompactDroneIdentity, normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
-import '../styles/DeviationView.css';
+import '../styles/LaunchGeometryView.css';
 
 /**
  * DeviationView - Professional position monitoring with expected vs actual positions
@@ -34,7 +34,6 @@ const DeviationView = ({
 }) => {
   const [showActualPositions, setShowActualPositions] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
 
   const themeColors = getPlotThemeColors();
 
@@ -44,23 +43,15 @@ const DeviationView = ({
 
     const interval = setInterval(() => {
       onRefresh();
-      setLastUpdate(new Date());
     }, 5000);
 
     return () => clearInterval(interval);
   }, [autoRefresh, onRefresh, showActualPositions]);
 
   // Extract summary data
-  const summary = deviationData?.summary || {
-    online: 0,
-    within_threshold: 0,
-    warnings: 0,
-    errors: 0,
-    no_telemetry: 0,
-    average_deviation: 0,
-    best_deviation: 0,
-    worst_deviation: 0
-  };
+  const summary = deviationData?.summary || {};
+  const metric = value => typeof value === 'number' && Number.isFinite(value) ? value : '—';
+  const hasOrigin = [origin?.lat, origin?.lon].every(value => typeof value === 'number' && Number.isFinite(value));
 
   // Build plot traces
   const plotTraces = [];
@@ -248,7 +239,7 @@ const DeviationView = ({
             checked={showActualPositions}
             onChange={(e) => setShowActualPositions(e.target.checked)}
           />
-          <span>Show Actual Positions & Deviations</span>
+          <span>Current positions</span>
         </label>
 
         {showActualPositions && (
@@ -259,8 +250,7 @@ const DeviationView = ({
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
               />
-              <span>Auto-refresh (5s)</span>
-              {autoRefresh && <span className="refresh-indicator">●</span>}
+              <span title="Refresh position evidence every five seconds">Auto</span>
             </label>
 
             <button
@@ -268,52 +258,31 @@ const DeviationView = ({
               onClick={() => {
                 if (onRefresh) {
                   onRefresh();
-                  setLastUpdate(new Date());
                 }
               }}
               disabled={!onRefresh}
             >
               <MdRefresh aria-hidden="true" />
-              <span>Refresh Now</span>
+              <span>Refresh</span>
             </button>
           </>
         )}
-      </div>
-
-      {/* Info Banner */}
-      <div className="info-banner">
-        <MdMyLocation aria-hidden="true" />
-        <span>Positions from trajectory CSV files (single source of truth)</span>
       </div>
 
       {/* Summary Statistics Header (only when showing actual positions) */}
       {showActualPositions && (
         <div className="deviation-summary">
         <div className="stat-card">
-          <span className="stat-value">{summary.online}</span>
-          <span className="stat-label">Online</span>
+          <span className="stat-value">{metric(summary.within_threshold)}/{metric(summary.online)}</span>
+          <span className="stat-label">Within range</span>
         </div>
-        <div className="stat-card success">
-          <span className="stat-value">{summary.within_threshold}</span>
-          <span className="stat-label">OK</span>
-        </div>
-        <div className="stat-card warning">
-          <span className="stat-value">{summary.warnings}</span>
-          <span className="stat-label">Warnings</span>
-        </div>
-        <div className="stat-card error">
-          <span className="stat-value">{summary.errors}</span>
-          <span className="stat-label">Errors</span>
+        <div className={`stat-card${summary.errors > 0 ? ' error' : summary.warnings > 0 ? ' warning' : ''}`}>
+          <span className="stat-value">{typeof summary.errors === 'number' && typeof summary.warnings === 'number' ? summary.errors + summary.warnings : '—'}</span>
+          <span className="stat-label">Review</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">
-            {summary.average_deviation ? summary.average_deviation.toFixed(2) : '0.00'}m
-          </span>
-          <span className="stat-label">Avg Deviation</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">
-            {summary.worst_deviation ? summary.worst_deviation.toFixed(2) : '0.00'}m
+            {typeof summary.worst_deviation === 'number' && Number.isFinite(summary.worst_deviation) ? `${summary.worst_deviation.toFixed(1)} m` : '—'}
           </span>
           <span className="stat-label">Worst</span>
         </div>
@@ -322,13 +291,13 @@ const DeviationView = ({
 
       {/* Main Plot */}
       <div className="deviation-plot-container">
-        {origin?.lat && origin?.lon ? (
+        {hasOrigin ? (
           hasExpectedPositions ? (
             <Plot
               data={plotTraces}
               layout={{
                 title: {
-                  text: showActualPositions ? 'Position Monitoring - Expected vs Current' : 'Expected Launch Positions',
+                  text: showActualPositions ? 'Expected / Current' : 'Expected launch positions',
                   font: { color: themeColors.text, size: 16 }
                 },
                 xaxis: {
@@ -348,15 +317,16 @@ const DeviationView = ({
                 hovermode: 'closest',
                 showlegend: true,
                 legend: {
-                  x: 1.02,
-                  y: 1,
+                  orientation: 'h',
+                  x: 0,
+                  y: 1.12,
                   font: { color: themeColors.text }
                 },
                 plot_bgcolor: themeColors.background,
                 paper_bgcolor: themeColors.paper,
-                margin: { l: 60, r: 120, t: 60, b: 60 }
+                margin: { l: 50, r: 20, t: 80, b: 50 }
               }}
-              style={{ width: '100%', height: '600px' }}
+              style={{ width: '100%', height: 'clamp(320px, 42vh, 480px)' }}
               config={{ responsive: true }}
               onClick={(data) => {
                 const hw_id = data.points[0]?.customdata?.hw_id;
@@ -380,7 +350,7 @@ const DeviationView = ({
       {/* Legend (only when showing actual positions) */}
       {showActualPositions && (
         <>
-          <div className="deviation-legend">
+          <details className="deviation-key"><summary>Plot key</summary><div className="deviation-legend">
             <div className="legend-item">
               <span className="marker expected"></span>
               <span>Expected Position</span>
@@ -401,12 +371,7 @@ const DeviationView = ({
               <span className="line deviation"></span>
               <span>Deviation Vector</span>
             </div>
-          </div>
-
-          {/* Last Updated */}
-          <div className="last-updated">
-            Last updated: {lastUpdate.toLocaleTimeString()}
-          </div>
+          </div></details>
         </>
       )}
     </div>

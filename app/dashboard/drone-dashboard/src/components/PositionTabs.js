@@ -2,7 +2,6 @@
 
 import React from 'react';
 import DeviationView from './DeviationView';
-import '../styles/PositionTabs.css';
 
 /**
  * PositionTabs - Position visualization with toggle
