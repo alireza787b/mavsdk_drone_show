@@ -39,6 +39,10 @@ Small badges on the schematic distinguish initialization, stale/missing link
 evidence and ground readiness. A severity-prioritized alert marker shows the
 condition count; clicking it opens the same aircraft inspector with the full
 reasons near the top. Viewing a condition does not acknowledge or clear it.
+
+![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)
+
+![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)
 Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
 appears only when a fresh heartbeat actually reports it, not as inferred radio
 range or end-to-end latency.

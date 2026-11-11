@@ -56,6 +56,36 @@ avoid messaging-app photo compression.
 
 ## Boundaries
 
+### Silhouette-centered follow-up
+
+The initial text-led card layout above was superseded by an aircraft-centered
+layout: battery/altitude left, GNSS/link age right, concise state/mode below.
+Normal voltage, idle-mission prose and repeated Details wording move out of the
+card. The schematic is a front-profile illustration, not measured heading or
+rotor/motor status. Distinct fixed badges show initialization, link freshness or
+loss, ground readiness and severity-prioritized condition counts. Clicking a
+condition badge opens the existing identity-scoped inspector; it does not clear
+or acknowledge a condition. Lost evidence takes priority over an old boot/ready
+report, and never implies landing or disarm.
+
+- Seven focused frontend suites / **149 tests passed** for the final follow-up.
+- [Fourteen browser cases](../assets/operator-overview/evidence/aircraft-cards-20261111.json)
+  revalidated dark/light desktop/tablet/phone layouts, 1–100 cards, aligned
+  readouts, selection and scoped actions against the final built source.
+- [Two state-gallery cases](../assets/operator-overview/evidence/aircraft-annunciators-20261111.json)
+  verified readiness, initialization, stale/link-lost evidence and alert-badge
+  clicks into the full reasons. Seven gallery aircraft are synthetic examples,
+  not changes to the configured fleet.
+- [Two deployed-bundle cases](../assets/operator-overview/evidence/deployed-aircraft-cards-20261111.json)
+  passed for two-aircraft desktop/phone fixtures against the actually served
+  page. Native read-only API smoke retained REAL mode and the existing fleet;
+  its temporary credential was revoked. No command writes or browser errors.
+
+The earlier full regression numbers remain evidence for the preceding scope;
+they are not presented as a repeated full-suite run for this visual follow-up.
+
+### Unchanged operational scope
+
 This is a GCS presentation/command-review refinement, not a new aircraft
 controller or flight release. No PX4 parameter, swarm gain, formation, network
 profile or aircraft command changed. No hardware or flight clearance is claimed.

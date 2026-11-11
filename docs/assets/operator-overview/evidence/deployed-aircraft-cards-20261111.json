@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "count": 2,
+      "width": 1440,
+      "theme": "dark",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    },
+    {
+      "count": 2,
+      "width": 390,
+      "theme": "light",
+      "detailed": true,
+      "errors": [],
+      "writes": 0,
+      "overflow": false
+    }
+  ]
+}
