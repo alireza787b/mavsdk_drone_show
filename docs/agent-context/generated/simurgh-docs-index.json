@@ -10099,7 +10099,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "286ebcc458e134320760470cf74e83265523cf8566a7811ab588e34ad35bbeae",
+      "content_hash": "e70e89d0053a1cd06b754974d479fc423239cd276116d3cd8d384bd915811358",
       "heading": "Custom CSV Operational Note",
       "id": "mds.drone_show:015-01-custom-csv-operational-note",
       "links": [],
@@ -10113,13 +10113,13 @@
         "skybrush",
         "mission"
       ],
-      "text": "## Custom CSV Operational Note\n\nCustom CSV now has its own dedicated dashboard surface at `Custom Show`.\n\nUse **Design / Setup** to import and preview `active.csv`, then **Operate** to\nselect exact hardware IDs and use When ready, After delay or At time. The confirmation\nalways uses native mission type 3 with LOCAL setpoints and no global-origin\ncorrection. Every selected aircraft replays the same CSV in its own launch frame;\nthis is neither a SkyBrush multi-file package nor an implicit Smart Swarm leader\ncommand. Native command/readiness and mission-conflict guards remain authoritative.\n\n**Active CSV identity** shows a SHA-256 fingerprint of the GCS file for review.\nIt is not an immutable drone-side execution binding or proof of fleet file sync.\nChanging that identity invalidates an open launch review. Observe the existing\nrepository/package delivery workflow before executing the file on aircraft.\n\nOperate puts Launch, Hold and Immediate RTL first. **Other actions** contains\nManaged Return (the shared sequential RTL queue), Land here and Cancel mission. Recovery\nuses the recorded Custom CSV mission targets, independently of the next launch\nselection. Hold ends execution rather than pausing it; cancel alone does not\nprove Hold or landing; simultaneous native RTL paths may overlap. Custom CSV and\nnormal Drone Show have separate operation-history projections. Unconfirmed\nreceipts use the same session-persisted, read-only lookup described above.\n\nDesign / Setup validates and loads a CSV without starting a flight. The path\npreview uses generated light/dark images, preserving path and start/end colors.\nFor an older light-only preview, **Refresh preview** creates both images without\nchanging `active.csv`, its fingerprint or aircraft files. Switching tabs retains\nthe selected aircraft, timing and uncertain-receipt state. Completed runs sit in\nthe collapsed **Last run** section rather than occupying the flight controls.",
+      "text": "## Custom CSV Operational Note\n\nCustom CSV now has its own dedicated dashboard surface at `Custom Show`.\n\n[Illustrated workspace walkthrough](../assets/operator-workspaces/operator-workspace-guide.png)\n([printable PDF](../assets/operator-workspaces/operator-workspace-guide.pdf)).\nThe illustrations use synthetic demonstration aircraft, not flight clearance.\n\nUse **Design / Setup** to import and preview `active.csv`, then **Operate** to\nselect exact hardware IDs and use When ready, After delay or At time. The confirmation\nalways uses native mission type 3 with LOCAL setpoints and no global-origin\ncorrection. Every selected aircraft replays the same CSV in its own launch frame;\nthis is neither a SkyBrush multi-file package nor an implicit Smart Swarm leader\ncommand. Native command/readiness and mission-conflict guards remain authoritative.\n\n**Active CSV identity** shows a SHA-256 fingerprint of the GCS file for review.\nIt is not an immutable drone-side execution binding or proof of fleet file sync.\nChanging that identity invalidates an open launch review. Observe the existing\nrepository/package delivery workflow before executing the file on aircraft.\n\nOperate puts Launch, Hold and Immediate RTL first. **Other actions** contains\nManaged Return (the shared sequential RTL queue), Land here and Cancel mission. Recovery\nuses the recorded Custom CSV mission targets, independently of the next launch\nselection. Hold ends execution rather than pausing it; cancel alone does not\nprove Hold or landing; simultaneous native RTL paths may overlap. Custom CSV and\nnormal Drone Show have separate operation-history projections. Unconfirmed\nreceipts use the same session-persisted, read-only lookup described above.\n\nDesign / Setup validates and loads a CSV without starting a flight. The path\npreview uses generated light/dark images, preserving path and start/end colors.\nFor an older light-only preview, **Refresh preview** creates both images without\nchanging `active.csv`, its fingerprint or aircraft files. Switching tabs retains\nthe selected aircraft, timing and uncertain-receipt state. Completed runs sit in\nthe collapsed **Last run** section rather than occupying the flight controls.",
       "title": "Drone Show guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "da97d871f3806f6ee483b55e40dcb1b47665c37205ff7b26c1c12c85ba08be08",
+      "content_hash": "342776b5a7dfcc049f693f781fbb9d7a92466ba8d7642216035afe41f757c6d5",
       "heading": "Custom CSV Operational Note",
       "id": "mds.drone_show:015-02-custom-csv-operational-note",
       "links": [],
@@ -10133,7 +10133,7 @@
         "skybrush",
         "mission"
       ],
-      "text": "Mission Config places assignment search, Save & Commit and origin review above\nthe aircraft assignments and live launch layout. Plot/map inspection opens the\nsame hardware identity for editing; it does not change a command target set.\nEnrollment, identity guidance and import/export tools remain available in\ndisclosures. Detected nodes are never enrolled automatically. Configuration save\nreview retains duplicate/missing-trajectory guards; changing the review clears\nany previous duplicate-slot acknowledgment.\n\nThat page is intentionally separate from the normal SkyBrush Drone Show workspace:\n\n- operators can upload one ready-to-execute protocol CSV\n- MDS validates the file, stores it as `active.csv`, and regenerates the preview\n- no SkyBrush conversion, per-drone file mapping, or shared-origin correction happens there\n\nKeep the workflows mentally separate:\n\n- `Drone Show → Design / Setup` is the normal multi-drone SkyBrush import path\n- `Custom Show` is an expert-only override path for specialized testing and research",
+      "text": "![Custom Show setup with a generated dark preview](../assets/operator-workspaces/custom-setup-dark.png)\n![Custom Show controls and selected aircraft](../assets/operator-workspaces/custom-operate-dark.png)\n\nMission Config places assignment search, Save & Commit and origin review above\nthe aircraft assignments and live launch layout. Plot/map inspection opens the\nsame hardware identity for editing; it does not change a command target set.\nEnrollment, identity guidance and import/export tools remain available in\ndisclosures. Detected nodes are never enrolled automatically. Configuration save\nreview retains duplicate/missing-trajectory guards; changing the review clears\nany previous duplicate-slot acknowledgment.\n\n![Mission Config assignments and measured launch layout](../assets/operator-workspaces/mission-config-dark.png)\n\nThat page is intentionally separate from the normal SkyBrush Drone Show workspace:\n\n- operators can upload one ready-to-execute protocol CSV\n- MDS validates the file, stores it as `active.csv`, and regenerates the preview\n- no SkyBrush conversion, per-drone file mapping, or shared-origin correction happens there\n\nKeep the workflows mentally separate:\n\n- `Drone Show → Design / Setup` is the normal multi-drone SkyBrush import path\n- `Custom Show` is an expert-only override path for specialized testing and research",
       "title": "Drone Show guide"
     },
     {
@@ -16921,7 +16921,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
       "chunk_count": 20,
-      "content_hash": "fcc2d7e84644e05799f197a615b1a5cb5207d218240166539e5872bd1c3e538c",
+      "content_hash": "acf453c019831c6f71337f4fcf0915f80f18a95ab93020b76f048fcdb9aeb2b0",
       "id": "mds.drone_show",
       "mime_type": "text/markdown",
       "path": "docs/features/drone-show.md",

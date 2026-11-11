@@ -1,0 +1,32 @@
+[
+  {
+    "width": 1440,
+    "theme": "dark",
+    "passed": true
+  },
+  {
+    "width": 1440,
+    "theme": "light",
+    "passed": true
+  },
+  {
+    "width": 900,
+    "theme": "dark",
+    "passed": true
+  },
+  {
+    "width": 900,
+    "theme": "light",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "passed": true
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "passed": true
+  }
+]

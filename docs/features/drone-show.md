@@ -308,6 +308,10 @@ For writable production workflows:
 
 Custom CSV now has its own dedicated dashboard surface at `Custom Show`.
 
+[Illustrated workspace walkthrough](../assets/operator-workspaces/operator-workspace-guide.png)
+([printable PDF](../assets/operator-workspaces/operator-workspace-guide.pdf)).
+The illustrations use synthetic demonstration aircraft, not flight clearance.
+
 Use **Design / Setup** to import and preview `active.csv`, then **Operate** to
 select exact hardware IDs and use When ready, After delay or At time. The confirmation
 always uses native mission type 3 with LOCAL setpoints and no global-origin
@@ -335,6 +339,9 @@ changing `active.csv`, its fingerprint or aircraft files. Switching tabs retains
 the selected aircraft, timing and uncertain-receipt state. Completed runs sit in
 the collapsed **Last run** section rather than occupying the flight controls.
 
+![Custom Show setup with a generated dark preview](../assets/operator-workspaces/custom-setup-dark.png)
+![Custom Show controls and selected aircraft](../assets/operator-workspaces/custom-operate-dark.png)
+
 Mission Config places assignment search, Save & Commit and origin review above
 the aircraft assignments and live launch layout. Plot/map inspection opens the
 same hardware identity for editing; it does not change a command target set.
@@ -342,6 +349,8 @@ Enrollment, identity guidance and import/export tools remain available in
 disclosures. Detected nodes are never enrolled automatically. Configuration save
 review retains duplicate/missing-trajectory guards; changing the review clears
 any previous duplicate-slot acknowledgment.
+
+![Mission Config assignments and measured launch layout](../assets/operator-workspaces/mission-config-dark.png)
 
 That page is intentionally separate from the normal SkyBrush Drone Show workspace:
 
