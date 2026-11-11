@@ -11,10 +11,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 - Overview is a flat aircraft Board/List/Map with an identity-based live
   inspector, explicit targets and general Takeoff/Hold/Land/immediate Return.
-  First-use All and remembered selections (including empty) remain independent
+  First-use Available and remembered selections (including empty) remain independent
   of filtering, inspection, arrivals and reconnection. Missing telemetry is no
   longer replaced by invented GPS or flight state. Shared resource polling is
   sequential/cancellable, and age advances even when requests stall.
+- Overview defaults to heartbeat-observed aircraft (60 seconds), with an earlier
+  configurable stale cue (10 seconds). Cards show compact measured status and
+  decoded flight modes instead of decorative aircraft silhouettes. Optional
+  cluster grouping changes only the display. Matching More panels freeze bulk
+  or single-aircraft scope; unavailable targets require deliberate removal or
+  acknowledgment before a bounded new dispatch. Uncertain receipts remain
+  lookup-only; flight admission, PX4 parameters and control gains are unchanged.
 - Shared navigation moves repository/clock diagnostics into System/About.
   Command activity survives navigation; bounded session alerts distinguish
   Seen, clear evidence and last-observed conditions without per-aircraft toasts.

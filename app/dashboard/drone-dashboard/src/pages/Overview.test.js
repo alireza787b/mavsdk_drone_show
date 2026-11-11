@@ -22,6 +22,7 @@ jest.mock('../features/fleet-overview/ActionReview', () => ({ ...jest.requireAct
 
 const NOW = 1780000000000;
 const live = (id, extra = {}) => ({ hw_id: id, pos_id: id, update_time: NOW / 1000,
+  heartbeat_last_seen: NOW / 1000,
   telemetry_available: true, is_armed: false, landed_state: 1, battery_remaining_percent: 80,
   battery_voltage: 16.1, position_alt: 20, ...extra });
 const resources = (drones = [live('1'), live('2'), { hw_id: '3', pos_id: '3' }], configuredIds = drones.map((item) => item.hw_id)) => ({
@@ -35,6 +36,7 @@ const tree = (runtimeMode = 'sitl', operatorId = '') => <MemoryRouter future={{ 
 const target = (id) => screen.getByRole('checkbox', { name: `Select Aircraft ${id} · H${id}` });
 const inspect = (id) => screen.getByRole('button', { name: `Inspect Aircraft ${id} · H${id}` });
 const actionRail = () => screen.getByLabelText('Selected aircraft actions');
+const showAll = () => fireEvent.change(screen.getByRole('combobox', { name: 'Filter aircraft' }), { target: { value: 'all' } });
 const selected = (count) => expect(actionRail().querySelector('strong')).toHaveTextContent(new RegExp(`^${count} selected$`));
 const save = (ids, runtimeMode = 'sitl', operatorId = '') => {
   const scope = getTargetSelectionStorageScope({ deploymentId: getBackendURL(), runtimeMode, operatorId, sessionId: 'browser-session' });
@@ -64,23 +66,26 @@ describe('Overview explicit aircraft workflow', () => {
     expect(returning).toBeEnabled();
     fireEvent.click(returning);
     expect(JSON.parse(screen.getByLabelText('General action review').textContent)).toMatchObject({
-      mission_type: DRONE_ACTION_TYPES.RETURN_RTL, target_drone_ids: ['1', '2', '3'],
+      mission_type: DRONE_ACTION_TYPES.RETURN_RTL, target_drone_ids: ['1', '2'],
     });
     expect(JSON.parse(sessionStorage.getItem(key))).toEqual(previous);
   });
 
-  test.each(['sitl', 'real'])('initializes all configured %s aircraft, including unavailable ones', (mode) => {
+  test.each(['sitl', 'real'])('initializes available %s aircraft, not every configured aircraft', (mode) => {
     render(tree(mode));
-    ['1', '2', '3'].forEach((id) => expect(target(id)).toBeChecked());
-    selected(3);
+    ['1', '2'].forEach((id) => expect(target(id)).toBeChecked());
+    expect(screen.queryByRole('checkbox', { name: /Select Aircraft 3/ })).not.toBeInTheDocument();
+    selected(2);
     expect(screen.getByText(mode.toUpperCase())).toBeInTheDocument();
-    expect(inspect('3')).toHaveTextContent('Never seen');
+    showAll();
+    expect(target('3')).not.toBeChecked();
     expect(within(actionRail()).getByRole('button', { name: 'Takeoff' })).toBeEnabled();
   });
 
   test.each([[[]], [['2']]])('restores saved exact selection %j, including deliberately empty', (ids) => {
     save(ids);
     render(tree());
+    showAll();
     ['1', '2', '3'].forEach((id) => expect(target(id).checked).toBe(ids.includes(id)));
     selected(ids.length);
     expect(within(actionRail()).getByRole('button', { name: 'Takeoff' }).disabled).toBe(ids.length === 0);
@@ -99,7 +104,9 @@ describe('Overview explicit aircraft workflow', () => {
   });
 
   test('filter, inspect and list view do not change command membership', () => {
+    save(['1', '2', '3']);
     render(tree());
+    showAll();
     fireEvent.click(target('2'));
     selected(2);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find aircraft' }), { target: { value: 'hw 1' } });
@@ -117,17 +124,23 @@ describe('Overview explicit aircraft workflow', () => {
     selected(2);
   });
 
-  test('telemetry loss remains visible and selected instead of disappearing from the board', () => {
+  test('heartbeat loss becomes stale, then leaves Available without dropping selected targets', () => {
     const snapshot = resources([live('1', { is_armed: true, landed_state: 2 })]);
     useFleetResources.mockReturnValue(snapshot);
     const view = render(tree());
-    useFleetResources.mockReturnValue({ ...snapshot, nowMs: NOW + 65000, telemetry: { ...snapshot.telemetry, error: new Error('network') } });
+    useFleetResources.mockReturnValue({ ...snapshot, nowMs: NOW + 11000 });
     view.rerender(tree());
     expect(target('1')).toBeChecked();
-    expect(inspect('1')).toHaveTextContent('Flight state unknown');
-    expect(inspect('1')).toHaveTextContent('Offline');
+    expect(inspect('1').closest('article')).toHaveAttribute('data-availability', 'stale');
+    useFleetResources.mockReturnValue({ ...snapshot, nowMs: NOW + 65000, telemetry: { ...snapshot.telemetry, error: new Error('network') } });
+    view.rerender(tree());
+    expect(screen.queryByRole('checkbox', { name: /Select Aircraft 1/ })).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('measurements are aging');
     selected(1);
+    fireEvent.click(screen.getByRole('button', { name: '1 selected · 1 hidden' }));
+    expect(target('1')).toBeChecked();
+    expect(inspect('1')).toHaveTextContent('Unknown');
+    expect(inspect('1').closest('article')).toHaveAttribute('data-availability', 'offline');
   });
 
   test('new configured aircraft do not join an initialized target set', () => {
@@ -184,6 +197,29 @@ describe('Overview explicit aircraft workflow', () => {
     view.rerender(tree('sitl'));
     selected(0);
     expect(useFleetResources).toHaveBeenCalledWith('real');
+  });
+
+  test('first telemetry failure does not persist an empty default or widen to configured', () => {
+    useFleetResources.mockReturnValue({ ...resources(), telemetry: { response: null, error: new Error('offline'), loading: false } });
+    const view = render(tree());
+    selected(0);
+    expect(within(actionRail()).getByRole('button', { name: 'Return' })).toBeDisabled();
+    useFleetResources.mockReturnValue(resources());
+    view.rerender(tree());
+    selected(2);
+  });
+
+  test('inspector More freezes that aircraft only, independent of the bulk selection', () => {
+    render(tree());
+    fireEvent.click(inspect('2'));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /More/ }));
+    const panel = screen.getByRole('dialog', { name: 'More actions' });
+    expect(panel).toHaveTextContent('1 aircraft');
+    expect(panel).toHaveTextContent('Aircraft 2 · H2');
+    expect(screen.queryByRole('dialog', { name: 'Aircraft 2' })).not.toBeInTheDocument();
+    selected(2);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close more actions' }));
+    selected(2);
   });
 
   test('unknown runtime disables actions; no mission launcher remains on Overview', () => {

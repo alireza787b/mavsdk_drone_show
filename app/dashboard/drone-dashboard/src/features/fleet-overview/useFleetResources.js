@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DRONE_RUNTIME_CLOCK_PROP, FIELD_NAMES, attachDroneRuntimeClock, normalizeTelemetryResponse } from '../../constants/fieldMappings';
 import { normalizeComparableId } from '../../utilities/missionIdentityUtils';
 import { fetchGcsResource, getFleetConfigResponse, getFleetTelemetryResponse, GCS_ROUTE_KEYS, unwrapFleetTelemetryPayload, unwrapSwarmConfigPayload } from '../../services/gcsApiService';
+import { DEFAULT_FLEET_AVAILABILITY_POLICY } from './fleetAvailability';
 
 const loadBoot = (options) => fetchGcsResource(GCS_ROUTE_KEYS.fleetNodeBootStatus, options);
 const loadSwarm = (options) => fetchGcsResource(GCS_ROUTE_KEYS.swarmConfig, options);
@@ -77,6 +78,7 @@ export default function useFleetResources(contextKey) {
     return mergeFleetResources(config.response?.data, normalized, boot.response?.data, clock);
   }, [config.response, telemetry.response, telemetry.receivedAtMs, boot.response]);
   return { drones, nowMs, config, telemetry, boot,
+    displayPolicy: telemetry.response?.data?.display_policy || DEFAULT_FLEET_AVAILABILITY_POLICY,
     configuredIds: (Array.isArray(config.response?.data) ? config.response.data : []).map((row) => normalizeComparableId(row.hw_id)).filter(Boolean),
     swarm: unwrapSwarmConfigPayload(swarm.response?.data), loading: config.loading && telemetry.loading };
 }

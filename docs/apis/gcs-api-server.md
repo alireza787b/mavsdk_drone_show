@@ -604,11 +604,19 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
   },
   "total_drones": 10,
   "online_drones": 8,
+  "display_policy": {"stale_sec": 10, "available_sec": 60},
   "timestamp": 1700000000000
 }
 ```
 
 The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonical route above.
+
+`display_policy` is an additive Overview display contract. `stale_sec` is the
+heartbeat-age stale cue (`MDS_OVERVIEW_STALE_SEC`, default 10 seconds);
+`available_sec` is the heartbeat retention window from the effective canonical
+`MDS_PRESENCE_STALE_SEC` presence threshold (default 60 seconds). Both are finite
+and positive; the stale cue is capped at the retention window. These fields do
+not change telemetry freshness, native armability, readiness or command admission.
 
 `readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback.
 

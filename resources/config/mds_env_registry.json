@@ -1086,6 +1086,32 @@
       "owner": "platform"
     },
     {
+      "name": "MDS_OVERVIEW_STALE_SEC",
+      "title": "Overview stale heartbeat cue",
+      "scope": "gcs",
+      "domain": "frontend",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 10,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [
+        "gcs-server/overview_display_policy.py",
+        "gcs-server/api_routes/core.py",
+        "src/params.py"
+      ],
+      "notes": "Display-only heartbeat age cue for Overview. Must be finite and positive; defaults to 10 seconds and is capped at the canonical MDS_PRESENCE_STALE_SEC retention window. Never changes readiness or command admission.",
+      "owner": "platform"
+    },
+    {
       "name": "MDS_GCS_FLEET_RPC_CONCURRENCY",
       "title": "Routine fleet RPC concurrency",
       "scope": "gcs",

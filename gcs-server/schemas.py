@@ -590,12 +590,37 @@ class DroneTelemetry(BaseModel):
         return str(value)
 
 
+class OverviewDisplayPolicy(BaseModel):
+    """Heartbeat display windows only; not readiness or command authority."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    stale_sec: float = Field(..., gt=0, description="Heartbeat age after which Overview shows a stale cue")
+    available_sec: float = Field(..., gt=0, description="Maximum heartbeat age retained by Overview Available")
+
+    @model_validator(mode='after')
+    def validate_window_order(self):
+        if self.stale_sec > self.available_sec:
+            raise ValueError("Overview stale cue must not exceed the Available window")
+        return self
+
+    @classmethod
+    def resolve_default(cls):
+        from overview_display_policy import resolve_overview_display_policy
+
+        return cls(**resolve_overview_display_policy())
+
+
 class TelemetryResponse(BaseModel):
     """Response for GET /telemetry"""
     telemetry: Dict[str, DroneTelemetry] = Field(..., description="Telemetry by pos_id")
     total_drones: int = Field(..., ge=0, description="Total drones")
     online_drones: int = Field(..., ge=0, description="Online drones")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+    display_policy: OverviewDisplayPolicy = Field(
+        default_factory=OverviewDisplayPolicy.resolve_default,
+        description="Overview heartbeat-display windows; never flight readiness or command admission",
+    )
 
     @field_validator('telemetry', mode='before')
     @classmethod

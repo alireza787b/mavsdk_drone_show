@@ -10,9 +10,15 @@ The screenshots use a synthetic fleet, not aircraft clearance.
 ## Check the aircraft
 
 1. Confirm **REAL** or **SITL** at the top of the page.
-2. Check the live-aircraft and attention counts.
-3. Open an aircraft by its name or silhouette to inspect current measurements
+2. Check the available-aircraft and attention counts.
+3. Open an aircraft card to inspect current measurements
    and any issue. Inspection does not select it for commands.
+
+**Available** is the initial filter: an accepted heartbeat in the last minute.
+After ten seconds without a heartbeat the card says **Stale** and dims; after
+one minute it leaves Available. **All aircraft** still includes it, and
+**Selected targets** finds selected aircraft even when no longer available.
+These display windows are configurable; they are not flight-readiness checks.
 
 **Board** is the initial view. **List** compares aircraft in compact rows;
 **Map** shows current trusted positions. Switching views keeps the same targets.
@@ -22,24 +28,35 @@ to find them. A map marker opens inspection, not command selection.
 ![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)
 
 Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical
-aircraft even when names are duplicated. Position slots appear in inspection.
+aircraft even when names are duplicated. **P1**, **P2**, etc. identify position
+slots. Small state glyphs distinguish grounded, airborne, taking off, landing
+and unknown; they do not represent a particular airframe or prove motors stopped.
+Cards show battery, altitude with datum, GNSS fix/satellites, link age and mission.
+Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
+appears only when a fresh heartbeat actually reports it, not as inferred radio
+range or end-to-end latency.
 
 ## Select command targets
 
-A fresh browser session starts with all configured aircraft selected. Where a
+A fresh browser session starts with the **available configured aircraft** selected
+once the first configuration and heartbeat snapshot have loaded. Where a
 saved selection is available for the same operator, GCS and runtime, it is
 restored—including a deliberately empty selection.
 
 - Check an aircraft's box to include or exclude it.
-- **All**, **None** and **Select group** are deliberate selection actions.
+- **Available**, **All**, **None** and **Select group** are deliberate selection actions.
 - Search and filters only change what you see. The selected count includes
-  hidden aircraft.
+  hidden aircraft. Click that count to show the selected set.
 - Link loss, reconnects and newly discovered aircraft never change your targets.
 - If a remembered aircraft no longer exists in the configuration, resolve the
   named missing target before dispatch. It is never silently replaced.
 
 Unselected aircraft stay readable so their hazards are not hidden. Before
 confirming an action, check its aircraft names and count again.
+
+For multiple multi-aircraft formations, **Clusters** groups the display without
+changing targets. It is hidden for a single formation; **Select group** is the
+separate, explicit command-target control.
 
 ## Send a general command
 
@@ -55,7 +72,17 @@ confirming an action, check its aircraft names and count again.
 
 For an isolated intervention, inspect an aircraft and use its own controls.
 These address that aircraft only, independently of the dashboard selection.
-**Move** is available for a currently observed airborne aircraft.
+**Move** is available for a currently observed airborne aircraft. Its **More**
+panel is scoped to that exact hardware ID, not the bulk selection. Opening a
+panel freezes its target set; subsequent filtering or reconnects cannot retarget it.
+
+If a new general action includes unavailable aircraft, the review names them.
+**Remove unavailable** creates a reduced-target review without changing the main
+selection. Alternatively, **Attempt unavailable aircraft** acknowledges one
+bounded dispatch attempt to the exact targets. This is not deferred delivery or
+automatic replay after reconnection. PX4/native checks still apply. Takeoff keeps
+its own live readiness and coordinated-launch checks; this acknowledgment cannot
+bypass them. An unconfirmed command can only be looked up, not edited or resent.
 
 The motor-arm test is a physical test, not just a connectivity check. On real
 aircraft, confirmation requires propellers removed, airframes secured and the

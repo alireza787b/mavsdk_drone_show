@@ -354,6 +354,8 @@ class Params:
     PRESENCE_RECENT_LOSS_SEC = _safe_float(os.getenv('MDS_PRESENCE_RECENT_LOSS_SEC', '30'), 30.0)
     PRESENCE_STALE_SEC = _safe_float(os.getenv('MDS_PRESENCE_STALE_SEC', '60'), 60.0)
     PRESENCE_LONG_OFFLINE_SEC = _safe_float(os.getenv('MDS_PRESENCE_LONG_OFFLINE_SEC', '300'), 300.0)
+    # Display-only stale cue; Overview retention uses canonical PRESENCE_STALE_SEC.
+    OVERVIEW_STALE_SEC = _safe_float(os.getenv('MDS_OVERVIEW_STALE_SEC', '10'), 10.0)
 
     enable_default_subscriptions = True  # All drones subscribe to each other for continuous polling
     

@@ -16,12 +16,16 @@ export function createTargetSelectionState() {
 /** No telemetry/filter/reconcile actions: only explicit operator actions change membership. */
 export function targetSelectionReducer(state, action) {
   switch (action.type) {
-    case 'initialize':
+    case 'initialize': {
       if (state.initialized || !Array.isArray(action.configuredIds)) return state;
+      const configuredIds = uniqueTargetIds(action.configuredIds);
+      const defaults = action.defaultIds === undefined ? configuredIds
+        : uniqueTargetIds(action.defaultIds).filter((id) => configuredIds.includes(id));
       return {
         initialized: true,
-        ids: uniqueTargetIds(action.savedIds === undefined ? action.configuredIds : action.savedIds),
+        ids: uniqueTargetIds(action.savedIds === undefined ? defaults : action.savedIds),
       };
+    }
     case 'all':
     case 'group':
       if (!state.initialized || !Array.isArray(action.ids)) return state;

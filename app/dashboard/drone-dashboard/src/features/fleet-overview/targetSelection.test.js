@@ -20,6 +20,38 @@ describe('explicit fleet targets', () => {
     expect(initialize([])).toEqual({ initialized: true, ids: [] });
   });
 
+  test('initializes an explicit available default snapshot instead of all configured aircraft', () => {
+    const defaults = ['2'];
+    const state = targetSelectionReducer(createTargetSelectionState(), {
+      type: 'initialize', configuredIds: ['1', '2', '3'], defaultIds: defaults,
+    });
+    defaults.push('3');
+    expect(state).toEqual({ initialized: true, ids: ['2'] });
+    expect(targetSelectionReducer(state, { type: 'initialize', configuredIds: ['1', '2', '3'], defaultIds: ['1', '3'] })).toBe(state);
+    expect(targetSelectionReducer(createTargetSelectionState(), {
+      type: 'initialize', configuredIds: ['1', '2'], defaultIds: [],
+    })).toEqual({ initialized: true, ids: [] });
+    expect(targetSelectionReducer(createTargetSelectionState(), {
+      type: 'initialize', configuredIds: ['1', '2'], defaultIds: ['2', 'unconfigured'],
+    })).toEqual({ initialized: true, ids: ['2'] });
+  });
+
+  test.each([[[]], [['2', 'removed']]])('restored IDs %j take precedence over current available defaults', (savedIds) => {
+    expect(targetSelectionReducer(createTargetSelectionState(), {
+      type: 'initialize', configuredIds: ['1', '2'], defaultIds: ['1'], savedIds,
+    })).toEqual({ initialized: true, ids: savedIds });
+  });
+
+  test('available defaults never become a dynamic subscription to link state or filters', () => {
+    const state = targetSelectionReducer(createTargetSelectionState(), {
+      type: 'initialize', configuredIds: ['1', '2'], defaultIds: ['1'],
+    });
+    ['telemetry', 'availability', 'filter', 'reconcile'].forEach((type) => {
+      expect(targetSelectionReducer(state, { type, ids: ['2'] })).toBe(state);
+    });
+    expect(targetSelectionReducer(state, { type: 'all', ids: ['1', '2'] }).ids).toEqual(['1', '2']);
+  });
+
   test.each([[[]], [['2']], [['2', 'removed']]])('restores exact saved IDs %j, including empty and unresolved', (savedIds) => {
     expect(initialize(['1', '2', '3'], savedIds).ids).toEqual(savedIds);
   });

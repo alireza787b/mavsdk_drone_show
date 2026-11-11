@@ -5,6 +5,10 @@ import { getDroneDisplayIdentity } from '../../utilities/dronePresentation';
 import { resolveMslAltitude } from '../../utilities/telemetryAltitude';
 import { px4LandedState } from '../../utilities/px4LandedState';
 import { classifyNodeBootStatus } from '../../utilities/fleetOpsViewModel';
+import { getFlightModeName } from '../../constants/px4FlightModes';
+import { getCommandMetadata } from '../../constants/missionCatalog';
+import { getFriendlyMissionName } from '../../utilities/missionUtils';
+import { getAircraftAvailability } from './fleetAvailability';
 import { uniqueTargetIds } from './targetSelection';
 
 const SAMPLE_CURRENT_MS = 10000;
@@ -47,17 +51,26 @@ function altitudeEvidence(drone) {
 }
 
 /** Pure presentation only. No displayed state grants command admission. */
-export function buildAircraftViewModel(drone, nowMs) {
+export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
   if (!Number.isFinite(nowMs)) throw new TypeError('Fleet presentation requires an explicit nowMs clock');
   const [id] = uniqueTargetIds([drone?.hw_id ?? drone?.hw_ID]);
   if (!id) return null;
   const identity = getDroneDisplayIdentity({ ...drone, hw_id: id });
   const runtime = getDroneRuntimeStatus(drone, nowMs);
+  const availability = getAircraftAvailability(drone, nowMs, displayPolicy);
   const current = drone.telemetry_available !== false && runtime.level === 'online';
   const boot = classifyNodeBootStatus(drone.node_boot_status, getDroneReferenceNowMs(drone, nowMs));
   const hasTelemetry = runtime.telemetryAgeSec !== null;
   const armed = current && typeof drone.is_armed === 'boolean' ? drone.is_armed : null;
   const flightState = current ? (FLIGHT_LABELS[px4LandedState(drone.landed_state)] || 'Unknown') : 'Unknown';
+  const decodedMode = getFlightModeName(drone.flight_mode);
+  const modeKnown = hasTelemetry && !/^(?:Unknown|No Data|Invalid Mode|Auto\.\d+)/.test(decodedMode);
+  const missionMetadata = hasTelemetry ? getCommandMetadata(drone.mission) : null;
+  const wifiPercent = numberOrNull(drone.heartbeat_network_info?.wifi?.signal_strength_percent);
+  const wifiCurrent = availability.available && !availability.stale && wifiPercent !== null && wifiPercent >= 0 && wifiPercent <= 100;
+  const nativeBlockers = Array.isArray(drone.preflight_blockers) && drone.preflight_blockers.length > 0;
+  const readinessStatus = !current ? 'unknown' : nativeBlockers ? 'blocked'
+    : ['ready', 'warning', 'blocked'].includes(drone.readiness_status) ? drone.readiness_status : 'unknown';
   const battery = getBatteryPresentation(drone);
   const batteryAvailable = battery.remaining !== null || (battery.voltage !== null && battery.voltage > 0);
   const batteryCurrent = current && sampleIsCurrent(drone, 'battery', nowMs);
@@ -81,7 +94,9 @@ export function buildAircraftViewModel(drone, nowMs) {
   if (!current && boot.ageSec !== null && (boot.active || boot.state === 'error')) {
     issues.push({ key: 'boot', tone: boot.tone, label: boot.label });
   }
-  if (!current) issues.push({
+  // A configured but never-observed aircraft is not a new loss-of-link alarm.
+  // Once observed, losing it remains an actionable condition even if filtered out.
+  if (!current && (hasTelemetry || availability.ageSec !== null || boot.active || boot.state === 'error')) issues.push({
     key: 'telemetry', tone: runtime.indicatorClass === 'offline' ? 'danger' : 'warning',
     label: runtime.level === 'online' ? 'Telemetry unavailable' : runtime.label,
   });
@@ -106,7 +121,15 @@ export function buildAircraftViewModel(drone, nowMs) {
   return {
     id, raw: drone, identity,
     label: identity.alias?.value || `Aircraft ${id}`,
-    runtime, boot, current, armed, flightState,
+    runtime, availability, boot, current, armed, flightState,
+    flightMode: { label: modeKnown ? decodedMode : 'Unknown', known: modeKnown,
+      current: current && modeKnown, stale: !current && hasTelemetry && modeKnown },
+    mission: { label: missionMetadata ? getFriendlyMissionName(drone.mission) : 'Unknown', known: Boolean(missionMetadata),
+      value: missionMetadata?.value ?? null, current: current && Boolean(missionMetadata),
+      stale: !current && hasTelemetry && Boolean(missionMetadata) },
+    wifi: { percent: wifiCurrent ? wifiPercent : null, current: wifiCurrent },
+    readiness: { status: readinessStatus, label: { ready: 'Ready', warning: 'Warning', blocked: 'Blocked', unknown: 'Unknown' }[readinessStatus],
+      summary: current && readinessStatus !== 'unknown' ? drone.readiness_summary || '' : '' },
     battery: {
       ...battery, current: batteryCurrent && batteryAvailable,
       stale: batteryAvailable && !batteryCurrent, available: batteryAvailable,
@@ -137,11 +160,11 @@ export function buildAircraftViewModel(drone, nowMs) {
 }
 
 /** Preserve prior identity order; append new identities deterministically, never by severity. */
-export function buildFleetViewModel(drones = [], { nowMs, previousOrder = [] } = {}) {
+export function buildFleetViewModel(drones = [], { nowMs, previousOrder = [], displayPolicy } = {}) {
   if (!Number.isFinite(nowMs)) throw new TypeError('Fleet presentation requires an explicit nowMs clock');
   const byId = new Map();
   drones.forEach((drone) => {
-    const aircraft = buildAircraftViewModel(drone, nowMs);
+    const aircraft = buildAircraftViewModel(drone, nowMs, displayPolicy);
     if (aircraft && !byId.has(aircraft.id)) byId.set(aircraft.id, aircraft);
   });
   const retained = uniqueTargetIds(previousOrder).filter((id) => byId.has(id));
@@ -153,6 +176,8 @@ export function buildFleetViewModel(drones = [], { nowMs, previousOrder = [] } =
   const summary = {
     total: aircraft.length,
     current: aircraft.filter((item) => item.current).length,
+    available: aircraft.filter((item) => item.availability.available).length,
+    stale: aircraft.filter((item) => item.availability.stale).length,
     unavailable: aircraft.filter((item) => !item.current).length,
     attention: aircraft.filter((item) => item.attention).length,
     armed: aircraft.filter((item) => item.armed === true).length,

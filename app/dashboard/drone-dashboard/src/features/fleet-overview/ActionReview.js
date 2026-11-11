@@ -27,6 +27,10 @@ function validTargets(command) {
     && new Set(command.target_drone_ids).size === command.target_drone_ids.length;
 }
 
+function unavailableTargetIds(command, aircraft) {
+  return command.target_drone_ids.filter((id) => aircraft.find((row) => row.id === id)?.availability?.available !== true);
+}
+
 // Scope by native action kind and the exact unordered aircraft set. Parameters
 // do not create a bypass for an unresolved request of the same action/scope.
 export function buildActionStorageKey(prefix, command) {
@@ -62,7 +66,7 @@ export function readPendingActions(prefix) {
   return pending;
 }
 
-export default function ActionReview({ intent, storageKey, aircraft = [], runtimeMode, onClose, onResolved }) {
+export default function ActionReview({ intent, storageKey, aircraft = [], runtimeMode, onClose, onResolved, onRemoveUnavailable }) {
   const [initialIntent] = useState(() => {
     const saved = readPendingAction(storageKey);
     return saved ? { ...saved, recover: true } : intent;
@@ -71,6 +75,7 @@ export default function ActionReview({ intent, storageKey, aircraft = [], runtim
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [ack, setAck] = useState({});
+  const [unavailableAck, setUnavailableAck] = useState(null);
   const [reviewContext] = useState(() => ({ storageKey, runtimeMode }));
   const [command] = useState(() => {
     const { recover, ...body } = JSON.parse(JSON.stringify(initialIntent));
@@ -78,10 +83,13 @@ export default function ActionReview({ intent, storageKey, aircraft = [], runtim
       target_drone_ids: Array.isArray(body.target_drone_ids) ? [...body.target_drone_ids] : [] };
   });
   const submitted = useRef(initialIntent.recover === true ? command : null);
+  const attempted = useRef(initialIntent.recover === true);
   const lock = useRef(false), mounted = useRef(true);
   const settled = useRef(false);
   const liveContext = useRef({ storageKey, runtimeMode });
   liveContext.current = { storageKey, runtimeMode };
+  const liveAircraft = useRef(aircraft);
+  liveAircraft.current = aircraft;
   const { commandLifecycleCallbacks } = useCommandActivity();
   const test = command.mission_type === DRONE_ACTION_TYPES.TEST;
   const modeKnown = ['real', 'sitl'].includes(reviewContext.runtimeMode);
@@ -89,9 +97,21 @@ export default function ActionReview({ intent, storageKey, aircraft = [], runtim
   const realTest = test && reviewContext.runtimeMode === 'real';
   const safety = !realTest || ['props', 'secured', 'area'].every((key) => ack[key]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const names = command.target_drone_ids.map((id) => aircraft.find((row) => row.id === id)?.label || `Aircraft ${id}`);
+  const describeTarget = (id) => `${aircraft.find((row) => row.id === id)?.label || `Aircraft ${id}`} · H${id}`;
+  const names = command.target_drone_ids.map(describeTarget);
+  const unavailableIds = unavailableTargetIds(command, aircraft);
+  const unavailableSignature = JSON.stringify(unavailableIds);
+  useEffect(() => { setUnavailableAck(null); }, [unavailableSignature]);
+  const availabilityAcknowledged = () => {
+    const currentIds = unavailableTargetIds(command, liveAircraft.current);
+    return !currentIds.length || unavailableAck === JSON.stringify(currentIds);
+  };
   const submit = async () => {
-    if (!mounted.current || lock.current || settled.current || !contextMatches || !modeKnown || !validTargets(command) || (!uncertain && !safety)) return;
+    if (!mounted.current || lock.current || settled.current || !contextMatches || !modeKnown || !validTargets(command)) return;
+    if (!uncertain && (!safety || !availabilityAcknowledged())) {
+      setError('Command not sent: review the current unavailable aircraft and required acknowledgments.');
+      return;
+    }
     lock.current = true; setBusy(true); setError('');
     try {
       let receipt;
@@ -117,6 +137,8 @@ export default function ActionReview({ intent, storageKey, aircraft = [], runtim
           if (sessionStorage.getItem(reviewContext.storageKey) !== serialized) throw new Error('Recovery identity was not saved');
         }
         catch (_) { throw new Error('Command not sent: this browser cannot save its recovery identity. Restore session storage before confirming.'); }
+        if (!safety || !availabilityAcknowledged()) throw new Error('Command not sent: aircraft availability changed. Review the unavailable aircraft again.');
+        attempted.current = true;
         receipt = await submitCommandWithLifecycleFeedback(submitted.current, commandLifecycleCallbacks);
       }
       if (receipt?.accepted_for_tracking === true && receipt?.command_id) {
@@ -140,15 +162,36 @@ export default function ActionReview({ intent, storageKey, aircraft = [], runtim
       if (mounted.current) setBusy(false);
     }
   };
+  const removeUnavailable = () => {
+    if (!mounted.current || lock.current || busy || uncertain || attempted.current || settled.current
+      || !contextMatches || !modeKnown || !validTargets(command) || typeof onRemoveUnavailable !== 'function') return;
+    if (readPendingAction(reviewContext.storageKey)) {
+      setError('This action already has an unconfirmed receipt. Close and reopen it to check the saved command.');
+      return;
+    }
+    const excluded = new Set(unavailableTargetIds(command, liveAircraft.current));
+    if (!excluded.size) return;
+    onRemoveUnavailable({ command: JSON.parse(JSON.stringify(command)), remainingIds: command.target_drone_ids.filter((id) => !excluded.has(id)) });
+  };
   const close = () => { mounted.current = false; onClose(); };
   return <ConfirmDialog open appearance="console" title={command.uiMeta?.operatorLabel || command.operator_label || 'Review action'}
     tone={command.mission_type === DRONE_ACTION_TYPES.KILL_TERMINATE ? 'danger' : 'neutral'}
     confirmLabel={uncertain ? 'Check command' : `Confirm · ${names.length} aircraft`}
-    confirmDisabled={!contextMatches || !modeKnown || !validTargets(command) || (!uncertain && !safety)}
+    confirmDisabled={!contextMatches || !modeKnown || !validTargets(command) || (!uncertain && (!safety || !availabilityAcknowledged()))}
     busy={busy} allowDismissWhileBusy onConfirm={submit} onCancel={close} cancelLabel="Close"
     message={<div className="fleet-action-review">
       <strong>{names.length} aircraft · {String(reviewContext.runtimeMode || 'unknown').toUpperCase()}</strong>
       <ul className="fleet-review-targets">{names.map((name, index) => <li key={command.target_drone_ids[index]}>{name}</li>)}</ul>
+      {unavailableIds.length > 0 && <section className="fleet-review-unavailable" aria-label="Unavailable targets">
+        <p><strong>{unavailableIds.length} unavailable</strong> · {unavailableIds.map(describeTarget).join(', ')}</p>
+        {!uncertain && <>
+          <p>One bounded attempt. No guaranteed delivery or automatic replay on reconnect.</p>
+          <label><input type="checkbox" checked={unavailableAck === unavailableSignature} disabled={busy || attempted.current}
+            onChange={(event) => setUnavailableAck(event.target.checked ? unavailableSignature : null)} />Attempt unavailable aircraft</label>
+        </>}
+        {typeof onRemoveUnavailable === 'function' && <button type="button" disabled={busy || uncertain || attempted.current || !contextMatches || !modeKnown || unavailableIds.length === command.target_drone_ids.length}
+          onClick={removeUnavailable}>Remove unavailable</button>}
+      </section>}
       {command.mission_type === DRONE_ACTION_TYPES.RETURN_RTL && <p>Immediate PX4 return. No sequencing or route separation.</p>}
       {command.mission_type === DRONE_ACTION_TYPES.HOLD && <p>Hold position. Replaces the current flight command.</p>}
       {command.mission_type === DRONE_MISSION_TYPES.NONE && <p>Cancel the current mission on these aircraft. Cancellation alone is not verified Hold or landing.</p>}

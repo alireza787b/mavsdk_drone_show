@@ -40,6 +40,8 @@ def _build_health_check_response(deps: Any) -> HealthCheckResponse:
 
 
 def _build_typed_telemetry_response(deps: Any, response: Response | None = None) -> TelemetryResponse:
+    from overview_display_policy import resolve_overview_display_policy
+
     telemetry_data = deps.telemetry_data_all_drones
     online_count = len([
         drone for drone in telemetry_data.values()
@@ -53,6 +55,7 @@ def _build_typed_telemetry_response(deps: Any, response: Response | None = None)
         total_drones=len(telemetry_data),
         online_drones=online_count,
         timestamp=int(time.time() * 1000),
+        display_policy=resolve_overview_display_policy(getattr(deps, "Params", None)),
     )
 
 

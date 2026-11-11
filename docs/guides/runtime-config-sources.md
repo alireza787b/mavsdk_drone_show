@@ -169,6 +169,18 @@ GCS bootstrap now also installs/reconciles `git_sync_mds.service` after
 writing `/etc/mds/gcs.env`, so the service inherits the same precedence model
 on a fresh host instead of depending on a later manual install step.
 
+### Overview heartbeat display
+
+Overview receives its heartbeat display windows in the fleet telemetry response's
+`display_policy`. `MDS_OVERVIEW_STALE_SEC` sets its stale cue (default 10 seconds);
+Available-view retention reuses the effective canonical `MDS_PRESENCE_STALE_SEC`
+threshold (default 60 seconds, normalized by the existing presence policy).
+The display resolver requires finite positive values and caps the stale cue at
+retention. Edit the advanced GCS setting in `/etc/mds/gcs.env` or Environments,
+then restart GCS; no dashboard rebuild is needed. This is display-only heartbeat
+retention, not evidence of fresh telemetry, native armability or flight readiness,
+and does not change command admission or the global presence policy.
+
 ### GCS command lifecycle state
 
 `MDS_GCS_COMMAND_STATE_DIR` is the single host-local source of truth for

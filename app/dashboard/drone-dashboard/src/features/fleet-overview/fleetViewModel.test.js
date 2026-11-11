@@ -1,5 +1,6 @@
 import { attachDroneRuntimeClock } from '../../constants/fieldMappings';
 import { buildAircraftViewModel, buildFleetViewModel } from './fleetViewModel';
+import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 
 const NOW = 1780000000000;
 const live = (id = '1', extra = {}) => ({
@@ -32,6 +33,9 @@ describe('fleet presentation truth', () => {
     expect(aircraft.flightState).toBe('Unknown');
     expect(aircraft.position.current).toBe(false);
     expect(aircraft.runtime.label).toBe('Never seen');
+    expect(build({ hw_id: '1', flight_mode: 65536, mission: 0 })).toMatchObject({
+      flightMode: { label: 'Unknown', known: false }, mission: { label: 'Unknown', known: false },
+    });
   });
 
   test('fresh but incomplete telemetry is not filled with invented fixes or DOP', () => {
@@ -103,7 +107,7 @@ describe('fleet presentation truth', () => {
   test('summary explicitly counts unknown arm state and retains unselected hazards independent of targeting', () => {
     const drones = [live('1', { is_armed: true, landed_state: 2 }), live('2', { battery_charge_state: 3 }), { hw_id: '3' }];
     const fleet = buildFleetViewModel(drones, { nowMs: NOW });
-    expect(fleet.summary).toMatchObject({ total: 3, current: 2, unavailable: 1, attention: 2, armed: 1, disarmed: 1, armUnknown: 1 });
+    expect(fleet.summary).toMatchObject({ total: 3, current: 2, unavailable: 1, attention: 1, armed: 1, disarmed: 1, armUnknown: 1 });
     expect(fleet.byId.get('2').issues[0]).toMatchObject({ key: 'battery', tone: 'danger' });
     expect(buildFleetViewModel([], { nowMs: NOW }).summary).toMatchObject({ total: 0, current: 0 });
   });
@@ -111,5 +115,60 @@ describe('fleet presentation truth', () => {
   test('prior ordering survives severity changes and new arrivals append deterministically', () => {
     const fleet = buildFleetViewModel([live('1'), live('10'), live('2'), live('3', { battery_charge_state: 3 })], { nowMs: NOW, previousOrder: ['3', '1'] });
     expect(fleet.order).toEqual(['3', '1', '2', '10']);
+  });
+
+  test('unused configured aircraft do not flood attention, but losing an observed aircraft does', () => {
+    const configured = Array.from({ length: 100 }, (_, index) => ({ hw_id: String(index + 1) }));
+    const unused = buildFleetViewModel(configured, { nowMs: NOW });
+    expect(unused.summary.attention).toBe(0);
+    expect(unused.summary.available).toBe(0);
+    expect(build(live(), NOW + 65000).attention).toBe(true);
+  });
+
+  test('heartbeat availability stays independent of telemetry and uses the published display policy', () => {
+    const drones = [live('1', { heartbeat_last_seen: (NOW - 15000) / 1000 }),
+      live('2', { update_time: (NOW - 30000) / 1000, heartbeat_last_seen: NOW / 1000 }),
+      live('3')];
+    const fleet = buildFleetViewModel(drones, { nowMs: NOW, displayPolicy: { stale_sec: 12, available_sec: 14 } });
+    expect(fleet.byId.get('1')).toMatchObject({ current: true, availability: { available: false, label: 'Offline' } });
+    expect(fleet.byId.get('2')).toMatchObject({ current: false, flightState: 'Unknown', availability: { available: true, label: 'Fresh' } });
+    expect(fleet.byId.get('3')).toMatchObject({ current: true, availability: { available: false, label: 'Unknown' } });
+    expect(fleet.summary).toMatchObject({ current: 2, unavailable: 1, available: 1, stale: 0 });
+    const stale = buildAircraftViewModel(drones[0], NOW, { stale_sec: 10, available_sec: 60 });
+    expect(stale.availability).toMatchObject({ available: true, stale: true, ageSec: 15 });
+  });
+
+  test.each([[0, 'Initializing'], [65536, 'Manual'], [0x03040000, 'Hold'], [0x00060000, 'Offboard'],
+    [null, 'Unknown'], ['', 'Unknown'], [0x2a040000, 'Unknown'], [0xff000000, 'Unknown']])('names flight mode %s without exposing a code', (code, label) => {
+    expect(build(live('1', { flight_mode: code })).flightMode).toMatchObject({ label });
+  });
+
+  test('cached named modes and missions are explicitly last known, never implied current', () => {
+    const aircraft = build(live('1', { flight_mode: 0x03040000, mission: DRONE_MISSION_TYPES.SMART_SWARM }), NOW + 20000);
+    expect(aircraft.flightMode).toMatchObject({ label: 'Hold', current: false, stale: true });
+    expect(aircraft.mission).toMatchObject({ label: 'Smart Swarm', current: false, stale: true });
+    expect(build(live()).mission).toMatchObject({ label: 'Unknown', known: false });
+    expect(build(live('1', { mission: 9999 })).mission).toMatchObject({ label: 'Unknown', known: false });
+    expect(build(live('1', { mission: 0 })).mission).toMatchObject({ label: 'No Mission', known: true });
+  });
+
+  test('Wi-Fi percentage requires a measured value and a fresh heartbeat, not telemetry success', () => {
+    const drone = live('1', { heartbeat_last_seen: NOW / 1000, heartbeat_network_info: { wifi: { signal_strength_percent: 0 } } });
+    expect(build(drone).wifi).toEqual({ percent: 0, current: true });
+    expect(build({ ...drone, telemetry_available: false }).wifi.current).toBe(true);
+    expect(build(drone, NOW + 11000).wifi).toEqual({ percent: null, current: false });
+    expect(build({ ...drone, heartbeat_last_seen: undefined }).wifi.current).toBe(false);
+    [null, '', 'bad', -1, 101, Infinity].forEach((value) => {
+      expect(build({ ...drone, heartbeat_network_info: { wifi: { signal_strength_percent: value } } }).wifi.current).toBe(false);
+    });
+  });
+
+  test('readiness requires native evidence, never absence of issues, and ages independently of heartbeat', () => {
+    expect(build(live()).readiness).toMatchObject({ status: 'unknown', label: 'Unknown' });
+    expect(build(live('1', { readiness_status: 'ready' })).readiness.status).toBe('ready');
+    expect(build(live('1', { readiness_status: 'warning' })).readiness.status).toBe('warning');
+    expect(build(live('1', { readiness_status: 'ready', preflight_blockers: [{ message: 'Heading blocked' }] })).readiness.status).toBe('blocked');
+    const stale = live('1', { readiness_status: 'ready', heartbeat_last_seen: NOW / 1000, update_time: (NOW - 20000) / 1000 });
+    expect(build(stale).readiness).toMatchObject({ status: 'unknown', summary: '' });
   });
 });

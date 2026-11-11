@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import DroneActions from './DroneActions';
-import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 
 describe('DroneActions', () => {
   test('sends takeoff immediately by default', () => {
@@ -11,6 +11,7 @@ describe('DroneActions', () => {
 
     render(
       <DroneActions
+        includeFlightControls
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
         onRequestPrecisionMove={onRequestPrecisionMove}
@@ -43,6 +44,7 @@ describe('DroneActions', () => {
 
     render(
       <DroneActions
+        includeFlightControls
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
         onRequestPrecisionMove={onRequestPrecisionMove}
@@ -51,7 +53,7 @@ describe('DroneActions', () => {
       />
     );
 
-    fireEvent.click(screen.getByText(/execution timing/i));
+    fireEvent.click(screen.getByText('Advanced timing'));
     fireEvent.click(screen.getByRole('button', { name: 'Delay' }));
     fireEvent.click(screen.getByRole('button', { name: '+30s' }));
     fireEvent.click(screen.getByRole('button', { name: /^take off\./i }));
@@ -101,7 +103,7 @@ describe('DroneActions', () => {
       />
     );
 
-    fireEvent.click(screen.getByText(/execution timing/i));
+    fireEvent.click(screen.getByText('Advanced timing'));
     fireEvent.click(screen.getByRole('button', { name: 'Delay' }));
     fireEvent.click(screen.getByRole('button', { name: '+30s' }));
     fireEvent.click(screen.getByRole('button', { name: /automated hover flight/i }));
@@ -124,7 +126,7 @@ describe('DroneActions', () => {
     }));
   });
 
-  test('makes the physical motor-arm behavior explicit for the ground test', () => {
+  test('makes the physical motor-arm behavior explicit without fabricating acknowledgements before review', () => {
     const onSendCommand = jest.fn();
 
     render(
@@ -141,26 +143,21 @@ describe('DroneActions', () => {
 
     expect(onSendCommand).toHaveBeenCalledWith(expect.objectContaining({
       mission_type: DRONE_ACTION_TYPES.TEST,
-      ground_test_safety: {
-        mode: 'operator_acknowledged',
-        props_removed: true,
-        airframe_secured: true,
-        area_clear: true,
-      },
       uiMeta: expect.objectContaining({
         operatorLabel: 'Arm/Disarm Ground Test',
         confirmationMessage: expect.stringMatching(/confirm only after all propellers are removed/i),
         details: expect.arrayContaining([
           expect.objectContaining({
             label: 'Ground-test safety',
-            value: expect.stringMatching(/motors will arm.*propellers are removed/i),
+            value: expect.stringMatching(/motors will arm.*confirm propellers removed/i),
           }),
         ]),
       }),
     }));
+    expect(onSendCommand.mock.calls[0][0]).not.toHaveProperty('ground_test_safety');
   });
 
-  test('uses an explicit not-applicable acknowledgement only in SITL mode', () => {
+  test('labels SITL motor-arm intent and leaves acknowledgement construction to the shared review', () => {
     const onSendCommand = jest.fn();
 
     render(
@@ -176,11 +173,11 @@ describe('DroneActions', () => {
     fireEvent.click(screen.getByRole('button', { name: /arm\/disarm ground test/i }));
 
     expect(onSendCommand).toHaveBeenCalledWith(expect.objectContaining({
-      ground_test_safety: { mode: 'sitl_not_applicable' },
       uiMeta: expect.objectContaining({
         confirmationMessage: expect.stringMatching(/sitl.*simulation-only/i),
       }),
     }));
+    expect(onSendCommand.mock.calls[0][0]).not.toHaveProperty('ground_test_safety');
   });
 
   test('blocks the motor-arm test when runtime truth is unavailable', () => {
@@ -208,6 +205,7 @@ describe('DroneActions', () => {
 
     render(
       <DroneActions
+        canPrecisionMove
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
         onRequestPrecisionMove={onRequestPrecisionMove}
@@ -220,5 +218,81 @@ describe('DroneActions', () => {
 
     expect(onRequestPrecisionMove).toHaveBeenCalledTimes(1);
     expect(onSendCommand).not.toHaveBeenCalled();
+  });
+
+  test('More does not duplicate the four primary controls and timing starts collapsed', () => {
+    const { container } = render(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={2} onSendCommand={jest.fn()} />);
+    ['Take Off', 'Hold Position', 'Land', 'Return to Launch'].forEach((name) => {
+      expect(screen.queryByRole('button', { name: new RegExp(`^${name}\\.`) })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /automated hover flight/i })).toBeInTheDocument();
+    expect(container.querySelector('details')).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Delay' }).closest('details')).not.toHaveAttribute('open');
+  });
+
+  test('Move is unavailable unless the caller explicitly provides current-airborne capability', () => {
+    const onRequestPrecisionMove = jest.fn();
+    const onSendCommand = jest.fn();
+    const view = render(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={2} onSendCommand={onSendCommand}
+      onRequestPrecisionMove={onRequestPrecisionMove} />);
+    const button = screen.getByRole('button', { name: /precision move/i });
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent('Requires current airborne telemetry');
+    fireEvent.click(button);
+    expect(onRequestPrecisionMove).not.toHaveBeenCalled();
+    view.rerender(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={2} onSendCommand={onSendCommand}
+      onRequestPrecisionMove={onRequestPrecisionMove} canPrecisionMove />);
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(onRequestPrecisionMove).toHaveBeenCalledTimes(1);
+    expect(onSendCommand).not.toHaveBeenCalled();
+  });
+
+  test('Cancel mission uses NONE immediately even with delayed test timing', () => {
+    const onSendCommand = jest.fn();
+    render(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={2} onSendCommand={onSendCommand}
+      referenceNowMs={1_700_000_000_000} />);
+    fireEvent.click(screen.getByText('Advanced timing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delay' }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel mission/i }));
+    expect(onSendCommand).toHaveBeenCalledWith(expect.objectContaining({
+      mission_type: DRONE_MISSION_TYPES.NONE,
+      trigger_time: 0,
+      uiMeta: expect.objectContaining({ actionKey: 'NONE', operatorLabel: 'Cancel Mission', triggerSummary: 'Immediate on acceptance' }),
+    }));
+    expect(onSendCommand.mock.calls[0][0]).not.toHaveProperty('target_drone_ids');
+  });
+
+  test('ground LED testing preserves scheduled dispatch and motor stop remains immediate', () => {
+    const onSendCommand = jest.fn();
+    render(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={2} onSendCommand={onSendCommand}
+      referenceNowMs={1_700_000_000_000} />);
+    fireEvent.click(screen.getByText('Advanced timing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delay' }));
+    fireEvent.click(screen.getByRole('button', { name: '+60s' }));
+    fireEvent.click(screen.getByRole('button', { name: /test light show/i }));
+    expect(onSendCommand).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      mission_type: DRONE_ACTION_TYPES.TEST_LED, trigger_time: 1700000060,
+      uiMeta: expect.objectContaining({ actionKey: 'TEST_LED', triggerSummary: expect.stringMatching(/Executes in 60s/) }),
+    }));
+    const stop = screen.getByRole('button', { name: /emergency kill/i });
+    expect(stop).toHaveTextContent('Airborne aircraft will fall');
+    fireEvent.click(stop);
+    expect(onSendCommand).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      mission_type: DRONE_ACTION_TYPES.KILL_TERMINATE, trigger_time: 0,
+    }));
+  });
+
+  test('an empty target set cannot send commands or open Move', () => {
+    const onSendCommand = jest.fn();
+    const onRequestPrecisionMove = jest.fn();
+    const { container } = render(<DroneActions actionTypes={DRONE_ACTION_TYPES} targetCount={0} runtimeMode="sitl" onSendCommand={onSendCommand}
+      onRequestPrecisionMove={onRequestPrecisionMove} canPrecisionMove />);
+    container.querySelectorAll('.drone-actions__group button').forEach((button) => {
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+    });
+    expect(onSendCommand).not.toHaveBeenCalled();
+    expect(onRequestPrecisionMove).not.toHaveBeenCalled();
   });
 });
