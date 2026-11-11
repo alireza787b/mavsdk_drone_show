@@ -48,6 +48,48 @@ test('normal idle cards omit routine mission prose but retain all details in ins
   expect(screen.getByText('RTK fixed')).toBeInTheDocument();
 });
 
+test('ground readiness and initialization use distinct truthful aircraft badges', () => {
+  const view = tile(aircraft({ readiness_status: 'ready' }));
+  expect(screen.getByLabelText('Preflight ready')).toHaveAttribute('data-status', 'ready');
+  view.rerender(<AircraftTile {...view.props} item={aircraft({
+    node_boot_status: { phase: 'starting_mds', status: 'running', timestamp: NOW },
+  }, NOW + 20000)} />);
+  expect(screen.getByLabelText('Initializing')).toHaveAttribute('data-status', 'initializing');
+  expect(screen.queryByLabelText('Preflight ready')).not.toBeInTheDocument();
+  expect(screen.getByText('Flight state unknown')).toBeInTheDocument();
+});
+
+test('stale-link and prioritized alert badges open inspection without changing targets', () => {
+  const item = aircraft({
+    heartbeat_last_seen: (NOW - 20000) / 1000,
+    preflight_blockers: [{ message: 'Heading estimate not stable' }],
+    preflight_warnings: [{ message: 'Battery check required' }],
+  });
+  const { props } = tile(item);
+  expect(screen.getByLabelText('Heartbeat stale')).toHaveAttribute('data-status', 'stale');
+  const alert = screen.getByLabelText('Warning: 2 aircraft conditions');
+  expect(alert).toHaveClass('tone-danger');
+  fireEvent.click(alert);
+  expect(props.onInspect).toHaveBeenCalledWith('7');
+  expect(props.onToggle).not.toHaveBeenCalled();
+  expect(screen.getByText('Heading estimate not stable')).toBeInTheDocument();
+});
+
+test('caution is distinguished by shape/label, and an airborne vehicle never gains a ground-ready badge', () => {
+  tile(aircraft({ landed_state: 2, readiness_status: 'ready', preflight_warnings: [{ message: 'Check link' }] }));
+  expect(screen.getByLabelText('Caution: 1 aircraft conditions')).toHaveClass('tone-warning');
+  expect(screen.queryByLabelText('Preflight ready')).not.toBeInTheDocument();
+  expect(screen.getByText('Airborne')).toBeInTheDocument();
+});
+
+test('loss of evidence overrides an old initializing/ready report without inventing a landed state', () => {
+  tile(aircraft({ readiness_status: 'ready', node_boot_status: { phase: 'starting_mds', status: 'running', timestamp: NOW } }, NOW + 50000));
+  expect(screen.getByLabelText('Link lost')).toHaveAttribute('data-status', 'lost');
+  expect(screen.queryByLabelText('Initializing')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Preflight ready')).not.toBeInTheDocument();
+  expect(screen.getByText('Flight state unknown')).toBeInTheDocument();
+});
+
 test('stale tile labels cached measurements and cannot infer an aircraft phase or show cached Wi-Fi', () => {
   const { container } = tile(aircraft({}, NOW + 20000));
   expect(screen.getByText('Flight state unknown')).toBeInTheDocument();

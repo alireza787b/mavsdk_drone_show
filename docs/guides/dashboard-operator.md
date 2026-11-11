@@ -35,6 +35,10 @@ airframe footprint, heading or proof that motors stopped. Battery percentage and
 altitude/datum sit on the left; GNSS fix and last-heard age on the right. The
 current state/mode and any active mission appear below. Only actual issues add
 warning text. Tap/click the card for satellites, voltage and full measurements.
+Small badges on the schematic distinguish initialization, stale/missing link
+evidence and ground readiness. A severity-prioritized alert marker shows the
+condition count; clicking it opens the same aircraft inspector with the full
+reasons near the top. Viewing a condition does not acknowledge or clear it.
 Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
 appears only when a fresh heartbeat actually reports it, not as inferred radio
 range or end-to-end latency.

@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute } from 'react-icons/fa';
+import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 
 export function AircraftSymbol({ item }) {
@@ -16,6 +16,24 @@ export function AircraftSymbol({ item }) {
 
 /** Front-profile schematic: intentionally does not depict a rotor count or heading. */
 function AircraftPortrait({ item }) {
+  const conditions = item.issues.filter((issue) => ['danger', 'warning'].includes(issue.tone));
+  const warning = conditions.some((issue) => issue.tone === 'danger');
+  const AlertIcon = warning ? FaExclamationCircle : FaExclamationTriangle;
+  // Flight phase, runtime/link evidence and aircraft conditions occupy distinct
+  // fixed slots. None changes command selection or acknowledges an alert.
+  const status = !item.current && item.runtime.indicatorClass === 'lost'
+    ? { key: 'lost', Icon: FaUnlink, label: 'Link lost', tone: 'warning' }
+    : item.availability.label === 'Offline'
+      ? { key: 'offline', Icon: FaUnlink, label: 'Heartbeat offline', tone: 'muted' }
+    : !item.current && item.boot.active
+      ? { key: 'initializing', Icon: FaHourglassHalf, label: 'Initializing', tone: 'warning' }
+    : item.availability.stale
+      ? { key: 'stale', Icon: FaRegClock, label: 'Heartbeat stale', tone: 'warning' }
+      : !item.current && item.availability.available
+          ? { key: 'delayed', Icon: FaRegClock, label: 'Flight telemetry unavailable', tone: 'warning' }
+          : item.current && item.flightState === 'Grounded' && item.readiness.status === 'ready'
+            ? { key: 'ready', Icon: FaCheck, label: 'Preflight ready', tone: 'good' } : null;
+  const StatusIcon = status?.Icon;
   return <span className="fleet-aircraft__portrait" data-state={item.flightState.toLowerCase()}>
     <svg className="fleet-aircraft__schematic" viewBox="0 0 96 80" aria-hidden="true">
       <g className="fleet-aircraft__airframe">
@@ -25,6 +43,14 @@ function AircraftPortrait({ item }) {
         <path d="m39 54-5 11H23m34-11 5 11h11M42 40h12" />
       </g>
     </svg>
+    {status && <span className={`fleet-aircraft__status-badge tone-${status.tone}`} data-status={status.key} title={status.label} aria-label={status.label}>
+      <StatusIcon aria-hidden="true" />
+    </span>}
+    {conditions.length > 0 && <span className={`fleet-aircraft__alert-badge tone-${warning ? 'danger' : 'warning'}`}
+      title={`${conditions.length} aircraft conditions · ${warning ? 'warning' : 'caution'} · open aircraft details`}
+      aria-label={`${warning ? 'Warning' : 'Caution'}: ${conditions.length} aircraft conditions`}>
+      <AlertIcon aria-hidden="true" /><small>{conditions.length}</small>
+    </span>}
     <span className="fleet-aircraft__phase-marker"><AircraftSymbol item={item} /></span>
   </span>;
 }
@@ -101,7 +127,8 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       <div className="fleet-inspector__state"><AircraftSymbol item={item} /><div><strong>{item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}</strong>
         <p>{item.current ? 'Live telemetry' : `${item.runtime.label} · current flight state unavailable`}</p></div></div>
       {item.lastKnown && <p className="fleet-inline-warning">Measurements below are last known, not current.</p>}
-      {!!item.issues.length && <ul className="fleet-inspector__issues">{item.issues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul>}
+      {!!item.issues.length && <section aria-label="Aircraft alerts"><h3 className="fleet-inspector__alert-title">Aircraft alerts <small>{item.issues.length}</small></h3>
+        <ul className="fleet-inspector__issues">{item.issues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul></section>}
       <dl className="fleet-inspector__facts">
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
         <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>

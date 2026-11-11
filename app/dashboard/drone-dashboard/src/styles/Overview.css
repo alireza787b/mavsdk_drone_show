@@ -103,6 +103,12 @@
 .fleet-aircraft__portrait[data-state=airborne],.fleet-aircraft__portrait[data-state="taking off"],.fleet-aircraft__portrait[data-state=landing] { color:var(--color-primary); }
 .fleet-aircraft__portrait[data-state=unknown] .fleet-aircraft__airframe { stroke-dasharray:3 3; }
 .fleet-aircraft__phase-marker { position:absolute; right:0; bottom:0; padding:2px; display:flex; color:inherit; background:var(--color-bg-primary); }
+.fleet-aircraft__status-badge,.fleet-aircraft__alert-badge { position:absolute; display:flex; align-items:center; justify-content:center; gap:3px; padding:3px; min-width:20px; min-height:20px; background:var(--color-bg-primary); font-size:.78rem; }
+.fleet-aircraft__status-badge { left:0; bottom:0; }
+.fleet-aircraft__alert-badge { right:0; top:0; }
+.fleet-aircraft__alert-badge small { font:.64rem var(--font-family-mono); }
+.fleet-inspector__alert-title { margin:.4rem 0; font-size:.86rem; font-weight:600; }
+.fleet-inspector__alert-title small { color:var(--color-text-secondary); margin-left:.4rem; }
 .fleet-aircraft__metric--gnss,.fleet-aircraft__metric--link { justify-self:end; max-width:100%; }
 .fleet-aircraft__metric { display:flex; flex-direction:column; gap:.15rem; min-width:0; font-size:.78rem; font-variant-numeric:tabular-nums; }
 .fleet-aircraft__metric small { color:var(--color-text-secondary); font-size:.64rem; display:flex; align-items:center; gap:.3rem; }
@@ -131,6 +137,7 @@
 .fleet-board--list .fleet-aircraft__instruments { grid-template-columns:minmax(50px,1fr) minmax(70px,1fr) 40px minmax(65px,1fr) minmax(60px,1fr); grid-template-areas:"battery altitude portrait gnss link"; min-height:44px; }
 .fleet-board--list .fleet-aircraft__portrait { width:40px; height:40px; }
 .fleet-board--list .fleet-aircraft__phase-marker { display:none; }
+.fleet-board--list .fleet-aircraft__status-badge,.fleet-board--list .fleet-aircraft__alert-badge { transform:scale(.8); }
 .fleet-board--list .fleet-aircraft__metric--mission { grid-column:2; justify-self:start; }
 .fleet-board--list .fleet-aircraft__issue { grid-column:1/-1; }
 @media(max-width:1100px) { .fleet-overview .fleet-board--list .fleet-aircraft__inspect { grid-template-columns:minmax(125px,.8fr) minmax(140px,1fr); } .fleet-board--list .fleet-aircraft__instruments { grid-column:1/-1; grid-row:2; } .fleet-board--list .fleet-aircraft__metric--mission { grid-column:1; } }
