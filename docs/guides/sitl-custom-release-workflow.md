@@ -273,10 +273,16 @@ The repo now includes a helper for the publish step:
 ```bash
 bash tools/publish_sitl_release_to_mega.sh \
   --artifact-dir /path/to/release-dir \
-  --mega-target /Root/mavsdk-drone-show-sitl \
-  --replace-existing \
+  --mega-target /Root/mavsdk-drone-show-sitl/releases/YOUR_VERSION \
   --json
 ```
+
+Stage a new versioned folder first. Download that uploaded archive again,
+verify its SHA-256 and `7z t`, then load/inspect the exact image before updating
+the public link or retiring the old distribution. Keep the accepted archive
+available throughout verification. `--replace-existing` removes matching
+remote files **before** upload; it is not a transactional release promotion and
+must not be used on the only accepted copy.
 
 Recommended auth order:
 
