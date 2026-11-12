@@ -120,6 +120,7 @@ These advanced and real-hardware paths require stronger PX4/Linux/networking kno
 
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)** for custom runtime env vars, mutable boot-sync behavior, and debug-oriented SITL tuning
 - **[Logging System Guide](docs/guides/logging-system.md)** for live and historical GCS / drone logs
+- **[Logs Operator Workflow](docs/guides/logs-operator-workflow.md)** for illustrated session export and PX4 flight-log retrieval
 - **[QuickScout Guide](docs/quickscout.md)** for SAR / recon workflows
 - **[Documentation Index](docs/README.md)** for the full map, APIs, archived notes, and deeper references
 

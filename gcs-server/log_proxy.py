@@ -96,6 +96,10 @@ class DroneProxyResponseError(DroneProxyRequestError):
         self.detail = detail
 
 
+class DroneProxyNotSubmittedError(DroneProxyResponseError):
+    """A local pre-handoff failure: no HTTP create could have reached the node."""
+
+
 def _proxy_error_message(detail: Any) -> str:
     """Return concise text while retaining a node's structured error payload."""
 
@@ -301,12 +305,10 @@ async def _request_json(
     headers: dict[str, str] | None = None,
     timeout: float | None = _TIMEOUT,
 ) -> dict:
-    request_headers = _authenticated_ulog_headers(
-        method,
-        drone_ip,
-        path,
-        headers,
-    )
+    try:
+        request_headers = _authenticated_ulog_headers(method, drone_ip, path, headers)
+    except DroneProxyResponseError as exc:
+        raise DroneProxyNotSubmittedError(exc.status_code, exc.detail) from exc
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.request(

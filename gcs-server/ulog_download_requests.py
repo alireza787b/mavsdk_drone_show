@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from mds_logging.api_schemas import (
     OnboardUlogDownloadJob, OnboardUlogDownloadJobResponse, OnboardUlogDownloadRequest,
 )
-from src.ulog_request_receipts import UlogRequestReceiptStore, native_download_job_id, request_fingerprint
+from src.ulog_request_receipts import UlogRequestReceiptStore, native_download_job_id, request_fingerprint, verify_native_rejection
 from ulog_job_handles import (
     create_ulog_job_capability, issue_ulog_job_handle, protect_ulog_job_payload,
     restore_ulog_job_capability,
@@ -27,7 +27,7 @@ class UlogDownloadCreateResponse(OnboardUlogDownloadJobResponse):
 class UlogDownloadRequestReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
     request_id: str
-    status: Literal["accepted", "unknown"]
+    status: Literal["accepted", "unknown", "rejected"]
     job: OnboardUlogDownloadJob | None = None
     error: str | None = None
     timestamp: int
@@ -52,10 +52,10 @@ class UlogDownloadRequests:
         )
 
     @staticmethod
-    def _creation_unknown(request_id: str, message: str, status_code: int = 409, native_detail=None):
+    def _creation_unknown(request_id: str, message: str, status_code: int = 409, native_detail=None, *, creation_status="unknown"):
         detail = dict(native_detail) if isinstance(native_detail, dict) else {}
         detail.setdefault("message", message)
-        detail.update(request_id=request_id, creation_status="unknown")
+        detail.update(request_id=request_id, creation_status=creation_status)
         return HTTPException(status_code=status_code, detail=detail)
 
     async def _accept(self, stored: dict, payload: dict, owner: str, drone_id: int) -> dict:
@@ -70,13 +70,18 @@ class UlogDownloadRequests:
         protected = protect_ulog_job_payload(response.model_dump(mode="json"), handle=handle)
         updated = {**stored, "status": "accepted", "job": protected["job"],
                    "node_job_id": job.job_id, "error": None}
-        await asyncio.to_thread(self.store.update, self._scope(owner, drone_id), stored["request_id"], updated)
-        return updated
+        return await asyncio.to_thread(self.store.update, self._scope(owner, drone_id), stored["request_id"], updated)
 
-    async def create(self, owner: str, drone_id: int, log_id: int, ip: str,
+    async def _reject(self, stored, owner, drone_id, message, status_code, stage, evidence=None):
+        return await asyncio.to_thread(self.store.update, self._scope(owner, drone_id), stored["request_id"], {
+            **stored, "status": "rejected", "job": None, "error": str(message)[:2048],
+            "rejected_status_code": status_code, "rejection_stage": stage, "rejection_evidence": evidence,
+        })
+
+    async def create(self, owner: str, drone_id: int, log_id: int, ip: str | None,
                      request: OnboardUlogDownloadRequest) -> UlogDownloadCreateResponse:
         from log_proxy import (
-            DroneProxyResponseError, DroneProxyUnavailableError, create_drone_ulog_download_job,
+            DroneProxyNotSubmittedError, DroneProxyResponseError, DroneProxyUnavailableError, create_drone_ulog_download_job,
         )
         capability = create_ulog_job_capability(drone_id=drone_id, owner_fingerprint=owner)
         request_id = request.request_id
@@ -94,7 +99,13 @@ class UlogDownloadRequests:
             if stored["status"] == "accepted":
                 return UlogDownloadCreateResponse(job=stored["job"], request_id=request_id,
                                                   timestamp=int(time.time() * 1000))
+            if stored["status"] == "rejected":
+                raise self._creation_unknown(request_id, stored["error"], stored.get("rejected_status_code", 409),
+                                             creation_status="rejected")
             raise self._creation_unknown(request_id, stored["error"])
+        if not ip:
+            stored = await self._reject(stored, owner, drone_id, "Aircraft has no configured endpoint; no native request was submitted", 404, "gcs_pre_handoff")
+            raise self._creation_unknown(request_id, stored["error"], 404, creation_status="rejected")
         try:
             payload = await create_drone_ulog_download_job(
                 ip, log_id, pos_id=request.pos_id, access_token=capability.access_token, request_id=request_id,
@@ -103,9 +114,15 @@ class UlogDownloadRequests:
         except (DroneProxyUnavailableError, DroneProxyResponseError, ValueError) as exc:
             detail = getattr(exc, "detail", str(exc))
             stored["error"] = str(detail)[:2048] or "Native acceptance could not be confirmed; recover this request, do not resubmit"
-            await asyncio.to_thread(self.store.update, self._scope(owner, drone_id), request_id, stored)
             status = getattr(exc, "status_code", 502)
-            raise self._creation_unknown(request_id, stored["error"], status, detail) from exc
+            if isinstance(exc, DroneProxyNotSubmittedError) or verify_native_rejection(detail, str(drone_id), log_id, request_id, capability.access_token):
+                stage = "gcs_pre_handoff" if isinstance(exc, DroneProxyNotSubmittedError) else "native_pre_acceptance"
+                stored = await self._reject(stored, owner, drone_id, str(exc), status, stage, detail)
+            else:
+                stored = await asyncio.to_thread(self.store.update, self._scope(owner, drone_id), request_id, stored)
+            if stored["status"] != "accepted":
+                raise self._creation_unknown(request_id, stored["error"], status, detail,
+                                             creation_status=stored["status"]) from exc
         return UlogDownloadCreateResponse(job=stored["job"], request_id=request_id,
                                           timestamp=int(time.time() * 1000))
 
@@ -115,7 +132,10 @@ class UlogDownloadRequests:
         stored = await asyncio.to_thread(self.store.get, self._scope(owner, drone_id), request_id)
         if stored is None or stored["drone_id"] != drone_id:
             return None
-        if stored["status"] == "accepted":
+        if stored["status"] in {"accepted", "rejected"}:
+            return self._public(stored)
+        if not stored["ip"]:
+            stored = await self._reject(stored, owner, drone_id, "Aircraft has no configured endpoint; no native request was submitted", 404, "gcs_pre_handoff")
             return self._public(stored)
         if ip is None or stored["ip"] != ip:
             return self._public({**stored, "error": "Aircraft endpoint is unavailable or changed; creation has not been replayed"})

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import sqlite3
@@ -34,6 +35,29 @@ def native_download_job_id(hw_id: str, request_id: str, access_token: str | None
         "request_id": request_id,
         "access_hash": hashlib.sha256((access_token or "").encode("utf-8")).hexdigest(),
     })[:32]
+
+
+def native_rejection_evidence(hw_id: str, log_id: int, request_id: str, access_token: str, message: str) -> dict:
+    """Bind pre-acceptance evidence to the existing transient job capability."""
+    detail = {
+        "code": "ulog_create_rejected", "creation_status": "rejected", "stage": "native_pre_acceptance",
+        "hw_id": str(hw_id), "log_id": int(log_id), "request_id": request_id,
+        "node_job_id": native_download_job_id(hw_id, request_id, access_token), "message": str(message)[:1024],
+    }
+    detail["rejection_proof"] = hmac.new(access_token.encode(), request_fingerprint(detail).encode(), hashlib.sha256).hexdigest()
+    return detail
+
+
+def verify_native_rejection(detail: Any, hw_id: str, log_id: int, request_id: str, access_token: str) -> bool:
+    if not isinstance(detail, dict) or not isinstance(detail.get("message"), str):
+        return False
+    proof = detail.get("rejection_proof")
+    if not isinstance(proof, str) or len(proof) != 64 or any(char not in "0123456789abcdef" for char in proof):
+        return False
+    expected = native_rejection_evidence(hw_id, log_id, request_id, access_token, detail["message"])
+    return all(detail.get(key) == value for key, value in expected.items() if key != "rejection_proof") and hmac.compare_digest(
+        proof, expected["rejection_proof"],
+    )
 
 
 class UlogRequestReceiptStore:
@@ -129,13 +153,20 @@ class UlogRequestReceiptStore:
         except sqlite3.Error as exc:
             raise UlogRequestStorageError("ULog request receipt could not be accepted; no new download was submitted") from exc
 
-    def update(self, scope: str, request_id: str, payload: dict[str, Any]) -> None:
+    def update(self, scope: str, request_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         encoded = self._encode(payload)
         try:
             with self._lock, self._connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT payload FROM ulog_requests WHERE scope = ? AND request_id = ?", (scope, request_id)).fetchone()
+                if row:
+                    current = json.loads(row[0])
+                    if current.get("status") in {"accepted", "rejected"}:
+                        return current  # Terminal evidence never regresses in a late-response race.
                 db.execute("UPDATE ulog_requests SET payload = ?, updated_at = ? WHERE scope = ? AND request_id = ?",
                            (encoded, int(time.time() * 1000), scope, request_id))
             with self._lock, self._connect() as db:
                 db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            return payload
         except sqlite3.Error as exc:
             raise UlogRequestStorageError("ULog request receipt update is unavailable; do not resubmit creation") from exc

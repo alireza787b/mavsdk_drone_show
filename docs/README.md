@@ -144,7 +144,7 @@ Detailed documentation for MDS features:
 | **[Mission Planning Workspace](features/mission-planning-workspace.md)** | Shared QuickScout and Swarm Trajectory planning UI doctrine, altitude/terrain behavior, degraded-state handling, and job/progress policy |
 | **[Swarm Trajectory](features/swarm-trajectory.md)** | Leader-route authoring, validation, preview, processing, commit/transfer, and launch/monitoring from its own Operate tab |
 | **[QuickScout](quickscout.md)** | SAR/recon point dispatch, last-known point, polygon area search, multi-vertex corridor planning, launch review, and monitoring |
-| **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
+| **[Logging System](guides/logging-system.md)** | Live, Sessions and Flight logs; [illustrated operator workflow](guides/logs-operator-workflow.md), export and maintenance |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |
 | **[Control Modes and Coordinates](control-modes-and-coordinates.md)** | Comprehensive guide to control modes, coordinate systems, Phase 2 auto-correction, and time synchronization |
 

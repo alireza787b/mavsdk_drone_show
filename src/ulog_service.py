@@ -41,7 +41,7 @@ from src.ulog_transfer_policy import (
 )
 from src.ulog_request_receipts import (
     UlogRequestConflict, UlogRequestReceiptStore, UlogRequestStorageError,
-    native_download_job_id, request_fingerprint,
+    native_download_job_id, native_rejection_evidence, request_fingerprint,
 )
 
 
@@ -70,6 +70,14 @@ class UlogUnsafePathError(UlogServiceError, RuntimeError):
 class UlogJobConflictError(UlogServiceError, RuntimeError):
     code = "ulog_job_conflict"
     http_status = 409
+
+
+class UlogCreateRejectedError(UlogJobConflictError):
+    code = "ulog_create_rejected"
+
+    def __init__(self, detail: dict) -> None:
+        self.rejection_detail = detail
+        super().__init__(detail["message"])
 
 
 class UlogCapacityError(UlogServiceError, RuntimeError):
@@ -294,6 +302,10 @@ class OnboardUlogService:
             return None
         if stored["fingerprint"] != fingerprint:
             raise UlogJobConflictError("Request identity is bound to a different ULog download")
+        if stored.get("status") == "rejected":
+            raise UlogCreateRejectedError(native_rejection_evidence(
+                self.hw_id, log_id, request.request_id, access_token or "", stored["message"],
+            ))
         async with self._lock:
             self._cleanup_expired_jobs_locked(self._now_ms())
             job = self._jobs.get(stored["job_id"])
@@ -302,6 +314,25 @@ class OnboardUlogService:
                     "Previous ULog request is in progress or unavailable after restart/expiry; creation will not be replayed"
                 )
             return OnboardUlogDownloadJobResponse(job=job.model_copy(deep=True), timestamp=self._now_ms())
+
+    async def reject_download_request(self, log_id, request, *, access_token: str | None, message: str) -> dict | None:
+        """Prove rejection only by atomically fencing an as-yet-unclaimed ID."""
+        if not getattr(request, "request_id", None) or not access_token:
+            return None
+        scope, fingerprint = self._download_request_binding(log_id, request, access_token)
+        try:
+            stored, _ = await asyncio.to_thread(
+                self._download_request_store().claim, scope, request.request_id, fingerprint,
+                {"job_id": native_download_job_id(self.hw_id, request.request_id, access_token),
+                 "fingerprint": fingerprint, "status": "rejected", "message": str(message)[:1024]},
+            )
+        except UlogRequestConflict:
+            return None
+        except UlogRequestStorageError as exc:
+            raise UlogStorageError(str(exc)) from exc
+        if stored.get("status") != "rejected":
+            return None  # Another create already owns this identity; its acceptance is not disproved.
+        return native_rejection_evidence(self.hw_id, log_id, request.request_id, access_token, stored["message"])
 
     async def claim_download_start(self, job_id: str) -> bool:
         """Reserve background scheduling once, including the queued-task window."""

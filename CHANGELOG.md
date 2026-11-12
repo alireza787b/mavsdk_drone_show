@@ -21,6 +21,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added metadata-only ULog request recovery and idempotency without replay after
   an uncertain response. Ready files have explicit Save; native staging/erase use
   fresh authoritative disarm evidence. Raw transfers remain outside optional MCP.
+- Proven pre-handoff rejection is terminal and clearly distinguished from an
+  uncertain transfer, so correcting a rejection does not leave preparation locked.
+  GCS and companion requirements now share the validated `pyulog==1.3.0` pin.
 - Mission Config no longer treats an unseen row's placeholder slot as a live
   mismatch or offers stale slot adoption. Parameter profile component/type labels
   have a separate line, preventing adjacent-column collisions.

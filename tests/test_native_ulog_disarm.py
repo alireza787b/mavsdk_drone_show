@@ -144,6 +144,39 @@ def test_same_creation_identity_is_lookup_only_even_if_aircraft_later_arms(test_
     transport.assert_not_awaited()
 
 
+def test_known_native_admission_rejection_is_fenced_and_new_explicit_request_can_succeed(test_client, native_ulog):
+    from src.ulog_request_receipts import verify_native_rejection
+
+    native_ulog.drone.armed_value = True
+    rejected = _create(test_client, "rejected-request")
+    assert rejected.status_code == 409
+    detail = rejected.json()["detail"]
+    assert detail["creation_status"] == "rejected"
+    assert verify_native_rejection(detail, str(native_ulog.server.drone_config.hw_id), 9,
+                                   "rejected-request", "native-test-capability")
+    assert not native_ulog.scheduled
+    native_ulog.drone.armed_value = False
+    assert _create(test_client, "rejected-request").json()["detail"]["creation_status"] == "rejected"
+    new_request = _create(test_client, "new-explicit-request")
+    assert new_request.status_code == 200
+    assert native_ulog.scheduled == [new_request.json()["job"]["job_id"]]
+
+
+def test_stale_cache_lookup_race_cannot_prove_an_already_accepted_request_rejected(test_client, native_ulog, monkeypatch):
+    first = _create(test_client, "accepted-request")
+    assert first.status_code == 200
+    original_lookup = native_ulog.server._ulog_service.get_request_job
+    monkeypatch.setattr(native_ulog.server._ulog_service, "get_request_job", AsyncMock(return_value=None))
+    native_ulog.server.drone_config.is_armed = True
+    raced = _create(test_client, "accepted-request")
+    assert raced.status_code == 409
+    assert not isinstance(raced.json()["detail"], dict) or raced.json()["detail"].get("creation_status") != "rejected"
+    monkeypatch.setattr(native_ulog.server._ulog_service, "get_request_job", original_lookup)
+    recovered = _create(test_client, "accepted-request")
+    assert recovered.status_code == 200 and recovered.json()["job"]["job_id"] == first.json()["job"]["job_id"]
+    assert len(native_ulog.scheduled) == 1
+
+
 def _filesystem_fallback(native_ulog, monkeypatch):
     root = native_ulog.tmp_path / "px4-logs"
     root.mkdir()

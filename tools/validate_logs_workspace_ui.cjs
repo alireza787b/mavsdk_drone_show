@@ -25,6 +25,7 @@ const summary = { schema_version: '1.0', parsed: true, parser: { status: 'ok', t
   duration_sec: 42, duration_evidence: { source: 'requested_topic_timestamps', lower_bound: true, timestamp_scan_complete: false },
   commands: { vehicle_command: { samples: 3 }, vehicle_command_ack: null }, source: { date_utc: null, size_bytes: 512 }, raw_content_included: false };
 const headers = now => ({ 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true',
+  'access-control-allow-private-network': 'true',
   'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS', 'access-control-allow-headers': 'Content-Type, X-CSRF-Token, Last-Event-ID',
   'access-control-expose-headers': 'X-MDS-Server-Time, Content-Disposition, X-MDS-Export-Records, X-MDS-Export-Skipped, X-MDS-Export-Scope', 'x-mds-server-time': String(now) });
 
@@ -137,6 +138,7 @@ async function source(page, id) {
 async function scenario(browser, width, theme) {
   const state = { requests: [], violations: [], fixtureErrors: [], errors: [], consoleErrors: [], receipts: new Map(), jobs: new Map(), creates: 0, lookups: 0, contentGets: 0, exports: [], uploads: 0, role: 'admin', emptyRoster: false };
   const context = await browser.newContext({ viewport: { width, height: width === 390 ? 900 : 1000 }, colorScheme: theme, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: true });
+  await context.grantPermissions(['local-network-access'], { origin });
   await context.addInitScript(value => { localStorage.setItem('drone-dashboard-theme', value); localStorage.setItem('mds:gcs-runtime-mode', 'sitl'); }, theme);
   const page = await context.newPage(); page.setDefaultTimeout(20000);
   page.on('pageerror', error => state.errors.push(error.message));
@@ -160,7 +162,7 @@ async function scenario(browser, width, theme) {
     fixture.emit('GCS', { reason: 'retention', coverage: 'partial', history_complete: false, lost_count: 2 }, 'gap');
     await page.getByText(/Source coverage gaps/).waitFor(); await capture('live-gap');
     await page.getByRole('tab', { name: 'Sessions', exact: true }).click(); await page.getByText('500 shown · page 1', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Next page' }).click(); await page.getByText('100 shown · page 2', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Next page', exact: true }).click(); await page.getByText('100 shown · page 2', { exact: true }).waitFor();
     await capture('guide-02-sessions');
     await clickAction(page, 'Export');
     const exportDialog = page.getByRole('dialog', { name: 'Export GCS sessions' }); await exportDialog.waitFor(); await capture('guide-03-export');

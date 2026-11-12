@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 import log_proxy
 import log_routes
-from src.ulog_request_receipts import native_download_job_id
+from src.ulog_request_receipts import native_download_job_id, native_rejection_evidence
 from tests.conftest import SyncASGITestClient as TestClient
 from ulog_download_requests import UlogDownloadRequests
 
@@ -137,3 +137,69 @@ def test_viewer_and_malformed_ids_reject_without_native_create(setup, monkeypatc
     assert client.get(BASE + "/download-requests/viewer-id", headers={"test-role": "viewer"}).status_code == 403
     assert client.post(BASE + "/files/9/download", json={"request_id": "bad/path"}).status_code == 422
     assert client.post(BASE + "/files/-1/download", json={"request_id": "valid-id"}).status_code == 422
+
+
+def test_missing_endpoint_is_durably_rejected_before_handoff_and_new_intent_is_allowed(setup, monkeypatch):
+    client, _, tmp_path = setup
+    calls = []
+    async def create(ip, log_id, *, access_token, request_id, pos_id=None):
+        calls.append(request_id)
+        return native_job(log_id, native_download_job_id("5", request_id, access_token))
+    monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", create)
+    monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda ignored: None)
+    response = client.post(BASE + "/files/9/download", json={"request_id": "missing-endpoint"})
+    assert response.status_code == 404 and response.json()["detail"]["creation_status"] == "rejected"
+    monkeypatch.setattr(log_routes, "get_ulog_download_requests", lambda: UlogDownloadRequests(str(tmp_path / "requests"), "sitl-runtime"))
+    receipt = client.get(BASE + "/download-requests/missing-endpoint")
+    assert receipt.status_code == 200 and receipt.json()["status"] == "rejected"
+    assert receipt.json()["job"] is None and not calls
+    monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda ignored: "192.0.2.5")
+    assert client.post(BASE + "/files/9/download", json={"request_id": "missing-endpoint"}).json()["detail"]["creation_status"] == "rejected"
+    assert client.post(BASE + "/files/9/download", json={"request_id": "new-intent"}).status_code == 200
+    assert calls == ["new-intent"]
+
+
+def test_valid_native_rejection_proof_becomes_terminal_receipt(setup, monkeypatch):
+    client, _, _ = setup
+    calls = []
+    async def create(ip, log_id, *, access_token, request_id, pos_id=None):
+        calls.append(request_id)
+        raise log_proxy.DroneProxyResponseError(409, native_rejection_evidence("5", log_id, request_id, access_token, "Vehicle is armed"))
+    async def unexpected_get(*args, **kwargs):
+        pytest.fail("Proven rejected requests must not poll or create native work")
+    monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", create)
+    monkeypatch.setattr(log_proxy, "fetch_drone_ulog_download_job", unexpected_get)
+    response = client.post(BASE + "/files/9/download", json={"request_id": "native-rejected"})
+    assert response.status_code == 409 and response.json()["detail"]["creation_status"] == "rejected"
+    assert client.get(BASE + "/download-requests/native-rejected").json()["status"] == "rejected"
+    assert client.post(BASE + "/files/9/download", json={"request_id": "native-rejected"}).json()["detail"]["creation_status"] == "rejected"
+    assert calls == ["native-rejected"]
+
+
+@pytest.mark.parametrize("detail", ["armed", {"creation_status": "rejected", "message": "not a verified receipt"}])
+def test_unmarked_or_unverified_native_409_remains_unknown_without_replay(setup, monkeypatch, detail):
+    client, _, _ = setup
+    calls = []
+    async def create(*args, **kwargs):
+        calls.append("POST")
+        raise log_proxy.DroneProxyResponseError(409, detail)
+    async def get(*args, **kwargs):
+        calls.append("GET")
+        raise log_proxy.DroneProxyResponseError(404, "not found is not rejection evidence")
+    monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", create)
+    monkeypatch.setattr(log_proxy, "fetch_drone_ulog_download_job", get)
+    response = client.post(BASE + "/files/9/download", json={"request_id": "unmarked-conflict"})
+    assert response.json()["detail"]["creation_status"] == "unknown"
+    assert client.get(BASE + "/download-requests/unmarked-conflict").json()["status"] == "unknown"
+    assert client.post(BASE + "/files/9/download", json={"request_id": "unmarked-conflict"}).json()["detail"]["creation_status"] == "unknown"
+    assert calls == ["POST", "GET"]
+
+
+def test_explicit_local_not_submitted_error_is_rejected_not_http_status_inference(setup, monkeypatch):
+    client, _, _ = setup
+    async def create(*args, **kwargs):
+        raise log_proxy.DroneProxyNotSubmittedError(503, "Local credential provisioning failed before HTTP handoff")
+    monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", create)
+    response = client.post(BASE + "/files/9/download", json={"request_id": "local-rejected"})
+    assert response.status_code == 503 and response.json()["detail"]["creation_status"] == "rejected"
+    assert client.get(BASE + "/download-requests/local-rejected").json()["status"] == "rejected"

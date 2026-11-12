@@ -200,6 +200,7 @@ from src.px4_param_models import (
 from src.px4_params.service import Px4ParamService
 from src.ulog_service import (
     OnboardUlogService,
+    UlogCreateRejectedError,
     UlogServiceError,
     UlogTransportTimeoutError,
     UlogTransportUnavailableError,
@@ -3547,15 +3548,32 @@ class DroneAPIServer:
                     detail="ULog download job capability is required.",
                 )
             download_request = request or OnboardUlogDownloadRequest()
+            async def reject_guard_failure(exc):
+                if not download_request.request_id:
+                    raise exc  # Direct legacy callers have no recoverable request identity.
+                detail = exc.detail
+                message = (detail.get("message") or detail.get("error") or str(detail)) if isinstance(detail, dict) else str(detail)
+                proof = await self._ulog_service.reject_download_request(
+                    int(log_id), download_request, access_token=ulog_job_token, message=message,
+                )
+                if proof is not None:
+                    raise HTTPException(status_code=exc.status_code, detail=proof) from exc
+                raise exc  # Existing/inflight identities cannot be proved unaccepted.
             try:
                 existing = await self._ulog_service.get_request_job(
                     int(log_id), download_request, access_token=ulog_job_token,
                 )
                 if existing is not None:
                     return existing  # Recovery is lookup-only, not another stage request.
-                self._assert_ulog_download_allowed()
+                try:
+                    self._assert_ulog_download_allowed()
+                except HTTPException as exc:
+                    await reject_guard_failure(exc)
                 async def create(drone):
-                    await self._assert_live_ulog_download_allowed(drone)
+                    try:
+                        await self._assert_live_ulog_download_allowed(drone)
+                    except HTTPException as exc:
+                        await reject_guard_failure(exc)
                     return await self._ulog_service.create_download_job(
                         drone,
                         int(log_id),
@@ -3566,6 +3584,8 @@ class DroneAPIServer:
                 if await self._ulog_service.claim_download_start(job_response.job.job_id):
                     self._start_ulog_download_task(job_response.job.job_id)
                 return job_response
+            except UlogCreateRejectedError as exc:
+                raise HTTPException(status_code=409, detail=exc.rejection_detail) from exc
             except UlogServiceError as exc:
                 raise self._ulog_failure_http_exception(
                     "create_ulog_download",

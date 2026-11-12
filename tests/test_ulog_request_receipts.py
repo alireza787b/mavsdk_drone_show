@@ -8,6 +8,7 @@ import pytest
 from mds_logging.api_schemas import OnboardUlogDownloadRequest
 from src.ulog_request_receipts import (
     UlogRequestConflict, UlogRequestReceiptStore, UlogRequestStorageError, native_download_job_id,
+    native_rejection_evidence, verify_native_rejection,
 )
 from src.ulog_service import OnboardUlogService, UlogJobConflictError
 
@@ -38,6 +39,26 @@ def test_receipt_rejects_symlink_and_oversized_metadata(tmp_path):
     with pytest.raises(UlogRequestStorageError, match="bounded"):
         store.claim("scope", "request", "fingerprint", {"raw": "x" * 9000})
     assert target.read_text() == "private"
+
+
+def test_terminal_acceptance_cannot_be_overwritten_by_late_unknown_or_rejection(tmp_path):
+    store = UlogRequestReceiptStore(tmp_path / "requests.sqlite3")
+    store.claim("scope", "request", "fingerprint", {"status": "unknown"})
+    accepted = {"status": "accepted", "job": {"job_id": "known-job"}}
+    assert store.update("scope", "request", accepted) == accepted
+    assert store.update("scope", "request", {"status": "unknown"}) == accepted
+    assert store.update("scope", "request", {"status": "rejected"}) == accepted
+    assert store.get("scope", "request") == accepted
+
+
+def test_rejection_evidence_is_bound_to_the_existing_request_capability():
+    proof = native_rejection_evidence("5", 9, "request", "capability", "Aircraft is armed")
+    assert verify_native_rejection(proof, "5", 9, "request", "capability")
+    assert not verify_native_rejection(proof, "6", 9, "request", "capability")
+    assert not verify_native_rejection(proof, "5", 10, "request", "capability")
+    assert not verify_native_rejection(proof, "5", 9, "other-request", "capability")
+    assert not verify_native_rejection(proof, "5", 9, "request", "wrong-capability")
+    assert not verify_native_rejection({**proof, "rejection_proof": "not-a-proof"}, "5", 9, "request", "capability")
 
 
 class FakeLogs:

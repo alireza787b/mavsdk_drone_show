@@ -3,7 +3,7 @@ import { createDroneUlogDownloadJob, getDroneUlogDownloadJob, getDroneUlogDownlo
 import { logError } from './logWorkspace';
 
 export const ULOG_TERMINAL = new Set(['ready', 'failed', 'expired', 'deleted']);
-export const transferPending = record => !record.job || !ULOG_TERMINAL.has(record.job.status);
+export const transferPending = record => record.creationStatus !== 'rejected' && (!record.job || !ULOG_TERMINAL.has(record.job.status));
 const read = key => {
   const records = JSON.parse(localStorage.getItem(key) || '[]');
   if (!Array.isArray(records) || records.length > 32 || records.some(item => typeof item.requestId !== 'string'
@@ -35,8 +35,9 @@ export default function useUlogTransfers(storageKey) {
     try {
       const saved = read(key);
       const prior = saved.find(item => item.requestId === record.requestId);
-      if (prior?.job && (!record.job || (ULOG_TERMINAL.has(prior.job.status) && !ULOG_TERMINAL.has(record.job.status))
-        || (Number(prior.job.updated_at) > Number(record.job.updated_at)))) record = { ...record, job: prior.job };
+      if (prior?.job && !record.job) record = { ...record, job: prior.job, creationStatus: 'accepted', error: prior.error || '' };
+      else if (prior?.job && ((ULOG_TERMINAL.has(prior.job.status) && !ULOG_TERMINAL.has(record.job.status))
+        || (Number(prior.job.updated_at) > Number(record.job.updated_at)))) record = { ...record, job: prior.job, creationStatus: 'accepted' };
       next = [compact(record), ...saved.filter(item => item.requestId !== record.requestId)];
       while (next.length > 32) {
         const index = next.map(item => !transferPending(item)).lastIndexOf(true);
@@ -63,8 +64,14 @@ export default function useUlogTransfers(storageKey) {
       const response = record.job?.job_id ? await getDroneUlogDownloadJob(record.droneId, record.job.job_id)
         : await getDroneUlogDownloadRequest(record.droneId, record.requestId);
       if (response.request_id && response.request_id !== record.requestId) throw new Error('Recovery identity mismatch.');
+      if (response.status === 'rejected') {
+        if (response.request_id !== record.requestId || record.job) throw new Error('Rejection evidence does not match this pending creation.');
+        persist({ ...record, creationStatus: 'rejected', error: response.error || 'Request rejected before transfer acceptance.' }, key);
+        return;
+      }
       const job = response.job ? inspectJob(response.job, record) : null;
-      persist({ ...record, job: job || record.job, error: job ? '' : response.error || 'Creation outcome remains unconfirmed. Do not submit again.' }, key);
+      persist({ ...record, job: job || record.job, creationStatus: job ? 'accepted' : record.creationStatus,
+        error: job ? '' : response.error || 'Creation outcome remains unconfirmed. Do not submit again.' }, key);
     } catch (failure) {
       persist({ ...record, error: failure?.response?.status === 404 ? 'Handle unavailable for this actor or expired. Creation outcome is not proven absent; do not resend.' : logError(failure) }, key);
     }
@@ -88,14 +95,19 @@ export default function useUlogTransfers(storageKey) {
     try {
       const existing = read(key);
       if (existing.some(item => transferPending(item))) throw new Error('Check the active or unconfirmed transfer before preparing another.');
-      record = { requestId: requestId(), droneId: String(droneId), logId, aircraftLabel, createdAt: Date.now(), job: null, error: '', browserRequestedAt: null };
+      record = { requestId: requestId(), droneId: String(droneId), logId, aircraftLabel, createdAt: Date.now(), job: null, creationStatus: 'pending', error: '', browserRequestedAt: null };
       persist(record, key, true);
     } catch (failure) { setError(`Not sent: ${logError(failure)}`); lock.current = false; setBusy(false); return false; }
     try {
       const response = await createDroneUlogDownloadJob(record.droneId, record.logId, { requestId: record.requestId });
       if (response.request_id && response.request_id !== record.requestId) throw new Error('Transfer request identity mismatch.');
-      persist({ ...record, job: inspectJob(response.job, record) }, key);
-    } catch (failure) { persist({ ...record, error: `Outcome unconfirmed: ${logError(failure)} Check receipt; do not submit again.` }, key); }
+      persist({ ...record, job: inspectJob(response.job, record), creationStatus: 'accepted' }, key);
+    } catch (failure) {
+      const detail = failure?.response?.data?.detail;
+      const rejected = detail?.creation_status === 'rejected' && detail.request_id === record.requestId;
+      persist({ ...record, creationStatus: rejected ? 'rejected' : 'unknown',
+        error: rejected ? `Not started: ${logError(failure)}` : `Outcome unconfirmed: ${logError(failure)} Check receipt; do not submit again.` }, key);
+    }
     finally { lock.current = false; if (mounted.current && activeKey.current === key) setBusy(false); }
     return true;
   };

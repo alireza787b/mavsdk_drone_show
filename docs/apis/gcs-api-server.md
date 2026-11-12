@@ -2490,11 +2490,16 @@ actor-and-aircraft-bound GCS handles, not native job tokens.
 Recover a lost response with
 `GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}`. The
 response is `{request_id, status, job, error, timestamp}`: `status` is
-`accepted` or `unknown`, and `job` is the protected job object or `null`, not a
+`accepted`, `unknown` or terminal `rejected`, and `job` is the protected job object or `null`, not a
 nested response envelope. The route is operator/admin-only. Another actor,
 aircraft or runtime cannot recover that receipt; conflicting reuse for another
 aircraft/file is rejected. A failed create response includes `request_id` and
 `creation_status: "unknown"` in its detail when acceptance remains uncertain.
+Only explicit evidence can produce `creation_status: "rejected"`: a durable
+GCS pre-handoff failure or a request-and-capability-bound native rejection
+before acceptance. Rejected receipts are recoverable through the same GET and
+allow a new explicit request with a new ID. Generic HTTP errors, transport loss
+or a missing-job `404` are not proof of rejection and remain unknown.
 
 The GCS commits bounded request metadata before calling the node. Duplicate
 known requests return the same job; uncertain requests are never silently

@@ -14,7 +14,7 @@ export default function UlogTransferActivity({ transfers, userRole, now }) {
     {transfers.records.map(record => {
       const expired = record.job?.expires_at && now >= record.job.expires_at;
       const status = expired ? 'expired' : record.job?.status;
-      const label = record.error ? 'Outcome unconfirmed' : ({ ready: 'Ready to save', queued: 'Preparing', downloading: 'Preparing', failed: 'Failed', expired: 'Expired', deleted: 'Staged copy removed' }[status] || 'Creation unconfirmed');
+      const label = record.creationStatus === 'rejected' ? 'Not started' : record.error ? 'Outcome unconfirmed' : ({ ready: 'Ready to save', queued: 'Preparing', downloading: 'Preparing', failed: 'Failed', expired: 'Expired', deleted: 'Staged copy removed' }[status] || 'Creation unconfirmed');
       return <section key={record.requestId} className="logs-transfer-row"><div><strong>{label}</strong><span>{record.aircraftLabel} · log {record.logId}</span></div>
         {record.job?.progress != null && !ULOG_TERMINAL.has(status) && <progress value={record.job.progress} max="1" aria-label="Observed transfer progress" />}
         {record.error && <p className="logs-inline-warning">{record.error}</p>}{record.job?.error && <p>{record.job.error}</p>}

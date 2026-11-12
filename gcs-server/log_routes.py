@@ -376,8 +376,6 @@ def create_log_router(
         if body.request_id is None:
             body = body.model_copy(update={"request_id": uuid.uuid4().hex})
         ip = resolve_drone_ip(drone_id)
-        if ip is None:
-            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         try:
             service = await asyncio.to_thread(get_ulog_download_requests)
             return await service.create(owner, drone_id, log_id, ip, body)

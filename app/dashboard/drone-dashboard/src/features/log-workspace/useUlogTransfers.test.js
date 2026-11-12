@@ -56,3 +56,34 @@ test('unsupported recovery identity fails before any native create', async () =>
   expect(result.current.error).toContain('cannot create a recovery identity');
   expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
 });
+test('only request-bound explicit rejection proof releases the creation lock', async () => {
+  service.createDroneUlogDownloadJob.mockImplementation(async (id, logId, { requestId }) => {
+    throw Object.assign(new Error('Fixture rejection'), { response: { status: 409, data: { detail: { creation_status: 'rejected', request_id: requestId, message: 'No configured endpoint; not handed off.' } } } });
+  });
+  const { result } = renderHook(() => useUlogTransfers(KEY));
+  await act(async () => { await result.current.prepare({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1' }); });
+  expect(result.current.records[0].creationStatus).toBe('rejected'); expect(result.current.pending).toBe(false);
+});
+test('generic HTTP rejection is still uncertain until a matching receipt proves otherwise', async () => {
+  service.createDroneUlogDownloadJob.mockRejectedValue({ response: { status: 409, data: { detail: 'Conflict without pre-handoff proof' } } });
+  const { result } = renderHook(() => useUlogTransfers(KEY));
+  await act(async () => { await result.current.prepare({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1' }); });
+  expect(result.current.pending).toBe(true);
+  const record = result.current.records[0];
+  service.getDroneUlogDownloadRequest.mockResolvedValue({ request_id: record.requestId, status: 'rejected', job: null, error: 'Proven not handed off.' });
+  await act(async () => { await result.current.check(record); });
+  expect(result.current.pending).toBe(false); expect(result.current.records[0].creationStatus).toBe('rejected');
+  expect(service.createDroneUlogDownloadJob).toHaveBeenCalledTimes(1);
+});
+test('lost create response can recover a proven Not started receipt without replay', async () => {
+  service.createDroneUlogDownloadJob.mockRejectedValue(new Error('Response lost'));
+  const { result } = renderHook(() => useUlogTransfers(KEY));
+  await act(async () => { await result.current.prepare({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1' }); });
+  expect(result.current.pending).toBe(true);
+  const record = result.current.records[0];
+  service.getDroneUlogDownloadRequest.mockResolvedValue({ request_id: record.requestId, status: 'rejected', job: null, error: 'Pre-handoff endpoint unavailable.' });
+  await act(async () => { await result.current.check(record); });
+  expect(result.current.pending).toBe(false);
+  expect(result.current.records[0].creationStatus).toBe('rejected');
+  expect(service.createDroneUlogDownloadJob).toHaveBeenCalledTimes(1);
+});

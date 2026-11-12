@@ -502,6 +502,12 @@ restart, but staged jobs do not: a claimed identity without runtime job state is
 unavailable/unknown, never permission to recreate it. Direct legacy calls that
 omit `request_id` retain one new job per create call.
 
+Admission rejection for an identified create is durably fenced before the node
+returns request-bound rejection evidence, authenticated with the existing
+transient job capability. An already claimed/accepted identity cannot acquire
+that rejection proof. The GCS marks a request terminally rejected only after
+verifying this evidence; an unmarked `409` or lost response remains unknown.
+
 Under the configured download/erase disarm policy, native execution checks
 confirmed fresh disarm immediately before staging/copy, the MAVSDK download, or
 erase. Filesystem fallback and summary-internal staging use the same guard.
