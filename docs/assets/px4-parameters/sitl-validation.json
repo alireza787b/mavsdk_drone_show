@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-12",
+  "mode": "isolated_sitl_current_source_overlay",
+  "success": true,
+  "drone_ids": [1, 2],
+  "param_name": "MPC_XY_VEL_MAX",
+  "single_test_value": 13.0,
+  "batch_test_value": 13.5,
+  "restoration": [
+    {"hw_id": "1", "outcome": "baseline_verified"},
+    {"hw_id": "2", "outcome": "baseline_verified"}
+  ],
+  "idempotent_receipt_replay_checked": true,
+  "stale_review_native_rejection_checked": true,
+  "real_aircraft_commands_sent": 0,
+  "pinned_distribution_image_refreshed": false
+}

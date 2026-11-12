@@ -1,0 +1,272 @@
+{
+  "fixtureOnly": true,
+  "scope": "Real built UI with intercepted synthetic GCS and system-font fallback; no SITL/hardware or native-flight clearance.",
+  "origin": "http://127.0.0.1:3039",
+  "createdAt": "2026-11-12T03:01:30.287Z",
+  "results": [
+    {
+      "width": 1440,
+      "theme": "dark",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 4,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-9e7fb19a-5bde-498b-a1f4-a8891c1ac299": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-1440-dark.png",
+        "guide-01-inspect-1440-dark.png",
+        "guide-02-edit-1440-dark.png",
+        "guide-03-review-1440-dark.png",
+        "guide-04-results-1440-dark.png",
+        "unknown-before-reload-1440-dark.png",
+        "unknown-recovered-1440-dark.png",
+        "guide-05-profile-1440-dark.png",
+        "profile-reviewed-1440-dark.png",
+        "import-last-change-1440-dark.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 4,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-d5a4d9e3-8aae-4455-a6cd-543e9ac9df5b": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-1440-light.png",
+        "guide-01-inspect-1440-light.png",
+        "guide-02-edit-1440-light.png",
+        "guide-03-review-1440-light.png",
+        "guide-04-results-1440-light.png",
+        "unknown-before-reload-1440-light.png",
+        "unknown-recovered-1440-light.png",
+        "guide-05-profile-1440-light.png",
+        "profile-reviewed-1440-light.png",
+        "import-last-change-1440-light.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "width": 900,
+      "theme": "dark",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 4,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-20e6e49f-b366-42ee-9b54-c7bcad90de8d": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-900-dark.png",
+        "guide-01-inspect-900-dark.png",
+        "guide-02-edit-900-dark.png",
+        "guide-03-review-900-dark.png",
+        "guide-04-results-900-dark.png",
+        "unknown-before-reload-900-dark.png",
+        "unknown-recovered-900-dark.png",
+        "guide-05-profile-900-dark.png",
+        "profile-reviewed-900-dark.png",
+        "import-last-change-900-dark.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "width": 900,
+      "theme": "light",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 4,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-b024e9ae-9804-4b2b-ba90-ae5c62990600": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-900-light.png",
+        "guide-01-inspect-900-light.png",
+        "guide-02-edit-900-light.png",
+        "guide-03-review-900-light.png",
+        "guide-04-results-900-light.png",
+        "unknown-before-reload-900-light.png",
+        "unknown-recovered-900-light.png",
+        "guide-05-profile-900-light.png",
+        "profile-reviewed-900-light.png",
+        "import-last-change-900-light.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 3,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-ba6b4e29-2168-4a77-8343-375decaad29a": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-390-dark.png",
+        "guide-01-inspect-390-dark.png",
+        "guide-02-edit-390-dark.png",
+        "guide-03-review-390-dark.png",
+        "guide-04-results-390-dark.png",
+        "unknown-before-reload-390-dark.png",
+        "unknown-recovered-390-dark.png",
+        "guide-05-profile-390-dark.png",
+        "profile-reviewed-390-dark.png",
+        "import-last-change-390-dark.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "passed": true,
+      "parameterCount": 2049,
+      "applyPosts": 2,
+      "lookupGets": 1,
+      "profileGets": 2,
+      "imports": 1,
+      "requestCounts": {
+        "FONT_CSS_FIXTURE /css2": 2,
+        "GET /api/v1/auth/status": 2,
+        "GET /api/v1/commands/active": 3,
+        "GET /api/v1/commands/recent": 2,
+        "GET /api/v1/git/status": 4,
+        "GET /api/v1/system/runtime-status": 2,
+        "GET /api/v1/config/fleet": 2,
+        "GET /api/v1/fleet/telemetry": 2,
+        "GET /api/v1/config/swarm": 2,
+        "GET /api/v1/px4-params/policy": 2,
+        "GET /api/v1/px4-params/profiles": 2,
+        "GET /api/v1/px4-params/profiles/sample_baseline": 2,
+        "POST /api/v1/px4-params/snapshots": 4,
+        "POST /api/v1/px4-params/reviews": 4,
+        "POST /api/v1/px4-params/patch-jobs": 2,
+        "GET /api/v1/px4-params/patch-jobs/by-idempotency/dashboard-b41a15d8-962d-4085-85f2-458ea302b63c": 1,
+        "POST /api/v1/px4-params/imports/qgc": 1
+      },
+      "screenshots": [
+        "parameters-list-390-light.png",
+        "guide-01-inspect-390-light.png",
+        "guide-02-edit-390-light.png",
+        "guide-03-review-390-light.png",
+        "guide-04-results-390-light.png",
+        "unknown-before-reload-390-light.png",
+        "unknown-recovered-390-light.png",
+        "guide-05-profile-390-light.png",
+        "profile-reviewed-390-light.png",
+        "import-last-change-390-light.png"
+      ],
+      "expectedConsoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ]
+    }
+  ]
+}

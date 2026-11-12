@@ -24,6 +24,9 @@ Design rules:
 
 ## Operator Workspace
 
+See the [illustrated operator workflow](guides/px4-parameter-operator.md) for the
+step-by-step guide and original-resolution screenshots.
+
 The page has two tabs: **Parameters** and **Profiles**. Inspection and writing
 are separate actions. Opening a parameter, loading a file, choosing a profile or
 changing the aircraft being inspected never writes to PX4.

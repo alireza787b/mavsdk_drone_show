@@ -713,6 +713,30 @@
       "reason": "Browser executable selector for dashboard layout validation."
     },
     {
+      "name": "MDS_CHROMIUM_EXECUTABLE",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Explicit browser executable for fixture-only workspace validation and screenshot guides."
+    },
+    {
+      "name": "MDS_UI_BASE",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Built dashboard origin for isolated fixture-only UI checks."
+    },
+    {
+      "name": "MDS_UI_EVIDENCE",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Output directory for fixture-only UI evidence and screenshots."
+    },
+    {
+      "name": "MDS_UI_FIXTURE_ONLY",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Mandatory opt-in to intercepted synthetic backend traffic; never an aircraft runtime setting."
+    },
+    {
       "name": "MDS_LAYOUT_OUTPUT",
       "domain": "frontend",
       "scope": "test",

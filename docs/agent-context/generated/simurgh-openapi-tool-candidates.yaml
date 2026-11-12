@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 228
+candidate_count: 231
 candidates:
 - callable: false
   classification:
@@ -2583,6 +2583,47 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - browser request-key recovery is dashboard-scoped; use the reviewed patch-job ID read tool
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.px4.params.patch.jobs.by.idempotency.by.idempotency.key
+  parameters:
+  - description: ''
+    in: path
+    name: idempotency_key
+    required: true
+    schema:
+      maxLength: 160
+      minLength: 8
+      title: Idempotency Key
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/JobResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: find_px4_param_patch_job_api_v1_px4_params_patch_jobs_by_idempotency__idempotency_key__get
+    path: /api/v1/px4-params/patch-jobs/by-idempotency/{idempotency_key}
+    summary: Find Px4 Param Patch Job
+    tags:
+    - PX4 Parameters
+- callable: false
+  classification:
+    default_registry_exposure: exclude
     eligible_read_only_mcp_candidate: true
     inferred_risk_class: observe
     inferred_sensitivity: []
@@ -2611,7 +2652,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/Px4ParamPatchJobResponse'
+    $ref: '#/components/schemas/JobResponse'
   review_status: needs_review
   source:
     method: GET
@@ -2722,6 +2763,46 @@ candidates:
     operation_id: get_px4_param_profile_api_v1_px4_params_profiles__profile_id__get
     path: /api/v1/px4-params/profiles/{profile_id}
     summary: Get Px4 Param Profile
+    tags:
+    - PX4 Parameters
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - operator write-review state; use existing parameter snapshot read tools
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.px4.params.reviews.by.review.id
+  parameters:
+  - description: ''
+    in: path
+    name: review_id
+    required: true
+    schema:
+      maxLength: 160
+      title: Review Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/ReviewResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_px4_param_review_api_v1_px4_params_reviews__review_id__get
+    path: /api/v1/px4-params/reviews/{review_id}
+    summary: Get Px4 Param Review
     tags:
     - PX4 Parameters
 - callable: false
@@ -7374,14 +7455,46 @@ candidates:
     default_callable: false
     default_exposure: exclude
     reviewed_registry_entry_required: true
-  response_schema:
-    $ref: '#/components/schemas/Px4ParamPatchJobResponse'
+  response_schema: {}
   review_status: needs_review
   source:
     method: POST
     operation_id: create_px4_param_patch_job_api_v1_px4_params_patch_jobs_post
     path: /api/v1/px4-params/patch-jobs
     summary: Create Px4 Param Patch Job
+    tags:
+    - PX4 Parameters
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - non_get_method
+    - request_body_present
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.px4.params.reviews
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/ReviewResponse'
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: prepare_px4_param_review_api_v1_px4_params_reviews_post
+    path: /api/v1/px4-params/reviews
+    summary: Prepare Px4 Param Review
     tags:
     - PX4 Parameters
 - callable: false
@@ -8883,7 +8996,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 1b86f321c573794c544a1bdeddd27b108e48d57f7cbb984cca27c2ff7f647098
+  openapi_sha256: 1ae8f71f3013c02ec01d4885fc90ba375343adfb3959f78cb1747ec78055d4ff
   title: GCS Server API
   version: '5.5'
 summary:

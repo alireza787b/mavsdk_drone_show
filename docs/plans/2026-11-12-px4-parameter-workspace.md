@@ -1,7 +1,8 @@
 # PX4 parameter workspace modernization
 
-Status: approved implementation in progress. This is not a flight clearance or
-a validated image release.
+Status: implemented; source, targeted safety/API checks, built UI and isolated
+two-aircraft parameter workflow validated. This is not a flight clearance or a
+validated pinned-image release.
 
 ## Accepted scope
 
@@ -63,3 +64,36 @@ and SITL services remain isolated from production. Deployment requires aircraft
 to be off or grounded/disarmed with no test running. Keep a rollback artifact,
 archive evidence and remove only owned temporary workspaces after resolving
 dependency symlinks and running-process working directories.
+
+## Validation and handoff
+
+- 436 targeted Python checks passed across native values/policy/receipts,
+  HTTP/GCS contracts, imports, reboot safety and agent/environment tooling.
+- The complete dashboard suite passed: 168 suites / 1,265 tests. Final compact
+  review changes also passed the four-suite / 43-test focused gate.
+- The release dashboard compiled successfully on the designated validation
+  host. Six built-browser cases cover 1440/900/390 widths in light/dark themes,
+  2,049 parameters, frozen targets, a lost apply response recovered by GET-only
+  lookup, profiles and a 1,200-row import with the last difference accessible.
+- Two isolated PX4 SITL instances passed snapshot → single/fleet reviewed
+  write → targeted readback, same-key receipt replay and stale-review rejection.
+  Both original values were independently restored and verified. No flight or
+  real-aircraft parameter command was sent.
+- A native reboot gap found during review was fixed at the action boundary:
+  fresh disarm evidence is required, plus ON_GROUND when available. Missing,
+  stale or unsafe evidence blocks even direct/force invocations.
+- The operator guide and original-resolution screenshots use synthetic aircraft.
+  API documentation, non-callable tool candidates, public docs search and the
+  existing read-only MCP receipt contract are aligned. No parameter-write tool
+  was enabled.
+
+The SITL evidence used the existing lab image with an explicit current-source
+overlay and startup Git sync disabled. A clean pinned-image rebuild/export is
+still required for distribution and is deferred for disk headroom. Do not call
+this a refreshed image. At the next aircraft power-on, verify companion source
+revisions and identities before using new native write/reboot contracts; a new
+portal alone cannot establish board software parity.
+
+See the [illustrated workflow](../guides/px4-parameter-operator.md). Raw runtime
+logs and deployment reports stay in private host evidence; only a whitelisted
+[SITL summary](../assets/px4-parameters/sitl-validation.json) is public.

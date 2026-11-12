@@ -1,0 +1,12 @@
+{
+  "title": "PX4 PARAMETERS · INSPECT TO VERIFY",
+  "subtitle": "Choose aircraft → inspect → edit → review → apply once → read the receipt",
+  "steps": [
+    ["01", "Inspect the right aircraft", "Choose aircraft, Refresh, then find a parameter. Reading and inspecting do not change PX4.", "guide-01-inspect-1440-dark.png"],
+    ["02", "Prepare an exact value", "Select Edit value. Check the units and reference details. Review change creates a draft, not a write.", "guide-02-edit-1440-dark.png"],
+    ["03", "Review every target and difference", "Choose Apply targets, then Prepare review. Check the aircraft and exact current → proposed values before Apply.", "guide-03-review-1440-dark.png"],
+    ["04", "Confirm the outcome", "Verified means the readback matched. For an unconfirmed result, use Check receipt; do not submit another write to investigate.", "guide-04-results-1440-dark.png"],
+    ["05", "Reuse a profile or import", "Profiles and QGC imports enter the same target/difference review. Loading a file or profile never applies it automatically.", "guide-05-profile-1440-dark.png"]
+  ],
+  "footer": "Synthetic SITL illustrations, not recommended flight tuning. Keep aircraft safely grounded/disarmed for maintenance. Reboot is a separate deliberate action."
+}
