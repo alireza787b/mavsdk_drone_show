@@ -82,6 +82,8 @@ not changed by this presentation update. A single bounded inspector serves the
 2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.
 Expanded details scroll inside it instead of clipping behind the map boundary.
 
+![Bounded aircraft inspector, using synthetic aircraft and an offline grid rather than a surveyed basemap](../assets/operator-overview/map-inspector-desktop-dark.png)
+
 ## Select command targets
 
 A fresh browser session starts with the **available configured aircraft** selected
