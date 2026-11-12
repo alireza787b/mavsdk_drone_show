@@ -10,6 +10,7 @@ jest.mock('../utilities/commandLifecycleFeedback', () => ({ trackCommandReceipt:
 
 let mockCount = 1;
 jest.mock('../components/DeviationView', () => () => <div>Layout evidence</div>);
+jest.mock('../components/DronePositionMap', () => () => <div>Map evidence</div>);
 jest.mock('../components/VisualizationSection', () => () => <div>Trajectory previews</div>);
 jest.mock('../components/ImportSection', () => () => <div>Import</div>);
 jest.mock('../components/ExportSection', () => () => <div>Export</div>);
@@ -25,6 +26,18 @@ jest.mock('../hooks/useGcsResourcePolling', () => ({ __esModule: true, default: 
 
 beforeAll(() => { Element.prototype.scrollIntoView = jest.fn(); });
 beforeEach(() => { sessionStorage.clear(); jest.clearAllMocks(); sendDroneCommand.mockResolvedValue({ accepted_for_tracking: true, command_id: 'show-1' }); });
+
+test('launch evidence owns plot/map review and opens directly from Mission Config', () => {
+  mockCount = 2;
+  render(<MemoryRouter initialEntries={['/drone-show#launch-geometry']}><DroneShowWorkspace runtimeMode="sitl" /></MemoryRouter>);
+  expect(document.getElementById('launch-geometry')).toHaveAttribute('open');
+  expect(screen.getByText('Layout evidence')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Map', exact: true }));
+  expect(screen.getByText('Map evidence')).toBeInTheDocument();
+  expect(screen.queryByText('Layout evidence')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Edit assignments ↗' })).toHaveAttribute('href', '/mission-config');
+  expect(sendDroneCommand).not.toHaveBeenCalled();
+});
 
 test.each([1, 50, 100])('operator evidence remains searchable for %i aircraft', count => {
   mockCount = count;

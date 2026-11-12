@@ -78,7 +78,7 @@ fs.mkdirSync(evidence, { recursive: true });
         await page.getByRole('button', { name: `Inspect ${name} · H${name === 'ALPHA' ? '1' : '2'}`, exact: true }).click();
         const inspector = page.getByRole('dialog', { name, exact: true });
         assert.equal(await inspector.locator('dt').filter({ hasText: /^Network$/ })
-          .locator('xpath=following-sibling::dd[1]').innerText(), expected);
+          .locator('xpath=following-sibling::dd[1]').innerText().then(text => text.trim()), expected);
         assert.equal(await inspector.getByText('Wi-Fi signal', { exact: true }).count(), 0);
         const bounds = await inspector.boundingBox();
         assert(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, 'Inspector fits the viewport');

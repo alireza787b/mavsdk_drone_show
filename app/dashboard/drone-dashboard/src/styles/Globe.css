@@ -5,9 +5,9 @@
     height: 80vh;
     position: relative;
     background-color: var(--color-bg-primary);
-    border-radius: 10px;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 4px 20px var(--color-overlay);
+    box-shadow: none;
   }
 
 .scene-container.filters-open .globe-drone-screen-targets {
@@ -16,7 +16,7 @@
 }
 
 
-.button-container {
+.scene-container .button-container {
     position: absolute;
     top: 15px;
     right: 15px;
@@ -35,27 +35,26 @@
     z-index: calc(var(--z-tooltip) + 8);
 }
 
-.button-container .fullscreen-button,
-.button-container .focus-button,
-.button-container .toolbox-button {
-    width: 40px;
-    height: 40px;
+.scene-container .button-container .fullscreen-button,
+.scene-container .button-container .focus-button,
+.scene-container .button-container .toolbox-button {
+    width: 44px;
+    height: 44px;
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
     border: 1px solid var(--color-border-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
+    border-radius: 2px;
     cursor: pointer;
     padding: 0;
     transition: transform 0.2s ease, background-color 0.3s ease;
 }
 
-.button-container .fullscreen-button:hover,
-.button-container .focus-button:hover,
-.button-container .toolbox-button:hover {
-    transform: scale(1.2);
+.scene-container .button-container .fullscreen-button:hover,
+.scene-container .button-container .focus-button:hover,
+.scene-container .button-container .toolbox-button:hover {
     background-color: var(--color-border-secondary);
 }
 

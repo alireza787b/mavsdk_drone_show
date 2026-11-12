@@ -144,3 +144,7 @@
 .drone-show-workspace__selection { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .6rem; }
 .drone-show-workspace__table label { display: flex; align-items: center; gap: .6rem; min-height: 2.75rem; }
 .drone-show-workspace__table input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }
+.drone-show-workspace__layout-controls { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.6rem 0; }
+.drone-show-workspace__layout-controls button { min-height:44px; padding:.5rem .8rem; color:var(--color-text-primary); background:var(--color-bg-primary); border:1px solid var(--color-border-primary); border-radius:2px; font:inherit; font-size:.8rem; cursor:pointer; }
+.drone-show-workspace__layout-controls button[aria-pressed="true"] { border-color:var(--color-primary); color:var(--color-primary); }
+.drone-show-workspace__layout-controls a { margin-inline-start:auto; font-size:.8rem; }

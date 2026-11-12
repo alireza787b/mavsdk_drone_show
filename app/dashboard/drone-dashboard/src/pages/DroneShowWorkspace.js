@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MdFlightTakeoff, MdHome, MdPauseCircleOutline, MdStop } from 'react-icons/md';
 import ImportSection from '../components/ImportSection';
 import VisualizationSection from '../components/VisualizationSection';
@@ -8,6 +8,7 @@ import ShowAnalysisDetails from '../components/ShowAnalysisDetails';
 import ExportSection from '../components/ExportSection';
 import SequentialReturnControl from '../components/SequentialReturnControl';
 import DeviationView from '../components/DeviationView';
+import DronePositionMap from '../components/DronePositionMap';
 import { ConfirmDialog, MetricStrip, OperatorCard, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
 import useShowAircraftSelection from '../hooks/useShowAircraftSelection';
@@ -38,6 +39,8 @@ function ReadinessRow({ label, ready, detail, caution = false, action = null, st
 }
 
 export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'setup' ? 'setup' : 'operate';
   const [revision, setRevision] = useState(0);
@@ -48,12 +51,25 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
   const { busy } = dispatch;
   const [error, setError] = useState('');
   const [aircraftFilter, setAircraftFilter] = useState('');
+  const [layoutOpen, setLayoutOpen] = useState(location.hash === '#launch-geometry');
+  const [layoutView, setLayoutView] = useState('plot');
+  useEffect(() => {
+    if (location.hash !== '#launch-geometry') return;
+    setLayoutOpen(true);
+    document.getElementById('launch-geometry')?.scrollIntoView({ block: 'nearest' });
+  }, [location.hash]);
   const [now, setNow] = useState(() => performance.now());
   useEffect(() => { const timer = setInterval(() => setNow(performance.now()), 1000); return () => clearInterval(timer); }, []);
   const workspaceState = useGcsResourcePolling(GCS_ROUTE_KEYS.showWorkspace, 15000, revision);
   const operationState = useShowOperation(1, runtimeMode);
   const originState = useGcsResourcePolling(GCS_ROUTE_KEYS.origin, 15000, revision);
-  const geometryState = useGcsResourcePolling(mode === 'global-auto' ? GCS_ROUTE_KEYS.positionDeviations : null, 5000, revision);
+  const geometryState = useGcsResourcePolling(mode === 'global-auto' || layoutOpen ? GCS_ROUTE_KEYS.positionDeviations : null, 5000, revision);
+  const positionsState = useGcsResourcePolling(layoutOpen ? GCS_ROUTE_KEYS.dronePositions : null, 10000, revision);
+  const trajectoryPositionsByPosId = useMemo(() => Object.fromEntries(
+    (Array.isArray(positionsState.data) ? positionsState.data : []).map(row => [String(row.pos_id), row])
+  ), [positionsState.data]);
+  const layoutOriginReady = [originState.data?.lat, originState.data?.lon]
+    .every(value => typeof value === 'number' && Number.isFinite(value));
   const workspace = workspaceState.data;
   const operation = operationState.data;
   const fleet = useMemo(() => operation?.fleet || [], [operation]);
@@ -167,11 +183,21 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
             <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} status={readiness.analysisStatus === 'FAIL' ? 'Blocked' : readiness.analysisStatus === 'WARNING' ? 'Review' : null} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : workspace?.validation?.findings?.[0]?.title || workspace?.validation?.issues?.[0]} action={<a href="#trajectory-analysis" onClick={e => revealEvidence(e, 'trajectory-analysis')}>View findings</a>} />
           </OperatorCard>
         </div>
-        <details id="launch-geometry" className="drone-show-workspace__evidence-panel">
+        <details id="launch-geometry" className="drone-show-workspace__evidence-panel" open={layoutOpen} onToggle={event => setLayoutOpen(event.currentTarget.open)}>
           <summary>Launch geometry · expected vs live</summary>
+          <div className="drone-show-workspace__layout-controls" role="group" aria-label="Launch layout view">
+            {['plot', 'map'].map(view => <button type="button" key={view} aria-pressed={layoutView === view}
+              onClick={() => setLayoutView(view)}>{view === 'plot' ? 'Plot' : 'Map'}</button>)}
+            <Link to="/mission-config">Edit assignments ↗</Link>
+          </div>
           <div className="drone-show-workspace__evidence-content">
-            {readiness.originReady ? <DeviationView drones={fleet} deviationData={geometryState.data} trajectoryPositionsByPosId={{}} origin={originState.data} /> : <p>Set the shared origin in Mission Config to review launch positions.</p>}
-            <Link to="/mission-config">Open Mission Config</Link>
+            {layoutOpen && (layoutOriginReady ? layoutView === 'plot'
+              ? <DeviationView drones={fleet} deviationData={geometryState.data} trajectoryPositionsByPosId={trajectoryPositionsByPosId} origin={originState.data}
+                onDroneClick={hwId => navigate(`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`)} />
+              : <DronePositionMap drones={fleet} deviationData={geometryState.data} trajectoryPositionsByPosId={trajectoryPositionsByPosId}
+                originLat={originState.data.lat} originLon={originState.data.lon}
+                onDroneClick={hwId => navigate(`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`)} />
+              : <p><Link to="/mission-config">Set origin</Link> to review launch positions.</p>)}
           </div>
         </details>
         <details id="trajectory-analysis" className="drone-show-workspace__metrics-panel">
@@ -198,10 +224,10 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
           </tbody></table></div>
         </OperatorCard>
       </div> : <div className="drone-show-workspace__setup">
-        <div className="drone-show-workspace__setup-intro"><div><span className="drone-show-workspace__eyebrow">Design / Setup</span><h2>Prepare the show package</h2><p>Import, review, then hand off to Operate when the package and launch positions are ready.</p></div><Link className="drone-show-workspace__setup-next" to="/mission-config">Next: launch positions</Link></div>
+        <div className="drone-show-workspace__setup-intro"><div><span className="drone-show-workspace__eyebrow">Design / Setup</span><h2>Prepare the show package</h2><p>Import, review, then hand off to Operate.</p></div><Link className="drone-show-workspace__setup-next" to="/drone-show#launch-geometry" onClick={() => setLayoutOpen(true)}>Next: launch layout</Link></div>
         <ImportSection setUploadCount={setRevision} />
         <VisualizationSection uploadCount={revision} />
-        <Link to="/mission-config">Review launch positions, assignments & origin</Link>
+        <Link to="/mission-config">Edit aircraft, slots & origin</Link>
         <ExportSection />
         <details className="drone-show-workspace__advanced"><summary>Advanced · Custom CSV</summary><Link to="/custom-show">Open Custom CSV</Link></details>
       </div>}

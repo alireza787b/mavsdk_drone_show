@@ -2,15 +2,13 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import '../styles/MissionConfigWorkspace.css';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 // Components
-import PositionTabs from '../components/PositionTabs';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
-import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import MissionConfigAlertStack from '../components/missionConfig/MissionConfigAlertStack';
 import PendingEnrollmentPanel from '../components/missionConfig/PendingEnrollmentPanel';
@@ -54,12 +52,9 @@ import {
 import { toast } from 'react-toastify';
 import {
   toastErrorThrottled,
-  toastWarningThrottled,
 } from '../utilities/toastFeedback';
 import {
   GCS_ROUTE_KEYS,
-  getPositionDeviationsResponse,
-  getTrajectoryFirstRowResponse,
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
@@ -81,11 +76,6 @@ const MissionConfig = () => {
   const handledRouteDroneRef = useRef('');
 
   // -----------------------------------------------------
-  // Heading slider: single source of truth
-  // -----------------------------------------------------
-  const [forwardHeading, setForwardHeading] = useState(0);
-
-  // -----------------------------------------------------
   // State variables
   // -----------------------------------------------------
   const [configData, setConfigData] = useState([]);
@@ -99,9 +89,6 @@ const MissionConfig = () => {
   // Role Swap Details Modal
   const [showRoleSwapModal, setShowRoleSwapModal] = useState(false);
   const [roleSwapData, setRoleSwapData] = useState([]);
-
-  // Deviations
-  const [deviationData, setDeviationData] = useState({});
 
   // Git & Network
   const [networkInfo, setNetworkInfo] = useState([]);
@@ -118,11 +105,9 @@ const MissionConfig = () => {
   const [showSaveReviewDialog, setShowSaveReviewDialog] = useState(false);
   const [validationReport, setValidationReport] = useState(null);
 
-  const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
   const [missionConfigSearch, setMissionConfigSearch] = useState('');
   const [clusterScope, setClusterScope] = useState('all');
   const [assignmentFilter, setAssignmentFilter] = useState('all');
-  const [launchLayoutView, setLaunchLayoutView] = useState('plot');
   const [pendingFocusDroneId, setPendingFocusDroneId] = useState(null);
   const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
   const requestedEditMode = searchParams.get('edit') === '1';
@@ -147,16 +132,11 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   const { data: configDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetConfig);
   const { data: originDataFetched, loading: originLoading, error: originError } = useFetch(GCS_ROUTE_KEYS.origin);
-  const { data: deviationDataFetched } = useFetch(
-    GCS_ROUTE_KEYS.positionDeviations,
-    originAvailable ? 5000 : null
-  );
   const { data: telemetryDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
   const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
   const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
   const { data: heartbeatsFetched, meta: heartbeatClock } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
   const { data: fleetCandidatesFetched } = useFetch(`${GCS_ROUTE_KEYS.fleetCandidates}?runtime_mode=current`, 5000);
-  const { data: savedDronePositionsFetched } = useFetch(GCS_ROUTE_KEYS.dronePositions, 10000);
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   // -----------------------------------------------------
@@ -224,12 +204,6 @@ const MissionConfig = () => {
   }, [originDataFetched]);
 
   useEffect(() => {
-    if (deviationDataFetched) {
-      setDeviationData(deviationDataFetched);
-    }
-  }, [deviationDataFetched]);
-
-  useEffect(() => {
     if (gitStatusDataFetched) {
       if (gitStatusDataFetched.git_status) {
         setGitStatusData(gitStatusDataFetched.git_status);
@@ -265,83 +239,6 @@ const MissionConfig = () => {
       setHeartbeats({});
     }
   }, [heartbeatsFetched, heartbeatClock]);
-
-  useEffect(() => {
-    if (!Array.isArray(savedDronePositionsFetched)) {
-      return;
-    }
-
-    setTrajectoryPositionsByPosId((prev) => {
-      const next = { ...prev };
-      savedDronePositionsFetched.forEach((position) => {
-        const posId = normalizeComparableId(position?.pos_id);
-        const north = Number(position?.x);
-        const east = Number(position?.y);
-
-        if (!posId || !Number.isFinite(north) || !Number.isFinite(east)) {
-          return;
-        }
-
-        next[posId] = {
-          pos_id: posId,
-          x: north,
-          y: east,
-        };
-      });
-      return next;
-    });
-  }, [savedDronePositionsFetched]);
-
-  useEffect(() => {
-    const missingPosIds = Array.from(
-      new Set(
-        configData
-          .map((drone) => normalizeComparableId(drone.pos_id, drone.hw_id))
-          .filter(Boolean)
-      )
-    ).filter((posId) => trajectoryPositionsByPosId[posId] === undefined);
-
-    if (missingPosIds.length === 0) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    Promise.all(
-      missingPosIds.map(async (posId) => {
-        try {
-          const response = await getTrajectoryFirstRowResponse(posId);
-
-          const x = Number(response.data?.x ?? response.data?.north);
-          const y = Number(response.data?.y ?? response.data?.east);
-          if (!Number.isFinite(x) || !Number.isFinite(y)) {
-            return [posId, null];
-          }
-
-          return [posId, { pos_id: posId, x, y }];
-        } catch (error) {
-          return [posId, null];
-        }
-      })
-    ).then((results) => {
-      if (cancelled) {
-        return;
-      }
-
-      setTrajectoryPositionsByPosId((prev) => {
-        const next = { ...prev };
-        results.forEach(([posId, position]) => {
-          if (position) {
-            next[posId] = position;
-          }
-        });
-        return next;
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [configData, trajectoryPositionsByPosId]);
 
   // -----------------------------------------------------
   // CRUD operations
@@ -432,29 +329,6 @@ const MissionConfig = () => {
       toastErrorThrottled('mission-config-origin-save', message);
       throw error;
     }
-  };
-
-  // -----------------------------------------------------
-  // Manual refresh for position deviations
-  // -----------------------------------------------------
-  const handleManualRefresh = () => {
-    if (!originAvailable) {
-      toastWarningThrottled(
-        'mission-config-origin-required',
-        'Set origin before refreshing deviations.',
-        { cooldownMs: 30000 }
-      );
-      return;
-    }
-
-    getPositionDeviationsResponse()
-      .then((response) => {
-        setDeviationData(response.data);
-      })
-      .catch((error) => {
-        console.error('Error fetching position deviations:', error);
-        toastErrorThrottled('mission-config-deviation-refresh', 'Failed to refresh position data.');
-      });
   };
 
   // -----------------------------------------------------
@@ -900,6 +774,7 @@ const MissionConfig = () => {
         clusterScope={clusterScope}
         onClusterScopeChange={setClusterScope}
       />
+      <Link className="mission-config-show-link" to="/drone-show#launch-geometry">Drone Show · launch layout ↗</Link>
 
       <MissionConfigAlertStack
         pendingEnrollmentDrones={pendingEnrollmentDrones}
@@ -984,7 +859,7 @@ const MissionConfig = () => {
         </div>
       )}
 
-      {/* Main content: Drone Cards & Plots */}
+      {/* Aircraft configuration only; show launch evidence belongs to Drone Show. */}
       <div className="content-flex">
         <div className="drone-cards" ref={assignmentWallRef}>
           <div className="mission-config-card-panel-header">
@@ -997,6 +872,7 @@ const MissionConfig = () => {
             filteredConfigData.map((drone) => (
               <div
                 key={drone.hw_id}
+                className={`mission-config-aircraft${normalizeComparableId(editingDroneId) === normalizeComparableId(drone.hw_id) ? ' is-editing' : ''}`}
                 id={`mission-config-drone-${drone.hw_id}`}
                 ref={(node) => {
                   const normalizedHwId = normalizeComparableId(drone.hw_id);
@@ -1039,49 +915,6 @@ const MissionConfig = () => {
           )}
         </div>
 
-        <div className="initial-launch-plot">
-          <h2>Launch layout</h2>
-          <div className="mission-config-layout-switcher" role="tablist" aria-label="Launch layout view">
-            <button
-              type="button"
-              className={`mission-config-layout-switcher__button ${launchLayoutView === 'plot' ? 'active' : ''}`}
-              onClick={() => setLaunchLayoutView('plot')}
-              aria-pressed={launchLayoutView === 'plot'}
-            >
-              Plot
-            </button>
-            <button
-              type="button"
-              className={`mission-config-layout-switcher__button ${launchLayoutView === 'map' ? 'active' : ''}`}
-              onClick={() => setLaunchLayoutView('map')}
-              aria-pressed={launchLayoutView === 'map'}
-            >
-              Map
-            </button>
-          </div>
-
-          {launchLayoutView === 'plot' ? (
-            <PositionTabs
-              drones={configData}
-              deviationData={deviationData}
-              trajectoryPositionsByPosId={trajectoryPositionsByPosId}
-              origin={origin}
-              forwardHeading={forwardHeading}
-              onDroneClick={(hwId) => { reviewAssignmentCard(hwId, 'all'); setEditingDroneId(normalizeComparableId(hwId)); }}
-              onRefresh={handleManualRefresh}
-            />
-          ) : (
-            <DronePositionMap
-              originLat={origin.lat}
-              originLon={origin.lon}
-              drones={configData}
-              deviationData={deviationData}
-              trajectoryPositionsByPosId={trajectoryPositionsByPosId}
-              forwardHeading={forwardHeading}
-              onDroneClick={(hwId) => { reviewAssignmentCard(hwId, 'all'); setEditingDroneId(normalizeComparableId(hwId)); }}
-            />
-          )}
-        </div>
       </div>
 
       <section className="mission-config-secondary-panels" aria-label="Mission configuration secondary tools">
@@ -1138,32 +971,13 @@ const MissionConfig = () => {
 
         <details className="mission-config-secondary-panel" ref={missionPreviewPanelRef}>
           <summary>
-            <span>Mission preview tools</span>
+            <span>Origin & exports</span>
           </summary>
           <MissionLayout
             configData={configData}
             origin={origin}
             openOriginModal={() => setShowOriginModal(true)}
           />
-
-          <div className="heading-controls heading-controls-preview">
-            <div className="heading-controls-header">
-              <div>
-                <label htmlFor="headingSlider">
-                  Preview heading: {forwardHeading}°
-                </label>
-              </div>
-              <small>Preview only · not saved</small>
-            </div>
-            <input
-              id="headingSlider"
-              type="range"
-              min={0}
-              max={359}
-              value={forwardHeading}
-              onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
-            />
-          </div>
         </details>
       </section>
 

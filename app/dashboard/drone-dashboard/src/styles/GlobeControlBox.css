@@ -5,14 +5,11 @@
     position: absolute;
     top: 60px;
     right: 15px;
-    background:
-        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), transparent 48%),
-        color-mix(in srgb, var(--color-bg-secondary) 96%, black);
-    backdrop-filter: blur(18px) saturate(1.05);
+    background: var(--color-bg-primary);
     padding: 16px;
-    border-radius: 12px;
+    border-radius: 0;
     border: 1px solid var(--color-border-primary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: none;
     transition: transform 0.3s ease, opacity 0.3s ease;
     opacity: 0;
     pointer-events: none;
@@ -79,11 +76,11 @@
     color: var(--color-text-primary);
 }
 
-.control-section {
+.globe-control-box .control-section {
     margin-bottom: 12px;
 }
 
-.control-label {
+.globe-control-box .control-label {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -98,7 +95,7 @@
     transform: scale(1.2);
 }
 
-.number-input {
+.globe-control-box .number-input {
     margin-left: auto;
     padding: 6px 8px;
     border: 1px solid var(--color-border-primary);

@@ -160,6 +160,13 @@ The dashboard supports both JSON (primary) and CSV (legacy) import/export:
 
 ### Mission Config UI Behavior
 
+- Mission Config edits aircraft, show slots and the shared origin. **Drone Show ·
+  launch layout** opens the expected/live plot and map in Drone Show; the editor
+  does not load trajectory plots or issue per-slot CSV requests.
+- Edit an aircraft, review its identity/transport fields, then apply the row.
+  **Save & Commit** reviews and persists the fleet changes. Import/export and
+  origin/KML tools remain in the secondary sections; no configuration action
+  starts an aircraft.
 - Mission Config treats `hw_id` and `pos_id` as the only primary identity fields
 - Additional JSON fields appear under **Additional Fields**
 - `callsign` is promoted as a secondary alias when present

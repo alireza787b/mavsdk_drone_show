@@ -1,6 +1,7 @@
 import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
+import { ConfirmDialog } from './ui';
 import { toast } from 'react-toastify';
 import {
   FaCheckCircle,
@@ -1044,49 +1045,20 @@ const DroneEditForm = memo(function DroneEditForm({
 
   return (
     <>
-      {showPosChangeDialog && (
-        <div className="confirmation-dialog-backdrop">
-          <div className="confirmation-dialog" role="dialog" aria-modal="true">
-            <h4>Confirm Show Slot Change</h4>
-            <p>
-              You are changing the assigned show slot from <strong>{originalPosId}</strong> to{' '}
-              <strong>{currentPosId}</strong>.
-            </p>
-            <p>
-              This changes which trajectory file the drone will fly. Show slots are loaded from trajectory CSV files.
-            </p>
-            <p>
-              If a different spare airframe is taking over this slot, use Fleet Enrollment → Replace existing slot instead of editing the slot here.
-            </p>
-            <p className="confirmation-dialog__prompt">Do you want to proceed?</p>
-            <div className="dialog-buttons">
-              <button className="confirm-button" onClick={handleConfirmPosChange}>
-                Yes
-              </button>
-              <button className="cancel-button" onClick={handleCancelPosChange}>
-                No
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog open={showPosChangeDialog} title="Change show slot" appearance="console"
+        message={<><p>Slot <strong>{originalPosId} → {currentPosId}</strong></p><p>This selects a different show trajectory, not a replacement aircraft.</p></>}
+        confirmLabel="Apply slot" onConfirm={handleConfirmPosChange} onCancel={handleCancelPosChange} />
 
       <div className="drone-edit-form">
         <div className="form-header">
-          <div className="form-header-kicker">Edit Mission Assignment</div>
+          <div className="form-header-kicker">Edit aircraft</div>
           <h3>{`${formatDroneLabel(currentHwId, 'New Drone')} · ${formatShowSlotLabel(currentPosId, 'Show Slot Unassigned')}`}</h3>
-          <p className="form-header-copy">
-            Hardware ID stays with the physical drone. Position ID selects the show slot and trajectory file. Smart Swarm follow-links still use Hardware ID.
-          </p>
         </div>
 
         {/* Form Section */}
         <div className="form-section">
           <div className="form-section-block">
             <div className="form-section-title">Identity Assignment</div>
-            <div className="form-section-description">
-              Keep Hardware ID tied to the physical drone. Change Position ID only when this drone must fly a different slot.
-            </div>
             <div className="form-grid">
               <div className="form-field">
                 <label className="form-label" htmlFor={hwIdInputId}>

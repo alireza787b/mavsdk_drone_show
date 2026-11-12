@@ -3,7 +3,7 @@
 **Mission Type:** `1` (`DRONE_SHOW_FROM_CSV`)  
 **Advanced Alternate Mode:** `3` (`CUSTOM_CSV_DRONE_SHOW`)  
 **Primary UI Surface:** `Drone Show` (`/drone-show`)
-**Supporting Surface:** `Mission Config` for launch geometry and origin
+**Supporting Surface:** `Mission Config` for aircraft assignments and origin
 
 ## Overview
 
@@ -22,7 +22,7 @@ Do not mix these mentally. The standard Drone Show path is the normal operator w
 1. Open `Drone Show`.
 2. In **Design / Setup**, import a SkyBrush ZIP archive.
 3. Review the generated plots, metrics, trajectory validation, and safety result.
-4. Open `Mission Config` from the workspace when launch geometry or origin needs editing.
+4. Review the live launch layout in Drone Show. Open `Mission Config` only to edit aircraft assignments or origin.
 5. Select the launch mode in Design / Setup; **Global · auto correction** is the normal outdoor choice.
 6. Return to **Operate** and wait for the package, validation, safety, and fleet rows to be ready.
 7. Select the exact aircraft in **Operate**. Filtering only changes visibility;
@@ -213,9 +213,14 @@ one boolean:
   error-level geometry is not valid. The preflight row links directly to the
   page that can correct it.
 
-The launch-geometry review uses the same expected-versus-live evidence as
-Mission Config. It is read-only from Drone Show and is intentionally not a
-second geometry implementation.
+**Launch geometry → Review layout** owns the shared expected-versus-live plot
+and map. It uses the existing native deviations and trajectory-start API, not a
+second geometry calculation. **Edit assignments** opens Mission Config; clicking
+an aircraft in either view opens that exact hardware identity for editing.
+Mission Config no longer embeds or polls show plots. Opening the layout from its
+link expands the review directly; neither inspection nor navigation dispatches a
+mission or changes command targets. A missing map origin is an edit link, not
+invented coordinates; local-mode launch policy is unchanged.
 
 Show imports render light and dark JPEGs from the same Matplotlib figure for
 both combined and individual trajectories. Operate, Design / Setup and the
@@ -343,14 +348,14 @@ the collapsed **Last run** section rather than occupying the flight controls.
 ![Custom Show controls and selected aircraft](../assets/operator-workspaces/custom-operate-dark.png)
 
 Mission Config places assignment search, Save & Commit and origin review above
-the aircraft assignments and live launch layout. Plot/map inspection opens the
-same hardware identity for editing; it does not change a command target set.
+the responsive aircraft editor. Live plot/map review belongs to Drone Show's
+Launch geometry panel, reached through **Drone Show · launch layout**.
 Enrollment, identity guidance and import/export tools remain available in
 disclosures. Detected nodes are never enrolled automatically. Configuration save
 review retains duplicate/missing-trajectory guards; changing the review clears
 any previous duplicate-slot acknowledgment.
 
-![Mission Config assignments and measured launch layout](../assets/operator-workspaces/mission-config-dark.png)
+![Mission Config aircraft assignments](../assets/operator-workspaces/mission-config-dark.png)
 
 That page is intentionally separate from the normal SkyBrush Drone Show workspace:
 

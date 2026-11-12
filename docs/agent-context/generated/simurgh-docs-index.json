@@ -6593,7 +6593,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "5f10b518e765197a5457d03ecd102220bb4978edc2664ab70ad1c5928e7eaa64",
+      "content_hash": "5babdb2065efb6dbb1b3d616f01f438c6fd4b52dfdf7de737ad3aea88e6595e3",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6607,7 +6607,7 @@
         "operations",
         "selection"
       ],
-      "text": "![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.\n\nThe compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).",
+      "text": "![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.\n\nThe compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).\n\nFleet Map's 2D and 3D aircraft popups use the same transport labels and console\ntheme. **Details** reveals the configured IP, reported network/interface and last\ntelemetry time. Selecting another aircraft closes its previous action/jog review;\nit cannot inherit a reviewed target. Source coordinates and map positioning are\nnot changed by this presentation update.",
       "title": "Overview operator guide"
     },
     {
@@ -10300,7 +10300,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "01639f3c72ffcd34e97ddd23b159bb7bfd596aeda3e4cae118f300a25e6b3036",
+      "content_hash": "2d18a569f914a9936c9e8ce2d070826b6f49c710adc8d5fb6782a04d766c930e",
       "heading": "Drone Show Guide",
       "id": "mds.drone_show:001-01-drone-show-guide",
       "links": [],
@@ -10314,7 +10314,7 @@
         "skybrush",
         "mission"
       ],
-      "text": "# Drone Show Guide\n\n**Mission Type:** `1` (`DRONE_SHOW_FROM_CSV`) \n**Advanced Alternate Mode:** `3` (`CUSTOM_CSV_DRONE_SHOW`) \n**Primary UI Surface:** `Drone Show` (`/drone-show`)\n**Supporting Surface:** `Mission Config` for launch geometry and origin",
+      "text": "# Drone Show Guide\n\n**Mission Type:** `1` (`DRONE_SHOW_FROM_CSV`) \n**Advanced Alternate Mode:** `3` (`CUSTOM_CSV_DRONE_SHOW`) \n**Primary UI Surface:** `Drone Show` (`/drone-show`)\n**Supporting Surface:** `Mission Config` for aircraft assignments and origin",
       "title": "Drone Show guide"
     },
     {
@@ -10340,7 +10340,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "f0ca76df3c6b96631aade77df5450612100bc6ddeadb556275ec24240f7572e8",
+      "content_hash": "bd3a73a266eba021f84eb259d65f78123e992b1bf7aba80e81908b568a63a97d",
       "heading": "Standard Operator Flow",
       "id": "mds.drone_show:003-01-standard-operator-flow",
       "links": [],
@@ -10354,7 +10354,7 @@
         "skybrush",
         "mission"
       ],
-      "text": "## Standard Operator Flow\n\n1. Open `Drone Show`.\n2. In **Design / Setup**, import a SkyBrush ZIP archive.\n3. Review the generated plots, metrics, trajectory validation, and safety result.\n4. Open `Mission Config` from the workspace when launch geometry or origin needs editing.\n5. Select the launch mode in Design / Setup; **Global · auto correction** is the normal outdoor choice.\n6. Return to **Operate** and wait for the package, validation, safety, and fleet rows to be ready.\n7. Select the exact aircraft in **Operate**. Filtering only changes visibility;\n it never changes the checked aircraft. Every selected show slot must exist in\n the package and have a unique configured hardware assignment.\n8. Use the default **When ready**, or choose **After delay** / **At time**, then review and confirm\n **Launch show**. The review freezes the target IDs and requested timing;\n changing the package, assignment, reference or selection requires a new review.\n Absolute input uses the browser's local timezone; the review shows UTC and\n scheduling uses the GCS clock. Existing native synchronized-launch admission\n still applies, including rejection when the safe timing window is missed.\n **When ready** requests synchronized startup after aircraft checks; it does\n not mean immediate flight on acceptance. The coordinator records the actual\n shared trigger after preparation, and the operation view counts down from\n that tracked time. Explicit delayed/absolute times are not silently extended.\n9. Monitor the operation rail and fleet rows from the same page.\n10. Use **Hold**, **Managed return**, **Land here**, or **Cancel show** only when needed. Recovery controls act on the recorded show targets, not a newly edited launch selection.",
+      "text": "## Standard Operator Flow\n\n1. Open `Drone Show`.\n2. In **Design / Setup**, import a SkyBrush ZIP archive.\n3. Review the generated plots, metrics, trajectory validation, and safety result.\n4. Review the live launch layout in Drone Show. Open `Mission Config` only to edit aircraft assignments or origin.\n5. Select the launch mode in Design / Setup; **Global · auto correction** is the normal outdoor choice.\n6. Return to **Operate** and wait for the package, validation, safety, and fleet rows to be ready.\n7. Select the exact aircraft in **Operate**. Filtering only changes visibility;\n it never changes the checked aircraft. Every selected show slot must exist in\n the package and have a unique configured hardware assignment.\n8. Use the default **When ready**, or choose **After delay** / **At time**, then review and confirm\n **Launch show**. The review freezes the target IDs and requested timing;\n changing the package, assignment, reference or selection requires a new review.\n Absolute input uses the browser's local timezone; the review shows UTC and\n scheduling uses the GCS clock. Existing native synchronized-launch admission\n still applies, including rejection when the safe timing window is missed.\n **When ready** requests synchronized startup after aircraft checks; it does\n not mean immediate flight on acceptance. The coordinator records the actual\n shared trigger after preparation, and the operation view counts down from\n that tracked time. Explicit delayed/absolute times are not silently extended.\n9. Monitor the operation rail and fleet rows from the same page.\n10. Use **Hold**, **Managed return**, **Land here**, or **Cancel show** only when needed. Recovery controls act on the recorded show targets, not a newly edited launch selection.",
       "title": "Drone Show guide"
     },
     {
@@ -10560,7 +10560,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "eb1929a8b1ba2643fa726d83932148ee73ed017a70af4eee25e6d06b97ed6518",
+      "content_hash": "daa6380408f2330e8aa2f21ce34f1abb8589152adcdf7d5db8e8e8ca92ad4cca",
       "heading": "Launch Readiness",
       "id": "mds.drone_show:012-01-launch-readiness",
       "links": [],
@@ -10574,13 +10574,13 @@
         "skybrush",
         "mission"
       ],
-      "text": "## Launch Readiness\n\nThe Drone Show **Operate** tab checks the real blockers for the standard Drone Show path:\n\n- imported show exists\n- origin is configured when auto correction is enabled\n- live telemetry is available for launch-position verification\n- critical placement errors are absent\n\nWarnings remain visible for:\n\n- GPS-quality concerns\n- manual-placement assumptions\n- non-critical placement drift\n\nThe operator surface distinguishes four outcomes instead of collapsing them into\none boolean:\n\n- **Ready** — all required checks pass.\n- **Ready with correction** — global auto-correction can handle a warning-level\n launch deviation; the measured aircraft and deviation remain visible.\n- **Review** — a non-blocking warning or manual-placement assumption needs an\n operator decision.\n- **Blocked** — origin, telemetry, PX4 readiness, trajectory analysis, or\n error-level geometry is not valid. The preflight row links directly to the\n page that can correct it.\n\nThe launch-geometry review uses the same expected-versus-live evidence as\nMission Config. It is read-only from Drone Show and is intentionally not a\nsecond geometry implementation.\n\nShow imports render light and dark JPEGs from the same Matplotlib figure for\nboth combined and individual trajectories. Operate, Design / Setup and the\nfullscreen viewer share one theme-aware renderer; changing the dashboard theme\nswitches assets without image inversion or changing aircraft colors. The plot\nlist keeps canonical gallery names in `filenames` and exposes theme choices in\n`variants`, with a `revision` for cache invalidation. Existing canonical URLs\nremain light/print compatible. To refresh older assets, run `plot_drone_paths`\nwith explicit processed/plot directories using the GCS service's Python virtual\nenvironment; no trajectory conversion or aircraft command is required.\n\nUI evidence probes must verify actual selected image names and image pixels,\nnot only page layout. Use `tools/probe_drone_show_operator_ui.py --plot-dir ...`\nto validate real generated JPEGs across both themes, Operate, Setup and fullscreen.",
+      "text": "## Launch Readiness\n\nThe Drone Show **Operate** tab checks the real blockers for the standard Drone Show path:\n\n- imported show exists\n- origin is configured when auto correction is enabled\n- live telemetry is available for launch-position verification\n- critical placement errors are absent\n\nWarnings remain visible for:\n\n- GPS-quality concerns\n- manual-placement assumptions\n- non-critical placement drift\n\nThe operator surface distinguishes four outcomes instead of collapsing them into\none boolean:\n\n- **Ready** — all required checks pass.\n- **Ready with correction** — global auto-correction can handle a warning-level\n launch deviation; the measured aircraft and deviation remain visible.\n- **Review** — a non-blocking warning or manual-placement assumption needs an\n operator decision.\n- **Blocked** — origin, telemetry, PX4 readiness, trajectory analysis, or\n error-level geometry is not valid. The preflight row links directly to the\n page that can correct it.\n\n**Launch geometry → Review layout** owns the shared expected-versus-live plot\nand map. It uses the existing native deviations and trajectory-start API, not a\nsecond geometry calculation. **Edit assignments** opens Mission Config; clicking\nan aircraft in either view opens that exact hardware identity for editing.\nMission Config no longer embeds or polls show plots. Opening the layout from its\nlink expands the review directly; neither inspection nor navigation dispatches a\nmission or changes command targets. A missing map origin is an edit link, not\ninvented coordinates; local-mode launch policy is unchanged.",
       "title": "Drone Show guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "bafbfffc2fb544d8d2b88d39ac402cdac6f08055627319d7c124020185095037",
+      "content_hash": "cad5c12e745693efa145a84e3b212144adcd09d7beb6dead938c6ecaeecc5fba",
       "heading": "Launch Readiness",
       "id": "mds.drone_show:012-02-launch-readiness",
       "links": [
@@ -10596,13 +10596,13 @@
         "skybrush",
         "mission"
       ],
-      "text": "Normal launch/landing at zero height produces no warning or finding. Minimum\nshow height is neutral data relative to the show origin, not measured terrain\nclearance; even a negative height can be intentional for a lower landing area.\nThe historical `min_ground_clearance_m` API field is retained for compatibility\nbut has this show-relative meaning. No terrain/phase safety claim is inferred\nfrom it. A configurable minimum-navigation-altitude/motion check would require\nan explicit venue envelope, not arbitrary radius or percentage exclusions.\nSee [Skybrush's safety-check semantics](https://docs.skybrush.io/public/skybrush-studio-for-blender/latest/panels/safety_and_export/safety_check.html).\n\nSeparation violations (including exact overlaps), malformed/unaligned trajectory\ndata, explicit unsafe status and unexplained analysis failures remain actionable.\n**View findings** opens aircraft pair, time, measured separation, analysis limit\nand a corrective action. After updating from the former ground-minimum logic,\nexplicitly regenerate cached metrics with the normal processing workflow;\ndo not add a UI suppression rule for old cached `CAUTION` values. Fleet summaries\nremain compact; the aircraft list is searchable and scrolls independently.\n\nFlight control keeps **Immediate RTL** visible at all times. **Managed Return**\nis under **Other actions** because it requires review of aircraft order and\ninterval before dispatch.\n\nValidator note:",
+      "text": "Show imports render light and dark JPEGs from the same Matplotlib figure for\nboth combined and individual trajectories. Operate, Design / Setup and the\nfullscreen viewer share one theme-aware renderer; changing the dashboard theme\nswitches assets without image inversion or changing aircraft colors. The plot\nlist keeps canonical gallery names in `filenames` and exposes theme choices in\n`variants`, with a `revision` for cache invalidation. Existing canonical URLs\nremain light/print compatible. To refresh older assets, run `plot_drone_paths`\nwith explicit processed/plot directories using the GCS service's Python virtual\nenvironment; no trajectory conversion or aircraft command is required.\n\nUI evidence probes must verify actual selected image names and image pixels,\nnot only page layout. Use `tools/probe_drone_show_operator_ui.py --plot-dir ...`\nto validate real generated JPEGs across both themes, Operate, Setup and fullscreen.\n\nNormal launch/landing at zero height produces no warning or finding. Minimum\nshow height is neutral data relative to the show origin, not measured terrain\nclearance; even a negative height can be intentional for a lower landing area.\nThe historical `min_ground_clearance_m` API field is retained for compatibility\nbut has this show-relative meaning. No terrain/phase safety claim is inferred\nfrom it. A configurable minimum-navigation-altitude/motion check would require\nan explicit venue envelope, not arbitrary radius or percentage exclusions.\nSee [Skybrush's safety-check semantics](https://docs.skybrush.io/public/skybrush-studio-for-blender/latest/panels/safety_and_export/safety_check.html).\n\nSeparation violations (including exact overlaps), malformed/unaligned trajectory\ndata, explicit unsafe status and unexplained analysis failures remain actionable.\n**View findings** opens aircraft pair, time, measured separation, analysis limit\nand a corrective action. After updating from the former ground-minimum logic,\nexplicitly regenerate cached metrics with the normal processing workflow;\ndo not add a UI suppression rule for old cached `CAUTION` values. Fleet summaries\nremain compact; the aircraft list is searchable and scrolls independently.",
       "title": "Drone Show guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "db6b575575a4d5f6663293e0408c6cfbe28d6a41b7ff46ec309bd07c8ce40604",
+      "content_hash": "5d81054f6f8705827e765ab59ae0e6c840206d386f7d685313b14516c17c9230",
       "heading": "Launch Readiness",
       "id": "mds.drone_show:012-03-launch-readiness",
       "links": [],
@@ -10616,7 +10616,7 @@
         "skybrush",
         "mission"
       ],
-      "text": "- the acceptance validator can target a live subset with `--drone-ids`, so offline config slots outside that selected subset do not fail the run by themselves\n- that same validator still treats selected `status=error` deviation rows as launch blockers, matching the operator launch-readiness doctrine above\n- the validator now re-checks selected-drone launch geometry immediately before each show/custom-show dispatch, so an idle-but-displaced fleet fails fast instead of launching from a bad staging state\n- if you chain Smart Swarm or Swarm Trajectory drills before Drone Show validation on the same SITL fleet, recreate or otherwise restage the fleet on the show launch slots first\n- `--expected-show-count` still refers to the imported Drone Show package size, not the selected live validation subset\n\nThat keeps the operator signal focused on actual launch blockers instead of generic page state.",
+      "text": "Flight control keeps **Immediate RTL** visible at all times. **Managed Return**\nis under **Other actions** because it requires review of aircraft order and\ninterval before dispatch.\n\nValidator note:\n\n- the acceptance validator can target a live subset with `--drone-ids`, so offline config slots outside that selected subset do not fail the run by themselves\n- that same validator still treats selected `status=error` deviation rows as launch blockers, matching the operator launch-readiness doctrine above\n- the validator now re-checks selected-drone launch geometry immediately before each show/custom-show dispatch, so an idle-but-displaced fleet fails fast instead of launching from a bad staging state\n- if you chain Smart Swarm or Swarm Trajectory drills before Drone Show validation on the same SITL fleet, recreate or otherwise restage the fleet on the show launch slots first\n- `--expected-show-count` still refers to the imported Drone Show package size, not the selected live validation subset\n\nThat keeps the operator signal focused on actual launch blockers instead of generic page state.",
       "title": "Drone Show guide"
     },
     {
@@ -10682,7 +10682,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
-      "content_hash": "342776b5a7dfcc049f693f781fbb9d7a92466ba8d7642216035afe41f757c6d5",
+      "content_hash": "0efff030b1928c1448152b9569d9ce837f6765a9d77fc27c987aeee52c3c9a09",
       "heading": "Custom CSV Operational Note",
       "id": "mds.drone_show:015-02-custom-csv-operational-note",
       "links": [],
@@ -10696,7 +10696,7 @@
         "skybrush",
         "mission"
       ],
-      "text": "![Custom Show setup with a generated dark preview](../assets/operator-workspaces/custom-setup-dark.png)\n![Custom Show controls and selected aircraft](../assets/operator-workspaces/custom-operate-dark.png)\n\nMission Config places assignment search, Save & Commit and origin review above\nthe aircraft assignments and live launch layout. Plot/map inspection opens the\nsame hardware identity for editing; it does not change a command target set.\nEnrollment, identity guidance and import/export tools remain available in\ndisclosures. Detected nodes are never enrolled automatically. Configuration save\nreview retains duplicate/missing-trajectory guards; changing the review clears\nany previous duplicate-slot acknowledgment.\n\n![Mission Config assignments and measured launch layout](../assets/operator-workspaces/mission-config-dark.png)\n\nThat page is intentionally separate from the normal SkyBrush Drone Show workspace:\n\n- operators can upload one ready-to-execute protocol CSV\n- MDS validates the file, stores it as `active.csv`, and regenerates the preview\n- no SkyBrush conversion, per-drone file mapping, or shared-origin correction happens there\n\nKeep the workflows mentally separate:\n\n- `Drone Show → Design / Setup` is the normal multi-drone SkyBrush import path\n- `Custom Show` is an expert-only override path for specialized testing and research",
+      "text": "![Custom Show setup with a generated dark preview](../assets/operator-workspaces/custom-setup-dark.png)\n![Custom Show controls and selected aircraft](../assets/operator-workspaces/custom-operate-dark.png)\n\nMission Config places assignment search, Save & Commit and origin review above\nthe responsive aircraft editor. Live plot/map review belongs to Drone Show's\nLaunch geometry panel, reached through **Drone Show · launch layout**.\nEnrollment, identity guidance and import/export tools remain available in\ndisclosures. Detected nodes are never enrolled automatically. Configuration save\nreview retains duplicate/missing-trajectory guards; changing the review clears\nany previous duplicate-slot acknowledgment.\n\n![Mission Config aircraft assignments](../assets/operator-workspaces/mission-config-dark.png)\n\nThat page is intentionally separate from the normal SkyBrush Drone Show workspace:\n\n- operators can upload one ready-to-execute protocol CSV\n- MDS validates the file, stores it as `active.csv`, and regenerates the preview\n- no SkyBrush conversion, per-drone file mapping, or shared-origin correction happens there\n\nKeep the workflows mentally separate:\n\n- `Drone Show → Design / Setup` is the normal multi-drone SkyBrush import path\n- `Custom Show` is an expert-only override path for specialized testing and research",
       "title": "Drone Show guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "9422474b91b579a6875132856bd118733e4ddd2f5b330d1546a93df213964ddb",
+      "content_hash": "0209120cb5f3b154ba9b6227505bf04131f2566154ed445a69d77c945da76cbb",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17651,7 +17651,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.drone_show/markdown",
       "chunk_count": 20,
-      "content_hash": "acf453c019831c6f71337f4fcf0915f80f18a95ab93020b76f048fcdb9aeb2b0",
+      "content_hash": "9288bf93281486e05e98aa4878b4d8a7f3f8321f2dff563b91f747ab91f72a1b",
       "id": "mds.drone_show",
       "mime_type": "text/markdown",
       "path": "docs/features/drone-show.md",

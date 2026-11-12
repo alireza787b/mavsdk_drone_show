@@ -1,4 +1,4 @@
-.position-tabs-container,.deviation-view { width:100%; min-width:0; display:flex; flex-direction:column; gap:.7rem; color:var(--color-text-primary); }
+.deviation-view { width:100%; min-width:0; display:flex; flex-direction:column; gap:.7rem; color:var(--color-text-primary); }
 .deviation-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; padding:.5rem 0; border-bottom:1px solid var(--color-border-primary); }
 .deviation-controls .auto-refresh-toggle { display:inline-flex; flex-direction:row; align-items:center; gap:.5rem; min-height:44px; font-size:.8rem; cursor:pointer; }
 .deviation-controls input { width:18px; height:18px; accent-color:var(--color-primary); }

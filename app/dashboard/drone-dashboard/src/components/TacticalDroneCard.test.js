@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import TacticalDroneCard from './TacticalDroneCard';
 import { CommandActivityProvider } from '../contexts/CommandActivityContext';
@@ -90,6 +90,31 @@ describe('TacticalDroneCard', () => {
     expect(screen.getByRole('region', { name: /SCOUT-2 tactical summary/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'SCOUT-2' })).toBeInTheDocument();
     expect(screen.getByText('P7|H2')).toBeInTheDocument();
+  });
+
+  it('shares reported Ethernet/Wi-Fi semantics with Overview and keeps extra metadata collapsed', () => {
+    renderCard(<TacticalDroneCard drone={{ hw_id: '2', ip: '192.0.2.2',
+      heartbeat_last_seen: Date.now() / 1000,
+      heartbeat_network_info: { primary_link: { type: 'ethernet', interface: 'end0' }, wifi: { signal_strength_percent: 80 } },
+    }} />);
+    expect(screen.getByText('Ethernet')).toBeInTheDocument();
+    expect(screen.getByText('192.0.2.2')).toBeInTheDocument();
+    expect(screen.queryByText('80%')).not.toBeInTheDocument();
+    expect(screen.getByText('Details').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('missing GPS and distance evidence are not manufactured as zero or a fix', () => {
+    renderCard(<TacticalDroneCard drone={{ hw_id: '2', gps_fix_type: null, distance_to_home_m: null, position: [35.1,51.2,20] }} />);
+    expect(screen.getByLabelText('GPS: GPS n/a')).toBeInTheDocument();
+    expect(screen.getByLabelText('Distance home: Map n/a')).toBeInTheDocument();
+    expect(screen.getByText('Role unknown')).toBeInTheDocument();
+  });
+
+  it('a different inspected aircraft cannot inherit a reviewed return action', () => {
+    const view = renderCard(<TacticalDroneCard drone={{ hw_id: '1', callsign: 'Alpha', is_armed: true }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Launch Alpha' }));
+    view.rerender(<CommandActivityProvider><MemoryRouter><TacticalDroneCard drone={{ hw_id: '2', callsign: 'Bravo', is_armed: true }} /></MemoryRouter></CommandActivityProvider>);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('describes source-aware altitude without treating relative altitude as MSL', () => {

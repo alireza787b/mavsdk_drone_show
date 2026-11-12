@@ -11,6 +11,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ### Quiet software attention and grounded migration
 
+- Mission Config is focused on aircraft/slot editing with scoped, theme-aware
+  controls. Drone Show owns expected/live launch plot and map review, with direct
+  links back to the selected aircraft; the unused PositionTabs wrapper and
+  show-only editor polling are retired. Map/globe inspection uses a flat console
+  surface and resets all action/jog state when the inspected hardware changes.
 - Shared-shell software attention uses one flat review notice, distinguishes
   unknown evidence from confirmed revision differences and never prepares an
   update by navigation. Polling is sequential/cancellable and retains aging

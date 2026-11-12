@@ -74,6 +74,12 @@ Fleet operations still requires fresh evidence before an update.
 
 [Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).
 
+Fleet Map's 2D and 3D aircraft popups use the same transport labels and console
+theme. **Details** reveals the configured IP, reported network/interface and last
+telemetry time. Selecting another aircraft closes its previous action/jog review;
+it cannot inherit a reviewed target. Source coordinates and map positioning are
+not changed by this presentation update.
+
 ## Select command targets
 
 A fresh browser session starts with the **available configured aircraft** selected

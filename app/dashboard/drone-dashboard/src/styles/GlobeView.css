@@ -65,12 +65,11 @@
 .globe-container {
     flex: 1;
     background: var(--color-bg-secondary);
-    border-radius: var(--border-radius-lg);
+    border-radius: 0;
     border: 1px solid var(--color-border-primary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: none;
     overflow: hidden;
     position: relative;
-    backdrop-filter: blur(8px);
 }
 
 .globe-wrapper {
@@ -86,23 +85,22 @@
     right: var(--spacing-lg);
     background: var(--color-bg-tertiary);
     border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-lg);
+    border-radius: 0;
     padding: var(--spacing-lg);
-    box-shadow: var(--shadow-md);
-    backdrop-filter: blur(12px);
+    box-shadow: none;
     z-index: var(--z-overlay);
     min-width: 200px;
 }
 
-.control-group {
+.globe-view-container .control-group {
     margin-bottom: var(--spacing-base);
 }
 
-.control-group:last-child {
+.globe-view-container .control-group:last-child {
     margin-bottom: 0;
 }
 
-.control-label {
+.globe-view-container .control-label {
     display: block;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
@@ -110,7 +108,7 @@
     margin-bottom: var(--spacing-xs);
 }
 
-.control-input {
+.globe-view-container .control-input {
     width: 100%;
     padding: var(--spacing-sm);
     border: 1px solid var(--color-border-primary);
@@ -121,7 +119,7 @@
     transition: var(--transition-base);
 }
 
-.control-input:focus {
+.globe-view-container .control-input:focus {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 2px var(--color-primary-border);
@@ -134,15 +132,14 @@
     left: var(--spacing-lg);
     background: var(--color-bg-tertiary);
     border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-lg);
+    border-radius: 0;
     padding: var(--spacing-lg);
-    box-shadow: var(--shadow-md);
-    backdrop-filter: blur(12px);
+    box-shadow: none;
     z-index: var(--z-overlay);
     max-width: 300px;
 }
 
-.info-item {
+.globe-view-container .info-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -150,17 +147,17 @@
     border-bottom: 1px solid var(--color-border-primary);
 }
 
-.info-item:last-child {
+.globe-view-container .info-item:last-child {
     border-bottom: none;
 }
 
-.info-label {
+.globe-view-container .info-label {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     font-weight: var(--font-weight-medium);
 }
 
-.info-value {
+.globe-view-container .info-value {
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     font-weight: var(--font-weight-semibold);
@@ -206,7 +203,7 @@
 }
 
 /* Focus states for accessibility */
-.control-input:focus-visible {
+.globe-view-container .control-input:focus-visible {
     outline: 2px solid var(--color-primary) !important;
     outline-offset: 2px !important;
 }
@@ -218,7 +215,7 @@
     gap: 4px;
     padding: 4px;
     background: var(--color-bg-secondary);
-    border-radius: var(--border-radius-lg);
+    border-radius: 0;
     border: 1px solid var(--color-border-primary);
     width: fit-content;
     margin: 0;
@@ -227,7 +224,8 @@
 .globe-view-mode-btn {
     padding: 6px 16px;
     border: none;
-    border-radius: var(--border-radius-md);
+    border-radius: 2px;
+    min-height: 44px;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -302,7 +300,7 @@
 /* === Map View Container === */
 .globe-map-container {
     position: relative;
-    border-radius: var(--border-radius-lg);
+    border-radius: 0;
     overflow: hidden;
     height: clamp(420px, 68vh, 780px);
     min-height: 420px;
@@ -330,15 +328,14 @@
     align-items: center;
     background: var(--color-surface-raised);
     border: 1px solid var(--color-border-secondary);
-    border-radius: 999px;
+    border-radius: 2px;
     color: var(--color-text-primary);
     display: inline-flex;
     font-size: 12px;
     font-weight: 800;
     gap: 7px;
-    min-height: 32px;
+    min-height: 44px;
     padding: 0 10px;
-    backdrop-filter: blur(10px);
 }
 
 .globe-map-ops-bar__button {

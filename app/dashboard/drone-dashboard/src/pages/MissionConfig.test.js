@@ -30,7 +30,6 @@ jest.mock('../utilities/missionConfigUtilities', () => ({
   })),
 }));
 
-jest.mock('../components/PositionTabs', () => () => <div data-testid="position-tabs" />);
 jest.mock('../components/DroneConfigCard', () => ({ drone }) => (
   <div data-testid="drone-config-card">{drone.hw_id}</div>
 ));
@@ -192,6 +191,9 @@ describe('MissionConfig origin review surface', () => {
 
     expect(useNormalizedTelemetry).toHaveBeenCalledWith('fleetTelemetry', 2000);
     expect(useNormalizedTelemetry).toHaveBeenCalledWith('gitStatus', 20000);
+    expect(useFetch.mock.calls.some(([key]) => ['positionDeviations', 'dronePositions'].includes(key))).toBe(false);
+    expect(screen.getByRole('link', { name: 'Drone Show · launch layout ↗' })).toHaveAttribute('href', '/drone-show#launch-geometry');
+    expect(screen.queryByRole('tablist', { name: 'Launch layout view' })).not.toBeInTheDocument();
   });
 
   test('opens the origin workflow when the origin warning is clicked', () => {

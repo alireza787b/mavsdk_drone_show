@@ -4,6 +4,13 @@ import {
 } from './globeTelemetryViewModel';
 
 describe('globeTelemetryViewModel', () => {
+  it('keeps configured address without filling missing velocity or follow role with zero', () => {
+    const [row] = buildGlobeDroneViewModels({ 2: { hw_id: '2', velocity_north: null, velocity_east: null, velocity_down: null } },
+      [{ hw_id: '2', pos_id: '7', ip: '192.0.2.2' }]);
+    expect(row.ip).toBe('192.0.2.2');
+    expect(row.speed_mps).toBeNull();
+    expect(row.follow_mode).toBeNull();
+  });
   it('merges live telemetry with fleet config marker color and slot identity', () => {
     const result = buildGlobeDroneViewModels(
       {

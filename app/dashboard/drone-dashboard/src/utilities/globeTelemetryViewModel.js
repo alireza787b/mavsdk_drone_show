@@ -12,6 +12,7 @@ const BACKGROUND_INTERVAL_MS = 6000;
 const CONSTRAINED_NETWORK_INTERVAL_MS = 3000;
 
 function toFiniteNumber(value, fallback = null) {
+  if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') return fallback;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 }
@@ -91,6 +92,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         ...drone,
         hw_id: String(drone[FIELD_NAMES.HW_ID] ?? id),
         pos_id: config.pos_id ?? drone[FIELD_NAMES.POS_ID] ?? id,
+        ip: config.ip || drone.ip || null,
         operator_alias: operatorAlias,
         operator_alias_label: promotedField?.label || null,
         position: [latitude, longitude, altitude],
@@ -101,7 +103,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         position_unavailable_reason: drone[FIELD_NAMES.POSITION_UNAVAILABLE_REASON] || null,
         state: stateValue,
         stateLabel: stateValue === null ? 'Unknown' : getDroneShowStateName(stateValue),
-        follow_mode: toFiniteNumber(drone[FIELD_NAMES.FOLLOW_MODE], 0),
+        follow_mode: toFiniteNumber(drone[FIELD_NAMES.FOLLOW_MODE]),
         altitude,
         altitude_source: altitudeReading.source,
         altitude_label: altitudeReading.label,
