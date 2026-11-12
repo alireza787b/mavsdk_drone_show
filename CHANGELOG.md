@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Fixed the shared console-dialog field rule expanding radio/checkbox controls
+  to full width and clipping aircraft/source labels. Browser regression checks
+  cover Logs and PX4 Parameters pickers across responsive widths and themes.
+
 ### Logs operator workspace and evidence integrity
 
 - Replaced Ops/Dev logging modes with Live / Sessions / Flight logs, one explicit
