@@ -16,6 +16,7 @@ readonly MDS_REQUIRED_PACKAGES=(
     "git"
     "curl"
     "jq"
+    "iputils-ping"
     "ufw"
     "python3"
     "python3-venv"

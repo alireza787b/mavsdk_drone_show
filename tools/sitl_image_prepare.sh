@@ -137,6 +137,14 @@ requirements_state_value() {
     python3 "$PYTHON_RUNTIME_HELPER" state --venv "$VENV_DIR" --requirements "$requirements_file"
 }
 
+ensure_diagnostic_tools() {
+    if ! command -v ping >/dev/null 2>&1; then
+        require_cmd apt-get
+        retry_cmd 3 apt-get update -qq
+        retry_cmd 3 env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends iputils-ping
+    fi
+}
+
 fresh_clone_mds_repo() {
     local authenticated_repo_url=""
     local fallback_repo_url=""
@@ -384,6 +392,7 @@ main() {
     require_cmd sha256sum
 
     fresh_clone_mds_repo
+    ensure_diagnostic_tools
     ensure_mavsdk_server
     ensure_python_env
     prepare_px4_build

@@ -37,6 +37,7 @@ From the intended checkout and its intended virtual environment:
 python3 tools/mavsdk_runtime.py manifest
 python3 tools/mavsdk_runtime.py idle
 # Use requirements-node.txt on companions; requirements.txt on GCS/SITL.
+venv/bin/python -m pip install --upgrade pip
 venv/bin/python -m pip install -r requirements-node.txt
 venv/bin/python -m pip check
 venv/bin/python tools/mavsdk_runtime.py python-check

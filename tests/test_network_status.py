@@ -1,6 +1,40 @@
 import subprocess
+from types import SimpleNamespace
+
+import pytest
 
 from src import network_status
+
+
+@pytest.mark.parametrize("result,reachable,error", [
+    (0, True, None), (1, False, None),
+    (2, None, "ICMP probe could not run"),
+    (None, None, "ICMP probe utility unavailable"),
+    (-1, None, "Network probe not permitted"),
+])
+def test_icmp_diagnostic_distinguishes_failed_measurement_from_no_reply(monkeypatch, result, reachable, error):
+    def run(*args, **kwargs):
+        if result is None:
+            raise FileNotFoundError("ping")
+        if result == -1:
+            raise PermissionError("ping")
+        return SimpleNamespace(returncode=result)
+
+    monkeypatch.setattr(network_status.subprocess, "run", run)
+    monkeypatch.setattr(network_status, "_INTERNET_CACHE", {"checked_at": 0, "payload": None})
+    monkeypatch.setenv("MDS_INTERNET_CHECK_ENABLED", "true")
+    monkeypatch.setenv("MDS_INTERNET_CHECK_PORT", "0")
+    payload = network_status._internet_status()
+    assert payload["reachable"] is reachable
+    assert payload["error"] == error
+
+
+def test_bootstrap_and_image_include_the_icmp_runtime_dependency():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for path in ('tools/mds_init_lib/prereqs.sh', 'tools/mds_gcs_init_lib/gcs_prereqs.sh',
+                 'tools/sitl_image_prepare.sh'):
+        assert 'iputils-ping' in (root / path).read_text()
 
 
 def test_build_network_info_classifies_usb_modem_default_route(monkeypatch):

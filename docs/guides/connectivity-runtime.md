@@ -152,7 +152,9 @@ metrics decide which active transport carries traffic when Ethernet, Wi-Fi, and
 Nodes also report a cached internet probe. Keep the default low-rate ICMP check
 or set `MDS_INTERNET_CHECK_PORT` to use a TCP check against an operator-owned
 endpoint. The internet probe is diagnostic only; GCS reachability and MAVLink
-health remain the flight-control signals.
+health remain the flight-control signals. Bootstrap and image preparation
+install `iputils-ping`. A missing probe utility or an ICMP execution error is
+reported as unknown, not a lost link.
 
 ## Failure Handling
 

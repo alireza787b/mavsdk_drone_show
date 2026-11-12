@@ -2,6 +2,7 @@ import argparse
 import time
 
 import pytest
+from tools import validate_actions_runtime as validator
 
 from tools.validate_actions_runtime import (
     _is_safe_interrupted_terminal_status,
@@ -70,6 +71,24 @@ def test_resolve_selected_ids_falls_back_to_csv_argument_and_default():
 
     assert resolve_selected_ids(csv_args) == [1, 2, 3]
     assert resolve_selected_ids(default_args) == [1, 2, 3]
+
+
+def test_launch_probe_timeout_preserves_native_blocker_without_accepting_it(monkeypatch):
+    class Client:
+        def get_telemetry(self):
+            return {"1": {"ip": "127.0.0.1"}}
+
+        def probe_live_armability(self, ip, **kwargs):
+            return {"success": True, "ready": False, "summary": "waiting for health stream",
+                    "blockers": ["health stream"]}
+
+    def expire(predicate, **kwargs):
+        assert predicate() is False
+        raise RuntimeError("Timed out")
+
+    monkeypatch.setattr(validator, "wait_for", expire)
+    with pytest.raises(RuntimeError, match='Last native probes:.*health stream'):
+        validator.wait_for_live_launch_readiness(Client(), [1], timeout=1)
 
 
 @pytest.mark.parametrize(

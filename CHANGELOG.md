@@ -34,6 +34,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Prepared Gazebo runtimes launch PX4 directly in foreground daemon mode,
   preserving the selected model/world without runtime compilation or a detached
   interactive-console redraw loop. Missing runtime assets fail explicitly.
+- Bootstrap and image preparation include the ICMP diagnostic utility. Missing
+  or unexecutable ICMP probes report unknown instead of a false disconnected
+  link. Runtime validators retain native readiness blockers on timeout.
 
 ### Logs operator workspace and evidence integrity
 

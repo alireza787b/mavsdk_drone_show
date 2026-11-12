@@ -20,6 +20,7 @@ readonly -a GCS_BASE_PACKAGES=(
     "curl"
     "wget"
     "jq"
+    "iputils-ping"
     "ufw"
     "tmux"
     "lsof"

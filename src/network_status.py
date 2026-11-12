@@ -198,7 +198,15 @@ def _internet_status() -> dict[str, Any]:
                 timeout=timeout_sec + 0.5,
                 check=False,
             )
-            payload["reachable"] = completed.returncode == 0
+            if completed.returncode in (0, 1):
+                payload["reachable"] = completed.returncode == 0
+            else:
+                payload["error"] = "ICMP probe could not run"
+    except FileNotFoundError:
+        # A missing diagnostic tool is not evidence of a disconnected aircraft.
+        payload["error"] = "ICMP probe utility unavailable"
+    except PermissionError:
+        payload["error"] = "Network probe not permitted"
     except (subprocess.SubprocessError, FileNotFoundError, OSError, socket.error) as exc:
         payload["reachable"] = False
         payload["error"] = str(exc)
