@@ -172,6 +172,29 @@ def test_final_image_gate_follows_secret_cleanup():
     assert source.index('docker_sitl_cleanup_git_secrets "$container_name"') < source.index("audit_sitl_image.py") < source.index("return 0")
 
 
+def test_image_prepares_build_only_px4_targets_after_dependency_installation(tmp_path):
+    source = (ROOT / "tools/sitl_image_prepare.sh").read_text()
+    main = source.rsplit('main() {', 1)[1]
+    assert main.index("ensure_python_env") < main.index("prepare_px4_build")
+    assert main.index("prepare_px4_build") < main.index("capture_px4_provenance")
+    build = tmp_path / "px4/build/px4_sitl_default"
+    (build / "bin").mkdir(parents=True)
+    (build / "CMakeCache.txt").touch()
+    (build / "bin/px4").write_text("fixture")
+    (build / "bin/px4").chmod(0o700)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    output = tmp_path / "arguments.json"
+    cmake = bindir / "cmake"
+    cmake.write_text(f'#!{sys.executable}\nimport json,sys\nopen({str(output)!r},"w").write(json.dumps(sys.argv[1:]))\n')
+    cmake.chmod(0o700)
+    definitions = source.rsplit('\nmain "$@"', 1)[0]
+    env = {**os.environ, "MDS_PX4_DIR": str(tmp_path / "px4"), "PATH": str(bindir) + os.pathsep + os.environ["PATH"]}
+    result = subprocess.run(["bash", "-c", definitions + "\nprepare_px4_build"], env=env, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(output.read_text()) == ["--build", str(build), "--target", "px4", "px4_gz_plugins", "--parallel", "2"]
+
+
 def test_image_config_rejects_secrets_but_not_file_settings():
     assert audit.config_findings({"Env": ["MDS_GIT_AUTH_TOKEN_FILE=/run/secrets/read-token"]}) == []
     assert audit.config_findings({"Env": ["MDS_GIT_AUTH_TOKEN=canary"]})

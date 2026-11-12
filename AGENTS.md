@@ -223,6 +223,9 @@ do not label a partial workspace checkpoint as a validated flight release.
 - Give long remote validations their own saved logs/results and bounded process
   lifetime. If SSH disconnects, reconcile the remote process and final artifact;
   neither transport failure nor a still-running process proves a test outcome.
+- Keep reboot-critical evidence on persistent storage, not `/tmp`. On shared
+  hosts, bound simulator memory/swap/CPU/PIDs before startup and prove a small
+  fleet first; a supervisor timeout does not bound Docker descendants' resources.
 - Prefer unified logs over ad hoc terminal output.
 - Distinguish signal from polling noise.
 - Preserve operator clarity: high-signal `INFO`, actionable `WARNING`, true failures at `ERROR`, detailed loops at `DEBUG`.

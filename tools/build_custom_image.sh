@@ -114,7 +114,7 @@ main() {
         log_info "Keep ARM   : ${MDS_SITL_KEEP_ARM_TOOLCHAIN}"
     fi
 
-    docker run --name "$temp_container" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
+    docker_sitl_start_build_container "$temp_container" "$BASE_IMAGE"
     docker_sitl_copy_prepare_script "$REPO_ROOT" "$temp_container"
     if ! docker_sitl_run_prepare_script "$temp_container" "$repo_url" "$branch"; then
         printf '[ERROR] Failed to prepare runtime filesystem for %s@%s\n' "$repo_url" "$branch" >&2

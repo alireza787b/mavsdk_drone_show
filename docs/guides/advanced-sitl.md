@@ -118,6 +118,30 @@ Notes:
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.
 - The current stock SITL image does not auto-start `mavlink2rest`. The router still forwards MAVLink to `127.0.0.1:14569` for optional custom use, but `http://DRONE_IP:8088` should not be assumed in the default workflow.
 
+### Resource-constrained shared validation hosts
+
+Start with one simulator, measure it, then use a small fleet. Parallel Gazebo/PX4
+startup (including a possible version-header relink) can saturate a shared host
+even without a recorded OOM kill. Container process readiness is not flight
+readiness. Docker limits are optional expert settings, separate from flight policy:
+
+```bash
+export MDS_SITL_DOCKER_MEMORY=2g
+export MDS_SITL_DOCKER_MEMORY_SWAP=2g
+export MDS_SITL_DOCKER_CPUS=1.5
+export MDS_SITL_DOCKER_PIDS_LIMIT=512
+export MDS_SITL_DOCKER_RESTART_POLICY=no
+bash multiple_sitl/create_dockers.sh 2
+```
+
+Values apply per container. Equal memory/memory-swap limits disable container
+swap; leave capacity for the GCS, SSH and other services. These example values
+are not universal sizing recommendations: a limit can terminate an oversized
+simulator, which must fail validation rather than count as a flight result.
+Unset these variables to retain Docker's stock defaults. Docker remains the
+authority for size/host constraints. Keep the configured test topology consistent
+with the launched fleet, and save long-run evidence outside reboot-cleared `/tmp`.
+
 ### Step 2: Build Custom Docker Image (If Needed)
 
 Before this step, make sure the official base image already exists locally as `mavsdk-drone-show-sitl:latest`.

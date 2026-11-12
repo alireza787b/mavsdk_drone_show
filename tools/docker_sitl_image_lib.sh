@@ -23,6 +23,16 @@ docker_sitl_check_image_exists() {
     }
 }
 
+docker_sitl_start_build_container() {
+    local container_name="$1" base_image="$2"
+    local -a DOCKER_RESOURCE_ARGS=()
+    # Separate budgets share one parser; runtime limits never leak into builds.
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../multiple_sitl" && pwd)/container_resources.sh"
+    sitl_configure_resource_limits MDS_SITL_BUILD || return $?
+    docker run --name "$container_name" -d "${DOCKER_RESOURCE_ARGS[@]}" \
+        "$base_image" tail -f /dev/null >/dev/null
+}
+
 docker_sitl_cleanup_container() {
     local container_name="$1"
     if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then

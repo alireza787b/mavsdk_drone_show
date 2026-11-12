@@ -239,6 +239,19 @@ stabilize_mavlink2rest_binary() {
     fi
 }
 
+prepare_px4_build() {
+    # Header updates from interpreter build dependencies can invalidate gz_bridge.
+    # Prepare build-only targets once; never start a simulator during image prep.
+    local build_dir="$PX4_DIR/build/px4_sitl_default"
+    [[ -f "$build_dir/CMakeCache.txt" ]] || fail "Missing prepared PX4 CMake cache"
+    require_cmd cmake
+    require_cmd timeout
+    log "Preparing PX4/Gazebo build dependencies with at most two workers..."
+    CMAKE_BUILD_PARALLEL_LEVEL=2 timeout --signal=TERM --kill-after=15s 1200s cmake --build "$build_dir" \
+        --target px4 px4_gz_plugins --parallel 2 || fail "PX4/Gazebo dependency preparation failed"
+    [[ -x "$build_dir/bin/px4" ]] || fail "Prepared PX4 executable is unavailable"
+}
+
 capture_px4_provenance() {
     local px4_branch="unknown"
     local px4_commit="unknown"
@@ -373,6 +386,7 @@ main() {
     fresh_clone_mds_repo
     ensure_mavsdk_server
     ensure_python_env
+    prepare_px4_build
     stabilize_mavlink2rest_binary
     cleanup_runtime_baggage
     capture_px4_provenance

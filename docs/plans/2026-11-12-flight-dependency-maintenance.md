@@ -97,3 +97,20 @@ aliases or alter flight admission to make that test green. Keep its regression
 visible for a separately scoped semantic-planner correction; any scoped release
 gate excluding it must report that exclusion explicitly. This optional assistant
 issue does not establish a defect in the operator's mission controls.
+
+## Fresh-image build-cache finding
+
+A resource-bounded fresh-container probe exposed expensive first-boot Gazebo
+bridge recompilation. Ninja reported cached objects older than the updated
+`/usr/include/uuid/uuid.h`; several compiler processes each used roughly
+0.5–0.7 GiB. Concurrent unrestricted simulator startup caused heavy shared-host
+pressure. No OOM kill was recorded, so the outage is not labelled as a confirmed
+OOM event. HTTP service availability alone was not fresh FC readiness.
+
+Image preparation now builds the `px4` and `px4_gz_plugins` dependency targets
+after installing dependencies, with bounded parallelism and no simulator launch.
+Actual prepared binary hashes are recorded rather than assuming inherited
+executables stayed identical. Optional separate Docker build/runtime limits
+bound memory, swap, CPU and PIDs without changing flight policy. Final acceptance
+must verify fresh startup avoids repeated C++ compilation, then run missions;
+test artifacts that must survive reboot belong on persistent storage.

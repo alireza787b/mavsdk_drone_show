@@ -27,6 +27,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   final filesystem and metadata gates run after staged-secret cleanup.
   These source changes require a rebuilt and accepted SITL image, not only a
   source tag. See [SDK maintenance](docs/guides/mavsdk-updates.md).
+- Image preparation builds the PX4/Gazebo dependency targets after header
+  updates, with bounded parallelism, so fresh aircraft do not each repeat large
+  C++ compilations. Optional separate Docker build/runtime resource budgets
+  protect shared hosts without changing aircraft admission or mission policies.
 
 ### Logs operator workspace and evidence integrity
 

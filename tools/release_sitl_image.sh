@@ -158,7 +158,7 @@ fi
 if [[ -n "${MDS_SITL_KEEP_ARM_TOOLCHAIN:-}" ]]; then
     log "Preserving PX4 ARM toolchain: ${MDS_SITL_KEEP_ARM_TOOLCHAIN}"
 fi
-docker run --name "$TEMP_CONTAINER" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
+docker_sitl_start_build_container "$TEMP_CONTAINER" "$BASE_IMAGE"
 
 log "Preparing runtime filesystem inside temporary container..."
 docker_sitl_copy_prepare_script "$REPO_ROOT" "$TEMP_CONTAINER"

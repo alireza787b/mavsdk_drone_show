@@ -31,6 +31,10 @@ For public/private repo authentication, read [Custom SITL Auth Guide](custom-sit
 - Do not use `docker commit` as the normal release workflow.
 - Treat running containers as disposable runtime instances, not as the source of truth.
 - Commit changes to git first, then rebuild a clean image.
+- After dependency updates, prepare the PX4/Gazebo build-only targets before
+  flattening. Updated headers can invalidate an inherited cache; do not defer
+  parallel C++ compilation to each aircraft's first startup. Record the actual
+  prepared binary digest and verify fresh containers do not repeat that work.
 - Keep PX4 and the baked `mavsdk_server` pinned inside the image and update them only through a validated image rebuild.
 - Use runtime git sync only when you intentionally want mutable latest-on-boot behavior.
 - A source prerelease tag does not refresh the downloadable SITL image. Record
@@ -43,11 +47,15 @@ When `MDS_SITL_GIT_SYNC=true`:
 - the container fetches and hard-resets the `mavsdk_drone_show` repo to the configured branch
 - untracked MDS files are cleaned, while runtime artifacts such as `venv/`, `logs/`, and the baked `mavsdk_server` are preserved
 
-What it does **not** auto-update:
+What it does **not** refresh as a complete image:
 - PX4 source tree
 - PX4 build outputs
 - system packages
-- baked `mavsdk_server`
+- a supported interpreter/dependency/build-cache baseline
+
+The manifest-backed SDK provisioner can reconcile the native server when idle;
+that is not a substitute for a validated source/environment/server tuple or image
+rebuild. Explicit custom overrides remain unverified compatibility choices.
 
 That means runtime git sync is useful for development, but it is not a full image refresh and not a reproducible release process.
 For private GitHub repos, add `MDS_GIT_AUTH_TOKEN_FILE` or read-only `MDS_GIT_SSH_KEY_FILE` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo. Raw token environment variables are intentionally not supported.
@@ -98,6 +106,15 @@ Recommended rules:
 ## Build A Clean Custom Image
 
 When your fork or customer-specific branch is approved, build a clean image from git:
+
+On a shared host, optionally set `MDS_SITL_BUILD_MEMORY`,
+`MDS_SITL_BUILD_MEMORY_SWAP`, `MDS_SITL_BUILD_CPUS` and
+`MDS_SITL_BUILD_PIDS_LIMIT` before building. They use Docker's normal units and
+apply to the single preparation container, independently of
+`MDS_SITL_DOCKER_*` runtime limits. Equal memory/swap limits disable container
+swap. Unset settings preserve Docker defaults; choose a budget leaving host/GCS
+headroom. Build and validation evidence must live on persistent storage if a
+reboot may be needed.
 
 ```bash
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
