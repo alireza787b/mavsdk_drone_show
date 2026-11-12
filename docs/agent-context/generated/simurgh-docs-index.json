@@ -6593,7 +6593,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "651a417959938667b771bc3d7ee5b0cc5c2998e7d76801101c18dd8e0cd15e76",
+      "content_hash": "76f471bde9c02d8630b10f02cb87662ca963bbf261a2c46d499217557846ad47",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6607,7 +6607,7 @@
         "operations",
         "selection"
       ],
-      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.",
+      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).",
       "title": "Overview operator guide"
     },
     {
@@ -8958,7 +8958,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "6837232d6c24d16a0de69036e1495e617be6e15ee76b539a2857f46a4852388c",
+      "content_hash": "a52ce9f34729fb4a416d1152f744a2183aaa78f2bb7bb78b33f9fae61d20d875",
       "heading": "`GET /api/v1/git/status`",
       "id": "mds.gcs_api:105-01-get-api-v1-git-status",
       "links": [],
@@ -8971,7 +8971,7 @@
         "api",
         "gcs"
       ],
-      "text": "#### `GET /api/v1/git/status`\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
+      "text": "#### `GET /api/v1/git/status`\n\nSource-review counts retain heartbeat-observed aircraft for the configured\nOverview Available window, including a brief loss; expired/offline records stay\nin diagnostic rows but do not contribute to the notice. Counts are not update\neligibility or flight readiness. Unknown worktree evidence is never counted as\nsynced. An unavailable/invalid presence snapshot returns `503` rather than a\nfalse empty-fleet/all-clear response. Update routes retain fresh-evidence checks.\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
       "title": "GCS API server guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "3074c0b3e98f88f1382a0cf0eb5f3bfbbe591d473254e11c7b1e75694d63e38b",
+      "content_hash": "7ec833f46f4449384ddcdab5a1e883798d8bee6ca38751eb37dfeb7a6fa0d3ff",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17597,7 +17597,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 165,
-      "content_hash": "ac30426eaee06da2782732100bb8313a092fae94177c907d959d9c0f83332859",
+      "content_hash": "00de8bbe0a2b78ff506807095d9f0cfcaf038aaa66ca18a91b57ca19c124357d",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

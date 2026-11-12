@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import time
+import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -82,6 +83,51 @@ def test_matching_commit_with_unknown_worktree_is_not_counted_twice():
     assert result.needs_sync_count == 0
     assert result.synced_count == 0
     assert result.git_status['1'].in_sync_with_gcs is False
+
+
+def test_software_attention_survives_brief_loss_without_allowing_stale_sync():
+    deps = _make_deps()
+    deps.git_status_data_all_drones['1']['commit'] = 'older-source'
+    for age, expected in [(0, 1), (25, 1), (61, 0), (0, 1)]:
+        deps.get_all_heartbeats = lambda: {'1': {'timestamp': int((time.time()-age)*1000), 'hw_id':'1'}}
+        assert git_routes._build_git_status_response(deps).needs_sync_count == expected
+        if age == 25:
+            table = git_routes._build_fleet_git_sync_table(deps)
+            assert table['rows'][0]['presence']['fresh'] is False
+            assert table['needs_sync_count'] == 0
+
+
+def test_software_attention_reuses_configured_available_window():
+    deps = _make_deps()
+    deps.Params.PRESENCE_STALE_SEC = 120
+    deps.git_status_data_all_drones['1']['commit'] = 'older-source'
+    deps.get_all_heartbeats = lambda: {'1': {'timestamp': int((time.time()-80)*1000), 'hw_id':'1'}}
+    assert git_routes._build_git_status_response(deps).needs_sync_count == 1
+
+
+def test_brief_loss_of_matching_aircraft_does_not_create_software_noise():
+    deps = _make_deps()
+    deps.get_all_heartbeats = lambda: {'1': {'timestamp': int((time.time()-25)*1000), 'hw_id':'1'}}
+    result = git_routes._build_git_status_response(deps)
+    assert result.needs_sync_count == result.unknown_count == 0
+
+
+def test_presence_refresh_failure_is_unavailable_not_a_false_all_clear():
+    deps = _make_deps()
+    deps.get_all_heartbeats = Mock(side_effect=RuntimeError('temporary outage'))
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+    response = SyncASGITestClient(app).get('/api/v1/git/status')
+    assert response.status_code == 503
+
+
+@pytest.mark.parametrize('payload', [None, []])
+def test_invalid_presence_snapshot_is_not_treated_as_an_empty_fleet(payload):
+    deps = _make_deps()
+    deps.get_all_heartbeats = lambda: payload
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+    assert SyncASGITestClient(app).get('/api/v1/git/status').status_code == 503
 
 
 def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(monkeypatch):

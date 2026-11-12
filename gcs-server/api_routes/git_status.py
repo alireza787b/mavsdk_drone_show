@@ -18,6 +18,7 @@ from command_submission import submit_tracked_command
 from command_tracker import CommandCompletionAuthority
 from git_status import commits_match
 from presence import build_presence_snapshot, resolve_presence_thresholds
+from overview_display_policy import resolve_overview_display_policy
 from schemas import (
     DroneConnectivityRuntimeStatus,
     DroneEnvRuntimeStatus,
@@ -80,7 +81,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
     gcs_branch = (gcs_status or {}).get("branch")
     gcs_commit = (gcs_status or {}).get("commit")
     transformed_git_status = {}
-    actionable_online_hw_ids = _resolve_actionable_online_hw_ids(deps)
+    reviewable_hw_ids = _resolve_reviewable_hw_ids(deps)
 
     with deps.data_lock_git_status:
         for hw_id, raw_data in deps.git_status_data_all_drones.items():
@@ -271,19 +272,19 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 last_sync=None,
             )
 
-    actionable_statuses = [
+    reviewable_statuses = [
         status
         for hw_id, status in transformed_git_status.items()
-        if actionable_online_hw_ids is None or hw_id in actionable_online_hw_ids
+        if reviewable_hw_ids is None or hw_id in reviewable_hw_ids
     ]
-    synced_count = len([status for status in actionable_statuses if status.in_sync_with_gcs])
-    unknown_count = sum(status.status == GitStatus.UNKNOWN for status in actionable_statuses)
+    synced_count = len([status for status in reviewable_statuses if status.in_sync_with_gcs])
+    unknown_count = sum(status.status == GitStatus.UNKNOWN for status in reviewable_statuses)
 
     return GitStatusResponse(
         git_status=transformed_git_status,
         total_drones=len(transformed_git_status),
         synced_count=synced_count,
-        needs_sync_count=len(actionable_statuses) - synced_count - unknown_count,
+        needs_sync_count=len(reviewable_statuses) - synced_count - unknown_count,
         unknown_count=unknown_count,
         gcs_status=gcs_status,
         sync_in_progress=deps._sync_state["active"],
@@ -291,25 +292,28 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
     )
 
 
-def _resolve_actionable_online_hw_ids(deps: Any) -> set[str] | None:
-    """Return online heartbeat ids for sync warnings, or None when unavailable.
+def _resolve_reviewable_hw_ids(deps: Any) -> set[str] | None:
+    """Retain source attention through Overview's brief-loss display window.
 
-    Git status records can outlive an offline drone. Keeping those records is
-    useful for Fleet Ops diagnostics, but the global sync warning should only
-    count drones that are currently actionable.
+    This does not grant update eligibility: mutation routes retain their fresh
+    native/heartbeat checks. Missing presence evidence must not clear a notice.
     """
+    provider = getattr(deps, 'get_all_heartbeats', None)
+    if provider is None:
+        return None  # Compatibility with adapters without heartbeat discovery.
     try:
-        heartbeats = deps.get_all_heartbeats() or {}
-    except Exception:
-        return None
+        heartbeats = provider()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail='Aircraft presence unavailable') from exc
 
     if not isinstance(heartbeats, dict):
-        return None
+        raise HTTPException(status_code=503, detail='Aircraft presence unavailable')
     if not heartbeats:
         return set()
 
     now = time.time()
     thresholds = resolve_presence_thresholds(deps.Params)
+    review_window = resolve_overview_display_policy(deps.Params)['available_sec']
     online_hw_ids: set[str] = set()
 
     for hw_id, heartbeat in heartbeats.items():
@@ -321,7 +325,8 @@ def _resolve_actionable_online_hw_ids(deps: Any) -> set[str] | None:
             now=now,
             thresholds=thresholds,
         )
-        if snapshot.get("fresh"):
+        age = snapshot.get('heartbeat_age_sec')
+        if age is not None and age < review_window:
             online_hw_ids.add(str(hw_id))
 
     return online_hw_ids

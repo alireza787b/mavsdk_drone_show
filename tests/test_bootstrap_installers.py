@@ -2565,7 +2565,7 @@ printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
 if [[ "$*" == *"describe --tags --exact-match HEAD"* ]]; then
     exit 1
 fi
-if [[ "$*" == *"fetch --depth 1 origin v9.9.9"* ]]; then
+if [[ "$*" == *"fetch --depth 1 --tags origin v9.9.9"* ]]; then
     exit 1
 fi
 exit 0
@@ -2578,7 +2578,7 @@ EOF
         chmod +x "$fakebin/systemctl"
         TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
         grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
-        grep -q -- "fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
+        grep -q -- "fetch --depth 1 --tags origin v9.9.9" "$tmpdir/git_args.txt"
         """
     )
 

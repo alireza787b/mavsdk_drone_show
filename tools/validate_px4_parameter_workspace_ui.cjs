@@ -198,6 +198,7 @@ async function installFixtures(context, state, page) {
         if (pathname === '/api/v1/fleet/telemetry') return fulfill({ telemetry: Object.fromEntries(fleet.map(drone => [drone.hw_id, {
           ...drone, telemetry_available: true, update_time: now / 1000, heartbeat_last_seen: now / 1000,
           is_armed: false, landed_state: 1, flight_mode: 50593792, readiness_status: 'ready', preflight_blockers: [],
+          ...(state.telemetryOverrides?.[drone.hw_id] || {}),
         }])), timestamp: now, display_policy: { stale_sec: 10, available_sec: 60 } });
         if (pathname === '/api/v1/git/status') return fulfill({ total_drones: 2, needs_sync_count: 0, unknown_count: 0 });
         if (pathname === '/api/v1/git/info') return fulfill({ branch: 'fixture', commit: 'fixture', repo_url: '', status: 'clean' });

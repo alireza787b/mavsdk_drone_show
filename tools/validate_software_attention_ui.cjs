@@ -16,29 +16,21 @@ fs.mkdirSync(evidence, { recursive: true });
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] });
   const results = [];
   try {
-    for (const width of [1440, 900, 390]) for (const theme of ['dark', 'light']) {
+    for (const width of (process.env.MDS_UI_WIDTHS || '1440,900,390').split(',').map(Number))
+      for (const theme of (process.env.MDS_UI_THEMES || 'dark,light').split(',')) {
       const state = fixtureState();
+      state.telemetryOverrides = Object.fromEntries(['1','2'].map(id => [id, {
+        gps_fix_type: 6, satellites_visible: 20, battery_remaining_percent: 83,
+        battery_voltage: 16.1, position_alt: 1200,
+      }]));
       const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme,
         hasTouch: width === 390, serviceWorkers: 'block' });
       await context.addInitScript(value => localStorage.setItem('drone-dashboard-theme', value), theme);
       const page = await context.newPage();
-      await page.clock.install();
+      await page.clock.install({ time: new Date() });
       page.setDefaultTimeout(15000);
       page.on('pageerror', error => state.pageErrors.push(error.message));
       await installFixtures(context, state, page);
-      await context.route('**/api/v1/fleet/telemetry', route => {
-        const now = Date.now();
-        return route.fulfill({ json: { telemetry: Object.fromEntries(['1','2'].map(id => [id, {
-          hw_id: id, pos_id: Number(id), callsign: id === '1' ? 'ALPHA' : 'BRAVO',
-          update_time: now/1000, heartbeat_last_seen: now/1000, telemetry_available: true,
-          is_armed: false, landed_state: 1, flight_mode: 50593792, readiness_status: 'ready',
-          gps_fix_type: 6, satellites_visible: 20, battery_remaining_percent: 83,
-          battery_voltage: 16.1, position_alt: 1200,
-        }])), timestamp: now, display_policy: { stale_sec: 10, available_sec: 60 } },
-          headers: { 'access-control-allow-origin': new URL(base).origin, 'access-control-allow-credentials': 'true',
-            'access-control-allow-headers': route.request().headers()['access-control-request-headers'] || 'Content-Type',
-            'x-mds-server-time': String(now) } });
-      });
       let failed = false;
       await context.route('**/api/v1/git/status', route => {
         const request = route.request();
@@ -56,7 +48,15 @@ fs.mkdirSync(evidence, { recursive: true });
       });
       await page.goto(base+'/');
       await page.getByText('Software differs', { exact: true }).waitFor();
-      await page.locator('.fleet-aircraft').first().waitFor();
+      try { await page.locator('.fleet-aircraft').first().waitFor(); }
+      catch (error) {
+        await page.screenshot({ path: path.join(evidence, `failure-${width}-${theme}.png`) });
+        fs.writeFileSync(path.join(evidence, `failure-${width}-${theme}.json`), JSON.stringify({
+          message: error.message, pageErrors: state.pageErrors, requests: state.requests,
+          text: (await page.locator('body').innerText()).slice(0, 3000),
+        }, null, 2));
+        throw error;
+      }
       assert.equal(await page.locator('.sync-warning-banner a').count(), 1);
       const link = page.getByRole('link', { name: 'Review aircraft software' });
       assert.equal(await link.getAttribute('href'), '/fleet-ops?tab=sync&filter=drift');

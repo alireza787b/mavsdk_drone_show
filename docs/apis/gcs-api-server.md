@@ -2052,6 +2052,13 @@ Use this contract for:
 Canonical git routes are exposed under `/api/v1/...`. The old versionless HTTP aliases are retired.
 
 #### `GET /api/v1/git/status`
+
+Source-review counts retain heartbeat-observed aircraft for the configured
+Overview Available window, including a brief loss; expired/offline records stay
+in diagnostic rows but do not contribute to the notice. Counts are not update
+eligibility or flight readiness. Unknown worktree evidence is never counted as
+synced. An unavailable/invalid presence snapshot returns `503` rather than a
+false empty-fleet/all-clear response. Update routes retain fresh-evidence checks.
 Get git status from all drones.
 
 **Response:**

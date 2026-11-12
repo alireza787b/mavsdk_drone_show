@@ -15,6 +15,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   unknown evidence from confirmed revision differences and never prepares an
   update by navigation. Polling is sequential/cancellable and retains aging
   evidence through brief outages; dismissals track affected revisions.
+- Source attention uses the existing Available review window through brief
+  aircraft dropouts, without relaxing update eligibility. Missing presence
+  evidence returns unavailable instead of an incorrect all-clear response.
 - Overview link state uses radio/clock/disconnected symbols and measured signal
   instead of repeating Fresh/Stale on every card. Hover and inspection retain
   the full labels, freshness evidence and unchanged command scope.

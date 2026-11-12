@@ -60,6 +60,13 @@ not proof that an update is required. **Review** opens Fleet operations without
 preparing or sending an update. Source updates belong to grounded maintenance.
 Brief refresh failures keep the existing surface and measurements; older software
 evidence becomes explicitly unavailable. No reconnect changes command targets.
+Known source attention remains during the Available window instead of disappearing
+and reappearing on a brief aircraft link loss. This is display continuity only;
+Fleet operations still requires fresh evidence before an update.
+
+![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)
+
+[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).
 
 ## Select command targets
 
