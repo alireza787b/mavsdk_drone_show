@@ -1386,7 +1386,8 @@ determine_simulation_command() {
     if [ ${#PX4_PARAM_ENV_VARS[@]} -gt 0 ]; then
         SIMULATION_ENV_VARS+=("${PX4_PARAM_ENV_VARS[@]}")
     fi
-    SIMULATION_COMMAND=(make px4_sitl "$PX4_GZ_TARGET")
+    source "$BASE_DIR/multiple_sitl/px4_gz_runtime.sh"
+    configure_px4_gz_runtime "$PX4_DIR" "$PX4_GZ_TARGET" || exit 1
 
     log_message "Simulation Runtime: PX4 Gazebo Harmonic (${PX4_GZ_TARGET}) in headless mode"
     log_message "Simulation Environment: ${SIMULATION_ENV_VARS[*]}"
@@ -1396,7 +1397,7 @@ determine_simulation_command() {
 # Function to start SITL simulation
 start_simulation() {
     log_message "Starting SITL simulation..."
-    cd "$PX4_DIR"
+    cd "$SIMULATION_WORKING_DIR"
 
     # Export instance identifier
     export px4_instance="${RUNTIME_HW_ID}-1"

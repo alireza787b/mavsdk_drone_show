@@ -194,7 +194,7 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - for promotion-grade regression runs on a long-lived host, do not mix an older baked image with boot-time repo sync to a newer commit; use a fresh image rebuild plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`
 > - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`
-> - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise is reduced in the raw SITL log, and those logs disappear when the container is removed
+> - runtime file logs are bounded by default so containers stay small; PX4 uses foreground daemon mode without an interactive console, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path

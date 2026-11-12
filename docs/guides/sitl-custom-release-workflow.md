@@ -35,6 +35,11 @@ For public/private repo authentication, read [Custom SITL Auth Guide](custom-sit
   flattening. Updated headers can invalidate an inherited cache; do not defer
   parallel C++ compilation to each aircraft's first startup. Record the actual
   prepared binary digest and verify fresh containers do not repeat that work.
+- Startup launches that prepared binary in PX4's foreground daemon mode (`-d`),
+  from its rootfs, using the installed airframe/world metadata. It does not run
+  `make` or the interactive PXH console in a detached log pipeline. Unsupported
+  targets or missing build assets fail explicitly instead of silently selecting
+  a different vehicle or compiling at aircraft startup.
 - Keep PX4 and the baked `mavsdk_server` pinned inside the image and update them only through a validated image rebuild.
 - Use runtime git sync only when you intentionally want mutable latest-on-boot behavior.
 - A source prerelease tag does not refresh the downloadable SITL image. Record

@@ -31,6 +31,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   updates, with bounded parallelism, so fresh aircraft do not each repeat large
   C++ compilations. Optional separate Docker build/runtime resource budgets
   protect shared hosts without changing aircraft admission or mission policies.
+- Prepared Gazebo runtimes launch PX4 directly in foreground daemon mode,
+  preserving the selected model/world without runtime compilation or a detached
+  interactive-console redraw loop. Missing runtime assets fail explicitly.
 
 ### Logs operator workspace and evidence integrity
 
