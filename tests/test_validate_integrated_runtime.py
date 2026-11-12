@@ -95,3 +95,11 @@ def test_airborne_rejection_gate_rejects_dispatch_or_missing_contract(path, valu
     node[path[-1]] = value
     with pytest.raises(RuntimeError):
         require_ground_start_rejection(status, 1)
+
+
+@pytest.mark.parametrize("key", ["submitted_at", "execution_started_at", "acks", "executions"])
+def test_missing_non_dispatch_evidence_is_not_zero_or_absence_proof(key):
+    status = rejected_ground_launch()
+    del status[key]
+    with pytest.raises(RuntimeError):
+        require_ground_start_rejection(status, 1)

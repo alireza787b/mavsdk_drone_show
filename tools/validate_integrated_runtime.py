@@ -224,11 +224,13 @@ def apply_assignments(
 def require_ground_start_rejection(status: dict[str, Any], leader_id: int) -> None:
     """Reject a launch, not a failed flight, with retained native admission facts."""
     require(status.get("status") == "failed", f"Expected rejected airborne launch: {status}")
-    require(status.get("submitted_at") is None, f"Rejected launch was dispatched: {status}")
-    require(status.get("execution_started_at") is None, f"Rejected launch started execution: {status}")
-    require(int((status.get("acks") or {}).get("received", 0)) == 0,
+    require("submitted_at" in status and status["submitted_at"] is None,
+            f"Rejected launch dispatch evidence is missing or nonempty: {status}")
+    require("execution_started_at" in status and status["execution_started_at"] is None,
+            f"Rejected launch execution evidence is missing or nonempty: {status}")
+    require((status.get("acks") or {}).get("received") == 0,
             f"Rejected launch received a flight-command ACK: {status}")
-    require(int((status.get("executions") or {}).get("received", 0)) == 0,
+    require((status.get("executions") or {}).get("received") == 0,
             f"Rejected launch received an execution report: {status}")
     preparations = status.get("preparations") or {}
     require(preparations.get("policy") == "all_required", f"Missing launch policy: {status}")
