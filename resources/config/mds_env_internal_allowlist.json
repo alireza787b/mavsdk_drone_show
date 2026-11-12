@@ -41,6 +41,24 @@
   ],
   "keys": [
     {
+      "name": "MDS_UI_CHROME",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Chromium executable for isolated UI acceptance tooling; never persisted as an operator runtime setting."
+    },
+    {
+      "name": "MDS_UI_THEMES",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Synthetic theme matrix for isolated built-browser acceptance."
+    },
+    {
+      "name": "MDS_UI_WIDTHS",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Viewport widths for isolated built-browser acceptance, not aircraft configuration."
+    },
+    {
       "name": "MDS_RUNTIME_PYTHON",
       "domain": "runtime",
       "scope": "process",

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 878,
+  "chunk_count": 883,
   "chunks": [
     {
       "audience": "developer",
@@ -29,7 +29,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "content_hash": "a7f9b199a97393f3791e2ebe7178ad8704c183a22b965aacc3a2a7fb1a65be2b",
+      "content_hash": "bf5a1a9b0ac29135452689848e6ff59805f4cae391c09e184dfbe2fe1644e48c",
       "heading": "Operator update and rollback boundary",
       "id": "mds.mavsdk_maintenance:002-01-operator-update-and-rollback-boundary",
       "links": [],
@@ -43,13 +43,33 @@
         "maintenance",
         "sitl"
       ],
-      "text": "## Operator update and rollback boundary\n\nPerform upgrades as grounded maintenance. First stop mission/controller/API\nprocesses using MAVSDK, using the deployment's existing service workflow. The\nhelper refuses a changed server or incompatible Python upgrade while a\n`mavsdk_server` process belongs to the selected deployment; neighboring isolated\nfleets do not block its maintenance check. It does not terminate a server, revoke\na motion lease, or take over a borrowed server. A source pull alone is not an\natomic fleet upgrade.\nDo not run an unattended SDK-pair migration against an operating aircraft.\n\nFrom the intended checkout and its intended virtual environment:\n\n```bash\npython3 tools/mavsdk_runtime.py manifest\npython3 tools/mavsdk_runtime.py idle",
+      "text": "## Operator update and rollback boundary\n\nPerform upgrades as grounded maintenance. First stop mission/controller/API\nprocesses using MAVSDK, using the deployment's existing service workflow. The\nhelper refuses a changed server or incompatible Python upgrade while a\n`mavsdk_server` process belongs to the selected deployment; neighboring isolated\nfleets do not block its maintenance check. It does not terminate a server, revoke\na motion lease, or take over a borrowed server. A source pull alone is not an\natomic fleet upgrade.\nDo not run an unattended SDK-pair migration against an operating aircraft.\n\nUnattended companion Git sync checks the pulled source against the selected\nPython environment **before** changing the native server, packages, service\ntemplates or network sidecars. An incompatible/missing existing SDK environment\nreports `SDK-MAINTENANCE`, restores the previous source commit and retains the\nexisting runtime. It never tries to repair a breaking SDK migration with in-place\npip. A source-only first bootstrap still lets initial setup create its environment.\n`MDS_PYTHON_BIN` takes precedence over `MDS_VENV_PATH`; without either, companion\nsync uses the checkout's `venv`. An invalid explicit selection never falls back\nto a different interpreter.\n\nFor a breaking update, keep the known-working environment intact and create a\nreplacement at a stable, versioned path. Install and import-check the new source's\nrequirements there, while grounded and stopped. Then select it using the actual\ndeployment launcher: GCS supports `MDS_VENV_PATH`/`MDS_PYTHON_BIN`; stock companion\nunits use `venv/bin/python`, so switch that path to the staged environment only\nas an explicit maintenance step. Preserve the prior source/environment/server\ntuple for rollback. Do not move an environment and assume its absolute script\nshebangs were rewritten. Ordinary compatible requirement updates retain the\nexisting updater workflow; they are not a transactional package-manager rollback.\n\nFrom the intended checkout, after selecting the **staged replacement** environment\nas `venv` (or substitute its exact Python path below), and retaining the old tuple:",
       "title": "MAVSDK runtime maintenance"
     },
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "content_hash": "91cf9938cec9517e0b51bb52f38dc50d577ec4701775b87aae6d91314aae801f",
+      "content_hash": "260537929b504178b34c598f7788221ec37a63d56b89df2cc7becbe3744674b4",
+      "heading": "Operator update and rollback boundary",
+      "id": "mds.mavsdk_maintenance:002-02-operator-update-and-rollback-boundary",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "```bash\npython3 tools/mavsdk_runtime.py manifest\npython3 tools/mavsdk_runtime.py idle",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "7c9e328c22f5fca1491519fb0c7e88fe441a41531b22bb73b021f2f9fcaabb15",
       "heading": "Use requirements-node.txt on companions; requirements.txt on GCS/SITL.",
       "id": "mds.mavsdk_maintenance:003-01-use-requirements-node-txt-on-companions-requirements-txt-on-gcs-sitl",
       "links": [],
@@ -63,7 +83,7 @@
         "maintenance",
         "sitl"
       ],
-      "text": "# Use requirements-node.txt on companions; requirements.txt on GCS/SITL.\nvenv/bin/python -m pip install -r requirements-node.txt\nvenv/bin/python -m pip check\nvenv/bin/python tools/mavsdk_runtime.py python-check\nbash tools/download_mavsdk_server.sh --install-dir \"$PWD\"\npython3 tools/mavsdk_runtime.py check --install-dir \"$PWD\"\n```\n\nBootstrap, SITL image preparation/startup, and repository-update helpers use the\nsame manifest-backed provisioner. No network \"latest\" resolution or fallback to\nan unrelated server version occurs. An already matching pinned server is checked\nwithout download. Before changing a binary, the provisioner downloads a unique\nbounded candidate, checks its published digest and Linux ELF architecture, runs\na bounded `--help` probe (no vehicle transport), and atomically renames it into\nplace. A failed candidate leaves the old executable intact.\n\n`runtime_data/mavsdk/provenance.json` records the manifest digest, Python pins,\nactual binary digest, verified server version, and custom-override status. Changed\nartifacts and their prior provenance are retained by digest under\n`runtime_data/mavsdk/rollback/`. The rollback directory is bounded to 192 MiB;\ncapacity exhaustion refuses a further change and asks for reviewed archival,\nnot silent deletion. Do not delete these files to repair an unexplained failure.\n\nRollback requires the previous **source, Python environment/dependency set, and\nserver artifact together**, while grounded and stopped. Preserve a previous\nworking environment/image before updating Python packages; the server backup\ndoes not roll back pip. Select the recorded prior binary by digest, verify its\nrecorded provenance, restore the matching source/environment using the normal\ndeployment workflow, then repeat readiness checks before enabling operations.\nNo automatic rollback or service restart is triggered by the provisioning tool.",
+      "text": "# Use requirements-node.txt on companions; requirements.txt on GCS/SITL.\nvenv/bin/python -m pip install --upgrade pip\nvenv/bin/python -m pip install -r requirements-node.txt\nvenv/bin/python -m pip check\nvenv/bin/python tools/mavsdk_runtime.py python-check\nbash tools/download_mavsdk_server.sh --install-dir \"$PWD\"\npython3 tools/mavsdk_runtime.py check --install-dir \"$PWD\"\n```\n\nBootstrap, SITL image preparation/startup, and repository-update helpers use the\nsame manifest-backed provisioner. No network \"latest\" resolution or fallback to\nan unrelated server version occurs. An already matching pinned server is checked\nwithout download. Before changing a binary, the provisioner downloads a unique\nbounded candidate, checks its published digest and Linux ELF architecture, runs\na bounded `--help` probe (no vehicle transport), and atomically renames it into\nplace. A failed candidate leaves the old executable intact.\n\n`runtime_data/mavsdk/provenance.json` records the manifest digest, Python pins,\nactual binary digest, verified server version, and custom-override status. Changed\nartifacts and their prior provenance are retained by digest under\n`runtime_data/mavsdk/rollback/`. The rollback directory is bounded to 192 MiB;\ncapacity exhaustion refuses a further change and asks for reviewed archival,\nnot silent deletion. Do not delete these files to repair an unexplained failure.\n\nRollback requires the previous **source, Python environment/dependency set, and\nserver artifact together**, while grounded and stopped. Preserve a previous\nworking environment/image before updating Python packages; the server backup\ndoes not roll back pip. Select the recorded prior binary by digest, verify its\nrecorded provenance, restore the matching source/environment using the normal\ndeployment workflow, then repeat readiness checks before enabling operations.\nNo automatic rollback or service restart is triggered by the provisioning tool.",
       "title": "MAVSDK runtime maintenance"
     },
     {
@@ -129,7 +149,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "content_hash": "b706eff870c692e031260805afe05c66fe0881de255193df097b5a12e09a441c",
+      "content_hash": "af2aa3524f4eb8ac8e97a0cdfb1755df7ae0df3ad191efa39c07490dbff4f044",
       "heading": "Reusable verification gates",
       "id": "mds.mavsdk_maintenance:004-03-reusable-verification-gates",
       "links": [],
@@ -143,7 +163,30 @@
         "maintenance",
         "sitl"
       ],
-      "text": "sts.\n This is still not real-hardware flight clearance.\n7. Later, on each eligible real companion/FC combination while physically\n grounded, verify service-user imports/settings, incoming transport and MAVLink\n identity, two fresh telemetry epochs, disarm/landed uncertainty handling,\n safe reads and explicitly approved reversible parameter/ULog operations.\n Verify interruption/restart and ownership cleanup without arming. Any flight\n scenarios require a separate approved field procedure and rollback decision.\n\nThis migration preserves existing mission policy, role, gains, failsafes, leases,\nand fresh-telemetry guards. The earlier v4 heartbeat discovery is not proof of\nreadiness. Named enums remain named contracts; do not assume numeric values are\nunchanged. Concurrent stderr/stdout draining is a compatibility fix, not evidence\nof better synchronized flight.",
+      "text": "sts.\n This is still not real-hardware flight clearance.\n7. Later, on each eligible real companion/FC combination while physically\n grounded, verify service-user imports/settings, incoming transport and MAVLink\n identity, two fresh telemetry epochs, disarm/landed uncertainty handling,\n safe reads and explicitly approved reversible parameter/ULog operations.\n Verify interruption/restart and ownership cleanup without arming. Any flight\n scenarios require a separate approved field procedure and rollback decision.\n\nThis migration preserves existing mission policy, role, gains, failsafes, leases,\nand fresh-telemetry guards. The earlier v4 heartbeat discovery is not proof of\nreadiness. Named enums remain named contracts; do not assume numeric values are\nunchanged. Concurrent stderr/stdout draining is a compatibility fix, not evidence\nof better synchronized flight.\n\nThe sequential-mission regression also exercises recovery followed by a new\nlaunch without resetting the simulator. A completed MDS LAND/RTL or show may\nleave PX4 disarmed but in residual Offboard, which correctly fails the next\nnative armability check when its setpoint stream has ended. Postflight completion\nnow requests Hold once **only** with fresh connected disarmed, ON_GROUND and\nnative recovery-mode evidence, and verifies the result. This includes LAND and\nRETURN_TO_LAUNCH: recovery can complete on an already-disarmed aircraft before\nthe autopilot transitions out of that mode. It does not precede/gate recovery,\noverride manual modes, normalize uncertain flight state or bypass preflight.\nAn unconfirmed mode change stays diagnostic; the next launch still requires\nnative readiness. This is a lifecycle correction, not a flight-tuning change.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "80a84c5cfa9e241b09dd25f4049b334a260b81c3d0a7e2c476fceb804571cc31",
+      "heading": "Reusable verification gates",
+      "id": "mds.mavsdk_maintenance:004-04-reusable-verification-gates",
+      "links": [
+        "https://github.com/encode/uvicorn/blob/0.32.0/uvicorn/loops/uvloop.py",
+        "https://github.com/grpc/grpc/blob/v1.75.1/doc/fork_support.md"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "The embedded companion HTTP server explicitly uses standard asyncio. Uvicorn's\nauto loop selection can install uvloop's process-wide policy from the HTTP\nthread; subsequent mission subprocess creation then uses libuv's fork path.\nDuring three-aircraft validation a recovery child hung inside gRPC's native\npost-fork handler before executing its controller, also blocking the API. The\nstandard subprocess path preserves passed evidence FDs and process-group\nownership without this loop-policy substitution. Do not enable experimental\ngRPC fork support or change flight guards to work around process-launch hangs.\nSee [gRPC's fork limitations](https://github.com/grpc/grpc/blob/v1.75.1/doc/fork_support.md)\nand the [pinned Uvicorn uvloop setup](https://github.com/encode/uvicorn/blob/0.32.0/uvicorn/loops/uvloop.py).",
       "title": "MAVSDK runtime maintenance"
     },
     {
@@ -193,7 +236,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.px4_parameter_operator_workflow/markdown",
-      "content_hash": "e787f31b12a7f4aadef73e7efa931a2ac9a4972bab1d861d2f03abe0e1e6fae5",
+      "content_hash": "9046095b775ea1f15831da612154c23325c87cbb78d8b2b21c53c6dc46b219eb",
       "heading": "1. Inspect",
       "id": "mds.px4_parameter_operator_workflow:002-01-1-inspect",
       "links": [],
@@ -207,7 +250,7 @@
         "parameters",
         "maintenance"
       ],
-      "text": "## 1. Inspect\n\nChoose the aircraft, press **Refresh**, then search by parameter name or group.\nCheck the callsign/hardware ID and snapshot age. Select a row to inspect its\nvalue, units and available reference information. Opening another aircraft does\nnot change the targets of an existing draft.\n\n![Inspect an aircraft parameter](../assets/px4-parameters/guide-01-inspect-1440-dark.png)",
+      "text": "## 1. Inspect\n\nChoose the aircraft, press **Refresh**, then search by parameter name or group.\nCheck the callsign/hardware ID and snapshot age. Select a row to inspect its\nvalue, units and available reference information. Opening another aircraft does\nnot change the targets of an existing draft.\n\n**List** starts with 50 rows per page. Choose **Show all** in the existing page-size\nselector to scroll all matching parameters; it does not fetch another snapshot\nor change apply targets. **Groups** replaces the list with collapsible PX4 group\nheadings and counts. Search includes group/category names and reveals matches\nwithout opening groups; clearing search restores the opened groups. Missing\ngroup metadata appears as **Ungrouped**. Both views use a bounded scrolling\nsurface on desktop, tablet and phone.\n\nAlternating rows and hover/focus help scanning. The blue left edge marks the\ninspected parameter, not a staged change or an apply target. Values belong to\nthe displayed aircraft snapshot, not a continuous live read. A stale snapshot\nremains inspectable; Refresh obtains a new read, and a failed first read offers\n**Retry read**.\n\n![Inspect an aircraft parameter](../assets/px4-parameters/guide-01-inspect-1440-dark.png)\n\n![Grouped browsing with a shared scroll surface](../assets/px4-parameters/guide-06-groups-1440-dark.png)",
       "title": "PX4 Parameters operator workflow"
     },
     {
@@ -273,7 +316,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.px4_parameter_operator_workflow/markdown",
-      "content_hash": "50b64331f36b32dda71e70b262db5b919e6cedf95b1e6a4090a29b81f04337c7",
+      "content_hash": "1b9a2863434a57934afab229719a8bd51c155aa0a52e29a3d14a18ba3e76d471",
       "heading": "Profiles, files and smaller screens",
       "id": "mds.px4_parameter_operator_workflow:006-01-profiles-files-and-smaller-screens",
       "links": [],
@@ -287,7 +330,7 @@
         "parameters",
         "maintenance"
       ],
-      "text": "## Profiles, files and smaller screens\n\n**Profiles** selects a repository-managed baseline. **Import QGC** parses a\n`.params` file and reports skipped lines. Both enter the same review; neither\nwrites automatically. **Export** reads the currently inspected snapshot.\nOn tablet/phone, grouped rows and the same review dialog preserve these steps.\n\n![Review a reusable profile](../assets/px4-parameters/guide-05-profile-1440-dark.png)\n\n[Full-size combined guide](../assets/px4-parameters/operator-walkthrough.png).\nIllustrations use synthetic aircraft and example values, not flight tuning.\nSee [PX4 Parameters](../px4-parameters.md) for contracts, storage and validation.",
+      "text": "## Profiles, files and smaller screens\n\n**Profiles** selects a repository-managed baseline. **Import QGC** parses a\n`.params` file and reports skipped lines. Both enter the same review; neither\nwrites automatically. **Export** reads the currently inspected snapshot.\nOn tablet/phone, compact rows and the same review dialog preserve these steps.\n\n![Compact parameter list on a phone](../assets/px4-parameters/guide-07-browse-390-dark.png)\n\n![Review a reusable profile](../assets/px4-parameters/guide-05-profile-1440-dark.png)\n\n[Full-size combined guide](../assets/px4-parameters/operator-walkthrough.png).\nIllustrations use synthetic aircraft and example values, not flight tuning.\nSee [PX4 Parameters](../px4-parameters.md) for contracts, storage and validation.",
       "title": "PX4 Parameters operator workflow"
     },
     {
@@ -2822,9 +2865,29 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
+      "content_hash": "d22a05c61ccfa561054bf4a790b5bb54cea6b51eb2c56970f38908fb70cd2e92",
+      "heading": "Configure remote Wi-Fi dashboard access",
+      "id": "mds.init_setup:029-01-configure-remote-wi-fi-dashboard-access",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mds-init-setup.md",
+      "resource_id": "mds.init_setup",
+      "route_hint": "/fleet-enrollment",
+      "summary": "Setup workflow for MDS nodes and companion computers.",
+      "tags": [
+        "setup",
+        "companion",
+        "bootstrap"
+      ],
+      "text": "### Configure remote Wi-Fi dashboard access\n\nIf Smart Wi-Fi Manager is enabled, port reachability and edit authorization\nare separate. Keep its default loopback listener for local/proxied use. For a\ndirect NetBird browser link, use the pinned sidecar's normal browser login:\nfollow [Wi-Fi dashboard setup](smart-wifi-manager-dashboard.md) once on the\ngrounded node, then reload the page and sign in. The sidecar owns the local\ncredential/hash; ordinary MDS sync preserves it. Do not copy SSH credentials\ninto the dashboard, disable remote-write protection or put passwords in Git.",
+      "title": "MDS init setup"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "6c3dc422f67a88ef68d80316c62aa13f222287c5b549c79322b7c29b12e243f5",
       "heading": "Configure MAVLink Routing",
-      "id": "mds.init_setup:029-01-configure-mavlink-routing",
+      "id": "mds.init_setup:030-01-configure-mavlink-routing",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2844,7 +2907,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "f0e4c2aeb04196483eb20b9051d5d7df5296cfa38dc4ec8edee01ab26c1aeeb0",
       "heading": "Configure MAVLink Routing",
-      "id": "mds.init_setup:029-02-configure-mavlink-routing",
+      "id": "mds.init_setup:030-02-configure-mavlink-routing",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2864,7 +2927,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "0815218e11dd0010f16cfe4cdd4fb330299115cc48c2147bccfa3214b6c13b62",
       "heading": "CM5 on the Holybro carrier",
-      "id": "mds.init_setup:030-01-cm5-on-the-holybro-carrier",
+      "id": "mds.init_setup:031-01-cm5-on-the-holybro-carrier",
       "links": [
         "https://docs.holybro.com/autopilot/pixhawk-baseboards/pixhawk-rpi-cm4-5-baseboard/connections-and-ports",
         "https://www.raspberrypi.com/documentation/computers/configuration.html#configure-device-tree-overlays-for-uarts"
@@ -2887,7 +2950,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "f6a8cb8e935c003ed35f34a063d2901a95cf9a31a17f140922cf0caf367ad978",
       "heading": "Reboot",
-      "id": "mds.init_setup:031-01-reboot",
+      "id": "mds.init_setup:032-01-reboot",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2907,7 +2970,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "5a003cec294e23c1891adde931503ae0266cd3021d1d82fd3b514b2fbad05506",
       "heading": "Configuration Files",
-      "id": "mds.init_setup:032-01-configuration-files",
+      "id": "mds.init_setup:033-01-configuration-files",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2927,7 +2990,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "6bf247cc63b6cc32794674e66df3c76a54e2aa4f9980da0ae670b1930c491c66",
       "heading": "Source Of Truth",
-      "id": "mds.init_setup:033-01-source-of-truth",
+      "id": "mds.init_setup:034-01-source-of-truth",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2947,7 +3010,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "dc26d3c9906db336a3ee24b967b13e4133bbcf7890645448f07455407492692f",
       "heading": "Editing Local Configuration",
-      "id": "mds.init_setup:034-01-editing-local-configuration",
+      "id": "mds.init_setup:035-01-editing-local-configuration",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2967,7 +3030,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "49f87660521e1dba6a5b35f2d82c3a31621dee0eef874154168b57dab6fea5dc",
       "heading": "Troubleshooting",
-      "id": "mds.init_setup:035-01-troubleshooting",
+      "id": "mds.init_setup:036-01-troubleshooting",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -2987,7 +3050,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "cddfc47732b0336130940b2a589e7b04d08cf37eb4b7a929f4116c35d7ca0234",
       "heading": "Quick Fixes",
-      "id": "mds.init_setup:036-01-quick-fixes",
+      "id": "mds.init_setup:037-01-quick-fixes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -3007,7 +3070,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "ce97291ad3e79a91927693e18cab071090fe75152e269e0c53fb417f4f75aa63",
       "heading": "Next Steps",
-      "id": "mds.init_setup:037-01-next-steps",
+      "id": "mds.init_setup:038-01-next-steps",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -3027,7 +3090,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "content_hash": "82ea368bc7078791b65fff8bfe066a1f95ffa554c2a7b6a634fdb1e8b3adc69b",
       "heading": "Related Documentation",
-      "id": "mds.init_setup:038-01-related-documentation",
+      "id": "mds.init_setup:039-01-related-documentation",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -5338,7 +5401,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
-      "content_hash": "174e0a81ecd696372d3de7c1a163f78be4de5547c91ad4c8b7912ba2d415f04f",
+      "content_hash": "6204744d4034691d56a324955f71acc88524b48ea30f57d4b2b8390635c573ed",
       "heading": "Update your repo or branch first, then rebuild a clean image",
       "id": "mds.advanced_sitl:071-01-update-your-repo-or-branch-first-then-rebuild-a-clean-image",
       "links": [],
@@ -5351,7 +5414,7 @@
         "sitl",
         "simulation"
       ],
-      "text": "# Update your repo or branch first, then rebuild a clean image\ncd /path/to/mavsdk_drone_show\ngit pull --ff-only\n\nexport MDS_REPO_URL=\"https://github.com/mycompany/mds-fork.git\"\nexport MDS_BRANCH=\"production\"\n\nbash tools/build_custom_image.sh \"$MDS_REPO_URL\" \"$MDS_BRANCH\" \"mycompany-mds-sitl:v5-custom-2\"\n```\n\n> **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v5` and also tagged as `mavsdk-drone-show-sitl:latest`.\n\n> **Best practice:** keep custom image creation reproducible. Avoid using `docker commit` or hand-edited running containers as your normal release workflow, because they hide state and are overwritten by startup sync.\n>\n> For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.\n\n---",
+      "text": "# Update your repo or branch first, then rebuild a clean image\ncd /path/to/mavsdk_drone_show\ngit pull --ff-only\n\nexport MDS_REPO_URL=\"https://github.com/mycompany/mds-fork.git\"\nexport MDS_BRANCH=\"production\"\n\nbash tools/build_custom_image.sh \"$MDS_REPO_URL\" \"$MDS_BRANCH\" \"mycompany-mds-sitl:v5-custom-2\"\n```\n\n> **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v6` and also tagged as `mavsdk-drone-show-sitl:latest`. See the [runtime/artifact acceptance record](../plans/2026-11-12-sdk4-image-release-acceptance.md) for its baked source and separate hardware boundary.\n\n> **Best practice:** keep custom image creation reproducible. Avoid using `docker commit` or hand-edited running containers as your normal release workflow, because they hide state and are overwritten by startup sync.\n>\n> For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.\n\n---",
       "title": "Advanced SITL guide"
     },
     {
@@ -5636,7 +5699,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
-      "content_hash": "bc5be369f981ace7125cd70940fede5da462970e5d416142e2fb16fb1ae91c7f",
+      "content_hash": "a1fdd0df5366b58d5f59b15a6dc822e7cd73edc9c1289f660111d81c50b9358d",
       "heading": "Public Mega download via the official MEGAcmd client; large archives may take several minutes.",
       "id": "mds.sitl_comprehensive:012-01-public-mega-download-via-the-official-megacmd-client-large-archives-may-take-sev",
       "links": [],
@@ -5649,7 +5712,26 @@
         "sitl",
         "simulation"
       ],
-      "text": "# Public Mega download via the official MEGAcmd client; large archives may take several minutes.\nmega-get 'https://mega.nz/file/iLRG3I7a#5ktNslf4c8Ewekt_Fsw8Lu7WKGPLo98BLEowPVt2eDc' .",
+      "text": "# Public Mega download via the official MEGAcmd client; large archives may take several minutes.\nmega-get 'https://mega.nz/file/eHBAGSAI#QJvpeEXvbvifpAhTMDs5rKPhRMu2bKzAbW1dgIbmHVk' .",
+      "title": "SITL comprehensive guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
+      "content_hash": "de5d820630378eb441e11e885a00bc581898c211bc7f7c6111cf5fdd9982cc7d",
+      "heading": "Verify the v6 archive bytes before extracting.",
+      "id": "mds.sitl_comprehensive:013-01-verify-the-v6-archive-bytes-before-extracting",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/sitl-comprehensive.md",
+      "resource_id": "mds.sitl_comprehensive",
+      "route_hint": null,
+      "summary": "Comprehensive SITL setup and validation workflow.",
+      "tags": [
+        "sitl",
+        "simulation"
+      ],
+      "text": "# Verify the v6 archive bytes before extracting.\nprintf '%s %s\\n' 'ed66ea06ca31db6ae1e15ea7e46b4f3e0997de1aaf9ddd9018e76daf61ec3c0c' 'mavsdk-drone-show-sitl-image.7z' | sha256sum -c -",
       "title": "SITL comprehensive guide"
     },
     {
@@ -5657,7 +5739,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "31829a344ad30443557d9c37b101aeafdf46642c635bdcb51e1488acb9a9c67d",
       "heading": "Validate the archive before extracting it.",
-      "id": "mds.sitl_comprehensive:013-01-validate-the-archive-before-extracting-it",
+      "id": "mds.sitl_comprehensive:014-01-validate-the-archive-before-extracting-it",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5676,7 +5758,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "66e50eb1d2c907946d46f63b8efdebc47e88827bf0d655f482db9d8237144899",
       "heading": "Extraction also takes time on large images.",
-      "id": "mds.sitl_comprehensive:014-01-extraction-also-takes-time-on-large-images",
+      "id": "mds.sitl_comprehensive:015-01-extraction-also-takes-time-on-large-images",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5695,7 +5777,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "37b4f8f16f594355bc19b5912ca97f8570eee6f5e5413a65e49a083d8312506f",
       "heading": "Docker Installation",
-      "id": "mds.sitl_comprehensive:015-01-docker-installation",
+      "id": "mds.sitl_comprehensive:016-01-docker-installation",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5712,9 +5794,9 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
-      "content_hash": "ae2150977d13a0f0da2bdefc15d94f7490ef46adca60e83a612a3c381c06f1ca",
+      "content_hash": "41539cdf91c06c67e6d02708b3d86ec022c10c6690dad544ae188b3cba41e56f",
       "heading": "Large image imports may take several minutes.",
-      "id": "mds.sitl_comprehensive:016-01-large-image-imports-may-take-several-minutes",
+      "id": "mds.sitl_comprehensive:017-01-large-image-imports-may-take-several-minutes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5725,7 +5807,26 @@
         "sitl",
         "simulation"
       ],
-      "text": "# Large image imports may take several minutes.\ndocker load -i mavsdk-drone-show-sitl-image.tar\n```\n\nThe archive already contains the official Docker tags. After `docker load`, confirm them with:\n\n```bash\ndocker image ls mavsdk-drone-show-sitl\n```\n\nYou should see the current official tags, including:\n- `mavsdk-drone-show-sitl:latest`\n- `mavsdk-drone-show-sitl:v5`\n\nAfter a successful `docker load`, you can reclaim several GB on smaller VPSes by deleting the temporary archive files:\n\n```bash\nrm -f ~/mavsdk-drone-show-sitl-image.tar ~/mavsdk-drone-show-sitl-image.7z\n```\n\n> **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.\n>\n> **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).\n>\n> **Need a custom release workflow?** See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) for the clean path to maintain your own fork, rebuild a validated image, package it, and redistribute it without relying on ad hoc container edits.\n>\n> **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false` so startup does not fan out into one remote git fetch or Python re-sync per container.\n>\n> **Regression note:** the reusable all-mode operator regression on Hetzner is now validated in that pinned-image mode. For repeatable acceptance gates on a persistent VPS, rebuild the image for the target commit, recreate the fleet from that image, and keep both boot-sync flags off during the run.",
+      "text": "# Large image imports may take several minutes.\ndocker load -i mavsdk-drone-show-sitl-image.tar\n```\n\nThe archive already contains the official Docker tags. After `docker load`, confirm them with:\n\n```bash\ndocker image ls mavsdk-drone-show-sitl\n```\n\nYou should see the current official tags, including:\n- `mavsdk-drone-show-sitl:latest`\n- `mavsdk-drone-show-sitl:v6`\n\nThis archive bakes the reviewed SDK 4 runtime at source `0bc368cb` and uses\nCPython 3.12.16. Its two/three-aircraft native acceptance and later host-tool /\ncompanion-provisioning follow-ups are separated in the\n[release evidence](../plans/2026-11-12-sdk4-image-release-acceptance.md).\nImage acceptance is not hardware flight clearance.\n\nAfter a successful `docker load`, you can reclaim several GB on smaller VPSes by deleting the temporary archive files:\n\n```bash\nrm -f ~/mavsdk-drone-show-sitl-image.tar ~/mavsdk-drone-show-sitl-image.7z\n```",
+      "title": "SITL comprehensive guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
+      "content_hash": "4797765e802bde2f3824df3db5d25653870c49a3d2d3de8cc5e5e0645acb5753",
+      "heading": "Large image imports may take several minutes.",
+      "id": "mds.sitl_comprehensive:017-02-large-image-imports-may-take-several-minutes",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/sitl-comprehensive.md",
+      "resource_id": "mds.sitl_comprehensive",
+      "route_hint": null,
+      "summary": "Comprehensive SITL setup and validation workflow.",
+      "tags": [
+        "sitl",
+        "simulation"
+      ],
+      "text": "> **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.\n>\n> **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).\n>\n> **Need a custom release workflow?** See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) for the clean path to maintain your own fork, rebuild a validated image, package it, and redistribute it without relying on ad hoc container edits.\n>\n> **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false` so startup does not fan out into one remote git fetch or Python re-sync per container.\n>\n> **Regression note:** the reusable all-mode operator regression on Hetzner is now validated in that pinned-image mode. For repeatable acceptance gates on a persistent VPS, rebuild the image for the target commit, recreate the fleet from that image, and keep both boot-sync flags off during the run.",
       "title": "SITL comprehensive guide"
     },
     {
@@ -5733,7 +5834,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "8892036da960e010baa72b2e32a87ff9b7181efb475021a8e85f69cb83b154a9",
       "heading": "Image Features and Components",
-      "id": "mds.sitl_comprehensive:017-01-image-features-and-components",
+      "id": "mds.sitl_comprehensive:018-01-image-features-and-components",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5750,9 +5851,9 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
-      "content_hash": "9298a1cda4c56c34ec84ae85e1a2ec22909a1287eadb93db56041a19db7f7c90",
+      "content_hash": "42341ee517e702509a43a9947bf22d31e1bfd13a5cfc21c08e0bd1f5bbc9281a",
       "heading": "Image Features and Components",
-      "id": "mds.sitl_comprehensive:017-02-image-features-and-components",
+      "id": "mds.sitl_comprehensive:018-02-image-features-and-components",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5763,15 +5864,15 @@
         "sitl",
         "simulation"
       ],
-      "text": "> **Current Docker SITL standard**\n> - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`\n> - the image keeps one prebuilt PX4 SITL build tree, the real PX4 git checkout plus submodule metadata, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging\n> - release image prep removes the PX4 ARM firmware toolchain by default to save space because it is not required for normal SITL runtime; set `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding if you intentionally need that toolchain in a custom image\n> - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, and the baked `mavsdk_server`\n> - before reusing a preserved runtime `venv`, `startup_sitl.sh` now validates that the interpreter version, site-packages path, and core imports still match; unhealthy `venv`s are rebuilt automatically instead of silently breaking action scripts later\n> - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup\n> - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents\n> - for promotion-grade regression runs on a long-lived host, do not mix an older baked image with boot-time repo sync to a newer commit; use a fresh image rebuild plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`\n> - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image\n> - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`\n> - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise",
+      "text": "> **Current Docker SITL standard**\n> - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`\n> - the image keeps one prebuilt PX4 SITL build tree, the real PX4 git checkout plus submodule metadata, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging\n> - release image prep removes the PX4 ARM firmware toolchain by default to save space because it is not required for normal SITL runtime; set `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding if you intentionally need that toolchain in a custom image\n> - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, and the baked `mavsdk_server`\n> - before reusing a preserved runtime `venv`, `startup_sitl.sh` now validates that the interpreter version, site-packages path, and core imports still match; unhealthy `venv`s are rebuilt automatically instead of silently breaking action scripts later\n> - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup\n> - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents\n> - for promotion-grade regression runs on a long-lived host, do not mix an older baked image with boot-time repo sync to a newer commit; use a fresh image rebuild plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`\n> - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image\n> - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`\n> - runtime file logs are bounded by default so containers stay small; PX4 uses foreground daemon",
       "title": "SITL comprehensive guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
-      "content_hash": "48e1e06cfd57018e82c792b17584f3861b7b22fd8403e96352a9fec7cee90a06",
+      "content_hash": "19100b144d374a833af61f1f53a0d70e4a4eec10a6a28516a1efc4458a2541b5",
       "heading": "Image Features and Components",
-      "id": "mds.sitl_comprehensive:017-03-image-features-and-components",
+      "id": "mds.sitl_comprehensive:018-03-image-features-and-components",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5782,7 +5883,7 @@
         "sitl",
         "simulation"
       ],
-      "text": "sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`\n> - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise is reduced in the raw SITL log, and those logs disappear when the container is removed\n> - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs\n> - each drone gets its own Gazebo transport partition by default to avoid cross-container interference\n> - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path\n> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process with Docker restart policy `unless-stopped` by default, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`\n> - mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) now default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the repo under test; pinned-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility",
+      "text": "venv sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`\n> - runtime file logs are bounded by default so containers stay small; PX4 uses foreground daemon mode without an interactive console, and those logs disappear when the container is removed\n> - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs\n> - each drone gets its own Gazebo transport partition by default to avoid cross-container interference\n> - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path\n> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process with Docker restart policy `unless-stopped` by default, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`\n> - mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) now default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the repo under test; pinned-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility",
       "title": "SITL comprehensive guide"
     },
     {
@@ -5790,7 +5891,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "cf3f43ff773037612e0fe077bcf7282bc4dd12b155358665d06cb29692504ca1",
       "heading": "Need Custom Repository or Advanced Configuration?",
-      "id": "mds.sitl_comprehensive:018-01-need-custom-repository-or-advanced-configuration",
+      "id": "mds.sitl_comprehensive:019-01-need-custom-repository-or-advanced-configuration",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5809,7 +5910,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "523038ff96018c2eeb7d40b56b70e9baa2a336fa67107f95d5ee5b3f2fd74716",
       "heading": "Portainer Installation (Optional but Highly Recommended)",
-      "id": "mds.sitl_comprehensive:019-01-portainer-installation-optional-but-highly-recommended",
+      "id": "mds.sitl_comprehensive:020-01-portainer-installation-optional-but-highly-recommended",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5828,7 +5929,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "62a6a8aeca321ea23a8990d58f8f9ab1c329311fe70db79a1f034f5eb7643ba2",
       "heading": "Drone Configuration and Setup",
-      "id": "mds.sitl_comprehensive:020-01-drone-configuration-and-setup",
+      "id": "mds.sitl_comprehensive:021-01-drone-configuration-and-setup",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5847,7 +5948,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "94fc34b650285d3ef6c2cdb6b1b673c35c97794695bbe95d0721a21154e2c925",
       "heading": "GCS Server Setup",
-      "id": "mds.sitl_comprehensive:021-01-gcs-server-setup",
+      "id": "mds.sitl_comprehensive:022-01-gcs-server-setup",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5866,7 +5967,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "2e675cf27648c35d79231c29c72f7ecad096d09eb03a57e57c96e3ec4f18f626",
       "heading": "Option A: Automated Setup (Recommended)",
-      "id": "mds.sitl_comprehensive:022-01-option-a-automated-setup-recommended",
+      "id": "mds.sitl_comprehensive:023-01-option-a-automated-setup-recommended",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5885,7 +5986,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "e8680f0ba5a5d5b4eec6ff4f2ad8c1e68a3c6bbac949f6974f8eeebbbd64891e",
       "heading": "Option B: Manual Setup",
-      "id": "mds.sitl_comprehensive:023-01-option-b-manual-setup",
+      "id": "mds.sitl_comprehensive:024-01-option-b-manual-setup",
       "links": [
         "https://nodejs.org/en/download/package-manager"
       ],
@@ -5906,7 +6007,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "288c4aaa62a7fd7cd575edc290b6d4f9ecebb7e9b0c34687451b36df65c624b0",
       "heading": "Start the Dashboard",
-      "id": "mds.sitl_comprehensive:024-01-start-the-dashboard",
+      "id": "mds.sitl_comprehensive:025-01-start-the-dashboard",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5925,7 +6026,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "89ecb9e442edd15859c071b9b9b9ed58184d1854aaabc404d641ff5f20773c85",
       "heading": "Start the Dashboard",
-      "id": "mds.sitl_comprehensive:024-02-start-the-dashboard",
+      "id": "mds.sitl_comprehensive:025-02-start-the-dashboard",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5944,7 +6045,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "4e666fb13fc7096b468323354079ad8d8b40749b0b0d154c60e9b2b5c6356b42",
       "heading": "Start the Dashboard",
-      "id": "mds.sitl_comprehensive:024-03-start-the-dashboard",
+      "id": "mds.sitl_comprehensive:025-03-start-the-dashboard",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5963,7 +6064,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "ef97f84f76d1ef42152a0b1cfac9b8c451ab9680229eb1052ed526fee994e507",
       "heading": "Mission Configuration and Customization (Optional)",
-      "id": "mds.sitl_comprehensive:025-01-mission-configuration-and-customization-optional",
+      "id": "mds.sitl_comprehensive:026-01-mission-configuration-and-customization-optional",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -5982,7 +6083,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "e64598969369329a33d3e46467c0707bdedbf2b045971256c0dfa0d52fbdf029",
       "heading": "Run Drone Instances",
-      "id": "mds.sitl_comprehensive:026-01-run-drone-instances",
+      "id": "mds.sitl_comprehensive:027-01-run-drone-instances",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6001,7 +6102,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "7f56a6ff26218a33f17e572de8b00d87eab0d8526b36de04d09056e84da58f4b",
       "heading": "Run Drone Instances",
-      "id": "mds.sitl_comprehensive:026-02-run-drone-instances",
+      "id": "mds.sitl_comprehensive:027-02-run-drone-instances",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6020,7 +6121,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "7195643ec5a4b8909c03010673728724870c524805508c20139840bc76a0810d",
       "heading": "Advanced: Multi-Server Deployment (Optional)",
-      "id": "mds.sitl_comprehensive:027-01-advanced-multi-server-deployment-optional",
+      "id": "mds.sitl_comprehensive:028-01-advanced-multi-server-deployment-optional",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6039,7 +6140,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "ed7a02c71e137b433dfe1598d43b7bad9013177dea5c6270dad1d68435ccb585",
       "heading": "Netbird VPN Setup (Optional for External QGroundControl / Remote GCS Streaming)",
-      "id": "mds.sitl_comprehensive:028-01-netbird-vpn-setup-optional-for-external-qgroundcontrol-remote-gcs-streaming",
+      "id": "mds.sitl_comprehensive:029-01-netbird-vpn-setup-optional-for-external-qgroundcontrol-remote-gcs-streaming",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6058,7 +6159,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "1144715ac979bd2b2617d94ded1f2679d70f2b4187d97ae9f3a268c5b7be9b5a",
       "heading": "Why Use Netbird?",
-      "id": "mds.sitl_comprehensive:029-01-why-use-netbird",
+      "id": "mds.sitl_comprehensive:030-01-why-use-netbird",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6077,7 +6178,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "e67bfcab2cf68621ef830e39ce03469893fc4b7e104c9d875a516344476ac60a",
       "heading": "Local vs. Server Setup",
-      "id": "mds.sitl_comprehensive:030-01-local-vs-server-setup",
+      "id": "mds.sitl_comprehensive:031-01-local-vs-server-setup",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6096,7 +6197,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "110fab2caacad42180d54c9825e293c1fa91e258a8451848269f99076830fb6e",
       "heading": "How to Install Netbird",
-      "id": "mds.sitl_comprehensive:031-01-how-to-install-netbird",
+      "id": "mds.sitl_comprehensive:032-01-how-to-install-netbird",
       "links": [
         "https://app.netbird.io/",
         "https://docs.netbird.io/how-to/installation"
@@ -6118,7 +6219,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "fc9c9e540befc7652b42d2c574abe182d69211f2e33a29a10ddbbd696df777ea",
       "heading": "Test Connections",
-      "id": "mds.sitl_comprehensive:032-01-test-connections",
+      "id": "mds.sitl_comprehensive:033-01-test-connections",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6137,7 +6238,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "a5961b0ff9683d9463abe85f03a6e3d95fe8c949b62355134c8b695c9bf06d99",
       "heading": "On the local system",
-      "id": "mds.sitl_comprehensive:033-01-on-the-local-system",
+      "id": "mds.sitl_comprehensive:034-01-on-the-local-system",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6156,7 +6257,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "591bb919a623591440f15c1b0889f69d91dd0a02858120ac06b7b1ca92d2acb7",
       "heading": "On the server",
-      "id": "mds.sitl_comprehensive:034-01-on-the-server",
+      "id": "mds.sitl_comprehensive:035-01-on-the-server",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6175,7 +6276,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "659e020da475759e7fe1cd3fc6f96865b04d9341637f292e51cc83f95c2a333f",
       "heading": "Using MAVLink Router",
-      "id": "mds.sitl_comprehensive:035-01-using-mavlink-router",
+      "id": "mds.sitl_comprehensive:036-01-using-mavlink-router",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6194,7 +6295,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "62c04055c2b65fb4954f64a9d8bf67efaabc0f8a447341f20f2e1cacdb7f070a",
       "heading": "Using MAVLink Router",
-      "id": "mds.sitl_comprehensive:035-02-using-mavlink-router",
+      "id": "mds.sitl_comprehensive:036-02-using-mavlink-router",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6213,7 +6314,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "36ac677d6d39d978d14eb028df69dcf103de5260361bfde33fa56f87553c2b11",
       "heading": "QGroundControl Settings",
-      "id": "mds.sitl_comprehensive:036-01-qgroundcontrol-settings",
+      "id": "mds.sitl_comprehensive:037-01-qgroundcontrol-settings",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6232,7 +6333,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "81e6408c66b7db2fd743e75c5b8db93a27cb4ec941efcb08e552908dc77fffd4",
       "heading": "Using MAVLink2REST",
-      "id": "mds.sitl_comprehensive:037-01-using-mavlink2rest",
+      "id": "mds.sitl_comprehensive:038-01-using-mavlink2rest",
       "links": [
         "https://github.com/mavlink/mavlink2rest"
       ],
@@ -6253,7 +6354,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "a69fa0b30452add2cbecd164db9188f0f5aa9398a609fc2544a50216e4d0ec3c",
       "heading": "Clean-Up",
-      "id": "mds.sitl_comprehensive:038-01-clean-up",
+      "id": "mds.sitl_comprehensive:039-01-clean-up",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6272,7 +6373,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "e65b3f12d7975ab771d0f9249da85cb8da32884aa56b22800d03e422f9755406",
       "heading": "Troubleshooting",
-      "id": "mds.sitl_comprehensive:039-01-troubleshooting",
+      "id": "mds.sitl_comprehensive:040-01-troubleshooting",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6291,7 +6392,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "3cf1943aa8cb1fcdb0047963c2d28e5a8087809ccf21ea6f91913eef8367166e",
       "heading": "Conclusion",
-      "id": "mds.sitl_comprehensive:040-01-conclusion",
+      "id": "mds.sitl_comprehensive:041-01-conclusion",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6310,7 +6411,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "093122f6facde5774469180be49c187f25af38f804d9d3e59c8ab3455eba1a23",
       "heading": "Caveats and Future Work",
-      "id": "mds.sitl_comprehensive:041-01-caveats-and-future-work",
+      "id": "mds.sitl_comprehensive:042-01-caveats-and-future-work",
       "links": [
         "https://github.com/alireza787b/mavsdk_drone_show/issues"
       ],
@@ -6331,7 +6432,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "806f750ed3fdeff9db93033a86c91fc3cd6996ed504eaa7f07439cc55f737c1a",
       "heading": "Warning",
-      "id": "mds.sitl_comprehensive:042-01-warning",
+      "id": "mds.sitl_comprehensive:043-01-warning",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6350,7 +6451,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "0447e06d78e1fbab307472c5d5789f6140ae42c33f253d8f68d0be0556af7d41",
       "heading": "Smart Swarm Notes",
-      "id": "mds.sitl_comprehensive:043-01-smart-swarm-notes",
+      "id": "mds.sitl_comprehensive:044-01-smart-swarm-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6369,7 +6470,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "5a22e11842cc119cadb357dc64c6756c69af8ff0d80b1c40eff707977653ed84",
       "heading": "Smart Swarm Notes",
-      "id": "mds.sitl_comprehensive:043-02-smart-swarm-notes",
+      "id": "mds.sitl_comprehensive:044-02-smart-swarm-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6388,7 +6489,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "fd60ea357f89211660725e776ae269f88a3df4c079664c9a016c22337e863e73",
       "heading": "Smart Swarm Notes",
-      "id": "mds.sitl_comprehensive:043-03-smart-swarm-notes",
+      "id": "mds.sitl_comprehensive:044-03-smart-swarm-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -6407,7 +6508,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
       "content_hash": "03d220f4ecfeb15a446ad1969908abf84814e3184e307ffeed73a804e582e953",
       "heading": "Additional Resources",
-      "id": "mds.sitl_comprehensive:044-01-additional-resources",
+      "id": "mds.sitl_comprehensive:045-01-additional-resources",
       "links": [
         "https://docs.netbird.io/",
         "https://docs.qgroundcontrol.com/master/en/",
@@ -11464,7 +11565,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "22811a0c54f94c44b81fd08081c71d2e861e23fb5fee174fb71c88a65c3f49b4",
+      "content_hash": "e3b6be6960b88530330f4f2880748f23411e34ce91aaa58a4174578a1f1d8fce",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-01-generated-mds-environment-registry",
       "links": [],
@@ -11477,7 +11578,7 @@
         "environment",
         "config"
       ],
-      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `8af8f5836b831d2b1441f5fb828e8d9a512589e6ba3addf1366d25d0983eb622`",
+      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `2c6489d67091df677d7ab9b828ca566b7e9f54b1f8f7a423e0f0ba4bbbb0979c`",
       "title": "MDS environment registry reference"
     },
     {
@@ -11564,7 +11665,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "555969a79648565b54ec32c641af8eb81e9e087458e753d086c75c52383d9ae1",
+      "content_hash": "f01c314160d1a93ad075c344a096a63a3b7cd44d083048b3acd358347275fae9",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-06-generated-mds-environment-registry",
       "links": [],
@@ -11577,13 +11678,13 @@
         "environment",
         "config"
       ],
-      "text": ".md) |\n| [`MDS_AUTH_ADMIN_PASSWORD_FILE`](#env-mds-auth-admin-password-file) | bootstrap | auth | path | - | no | none | process env | [guide](../guides/gcs-auth.md) |\n| [`MDS_AUTH_ADMIN_USER`](#env-mds-auth-admin-user) | bootstrap | auth | string | `admin` | no | none | process env | [guide](../guides/gcs-auth.md) |\n| [`MDS_USER_HOME`](#env-mds-user-home) | bootstrap | runtime | path | - | no | manual | process env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_DEFAULT_CONNECTIVITY_BACKEND`](#env-mds-default-connectivity-backend) | deployment | connectivity | string | `none` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-default-smart-wifi-manager-dashboard-listen) | deployment | connectivity | string | `127.0.0.1:9080` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-default-smart-wifi-manager-import-mode) | deployment | connectivity | string | `merge` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-default-smart-wifi-manager-install-dir) | deployment | connectivity | path | `/opt/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_MODE`](#env-mds-default-smart-wifi-manager-mode) | deployment | connectivity | string | `fleet-merge` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH`](#env-mds-default-smart-wifi-manager-profile-path) | deployment | connectivity | path | `deployment/connectivity/smart-wifi-manager/profile.json` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`](#env-mds-default-smart-wifi-manager-ref) | deployment | connectivity | string | `v2.1.11` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n|",
+      "text": ".md) |\n| [`MDS_AUTH_ADMIN_PASSWORD_FILE`](#env-mds-auth-admin-password-file) | bootstrap | auth | path | - | no | none | process env | [guide](../guides/gcs-auth.md) |\n| [`MDS_AUTH_ADMIN_USER`](#env-mds-auth-admin-user) | bootstrap | auth | string | `admin` | no | none | process env | [guide](../guides/gcs-auth.md) |\n| [`MDS_USER_HOME`](#env-mds-user-home) | bootstrap | runtime | path | - | no | manual | process env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_DEFAULT_CONNECTIVITY_BACKEND`](#env-mds-default-connectivity-backend) | deployment | connectivity | string | `none` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-default-smart-wifi-manager-dashboard-listen) | deployment | connectivity | string | `127.0.0.1:9080` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-default-smart-wifi-manager-import-mode) | deployment | connectivity | string | `merge` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-default-smart-wifi-manager-install-dir) | deployment | connectivity | path | `/opt/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_MODE`](#env-mds-default-smart-wifi-manager-mode) | deployment | connectivity | string | `fleet-merge` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH`](#env-mds-default-smart-wifi-manager-profile-path) | deployment | connectivity | path | `deployment/connectivity/smart-wifi-manager/profile.json` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`](#env-mds-default-smart-wifi-manager-ref) | deployment | connectivity | string | `v2.1.14` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n|",
       "title": "MDS environment registry reference"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "f6712e104fb3c797dfbe1bb428807bb1e65e2118d7cb4b6378c85a1fa93aa713",
+      "content_hash": "f16f30d4c7f3cbf9b68644508540ee25835598d4455e522437f48b907bf7e61a",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-07-generated-mds-environment-registry",
       "links": [],
@@ -11596,7 +11697,7 @@
         "environment",
         "config"
       ],
-      "text": "tivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`](#env-mds-default-smart-wifi-manager-ref) | deployment | connectivity | string | `v2.1.11` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG`](#env-mds-default-smart-wifi-manager-repo-slug) | deployment | connectivity | string | `alireza787b/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS`](#env-mds-default-smart-wifi-manager-repo-url-https) | deployment | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_DASHBOARD_PORT`](#env-mds-default-dashboard-port) | deployment | frontend | integer | `3030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_DEFAULT_BRANCH`](#env-mds-default-branch) | deployment | git | string | `main` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_SLUG`](#env-mds-default-repo-slug) | deployment | git | string | `alireza787b/mavsdk_drone_show` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_URL_HTTPS`](#env-mds-default-repo-url-https) | deployment | git | url | `https://github.com/alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_URL_SSH`](#env-mds-default-repo-url-ssh) | deployment | git | string | `git@github.com:alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_ULOG_DOWNLOAD_MAX_BYTES`](#env-mds-ulog-download-max-bytes) | deployment | logging | integer | `536870912` | yes | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/logging-system.md) |\n| [`MDS_ULOG_DOWNLOAD_TIMEOUT_SEC`](#env-mds-ulog-download-timeout-sec) | deployment | logging | float | `900` | yes | manual | /etc/mds/gcs.env or",
+      "text": "tivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`](#env-mds-default-smart-wifi-manager-ref) | deployment | connectivity | string | `v2.1.14` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG`](#env-mds-default-smart-wifi-manager-repo-slug) | deployment | connectivity | string | `alireza787b/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS`](#env-mds-default-smart-wifi-manager-repo-url-https) | deployment | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_DEFAULT_DASHBOARD_PORT`](#env-mds-default-dashboard-port) | deployment | frontend | integer | `3030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_DEFAULT_BRANCH`](#env-mds-default-branch) | deployment | git | string | `main` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_SLUG`](#env-mds-default-repo-slug) | deployment | git | string | `alireza787b/mavsdk_drone_show` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_URL_HTTPS`](#env-mds-default-repo-url-https) | deployment | git | url | `https://github.com/alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_DEFAULT_REPO_URL_SSH`](#env-mds-default-repo-url-ssh) | deployment | git | string | `git@github.com:alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |\n| [`MDS_ULOG_DOWNLOAD_MAX_BYTES`](#env-mds-ulog-download-max-bytes) | deployment | logging | integer | `536870912` | yes | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/logging-system.md) |\n| [`MDS_ULOG_DOWNLOAD_TIMEOUT_SEC`](#env-mds-ulog-download-timeout-sec) | deployment | logging | float | `900` | yes | manual | /etc/mds/gcs.env or",
       "title": "MDS environment registry reference"
     },
     {
@@ -11754,7 +11855,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "c4b8e0369237a34b8dab05cdab1659e6ec86f540498e90699f7f0b2f6a0726cb",
+      "content_hash": "e92c951f49e0fe859164b8c8b641ca127bae070f345fe971596a6017175a2008",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-16-generated-mds-environment-registry",
       "links": [],
@@ -11767,7 +11868,7 @@
         "environment",
         "config"
       ],
-      "text": "(../guides/connectivity-runtime.md) |\n| [`MDS_INTERNET_CHECK_TIMEOUT_SEC`](#env-mds-internet-check-timeout-sec) | node | connectivity | float | `1.5` | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-smart-wifi-manager-dashboard-listen) | node | connectivity | string | `127.0.0.1:9080` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-smart-wifi-manager-import-mode) | node | connectivity | string | `merge` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-smart-wifi-manager-install-dir) | node | connectivity | path | `/opt/smart-wifi-manager` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_MODE`](#env-mds-smart-wifi-manager-mode) | node | connectivity | string | `fleet-merge` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`](#env-mds-smart-wifi-manager-profile-source) | node | connectivity | string | `repo:deployment/connectivity/smart-wifi-manager/profile.json` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_REF`](#env-mds-smart-wifi-manager-ref) | node | connectivity | string | `v2.1.11` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_REPO_URL`](#env-mds-smart-wifi-manager-repo-url) | node | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD`](#env-mds-smart-wifi-manager-skip-dashboard) | node | connectivity | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_GIT_AUTH_USERNAME`](#env-mds-git-auth-username) | node | git | string | `x-access-token` | no |",
+      "text": "(../guides/connectivity-runtime.md) |\n| [`MDS_INTERNET_CHECK_TIMEOUT_SEC`](#env-mds-internet-check-timeout-sec) | node | connectivity | float | `1.5` | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-smart-wifi-manager-dashboard-listen) | node | connectivity | string | `127.0.0.1:9080` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-smart-wifi-manager-import-mode) | node | connectivity | string | `merge` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-smart-wifi-manager-install-dir) | node | connectivity | path | `/opt/smart-wifi-manager` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_MODE`](#env-mds-smart-wifi-manager-mode) | node | connectivity | string | `fleet-merge` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`](#env-mds-smart-wifi-manager-profile-source) | node | connectivity | string | `repo:deployment/connectivity/smart-wifi-manager/profile.json` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_REF`](#env-mds-smart-wifi-manager-ref) | node | connectivity | string | `v2.1.14` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_REPO_URL`](#env-mds-smart-wifi-manager-repo-url) | node | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD`](#env-mds-smart-wifi-manager-skip-dashboard) | node | connectivity | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |\n| [`MDS_GIT_AUTH_USERNAME`](#env-mds-git-auth-username) | node | git | string | `x-access-token` | no |",
       "title": "MDS environment registry reference"
     },
     {
@@ -12843,7 +12944,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "401420a5d6780f74960233ba42c64c3a52689e7b37b7c8c531a4192809ab3e77",
+      "content_hash": "3396e3cf8580a318c3f5332546f038745b3c0c1cce482c78249d2ecd0c4c53bc",
       "heading": "`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`",
       "id": "mds.environment_registry:053-01-mds-default-smart-wifi-manager-ref",
       "links": [],
@@ -12856,7 +12957,7 @@
         "environment",
         "config"
       ],
-      "text": "### `MDS_DEFAULT_SMART_WIFI_MANAGER_REF`\n\n- Title: Default Smart Wi-Fi ref\n- Scope: `deployment`\n- Domain: `connectivity`\n- Type: `string`\n- Default: `v2.1.11`\n- Editable: no\n- Restart: `manual`\n- Source of truth: `deployment/defaults.env`\n- Apply action: `manual`\n- Docs: [guide](../guides/connectivity-runtime.md)\n- Notes: Pinned Smart Wi-Fi Manager version/ref.\n\n<a id=\"env-mds-default-smart-wifi-manager-repo-slug\"></a>",
+      "text": "### `MDS_DEFAULT_SMART_WIFI_MANAGER_REF`\n\n- Title: Default Smart Wi-Fi ref\n- Scope: `deployment`\n- Domain: `connectivity`\n- Type: `string`\n- Default: `v2.1.14`\n- Editable: no\n- Restart: `manual`\n- Source of truth: `deployment/defaults.env`\n- Apply action: `manual`\n- Docs: [guide](../guides/connectivity-runtime.md)\n- Notes: Pinned Smart Wi-Fi Manager version/ref.\n\n<a id=\"env-mds-default-smart-wifi-manager-repo-slug\"></a>",
       "title": "MDS environment registry reference"
     },
     {
@@ -14686,7 +14787,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "ba0608a01343846ed1391e2cea59fb81f7d024a8b2eb2afd78e285b3e5f34529",
+      "content_hash": "6e8f00f649f8a50354fe99abefff1a3fc9c4a10b4800f50504cf803f8f3bfa36",
       "heading": "`MDS_SMART_WIFI_MANAGER_REF`",
       "id": "mds.environment_registry:150-01-mds-smart-wifi-manager-ref",
       "links": [],
@@ -14699,7 +14800,7 @@
         "environment",
         "config"
       ],
-      "text": "### `MDS_SMART_WIFI_MANAGER_REF`\n\n- Title: Smart Wi-Fi ref\n- Scope: `node`\n- Domain: `connectivity`\n- Type: `string`\n- Default: `v2.1.11`\n- Editable: yes\n- Restart: `sidecar_reconcile`\n- Source of truth: `/etc/mds/local.env`\n- Apply action: `reconcile_sidecar`\n- Docs: [guide](../guides/connectivity-runtime.md)\n- Notes: Node-local Smart Wi-Fi runtime version/ref.\n\n<a id=\"env-mds-smart-wifi-manager-repo-url\"></a>",
+      "text": "### `MDS_SMART_WIFI_MANAGER_REF`\n\n- Title: Smart Wi-Fi ref\n- Scope: `node`\n- Domain: `connectivity`\n- Type: `string`\n- Default: `v2.1.14`\n- Editable: yes\n- Restart: `sidecar_reconcile`\n- Source of truth: `/etc/mds/local.env`\n- Apply action: `reconcile_sidecar`\n- Docs: [guide](../guides/connectivity-runtime.md)\n- Notes: Node-local Smart Wi-Fi runtime version/ref.\n\n<a id=\"env-mds-smart-wifi-manager-repo-url\"></a>",
       "title": "MDS environment registry reference"
     },
     {
@@ -17239,8 +17340,8 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "chunk_count": 8,
-      "content_hash": "1cedfbc8b2e691cd8e38cb4a141cba300bbf9e6d7083649cd78f7642ee69a101",
+      "chunk_count": 10,
+      "content_hash": "096f3e2ce507d361848f2bed1943444d5677a861a2cac1afda8fdd2ed271b30a",
       "id": "mds.mavsdk_maintenance",
       "mime_type": "text/markdown",
       "path": "docs/guides/mavsdk-updates.md",
@@ -17257,7 +17358,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.px4_parameter_operator_workflow/markdown",
       "chunk_count": 6,
-      "content_hash": "8c3b2d4d1cf4b9f31df26a32dd0558264b3e0b8ae3e0e42db1b7ae58d4d941cd",
+      "content_hash": "5a024ff97b25357cbe3eab1401ac4db1c0815dfcbc30751bef365db95a6ab0db",
       "id": "mds.px4_parameter_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/px4-parameter-operator.md",
@@ -17376,8 +17477,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "chunk_count": 41,
-      "content_hash": "277e46c22d80fa0e8eb0c031e6c823bd4489cfb3af358e928a740d736fedcd11",
+      "chunk_count": 42,
+      "content_hash": "c7033226fc31e2abd61ad336e1c4c4173050514cc300c7f1826656ece6039815",
       "id": "mds.init_setup",
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -17427,7 +17528,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
       "chunk_count": 78,
-      "content_hash": "9d83d224e31a94b3f84b931f54175c254fe34c2a3c61ce8ef70d8177d7a8b295",
+      "content_hash": "5f56805cbdf3670bfe5be8e590ecaccaade23ce2326ccf5e02c027720d8ed979",
       "id": "mds.advanced_sitl",
       "mime_type": "text/markdown",
       "path": "docs/guides/advanced-sitl.md",
@@ -17442,8 +17543,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.sitl_comprehensive/markdown",
-      "chunk_count": 52,
-      "content_hash": "8170803297c84ce5e8cf3f6ccc26bb8f15badbf4f8ef4e3c8c91f8230785594a",
+      "chunk_count": 54,
+      "content_hash": "8fdeceec5b65ae1d6ef38df2fcacaf8c0dd31cd840f6a77a3459156fa6bcb2dc",
       "id": "mds.sitl_comprehensive",
       "mime_type": "text/markdown",
       "path": "docs/guides/sitl-comprehensive.md",
@@ -17584,7 +17685,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
       "chunk_count": 214,
-      "content_hash": "85759b79c916f678173bdeee9fe6f6989d4e020c14b87d3ffd957756506757c4",
+      "content_hash": "b1e83a74a6a9f49b244a9720fc600dee3ab093eba97febf6368981fe51c952b8",
       "id": "mds.environment_registry",
       "mime_type": "text/markdown",
       "path": "docs/reference/mds-environment-registry.generated.md",
