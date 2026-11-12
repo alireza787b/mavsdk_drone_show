@@ -74,6 +74,7 @@ class TestGitOperationsNonInteractiveAuth:
 
     def test_git_operations_reports_noninteractive_auth_failure(self, monkeypatch):
         gcs_utils = load_gcs_utils_module()
+        monkeypatch.setattr(gcs_utils.Params, 'GIT_AUTO_PUSH', True)
 
         fake_git = MagicMock()
         fake_git.fetch.return_value = ''

@@ -1,6 +1,175 @@
 {
-  "chunk_count": 869,
+  "chunk_count": 877,
   "chunks": [
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "287d9e1f1b472c42389659ca005e4331e57f4b2d690e72e818e030fba7626e81",
+      "heading": "MAVSDK client/server updates",
+      "id": "mds.mavsdk_maintenance:001-01-mavsdk-client-server-updates",
+      "links": [
+        "https://github.com/advisories/GHSA-7gcm-g887-7qv7",
+        "https://github.com/mavlink/MAVSDK-Python/blob/4.0.5/MAVSDK_SERVER_VERSION",
+        "https://github.com/mavlink/MAVSDK/releases/tag/v4.0.5",
+        "https://mavsdk.mavlink.io/v4/en/python/migration.html"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "# MAVSDK client/server updates\n\nMDS uses the maintained **gRPC** wrapper, `mavsdk-grpc==4.0.5`, imported as\n`mavsdk_grpc`, with **mavsdk_server v4.0.5**. This is not the new native Python\n`mavsdk` v4 API. Do not replace one package with the other or restore the retired\nvendored `mavsdk/` tree. See the [official migration guide](https://mavsdk.mavlink.io/v4/en/python/migration.html).\n\n`config/mavsdk-runtime.json` is the compatibility/artifact contract. Both\nrequirements files must match its Python pins; the focused contract test enforces\nthis. `grpcio==1.75.1` and `protobuf==6.33.5` are deliberate: the 4.0.5 wheel's\ndeclared gRPC minimum is lower than the minimum actually required by its generated\nPython code. Protobuf 6.33.5 also includes the upstream\n[CVE-2026-0994 fix](https://github.com/advisories/GHSA-7gcm-g887-7qv7);\nthe generated-code minimum 6.32.1 is not the chosen security baseline.\nA successful pip resolver is not an import test.\n\nThe server digests are the published SHA256 values on the\n[v4.0.5 release assets](https://github.com/mavlink/MAVSDK/releases/tag/v4.0.5).\nThe wrapper's [server-version pin](https://github.com/mavlink/MAVSDK-Python/blob/4.0.5/MAVSDK_SERVER_VERSION)\nis v4.0.5. Never fabricate a digest or infer the installed version from a requested\ntag, file name, or successful `--help` alone.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "a7f9b199a97393f3791e2ebe7178ad8704c183a22b965aacc3a2a7fb1a65be2b",
+      "heading": "Operator update and rollback boundary",
+      "id": "mds.mavsdk_maintenance:002-01-operator-update-and-rollback-boundary",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "## Operator update and rollback boundary\n\nPerform upgrades as grounded maintenance. First stop mission/controller/API\nprocesses using MAVSDK, using the deployment's existing service workflow. The\nhelper refuses a changed server or incompatible Python upgrade while a\n`mavsdk_server` process belongs to the selected deployment; neighboring isolated\nfleets do not block its maintenance check. It does not terminate a server, revoke\na motion lease, or take over a borrowed server. A source pull alone is not an\natomic fleet upgrade.\nDo not run an unattended SDK-pair migration against an operating aircraft.\n\nFrom the intended checkout and its intended virtual environment:\n\n```bash\npython3 tools/mavsdk_runtime.py manifest\npython3 tools/mavsdk_runtime.py idle",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "91cf9938cec9517e0b51bb52f38dc50d577ec4701775b87aae6d91314aae801f",
+      "heading": "Use requirements-node.txt on companions; requirements.txt on GCS/SITL.",
+      "id": "mds.mavsdk_maintenance:003-01-use-requirements-node-txt-on-companions-requirements-txt-on-gcs-sitl",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "# Use requirements-node.txt on companions; requirements.txt on GCS/SITL.\nvenv/bin/python -m pip install -r requirements-node.txt\nvenv/bin/python -m pip check\nvenv/bin/python tools/mavsdk_runtime.py python-check\nbash tools/download_mavsdk_server.sh --install-dir \"$PWD\"\npython3 tools/mavsdk_runtime.py check --install-dir \"$PWD\"\n```\n\nBootstrap, SITL image preparation/startup, and repository-update helpers use the\nsame manifest-backed provisioner. No network \"latest\" resolution or fallback to\nan unrelated server version occurs. An already matching pinned server is checked\nwithout download. Before changing a binary, the provisioner downloads a unique\nbounded candidate, checks its published digest and Linux ELF architecture, runs\na bounded `--help` probe (no vehicle transport), and atomically renames it into\nplace. A failed candidate leaves the old executable intact.\n\n`runtime_data/mavsdk/provenance.json` records the manifest digest, Python pins,\nactual binary digest, verified server version, and custom-override status. Changed\nartifacts and their prior provenance are retained by digest under\n`runtime_data/mavsdk/rollback/`. The rollback directory is bounded to 192 MiB;\ncapacity exhaustion refuses a further change and asks for reviewed archival,\nnot silent deletion. Do not delete these files to repair an unexplained failure.\n\nRollback requires the previous **source, Python environment/dependency set, and\nserver artifact together**, while grounded and stopped. Preserve a previous\nworking environment/image before updating Python packages; the server backup\ndoes not roll back pip. Select the recorded prior binary by digest, verify its\nrecorded provenance, restore the matching source/environment using the normal\ndeployment workflow, then repeat readiness checks before enabling operations.\nNo automatic rollback or service restart is triggered by the provisioning tool.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "df07cc2b5ff3535f486c7f5ac63c4f4727cafc89e7f483663bfb86e4fa95b90a",
+      "heading": "Use requirements-node.txt on companions; requirements.txt on GCS/SITL.",
+      "id": "mds.mavsdk_maintenance:003-02-use-requirements-node-txt-on-companions-requirements-txt-on-gcs-sitl",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "Explicit `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` (or `--version` / `--url`) remain\ncustom compatibility choices. They still require a matching host ELF and bounded\nCLI probe, but unknown bytes are `custom_unverified`, with no verified version.\nEven a custom URL returning pinned bytes is identified as `custom_pinned_bytes`,\nnot a default pinned installation. Override URLs are not copied to provenance or\nerror logs. Do not treat custom operation as validated stock behavior.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "32afc6242e5f2d98847cc88d3203d52e61592eed2cb6a6e5acb3a5fb6c0f42d4",
+      "heading": "Reusable verification gates",
+      "id": "mds.mavsdk_maintenance:004-01-reusable-verification-gates",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "## Reusable verification gates\n\nRun tests/builds on the designated validation host, never an aircraft. Use an\nisolated checkout and environment, retain bounded command logs, and do not alter\nthe running deployment's environment during validation.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "f902d4fd1d64ba39d4841727305706101327dbec8d9ae4162f963e5f89fb8b40",
+      "heading": "Reusable verification gates",
+      "id": "mds.mavsdk_maintenance:004-02-reusable-verification-gates",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "1. Inspect official migration/API changes and wrapper server pin. Update the\n manifest, real upstream hashes and both requirements together. Check package\n resolver **and actual imports**, including generated protobuf/gRPC code.\n2. Check wheel availability separately for Python 3.11, 3.12, 3.13 on x86_64 and\n aarch64. A wrapper wheel is insufficient if grpcio/protobuf has no compatible\n wheel. ARMv7 server assets exist, but this does not establish a supported\n Python companion platform. Do not silently fall back to a source compilation.\n3. Run the focused SDK tests, native/API/ULog/PX4 tests, mission safety/startup and\n signal-cleanup tests, and bootstrap/update tests. Verify imports come from the\n selected installed `mavsdk_grpc` distribution, not a checkout or old package.\n Run API/ULog tests against the complete updated dependency set as well; verify\n the drone API lifespan still cancels and awaits ULog/command callback tasks\n on shutdown, including an exceptional application exit.\n4. Verify candidate hash/ELF/`--help`, bad hash/architecture/CLI rejection,\n previous-artifact preservation, custom provenance, concurrent pipe draining,\n and correct severity (v4 normal logs use stderr).\n5. In isolated SITL, prove real incoming FC telemetry on the configured\n `udpin://0.0.0.0:<port>` endpoint, identity/component IDs, fresh disarm/landing\n evidence, parameter read/review/apply/readback with baseline restoration,\n ULog inventory/download/summary, owned/borrowed server cleanup, reconnect,\n and controller startup/mission regression scenarios. Process exit or stale\n telemetry invalidates a successful-looking result envelope.\n6. Use a clean candidate image when the old image cannot run the new dependency\n set. Keep its tags separate from the accepted public image. Verify the same\n workflow against the exact artifact before promotion/packaging; a source\n overlay is not image acceptance. Record source, dependency and server digests.\n This is still not real-hardware flight clearance.\n7. Later, on each eligible real companion/FC combination while physically\n grounded, verify service-user imports/settings, incoming transport and MAVLink\n identity, two fresh telemetry",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "b706eff870c692e031260805afe05c66fe0881de255193df097b5a12e09a441c",
+      "heading": "Reusable verification gates",
+      "id": "mds.mavsdk_maintenance:004-03-reusable-verification-gates",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "sts.\n This is still not real-hardware flight clearance.\n7. Later, on each eligible real companion/FC combination while physically\n grounded, verify service-user imports/settings, incoming transport and MAVLink\n identity, two fresh telemetry epochs, disarm/landed uncertainty handling,\n safe reads and explicitly approved reversible parameter/ULog operations.\n Verify interruption/restart and ownership cleanup without arming. Any flight\n scenarios require a separate approved field procedure and rollback decision.\n\nThis migration preserves existing mission policy, role, gains, failsafes, leases,\nand fresh-telemetry guards. The earlier v4 heartbeat discovery is not proof of\nreadiness. Named enums remain named contracts; do not assume numeric values are\nunchanged. Concurrent stderr/stdout draining is a compatibility fix, not evidence\nof better synchronized flight.",
+      "title": "MAVSDK runtime maintenance"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "content_hash": "aec83f04aa6033b63ee1b430454da954b2337c58c15c340d779b1ffa18f8ec16",
+      "heading": "Metadata and future capabilities",
+      "id": "mds.mavsdk_maintenance:005-01-metadata-and-future-capabilities",
+      "links": [
+        "https://github.com/mavlink/MAVSDK/releases/tag/v4.0.0",
+        "https://github.com/mavlink/MAVSDK/releases/tag/v4.0.5",
+        "https://mavsdk.mavlink.io/v4/en/cpp/api_changes.html"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "resource_id": "mds.mavsdk_maintenance",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "text": "## Metadata and future capabilities\n\nThe v4 gRPC wrapper exposes `component_metadata` rather than the retired\n`component_information.access_float_params` API. MDS continues live parameter\nvalues and explicitly labels catalog/docs metadata as reference-only; it does\nnot invent a firmware binding or treat unavailable limits/reboot hints as known.\nA vehicle-bound component-metadata adapter, event inspection and MAVLink Direct\nare useful follow-on capabilities, each requiring its own typed contract and\nvalidation. They are not implicitly enabled by this dependency update. New\nwatchdogs, home-setting, tuning, or other flight-control options are not changed.\n\nFor upstream details see [v4.0.0](https://github.com/mavlink/MAVSDK/releases/tag/v4.0.0),\n[v4.0.5](https://github.com/mavlink/MAVSDK/releases/tag/v4.0.5), and\n[API changes](https://mavsdk.mavlink.io/v4/en/cpp/api_changes.html).",
+      "title": "MAVSDK runtime maintenance"
+    },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.px4_parameter_operator_workflow/markdown",
@@ -2413,7 +2582,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "content_hash": "0ae2d5510a8500dde7df10fd580419c23910868d4dfa1d7115412a74b3874206",
+      "content_hash": "df3d20a8babadfb23df56ae8df7cecc6073bf90a33d98caa599e21675826a42b",
       "heading": "Initialization Phases",
       "id": "mds.init_setup:017-01-initialization-phases",
       "links": [],
@@ -2427,7 +2596,7 @@
         "companion",
         "bootstrap"
       ],
-      "text": "## Initialization Phases\n\nThe script runs through these phases automatically:\n\n| Phase | Description |\n|-------|-------------|\n| 1. Prerequisites | Validates system requirements, creates directories |\n| 2. MAVLink Router Setup | Auto-configures `mavlink-anywhere` when requested, or preserves intentional manual routing |\n| 3. Repository | Clones/updates repository, manages SSH keys |\n| 4. Identity | Configures drone ID, `local.env`, and `node_identity.json` |\n| 5. Environment | Sets up environment variables |\n| 6. Firewall | Configures UFW rules for MDS services |\n| 7. Python Environment | Creates venv, installs requirements |\n| 8. MAVSDK | Downloads and installs MAVSDK binary |\n| 9. Services | Installs and enables systemd services |\n| 10. NTP | Configures time synchronization |\n| 11. Netbird | (Optional) Configures VPN access |\n| 12. Static IP | (Optional) Configures static IP address |\n| 13. Connectivity Backend | (Optional) Installs Smart Wi-Fi Manager or keeps manual networking |\n| 14. Verify | Final verification of installation |\n| 15. Candidate Announce | Sends the node identity to the GCS enrollment registry when reachable |",
+      "text": "## Initialization Phases\n\nThe script runs through these phases automatically:\n\n| Phase | Description |\n|-------|-------------|\n| 1. Prerequisites | Validates system requirements, creates directories |\n| 2. MAVLink Router Setup | Auto-configures `mavlink-anywhere` when requested, or preserves intentional manual routing |\n| 3. Repository | Clones/updates repository, manages SSH keys |\n| 4. Identity | Configures drone ID, `local.env`, and `node_identity.json` |\n| 5. Environment | Sets up environment variables |\n| 6. Firewall | Configures UFW rules for MDS services |\n| 7. Python Environment | Creates venv, installs requirements |\n| 8. MAVSDK | Verifies/provisions the manifest-pinned server; preserves the previous artifact on failure |\n| 9. Services | Installs and enables systemd services |\n| 10. NTP | Configures time synchronization |\n| 11. Netbird | (Optional) Configures VPN access |\n| 12. Static IP | (Optional) Configures static IP address |\n| 13. Connectivity Backend | (Optional) Installs Smart Wi-Fi Manager or keeps manual networking |\n| 14. Verify | Final verification of installation |\n| 15. Candidate Announce | Sends the node identity to the GCS enrollment registry when reachable |",
       "title": "MDS init setup"
     },
     {
@@ -4029,7 +4198,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
-      "content_hash": "056661be26f714f6bb83edbe8fa2ef79a2712073d31a3c273e38a737ecc7edc6",
+      "content_hash": "b8ddbdca715461d8eeaf8a46b3d004938e66dd5b8a5a674843e66b1f4d6dcf88",
       "heading": "Optional debugging / routing controls",
       "id": "mds.advanced_sitl:014-02-optional-debugging-routing-controls",
       "links": [],
@@ -4042,13 +4211,13 @@
         "sitl",
         "simulation"
       ],
-      "text": "Notes:\n- `startup_sitl.sh` always runs headless PX4 Gazebo Harmonic in Docker SITL.\n- If `MDS_GZ_PARTITION` is unset, startup derives a unique Gazebo partition per drone from `MDS_GZ_PARTITION_PREFIX` and `hw_id`.\n- SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.\n- `SDLOG_MODE=0` keeps file-backed PX4 ULogs enabled in SITL so onboard log review and download workflows match real hardware more closely.\n- Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.\n- `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.\n- `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, and the baked `mavsdk_server`.\n- `startup_sitl.sh` now validates the preserved `venv` before trusting it. If the interpreter version, site-packages layout, or core imports do not match, the container rebuilds the `venv` and re-syncs requirements automatically instead of running with a broken Python environment.\n- `MDS_GIT_AUTH_TOKEN_FILE` is the required non-interactive HTTPS path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.\n- `MDS_GIT_SSH_KEY_FILE` is the SSH equivalent for mutable runtime sync when the host already has a deploy key or machine-user key that should be mounted into the SITL containers.\n- Raw token environment variables are intentionally not supported. Use `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE`.\n- `MDS_SITL_GIT_SYNC_PREFLIGHT=true` makes `create_dockers.sh` validate repo/branch/read access before launching containers. Leave it enabled unless you are deliberately testing offline/pinned-image behavior.\n- `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages",
+      "text": "Notes:\n- `startup_sitl.sh` always runs headless PX4 Gazebo Harmonic in Docker SITL.\n- If `MDS_GZ_PARTITION` is unset, startup derives a unique Gazebo partition per drone from `MDS_GZ_PARTITION_PREFIX` and `hw_id`.\n- SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.\n- `SDLOG_MODE=0` keeps file-backed PX4 ULogs enabled in SITL so onboard log review and download workflows match real hardware more closely.\n- Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.\n- `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.\n- `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, and the baked `mavsdk_server`.\n- `startup_sitl.sh` validates the preserved `venv` against the SDK-supported Python minors, its own site-packages layout and core imports. A supported managed venv is not invalid merely because Ubuntu's system Python is older. An unhealthy venv is recreated only when an eligible base interpreter already exists; startup never compiles/installs Python. See the [image Python refresh boundary](sitl-custom-release-workflow.md#python-and-security-refresh-boundary).\n- `MDS_GIT_AUTH_TOKEN_FILE` is the required non-interactive HTTPS path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.\n- `MDS_GIT_SSH_KEY_FILE` is the SSH equivalent for mutable runtime sync when the host already has a deploy key or machine-user key that should be mounted into the SITL containers.\n- Raw token environment variables are intentionally not supported. Use `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE`.\n- `MDS_SITL_GIT_SYNC_PREFLIGHT=true` makes `create_dockers.sh` validate repo/branch/read access before launching containers. Leave it enabled unless you are deliberately testing offline/pinned-image behavior.\n- `MDS_SITL_GIT_SYNC=true` is",
       "title": "Advanced SITL guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
-      "content_hash": "3d898c276313fb8de2ce0a738c3c513cf32fc716b940955e804a8d4e24c8782a",
+      "content_hash": "129c02a794aaab52a08e2bc0a545675d716970ce71f2b62347288b2b6f2e9b76",
       "heading": "Optional debugging / routing controls",
       "id": "mds.advanced_sitl:014-03-optional-debugging-routing-controls",
       "links": [],
@@ -4061,13 +4230,13 @@
         "sitl",
         "simulation"
       ],
-      "text": "fline/pinned-image behavior.\n- `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages stay pinned in the image.\n- Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.\n- For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.\n- Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes, when the `venv` marker is missing, or when runtime validation detects an unhealthy `venv`.\n- Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.\n- Common raw PX4 `pxh>` shell prompt noise is reduced in `sitl_simulation.log` by default so bounded logs stay readable, but you may still see occasional prompt variants in deep debug sessions.\n- `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.\n- If you want to override the MAVSDK server binary at runtime, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`. For large fleets, bake that override into the image instead of downloading on every container start.\n- The image now keeps the real PX4 git checkout and submodule metadata intact. Image prep also writes PX4 provenance files into the repo root so you can audit what PX4 revision was baked into a release.\n- Release image prep removes the PX4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.\n- `create_dockers.sh` now waits for PX4,",
+      "text": ".\n- `MDS_SITL_GIT_SYNC_PREFLIGHT=true` makes `create_dockers.sh` validate repo/branch/read access before launching containers. Leave it enabled unless you are deliberately testing offline/pinned-image behavior.\n- `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages stay pinned in the image.\n- Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.\n- For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.\n- Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes, when the `venv` marker is missing, or when runtime validation detects an unhealthy `venv`.\n- Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.\n- Common raw PX4 `pxh>` shell prompt noise is reduced in `sitl_simulation.log` by default so bounded logs stay readable, but you may still see occasional prompt variants in deep debug sessions.\n- `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.\n- If you want to override the MAVSDK server binary at runtime, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`. For large fleets, bake that override into the image instead of downloading on every container start.\n- Image preparation preserves available PX4 git metadata and records the checkout commit, binary hash and actual submodule evidence. An empty submodule status file is not proof of valid submodule provenance; older flattened baselines without gitlinks are explicitly marked unavailable.\n- Release image",
       "title": "Advanced SITL guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
-      "content_hash": "dd362e90870713c7334ce99d979e7bb11a0d3cb24c6e260fd1bce03e76003cff",
+      "content_hash": "5aa0d9d122075b2b8b3e6d70f3bd5427e227fa6ba136280bda8407f8177d241b",
       "heading": "Optional debugging / routing controls",
       "id": "mds.advanced_sitl:014-04-optional-debugging-routing-controls",
       "links": [],
@@ -4080,13 +4249,13 @@
         "sitl",
         "simulation"
       ],
-      "text": "4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.\n- `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. `startup_sitl.sh` runs as the container main process, and startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.\n- `create_dockers.sh` now chooses the startup script source based on rollout mode. Mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the live repo under test. Pinned validated-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility. Override that explicitly with `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true|false` only when you intentionally want the non-default behavior.\n- `MDS_SITL_SHARE_SWARM_TRAJECTORY=true` now bind-mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated runtime path. That keeps local Swarm Trajectory processing and same-host SITL execution consistent without making the container repo dirty.\n- This shared workspace is intentionally SITL-only. Real drones and remote repos still rely on the normal git commit / push / sync workflow for mission-artifact propagation.\n- Docker SITL containers now use Docker restart policy `unless-stopped` by default. Override it with `MDS_SITL_DOCKER_RESTART_POLICY` only if you intentionally want different lifecycle behavior.\n- For large validated fleets, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub or re-sync Python dependencies at once.\n- Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.\n- The current stock SITL image does not auto-start `mavlink2rest`. The router",
+      "text": "records the checkout commit, binary hash and actual submodule evidence. An empty submodule status file is not proof of valid submodule provenance; older flattened baselines without gitlinks are explicitly marked unavailable.\n- Release image prep removes the PX4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.\n- `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. `startup_sitl.sh` runs as the container main process, and startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.\n- `create_dockers.sh` now chooses the startup script source based on rollout mode. Mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the live repo under test. Pinned validated-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility. Override that explicitly with `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true|false` only when you intentionally want the non-default behavior.\n- `MDS_SITL_SHARE_SWARM_TRAJECTORY=true` now bind-mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated runtime path. That keeps local Swarm Trajectory processing and same-host SITL execution consistent without making the container repo dirty.\n- This shared workspace is intentionally SITL-only. Real drones and remote repos still rely on the normal git commit / push / sync workflow for mission-artifact propagation.\n- Docker SITL containers now use Docker restart policy `unless-stopped` by default. Override it with `MDS_SITL_DOCKER_RESTART_POLICY` only if you intentionally want different lifecycle behavior.\n- For large validated fleets, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub or re-sync Python dependencies at once.\n- Running `HEADLESS=1 make px4_sitl gz_x500` manually",
       "title": "Advanced SITL guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
-      "content_hash": "ef07f863f0a159ad6d3d5492c3cd5ab1af6dfc6b15f128daa9f5e5d9fddf4fc5",
+      "content_hash": "92eb4bdd18685228606b5020b948aead257a48590afe1147976d4a6481917f25",
       "heading": "Optional debugging / routing controls",
       "id": "mds.advanced_sitl:014-05-optional-debugging-routing-controls",
       "links": [],
@@ -4099,7 +4268,7 @@
         "sitl",
         "simulation"
       ],
-      "text": "r is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.\n- The current stock SITL image does not auto-start `mavlink2rest`. The router still forwards MAVLink to `127.0.0.1:14569` for optional custom use, but `http://DRONE_IP:8088` should not be assumed in the default workflow.",
+      "text": "usually `MDS_SITL_REQUIREMENTS_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub or re-sync Python dependencies at once.\n- Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.\n- The current stock SITL image does not auto-start `mavlink2rest`. The router still forwards MAVLink to `127.0.0.1:14569` for optional custom use, but `http://DRONE_IP:8088` should not be assumed in the default workflow.",
       "title": "Advanced SITL guide"
     },
     {
@@ -17046,8 +17215,25 @@
     }
   ],
   "generated_by": "tools/generate_simurgh_docs_index.py",
-  "resource_count": 23,
+  "resource_count": 24,
   "resources": [
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
+      "chunk_count": 8,
+      "content_hash": "1cedfbc8b2e691cd8e38cb4a141cba300bbf9e6d7083649cd78f7642ee69a101",
+      "id": "mds.mavsdk_maintenance",
+      "mime_type": "text/markdown",
+      "path": "docs/guides/mavsdk-updates.md",
+      "route_hint": null,
+      "summary": "Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.",
+      "tags": [
+        "mavsdk",
+        "maintenance",
+        "sitl"
+      ],
+      "title": "MAVSDK runtime maintenance"
+    },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.px4_parameter_operator_workflow/markdown",
@@ -17172,7 +17358,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "chunk_count": 41,
-      "content_hash": "8a2234a5d569bb27dd62f46e8ac72590fb6871492519b1eb1de5658ff97fc341",
+      "content_hash": "277e46c22d80fa0e8eb0c031e6c823bd4489cfb3af358e928a740d736fedcd11",
       "id": "mds.init_setup",
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -17222,7 +17408,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.advanced_sitl/markdown",
       "chunk_count": 77,
-      "content_hash": "2134c7558b41a72b44f1d6b97d8005f6463eedfa2015e3507956a95cd8f078b8",
+      "content_hash": "1c5d4006c915f62bab33cb507639bf370590bf403189c39d96c2019cf993729b",
       "id": "mds.advanced_sitl",
       "mime_type": "text/markdown",
       "path": "docs/guides/advanced-sitl.md",

@@ -52,6 +52,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         check=False,
+        timeout=25,
     )
     if completed.returncode != 0:
         stderr = (completed.stderr or completed.stdout).strip()
@@ -78,7 +79,7 @@ def validate_venv(venv_dir: Path, modules: list[str]) -> tuple[bool, str]:
 
     try:
         runtime = _runtime_metadata(venv_python, modules)
-    except RuntimeError as exc:
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
         return False, str(exc)
 
     runtime_version = runtime["version"]

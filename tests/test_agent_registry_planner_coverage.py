@@ -12,6 +12,13 @@ from agent_runtime.registry_chat import (
 from agent_runtime.tool_executor import list_policy_allowed_read_only_tools
 
 
+@pytest.fixture(autouse=True)
+def _isolate_default_registry_policy(monkeypatch):
+    # Planner coverage exercises the repo default, not a validation host's
+    # process-wide opt-out. Environment enforcement has separate policy tests.
+    monkeypatch.delenv("MDS_AGENT_ENABLED", raising=False)
+
+
 SAMPLE_ARGUMENTS: Mapping[str, Any] = {
     "candidate_id": "candidate-1",
     "chunk_id": "mds.init_setup:0",

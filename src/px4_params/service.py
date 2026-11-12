@@ -83,8 +83,8 @@ class Px4ParamService:
             metadata=Px4ParamPolicyMetadata(
                 runtime_values="mavsdk_param_or_mavlink_param_protocol",
                 float_metadata=(
-                    "px4_catalog_then_mavsdk_component_information_then_official_docs_cache_"
-                    "with_raw_value_fallback"
+                    "vehicle_component_information_if_available_otherwise_reference_only_"
+                    "px4_catalog_or_docs_cache_with_raw_value_fallback"
                 ),
                 docs_links="px4_parameter_reference_anchor",
                 reboot_required="px4_catalog_when_available",
@@ -564,6 +564,14 @@ class Px4ParamService:
                 "PX4 parameter values are available, but metadata labels, groups, defaults, and docs require "
                 "vehicle component metadata, a matching PX4 parameter catalog, or the optional official PX4 "
                 "docs reference cache."
+            )
+
+        if not component_information_available and total_rows:
+            warning += (
+                " The maintained MAVSDK gRPC v4 client does not expose the legacy "
+                "component_information float-hints API; component_metadata is not yet "
+                "a firmware-bound metadata adapter in MDS. No reference metadata is "
+                "promoted to vehicle authority."
             )
 
         if total_rows == 0:

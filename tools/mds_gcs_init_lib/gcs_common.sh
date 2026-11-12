@@ -69,7 +69,7 @@ readonly -a GCS_PYTHON_PACKAGES=(
     "uvicorn"
     "gunicorn"
     "aiohttp"
-    "mavsdk"
+    "mavsdk_grpc"
 )
 
 # Node.js minimum version

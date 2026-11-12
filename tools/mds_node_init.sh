@@ -206,8 +206,7 @@ OPTIONAL COMPONENTS:
     --skip-smart-wifi-dashboard Install Smart Wi-Fi Manager without dashboard
 
 MAVSDK OPTIONS:
-    --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.15.0)
-                                Default: auto-detect latest
+    --mavsdk-version VERSION    Explicit custom server tag (default: compatibility manifest)
     --mavsdk-url URL            Direct URL to MAVSDK binary (overrides version)
 
 MAVLINK-ROUTER OPTIONS (NEW in v4.5):

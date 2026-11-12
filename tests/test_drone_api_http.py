@@ -35,6 +35,42 @@ from src.security.auth import (
 from src.ulog_service import UlogJobConflictError, UlogTransportTimeoutError
 
 
+@pytest.mark.parametrize("exit_with_error", [False, True])
+async def test_drone_api_lifespan_cancels_and_awaits_both_task_groups(api_server, exit_with_error):
+    cancelled = []
+
+    async def pending_task(name):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.append(name)
+
+    ulog_task = asyncio.create_task(pending_task("ulog"))
+    command_task = asyncio.create_task(pending_task("command"))
+    api_server._ulog_download_tasks.add(ulog_task)
+    api_server._command_followup_tasks.add(command_task)
+
+    async def serve():
+        async with api_server.app.router.lifespan_context(api_server.app):
+            await asyncio.sleep(0)
+            assert not ulog_task.done()
+            assert not command_task.done()
+            if exit_with_error:
+                raise RuntimeError("application exit")
+
+    if exit_with_error:
+        with pytest.raises(RuntimeError, match="application exit"):
+            await serve()
+    else:
+        await serve()
+
+    assert cancelled == ["ulog", "command"]
+    assert ulog_task.cancelled()
+    assert command_task.cancelled()
+    assert not api_server._ulog_download_tasks
+    assert not api_server._command_followup_tasks
+
+
 def _commit_mock_command(mock_drone_config, command_data):
     """Apply and prove the same typed install contract as DroneCommunicator."""
     mission_type = int(command_data["mission_type"])
@@ -233,6 +269,7 @@ class TestNodeEnvironment:
         identity_file.write_text('{"hw_id": 1, "runtime_mode": "real"}\n', encoding="utf-8")
         monkeypatch.setenv("MDS_LOCAL_ENV_FILE", str(local_env))
         monkeypatch.setenv("MDS_NODE_IDENTITY_FILE", str(identity_file))
+        monkeypatch.delenv("MDS_MODE", raising=False)
 
         response = test_client.get("/api/v1/system/env")
 
@@ -714,7 +751,7 @@ class TestDroneState:
         grpc_port, system_address = api_server._resolve_live_probe_connection()
 
         assert grpc_port == NetworkDefaults.GRPC_BASE_PORT
-        assert system_address == "udp://:14540"
+        assert system_address == "udpin://0.0.0.0:14540"
 
     @pytest.mark.asyncio
     async def test_probe_live_armability_starts_temporary_server(self, api_server, monkeypatch, mock_params):
@@ -787,7 +824,7 @@ class TestDroneState:
         assert captured["ensure"] == (50040, 14540)
         assert captured["mavsdk_server_address"] == "127.0.0.1"
         assert captured["grpc_port"] == 50040
-        assert captured["system_address"] == "udp://:14540"
+        assert captured["system_address"] == "udpin://0.0.0.0:14540"
         assert captured["wait_called"] is True
         assert captured["stopped_process"] is fake_process
 
@@ -894,7 +931,7 @@ class TestDroneState:
     def test_refresh_px4_param_snapshot_success(self, test_client, api_server, monkeypatch):
         class FakeParamPlugin:
             async def get_all_params(self):
-                from mavsdk.param import AllParams, IntParam
+                from mavsdk_grpc.param import AllParams, IntParam
 
                 return AllParams(
                     int_params=[IntParam("MAV_SYS_ID", 1)],

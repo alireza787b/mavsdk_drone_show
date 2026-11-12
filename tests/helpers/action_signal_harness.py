@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 
 def _install_dependency_stubs() -> None:
     sys.modules["psutil"] = MagicMock()
-    mavsdk = types.ModuleType("mavsdk")
+    mavsdk = types.ModuleType("mavsdk_grpc")
     mavsdk.System = MagicMock()
-    telemetry = types.ModuleType("mavsdk.telemetry")
+    telemetry = types.ModuleType("mavsdk_grpc.telemetry")
     telemetry.FlightMode = types.SimpleNamespace(
         HOLD=types.SimpleNamespace(name="HOLD"),
         RETURN_TO_LAUNCH=types.SimpleNamespace(name="RETURN_TO_LAUNCH"),
@@ -25,9 +25,9 @@ def _install_dependency_stubs() -> None:
         ON_GROUND="ON_GROUND",
     )
     mavsdk.telemetry = telemetry
-    action = types.ModuleType("mavsdk.action")
+    action = types.ModuleType("mavsdk_grpc.action")
     action.ActionError = Exception
-    offboard = types.ModuleType("mavsdk.offboard")
+    offboard = types.ModuleType("mavsdk_grpc.offboard")
     for name in (
         "PositionNedYaw",
         "VelocityBodyYawspeed",
@@ -37,11 +37,11 @@ def _install_dependency_stubs() -> None:
     ):
         setattr(offboard, name, MagicMock())
     offboard.OffboardError = Exception
-    sys.modules["mavsdk"] = mavsdk
-    sys.modules["mavsdk.telemetry"] = telemetry
-    sys.modules["mavsdk.action"] = action
-    sys.modules["mavsdk.offboard"] = offboard
-    sys.modules["mavsdk.system"] = types.SimpleNamespace(System=MagicMock())
+    sys.modules["mavsdk_grpc"] = mavsdk
+    sys.modules["mavsdk_grpc.telemetry"] = telemetry
+    sys.modules["mavsdk_grpc.action"] = action
+    sys.modules["mavsdk_grpc.offboard"] = offboard
+    sys.modules["mavsdk_grpc.system"] = types.SimpleNamespace(System=MagicMock())
 
 
 async def _run(action_name: str, marker_dir: Path) -> int:

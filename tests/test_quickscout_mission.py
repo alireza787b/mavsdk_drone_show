@@ -163,7 +163,7 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
         qsm.Params.DEFAULT_GRPC_PORT,
         qsm.Params.mavsdk_port,
     )
-    fake_drone.connect.assert_awaited_once_with(system_address=f"udp://:{qsm.Params.mavsdk_port}")
+    fake_drone.connect.assert_awaited_once_with(system_address=f"udpin://0.0.0.0:{qsm.Params.mavsdk_port}")
     fake_drone.mission.upload_mission.assert_awaited_once()
     uploaded_plan = fake_drone.mission.upload_mission.await_args.args[0]
     assert math.isnan(uploaded_plan.items[0].kwargs["yaw_deg"])
@@ -212,7 +212,7 @@ async def test_run_mission_fails_fast_when_connection_confirmation_times_out(mon
     result = await qsm.run_mission(args)
 
     assert result == 1
-    fake_drone.connect.assert_awaited_once_with(system_address=f"udp://:{qsm.Params.mavsdk_port}")
+    fake_drone.connect.assert_awaited_once_with(system_address=f"udpin://0.0.0.0:{qsm.Params.mavsdk_port}")
     qsm.stop_mavsdk_server.assert_called_once_with(fake_server)
 
 

@@ -8,7 +8,7 @@ MAVSDK connection, trajectory waypoints, and flight control methods.
 """
 
 import csv
-from mavsdk.system import System
+from mavsdk_grpc.system import System
 
 from src.constants import NetworkDefaults, TrajectoryState
 

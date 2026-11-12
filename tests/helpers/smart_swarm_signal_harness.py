@@ -19,19 +19,19 @@ tenacity_stub = ModuleType("tenacity")
 tenacity_stub.retry = lambda *_args, **_kwargs: lambda function: function
 tenacity_stub.stop_after_attempt = lambda *_args, **_kwargs: object()
 tenacity_stub.wait_fixed = lambda *_args, **_kwargs: object()
-mavsdk_stub = ModuleType("mavsdk")
+mavsdk_stub = ModuleType("mavsdk_grpc")
 mavsdk_stub.System = MagicMock()
-offboard_stub = ModuleType("mavsdk.offboard")
+offboard_stub = ModuleType("mavsdk_grpc.offboard")
 offboard_stub.VelocityBodyYawspeed = MagicMock()
 offboard_stub.VelocityNedYaw = MagicMock()
 offboard_stub.OffboardError = Exception
-action_stub = ModuleType("mavsdk.action")
+action_stub = ModuleType("mavsdk_grpc.action")
 action_stub.ActionError = Exception
 sys.modules["psutil"] = psutil_stub
 sys.modules["tenacity"] = tenacity_stub
-sys.modules["mavsdk"] = mavsdk_stub
-sys.modules["mavsdk.offboard"] = offboard_stub
-sys.modules["mavsdk.action"] = action_stub
+sys.modules["mavsdk_grpc"] = mavsdk_stub
+sys.modules["mavsdk_grpc.offboard"] = offboard_stub
+sys.modules["mavsdk_grpc.action"] = action_stub
 
 import smart_swarm  # noqa: E402  (dependency stubs must be installed first)
 

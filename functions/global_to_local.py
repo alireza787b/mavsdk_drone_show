@@ -1,5 +1,5 @@
 import navpy
-from mavsdk.offboard import PositionNedYaw
+from mavsdk_grpc.offboard import PositionNedYaw
 
 def global_to_local(global_position, home_position):
     # Convert latitude and longitude to the local coordinate system

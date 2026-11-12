@@ -56,6 +56,14 @@ Do not assume the environment. Detect it first.
 - Preserve the stock lab/SITL path as a zero-setup, plug-and-play experience.
   Warn clearly about its trusted-network security posture, but do not make
   beginner demos depend on production credential provisioning.
+- Treat SDK distribution/import name, generated gRPC/protobuf requirements and
+  native-server digest as one manifest-bound runtime, not independent upgrades.
+  Verify actual installed imports; successful resolution or CLI help is not pair
+  validation. Preserve a complete source/environment/server rollback tuple.
+- Stage image-required SDK changes on a fixed candidate release branch until
+  the replacement image passes acceptance. Do not break the stock image's
+  mutable main-branch bootstrap by publishing unsupported runtime requirements
+  before its replacement is available.
 - Keep hardened real-world and commercial deployment controls documented and
   opt-in. Do not introduce a second security-mode switch when existing auth,
   network, and secret-path settings already express the posture.
@@ -92,6 +100,8 @@ Before substantial work, inspect the current repo state and then read only the d
 4. Task-specific docs:
    - companion bootstrap/enrollment: `docs/guides/mds-init-setup.md`,
      `docs/guides/fleet-sync-and-secrets.md`, `docs/guides/custom-repo-workflow.md`
+   - flight SDK/dependency maintenance: `docs/guides/mavsdk-updates.md`,
+     `config/mavsdk-runtime.json`, `docs/guides/python-compatibility.md`
    - SITL bootstrap/runtime: `docs/guides/sitl-comprehensive.md`
    - custom image/release flow: `docs/guides/advanced-sitl.md`, `docs/guides/sitl-custom-release-workflow.md`
    - full SITL agent loop: `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md`

@@ -573,6 +573,7 @@ create_instance() {
     if [[ "${USE_HOST_STARTUP_SCRIPT}" == "true" ]]; then
         startup_script_container="$STARTUP_SCRIPT_CONTAINER"
         docker_run_args+=(-v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro")
+        docker_run_args+=(-v "${REPO_ROOT}/tools/git_token_askpass.sh:/tmp/git_token_askpass.sh:ro")
     fi
 
     startup_bootstrap="mkdir -p '$RUNTIME_CONTAINER_DIR/logs' && exec bash '$startup_script_container'"

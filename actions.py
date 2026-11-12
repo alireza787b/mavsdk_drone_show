@@ -41,8 +41,9 @@ import sys
 import time
 
 import psutil
-from mavsdk import System, telemetry
-from mavsdk.action import ActionError
+from src.mavsdk_runtime import udp_listen_url
+from mavsdk_grpc import System, telemetry
+from mavsdk_grpc.action import ActionError
 from src.action_runners import (
     ActionExecutionContext,
     ActionInvocation,
@@ -320,42 +321,10 @@ def wait_for_port(port, host='localhost', timeout=10.0):
     return False
 
 async def log_mavsdk_output(mavsdk_server):
-    """
-    Asynchronously reads MAVSDK server's stdout/stderr for logging.
-    Filters known cleanup messages that appear during normal server shutdown.
-    """
-    # Known non-error messages that appear during normal MAVSDK cleanup
-    CLEANUP_PATTERNS = [
-        "Socket closed",
-        "connection reset",
-        "Broken pipe",
-        "Connection refused",
-        "EOF",
-    ]
+    """Drain both native streams concurrently with their declared severity."""
+    from src.mavsdk_server_logging import drain_mavsdk_output
+    await drain_mavsdk_output(mavsdk_server, logging.getLogger(__name__))
 
-    loop = asyncio.get_event_loop()
-    try:
-        while True:
-            line = await loop.run_in_executor(None, mavsdk_server.stdout.readline)
-            if not line:
-                break
-            logger.debug(f"MAVSDK Server: {line.decode().strip()}")
-    except Exception:
-        logger.exception("Error reading MAVSDK server stdout")
-
-    try:
-        while True:
-            line = await loop.run_in_executor(None, mavsdk_server.stderr.readline)
-            if not line:
-                break
-            msg = line.decode().strip()
-            # Check if this is a known cleanup message (not a real error)
-            if any(pattern.lower() in msg.lower() for pattern in CLEANUP_PATTERNS):
-                logger.debug(f"MAVSDK cleanup: {msg}")
-            else:
-                logger.error(f"MAVSDK Server Error: {msg}")
-    except Exception:
-        logger.exception("Error reading MAVSDK server stderr")
 
 def stop_mavsdk_server(mavsdk_server):
     """
@@ -444,7 +413,7 @@ def start_mavsdk_server(grpc_port, udp_port):
     logger.info(f"Starting MAVSDK server: {mavsdk_server_path} on gRPC:{grpc_port}, UDP:{udp_port}")
     try:
         mavsdk_server = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(grpc_port), udp_listen_url(udp_port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -587,7 +556,7 @@ async def perform_action(action, altitude=None, branch=None, request_payload=Non
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
     logger.info("Connecting to drone...")
     try:
-        await drone.connect(system_address=f"udp://:{udp_port}")
+        await drone.connect(system_address=udp_listen_url(udp_port))
     except Exception:
         logger.exception("Failed to connect to MAVSDK server")
         fail(

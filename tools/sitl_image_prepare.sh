@@ -18,12 +18,13 @@ PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"
 BRANCH="${2:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-GIT_AUTH_TOKEN_VALUE=""
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 VENV_DIR="$BASE_DIR/venv"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 RUNTIME_VENV_HEALTH_CHECKER="$BASE_DIR/tools/check_runtime_venv.py"
+PYTHON_RUNTIME_HELPER="$BASE_DIR/tools/python_runtime.py"
+MDS_RUNTIME_PYTHON=""
 MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
 MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
@@ -44,11 +45,18 @@ require_cmd() {
 }
 
 load_git_auth_token() {
+    # Reject userinfo/query credentials before logging or executing Git.
+    if [[ "$REPO_URL" == http*://*@* || "$REPO_URL" == *\?* || "$REPO_URL" == *\#* ]]; then
+        fail "MDS_REPO_URL must not contain credentials, a query or a fragment; use credential files"
+    fi
     if [[ -n "$GIT_AUTH_TOKEN_FILE" ]]; then
         [[ -r "$GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $GIT_AUTH_TOKEN_FILE"
-        GIT_AUTH_TOKEN_VALUE="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
-    else
-        GIT_AUTH_TOKEN_VALUE=""
+        [[ -s "$GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is empty"
+        export GIT_ASKPASS="$SCRIPT_DIR/git_token_askpass.sh"
+        export GIT_TERMINAL_PROMPT=0 MDS_GIT_AUTH_TOKEN_FILE="$GIT_AUTH_TOKEN_FILE"
+        export MDS_GIT_AUTH_USERNAME="$GIT_AUTH_USERNAME"
+        [[ -x "$GIT_ASKPASS" ]] || fail "Git file-backed authentication helper is missing or not executable"
+        unset GIT_TRACE GIT_TRACE_PACKET GIT_TRACE_CURL GIT_CURL_VERBOSE GIT_TRACE_SETUP
     fi
 }
 
@@ -98,15 +106,6 @@ should_prefer_ssh_repo_url() {
     [[ "$1" =~ ^git@github\.com: ]]
 }
 
-urlencode_value() {
-    python3 - "$1" <<'PY'
-import sys
-from urllib.parse import quote
-
-print(quote(sys.argv[1], safe=''))
-PY
-}
-
 github_repo_path() {
     local repo_url="$1"
     local repo_path=""
@@ -123,26 +122,19 @@ github_repo_path() {
     printf '%s.git\n' "$repo_path"
 }
 
-github_authenticated_https_url() {
+github_token_https_url() {
     local repo_url="$1"
     local repo_path=""
 
-    [[ -n "$GIT_AUTH_TOKEN_VALUE" ]] || return 1
+    [[ -n "$GIT_AUTH_TOKEN_FILE" ]] || return 1
     repo_path=$(github_repo_path "$repo_url") || return 1
 
-    local encoded_username encoded_token
-    encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
-    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN_VALUE")
-    printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
+    printf 'https://github.com/%s\n' "$repo_path"
 }
 
 requirements_state_value() {
     local requirements_file="$BASE_DIR/requirements.txt"
-    local requirements_hash
-    local python_version
-    requirements_hash=$(sha256sum "$requirements_file" | awk '{print $1}')
-    python_version=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
-    printf "%s|python=%s\n" "$requirements_hash" "$python_version"
+    python3 "$PYTHON_RUNTIME_HELPER" state --venv "$VENV_DIR" --requirements "$requirements_file"
 }
 
 fresh_clone_mds_repo() {
@@ -156,7 +148,7 @@ fresh_clone_mds_repo() {
 
     if should_prefer_ssh_repo_url "$REPO_URL"; then
         effective_repo_url="$REPO_URL"
-    elif authenticated_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
+    elif authenticated_repo_url=$(github_token_https_url "$REPO_URL"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
@@ -173,14 +165,19 @@ fresh_clone_mds_repo() {
     clone_dir="$clone_parent/repo"
 
     log "Cloning ${REPO_URL}@${BRANCH} as a shallow working tree..."
-    if ! retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$effective_repo_url" "$clone_dir"; then
+    if ! retry_cmd 3 git -c credential.helper= -c http.extraHeader= clone --depth 1 --branch "$BRANCH" "$effective_repo_url" "$clone_dir"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$REPO_URL" ]; then
             log "Primary clone failed. Retrying with HTTPS fallback: $fallback_repo_url"
-            retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$fallback_repo_url" "$clone_dir"
+            retry_cmd 3 git -c credential.helper= -c http.extraHeader= clone --depth 1 --branch "$BRANCH" "$fallback_repo_url" "$clone_dir"
         else
             fail "Unable to clone ${REPO_URL}@${BRANCH}"
         fi
     fi
+
+    # The authenticated transport URL must never survive in the flattened git
+    # config. Sanitize before moving the checkout, not only at runtime startup.
+    git -C "$clone_dir" remote set-url origin "$REPO_URL"
+    python3 "$clone_dir/tools/audit_sitl_image.py" git --repo "$clone_dir"
 
     rm -rf "$BASE_DIR"
     mv "$clone_dir" "$BASE_DIR"
@@ -195,49 +192,38 @@ fresh_clone_mds_repo() {
 }
 
 ensure_mavsdk_server() {
-    local force_refresh="false"
-
-    if [ -n "${MDS_MAVSDK_VERSION:-}" ] || [ -n "${MDS_MAVSDK_URL:-}" ]; then
-        force_refresh="true"
-    fi
-
-    if [ "$force_refresh" != "true" ] && [ -x "$MAVSDK_BINARY_PATH" ]; then
-        return 0
-    fi
-
     [ -f "$MAVSDK_DOWNLOAD_SCRIPT" ] || fail "Missing MAVSDK download helper: $MAVSDK_DOWNLOAD_SCRIPT"
-    require_cmd curl
-    if [ "$force_refresh" = "true" ]; then
-        log "Refreshing mavsdk_server because MDS_MAVSDK_VERSION or MDS_MAVSDK_URL was set..."
-        rm -f "$MAVSDK_BINARY_PATH"
-    fi
     log "Provisioning mavsdk_server into $BASE_DIR..."
     MDS_INSTALL_DIR="$BASE_DIR" bash "$MAVSDK_DOWNLOAD_SCRIPT" >/tmp/mds_mavsdk_download.log 2>&1 || {
         tail -n 40 /tmp/mds_mavsdk_download.log >&2 || true
         fail "Failed to download mavsdk_server"
     }
-    rm -f /tmp/mds_mavsdk_download.log
+    # Keep this bounded metadata log until image cleanup; custom overrides must
+    # not disappear behind a generic download-success message.
+    cat /tmp/mds_mavsdk_download.log
     [ -x "$MAVSDK_BINARY_PATH" ] || fail "mavsdk_server is still missing after download"
 }
 
 ensure_python_env() {
     log "Preparing Python virtual environment..."
+    MDS_RUNTIME_PYTHON=$(python3 "$PYTHON_RUNTIME_HELPER" provision-image) || fail "No supported image Python runtime"
     rm -rf "$VENV_DIR"
-    python3 -m venv "$VENV_DIR"
+    "$MDS_RUNTIME_PYTHON" -m venv "$VENV_DIR"
 
     PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install --upgrade pip >/tmp/mds_pip_install.log 2>&1
     PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install -r "$BASE_DIR/requirements.txt" >>/tmp/mds_pip_install.log 2>&1 || {
         tail -n 40 /tmp/mds_pip_install.log >&2 || true
         fail "Failed to install Python requirements"
     }
-    python3 "$RUNTIME_VENV_HEALTH_CHECKER" \
+    python3 "$PYTHON_RUNTIME_HELPER" check-venv \
         --venv "$VENV_DIR" \
         --module requests \
         --module aiohttp \
-        --module mavsdk >/tmp/mds_venv_health.log 2>&1 || {
+        --module mavsdk_grpc >/tmp/mds_venv_health.log 2>&1 || {
         cat /tmp/mds_venv_health.log >&2 || true
         fail "Created Python virtual environment is unhealthy"
     }
+    "$VENV_DIR/bin/python" "$BASE_DIR/tools/mavsdk_runtime.py" python-check || fail "MAVSDK Python pins/imports differ from the manifest"
     printf "%s\n" "$(requirements_state_value)" > "$VENV_REQUIREMENTS_MARKER"
     rm -f /tmp/mds_pip_install.log
     rm -f /tmp/mds_venv_health.log
@@ -257,11 +243,27 @@ capture_px4_provenance() {
     local px4_branch="unknown"
     local px4_commit="unknown"
     local px4_describe="unknown"
+    local px4_gitlinks=0
+    local px4_submodule_provenance="unavailable"
+    local px4_binary_sha256="unknown"
+    local px4_git_metadata="unavailable"
+    : > "$PX4_SUBMODULE_STATUS_FILE"
 
     if git -C "$PX4_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        px4_git_metadata="present_not_independently_verified"
         px4_branch=$(git -C "$PX4_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-        px4_commit=$(git -C "$PX4_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        px4_commit=$(git -C "$PX4_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
         px4_describe=$(git -C "$PX4_DIR" describe --tags --always --dirty 2>/dev/null || echo "$px4_commit")
+        px4_gitlinks=$(git -C "$PX4_DIR" ls-tree -r HEAD | awk '$1 == "160000" {count++} END {print count+0}')
+        if [[ "$px4_gitlinks" -eq 0 ]]; then
+            px4_submodule_provenance="unavailable_no_gitlinks"
+        elif git -C "$PX4_DIR" submodule status --recursive >"$PX4_SUBMODULE_STATUS_FILE" 2>/dev/null && \
+                [[ -s "$PX4_SUBMODULE_STATUS_FILE" ]]; then
+            px4_submodule_provenance="recorded_not_independently_verified"
+        fi
+    fi
+    if [[ -f "$PX4_DIR/build/px4_sitl_default/bin/px4" ]]; then
+        px4_binary_sha256=$(sha256sum "$PX4_DIR/build/px4_sitl_default/bin/px4" | awk '{print $1}')
     fi
 
     cat > "$PX4_PROVENANCE_FILE" <<EOF
@@ -269,14 +271,11 @@ MDS_IMAGE_PX4_DIR=${PX4_DIR}
 MDS_IMAGE_PX4_BRANCH=${px4_branch}
 MDS_IMAGE_PX4_COMMIT=${px4_commit}
 MDS_IMAGE_PX4_DESCRIBE=${px4_describe}
-MDS_IMAGE_PX4_GIT_METADATA=original
+MDS_IMAGE_PX4_GIT_METADATA=${px4_git_metadata}
+MDS_IMAGE_PX4_BINARY_SHA256=${px4_binary_sha256}
+MDS_IMAGE_PX4_GITLINK_COUNT=${px4_gitlinks}
+MDS_IMAGE_PX4_SUBMODULE_PROVENANCE=${px4_submodule_provenance}
 EOF
-
-    if git -C "$PX4_DIR" submodule status --recursive >"$PX4_SUBMODULE_STATUS_FILE" 2>/dev/null; then
-        :
-    else
-        rm -f "$PX4_SUBMODULE_STATUS_FILE"
-    fi
 }
 
 cleanup_runtime_baggage() {
@@ -331,13 +330,32 @@ write_build_metadata() {
         px4_describe="${MDS_IMAGE_PX4_DESCRIBE:-unknown}"
     fi
 
+    local mavsdk_evidence
+    mavsdk_evidence=$(python3 -c '
+import json,sys
+m=json.load(open(sys.argv[1]))
+for key,value in {
+ "VERSION_VERIFIED":m["verified_server_version"] or "unverified",
+ "SHA256":m["sha256"], "COMPATIBILITY":m["compatibility"],
+ "MANIFEST_SHA256":m["manifest_sha256"],
+ "PYTHON_DISTRIBUTION":m["python"]["distribution"],
+ "PYTHON_VERSION":m["python"]["version"],
+ "GRPCIO_VERSION":m["python"]["grpcio"],
+ "PROTOBUF_VERSION":m["python"]["protobuf"]}.items():
+ print("MDS_IMAGE_MAVSDK_"+key+"="+value)
+' "$BASE_DIR/runtime_data/mavsdk/provenance.json")
+
     cat > "$BASE_DIR/.mds_sitl_image_build.env" <<EOF
 MDS_IMAGE_REPO_URL=${REPO_URL}
 MDS_IMAGE_BRANCH=${BRANCH}
 MDS_IMAGE_COMMIT=${commit_hash}
 MDS_IMAGE_SYNC_MODE=mutable_latest_on_boot
 MDS_IMAGE_MAVSDK_VERSION_REQUESTED=${MDS_MAVSDK_VERSION:-}
+${mavsdk_evidence}
 MDS_IMAGE_KEEP_ARM_TOOLCHAIN=${KEEP_ARM_TOOLCHAIN}
+MDS_IMAGE_PYTHON_EXECUTABLE=${MDS_RUNTIME_PYTHON}
+MDS_IMAGE_PYTHON_VERSION=$("$VENV_DIR/bin/python" -c 'import platform; print(platform.python_version())')
+MDS_IMAGE_PYTHON_MANIFEST_SHA256=$(sha256sum "$BASE_DIR/config/python-runtime.json" | awk '{print $1}')
 MDS_IMAGE_PX4_BRANCH=${px4_branch}
 MDS_IMAGE_PX4_COMMIT=${px4_commit}
 MDS_IMAGE_PX4_DESCRIBE=${px4_describe}
@@ -359,6 +377,8 @@ main() {
     cleanup_runtime_baggage
     capture_px4_provenance
     write_build_metadata
+    # The caller removes staged credentials and runs the final filesystem gate
+    # before flattening. Git configuration is already checked after cloning.
 
     log "Prepared image workspace:"
     log "  Base dir : $BASE_DIR"

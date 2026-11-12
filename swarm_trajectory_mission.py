@@ -97,9 +97,10 @@ import requests
 import argparse
 from collections import namedtuple
 
-from mavsdk import System
-import mavsdk
-from mavsdk.offboard import (
+from src.mavsdk_runtime import udp_listen_url
+from mavsdk_grpc import System
+import mavsdk_grpc as mavsdk
+from mavsdk_grpc.offboard import (
     PositionNedYaw,
     VelocityBodyYawspeed,
     PositionGlobalYaw,
@@ -107,8 +108,8 @@ from mavsdk.offboard import (
     AccelerationNed,
     OffboardError,
 )
-from mavsdk.telemetry import FlightMode, LandedState
-from mavsdk.action import ActionError
+from mavsdk_grpc.telemetry import FlightMode, LandedState
+from mavsdk_grpc.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
@@ -1231,7 +1232,7 @@ async def initial_setup_and_connection():
 
         # Create the drone system
         drone = System(mavsdk_server_address=mavsdk_server_address, port=grpc_port)
-        await drone.connect(system_address=f"udp://:{Params.mavsdk_port}")
+        await drone.connect(system_address=udp_listen_url(Params.mavsdk_port))
 
         logger.info(
             f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {Params.mavsdk_port}."
@@ -2037,7 +2038,7 @@ def start_mavsdk_server(udp_port: int):
         # Start the MAVSDK server with enhanced container-friendly startup
         logger.info("Starting new MAVSDK server...")
         mavsdk_server = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), udp_listen_url(udp_port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -2122,28 +2123,9 @@ def wait_for_port(port, host="localhost", timeout=Params.PRE_FLIGHT_TIMEOUT):
 
 
 async def log_mavsdk_output(mavsdk_server):
-    """
-    Asynchronously logs the stdout and stderr of the MAVSDK server.
-    (Identical to drone_show.py implementation)
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        while True:
-            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stdout.readline)
-            if not line:
-                break
-            logger.debug(f"MAVSDK Server: {line.decode().strip()}")
-    except Exception:
-        logger.exception("Error while reading MAVSDK server stdout.")
-
-    try:
-        while True:
-            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stderr.readline)
-            if not line:
-                break
-            logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
-    except Exception:
-        logger.exception("Error while reading MAVSDK server stderr.")
+    """Drain both native streams concurrently with their declared severity."""
+    from src.mavsdk_server_logging import drain_mavsdk_output
+    await drain_mavsdk_output(mavsdk_server, logging.getLogger(__name__))
 
 
 def stop_mavsdk_server(mavsdk_server):

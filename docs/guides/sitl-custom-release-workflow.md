@@ -118,6 +118,35 @@ Notes:
 - for private repos, prefer authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE`; read-only SSH via `MDS_GIT_SSH_KEY_FILE` is also supported
 - the helper validates repo/branch/auth before starting image preparation unless `MDS_SKIP_GIT_ACCESS_PREFLIGHT=true`
 
+### Python and security refresh boundary
+
+The supported Python minors and SDK pair are declared in
+`config/mavsdk-runtime.json`. An older Ubuntu image can retain its system
+Python 3.10: image preparation provisions the SHA-256-pinned official CPython
+source release from `config/python-runtime.json` under its versioned
+`/opt/mds-python/` prefix when no supported interpreter exists. It does not
+replace `/usr/bin/python3`, add a PPA, upgrade the Ubuntu release or modify PX4,
+Gazebo, firmware parameters or control gains. The venv, its health check and
+requirements marker use the selected venv interpreter, not the system minor.
+Startup never compiles Python; an old image without an eligible interpreter
+requires a rebuild. Source provisioning remains subject to the normal final
+image build and runtime validation gates.
+
+The build records Python/SDK manifests, interpreter version, SDK binary hash
+and compatibility evidence. PX4 provenance records the full checkout commit,
+binary SHA-256 and actual gitlink/submodule evidence. An empty submodule status
+file is **not** verified provenance: a base checkout without gitlinks is marked
+`unavailable_no_gitlinks`. Preserve that limitation in the release manifest.
+
+For a dependency security refresh, install the whole requirements set into an
+isolated environment and run both `python -m pip check` and a current
+`python -m pip_audit --format json`. Audit the resolved installed graph, not just
+exact requirements lines; preserve the report and date. Repeat against the
+final image venv after building. Python advisory results do not establish OS,
+PX4, native-library or real-hardware security clearance. Credential gates run
+after build-secret cleanup and before flattening; see
+[Custom SITL Auth](custom-sitl-auth.md#image-prep-read-access).
+
 ## Rebuild And Package A Validated Release
 
 If you want a stable distributable release, use the release helper instead of hand-running multiple steps:

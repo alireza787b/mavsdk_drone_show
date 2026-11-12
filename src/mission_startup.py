@@ -6,7 +6,7 @@ import time
 import uuid
 from collections import deque
 
-from mavsdk.action import ActionError
+from mavsdk_grpc.action import ActionError
 
 from src.action_safety import (
     ACTION_STATE_OBSERVATION_TIMEOUT_SEC,

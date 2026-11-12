@@ -334,7 +334,7 @@ def test_registry_rejects_completion_reader_that_requires_arguments():
 
 def test_default_policy_enables_non_executing_runtime_and_allows_safe_observe():
     registry = load_default_tool_registry()
-    policy = load_default_policy()
+    policy = AgentPolicy.from_file(POLICY_PATH, apply_env=False)
 
     decision = policy.evaluate_tool(registry.require("mds.system.health.read"))
 

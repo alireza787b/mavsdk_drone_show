@@ -113,6 +113,20 @@ bash tools/release_sitl_image.sh \
 
 The release helper validates git access first, stages the credential only during preparation, removes it, then flattens the final image.
 
+HTTPS cloning/fetching uses a file-backed `GIT_ASKPASS` helper, not a token in
+the transport URL, Git config or process arguments. The checkout's `origin`
+remains the configured credential-free URL. Image preparation checks that Git
+configuration immediately after cloning. After staged secret cleanup, a
+release-blocking filesystem scan checks for GitHub tokens, non-public private
+keys, credential stores, shell histories and remaining `/run/secrets` files.
+The flattening helper also rejects credential-bearing inherited image metadata.
+Findings identify paths/categories, never secret contents.
+
+The filesystem gate excludes virtual filesystems and binary contents; it is
+not a general-purpose secret detector or OS vulnerability scanner. Public
+`future`/PX4 test keys require exact path-suffix and SHA-256 matches. A changed
+key at a fixture path still fails. Do not bypass a failure to ship an image.
+
 For large fleets or stable customer demos:
 
 ```bash

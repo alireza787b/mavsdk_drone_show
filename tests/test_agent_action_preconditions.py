@@ -38,7 +38,7 @@ def test_default_registry_exposes_typed_runtime_facts():
                     "target_drone_ids": {
                         "type": "array",
                         "minItems": 1,
-                        "maxItems": 64,
+                        "maxItems": 100,
                         "uniqueItems": True,
                         "items": {
                             "type": "string",

@@ -5,8 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from pymavlink import mavutil
-from mavsdk.component_information import FloatParam as ComponentFloatParam
-from mavsdk.param import AllParams, CustomParam, FloatParam, IntParam
+from mavsdk_grpc.param import AllParams, CustomParam, FloatParam, IntParam
 
 from src.px4_param_models import (
     Px4ParamMetadataSource,
@@ -66,7 +65,7 @@ class FakeParamPlugin:
 class FakeComponentInformation:
     async def access_float_params(self):
         return [
-            ComponentFloatParam(
+            SimpleNamespace(
                 name="MPC_XY_CRUISE",
                 short_description="Cruise speed",
                 long_description="Cruise speed setpoint",
@@ -508,6 +507,8 @@ async def test_docs_metadata_is_reference_only_not_a_firmware_matched_catalog(mo
     assert snapshot.snapshot.metadata_catalog_available is False
     assert snapshot.rows[0].metadata_authority == "reference_only"
     assert snapshot.rows[0].authoritative_fields == []
+    assert "component_information" in snapshot.snapshot.metadata_warning
+    assert "No reference metadata is promoted" in snapshot.snapshot.metadata_warning
 
 
 async def test_vehicle_metadata_wins_over_unmatched_reference_catalog(monkeypatch):

@@ -7,19 +7,19 @@ import pytest
 
 sys.modules.setdefault("psutil", MagicMock())
 
-mavsdk_module = types.ModuleType("mavsdk")
+mavsdk_module = types.ModuleType("mavsdk_grpc")
 mavsdk_module.System = MagicMock()
-mavsdk_system_module = types.ModuleType("mavsdk.system")
+mavsdk_system_module = types.ModuleType("mavsdk_grpc.system")
 mavsdk_system_module.System = MagicMock()
-mavsdk_telemetry_module = types.ModuleType("mavsdk.telemetry")
+mavsdk_telemetry_module = types.ModuleType("mavsdk_grpc.telemetry")
 mavsdk_telemetry_module.FlightMode = types.SimpleNamespace(HOLD=types.SimpleNamespace(name="HOLD"))
 mavsdk_telemetry_module.LandedState = types.SimpleNamespace(LANDING="LANDING", ON_GROUND="ON_GROUND")
 mavsdk_module.telemetry = mavsdk_telemetry_module
 mavsdk_module.action = MagicMock()
-sys.modules.setdefault("mavsdk", mavsdk_module)
-sys.modules.setdefault("mavsdk.system", mavsdk_system_module)
-sys.modules.setdefault("mavsdk.telemetry", mavsdk_telemetry_module)
-sys.modules.setdefault("mavsdk.action", types.SimpleNamespace(ActionError=Exception))
+sys.modules.setdefault("mavsdk_grpc", mavsdk_module)
+sys.modules.setdefault("mavsdk_grpc.system", mavsdk_system_module)
+sys.modules.setdefault("mavsdk_grpc.telemetry", mavsdk_telemetry_module)
+sys.modules.setdefault("mavsdk_grpc.action", types.SimpleNamespace(ActionError=Exception))
 
 from src.action_runners.base import ActionExecutionContext, ActionInvocation
 from src.action_runners.precision_move import (

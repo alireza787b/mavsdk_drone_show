@@ -321,7 +321,7 @@ The script runs through these phases automatically:
 | 5. Environment | Sets up environment variables |
 | 6. Firewall | Configures UFW rules for MDS services |
 | 7. Python Environment | Creates venv, installs requirements |
-| 8. MAVSDK | Downloads and installs MAVSDK binary |
+| 8. MAVSDK | Verifies/provisions the manifest-pinned server; preserves the previous artifact on failure |
 | 9. Services | Installs and enables systemd services |
 | 10. NTP | Configures time synchronization |
 | 11. Netbird | (Optional) Configures VPN access |

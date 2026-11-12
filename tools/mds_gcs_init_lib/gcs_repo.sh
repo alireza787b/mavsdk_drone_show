@@ -11,12 +11,16 @@
 [[ -n "${_MDS_GCS_REPO_LOADED:-}" ]] && return 0
 _MDS_GCS_REPO_LOADED=1
 
+_GCS_REPO_RUNTIME_PATH_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/shell_runtime_paths.sh"
+# shellcheck disable=SC1090
+source "${_GCS_REPO_RUNTIME_PATH_HELPER}"
+
 # =============================================================================
 # CONSTANTS
 # =============================================================================
 
 readonly GCS_DEFAULT_PROJECT_NAME="${MDS_DEFAULT_REPO_SLUG##*/}"
-readonly GCS_DEFAULT_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
+readonly GCS_DEFAULT_SSH_KEY_PATH="$(mds_resolve_user_home)/.ssh/mds_gcs_deploy_key"
 GCS_SSH_KEY_PATH=""
 GCS_SSH_KEY_PUB=""
 
@@ -44,8 +48,10 @@ is_github_ssh_repo_url() {
 
 prepare_gcs_ssh_runtime() {
     sync_gcs_ssh_key_paths
-    mkdir -p "${HOME}/.ssh"
-    chmod 700 "${HOME}/.ssh"
+    local gcs_home
+    gcs_home="$(gcs_runtime_home)" || return 1
+    mkdir -p "${gcs_home}/.ssh"
+    chmod 700 "${gcs_home}/.ssh"
 
     if [[ -f "$GCS_SSH_KEY_PATH" ]]; then
         chmod 600 "$GCS_SSH_KEY_PATH"
@@ -55,8 +61,8 @@ prepare_gcs_ssh_runtime() {
         chmod 644 "$GCS_SSH_KEY_PUB"
     fi
 
-    if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
-        ssh-keyscan -t ed25519 github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+    if ! grep -q "github.com" "${gcs_home}/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan -t ed25519 github.com >> "${gcs_home}/.ssh/known_hosts" 2>/dev/null || true
     fi
 }
 
@@ -131,7 +137,7 @@ gcs_git_auth_enabled() {
 }
 
 gcs_runtime_home() {
-    printf '%s\n' "${HOME:-/root}"
+    mds_resolve_user_home
 }
 
 gcs_git_askpass_path() {
@@ -362,8 +368,10 @@ generate_ssh_key() {
     fi
 
     # Create .ssh directory if needed
-    mkdir -p "${HOME}/.ssh"
-    chmod 700 "${HOME}/.ssh"
+    local gcs_home
+    gcs_home="$(gcs_runtime_home)" || return 1
+    mkdir -p "${gcs_home}/.ssh"
+    chmod 700 "${gcs_home}/.ssh"
 
     # Check if key already exists
     if [[ -f "$GCS_SSH_KEY_PATH" ]]; then

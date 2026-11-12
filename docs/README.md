@@ -129,6 +129,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | **[Repo Asset Layout](guides/repo-asset-layout.md)** | Authoritative home for live config, repo-backed presets, runtime state, and generated mission artifacts |
 | **[CSV Migration Guide](guides/csv-migration.md)** | Legacy: migrating from old CSV format |
 | **[Python Compatibility](guides/python-compatibility.md)** | Python version requirements (3.11-3.13) |
+| **[MAVSDK Updates](guides/mavsdk-updates.md)** | Paired client/server manifest, grounded maintenance, validation and rollback |
 
 ---
 

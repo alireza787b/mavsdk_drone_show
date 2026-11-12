@@ -34,6 +34,8 @@ docker_sitl_copy_prepare_script() {
     local repo_root="$1"
     local container_name="$2"
     docker cp "$repo_root/tools/sitl_image_prepare.sh" "$container_name:/tmp/mds_sitl_image_prepare.sh"
+    docker cp "$repo_root/tools/git_token_askpass.sh" "$container_name:/tmp/git_token_askpass.sh"
+    docker exec "$container_name" chmod 700 /tmp/git_token_askpass.sh
 }
 
 docker_sitl_stage_git_auth_secret() {
@@ -135,6 +137,9 @@ docker_sitl_run_prepare_script() {
 
     if [[ "$exec_status" -eq 0 ]]; then
         docker_sitl_cleanup_git_secrets "$container_name"
+        # Secret removal must be proven, not merely attempted, before flattening.
+        docker exec "$container_name" python3 /root/mavsdk_drone_show/tools/audit_sitl_image.py \
+            filesystem --root / --repo /root/mavsdk_drone_show || return $?
         return 0
     fi
 
@@ -148,6 +153,11 @@ docker_sitl_flatten_container() {
     local target_image="$3"
     shift 3
 
+    # Flattening preserves the base Config. Reject credential-bearing ENV and
+    # metadata as well as filesystem residue before publishing a new layer.
+    docker image inspect "$base_image" | docker exec -i "$container_name" \
+        python3 /root/mavsdk_drone_show/tools/audit_sitl_image.py config || return $?
+
     local change_args=()
     local env_line=""
     local workdir=""
@@ -157,24 +167,24 @@ docker_sitl_flatten_container() {
 
     while IFS= read -r env_line; do
         [ -n "$env_line" ] && change_args+=(--change "ENV $env_line")
-    done < <(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$base_image")
+    done < <(docker image inspect --format '{{range (index .Config "Env")}}{{println .}}{{end}}' "$base_image")
 
-    workdir=$(docker image inspect --format '{{.Config.WorkingDir}}' "$base_image")
+    workdir=$(docker image inspect --format '{{index .Config "WorkingDir"}}' "$base_image")
     if [ -n "$workdir" ] && [ "$workdir" != "<no value>" ]; then
         change_args+=(--change "WORKDIR $workdir")
     fi
 
-    user=$(docker image inspect --format '{{.Config.User}}' "$base_image")
+    user=$(docker image inspect --format '{{index .Config "User"}}' "$base_image")
     if [ -n "$user" ] && [ "$user" != "<no value>" ]; then
         change_args+=(--change "USER $user")
     fi
 
-    entrypoint_json=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$base_image")
+    entrypoint_json=$(docker image inspect --format '{{json (index .Config "Entrypoint")}}' "$base_image")
     if [ -n "$entrypoint_json" ] && [ "$entrypoint_json" != "null" ]; then
         change_args+=(--change "ENTRYPOINT $entrypoint_json")
     fi
 
-    cmd_json=$(docker image inspect --format '{{json .Config.Cmd}}' "$base_image")
+    cmd_json=$(docker image inspect --format '{{json (index .Config "Cmd")}}' "$base_image")
     if [ -n "$cmd_json" ] && [ "$cmd_json" != "null" ]; then
         change_args+=(--change "CMD $cmd_json")
     fi

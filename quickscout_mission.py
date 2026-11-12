@@ -22,8 +22,9 @@ import subprocess
 from contextlib import suppress
 
 import requests
-from mavsdk import System
-from mavsdk.mission import MissionItem, MissionPlan
+from src.mavsdk_runtime import udp_listen_url
+from mavsdk_grpc import System
+from mavsdk_grpc.mission import MissionItem, MissionPlan
 
 try:
     import psutil
@@ -69,24 +70,9 @@ def wait_for_port(port, host="127.0.0.1", timeout=10.0):
 
 
 async def log_mavsdk_output(mavsdk_server):
-    """Drain MAVSDK stdout/stderr so the subprocess does not block on filled pipes."""
-    try:
-        while True:
-            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stdout.readline)
-            if not line:
-                break
-            logger.debug("MAVSDK Server: %s", line.decode().strip())
-    except Exception:
-        logger.exception("Error reading MAVSDK server stdout")
-
-    try:
-        while True:
-            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stderr.readline)
-            if not line:
-                break
-            logger.error("MAVSDK Server Error: %s", line.decode().strip())
-    except Exception:
-        logger.exception("Error reading MAVSDK server stderr")
+    """Drain both native streams concurrently with their declared severity."""
+    from src.mavsdk_server_logging import drain_mavsdk_output
+    await drain_mavsdk_output(mavsdk_server, logging.getLogger(__name__))
 
 
 def find_mavsdk_server():
@@ -133,7 +119,7 @@ def start_mavsdk_server(grpc_port, udp_port):
         mavsdk_server_path,
     )
     mavsdk_server = subprocess.Popen(
-        [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
+        [mavsdk_server_path, "-p", str(grpc_port), udp_listen_url(udp_port)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -541,7 +527,7 @@ async def run_mission(args):
         drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
         logger.info(f"Connecting to drone via MAVSDK on gRPC port {grpc_port}")
         await asyncio.wait_for(
-            drone.connect(system_address=f"udp://:{Params.mavsdk_port}"),
+            drone.connect(system_address=udp_listen_url(Params.mavsdk_port)),
             timeout=connect_timeout,
         )
 
@@ -695,7 +681,7 @@ async def run_mission(args):
             logger.info("Holding position...")
 
         if args.return_behavior in ('return_home', 'land_current'):
-            from mavsdk.telemetry import LandedState
+            from mavsdk_grpc.telemetry import LandedState
             landed_iter = drone.telemetry.landed_state().__aiter__()
             deadline = time.monotonic() + post_action_timeout
             while True:

@@ -41,6 +41,12 @@
   ],
   "keys": [
     {
+      "name": "MDS_RUNTIME_PYTHON",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Shell-local selected interpreter derived from the runtime manifest/venv; not an operator environment setting."
+    },
+    {
       "name": "MDS_OVERVIEW_URL",
       "domain": "frontend",
       "scope": "test",

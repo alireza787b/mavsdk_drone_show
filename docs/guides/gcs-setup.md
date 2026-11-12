@@ -380,6 +380,10 @@ sudo ufw allow 14569/udp
 
 ### Check Installation Status
 
+Minimal supervisors may omit `HOME`. Bootstrap resolves the existing
+`MDS_USER_HOME` override or the operating-system passwd entry without changing
+the process's `HOME`; SSH/known-hosts paths follow that resolved identity.
+
 ```bash
 # View state file
 cat /var/lib/mds/gcs_init_state.json | jq .
@@ -390,7 +394,7 @@ tail -50 /var/log/mds/mds_gcs_init.log
 # Verify Python environment
 source ~/mavsdk_drone_show/venv/bin/activate
 python -c "import fastapi; print('FastAPI OK')"
-python -c "import mavsdk; print('MAVSDK OK')"
+python tools/mavsdk_runtime.py python-check
 
 # Verify Node.js environment
 ls ~/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules | head -5

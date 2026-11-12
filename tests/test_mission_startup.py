@@ -8,12 +8,12 @@ import pytest
 
 sys.modules.setdefault("psutil", MagicMock())
 sys.modules.setdefault("requests", MagicMock())
-mavsdk_module = types.ModuleType("mavsdk")
+mavsdk_module = types.ModuleType("mavsdk_grpc")
 mavsdk_module.System = MagicMock()
 mavsdk_module.__path__ = []
-sys.modules.setdefault("mavsdk", mavsdk_module)
-sys.modules.setdefault("mavsdk.system", types.SimpleNamespace(System=MagicMock()))
-offboard_module = types.ModuleType("mavsdk.offboard")
+sys.modules.setdefault("mavsdk_grpc", mavsdk_module)
+sys.modules.setdefault("mavsdk_grpc.system", types.SimpleNamespace(System=MagicMock()))
+offboard_module = types.ModuleType("mavsdk_grpc.offboard")
 class _DummyOffboardError(Exception):
     pass
 
@@ -26,18 +26,18 @@ for name in (
 ):
     setattr(offboard_module, name, MagicMock())
 offboard_module.OffboardError = _DummyOffboardError
-sys.modules.setdefault("mavsdk.offboard", offboard_module)
-telemetry_module = types.ModuleType("mavsdk.telemetry")
+sys.modules.setdefault("mavsdk_grpc.offboard", offboard_module)
+telemetry_module = types.ModuleType("mavsdk_grpc.telemetry")
 telemetry_module.FlightMode = types.SimpleNamespace(
     HOLD=types.SimpleNamespace(name="HOLD"),
     RETURN_TO_LAUNCH=types.SimpleNamespace(name="RETURN_TO_LAUNCH"),
 )
 telemetry_module.LandedState = types.SimpleNamespace(LANDING="LANDING", ON_GROUND="ON_GROUND")
-sys.modules.setdefault("mavsdk.telemetry", telemetry_module)
+sys.modules.setdefault("mavsdk_grpc.telemetry", telemetry_module)
 class _DummyActionError(Exception):
     pass
 
-sys.modules.setdefault("mavsdk.action", types.SimpleNamespace(ActionError=_DummyActionError))
+sys.modules.setdefault("mavsdk_grpc.action", types.SimpleNamespace(ActionError=_DummyActionError))
 
 from src import mission_startup  # noqa: E402 - dependency stubs must be installed first
 

@@ -5,10 +5,10 @@ import logging.handlers
 from datetime import datetime
 import time
 import csv
-from mavsdk.system import System
+from mavsdk_grpc.system import System
 from src.params import Params
 
-from mavsdk.offboard import PositionNedYaw
+from mavsdk_grpc.offboard import PositionNedYaw
 import numpy as np
 from pyproj import CRS, Transformer
 import navpy

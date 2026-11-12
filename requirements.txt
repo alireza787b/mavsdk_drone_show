@@ -1,6 +1,6 @@
 # MAVSDK Drone Show - Python Dependencies
 # Version: 4.2.2
-# Last Updated: 2026-01-28
+# Security baseline reviewed: 2026-11-12 (SDK/image refresh)
 #
 # Platform-specific packages use environment markers:
 # - aarch64 = Raspberry Pi (ARM64)
@@ -9,38 +9,34 @@
 
 # Core Async/gRPC
 aiogrpc==1.8
-grpcio==1.71.0
-protobuf==5.29.4
+grpcio==1.75.1
+protobuf==6.33.5
 
 # Web Framework - FastAPI (Primary)
-fastapi==0.115.0
+fastapi==0.135.2
+# Compatible with FastAPI's declared range; fixes multipart/URL parsing advisories.
+starlette==1.3.1
 uvicorn[standard]==0.32.0
 gunicorn==23.0.0
 pydantic==2.10.0
-python-multipart==0.0.20
+python-multipart==0.0.31
 httpx>=0.24.0
 pwdlib[argon2]>=0.2.1,<1
 
-# Web Framework - Flask (Legacy)
-Flask==3.0.3
-Flask-Cors==4.0.1
-blinker==1.8.2
+# CLI and signed dashboard/CSRF/scoped-token cookies (not legacy Flask).
 click==8.1.7
 itsdangerous==2.2.0
-Jinja2==3.1.4
-MarkupSafe==2.1.5
-Werkzeug==3.0.4
 
 # HTTP/Networking
-requests==2.32.3
-aiohttp==3.13.2
-urllib3==2.2.2
-certifi==2024.7.4
+requests==2.33.0
+aiohttp==3.14.4
+urllib3==2.8.0
+certifi==2026.10.18
 charset-normalizer==3.3.2
-idna==3.7
+idna==3.15
 
 # MAVLink/Drone Control
-mavsdk==3.10.2
+mavsdk-grpc==4.0.5
 pymavlink==2.4.41
 pyulog==1.3.0
 
@@ -62,9 +58,9 @@ filterpy>=1.4.5
 matplotlib==3.9.2
 contourpy==1.2.1
 cycler==0.12.1
-fonttools==4.53.1
+fonttools==4.60.2
 kiwisolver==1.4.5
-pillow==10.4.0
+pillow==13.0.0
 pyparsing==3.1.2
 seaborn>=0.12.0
 
@@ -80,10 +76,10 @@ pytz==2024.1
 tzdata==2024.1
 
 # Git Integration
-GitPython==3.1.45
+GitPython==3.2.1
 
 # XML Processing
-lxml==5.3.0
+lxml==6.1.0
 
 # Utilities
 six==1.16.0

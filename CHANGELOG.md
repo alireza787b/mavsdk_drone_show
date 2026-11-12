@@ -9,6 +9,25 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Maintained flight SDK and image dependency baseline
+
+- Migrated from the shadowing vendored SDK to installed `mavsdk-grpc==4.0.5`
+  and its matching native server. One manifest governs Python pins, server
+  hashes and supported platforms across bootstrap, maintenance and SITL.
+  Provisioning verifies a bounded candidate before activation and preserves
+  rollback artifacts; custom overrides remain explicitly unverified choices.
+- Updated compatible security dependencies, removed unused Flask packages and
+  migrated the companion API to FastAPI lifespan cleanup. SDK stdout/stderr
+  drains concurrently and preserves native severity; explicit UDP listeners
+  retain the existing transport topology. Flight gains and policies are unchanged.
+- Image preparation can provision checksum-pinned CPython 3.12.16 separately
+  from the operating system interpreter. Startup preserves a supported venv
+  instead of mistaking the old system Python for dependency drift.
+- Image Git authentication uses file-backed credentials without token URLs;
+  final filesystem and metadata gates run after staged-secret cleanup.
+  These source changes require a rebuilt and accepted SITL image, not only a
+  source tag. See [SDK maintenance](docs/guides/mavsdk-updates.md).
+
 ### Logs operator workspace and evidence integrity
 
 - Replaced Ops/Dev logging modes with Live / Sessions / Flight logs, one explicit

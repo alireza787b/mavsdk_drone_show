@@ -37,6 +37,7 @@ import shutil
 import hashlib
 import threading
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set, Tuple, Literal
@@ -51,7 +52,8 @@ import uvicorn
 import requests
 import asyncio
 import json
-from mavsdk.system import System
+from src.mavsdk_runtime import udp_listen_url
+from mavsdk_grpc.system import System
 
 from mds_logging import get_logger
 from mds_logging.api_schemas import (
@@ -1054,6 +1056,7 @@ class DroneAPIServer:
             title="Drone API Server",
             description="High-performance API server for drone-side communication with HTTP REST and WebSocket support",
             version=MDS_VERSION,
+            lifespan=self._lifespan,
             docs_url="/docs",  # Interactive API docs
             redoc_url="/redoc",  # Alternative docs
             openapi_url="/openapi.json"  # OpenAPI schema
@@ -1133,9 +1136,16 @@ class DroneAPIServer:
         self._ulog_service.download_guard = self._assert_live_ulog_download_allowed
         self._ulog_service.erase_guard = self._assert_live_ulog_erase_allowed
 
-        self.app.add_event_handler("shutdown", self._shutdown_ulog_download_tasks)
-        self.app.add_event_handler("shutdown", self._shutdown_command_followup_tasks)
         self.setup_routes()
+
+    @asynccontextmanager
+    async def _lifespan(self, _app: FastAPI):
+        """Retain ordered task cleanup without removed application event APIs."""
+        try:
+            yield
+        finally:
+            await self._shutdown_ulog_download_tasks()
+            await self._shutdown_command_followup_tasks()
 
     def _bounded_numeric_param(
         self,
@@ -1266,7 +1276,7 @@ class DroneAPIServer:
             NetworkDefaults.GRPC_BASE_PORT,
         )
         mavlink_port = safe_int(getattr(self.params, "mavsdk_port", 14540), 14540)
-        return grpc_port, f"udp://:{mavlink_port}"
+        return grpc_port, udp_listen_url(mavlink_port)
 
     @staticmethod
     def _port_is_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bool:
@@ -1574,7 +1584,7 @@ class DroneAPIServer:
 
         mavsdk_server_path = self._find_mavsdk_server_binary()
         process = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(grpc_port), udp_listen_url(udp_port)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

@@ -236,6 +236,7 @@ def test_gcs_dashboard_service_defaults_to_warned_trusted_lab_auth_posture(tmp_p
         MDS_TEST_API_MODE="exit",
         MDS_TEST_API_EXIT_CODE="27",
     )
+    env.pop("MDS_MODE", None)
 
     result = subprocess.run(
         ["bash", str(launcher)],

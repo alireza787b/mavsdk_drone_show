@@ -25,13 +25,36 @@ RECONCILE_MAVLINK_SCRIPT = REPO_ROOT / "tools" / "reconcile_mavlink_runtime.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
+    # Each shell fixture selects its own runtime mode. A validation runner's
+    # SITL label must not skip the mocked companion/systemd path by accident.
+    env = os.environ.copy()
+    env.pop("MDS_MODE", None)
     return subprocess.run(
         ["bash", "-lc", script],
         cwd=REPO_ROOT,
+        env=env,
         text=True,
         capture_output=True,
         check=False,
     )
+
+
+def test_node_sdk_phase_keeps_dispatch_and_resume_identity():
+    node_init = (REPO_ROOT / "tools/mds_node_init.sh").read_text()
+    phase_code = node_init.split("# Phase definitions", 1)[1].split("# Run all phases", 1)[0]
+    result = run_bash(
+        "set -e\n"
+        "RESUME=false\n"
+        "state_set_phase() { :; }\n"
+        "log_error() { echo \"$*\" >&2; }\n"
+        "sdk_phase_called=false\n"
+        "run_mavsdk_phase() { sdk_phase_called=true; }\n"
+        f"{phase_code}\n"
+        '[[ "${PHASES[7]}" == mavsdk ]]\n'
+        'run_phase "${PHASES[7]}"\n'
+        '[[ "$sdk_phase_called" == true ]]\n'
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_node_bootstrap_wrapper_can_be_sourced_and_resolves_repo_urls():
@@ -57,6 +80,42 @@ def test_gcs_bootstrap_wrapper_can_be_sourced_and_resolves_repo_urls():
         """
     )
 
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_bootstrap_and_init_help_resolve_unset_home_without_assigning_it():
+    result = run_bash(
+        f"""
+        set -e
+        unset HOME MDS_USER_HOME
+        source "{GCS_INSTALLER}"
+        expected_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+        [[ "$DEFAULT_GCS_SSH_KEY_PATH" == "$expected_home/.ssh/mds_gcs_deploy_key" ]]
+        [[ -z "${{HOME+x}}" ]]
+        cat "{GCS_INSTALLER}" | bash -s -- --help | grep -q "MDS GCS Bootstrap Installer"
+        bash "{REPO_ROOT / 'tools/mds_gcs_init.sh'}" --help | grep -q -- "--skip-services"
+        [[ -z "${{HOME+x}}" ]]
+        """
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_ssh_support_paths_honor_home_override_when_home_is_unset(tmp_path):
+    result = run_bash(
+        f"""
+        set -e
+        unset HOME
+        export MDS_USER_HOME="{tmp_path}"
+        source "{COMMON_LIB}"
+        source "{GCS_REPO_LIB}"
+        ssh-keyscan() {{ printf '%s\\n' 'github.com fixture-host-key'; }}
+        prepare_gcs_ssh_runtime
+        [[ "$GCS_SSH_KEY_PATH" == "$MDS_USER_HOME/.ssh/mds_gcs_deploy_key" ]]
+        [[ "$(gcs_git_askpass_path)" == "$MDS_USER_HOME/.cache/mds-runtime/mds_gcs_git_askpass_runtime.sh" ]]
+        grep -q fixture-host-key "$MDS_USER_HOME/.ssh/known_hosts"
+        [[ -z "${{HOME+x}}" ]]
+        """
+    )
     assert result.returncode == 0, result.stderr
 
 
@@ -95,7 +154,7 @@ EOF
         source "{GCS_INSTALLER}"
         [[ "$REPO_URL" == "https://github.com/demo/customer-mds.git" ]]
         [[ "$BRANCH" == "release-candidate" ]]
-        [[ "$INSTALL_DIR" == "$HOME/customer-mds" ]]
+        [[ "$INSTALL_DIR" == "$(gcs_wrapper_home)/customer-mds" ]]
         """
     )
 
@@ -1343,7 +1402,7 @@ def test_mavsdk_binary_name_resolution_supports_arm64_without_array_errors():
     assert result.returncode == 0, result.stderr
 
 
-def test_fetch_latest_mavsdk_version_keeps_stdout_machine_readable():
+def test_legacy_latest_helper_uses_reviewed_manifest_not_network():
     result = run_bash(
         f"""
         source "{COMMON_LIB}"
@@ -1351,9 +1410,8 @@ def test_fetch_latest_mavsdk_version_keeps_stdout_machine_readable():
         log_step() {{ echo "$1" >&2; }}
         log_success() {{ echo "$1" >&2; }}
         log_warn() {{ echo "$1" >&2; }}
-        curl() {{ printf '%s' '{{"tag_name":"v9.9.9"}}'; }}
-        jq() {{ sed -n 's/.*"tag_name":"\\([^"]*\\)".*/\\1/p'; }}
-        [[ "$(fetch_latest_version)" == "v9.9.9" ]]
+        curl() {{ exit 99; }}
+        [[ "$(fetch_latest_version)" == "v4.0.5" ]]
         """
     )
 

@@ -197,7 +197,7 @@ def _build_velocity_vector(
 
 
 def _load_offboard_types():
-    from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+    from mavsdk_grpc.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
     return OffboardError, PositionNedYaw, VelocityNedYaw
 

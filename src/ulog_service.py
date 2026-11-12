@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, BinaryIO, Callable, Optional
 
-from mavsdk.log_files import Entry as MavsdkLogEntry
-from mavsdk.log_files import LogFilesError, LogFilesResult
+from mavsdk_grpc.log_files import Entry as MavsdkLogEntry
+from mavsdk_grpc.log_files import LogFilesError, LogFilesResult
 
 from mds_logging.api_schemas import (
     OnboardUlogDownloadJob,

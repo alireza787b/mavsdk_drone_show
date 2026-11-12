@@ -1,5 +1,17 @@
 version: 1
 resources:
+- id: mds.mavsdk_maintenance
+  title: MAVSDK runtime maintenance
+  path: docs/guides/mavsdk-updates.md
+  mime_type: text/markdown
+  audience: developer
+  sensitivity: public
+  summary: Paired runtime manifest, grounded upgrade, actual import checks and rollback boundaries.
+  tags:
+  - mavsdk
+  - maintenance
+  - sitl
+  searchable: true
 - id: mds.px4_parameter_operator_workflow
   title: PX4 Parameters operator workflow
   path: docs/guides/px4-parameter-operator.md

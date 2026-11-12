@@ -31,6 +31,25 @@ if [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/load_deployment_profile.sh" ]]; then
     # shellcheck disable=SC1090
     source "${SCRIPT_DIR}/load_deployment_profile.sh"
 fi
+if [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/shell_runtime_paths.sh" ]]; then
+    # shellcheck disable=SC1090
+    source "${SCRIPT_DIR}/shell_runtime_paths.sh"
+fi
+
+gcs_wrapper_home() {
+    if declare -F mds_resolve_user_home >/dev/null; then
+        mds_resolve_user_home
+        return
+    fi
+    # A piped bootstrap has no sibling helper yet. Keep it self-contained and
+    # offline, resolving the same user override/environment/passwd precedence.
+    local candidate="${MDS_USER_HOME:-${HOME:-}}"
+    if [[ -z "$candidate" ]]; then
+        candidate="$(getent passwd "$(id -u)" | cut -d: -f6)" || return 1
+    fi
+    [[ -n "$candidate" ]] || return 1
+    printf '%s\n' "$candidate"
+}
 
 DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG:-alireza787b/mavsdk_drone_show}"
 DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/${DEFAULT_REPO_SLUG}.git}"
@@ -51,13 +70,13 @@ BRANCH="${MDS_BRANCH:-${DEFAULT_BRANCH}}"
 if [[ -n "${SUDO_USER:-}" ]]; then
     DEFAULT_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 else
-    DEFAULT_HOME="$HOME"
+    DEFAULT_HOME="$(gcs_wrapper_home)"
 fi
 INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/${DEFAULT_PROJECT_NAME}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
-DEFAULT_GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
+DEFAULT_GCS_SSH_KEY_PATH="$(gcs_wrapper_home)/.ssh/mds_gcs_deploy_key"
 GCS_SSH_KEY_PATH="${DEFAULT_GCS_SSH_KEY_PATH}"
 GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 
@@ -133,10 +152,6 @@ is_github_https_repo_url() {
 
 wrapper_git_auth_enabled() {
     [[ -n "${GIT_AUTH_TOKEN_FILE:-}" && -r "${GIT_AUTH_TOKEN_FILE}" ]]
-}
-
-gcs_wrapper_home() {
-    printf '%s\n' "${HOME:-/root}"
 }
 
 wrapper_git_askpass_path() {
@@ -248,8 +263,10 @@ install_git() {
 }
 
 prepare_wrapper_repo_ssh_runtime() {
-    mkdir -p "${HOME}/.ssh"
-    chmod 700 "${HOME}/.ssh"
+    local gcs_home
+    gcs_home="$(gcs_wrapper_home)" || return 1
+    mkdir -p "${gcs_home}/.ssh"
+    chmod 700 "${gcs_home}/.ssh"
 
     if [[ -f "$GCS_SSH_KEY_PATH" ]]; then
         chmod 600 "$GCS_SSH_KEY_PATH"
@@ -259,8 +276,8 @@ prepare_wrapper_repo_ssh_runtime() {
         chmod 644 "${GCS_SSH_KEY_PUB}"
     fi
 
-    if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
-        ssh-keyscan -t ed25519 github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+    if ! grep -q "github.com" "${gcs_home}/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan -t ed25519 github.com >> "${gcs_home}/.ssh/known_hosts" 2>/dev/null || true
     fi
 }
 

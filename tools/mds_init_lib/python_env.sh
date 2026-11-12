@@ -22,7 +22,7 @@ readonly NODE_REQUIREMENTS_FILE="${MDS_INSTALL_DIR}/requirements-node.txt"
 # Critical packages to verify after installation
 # Note: Flask removed in v4.3.0 (FastAPI only backend)
 readonly CRITICAL_PACKAGES=(
-    "mavsdk"
+    "mavsdk_grpc"
     "aiohttp"
     "requests"
     "numpy"
@@ -206,6 +206,11 @@ install_requirements() {
     fi
     log_info "Installing from: ${selected_requirements}"
     log_info "This may take several minutes..."
+    "${VENV_DIR}/bin/python" "${MDS_INSTALL_DIR}/tools/mavsdk_runtime.py" python-platform || return 1
+
+    if ! "${VENV_DIR}/bin/python" "${MDS_INSTALL_DIR}/tools/mavsdk_runtime.py" python-check >/dev/null 2>&1; then
+        python3 "${MDS_INSTALL_DIR}/tools/mavsdk_runtime.py" idle || return 1
+    fi
 
     # Install with progress - use subshell with pipefail to detect pip failures
     # (Without pipefail, pipe exit status is from the while loop, not pip)
@@ -331,6 +336,7 @@ run_python_env_phase() {
 
     # Install requirements
     install_requirements || return 1
+    "${VENV_DIR}/bin/python" "${MDS_INSTALL_DIR}/tools/mavsdk_runtime.py" python-check || return 1
 
     print_section "Verification"
 

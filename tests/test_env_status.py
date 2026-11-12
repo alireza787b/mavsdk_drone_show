@@ -22,6 +22,7 @@ def test_build_node_env_summary_reports_safe_registry_posture(monkeypatch, tmp_p
     reset_preloaded_local_env_state()
     monkeypatch.setenv("MDS_LOCAL_ENV_FILE", str(local_env))
     monkeypatch.setenv("MDS_NODE_IDENTITY_FILE", str(identity_file))
+    monkeypatch.delenv("MDS_MODE", raising=False)
 
     summary = build_node_env_summary()
 

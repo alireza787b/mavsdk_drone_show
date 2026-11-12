@@ -9,6 +9,7 @@ import fcntl
 import os
 import psutil
 import tempfile
+from src.mavsdk_runtime import matches_udp_listener
 
 
 class MotionControlLease:
@@ -61,7 +62,7 @@ def borrow_mavsdk_server(grpc_port: int, udp_port: int):
         args = proc.info.get("cmdline") or []
         if not args or "mavsdk_server" not in os.path.basename(args[0]):
             continue
-        if f"udp://:{udp_port}" not in args:
+        if not matches_udp_listener(args, udp_port):
             continue
         if any(args[i:i + 2] == ["-p", str(grpc_port)] for i in range(len(args) - 1)):
             lease = MotionControlLease.acquire(grpc_port)

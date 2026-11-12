@@ -2,17 +2,30 @@
 
 ## Supported Python Versions
 
-MAVSDK Drone Show (MDS) supports the following Python versions:
+The reviewed MDS SDK platform matrix includes these CPython minor versions:
 
-- ✅ **Python 3.11** (Recommended for stability)
-- ✅ **Python 3.12**
-- ✅ **Python 3.13** (Latest - fully supported as of MDS v3.5)
+- **Python 3.11**
+- **Python 3.12**
+- **Python 3.13**
 
-## What Changed in Version 3.5
+Linux x86_64 and aarch64 are the reviewed SDK wheel platforms. This is not a
+claim that every OS, peripheral, complete dependency set or aircraft has been
+flight-tested. A newer system Python does not automatically qualify.
+
+## MAVSDK gRPC compatibility
+
+The reviewed SDK pair is `mavsdk-grpc==4.0.5` (import `mavsdk_grpc`) and
+`mavsdk_server v4.0.5`, with `grpcio==1.75.1` and `protobuf==6.33.5`.
+The new native `mavsdk` v4 package is a different API and is not a substitute.
+Use [MAVSDK updates](mavsdk-updates.md) for the pinned manifest, platform gates,
+maintenance procedure and rollback boundaries. Python-version eligibility is
+not by itself a claim of real-hardware validation on every architecture.
+
+## Historical changes in Version 3.5
 
 ### Python 3.13 Compatibility Fixes
 
-The latest Raspberry Pi OS now ships with Python 3.13. We've updated MDS to work perfectly with this version:
+Earlier Python 3.13 compatibility work included:
 
 1. **Removed deprecated packages**
    - Removed `asyncio` package (built into Python since 3.4)
@@ -48,7 +61,12 @@ that intentionally references the node-specific filename.
 
 ### For SITL (Docker)
 
-Docker images already include all dependencies. No action needed.
+Use the current validated image from the SITL guide. Refreshed image preparation
+provides CPython 3.12.16 under `/opt/mds-python/3.12.16` when the base has no
+eligible interpreter. The image's OS Python may remain 3.10; do not replace it.
+Startup validates the selected venv's own interpreter and dependency manifest.
+An older image cannot acquire this interpreter by pulling source alone: load or
+rebuild the validated replacement before enabling mutable SDK sync.
 
 ## Troubleshooting
 
@@ -93,15 +111,19 @@ git pull origin main
 sudo ./tools/mds_node_init.sh -d <your_drone_id> -y
 ```
 
-### Performance Issues
+### SDK protobuf/gRPC import errors
 
-**Problem:** Slow performance on Python 3.13.
+**Problem:** An independent protobuf/gRPC upgrade, old virtual environment, or
+incorrect `mavsdk` distribution does not match the generated client.
 
-**Solution:** Ensure you're using protobuf 5.29.4 or newer:
+**Solution:** Restore the exact reviewed dependency set, then perform a real
+import/pair check. Do this during grounded maintenance, not live operation:
 
 ```bash
 source ~/mavsdk_drone_show/venv/bin/activate
-pip install --upgrade protobuf>=5.29.4
+python -m pip install -r requirements-node.txt
+python -m pip check
+python tools/mavsdk_runtime.py python-check
 ```
 
 ## Checking Your Python Version
@@ -127,5 +149,4 @@ If you encounter issues:
 
 ---
 
-**Last Updated:** January 2025
-**MDS Version:** 3.5+
+**Last Updated:** November 2026

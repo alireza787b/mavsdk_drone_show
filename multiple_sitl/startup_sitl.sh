@@ -69,7 +69,6 @@ DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-GIT_AUTH_TOKEN_VALUE=""
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
@@ -181,6 +180,8 @@ SITL_FILE_LOG_BACKUP_COUNT="${MDS_SITL_FILE_LOG_BACKUP_COUNT:-$DEFAULT_SITL_FILE
 SITL_STRIP_PXH_PROMPTS="${MDS_SITL_STRIP_PXH_PROMPTS:-$DEFAULT_SITL_STRIP_PXH_PROMPTS}"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 RUNTIME_VENV_HEALTH_CHECKER="$BASE_DIR/tools/check_runtime_venv.py"
+PYTHON_RUNTIME_HELPER="$BASE_DIR/tools/python_runtime.py"
+MDS_RUNTIME_PYTHON=""
 LOG_POLICY_RUNNER="$BASE_DIR/tools/run_with_log_policy.py"
 IMAGE_BUILD_METADATA_FILE="$BASE_DIR/.mds_sitl_image_build.env"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
@@ -199,6 +200,10 @@ SIMULATION_COMMAND=()
 MAVLINK2REST_ARGS=(-c "udpin:127.0.0.1:14569" -s "0.0.0.0:8088")
 LAUNCH_WITH_LOG_POLICY_LAST_PID=""
 
+if [[ "$GITHUB_REPO_URL" == http*://*@* || "$GITHUB_REPO_URL" == *\?* || "$GITHUB_REPO_URL" == *\#* ]]; then
+    printf 'ERROR: MDS_REPO_URL must not contain credentials, a query or a fragment; use credential files\n' >&2
+    exit 1
+fi
 if [ "$SHELL_TRACE_ENABLED" = "1" ]; then
     set -x
 fi
@@ -239,7 +244,17 @@ load_git_auth_token() {
             exit 1
         fi
 
-        GIT_AUTH_TOKEN_VALUE="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+        [[ -s "$GIT_AUTH_TOKEN_FILE" ]] || { log_message "ERROR: MDS_GIT_AUTH_TOKEN_FILE is empty"; exit 1; }
+        # The host-script rollout mounts this helper next to the copied script;
+        # pinned images use the helper in their own checkout.
+        export GIT_ASKPASS="$SCRIPT_DIR/git_token_askpass.sh"
+        if [[ ! -x "$GIT_ASKPASS" ]]; then
+            export GIT_ASKPASS="$BASE_DIR/tools/git_token_askpass.sh"
+        fi
+        [[ -x "$GIT_ASKPASS" ]] || { log_message "ERROR: Git file-backed authentication helper is missing or not executable"; exit 1; }
+        export GIT_TERMINAL_PROMPT=0 MDS_GIT_AUTH_TOKEN_FILE="$GIT_AUTH_TOKEN_FILE"
+        export MDS_GIT_AUTH_USERNAME="$GIT_AUTH_USERNAME"
+        unset GIT_TRACE GIT_TRACE_PACKET GIT_TRACE_CURL GIT_CURL_VERBOSE GIT_TRACE_SETUP
     fi
 }
 
@@ -720,15 +735,6 @@ should_prefer_ssh_repo_url() {
     [[ "$repo_url" =~ ^git@github\.com: ]]
 }
 
-urlencode_value() {
-    python3 - "$1" <<'PY'
-import sys
-from urllib.parse import quote
-
-print(quote(sys.argv[1], safe=''))
-PY
-}
-
 github_repo_path() {
     local repo_url="$1"
     local repo_path=""
@@ -745,17 +751,14 @@ github_repo_path() {
     printf '%s.git\n' "$repo_path"
 }
 
-github_authenticated_https_url() {
+github_token_https_url() {
     local repo_url="$1"
     local repo_path=""
 
-    [[ -n "$GIT_AUTH_TOKEN_VALUE" ]] || return 1
+    [[ -n "$GIT_AUTH_TOKEN_FILE" ]] || return 1
     repo_path=$(github_repo_path "$repo_url") || return 1
 
-    local encoded_username encoded_token
-    encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
-    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN_VALUE")
-    printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
+    printf 'https://github.com/%s\n' "$repo_path"
 }
 
 requirements_state_value() {
@@ -765,11 +768,7 @@ requirements_state_value() {
         exit 1
     fi
 
-    local requirements_hash
-    local python_version
-    requirements_hash=$(sha256sum "$requirements_file" | awk '{print $1}')
-    python_version=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
-    printf "%s|python=%s\n" "$requirements_hash" "$python_version"
+    python3 "$PYTHON_RUNTIME_HELPER" state --venv "$VENV_DIR" --requirements "$requirements_file"
 }
 
 runtime_venv_health_check() {
@@ -778,11 +777,11 @@ runtime_venv_health_check() {
         return 1
     fi
 
-    python3 "$RUNTIME_VENV_HEALTH_CHECKER" \
+    python3 "$PYTHON_RUNTIME_HELPER" check-venv \
         --venv "$VENV_DIR" \
         --module requests \
         --module aiohttp \
-        --module mavsdk
+        --module mavsdk_grpc
 }
 
 load_image_build_metadata() {
@@ -841,20 +840,22 @@ bootstrap_repository_checkout() {
 
     if should_prefer_ssh_repo_url "$repo_url"; then
         effective_repo_url="$repo_url"
-    elif authenticated_repo_url=$(github_authenticated_https_url "$repo_url"); then
+    elif authenticated_repo_url=$(github_token_https_url "$repo_url"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     fi
 
-    if ! git clone --depth 1 --branch "$GIT_BRANCH" "$effective_repo_url" "$clone_dir"; then
+    if ! git -c credential.helper= -c http.extraHeader= clone --depth 1 --branch "$GIT_BRANCH" "$effective_repo_url" "$clone_dir"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$repo_url" ]; then
             log_message "Clone via SSH failed. Retrying with HTTPS fallback: $fallback_repo_url"
-            git clone --depth 1 --branch "$GIT_BRANCH" "$fallback_repo_url" "$clone_dir"
+            git -c credential.helper= -c http.extraHeader= clone --depth 1 --branch "$GIT_BRANCH" "$fallback_repo_url" "$clone_dir"
         else
             log_message "ERROR: Failed to clone $repo_url@$GIT_BRANCH"
             exit 1
         fi
     fi
+
+    git -C "$clone_dir" remote set-url origin "$GITHUB_REPO_URL"
 
     rm -rf "$BASE_DIR"
     mv "$clone_dir" "$BASE_DIR"
@@ -914,7 +915,7 @@ update_repository() {
         else
             fallback_repo_url=""
         fi
-    elif authenticated_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
+    elif authenticated_repo_url=$(github_token_https_url "$GITHUB_REPO_URL"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
@@ -924,7 +925,7 @@ update_repository() {
     fi
 
     if ! git -C "$BASE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        bootstrap_repository_checkout "$effective_repo_url" "$fallback_repo_url"
+        bootstrap_repository_checkout "$GITHUB_REPO_URL" "$fallback_repo_url"
     fi
 
     log_message "Navigating to $BASE_DIR..."
@@ -932,20 +933,19 @@ update_repository() {
 
     log_message "Setting Git remote to $GIT_REMOTE..."
     if git remote get-url "$GIT_REMOTE" >/dev/null 2>&1; then
-        git remote set-url "$GIT_REMOTE" "$effective_repo_url"
+        git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL"
     else
-        git remote add "$GIT_REMOTE" "$effective_repo_url"
+        git remote add "$GIT_REMOTE" "$GITHUB_REPO_URL"
     fi
 
     local remote_tracking_ref="refs/remotes/$GIT_REMOTE/$GIT_BRANCH"
     local fetch_refspec="+refs/heads/$GIT_BRANCH:$remote_tracking_ref"
 
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! sitl_retry 3 "GIT-FETCH" git fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
+    if ! sitl_retry 3 "GIT-FETCH" git -c credential.helper= -c http.extraHeader= -c "remote.$GIT_REMOTE.url=$effective_repo_url" fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$effective_repo_url" ]; then
             log_message "SSH fetch failed. Retrying with HTTPS fallback: $fallback_repo_url"
-            git remote set-url "$GIT_REMOTE" "$fallback_repo_url" || true
-            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
+            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git -c credential.helper= -c http.extraHeader= -c "remote.$GIT_REMOTE.url=$fallback_repo_url" fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
                 log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH even after HTTPS fallback."
                 echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
                 exit 1
@@ -1133,6 +1133,12 @@ run_mavlink2rest() {
 # Function to set up Python environment
 setup_python_env() {
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
+        # Selection follows the existing venv's eligible base interpreter, then
+        # the managed fallback/system candidates. Host 3.10 is not venv drift.
+        MDS_RUNTIME_PYTHON=$(python3 "$PYTHON_RUNTIME_HELPER" select --venv "$VENV_DIR") || {
+            log_message "ERROR: No supported Python runtime. Rebuild the SITL image; startup does not compile/install Python."
+            exit 1
+        }
         if [ -d "$VENV_DIR" ]; then
             local venv_health_output=""
             if ! venv_health_output=$(runtime_venv_health_check 2>&1); then
@@ -1146,7 +1152,7 @@ setup_python_env() {
 
         if [ ! -d "$VENV_DIR" ]; then
             log_message "Creating a Python virtual environment at $VENV_DIR..."
-            python3 -m venv "$VENV_DIR"
+            "$MDS_RUNTIME_PYTHON" -m venv "$VENV_DIR"
             log_message "Virtual environment created successfully."
         fi
 
@@ -1194,38 +1200,14 @@ setup_python_env() {
 
 ensure_mavsdk_server() {
     mkdir -p "$BASE_DIR/logs"
-    local force_refresh="false"
-
-    if [ -n "${MDS_MAVSDK_VERSION:-}" ] || [ -n "${MDS_MAVSDK_URL:-}" ]; then
-        force_refresh="true"
-    fi
-
-    if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then
-        chmod +x "$MAVSDK_BINARY_PATH"
-    fi
-
-    if [ "$force_refresh" != "true" ] && [ -x "$MAVSDK_BINARY_PATH" ]; then
-        log_message "MAVSDK server binary ready: $MAVSDK_BINARY_PATH"
-        return
-    fi
 
     if [ ! -f "$MAVSDK_DOWNLOAD_SCRIPT" ]; then
         log_message "ERROR: MAVSDK server binary missing and download script not found: $MAVSDK_DOWNLOAD_SCRIPT"
         exit 1
     fi
 
-    if ! command -v curl &>/dev/null; then
-        log_message "ERROR: curl is required to download mavsdk_server but is not installed."
-        exit 1
-    fi
-
     local mavsdk_log="$BASE_DIR/logs/mavsdk_download.log"
-    if [ "$force_refresh" = "true" ]; then
-        log_message "Refreshing mavsdk_server because MDS_MAVSDK_VERSION or MDS_MAVSDK_URL was set."
-        rm -f "$MAVSDK_BINARY_PATH"
-    else
-        log_message "MAVSDK server binary missing. Downloading it into $BASE_DIR..."
-    fi
+    log_message "Verifying/provisioning the manifest-bound MAVSDK server (candidate checks precede activation)."
 
     if MDS_INSTALL_DIR="$BASE_DIR" bash "$MAVSDK_DOWNLOAD_SCRIPT" &>"$mavsdk_log"; then
         if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then
@@ -1233,8 +1215,7 @@ ensure_mavsdk_server() {
         fi
 
         if [ -x "$MAVSDK_BINARY_PATH" ]; then
-            rm -f "$mavsdk_log"
-            log_message "MAVSDK server binary installed successfully."
+            log_message "MAVSDK server provisioned; compatibility evidence: $mavsdk_log and $BASE_DIR/runtime_data/mavsdk/provenance.json"
             return
         fi
     fi
@@ -1507,7 +1488,17 @@ log_image_runtime_mode
 #run_mavlink2rest
 
 # Set up Python environment
+# Refuse a client/server migration while a previous controller still owns the
+# server. Never upgrade its Python dependencies or kill its process implicitly.
+if ! python3 "$BASE_DIR/tools/mavsdk_runtime.py" check --install-dir "$BASE_DIR" >/dev/null 2>&1; then
+    python3 "$BASE_DIR/tools/mavsdk_runtime.py" idle || exit 1
+fi
 setup_python_env
+if [ "$USE_GLOBAL_PYTHON" = false ]; then
+    "$VENV_DIR/bin/python" "$BASE_DIR/tools/mavsdk_runtime.py" python-check || exit 1
+else
+    python3 "$BASE_DIR/tools/mavsdk_runtime.py" python-check || exit 1
+fi
 ensure_mavsdk_server
 
 # Clean up any stale simulator processes before launching a fresh instance.

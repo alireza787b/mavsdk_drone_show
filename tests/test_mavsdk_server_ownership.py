@@ -3,10 +3,14 @@ import pytest
 from src.mavsdk_server_ownership import borrow_mavsdk_server, BorrowedMavsdkServer
 
 
-def test_only_explicit_borrower_can_attach_to_matching_vehicle_server(monkeypatch):
+@pytest.mark.parametrize("url", ["udp://:14569", "udpin://0.0.0.0:14569"])
+def test_only_explicit_borrower_can_attach_to_matching_vehicle_server(monkeypatch, url):
     monkeypatch.setenv("MDS_BORROW_MAVSDK_SERVER", "1")
-    process = SimpleNamespace(pid=42, info={"cmdline": ["/runtime/mavsdk_server", "-p", "50040", "udp://:14569"]})
-    monkeypatch.setattr("src.mavsdk_server_ownership.psutil.process_iter", lambda *_: [process])
+    process = SimpleNamespace(pid=42, info={"cmdline": ["/runtime/mavsdk_server", "-p", "50040", url]})
+    monkeypatch.setattr(
+        "src.mavsdk_server_ownership.psutil",
+        SimpleNamespace(process_iter=lambda *_: [process]),
+    )
     borrowed = borrow_mavsdk_server(50040, 14569)
     assert borrowed == BorrowedMavsdkServer(42)
     borrowed.release()

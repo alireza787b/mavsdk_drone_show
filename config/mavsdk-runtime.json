@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "python": {
+    "distribution": "mavsdk-grpc",
+    "import": "mavsdk_grpc",
+    "version": "4.0.5",
+    "grpcio": "1.75.1",
+    "protobuf": "6.33.5",
+    "supported_minors": [11, 12, 13],
+    "linux_platforms": ["x86_64", "aarch64"]
+  },
+  "server": {
+    "version": "v4.0.5",
+    "release_url": "https://github.com/mavlink/MAVSDK/releases/tag/v4.0.5",
+    "assets": {
+      "x86_64": {
+        "name": "mavsdk_server_musl_x86_64",
+        "sha256": "837afc85cd07b92d8cf05c8527d06f47e292f4b3919382e31d47b41449171064",
+        "elf_machine": 62,
+        "elf_class": 2,
+        "python_wheel_gate": "required"
+      },
+      "aarch64": {
+        "name": "mavsdk_server_linux-arm64-musl",
+        "sha256": "db5d8e351e0f515744f905c5ad9bd5c27218d22f9aed112ca57532b198d0ae59",
+        "elf_machine": 183,
+        "elf_class": 2,
+        "python_wheel_gate": "required"
+      },
+      "armv7l": {
+        "name": "mavsdk_server_linux-armv7l-musl",
+        "sha256": "ffba41f1e331a2fc8b944d3ac0069e9e2511dd7708eb4715696351913ac1fcd1",
+        "elf_machine": 40,
+        "elf_class": 1,
+        "python_wheel_gate": "unvalidated_do_not_assume_wrapper_wheel_is_sufficient"
+      }
+    }
+  }
+}

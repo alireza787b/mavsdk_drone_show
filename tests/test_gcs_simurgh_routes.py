@@ -973,6 +973,7 @@ def test_terminal_flight_state_observation_requires_landed_and_rtl_home_evidence
 
 def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_relative_paths(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "real")
+    monkeypatch.delenv("MDS_AGENT_ENABLED", raising=False)
     client = _client()
 
     response = client.get("/api/v1/simurgh/status")
