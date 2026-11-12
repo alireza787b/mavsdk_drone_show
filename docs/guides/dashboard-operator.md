@@ -40,6 +40,8 @@ The inspector also shows the **Configured IP**; this is an address
 from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
 warning text. Tap/click the card for satellites, voltage and full measurements.
+Unavailable card measurements use a dash, never an invented zero. Altitude
+precision adapts to scale; its datum and full reading remain in the hint.
 Small badges on the schematic distinguish initialization, stale/missing link
 evidence and ground readiness. A severity-prioritized alert marker shows the
 condition count; clicking it opens the same aircraft inspector with the full

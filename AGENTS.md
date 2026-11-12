@@ -53,6 +53,10 @@ Do not assume the environment. Detect it first.
   verify authorization before copying or rotating credentials. Keep per-node
   private Git credentials out of reusable images and preserve working access
   until replacements and unattended sync are verified.
+- Connectivity profile imports are full configuration baselines: inspect
+  candidate interface, hysteresis and cooldown as well as network IDs before
+  applying. A merge preserving local profiles need not preserve node-level
+  settings. Keep credential material in the approved local secret path.
 - Preserve the stock lab/SITL path as a zero-setup, plug-and-play experience.
   Warn clearly about its trusted-network security posture, but do not make
   beginner demos depend on production credential provisioning.

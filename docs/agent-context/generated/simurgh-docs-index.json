@@ -6573,7 +6573,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "b152bb7526f4e80cb099e6dd54de93c12ab4ad27a62a1b60a3f4471fa7a98032",
+      "content_hash": "161f3353170f7b3366d0783c755245363389056c72025bcf01c4c4605524b9de",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6587,7 +6587,7 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
       "title": "Overview operator guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "09b4f5c046ff27838605a95d85d74530569c21b74935e2b9c07fe1ede701310d",
+      "content_hash": "3074c0b3e98f88f1382a0cf0eb5f3bfbbe591d473254e11c7b1e75694d63e38b",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

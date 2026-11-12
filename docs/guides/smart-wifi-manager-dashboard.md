@@ -166,6 +166,10 @@ For many drones, prefer the MDS fleet profile workflow:
 5. Confirm Fleet Ops profile hashes match.
 
 Do not store real customer SSIDs or passwords in public repositories.
+An imported bundle is a full configuration baseline. Merge keeps local extra
+networks, but can also change interface and switching settings. Review those
+candidate settings before Apply. For a single added network, use the local
+dashboard's Add Profile flow, which retains the current configuration.
 MDS defaults to merge-style Smart Wi-Fi rollout: the private repo profile is the
 fleet baseline, and node-local field networks remain available until an
 operator intentionally resets that node profile set.

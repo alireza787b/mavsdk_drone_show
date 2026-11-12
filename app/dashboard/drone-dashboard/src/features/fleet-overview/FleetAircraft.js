@@ -59,14 +59,21 @@ function AircraftPortrait({ item }) {
 const METRIC_ICONS = { battery: FaBatteryHalf, altitude: FaArrowsAltV, gnss: FaSatellite, link: FaBroadcastTower, mission: FaRoute };
 function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon }) {
   const Icon = icon || METRIC_ICONS[kind];
+  const presentation = displayValue === 'Unknown' ? '—' : displayValue;
   return <span className={`fleet-aircraft__metric fleet-aircraft__metric--${kind}${tone ? ` tone-${tone}` : ''}`}
     title={`${kind === 'link' ? 'Heartbeat age / reported signal' : label}: ${value}${stale ? ' · Last known' : ''}`} aria-label={`${label}: ${value}${stale ? ', Last known' : ''}`}>
-    <span>{Icon && <Icon aria-hidden="true" />}<span>{displayValue}</span></span>{stale && <em>Last known</em>}
+    <span>{Icon && <Icon aria-hidden="true" />}<span>{presentation}</span></span>{stale && <em>Last known</em>}
   </span>;
 }
 
 function altitudeText(altitude) {
   return altitude.value == null ? 'Unknown' : `${Number(altitude.value).toFixed(1)} m ${altitude.label}`;
+}
+
+function compactAltitude(altitude) {
+  if (altitude.value == null) return '—';
+  const value = Number(altitude.value);
+  return `${Math.abs(value) >= 100 ? Math.round(value) : Number(value.toFixed(1))} m ${altitude.label}`;
 }
 
 function heartbeatText(availability) {
@@ -88,7 +95,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
         <AircraftPortrait item={item} />
         <Metric kind="gnss" label="GNSS" value={`${item.gps.label} · ${item.gps.satellites ?? '—'} sats`}
           displayValue={item.gps.label} stale={item.gps.stale} />
-        <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} stale={item.altitude.stale} />
+        <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} displayValue={compactAltitude(item.altitude)} stale={item.altitude.stale} />
         <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.wifi.current ? ` · Wi-Fi ${Math.round(item.wifi.percent)}%` : ''}`}
           displayValue={item.wifi.current ? `${Math.round(item.wifi.percent)}%` : null}
           icon={item.availability.label === 'Fresh' ? FaBroadcastTower : item.availability.stale ? FaRegClock : item.availability.label === 'Offline' ? FaUnlink : FaQuestionCircle}

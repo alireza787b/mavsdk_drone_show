@@ -49,6 +49,17 @@ test('normal idle cards omit routine mission prose but retain all details in ins
   expect(screen.getByText('RTK fixed')).toBeInTheDocument();
 });
 
+test('unknown measurements use a compact mark without inventing a measured value', () => {
+  const item = aircraft();
+  item.battery = { ...item.battery, text: 'Unknown', remaining: null };
+  item.gps = { ...item.gps, label: 'Unknown' };
+  item.altitude = { ...item.altitude, value: null };
+  tile(item);
+  expect(screen.getByLabelText('Battery: Unknown')).toHaveTextContent('—');
+  expect(screen.getByLabelText('Altitude: Unknown')).toHaveTextContent('—');
+  expect(screen.getByLabelText('GNSS: Unknown · 18 sats')).toHaveTextContent('—');
+});
+
 test('fresh cards do not display ticking second counters; inspection shows the configured address', () => {
   const model = aircraft({ ip: '192.0.2.7' });
   const view = tile(model);

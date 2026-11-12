@@ -22,9 +22,23 @@ fs.mkdirSync(evidence, { recursive: true });
         hasTouch: width === 390, serviceWorkers: 'block' });
       await context.addInitScript(value => localStorage.setItem('drone-dashboard-theme', value), theme);
       const page = await context.newPage();
+      await page.clock.install();
       page.setDefaultTimeout(15000);
       page.on('pageerror', error => state.pageErrors.push(error.message));
       await installFixtures(context, state, page);
+      await context.route('**/api/v1/fleet/telemetry', route => {
+        const now = Date.now();
+        return route.fulfill({ json: { telemetry: Object.fromEntries(['1','2'].map(id => [id, {
+          hw_id: id, pos_id: Number(id), callsign: id === '1' ? 'ALPHA' : 'BRAVO',
+          update_time: now/1000, heartbeat_last_seen: now/1000, telemetry_available: true,
+          is_armed: false, landed_state: 1, flight_mode: 50593792, readiness_status: 'ready',
+          gps_fix_type: 6, satellites_visible: 20, battery_remaining_percent: 83,
+          battery_voltage: 16.1, position_alt: 1200,
+        }])), timestamp: now, display_policy: { stale_sec: 10, available_sec: 60 } },
+          headers: { 'access-control-allow-origin': new URL(base).origin, 'access-control-allow-credentials': 'true',
+            'access-control-allow-headers': route.request().headers()['access-control-request-headers'] || 'Content-Type',
+            'x-mds-server-time': String(now) } });
+      });
       let failed = false;
       await context.route('**/api/v1/git/status', route => {
         const request = route.request();
@@ -56,8 +70,8 @@ fs.mkdirSync(evidence, { recursive: true });
       assert(geometry.documentWidth <= geometry.width+1, 'No horizontal overflow');
       const filename = `software-review-${width}-${theme}.png`;
       await page.screenshot({ path: path.join(evidence, filename), fullPage: false });
+      await page.locator('.sync-warning-banner').screenshot({ path: path.join(evidence, `software-notice-${width}-${theme}.png`) });
       await page.evaluate(() => { window.__softwareNotice = document.querySelector('.sync-warning-banner'); });
-      await page.clock.install();
       failed = true;
       await page.clock.fastForward(12000);
       assert(await page.evaluate(() => window.__softwareNotice === document.querySelector('.sync-warning-banner')));
