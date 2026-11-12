@@ -44,6 +44,10 @@ The current reusable validators cover:
   - takeoff, large-separation automatic acquisition, reassignment, leader jog
     while the role session remains active, leader RTL, follower hold, and
     assignment restore
+  - Before Start, the host validator waits for the same read-only native
+    admission review as the UI, bound to the reviewed layout. A Takeoff receipt
+    can precede the next mode heartbeat. It never retries an uncertain Start
+    request; HTTP rejections preserve their structured native detail.
 - `swarm_trajectory`
   - deterministic short-profile generation, processing, launch, formation validation, and cleanup
 - `integrated_runtime`
@@ -59,6 +63,13 @@ The current reusable validators cover:
     drone after a short takeoff/land sequence that guarantees a fresh log file
 
 ## Built-In Templates
+
+Container/API startup is infrastructure readiness, not fresh flight telemetry.
+Wait for the selected native aircraft before asserting a scenario baseline.
+When switching from a formation landing to a Drone Show test, re-establish the
+show's launch geometry first. Keep the simulator continuous within a post-show
+relaunch regression; resetting between recovery and relaunch would hide the
+lifecycle behavior being tested.
 
 For the settled-position capture workflow, use an isolated SITL GCS and one
 complete saved cluster with at least two aircraft:

@@ -3,6 +3,9 @@ import time
 import argparse
 from types import SimpleNamespace
 import urllib.error
+import io
+import json
+import pytest
 from unittest.mock import Mock
 
 from tools import validate_smart_swarm_runtime as runtime_validator
@@ -34,6 +37,69 @@ def test_wait_api_ready_retries_raw_and_wrapped_transport_errors(monkeypatch):
     assert runtime_validator.wait_api_ready(client, timeout=10) is health
     assert client.get_json.call_count == 3
     assert clock[0] == 4.0
+
+
+def start_preview(**extra):
+    return {'revision': 'reviewed', 'clusters': [{'cluster_id': '4',
+        'members': [{'hw_id': '4'}, {'hw_id': '9'}]}], **extra}
+
+
+def start_clock(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(runtime_validator, 'time', SimpleNamespace(
+        monotonic=lambda: clock[0],
+        sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds)))
+    return clock
+
+
+def test_start_review_waits_for_native_admission_without_dispatch(monkeypatch):
+    clock = start_clock(monkeypatch)
+    ready = {'status': 'ready', 'valid_for_ms': 500}
+    pending = {'status': 'waiting', 'reason_code': 'finishing_takeoff', 'valid_for_ms': 0}
+    decisions = {'4': ready, '9': ready}
+    client = SimpleNamespace(get_json=Mock(side_effect=[start_preview(),
+        start_preview(start_admissions={'4': ready, '9': pending}),
+        start_preview(start_admissions=decisions)]), post_json=Mock())
+    assert runtime_validator.wait_swarm_start_ready(client, [4, 9]) == decisions
+    assert clock[0] == .25
+    assert 'check_start=true' in client.get_json.call_args.args[0]
+    client.post_json.assert_not_called()
+
+
+@pytest.mark.parametrize('invalid', [{}, {'status': 'ready'},
+    {'status': 'ready', 'valid_for_ms': 0}, {'status': 'unknown', 'valid_for_ms': 500}])
+def test_start_review_does_not_invent_ready_evidence(monkeypatch, invalid):
+    start_clock(monkeypatch)
+    client = SimpleNamespace(get_json=Mock(side_effect=[start_preview(),
+        start_preview(start_admissions={'4': {'status':'ready','valid_for_ms':500}, '9':invalid})]))
+    with pytest.raises(RuntimeError, match='native Start admission'):
+        runtime_validator.wait_swarm_start_ready(client, [4,9], timeout=.1)
+
+
+def test_start_review_rejects_changed_layout(monkeypatch):
+    start_clock(monkeypatch)
+    client = SimpleNamespace(get_json=Mock(side_effect=[start_preview(),start_preview(revision='changed')]))
+    with pytest.raises(RuntimeError, match='layout changed'):
+        runtime_validator.wait_swarm_start_ready(client, [4,9])
+
+
+def test_start_review_rejects_incomplete_cluster(monkeypatch):
+    start_clock(monkeypatch)
+    client = SimpleNamespace(get_json=Mock(return_value=start_preview()))
+    with pytest.raises(RuntimeError, match='cluster differs'):
+        runtime_validator.wait_swarm_start_ready(client, [4])
+
+
+def test_validator_post_preserves_native_rejection_without_replay(monkeypatch):
+    body = json.dumps({'detail': {'dispatched':False,'message':'Finishing takeoff'}})
+    open_url = Mock(side_effect=urllib.error.HTTPError('http://test/api',409,'Conflict',{},io.BytesIO(body.encode())))
+    monkeypatch.setattr(runtime_validator.urllib.request, 'urlopen', open_url)
+    with pytest.raises(runtime_validator.ValidationHttpError) as error:
+        runtime_validator.ApiClient('http://test').post_json('/api',{})
+    assert error.value.status_code == 409
+    assert error.value.payload['detail']['dispatched'] is False
+    assert 'Finishing takeoff' in str(error.value)
+    open_url.assert_called_once()
 
 
 def test_telemetry_has_ids_requires_full_selected_fleet():

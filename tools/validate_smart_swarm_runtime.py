@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
@@ -46,6 +47,7 @@ from src.gcs_api_routes import (
 from src.enums import Mission
 
 from tools.runtime_validation_support import (
+    ValidationHttpError,
     fetch_and_require_sitl_runtime,
     parse_csv_drone_ids,
     write_json_report,
@@ -85,8 +87,14 @@ class ApiClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            # Preserve authoritative non-dispatch/admission evidence. Never
+            # retry a POST to discover whether a previous request executed.
+            detail = exc.read(16384).decode('utf-8', errors='replace')
+            raise ValidationHttpError(exc.code, detail or str(exc.reason)) from exc
 
     def patch_json(self, path: str, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -224,6 +232,32 @@ def wait_api_ready(client: ApiClient, timeout: int = 60):
             return False
 
     return wait_for(_ready, label="GCS API health endpoint", timeout=timeout, interval=2.0)
+
+
+def wait_swarm_start_ready(client: ApiClient, ids: list[int], timeout: float = 30):
+    """Read the same native Start decision as the UI; do not queue or dispatch.
+
+    A Takeoff execution receipt can precede the next flight-mode heartbeat.
+    Keep the reviewed layout fixed and wait for its existing native admission,
+    rather than adding a sleep, weakening guards or retrying Start requests.
+    """
+    preview = client.get_json('/api/v1/swarm/runtime/preview')
+    expected = {str(hw) for hw in ids}
+    cluster = next((item for item in preview['clusters']
+        if {str(m['hw_id']) for m in item['members']} == expected), None)
+    require(cluster is not None, 'Saved cluster differs from the validation targets')
+    query = urllib.parse.urlencode({'cluster_id': cluster['cluster_id'], 'check_start': 'true'})
+    deadline, decisions = time.monotonic() + timeout, {}
+    while time.monotonic() < deadline:
+        review = client.get_json('/api/v1/swarm/runtime/preview?' + query)
+        require(review.get('revision') == preview['revision'], 'Saved layout changed during Start review')
+        decisions = review.get('start_admissions') or {}
+        if all(decisions.get(hw, {}).get('status') == 'ready'
+               and float(decisions[hw].get('valid_for_ms') or 0) > 0 for hw in expected):
+            log(f'WAIT OK: native Start admission for drones {ids}')
+            return decisions
+        time.sleep(0.25)
+    raise RuntimeError(f'Timed out waiting for native Start admission: {decisions!r}')
 
 
 def wait_for_command(client: ApiClient, command_id: str, *, desired_phase: str | None = None, terminal: bool = False, timeout: int = 90):
@@ -727,6 +761,7 @@ def main() -> int:
         wait_altitude(client, ids, base_altitudes, args.takeoff_min_gain)
 
         for cluster in clusters:
+            results.setdefault('start_admissions', []).append(wait_swarm_start_ready(client, cluster))
             command_id, _ = client.submit_command(SMART_SWARM, cluster, f"Start Smart Swarm Cluster {cluster[0]}")
             status = wait_for_command(client, command_id, desired_phase="in_progress", timeout=60)
             require_full_acceptance(status, len(cluster), f"Smart Swarm start for cluster {cluster}")

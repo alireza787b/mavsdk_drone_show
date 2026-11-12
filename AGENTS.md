@@ -165,6 +165,10 @@ Never hardcode `/opt`, `/root`, hostnames, repo URLs, or branch names without ve
      runtime validators, without weakening production endpoint guards
 6. Validate end to end
    - rerun the real operator workflow when behavior affects runtime missions or release paths
+   - wait for the same native Start admission used by the UI, not just a
+     takeoff receipt or an HTTP-ready process. A prior Land can leave aircraft
+     away from a show's launch slots; establish each scenario's geometry
+     separately without weakening gates or replaying actuation after uncertainty
    - for fresh companions, verify effective REAL mode/GCS settings as the service
      user after sidecar reconciliation and reboot; service activity and a
      root-readable install report are not proof of runtime configuration access

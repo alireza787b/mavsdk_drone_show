@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- The host Smart Swarm validator waits for the UI's native Start review after
+  Takeoff and retains structured HTTP rejection evidence. It does not queue or
+  replay Start, add a flight policy, or change aircraft runtime behavior.
+
 - The embedded companion API keeps the standard asyncio loop instead of
   Uvicorn's automatic process-wide uvloop policy. This prevents a reproduced
   mission/recovery subprocess hang in native gRPC's child fork handler while
