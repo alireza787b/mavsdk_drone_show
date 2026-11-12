@@ -84,7 +84,6 @@ export function buildMissionSlotStatusPresentation(configPosId, assignedPosId, a
     configStr,
     assignedStr,
     autoStr,
-    noAutoDetection,
     noHeartbeatData,
     allMatch,
     configAssignedMatchNoAuto,

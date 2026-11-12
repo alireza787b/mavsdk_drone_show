@@ -41,7 +41,9 @@
   background: var(--color-bg-primary);
 }
 .operator-console .operator-confirm-dialog__message { line-height: 1.5; }
-.operator-console .operator-confirm-dialog__message :is(input, select) { width: 100%; }
+/* Only text-like controls fill the dialog. Full-width radios/checkboxes push
+   the source/aircraft labels outside their selection rows. */
+.operator-console .operator-confirm-dialog__message :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select) { width: 100%; }
 .operator-console .operator-confirm-dialog__message small { display: block; color: var(--color-text-secondary); }
 .operator-console .operator-confirm-dialog__message ul { padding-left: var(--spacing-lg); }
 .operator-console .operator-confirm-dialog__message li { margin-block: var(--spacing-sm); }

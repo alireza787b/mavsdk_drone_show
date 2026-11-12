@@ -40,6 +40,15 @@ For each component touched during cleanup:
 - destructive or flight-critical actions must remain explicit and confirmed
 - tests must be updated when visible copy, actions, or state boundaries change
 
+Selection controls in portalled dialogs must retain their compact dimensions;
+full-width field rules apply to text-like inputs and selects, not radios or
+checkboxes. Validate computed layout in the built browser UI, since component
+tests do not exercise the production CSS cascade. The read-fixture-only
+`tools/probe_operator_choosers_ui.cjs` covers Logs and PX4 aircraft/source pickers
+at desktop, intermediate tablet and phone widths in both themes. Supply
+`MDS_UI_BASE`, `MDS_UI_EVIDENCE` and, when needed, `MDS_PLAYWRIGHT_MODULE` /
+`MDS_UI_CHROME`; it denies API writes and cancels selection without applying it.
+
 ## Route Docs Metadata
 
 The source of truth for top-level route help links is:
