@@ -9,6 +9,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- PX4 Parameters uses one flat Parameters / Profiles workspace with explicit
+  aircraft inspection, complete per-target difference reviews and recoverable
+  Activity receipts. Manual edits, QGC imports and profiles share the same
+  bounded native apply/readback pipeline; duplicate writers are retired.
+- Parameter jobs persist identity before dispatch, reject changed expected
+  values and fence interrupted operations without replay. Live disarm evidence
+  is checked before each native write. Strict typed parsing and binary32 wire
+  comparison prevent fractional integer truncation, tiny-value false verification
+  and float underflow/overflow. Reference metadata remains advisory; read-only
+  agent tools remain read-only.
+- Direct and tracked PX4 reboot actions now require fresh native disarm evidence
+  and ON_GROUND when landed-state telemetry is available; unknown or stale state
+  blocks before reboot, including calls using the legacy force flag.
+
 - Custom Show now shares the flat Operate / Design & Setup layout, native
   scheduling/recovery and themed path previews. Explicit preview regeneration
   changes images only. Mission Config prioritizes assignments and launch layout,

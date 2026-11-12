@@ -2043,6 +2043,47 @@ async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
 
     try:
         if fc_flag:
+            # Enforce at the action boundary, including direct CLI invocation.
+            # A missing/cached arm flag is not disarm evidence. Normal MAVSDK
+            # connections expose native land detection; an available but
+            # unknown/stale source must not be treated as grounded.
+            require_ground = callable(getattr(getattr(drone, "telemetry", None), "landed_state", None))
+            required_fields = ("armed", "landed_state") if require_ground else ("armed",)
+            try:
+                reboot_state = await observe_authoritative_vehicle_state(
+                    drone,
+                    timeout=ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+                    required_fields=required_fields,
+                )
+            except Exception as exc:
+                raise ActionSafetyError(
+                    code="FC_REBOOT_STATE_UNAVAILABLE",
+                    phase="precondition",
+                    message="Reboot PX4 blocked: live disarm/ground evidence could not be sampled. No reboot command was sent.",
+                    retryable=True,
+                    evidence={"required_fields": list(required_fields), "observation_error": _exception_detail(exc)[0]},
+                ) from exc
+            if not reboot_state.complete:
+                raise ActionSafetyError(
+                    code="FC_REBOOT_STATE_UNAVAILABLE",
+                    phase="precondition",
+                    message="Reboot PX4 blocked: live disarm/ground evidence is incomplete or stale. No reboot command was sent.",
+                    retryable=True,
+                    evidence={"required_fields": list(required_fields), "observation": reboot_state.as_dict()},
+                    final_vehicle_state=reboot_state.as_dict(),
+                )
+            if reboot_state.armed is not False or (require_ground and not reboot_state.safe_ground_disarmed):
+                raise ActionSafetyError(
+                    code="FC_REBOOT_REQUIRES_SAFE_STATE",
+                    phase="precondition",
+                    message=(
+                        "Reboot PX4 requires a freshly confirmed disarmed vehicle"
+                        + (" with native ON_GROUND detection" if require_ground else " on a live connection")
+                        + ". No reboot command was sent."
+                    ),
+                    evidence={"required_fields": list(required_fields), "observation": reboot_state.as_dict()},
+                    final_vehicle_state=reboot_state.as_dict(),
+                )
             await drone.action.reboot()
             for _ in range(3):
                 _safe_led_call(led_controller, "set_color", 0, 255, 0)
@@ -2057,6 +2098,9 @@ async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
             await reboot_system()
 
         _safe_led_call(led_controller, "turn_off")
+    except ActionSafetyError as exc:
+        logger.warning("FC reboot blocked (%s): %s", exc.code, exc)
+        raise
     except ActionError as e:
         logger.error(f"Reboot failed: {e}")
         raise

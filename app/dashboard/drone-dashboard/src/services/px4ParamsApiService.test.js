@@ -67,7 +67,8 @@ describe('px4ParamsApiService', () => {
 
     expect(gcsApi.postGcsResource).toHaveBeenCalledWith(
       'px4ParamsSnapshots',
-      { hw_ids: ['1', '3'], component_id: 1 }
+      { hw_ids: ['1', '3'], component_id: 1 },
+      { timeout: 45000 }
     );
   });
 
@@ -154,5 +155,18 @@ describe('px4ParamsApiService', () => {
         include_unchanged: true,
       }
     );
+  });
+
+  it('prepares exact target reviews, submits only their hash and identity, and looks up without replay', async () => {
+    gcsApi.postGcsResource.mockResolvedValue({ data: {} });
+    gcsApi.fetchGcsResource.mockResolvedValue({ data: {} });
+    await service.createPx4ParamReview({ hwIds: ['2'], excludedHwIds: ['1'], entries: [{ component_id: 1, name: 'TEST', value_type: 'int', value: 3 }], source: 'mds_profile', profileId: 'baseline' });
+    expect(gcsApi.postGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/v1/px4-params/reviews', {
+      hw_ids: ['2'], excluded_hw_ids: ['1'], entries: [{ component_id: 1, name: 'TEST', value_type: 'int', value: 3 }], source: 'mds_profile', profile_id: 'baseline', verify_readback: true,
+    }, { timeout: 70000 });
+    await service.applyPx4ParamReview({ reviewId: 'review-1', reviewHash: 'hash', idempotencyKey: 'request-1' });
+    expect(gcsApi.postGcsResource).toHaveBeenLastCalledWith('px4ParamsPatchJobs', { review_id: 'review-1', review_hash: 'hash', idempotency_key: 'request-1' });
+    await service.getPx4ParamJobByIdempotencyKey('key/1');
+    expect(gcsApi.fetchGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/v1/px4-params/patch-jobs/by-idempotency/key%2F1');
   });
 });

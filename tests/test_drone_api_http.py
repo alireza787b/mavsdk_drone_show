@@ -998,6 +998,10 @@ class TestDroneState:
         assert "armed" in response.json()["detail"]
 
     def test_apply_px4_param_patch_success(self, test_client, api_server, monkeypatch):
+        class FakeTelemetry:
+            async def armed(self):
+                yield False
+
         class FakeParamPlugin:
             def __init__(self):
                 self.values = {"MAV_SYS_ID": 1}
@@ -1020,6 +1024,7 @@ class TestDroneState:
             {
                 "param": FakeParamPlugin(),
                 "component_information": None,
+                "telemetry": FakeTelemetry(),
             },
         )()
 

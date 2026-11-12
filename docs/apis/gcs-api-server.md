@@ -397,13 +397,16 @@ Parse a QGroundControl `.params` file into typed patch entries without writing t
 #### `POST /api/v1/px4-params/imports/mds`
 Parse a typed MDS JSON patch payload into patch entries without writing them.
 
-#### `POST /api/v1/px4-params/patch-jobs`
-Apply one patch set to one or more drones through the GCS.
+#### `POST /api/v1/px4-params/reviews`
+Prepare a read-only, immutable review from fresh per-aircraft values. This does
+not write parameters. The response binds aircraft/component/snapshot identity,
+exact changed values, source/profile revision and expiry to a review hash.
 
 **Request:**
 ```json
 {
   "hw_ids": ["1", "2"],
+  "excluded_hw_ids": [],
   "source": "manual",
   "verify_readback": true,
   "entries": [
@@ -417,8 +420,53 @@ Apply one patch set to one or more drones through the GCS.
 }
 ```
 
+The response includes `review_id`, `review_hash`, `runtime_binding`, `targets`,
+`blocked`, `warnings`, `created_at` and `expires_at`. Each target lists its
+`changes` with `current_value` and `desired_value`, `unchanged_count`, blockers
+and metadata/reboot hints. An unreadable/missing/type-conflicting target is not
+silently removed. To exclude aircraft, prepare a new review with the exact
+included/excluded IDs. Optional `profile_id` binds a saved profile's contents.
+
+#### `GET /api/v1/px4-params/reviews/{review_id}`
+Retrieve the same prepared review. Inspection is not permission to overwrite
+changed vehicle values; expected values are rechecked at native execution.
+
+#### `POST /api/v1/px4-params/patch-jobs`
+Accept a reviewed operation and return **202 Accepted** with a durable receipt
+before any vehicle write. Acceptance does not mean completion or verification.
+
+```json
+{
+  "review_id": "px4-review-example",
+  "review_hash": "the hash returned by preparation",
+  "idempotency_key": "client-generated-unique-operation-key"
+}
+```
+
+Targets and entries cannot be replaced in this submission. Repeating the same
+idempotency identity retrieves the same job; reusing it for a different review
+conflicts. Relevant value/source/runtime conflicts require a new review.
+
+Legacy `{hw_ids, source, verify_readback, entries}` bodies remain a compatibility
+input to this same review/job engine, not a second mutation path. New clients
+should prepare explicitly and retain their idempotency key before submitting.
+Clients must handle accepted/running receipts rather than assuming the POST
+contains a finished batch result.
+
 #### `GET /api/v1/px4-params/patch-jobs/{job_id}`
-Return the tracked result envelope for one GCS patch job.
+Return the durable receipt, including `terminal`, job status and per-aircraft
+results. Status is `queued`, `running`, `completed`, `partial`, `failed` or
+`unknown`; per-entry write/readback evidence determines actual verification.
+
+#### `GET /api/v1/px4-params/patch-jobs/by-idempotency/{idempotency_key}`
+Recover the original receipt after a lost POST response, without resubmitting a
+new parameter operation. A GCS restart fences interrupted work; it never resumes
+possibly delivered writes automatically. Reconciliation establishes current
+observations, not proof of a previous write or reboot activation.
+
+Known write/readback results survive a subsequent snapshot refresh failure.
+Timeout or missing readback is not fabricated as “no write happened.” Writes may
+be partial; restoration requires its own current-value review.
 
 Notes:
 - full parameter retrieval happens between GCS and drones, not between dashboard and drones

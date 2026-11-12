@@ -26,7 +26,7 @@ export async function refreshPx4ParamSnapshots({ hwIds, componentId = 1 }) {
   return postGcsResource(GCS_ROUTE_KEYS.px4ParamsSnapshots, {
     hw_ids: hwIds,
     component_id: componentId,
-  });
+  }, { timeout: 45000 });
 }
 
 export async function getPx4ParamSnapshot(snapshotId) {
@@ -53,6 +53,24 @@ export async function createPx4ParamPatchJob({
 
 export async function getPx4ParamPatchJob(jobId) {
   return fetchGcsResource(buildPx4ParamsUrl(`/patch-jobs/${encodeURIComponent(jobId)}`));
+}
+
+export async function createPx4ParamReview({ hwIds, excludedHwIds = [], entries, source = 'manual', profileId }) {
+  return postGcsResource(buildPx4ParamsUrl('/reviews'), {
+    hw_ids: [...hwIds], excluded_hw_ids: [...excludedHwIds], entries, source,
+    verify_readback: true,
+    ...(profileId ? { profile_id: profileId } : {}),
+  }, { timeout: 70000 });
+}
+
+export async function applyPx4ParamReview({ reviewId, reviewHash, idempotencyKey }) {
+  return postGcsResource(GCS_ROUTE_KEYS.px4ParamsPatchJobs, {
+    review_id: reviewId, review_hash: reviewHash, idempotency_key: idempotencyKey,
+  });
+}
+
+export async function getPx4ParamJobByIdempotencyKey(key) {
+  return fetchGcsResource(buildPx4ParamsUrl(`/patch-jobs/by-idempotency/${encodeURIComponent(key)}`));
 }
 
 export async function importQgcParameterFile(content) {

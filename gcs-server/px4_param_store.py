@@ -5,14 +5,13 @@ from __future__ import annotations
 import json
 import threading
 import time
-import uuid
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 import requests
 
 from src.drone_api_routes import DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE
-from src.drone_api_routes import DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE
 from src.px4_param_models import (
     Px4ParamDiffEntry,
     Px4ParamDiffRequest,
@@ -23,11 +22,8 @@ from src.px4_param_models import (
     Px4ParamImportRequest,
     Px4ParamImportResponse,
     Px4ParamImportWarning,
-    Px4ParamPatchApplyResponse,
     Px4ParamPatchEntry,
-    Px4ParamPatchJobDroneResult,
     Px4ParamPatchJobRequest,
-    Px4ParamPatchJobResponse,
     Px4ParamPolicyResponse,
     Px4ParamProfileListResponse,
     Px4ParamProfileResponse,
@@ -36,12 +32,11 @@ from src.px4_param_models import (
     Px4ParamSnapshotRowsResponse,
 )
 from src.px4_params.service import Px4ParamService
+from src.px4_param_values import parameter_values_match
 
 
 _SNAPSHOT_STORE: dict[str, Px4ParamSnapshotResponse] = {}
 _SNAPSHOT_STORE_LOCK = threading.Lock()
-_PATCH_JOB_STORE: dict[str, Px4ParamPatchJobResponse] = {}
-_PATCH_JOB_STORE_LOCK = threading.Lock()
 _MAV_PARAM_INT_TYPES = {1, 2, 3, 4, 5, 6, 7, 8}
 _MAV_PARAM_FLOAT_TYPES = {9, 10}
 
@@ -125,21 +120,13 @@ def get_repo_profile(params: Any, profile_id: str) -> Px4ParamProfileResponse | 
 def save_snapshot(snapshot: Px4ParamSnapshotResponse) -> None:
     with _SNAPSHOT_STORE_LOCK:
         _SNAPSHOT_STORE[snapshot.snapshot.snapshot_id] = snapshot
-
-
-def save_patch_job(job: Px4ParamPatchJobResponse) -> None:
-    with _PATCH_JOB_STORE_LOCK:
-        _PATCH_JOB_STORE[job.job_id] = job
+        while len(_SNAPSHOT_STORE) > 128:
+            _SNAPSHOT_STORE.pop(next(iter(_SNAPSHOT_STORE)))
 
 
 def get_snapshot(snapshot_id: str) -> Px4ParamSnapshotResponse | None:
     with _SNAPSHOT_STORE_LOCK:
         return _SNAPSHOT_STORE.get(snapshot_id)
-
-
-def get_patch_job(job_id: str) -> Px4ParamPatchJobResponse | None:
-    with _PATCH_JOB_STORE_LOCK:
-        return _PATCH_JOB_STORE.get(job_id)
 
 
 def build_snapshot_rows_response(snapshot_id: str) -> Px4ParamSnapshotRowsResponse | None:
@@ -182,6 +169,10 @@ def fetch_snapshots_for_targets(deps: Any, request: Px4ParamFleetSnapshotRequest
                 payload={"component_id": request.component_id},
             )
             snapshot = Px4ParamSnapshotResponse.model_validate(snapshot_body)
+            if snapshot.snapshot.hw_id != str(hw_id) or snapshot.snapshot.component_id != request.component_id:
+                raise ValueError("PX4 snapshot aircraft/component identity does not match the requested target")
+            if any(row.component_id != request.component_id for row in snapshot.rows):
+                raise ValueError("PX4 snapshot contains an unexpected component")
             save_snapshot(snapshot)
             snapshots.append(snapshot)
         except requests.RequestException as exc:
@@ -237,106 +228,12 @@ def _request_json(method: str, url: str, *, timeout_sec: float, payload: dict[st
     return response.json()
 
 
-def run_patch_job_for_targets(deps: Any, request: Px4ParamPatchJobRequest) -> Px4ParamPatchJobResponse:
-    timeout_sec = float(getattr(deps.Params, "PX4_PARAMETER_HTTP_TIMEOUT_SEC", 20.0))
-    port = int(getattr(deps.Params, "drone_api_port", 7070))
-    created_at = int(time.time() * 1000)
-    results: list[Px4ParamPatchJobDroneResult] = []
+def run_patch_job_for_targets(deps: Any, request: Px4ParamPatchJobRequest):
+    """Compatibility entry point; the durable review engine is the sole writer."""
+    from px4_param_job_models import JobRequest
+    from px4_param_jobs import get_px4_param_engine
 
-    for hw_id in request.hw_ids:
-        drone = _resolve_target_drone(deps, hw_id)
-        if drone is None:
-            results.append(
-                Px4ParamPatchJobDroneResult(
-                    hw_id=str(hw_id),
-                    applied=False,
-                    verified=False,
-                    error="Target drone not found in config",
-                )
-            )
-            continue
-
-        ip = str(drone.get("ip", "")).strip()
-        if not ip:
-            results.append(
-                Px4ParamPatchJobDroneResult(
-                    hw_id=str(hw_id),
-                    applied=False,
-                    verified=False,
-                    error="Target drone has no configured IP",
-                )
-            )
-            continue
-
-        try:
-            patch_payload = {
-                "source": request.source.value,
-                "verify_readback": request.verify_readback,
-                "entries": [entry.model_dump(mode="json") for entry in request.entries],
-            }
-            patch_url = _build_drone_api_url(ip, port, DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE)
-            patch_body = _request_json("post", patch_url, timeout_sec=timeout_sec, payload=patch_payload)
-            patch_result = Px4ParamPatchApplyResponse.model_validate(patch_body)
-
-            refresh_url = _build_drone_api_url(ip, port, DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE)
-            refresh_body = _request_json(
-                "post",
-                refresh_url,
-                timeout_sec=timeout_sec,
-                payload={"component_id": request.entries[0].component_id},
-            )
-            save_snapshot(Px4ParamSnapshotResponse.model_validate(refresh_body))
-
-            results.append(
-                Px4ParamPatchJobDroneResult(
-                    hw_id=str(hw_id),
-                    applied=patch_result.failed_count == 0,
-                    verified=patch_result.failed_count == 0 and patch_result.verified_count == patch_result.applied_count,
-                    result=patch_result,
-                )
-            )
-        except requests.RequestException as exc:
-            results.append(
-                Px4ParamPatchJobDroneResult(
-                    hw_id=str(hw_id),
-                    applied=False,
-                    verified=False,
-                    error=str(exc),
-                )
-            )
-        except Exception as exc:
-            results.append(
-                Px4ParamPatchJobDroneResult(
-                    hw_id=str(hw_id),
-                    applied=False,
-                    verified=False,
-                    error=str(exc),
-                )
-            )
-
-    completed_targets = sum(1 for result in results if result.error is None)
-    failed_targets = sum(1 for result in results if result.error is not None or not result.applied)
-    if failed_targets == 0:
-        status = "completed"
-    elif completed_targets == 0:
-        status = "failed"
-    else:
-        status = "partial"
-
-    job = Px4ParamPatchJobResponse(
-        job_id=f"px4-patch-{uuid.uuid4().hex[:12]}",
-        source=request.source,
-        status=status,
-        verify_readback=request.verify_readback,
-        total_targets=len(request.hw_ids),
-        completed_targets=completed_targets,
-        failed_targets=failed_targets,
-        results=results,
-        created_at=created_at,
-        completed_at=int(time.time() * 1000),
-    )
-    save_patch_job(job)
-    return job
+    return get_px4_param_engine(deps).submit(JobRequest.model_validate(request.model_dump(mode="json")))
 
 
 def import_qgc_parameter_file(request: Px4ParamImportRequest) -> Px4ParamImportResponse:
@@ -368,9 +265,12 @@ def import_qgc_parameter_file(request: Px4ParamImportRequest) -> Px4ParamImportR
 
         if mav_type in _MAV_PARAM_INT_TYPES:
             try:
-                value = int(float(value_raw))
+                number = Decimal(value_raw)
+                if not number.is_finite() or number != number.to_integral_value():
+                    raise ValueError("integer parameter requires a whole finite value")
+                value = int(number)
                 value_type = "int"
-            except ValueError:
+            except (ValueError, InvalidOperation):
                 warnings.append(Px4ParamImportWarning(line=line_number, message=f"Skipping {name}: invalid integer value"))
                 skipped_count += 1
                 continue
@@ -387,14 +287,18 @@ def import_qgc_parameter_file(request: Px4ParamImportRequest) -> Px4ParamImportR
             skipped_count += 1
             continue
 
-        entries.append(
-            Px4ParamPatchEntry(
+        try:
+            entry = Px4ParamPatchEntry(
                 component_id=component_id,
                 name=name,
                 value_type=value_type,
                 value=value,
             )
-        )
+        except ValueError:
+            warnings.append(Px4ParamImportWarning(line=line_number, message=f"Skipping {name}: invalid typed parameter value"))
+            skipped_count += 1
+            continue
+        entries.append(entry)
 
     return Px4ParamImportResponse(
         source="qgc",
@@ -443,7 +347,8 @@ def build_param_diff_response(request: Px4ParamDiffRequest) -> Px4ParamDiffRespo
     for entry in request.desired_entries:
         current_row = current_rows.get((entry.component_id, entry.name))
         current_value = current_row.value if current_row else None
-        changed = current_row is None or current_value != entry.value
+        changed = (current_row is None or current_row.value_type != entry.value_type
+                   or not parameter_values_match(entry.value_type, entry.value, current_value))
         if changed or request.include_unchanged:
             differences.append(
                 Px4ParamDiffEntry(

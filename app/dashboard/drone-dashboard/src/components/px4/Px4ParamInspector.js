@@ -1,301 +1,95 @@
-import React from 'react';
-import PropTypes from 'prop-types';
+import React, { useState } from 'react';
+import { ConfirmDialog } from '../ui';
+import { formatParameterRange, formatParameterValue, parseParameterValue } from '../../utilities/px4ParameterValues';
 
-const trimTrailingZeros = (value) => String(value)
-  .replace(/(\.\d*?[1-9])0+$/, '$1')
-  .replace(/\.0+$/, '')
-  .replace(/^-0$/, '0');
+const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
+const comparable = value => normalize(value).replace(/[\s.。:;,!?()[\]{}"'`´\-\u2013\u2014]+$/g, '').toLocaleLowerCase();
 
-const formatParameterValue = (value, row) => {
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    if (row?.value_type === 'int') {
-      return String(Math.trunc(value));
+export function buildParameterDescriptions(row) {
+  const shortDescription = normalize(row?.short_description);
+  let longDescription = normalize(row?.long_description);
+  const summary = comparable(shortDescription);
+  if (summary) {
+    while (longDescription) {
+      const first = longDescription.match(/^(.+?[.!?。])(?:\s+|$)/);
+      if (!first || comparable(first[1]) !== summary) break;
+      longDescription = longDescription.slice(first[0].length).trim();
     }
-
-    if (row?.value_type === 'float') {
-      const decimalPlaces = Number.isFinite(Number(row?.decimal_places))
-        ? Math.min(Math.max(Number(row.decimal_places), 0), 6)
-        : null;
-
-      if (decimalPlaces !== null) {
-        return trimTrailingZeros(value.toFixed(decimalPlaces));
-      }
-
-      return trimTrailingZeros(value.toFixed(4));
+    if (comparable(longDescription) === summary) longDescription = '';
+    else if (comparable(longDescription).startsWith(summary)) {
+      longDescription = longDescription.slice(shortDescription.length).replace(/^[\s.。:;,\-–—!?]+/, '').trim();
     }
   }
+  return { shortDescription, longDescription };
+}
 
-  return String(value);
-};
-
-const formatParameterRange = (row) => {
-  const hasMin = row?.min_value !== null && row?.min_value !== undefined;
-  const hasMax = row?.max_value !== null && row?.max_value !== undefined;
-
-  if (!hasMin && !hasMax) {
-    return '—';
-  }
-
-  if (hasMin && hasMax) {
-    return `${formatParameterValue(row.min_value, row)} – ${formatParameterValue(row.max_value, row)}`;
-  }
-
-  if (hasMin) {
-    return `≥ ${formatParameterValue(row.min_value, row)}`;
-  }
-
-  return `≤ ${formatParameterValue(row.max_value, row)}`;
-};
-
-const normalizeDescriptionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-
-const normalizeComparableDescription = (value) => normalizeDescriptionText(value)
-  .replace(/[\s.。:;,!?()[\]{}"'`´\-\u2013\u2014]+$/g, '')
-  .toLocaleLowerCase();
-
-const stripLeadingDuplicateSummary = (summary, detail) => {
-  const normalizedSummary = normalizeComparableDescription(summary);
-  let remaining = normalizeDescriptionText(detail);
-
-  if (!normalizedSummary || !remaining) {
-    return remaining;
-  }
-
-  while (remaining) {
-    const sentenceMatch = remaining.match(/^(.+?[.!?。])(?:\s+|$)/);
-    const firstSentence = sentenceMatch?.[1] || '';
-    if (!firstSentence || normalizeComparableDescription(firstSentence) !== normalizedSummary) {
-      break;
-    }
-    remaining = remaining.slice(sentenceMatch[0].length).trim();
-  }
-
-  const normalizedRemaining = normalizeComparableDescription(remaining);
-  if (!remaining || normalizedRemaining === normalizedSummary) {
-    return '';
-  }
-
-  if (normalizedRemaining.startsWith(normalizedSummary)) {
-    return remaining
-      .slice(summary.length)
-      .replace(/^[\s.。:;,\-–—!?]+/, '')
-      .trim();
-  }
-
-  return remaining;
-};
-
-export const buildParameterDescriptions = (row) => {
-  const shortDescription = normalizeDescriptionText(row?.short_description);
-  const rawLongDescription = normalizeDescriptionText(row?.long_description);
-
-  if (!shortDescription) {
-    return {
-      shortDescription: '',
-      longDescription: rawLongDescription,
-    };
-  }
-
-  if (!rawLongDescription) {
-    return {
-      shortDescription,
-      longDescription: '',
-    };
-  }
-
-  const normalizedShort = shortDescription.toLocaleLowerCase();
-  const normalizedLong = rawLongDescription.toLocaleLowerCase();
-
-  if (normalizedLong === normalizedShort) {
-    return {
-      shortDescription,
-      longDescription: '',
-    };
-  }
-
-  const strippedLongDescription = stripLeadingDuplicateSummary(shortDescription, rawLongDescription);
-
-  return {
-    shortDescription,
-    longDescription: strippedLongDescription,
-  };
-};
-
-const Px4ParamInspector = ({
-  row,
-  draftValue,
-  onDraftValueChange,
-  onResetToCurrent,
-  onResetToDefault,
-  onSave,
-  saving = false,
-  writeBlockedReason = '',
-}) => {
-  if (!row) {
-    return (
-      <aside className="px4-param-inspector px4-param-inspector--empty">
-        <div className="px4-param-inspector__empty">
-          <strong>Select a parameter</strong>
-          <p>Choose a row to review its value, limits, defaults, and edit controls.</p>
-        </div>
-      </aside>
-    );
-  }
-
-  const inputType = row.value_type === 'custom' ? 'text' : 'number';
-  const inputStep = row.value_type === 'int' ? '1' : 'any';
-  const saveDisabled = saving || Boolean(writeBlockedReason);
-  const hasDefault = row.default_value !== null && row.default_value !== undefined;
+/** Inspection is read-only until Edit. Exact numeric text is never display-rounded. */
+export default function Px4ParamInspector({ row, aircraftLabel, onClose, onStage, blockedReason = '' }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(() => String(row.value ?? ''));
+  const [error, setError] = useState('');
   const { shortDescription, longDescription } = buildParameterDescriptions(row);
-
-  return (
-    <aside className="px4-param-inspector">
-      <header className="px4-param-inspector__header">
-        <div>
-          <h3>{row.name}</h3>
-          <div className="px4-param-inspector__chips">
-            <span className="px4-param-chip">{row.value_type.toUpperCase()}</span>
-            {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot</span> : null}
-            {row.unit ? <span className="px4-param-chip">{row.unit}</span> : null}
-            {row.group ? <span className="px4-param-chip">{row.group}</span> : null}
-            {row.category ? <span className="px4-param-chip">{row.category}</span> : null}
-          </div>
+  const choices = Array.isArray(row.enum_values) ? row.enum_values : [];
+  // A list from a catalog/docs page is reference, not a native enum contract.
+  const authoritativeEnum = choices.length > 0 && row.authoritative_fields?.includes('enum_values');
+  const declaredDraftValue = choices.some(entry => String(entry.value) === value);
+  const changeValue = next => { setValue(next); setError(''); };
+  const submit = () => {
+    if (!editing) { setEditing(true); return; }
+    try {
+      const parsed = parseParameterValue(value, row.value_type);
+      if (onStage({ component_id: row.component_id || 1, name: row.name, value_type: row.value_type, value: parsed })) onClose();
+    } catch (failure) { setError(failure.message); }
+  };
+  return <ConfirmDialog appearance="console" open title={row.name} cancelLabel="Close"
+    confirmLabel={editing ? 'Review change' : 'Edit value'} onCancel={onClose} onConfirm={submit}
+    confirmDisabled={Boolean(blockedReason) || row.writable === false}
+    message={<div className="px4-inspector">
+      <p className="px4-context-label">{aircraftLabel} · Component {row.component_id || 1}</p>
+      <div className="px4-reading"><strong>{formatParameterValue(row.value, row)}</strong><span>{row.unit || ''}</span></div>
+      {String(row.value) !== formatParameterValue(row.value, row) && <p className="px4-exact">Exact value <code>{String(row.value)}</code></p>}
+      {shortDescription && <p>{shortDescription}</p>}
+      <p className="px4-context-label">{row.metadata_authority === 'vehicle' ? 'Vehicle metadata' : row.metadata_authority === 'unavailable' ? 'Metadata unavailable' : 'Reference metadata'} · live values from aircraft</p>
+      <dl className="px4-facts">
+        <dt>Default{row.authoritative_fields?.includes('default_value') ? '' : ' · reference'}</dt><dd>{formatParameterValue(row.default_value, row, { exact: true })}</dd>
+        <dt>Range{row.authoritative_fields?.includes('min_value') || row.authoritative_fields?.includes('max_value') ? '' : ' · reference'}</dt><dd>{formatParameterRange(row)}</dd>
+        <dt>Type</dt><dd>{row.value_type.toUpperCase()}{row.unit ? ` · ${row.unit}` : ''}</dd>
+        <dt>Reboot</dt><dd>{row.reboot_required == null ? 'Not declared' : row.reboot_required ? 'Required after change' : 'Not required'}</dd>
+      </dl>
+      {editing && <section className="px4-editor" aria-label="Edit parameter">
+        {authoritativeEnum ? <label>New value · vehicle choices<select aria-label={`New value for ${row.name}`} value={value} onChange={event => changeValue(event.target.value)}>
+          {!declaredDraftValue && <option value={value}>Not declared by vehicle · {value}</option>}
+          {choices.map((entry, index) => <option key={`${entry.value}:${index}`} value={String(entry.value)}>{entry.description || 'No description'} · {String(entry.value)}</option>)}
+        </select></label> : <>
+          <label>New value{row.unit ? ` · ${row.unit}` : ''}<input type="text" inputMode={row.value_type === 'int' ? 'numeric' : row.value_type === 'float' ? 'decimal' : 'text'}
+            aria-label={`New value for ${row.name}`} value={value} onChange={event => changeValue(event.target.value)} /></label>
+          {choices.length > 0 && <details className="px4-details"><summary>Reference choices</summary>
+            <label>Populate draft from reference<select aria-label={`Reference choice for ${row.name}`} value="" onChange={event => changeValue(event.target.value)}>
+              <option value="" disabled>Choose a suggestion…</option>
+              {choices.map((entry, index) => <option key={`${entry.value}:${index}`} value={String(entry.value)}>{entry.description || 'No description'} · {String(entry.value)}</option>)}
+            </select></label><small>Suggestions only. Other exact values remain allowed.</small>
+          </details>}
+        </>}
+        <div className="px4-text-actions">
+          <button type="button" className="operator-button operator-button--ghost" onClick={() => { setValue(String(row.value)); setError(''); }}>Use current</button>
+          <button type="button" className="operator-button operator-button--ghost" disabled={row.default_value == null}
+            onClick={() => { setValue(String(row.default_value)); setError(''); }}>Use default</button>
+          <button type="button" className="operator-button operator-button--ghost" onClick={() => { setEditing(false); setValue(String(row.value)); setError(''); }}>Discard edit</button>
         </div>
-        {row.docs_url ? (
-          <a href={row.docs_url} target="_blank" rel="noopener noreferrer" className="px4-param-link">
-            PX4 Docs
-          </a>
-        ) : null}
-      </header>
-
-      {(shortDescription || longDescription) ? (
-        <section className="px4-param-inspector__section">
-          <span className="px4-param-inspector__section-label">Description</span>
-          {shortDescription ? (
-            <p className="px4-param-inspector__summary">{shortDescription}</p>
-          ) : null}
-          {longDescription ? (
-            <p className="px4-param-inspector__detail">{longDescription}</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <section className="px4-param-inspector__section">
-        <span className="px4-param-inspector__section-label">Current metadata</span>
-        <div className="px4-param-inspector__grid">
-        <div>
-          <span>Current</span>
-          <strong>{formatParameterValue(row.value, row)}</strong>
-        </div>
-        <div>
-          <span>Default</span>
-          <strong>{formatParameterValue(row.default_value, row)}</strong>
-        </div>
-        <div>
-          <span>Range</span>
-          <strong>{formatParameterRange(row)}</strong>
-        </div>
-        <div>
-          <span>Restart</span>
-          <strong>
-            {row.reboot_required === null || row.reboot_required === undefined
-              ? 'Not declared'
-              : (row.reboot_required ? 'Required' : 'Not required')}
-          </strong>
-        </div>
-        {row.increment !== null && row.increment !== undefined ? (
-          <div>
-            <span>Step</span>
-            <strong>{formatParameterValue(row.increment, row)}</strong>
-          </div>
-        ) : null}
-        {Array.isArray(row.enum_values) && row.enum_values.length > 0 ? (
-          <div>
-            <span>Enum values</span>
-            <strong>{row.enum_values.length}</strong>
-          </div>
-        ) : null}
-        </div>
-      </section>
-
-      {Array.isArray(row.enum_values) && row.enum_values.length > 0 ? (
-        <section className="px4-param-inspector__section">
-          <span className="px4-param-inspector__section-label">Declared enum values</span>
-          <div className="px4-param-inspector__enum-list">
-          {row.enum_values.slice(0, 8).map((entry) => (
-            <div key={`${row.name}:${entry.value}`} className="px4-param-inspector__enum-item">
-              <strong>{String(entry.value)}</strong>
-              <span>{entry.description || 'Declared by PX4'}</span>
-            </div>
-          ))}
-          </div>
-        </section>
-      ) : null}
-
-      <label className="px4-param-inspector__field">
-        <span>New value</span>
-        <input
-          type={inputType}
-          step={inputStep}
-          value={draftValue}
-          onChange={(event) => onDraftValueChange(event.target.value)}
-          aria-label={`Set ${row.name} value`}
-        />
-      </label>
-
-      <div className="px4-param-inspector__actions">
-        <button type="button" onClick={onResetToCurrent}>
-          Reset to Current
-        </button>
-        <button type="button" onClick={onResetToDefault} disabled={!hasDefault}>
-          Use Default
-        </button>
-        <button type="button" className="primary" onClick={onSave} disabled={saveDisabled}>
-          {saving ? 'Saving…' : 'Save Parameter'}
-        </button>
-      </div>
-
-      {writeBlockedReason ? (
-        <div className="px4-param-inspector__notice px4-param-inspector__notice--warning">
-          {writeBlockedReason}
-        </div>
-      ) : null}
-    </aside>
-  );
-};
-
-Px4ParamInspector.propTypes = {
-  row: PropTypes.shape({
-    name: PropTypes.string.isRequired,
-    value_type: PropTypes.string.isRequired,
-    value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    default_value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    min_value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    max_value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    unit: PropTypes.string,
-    reboot_required: PropTypes.bool,
-    short_description: PropTypes.string,
-    long_description: PropTypes.string,
-    docs_url: PropTypes.string,
-    group: PropTypes.string,
-    category: PropTypes.string,
-    increment: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    enum_values: PropTypes.arrayOf(PropTypes.shape({
-      value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      description: PropTypes.string,
-    })),
-  }),
-  draftValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-  onDraftValueChange: PropTypes.func.isRequired,
-  onResetToCurrent: PropTypes.func.isRequired,
-  onResetToDefault: PropTypes.func.isRequired,
-  onSave: PropTypes.func.isRequired,
-  saving: PropTypes.bool,
-  writeBlockedReason: PropTypes.string,
-};
-
-export default Px4ParamInspector;
+        {error && <p role="alert">{error}</p>}
+      </section>}
+      {blockedReason && <p className="px4-inline-warning">{blockedReason}</p>}
+      {row.writable === false && <p>Read only</p>}
+      <details className="px4-details"><summary>Details & reference</summary>
+        {longDescription && <p>{longDescription}</p>}
+        <dl className="px4-facts"><dt>Group</dt><dd>{row.group || 'Not declared'}</dd>
+          <dt>Category</dt><dd>{row.category || 'Not declared'}</dd>
+          <dt>Step</dt><dd>{row.increment == null ? 'Not declared' : String(row.increment)}</dd>
+          <dt>Metadata source</dt><dd>{(row.metadata_sources || []).join(', ').replace(/_/g, ' ') || 'Unknown'}</dd></dl>
+        {choices.length > 0 && <><h3>Declared values · {authoritativeEnum ? 'vehicle' : 'reference'}</h3><dl className="px4-enum-list">
+          {choices.map((entry, index) => <React.Fragment key={`${entry.value}:${index}`}><dt><code>{String(entry.value)}</code></dt><dd>{entry.description || 'No description'}</dd></React.Fragment>)}
+        </dl></>}
+        {row.docs_url && <a href={row.docs_url} target="_blank" rel="noopener noreferrer">PX4 reference ↗</a>}
+      </details>
+    </div>} />;
+}

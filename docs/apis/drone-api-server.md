@@ -33,6 +33,13 @@ The Drone API Server is a high-performance FastAPI-based server that runs on eac
 
 ## API Evolution Note
 
+The native `REBOOT_FC` action checks bounded live connection/disarm evidence
+immediately before reboot, including direct CLI invocation. If PX4 landed-state
+telemetry is available, it must freshly report ON_GROUND. Missing, stale or
+unsafe evidence produces a typed precondition failure without sending reboot;
+the legacy force flag cannot bypass it. This guard does not add GPS/health gates
+or perform an automatic disarm.
+
 As of the 2026-04-04 drone-contract cleanup, the supported HTTP contract is the canonical `/api/v1/...` surface. The old verb-style drone routes were retired instead of being kept as misleading compatibility aliases.
 
 Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) only for
@@ -339,10 +346,24 @@ Write one PX4 parameter and optionally verify readback.
 #### `POST /api/v1/px4-params/patches/apply`
 Apply a multi-parameter patch to the local PX4 vehicle.
 
+Reviewed GCS operations additionally supply `operation_id`, `expected_hw_id` and
+an `expected_current_value` for each entry. The native service checks hardware,
+component, actual parameter type and expected values under its operation lock.
+The configured disarmed requirement is checked from live native state before
+writing; missing/cached default state is not confirmed disarm.
+
+Native receipts persist before mutation. Repeating the same operation identity
+returns its recorded result; a conflicting payload is rejected. Interrupted or
+uncertain writes are lookup-only, not automatically replayed. Per-entry results
+separate write acknowledgment, actual readback, mismatch and unavailable evidence;
+`applied` and `verified` are not interchangeable. A patch can be partial.
+
 Notes:
-- the default safety policy blocks writes while armed
+- the default safety policy requires confirmed disarm for writes; browsing and
+  reads do not add GPS or navigation-readiness gates
 - docs links are generated from the configured PX4 docs version and the parameter anchor, not from live web scraping
-- metadata beyond live name/type/value is best-effort in v1 and may come from component information when available
+- metadata beyond live name/type/value is best-effort; source and authoritative
+  fields are explicit, and documentation fallback does not authorize limits
 - these routes exist as the vehicle-local MAVSDK facade; dashboard and operator flows should still go through the GCS `px4-params` routes so snapshots, diffs, imports, and batch jobs stay tracked in one place
 
 ---

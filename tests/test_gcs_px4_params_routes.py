@@ -44,6 +44,9 @@ def test_px4_params_router_registers_expected_routes():
     assert "/api/v1/px4-params/imports/mds" in routes
     assert "/api/v1/px4-params/patch-jobs" in routes
     assert "/api/v1/px4-params/patch-jobs/{job_id}" in routes
+    assert "/api/v1/px4-params/reviews" in routes
+    assert "/api/v1/px4-params/reviews/{review_id}" in routes
+    assert "/api/v1/px4-params/patch-jobs/by-idempotency/{idempotency_key}" in routes
 
 
 def test_px4_params_router_policy_uses_runtime_params():
@@ -290,14 +293,20 @@ def test_px4_params_router_patch_job_routes_use_live_store(monkeypatch):
         "completed_at": 3,
     }
 
-    def fake_run_patch_job(deps_arg, request):
-        del deps_arg
+    patch_job_payload.update(
+        review_id="review-1", review_hash="review-hash", idempotency_key="legacy-request",
+        runtime_binding="sitl-test", terminal=True, updated_at=3,
+    )
+
+    def fake_run_patch_job(request):
         assert request.hw_ids == ["1"]
         assert request.entries[0].name == "MPC_XY_VEL_MAX"
         return patch_job_payload
 
-    monkeypatch.setattr("api_routes.px4_params.run_patch_job_for_targets", fake_run_patch_job)
-    monkeypatch.setattr("api_routes.px4_params.get_patch_job", lambda job_id: patch_job_payload if job_id == "job-1" else None)
+    monkeypatch.setattr("api_routes.px4_params.get_px4_param_engine", lambda ignored: SimpleNamespace(
+        submit=fake_run_patch_job,
+        get_job=lambda job_id: patch_job_payload if job_id == "job-1" else None,
+    ))
 
     with TestClient(app) as client:
         create_response = client.post(
@@ -318,7 +327,7 @@ def test_px4_params_router_patch_job_routes_use_live_store(monkeypatch):
         )
         status_response = client.get("/api/v1/px4-params/patch-jobs/job-1")
 
-    assert create_response.status_code == 200
+    assert create_response.status_code == 202
     assert create_response.json()["job_id"] == "job-1"
     assert status_response.status_code == 200
     assert status_response.json()["results"][0]["result"]["results"][0]["name"] == "MPC_XY_VEL_MAX"

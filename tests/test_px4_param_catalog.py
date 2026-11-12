@@ -4,9 +4,13 @@ from types import SimpleNamespace
 
 from src.px4_param_models import Px4ParamMetadataSource
 from src.px4_params.catalog import (
+    _coerce_int,
+    _coerce_number,
     _docs_cache_path,
+    _normalize_configured_paths,
     load_px4_docs_reference_catalog_index,
     parse_px4_parameter_reference_html,
+    resolve_px4_param_catalog_path,
 )
 
 
@@ -103,3 +107,24 @@ def test_load_px4_docs_reference_catalog_index_uses_fresh_cache(tmp_path):
 
     assert rows["MAV_SYS_ID"].source == Px4ParamMetadataSource.PX4_DOCS_CACHE
     assert rows["MAV_SYS_ID"].short_description == "MAVLink system ID"
+
+
+def test_catalog_paths_accept_documented_commas_and_legacy_path_separator(tmp_path):
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    first.write_text('{"parameters": []}')
+    second.write_text('{"parameters": []}')
+    os.utime(first, (10, 10))
+    os.utime(second, (20, 20))
+    for separator in (",", os.pathsep):
+        value = f" {first}{separator} {second} "
+        assert _normalize_configured_paths(value) == [str(first), str(second)]
+        assert resolve_px4_param_catalog_path(SimpleNamespace(PX4_PARAMETER_METADATA_CATALOG_PATHS=value)) == second
+
+
+def test_reference_numeric_metadata_never_contains_nonfinite_or_truncated_integers():
+    for value in (float("nan"), float("inf"), "NaN", "-Infinity", True):
+        assert _coerce_number(value) is None
+        assert _coerce_int(value) is None
+    assert _coerce_int("1.5") is None
+    assert _coerce_int(1.5) is None

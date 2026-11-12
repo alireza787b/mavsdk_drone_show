@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +21,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.drone_api_routes import DRONE_SYSTEM_HEALTH_ROUTE
+from src.px4_param_values import parameter_values_match
 from src.gcs_api_routes import (
     GCS_PX4_PARAMS_DIFF_ROUTE,
     GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
+    GCS_PX4_PARAMS_PATCH_JOB_ROUTE_TEMPLATE,
+    GCS_PX4_PARAMS_REVIEWS_ROUTE,
     GCS_PX4_PARAMS_POLICY_ROUTE,
     GCS_PX4_PARAMS_QGC_IMPORT_ROUTE,
     GCS_PX4_PARAMS_SNAPSHOTS_ROUTE,
@@ -126,8 +130,13 @@ def resolve_selected_ids(args: argparse.Namespace) -> list[int]:
 
 
 def wait_for_health(client: ApiClient) -> None:
-    payload = client.get_json(GCS_SYSTEM_HEALTH_ROUTE)
-    require(payload.get("status") == "ok", f"GCS health check failed: {payload}")
+    def ready():
+        try:
+            payload = client.get_json(GCS_SYSTEM_HEALTH_ROUTE, timeout=5.0)
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            return False
+        return payload if payload.get("status") == "ok" else False
+    wait_for(ready, label="GCS health", timeout=45)
 
 
 def get_policy(client: ApiClient) -> dict[str, Any]:
@@ -266,8 +275,8 @@ def run_patch_job(
     source: str,
     entries: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    payload = client.post_json(
-        GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
+    review = client.post_json(
+        GCS_PX4_PARAMS_REVIEWS_ROUTE,
         {
             "hw_ids": [str(drone_id) for drone_id in drone_ids],
             "source": source,
@@ -275,8 +284,27 @@ def run_patch_job(
             "entries": entries,
         },
     )
-    require(payload.get("status") in {"completed", "partial"}, f"Unexpected patch-job status: {payload}")
-    return payload
+    require(not review.get("blocked"), f"Parameter review was blocked: {review}")
+    require(review.get("review_id") and review.get("review_hash"), "Review identity missing")
+    terminal = submit_review_job(client, review)
+    require(terminal.get("status") in {"completed", "partial"}, f"Unexpected patch-job status: {terminal}")
+    return terminal
+
+
+def submit_review_job(client: ApiClient, review: dict[str, Any]) -> dict[str, Any]:
+    request = {"review_id": review["review_id"], "review_hash": review["review_hash"],
+               "idempotency_key": f"sitl-param-{uuid.uuid4().hex}"}
+    receipt = client.post_json(GCS_PX4_PARAMS_PATCH_JOBS_ROUTE, request)
+    require(receipt.get("job_id"), f"Accepted parameter receipt missing: {receipt}")
+    job_path = GCS_PX4_PARAMS_PATCH_JOB_ROUTE_TEMPLATE.format(job_id=receipt["job_id"])
+    terminal = wait_for(
+        lambda: (job if (job := client.get_json(job_path)).get("terminal") else None),
+        label=f"parameter receipt {receipt['job_id']}", timeout=120,
+    )
+    # A repeated accepted request must return the same receipt, not issue a new write.
+    replay = client.post_json(GCS_PX4_PARAMS_PATCH_JOBS_ROUTE, request)
+    require(replay.get("job_id") == receipt["job_id"], "Idempotent replay returned a different parameter job")
+    return terminal
 
 
 def assert_patch_job_success(job: dict[str, Any], *, expect_targets: int) -> None:
@@ -292,10 +320,8 @@ def assert_patch_job_success(job: dict[str, Any], *, expect_targets: int) -> Non
 def validate_snapshot_value(snapshot: dict[str, Any], *, param_name: str, expected_value: int | float) -> None:
     row = find_param_row(snapshot, param_name)
     actual_value = row.get("value")
-    if isinstance(expected_value, float):
-        require(math.isclose(float(actual_value), float(expected_value), rel_tol=0.0, abs_tol=1e-5), f"{param_name} expected {expected_value}, got {actual_value}")
-        return
-    require(int(actual_value) == int(expected_value), f"{param_name} expected {expected_value}, got {actual_value}")
+    require(parameter_values_match(row["value_type"], expected_value, actual_value),
+            f"{param_name} expected {expected_value}, got {actual_value}")
 
 
 def select_baseline_rows(
@@ -306,6 +332,37 @@ def select_baseline_rows(
         str(drone_id): baseline_rows[str(drone_id)]
         for drone_id in drone_ids
     }
+
+
+def restore_baseline(client: ApiClient, baseline_rows: dict[str, dict[str, Any]], *,
+                     drone_ids: list[int], component_id: int, param_name: str) -> list[dict[str, Any]]:
+    """Best-effort every target independently, then prove actual restored values.
+
+    This is an explicit SITL repair review, not an atomic rollback. A failed
+    earlier target must not prevent attempting restoration of later targets.
+    """
+    evidence, errors = [], []
+    for hw_id in drone_ids:
+        try:
+            original = baseline_rows[str(hw_id)]
+            current = refresh_snapshots(client, [hw_id], component_id=component_id)[str(hw_id)]
+            row = find_param_row(current, param_name)
+            if parameter_values_match(original["value_type"], original["value"], row["value"]):
+                evidence.append({"hw_id": str(hw_id), "outcome": "already_at_baseline",
+                                 "snapshot_id": current["snapshot"]["snapshot_id"]})
+                continue
+            job = run_patch_job(client, drone_ids=[hw_id], source="manual", entries=[{
+                "component_id": component_id, "name": param_name,
+                "value_type": original["value_type"], "value": original["value"],
+            }])
+            assert_patch_job_success(job, expect_targets=1)
+            refreshed = refresh_snapshots(client, [hw_id], component_id=component_id)[str(hw_id)]
+            validate_snapshot_value(refreshed, param_name=param_name, expected_value=original["value"])
+            evidence.append({"hw_id": str(hw_id), "outcome": "baseline_verified", "job_id": job["job_id"]})
+        except Exception as exc:
+            errors.append(f"H{hw_id}: {exc}")
+    require(not errors, "Baseline restoration not confirmed: " + "; ".join(errors))
+    return evidence
 
 
 def main() -> int:
@@ -349,57 +406,54 @@ def main() -> int:
     diff_response = diff_imported_patch(client, snapshots[primary_hw_id]["snapshot"]["snapshot_id"], qgc_import["entries"])
     require(int(diff_response.get("total_changed", 0)) >= 1, f"Expected at least one changed row, got: {diff_response}")
 
-    single_job = run_patch_job(
-        client,
-        drone_ids=[int(primary_hw_id)],
-        source="qgc_import",
-        entries=qgc_import["entries"],
-    )
-    assert_patch_job_success(single_job, expect_targets=1)
-
-    refreshed_primary = refresh_snapshots(client, [int(primary_hw_id)], component_id=component_id)[primary_hw_id]
-    validate_snapshot_value(refreshed_primary, param_name=param_name, expected_value=single_value)
-
     batch_rows = select_baseline_rows(baseline_rows, selected_ids)
     batch_value = choose_param_value(batch_rows[str(selected_ids[-1])], delta=args.float_delta + 0.5)
-    batch_entry = {
-        "component_id": component_id,
-        "name": param_name,
-        "value_type": primary_row["value_type"],
-        "value": batch_value,
-    }
-    batch_job = run_patch_job(
-        client,
-        drone_ids=selected_ids,
-        source="manual",
-        entries=[batch_entry],
-    )
-    assert_patch_job_success(batch_job, expect_targets=len(selected_ids))
-
-    refreshed_batch = refresh_snapshots(client, selected_ids, component_id=component_id)
-    for hw_id in refreshed_batch:
-        validate_snapshot_value(refreshed_batch[hw_id], param_name=param_name, expected_value=batch_value)
-
-    for hw_id in selected_ids:
-        original_row = batch_rows[str(hw_id)]
-        restore_job = run_patch_job(
-            client,
-            drone_ids=[hw_id],
-            source="manual",
-            entries=[
-                {
-                    "component_id": component_id,
-                    "name": param_name,
-                    "value_type": original_row["value_type"],
-                    "value": original_row["value"],
-                }
-            ],
-        )
-        assert_patch_job_success(restore_job, expect_targets=1)
-
-    restored = refresh_snapshots(client, selected_ids, component_id=component_id)
-    for hw_id in restored:
-        validate_snapshot_value(restored[hw_id], param_name=param_name, expected_value=batch_rows[str(hw_id)]["value"])
+    mutation_error = None
+    restoration = []
+    try:
+        single_job = run_patch_job(client, drone_ids=[int(primary_hw_id)], source="qgc_import", entries=qgc_import["entries"])
+        assert_patch_job_success(single_job, expect_targets=1)
+        refreshed_primary = refresh_snapshots(client, [int(primary_hw_id)], component_id=component_id)[primary_hw_id]
+        validate_snapshot_value(refreshed_primary, param_name=param_name, expected_value=single_value)
+        batch_job = run_patch_job(client, drone_ids=selected_ids, source="manual", entries=[{
+            "component_id": component_id, "name": param_name,
+            "value_type": primary_row["value_type"], "value": batch_value,
+        }])
+        assert_patch_job_success(batch_job, expect_targets=len(selected_ids))
+        refreshed_batch = refresh_snapshots(client, selected_ids, component_id=component_id)
+        for hw_id in refreshed_batch:
+            validate_snapshot_value(refreshed_batch[hw_id], param_name=param_name, expected_value=batch_value)
+        # Simulate another operator changing the aircraft after review. A stale
+        # proposal must be rejected natively, not silently overwrite that value.
+        stale_entry = {"component_id": component_id, "name": param_name,
+                       "value_type": primary_row["value_type"], "value": single_value}
+        stale_review = client.post_json(GCS_PX4_PARAMS_REVIEWS_ROUTE, {
+            "hw_ids": [primary_hw_id], "source": "manual", "verify_readback": True,
+            "entries": [stale_entry],
+        })
+        require(not stale_review.get("blocked"), f"Conflict-test preparation failed: {stale_review}")
+        interference_value = choose_param_value({**primary_row, "value": batch_value}, delta=0.25)
+        external_change = run_patch_job(client, drone_ids=[int(primary_hw_id)], source="manual", entries=[{
+            **stale_entry, "value": interference_value,
+        }])
+        assert_patch_job_success(external_change, expect_targets=1)
+        rejected = submit_review_job(client, stale_review)
+        require(rejected.get("status") == "failed" and rejected.get("failed_targets") == 1,
+                f"Stale expected values were not rejected: {rejected}")
+        require(all(not item.get("applied") for item in rejected.get("results", [])),
+                f"A stale review reported a write: {rejected}")
+        unchanged = refresh_snapshots(client, [int(primary_hw_id)], component_id=component_id)[primary_hw_id]
+        validate_snapshot_value(unchanged, param_name=param_name, expected_value=interference_value)
+    except Exception as exc:
+        mutation_error = exc
+    finally:
+        try:
+            restoration = restore_baseline(client, batch_rows, drone_ids=selected_ids,
+                                           component_id=component_id, param_name=param_name)
+        except Exception as restore_error:
+            raise RuntimeError(f"Validation error: {mutation_error}; restoration error: {restore_error}") from restore_error
+    if mutation_error:
+        raise mutation_error
 
     report = {
         "success": True,
@@ -410,6 +464,9 @@ def main() -> int:
         "single_target": primary_hw_id,
         "single_test_value": single_value,
         "batch_test_value": batch_value,
+        "restoration": restoration,
+        "idempotent_receipt_replay_checked": True,
+        "stale_review_native_rejection_checked": True,
         "policy": {
             "docs_version": policy.get("docs", {}).get("version"),
             "require_disarmed": policy.get("mutations", {}).get("require_disarmed"),

@@ -265,6 +265,9 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     assert generator.main(["--check"]) == 0
 
     by_path = {candidate["source"]["path"]: candidate for candidate in artifact["candidates"]}
+    for path in ("/api/v1/px4-params/reviews/{review_id}",
+                 "/api/v1/px4-params/patch-jobs/by-idempotency/{idempotency_key}"):
+        assert by_path[path]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/commands"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert "command/control route" in by_path["/api/v1/commands"]["classification"]["review_reasons"]
     assert by_path["/api/v1/simurgh/action-runs"]["classification"]["eligible_read_only_mcp_candidate"] is False

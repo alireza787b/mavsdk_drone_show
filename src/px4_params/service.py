@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
 import re
 import struct
 import time
@@ -29,6 +34,8 @@ from src.px4_param_models import (
     Px4ParamValueType,
 )
 from src.px4_params.catalog import Px4ParamCatalogEntry, load_px4_param_catalog_index
+from src.px4_params.operations import Px4ParamOperationStore
+from src.px4_param_values import parameter_values_match
 
 
 class Px4ParamService:
@@ -37,6 +44,32 @@ class Px4ParamService:
     def __init__(self, params: Any, *, hw_id: str) -> None:
         self.params = params
         self.hw_id = str(hw_id)
+        self._operation_lock = asyncio.Lock()
+        state_directory = getattr(params, "PX4_PARAMETER_OPERATION_STATE_DIR", None)
+        if not isinstance(state_directory, (str, os.PathLike)) or not str(state_directory).strip():
+            state_directory = os.environ.get(
+                "MDS_PX4_PARAMETER_OPERATION_STATE_DIR",
+                str(Path(__file__).resolve().parents[2] / "runtime_data" / "px4_params"),
+            )
+        record_limit = getattr(params, "PX4_PARAMETER_OPERATION_MAX_RECORDS", None)
+        if type(record_limit) is not int:
+            try:
+                record_limit = int(os.environ.get("MDS_PX4_PARAMETER_OPERATION_MAX_RECORDS", "4096"))
+            except (TypeError, ValueError):
+                record_limit = 4096
+        if not 1 <= record_limit <= 100000:
+            record_limit = 4096
+        byte_limit = getattr(params, "PX4_PARAMETER_OPERATION_MAX_BYTES", None)
+        if type(byte_limit) is not int:
+            try:
+                byte_limit = int(os.environ.get("MDS_PX4_PARAMETER_OPERATION_MAX_BYTES", str(64 * 1024 * 1024)))
+            except (TypeError, ValueError):
+                byte_limit = 64 * 1024 * 1024
+        if not 1024 * 1024 <= byte_limit <= 1024 * 1024 * 1024:
+            byte_limit = 64 * 1024 * 1024
+        self._operations = Px4ParamOperationStore(
+            Path(state_directory).expanduser(), self.hw_id, max_records=record_limit, max_bytes=byte_limit,
+        )
 
     def build_policy(self) -> Px4ParamPolicyResponse:
         docs_version = self._safe_docs_version()
@@ -58,11 +91,13 @@ class Px4ParamService:
             ),
             mutations=Px4ParamPolicyMutations(
                 require_disarmed=self._safe_bool("PX4_PARAMETER_MUTATION_REQUIRE_DISARMED", True),
-                supported_component_ids=[self._safe_int("PX4_PARAMETER_DEFAULT_COMPONENT_ID", 1)],
+                # MAVSDK Param addresses the connected autopilot, not arbitrary components.
+                supported_component_ids=[1],
             ),
         )
 
     async def build_snapshot(self, drone: Any, *, component_id: int = 1) -> Px4ParamSnapshotResponse:
+        self._assert_component_eligible(component_id)
         float_metadata = await self._load_float_metadata(drone)
         catalog_metadata = await self._load_catalog_metadata_async()
         rows = await self._build_snapshot_rows(
@@ -157,6 +192,7 @@ class Px4ParamService:
         *,
         component_id: int = 1,
     ) -> Px4ParamValueResponse:
+        self._assert_component_eligible(component_id)
         normalized_name = self._normalize_name(name)
         value, value_type = await self._read_param_auto(drone, normalized_name)
         float_metadata = await self._load_float_metadata(drone) if value_type == Px4ParamValueType.FLOAT else {}
@@ -176,83 +212,143 @@ class Px4ParamService:
         drone: Any,
         name: str,
         request: Px4ParamSetRequest,
+        *,
+        mutation_guard=None,
     ) -> Px4ParamSetResponse:
         normalized_name = self._normalize_name(name)
-        await self._write_param(drone, normalized_name, request.value_type, request.value)
-
-        actual_value: Optional[int | float | str] = None
-        verified = False
-        if request.verify_readback:
-            actual_value = await self._read_param_exact(drone, normalized_name, request.value_type)
-            verified = self._values_match(request.value_type, request.value, actual_value)
-
+        response = await self.apply_patch(drone, Px4ParamPatchApplyRequest(
+            operation_id=request.operation_id,
+            expected_hw_id=request.expected_hw_id,
+            verify_readback=request.verify_readback,
+            entries=[dict(
+                component_id=request.component_id,
+                name=normalized_name,
+                value_type=request.value_type,
+                value=request.value,
+                expected_current_value=request.expected_current_value,
+            )],
+        ), mutation_guard=mutation_guard)
+        result = response.results[0]
         return Px4ParamSetResponse(
-            applied=True,
-            verified=verified if request.verify_readback else False,
-            component_id=request.component_id,
-            name=normalized_name,
-            value_type=request.value_type,
-            requested_value=request.value,
-            actual_value=actual_value,
-            timestamp=int(time.time() * 1000),
+            **result.model_dump(), timestamp=response.timestamp, operation_id=response.operation_id,
         )
 
     async def apply_patch(
         self,
         drone: Any,
         request: Px4ParamPatchApplyRequest,
+        *,
+        mutation_guard=None,
     ) -> Px4ParamPatchApplyResponse:
-        results = []
-        applied_count = 0
-        failed_count = 0
-        verified_count = 0
+        async with self._operation_lock:
+            if request.expected_hw_id is not None and request.expected_hw_id != self.hw_id:
+                raise ValueError("PX4 parameter request aircraft identity does not match this node")
+            for entry in request.entries:
+                self._assert_component_eligible(entry.component_id)
+            fingerprint = hashlib.sha256(json.dumps(
+                request.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), allow_nan=False,
+            ).encode()).hexdigest()
+            if request.operation_id:
+                existing = await asyncio.to_thread(self._operations.lookup, request.operation_id, fingerprint)
+                if existing is not None:
+                    return existing
+            results = [Px4ParamPatchResult(
+                component_id=entry.component_id, name=entry.name, value_type=entry.value_type,
+                requested_value=entry.value, applied=False, verified=False, outcome="not_attempted",
+            ) for entry in request.entries]
+            receipt_timestamp = int(time.time() * 1000)
 
-        for entry in request.entries:
+            def receipt():
+                return Px4ParamPatchApplyResponse(
+                    source=request.source, operation_id=request.operation_id,
+                    applied_count=sum(item.applied for item in results),
+                    failed_count=sum(item.outcome in {"failed", "verification_failed"} for item in results),
+                    verified_count=sum(item.verified for item in results), results=results,
+                    timestamp=receipt_timestamp,
+                )
+
+            async def save():
+                if request.operation_id:
+                    await asyncio.to_thread(self._operations.save, request.operation_id, receipt())
+
+            if request.operation_id:
+                await asyncio.to_thread(self._operations.begin, request.operation_id, fingerprint, receipt())
+
             try:
-                response = await self.set_param_value(
-                    drone,
-                    entry.name,
-                    Px4ParamSetRequest(
-                        component_id=entry.component_id,
-                        value_type=entry.value_type,
-                        value=entry.value,
-                        verify_readback=request.verify_readback,
-                    ),
-                )
-                applied_count += 1
-                if response.verified:
-                    verified_count += 1
-                results.append(
-                    Px4ParamPatchResult(
-                        name=response.name,
-                        value_type=response.value_type,
-                        requested_value=response.requested_value,
-                        applied=True,
-                        verified=response.verified,
-                        actual_value=response.actual_value,
-                    )
-                )
+                if mutation_guard is not None:
+                    await mutation_guard(drone)
+                # Check the whole reviewed patch before its first write. Legacy requests
+                # without expectations retain per-entry failure semantics.
+                for index, entry in enumerate(request.entries):
+                    if entry.expected_current_value is not None:
+                        await self._check_entry_precondition(drone, entry)
             except Exception as exc:
-                failed_count += 1
-                results.append(
-                    Px4ParamPatchResult(
-                        name=entry.name,
-                        value_type=entry.value_type,
-                        requested_value=entry.value,
-                        applied=False,
-                        verified=False,
-                        error=str(exc),
-                    )
-                )
+                for result in results:
+                    result.outcome, result.error_phase, result.error = "failed", "precondition", str(exc)[:2048]
+                await save()
+                return receipt()
 
-        return Px4ParamPatchApplyResponse(
-            source=request.source,
-            applied_count=applied_count,
-            failed_count=failed_count,
-            verified_count=verified_count,
-            results=results,
-            timestamp=int(time.time() * 1000),
-        )
+            for index, entry in enumerate(request.entries):
+                result = results[index]
+                try:
+                    await self._check_entry_precondition(drone, entry)
+                    if mutation_guard is not None:
+                        await mutation_guard(drone)
+                except Exception as exc:
+                    result.outcome, result.error_phase, result.error = "failed", "precondition", str(exc)[:2048]
+                    await save()
+                    if request.operation_id:
+                        break
+                    continue
+                # Persist uncertainty BEFORE crossing the write boundary. Restart or
+                # cancellation returns this receipt and cannot replay the write.
+                result.outcome, result.error_phase = "unknown", "write"
+                result.error = "Write outcome is unknown; reconcile the actual value before a new reviewed operation."
+                await save()
+                try:
+                    await self._write_param(drone, entry.name, entry.value_type, entry.value)
+                except Exception as exc:
+                    result.error = str(exc)[:2048] or "Write acknowledgment unavailable"
+                    await save()
+                    break
+                result.applied = result.write_acknowledged = True
+                result.outcome, result.error_phase, result.error = "written_unverified", None, None
+                result.readback_status = "not_requested"
+                if request.verify_readback:
+                    try:
+                        result.actual_value = await self._read_param_exact(drone, entry.name, entry.value_type)
+                        result.verified = self._values_match(entry.value_type, entry.value, result.actual_value)
+                        result.readback_status = "matched" if result.verified else "mismatch"
+                        result.outcome = "verified" if result.verified else "verification_failed"
+                        if not result.verified:
+                            result.error_phase, result.error = "readback", "Readback does not match the requested value"
+                    except Exception as exc:
+                        result.readback_status, result.error_phase, result.error = "unavailable", "readback", str(exc)[:2048]
+                await save()
+            return receipt()
+
+    async def _check_entry_precondition(self, drone, entry):
+        current_value, current_type = await self._read_param_auto(drone, entry.name)
+        if current_type != entry.value_type:
+            raise ValueError(f"{entry.name}: parameter type changed or does not match")
+        if entry.expected_current_value is not None and not self._values_match(
+            entry.value_type, entry.expected_current_value, current_value,
+        ):
+            raise ValueError(f"{entry.name}: actual value changed since review")
+        # Only vehicle-served metadata can restrict runtime semantics here. A
+        # catalog on disk/docs cache is not proof of this aircraft's firmware.
+        if entry.value_type == Px4ParamValueType.FLOAT:
+            metadata = (await self._load_float_metadata(drone)).get(entry.name)
+            for attribute, compare in (("min_value", lambda value, limit: value < limit),
+                                       ("max_value", lambda value, limit: value > limit)):
+                limit = getattr(metadata, attribute, None)
+                if type(limit) in (int, float) and math.isfinite(limit) and compare(entry.value, limit):
+                    raise ValueError(f"{entry.name}: requested value violates vehicle {attribute}")
+
+    @staticmethod
+    def _assert_component_eligible(component_id):
+        if type(component_id) is not int or component_id != 1:
+            raise ValueError("PX4 parameter access supports autopilot component 1 only")
 
     async def _read_param_auto(self, drone: Any, name: str) -> tuple[int | float | str, Px4ParamValueType]:
         for value_type in (Px4ParamValueType.INT, Px4ParamValueType.FLOAT, Px4ParamValueType.CUSTOM):
@@ -270,10 +366,12 @@ class Px4ParamService:
         value_type: Px4ParamValueType,
     ) -> int | float | str:
         if value_type == Px4ParamValueType.INT:
-            return int(await drone.param.get_param_int(name))
-        if value_type == Px4ParamValueType.FLOAT:
-            return float(await drone.param.get_param_float(name))
-        return str(await drone.param.get_param_custom(name))
+            value = await drone.param.get_param_int(name)
+        elif value_type == Px4ParamValueType.FLOAT:
+            value = await drone.param.get_param_float(name)
+        else:
+            value = await drone.param.get_param_custom(name)
+        return Px4ParamSetRequest(value_type=value_type, value=value).value
 
     async def _write_param(
         self,
@@ -381,15 +479,19 @@ class Px4ParamService:
         if float_meta is not None:
             metadata_sources.append(Px4ParamMetadataSource.COMPONENT_INFORMATION)
         metadata_sources.append(Px4ParamMetadataSource.PX4_DOCS)
+        authoritative_fields = [attribute for attribute in (
+            "short_description", "long_description", "unit", "decimal_places",
+            "default_value", "min_value", "max_value",
+        ) if self._pick_metadata_value(getattr(float_meta, attribute, None)) is not None]
         short_description = self._pick_metadata_value(
-            self._catalog_attr(catalog_entry, "short_description"),
             getattr(float_meta, "short_description", None),
+            self._catalog_attr(catalog_entry, "short_description"),
         )
         long_description = self._dedupe_long_description(
             short_description,
             self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "long_description"),
                 getattr(float_meta, "long_description", None),
+                self._catalog_attr(catalog_entry, "long_description"),
             ),
         )
 
@@ -402,31 +504,33 @@ class Px4ParamService:
             short_description=short_description,
             long_description=long_description,
             unit=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "unit"),
                 getattr(float_meta, "unit", None),
+                self._catalog_attr(catalog_entry, "unit"),
             ),
             group=self._catalog_attr(catalog_entry, "group"),
             category=self._catalog_attr(catalog_entry, "category"),
             decimal_places=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "decimal_places"),
                 getattr(float_meta, "decimal_places", None),
+                self._catalog_attr(catalog_entry, "decimal_places"),
             ),
             increment=self._catalog_attr(catalog_entry, "increment"),
             default_value=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "default_value"),
                 getattr(float_meta, "default_value", None),
+                self._catalog_attr(catalog_entry, "default_value"),
             ),
             min_value=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "min_value"),
                 getattr(float_meta, "min_value", None),
+                self._catalog_attr(catalog_entry, "min_value"),
             ),
             max_value=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "max_value"),
                 getattr(float_meta, "max_value", None),
+                self._catalog_attr(catalog_entry, "max_value"),
             ),
             reboot_required=self._catalog_attr(catalog_entry, "reboot_required"),
             enum_values=list(self._catalog_attr(catalog_entry, "enum_values") or []),
             metadata_sources=metadata_sources,
+            metadata_authority="vehicle" if authoritative_fields else "reference_only" if catalog_entry else "unavailable",
+            authoritative_fields=authoritative_fields,
         )
 
     def _build_metadata_status(
@@ -445,17 +549,15 @@ class Px4ParamService:
             if row.short_description or row.group or row.default_value is not None or row.min_value is not None or row.max_value is not None:
                 rich_rows += 1
 
-        catalog_available = bool(catalog_metadata)
+        catalog_available = any(entry.source == Px4ParamMetadataSource.PX4_BUILD_CATALOG for entry in catalog_metadata.values())
+        reference_available = bool(catalog_metadata)
         component_information_available = bool(float_metadata)
-        if rich_rows > 0 and catalog_available:
-            metadata_quality = "rich"
-            warning = None
-        elif rich_rows > 0 and component_information_available:
+        if rich_rows > 0 and component_information_available:
             metadata_quality = "component_information"
-            warning = "PX4 component metadata is available, but catalog-level groups/defaults may be incomplete."
-        elif catalog_available:
-            metadata_quality = "catalog"
-            warning = None
+            warning = "Vehicle component hints are authoritative only for their declared fields; catalog/docs fields remain reference-only."
+        elif reference_available:
+            metadata_quality = "reference_only"
+            warning = "Live values are vehicle-owned; catalog/docs metadata is reference-only because no firmware match has been established."
         else:
             metadata_quality = "raw_values_only"
             warning = (
@@ -508,7 +610,7 @@ class Px4ParamService:
     @staticmethod
     def _pick_metadata_value(*values: Any) -> Any:
         for value in values:
-            if value is not None:
+            if value is not None and not (isinstance(value, float) and not math.isfinite(value)):
                 return value
         return None
 
@@ -630,8 +732,8 @@ class Px4ParamService:
     @staticmethod
     def _normalize_name(name: Any) -> str:
         normalized = str(name).strip().upper()
-        if not normalized:
-            raise ValueError("parameter name must not be blank")
+        if not isinstance(name, str) or not name.isascii() or not re.fullmatch(r"[A-Z0-9_]{1,16}", normalized):
+            raise ValueError("parameter name must contain 1–16 ASCII letters, digits or underscores")
         return normalized
 
     def _build_docs_base_url(self, version: str) -> str:
@@ -656,10 +758,7 @@ class Px4ParamService:
         requested_value: int | float | str,
         actual_value: int | float | str,
     ) -> bool:
-        if value_type == Px4ParamValueType.FLOAT:
-            tolerance = self._safe_float("PX4_PARAMETER_FLOAT_VERIFY_TOLERANCE", 1e-6)
-            return abs(float(requested_value) - float(actual_value)) <= tolerance
-        return requested_value == actual_value
+        return parameter_values_match(value_type, requested_value, actual_value)
 
     def _safe_docs_version(self) -> str:
         raw_value = getattr(self.params, "PX4_PARAMETER_DOCS_VERSION", "main")
@@ -672,8 +771,9 @@ class Px4ParamService:
     def _safe_float(self, attribute: str, default: float) -> float:
         raw_value = getattr(self.params, attribute, default)
         try:
-            return float(raw_value)
-        except (TypeError, ValueError):
+            numeric = float(raw_value)
+            return numeric if math.isfinite(numeric) else float(default)
+        except (TypeError, ValueError, OverflowError):
             return float(default)
 
     def _safe_int(self, attribute: str, default: int) -> int:

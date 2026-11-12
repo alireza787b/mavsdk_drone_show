@@ -3607,7 +3607,7 @@ tools:
         description: PX4 parameter snapshot id.
 - id: mds.px4_params.patch_job.read
   title: Read PX4 parameter patch job
-  description: Read one PX4 parameter patch job status by job id.
+  description: Read one durable PX4 parameter operation receipt by job id, including per-aircraft write and readback evidence.
   exposure: allow
   risk_class: sensitive_observe
   boundary: gcs
@@ -3635,6 +3635,8 @@ tools:
   safety_notes:
   - This reads patch-job status only; creating, confirming, or applying PX4 param
     patches remains outside read-only tools.
+  - Accepted or completed does not mean verified. Inspect per-aircraft and per-entry
+    outcomes; unknown writes must not be automatically replayed.
   input_schema:
     type: object
     additionalProperties: false

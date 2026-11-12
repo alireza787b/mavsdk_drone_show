@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -127,7 +128,9 @@ def _normalize_configured_paths(raw_value: Any) -> list[str]:
     if not raw_value:
         return []
     if isinstance(raw_value, str):
-        return [segment.strip() for segment in raw_value.split(os.pathsep) if segment.strip()]
+        # Comma is the documented/environment contract. Accept the historical
+        # platform path separator as well so existing installations keep working.
+        return [segment.strip() for segment in re.split(r"[," + re.escape(os.pathsep) + r"]", raw_value) if segment.strip()]
     if isinstance(raw_value, (list, tuple, set)):
         return [str(item).strip() for item in raw_value if str(item).strip()]
     return []
@@ -460,8 +463,9 @@ def _coerce_int(raw_value: Any) -> int | None:
     if raw_value is None or raw_value == "":
         return None
     try:
-        return int(raw_value)
-    except (TypeError, ValueError):
+        numeric = _coerce_number(raw_value)
+        return int(numeric) if numeric is not None and float(numeric).is_integer() else None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -473,10 +477,12 @@ def _coerce_number(raw_value: Any) -> int | float | None:
     if isinstance(raw_value, int):
         return raw_value
     if isinstance(raw_value, float):
-        return raw_value
+        return raw_value if math.isfinite(raw_value) else None
     try:
         numeric = float(raw_value)
     except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
         return None
     if numeric.is_integer():
         return int(numeric)

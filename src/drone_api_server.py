@@ -1516,6 +1516,11 @@ class DroneAPIServer:
         message = str(exc) or exc.__class__.__name__
         lowered = message.lower()
 
+        if isinstance(exc, ValueError):
+            return HTTPException(status_code=409, detail={
+                "error": "px4_params_precondition_failed", "message": message, "action": action,
+            })
+
         if self._is_mavsdk_dependency_error(exc):
             error = capability.get("missing_dependency") or "mavsdk_server_unavailable"
             return HTTPException(
@@ -1823,11 +1828,37 @@ class DroneAPIServer:
         require_disarmed = bool(
             getattr(self.params, "PX4_PARAMETER_MUTATION_REQUIRE_DISARMED", True)
         )
-        if require_disarmed and bool(getattr(self.drone_config, "is_armed", False)):
+        if require_disarmed and getattr(self.drone_config, "is_armed", None) is True:
             raise HTTPException(
                 status_code=409,
                 detail="PX4 parameter writes are blocked while the vehicle is armed.",
             )
+
+    async def _assert_live_px4_param_mutation_allowed(self, drone) -> None:
+        """Confirm only the existing disarmed policy, from a native live sample.
+
+        The cached state's initial False is not evidence of disarm. This is not
+        a GPS/health/landed-state admission gate and does not alter flight policy.
+        """
+        if not self._px4_param_service.build_policy().mutations.require_disarmed:
+            return
+        self._assert_px4_param_mutation_allowed()
+        stream = None
+        try:
+            stream = drone.telemetry.armed()
+            armed = await asyncio.wait_for(anext(stream), timeout=3.0)
+            if type(armed) is not bool:
+                raise ValueError("arm state is unavailable")
+            if armed:
+                raise ValueError("vehicle is armed")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"PX4 parameter writes require confirmed live disarm: {exc}",
+            ) from exc
+        finally:
+            if stream is not None and callable(getattr(stream, "aclose", None)):
+                await stream.aclose()
 
     def _assert_ulog_download_allowed(self) -> None:
         require_disarmed = bool(getattr(self.params, "ULOG_DOWNLOAD_REQUIRE_DISARMED", True))
@@ -3326,10 +3357,13 @@ class DroneAPIServer:
         @self.app.patch(DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE, response_model=Px4ParamSetResponse)
         async def set_px4_param_value(name: str, request: Px4ParamSetRequest):
             """Write one PX4 parameter and optionally verify readback."""
-            self._assert_px4_param_mutation_allowed()
+            if request.operation_id is None:
+                self._assert_px4_param_mutation_allowed()
             try:
                 response = await self._with_local_mavsdk_system(
-                    lambda drone: self._px4_param_service.set_param_value(drone, name, request)
+                    lambda drone: self._px4_param_service.set_param_value(
+                        drone, name, request, mutation_guard=self._assert_live_px4_param_mutation_allowed,
+                    )
                 )
                 self._px4_param_snapshot_cache = None
                 return response
@@ -3342,10 +3376,13 @@ class DroneAPIServer:
         @self.app.post(DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE, response_model=Px4ParamPatchApplyResponse)
         async def apply_px4_param_patch(request: Px4ParamPatchApplyRequest):
             """Apply a batch parameter patch to the local PX4 vehicle."""
-            self._assert_px4_param_mutation_allowed()
+            if request.operation_id is None:
+                self._assert_px4_param_mutation_allowed()
             try:
                 response = await self._with_local_mavsdk_system(
-                    lambda drone: self._px4_param_service.apply_patch(drone, request)
+                    lambda drone: self._px4_param_service.apply_patch(
+                        drone, request, mutation_guard=self._assert_live_px4_param_mutation_allowed,
+                    )
                 )
                 self._px4_param_snapshot_cache = None
                 return response

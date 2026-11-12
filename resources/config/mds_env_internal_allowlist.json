@@ -515,6 +515,36 @@
       "reason": "PX4 parameter profile directory."
     },
     {
+      "name": "MDS_PX4_PARAMETER_STATE_MAX_BYTES",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "Expert GCS parameter receipt storage budget; documented in the PX4 Parameters guide, not a flight control."
+    },
+    {
+      "name": "MDS_PX4_PARAMETER_REVIEW_MAX_AGE_SEC",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "Expert parameter review lifetime; native expected-value and disarm checks remain authoritative."
+    },
+    {
+      "name": "MDS_PX4_PARAMETER_OPERATION_STATE_DIR",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "Host-local native parameter receipt directory; preserve replay evidence during maintenance."
+    },
+    {
+      "name": "MDS_PX4_PARAMETER_OPERATION_MAX_RECORDS",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "Expert native parameter receipt admission limit; never evict uncertain operation identities automatically."
+    },
+    {
+      "name": "MDS_PX4_PARAMETER_OPERATION_MAX_BYTES",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "Expert native parameter receipt disk budget; preserve headroom for SQLite transactions."
+    },
+    {
       "name": "MDS_QT_QPA_PLATFORM",
       "domain": "sitl",
       "scope": "launcher",

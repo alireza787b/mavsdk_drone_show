@@ -241,7 +241,7 @@ const AppShell = () => {
                       <Route path="/custom-show" element={<CustomShowWorkspace runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/globe-view" element={<GlobeView />} />
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
-                      <Route path="/px4-parameters" element={<Px4ParametersPage />} />
+                      <Route path="/px4-parameters" element={<Px4ParametersPage runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} />} />
 
                       {/* Existing bookmarks resolve to the single mission authoring workspace. */}
                       <Route path="/trajectory-planning" element={<Navigate to="/swarm-trajectory?tab=plan" replace />} />

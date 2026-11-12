@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr, field_validator, model_validator
+from src.px4_param_values import validate_parameter_value
+
+
+Px4ParamValue = StrictInt | StrictFloat | StrictStr
+
+
+def _validate_unique_entries(entries):
+    keys = [(entry.component_id, entry.name) for entry in entries]
+    if len(keys) != len(set(keys)):
+        raise ValueError("duplicate component/parameter entries are not allowed")
+    return entries
 
 
 class Px4ParamValueType(str, Enum):
@@ -84,7 +96,7 @@ class Px4ParamRow(BaseModel):
     component_id: int = Field(1, ge=1)
     name: str = Field(..., min_length=1, max_length=16)
     value_type: Px4ParamValueType
-    value: int | float | str
+    value: Px4ParamValue
     writable: bool = True
     docs_url: Optional[str] = None
     short_description: Optional[str] = None
@@ -100,6 +112,13 @@ class Px4ParamRow(BaseModel):
     reboot_required: Optional[bool] = None
     enum_values: List[Dict[str, Any]] = Field(default_factory=list)
     metadata_sources: List[Px4ParamMetadataSource] = Field(default_factory=list)
+    metadata_authority: str = "unavailable"
+    authoritative_fields: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _finite_runtime_value(self):
+        self.value = validate_parameter_value(self.value_type, self.value)
+        return self
 
     @field_validator("name", mode="before")
     @classmethod
@@ -142,8 +161,13 @@ class Px4ParamProfileResponse(BaseModel):
     source: Px4ParamProfileSource = Px4ParamProfileSource.REPO
     recommended_scope: Px4ParamProfileScope = Px4ParamProfileScope.FLEET
     tags: List[str] = Field(default_factory=list)
-    entries: List["Px4ParamPatchEntry"] = Field(..., min_length=1)
+    entries: List["Px4ParamPatchEntry"] = Field(..., min_length=1, max_length=4096)
     updated_at: int
+
+    @field_validator("entries")
+    @classmethod
+    def _unique_entries(cls, entries):
+        return _validate_unique_entries(entries)
 
     @field_validator("profile_id", mode="before")
     @classmethod
@@ -165,7 +189,7 @@ class Px4ParamProfileListResponse(BaseModel):
 class Px4ParamSnapshotRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    component_id: int = Field(1, ge=1)
+    component_id: int = Field(1, ge=1, le=255, strict=True)
 
 
 class Px4ParamSnapshotSummary(BaseModel):
@@ -199,7 +223,7 @@ class Px4ParamFleetSnapshotRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     hw_ids: List[str] = Field(..., min_length=1)
-    component_id: int = Field(1, ge=1)
+    component_id: int = Field(1, ge=1, le=255, strict=True)
 
     @field_validator("hw_ids", mode="before")
     @classmethod
@@ -212,6 +236,8 @@ class Px4ParamFleetSnapshotRequest(BaseModel):
             if not normalized_value:
                 raise ValueError("hw_ids must not contain blank entries")
             normalized.append(normalized_value)
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("hw_ids must not contain duplicate entries")
         return normalized
 
 
@@ -251,23 +277,19 @@ class Px4ParamValueResponse(BaseModel):
 class Px4ParamSetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    component_id: int = Field(1, ge=1)
+    component_id: int = Field(1, ge=1, le=255, strict=True)
     value_type: Px4ParamValueType
-    value: int | float | str
+    value: Px4ParamValue
     verify_readback: bool = True
+    expected_current_value: Optional[Px4ParamValue] = None
+    expected_hw_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    operation_id: Optional[str] = Field(None, min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def _validate_type_and_value(self) -> "Px4ParamSetRequest":
-        if self.value_type == Px4ParamValueType.INT:
-            if isinstance(self.value, bool) or not isinstance(self.value, int):
-                raise ValueError("int parameter writes require an integer value")
-        elif self.value_type == Px4ParamValueType.FLOAT:
-            if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
-                raise ValueError("float parameter writes require a numeric value")
-            self.value = float(self.value)
-        elif self.value_type == Px4ParamValueType.CUSTOM:
-            if not isinstance(self.value, str):
-                raise ValueError("custom parameter writes require a string value")
+        self.value = validate_parameter_value(self.value_type, self.value)
+        if self.expected_current_value is not None:
+            self.expected_current_value = validate_parameter_value(self.value_type, self.expected_current_value)
         return self
 
 
@@ -282,6 +304,12 @@ class Px4ParamSetResponse(BaseModel):
     requested_value: int | float | str
     actual_value: Optional[int | float | str] = None
     timestamp: int
+    outcome: str = "unknown"
+    write_acknowledged: bool = False
+    readback_status: str = "not_attempted"
+    error_phase: Optional[str] = None
+    error: Optional[str] = None
+    operation_id: Optional[str] = None
 
     @field_validator("name", mode="before")
     @classmethod
@@ -297,33 +325,29 @@ class Px4ParamSetResponse(BaseModel):
 class Px4ParamPatchEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    component_id: int = Field(1, ge=1)
+    component_id: int = Field(1, ge=1, le=255, strict=True)
     name: str = Field(..., min_length=1, max_length=16)
     value_type: Px4ParamValueType
-    value: int | float | str
+    value: Px4ParamValue
+    expected_current_value: Optional[Px4ParamValue] = None
 
     @field_validator("name", mode="before")
     @classmethod
     def _normalize_name(cls, value: Any) -> str:
         if value is None:
             raise ValueError("parameter name is required")
-        normalized = str(value).strip().upper()
-        if not normalized:
-            raise ValueError("parameter name must not be blank")
+        if not isinstance(value, str):
+            raise ValueError("parameter name must be text")
+        normalized = value.strip().upper()
+        if not value.isascii() or not re.fullmatch(r"[A-Z0-9_]{1,16}", normalized):
+            raise ValueError("parameter name must contain 1–16 ASCII letters, digits or underscores")
         return normalized
 
     @model_validator(mode="after")
     def _validate_type_and_value(self) -> "Px4ParamPatchEntry":
-        if self.value_type == Px4ParamValueType.INT:
-            if isinstance(self.value, bool) or not isinstance(self.value, int):
-                raise ValueError("int parameter patches require an integer value")
-        elif self.value_type == Px4ParamValueType.FLOAT:
-            if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
-                raise ValueError("float parameter patches require a numeric value")
-            self.value = float(self.value)
-        elif self.value_type == Px4ParamValueType.CUSTOM:
-            if not isinstance(self.value, str):
-                raise ValueError("custom parameter patches require a string value")
+        self.value = validate_parameter_value(self.value_type, self.value)
+        if self.expected_current_value is not None:
+            self.expected_current_value = validate_parameter_value(self.value_type, self.expected_current_value)
         return self
 
 
@@ -332,7 +356,14 @@ class Px4ParamPatchApplyRequest(BaseModel):
 
     source: Px4ParamPatchSource = Px4ParamPatchSource.API
     verify_readback: bool = True
-    entries: List[Px4ParamPatchEntry] = Field(..., min_length=1)
+    entries: List[Px4ParamPatchEntry] = Field(..., min_length=1, max_length=4096)
+    operation_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    expected_hw_id: Optional[str] = Field(None, min_length=1, max_length=128)
+
+    @field_validator("entries")
+    @classmethod
+    def _unique_entries(cls, entries):
+        return _validate_unique_entries(entries)
 
 
 class Px4ParamPatchResult(BaseModel):
@@ -345,6 +376,11 @@ class Px4ParamPatchResult(BaseModel):
     verified: bool
     actual_value: Optional[int | float | str] = None
     error: Optional[str] = None
+    component_id: int = 1
+    outcome: str = "unknown"
+    write_acknowledged: bool = False
+    readback_status: str = "not_attempted"
+    error_phase: Optional[str] = None
 
 
 class Px4ParamPatchApplyResponse(BaseModel):
@@ -356,6 +392,7 @@ class Px4ParamPatchApplyResponse(BaseModel):
     verified_count: int
     results: List[Px4ParamPatchResult]
     timestamp: int
+    operation_id: Optional[str] = None
 
 
 class Px4ParamDiffEntry(BaseModel):
@@ -373,8 +410,13 @@ class Px4ParamDiffRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: str
-    desired_entries: List[Px4ParamPatchEntry] = Field(..., min_length=1)
+    desired_entries: List[Px4ParamPatchEntry] = Field(..., min_length=1, max_length=4096)
     include_unchanged: bool = False
+
+    @field_validator("desired_entries")
+    @classmethod
+    def _unique_entries(cls, entries):
+        return _validate_unique_entries(entries)
 
 
 class Px4ParamDiffResponse(BaseModel):
@@ -415,7 +457,12 @@ class Px4ParamPatchJobRequest(BaseModel):
     hw_ids: List[str] = Field(..., min_length=1)
     source: Px4ParamPatchSource = Px4ParamPatchSource.API
     verify_readback: bool = True
-    entries: List[Px4ParamPatchEntry] = Field(..., min_length=1)
+    entries: List[Px4ParamPatchEntry] = Field(..., min_length=1, max_length=4096)
+
+    @field_validator("entries")
+    @classmethod
+    def _unique_entries(cls, entries):
+        return _validate_unique_entries(entries)
 
     @field_validator("hw_ids", mode="before")
     @classmethod
@@ -428,6 +475,8 @@ class Px4ParamPatchJobRequest(BaseModel):
             if not normalized_value:
                 raise ValueError("hw_ids must not contain blank entries")
             normalized.append(normalized_value)
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("hw_ids must not contain duplicate entries")
         return normalized
 
 
