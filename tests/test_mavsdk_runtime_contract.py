@@ -1,5 +1,6 @@
 """SDK upgrades are explicit reviewed pairs, not independent latest downloads."""
 import asyncio
+import ast
 import hashlib
 import importlib.util
 import io
@@ -228,6 +229,25 @@ async def test_both_pipes_are_drained_concurrently_without_stderr_deadlock(caplo
             process.wait(timeout=1)
         process.stdout.close()
         process.stderr.close()
+
+
+@pytest.mark.parametrize('module_name', ['actions', 'quickscout_mission'])
+@pytest.mark.asyncio
+async def test_native_pipe_entrypoints_use_the_existing_component_logger(module_name, monkeypatch):
+    # Execute the real wrapper without importing hardware-bound module globals.
+    # This catches an unimported logging reference, not just the shared helper.
+    tree = ast.parse((ROOT / f'{module_name}.py').read_text())
+    wrapper = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
+                   and node.name == 'log_mavsdk_output')
+    source = ast.Module(body=[wrapper], type_ignores=[])
+    process, component_logger, seen = object(), logging.getLogger(module_name), []
+    async def record(actual_process, actual_logger):
+        seen.append((actual_process, actual_logger))
+    monkeypatch.setattr('src.mavsdk_server_logging.drain_mavsdk_output', record)
+    namespace = {'logger': component_logger}
+    exec(compile(source, str(ROOT / f'{module_name}.py'), 'exec'), namespace)
+    await namespace['log_mavsdk_output'](process)
+    assert seen == [(process, component_logger)]
 
 
 def test_probe_only_uses_bounded_help(monkeypatch, tmp_path):

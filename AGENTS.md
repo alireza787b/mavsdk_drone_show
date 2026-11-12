@@ -223,6 +223,11 @@ do not label a partial workspace checkpoint as a validated flight release.
 - Give long remote validations their own saved logs/results and bounded process
   lifetime. If SSH disconnects, reconcile the remote process and final artifact;
   neither transport failure nor a still-running process proves a test outcome.
+- Give each running validation an immutable runner file. Editing an executing
+  shell script can corrupt its later reads even when the replacement passes a
+  syntax check. Save failure responses and native logs before an automatic
+  fleet reset; resolve the effective `MDS_LOG_DIR`, which may be outside the
+  checkout's `logs/` directory.
 - Keep reboot-critical evidence on persistent storage, not `/tmp`. On shared
   hosts, bound simulator memory/swap/CPU/PIDs before startup and prove a small
   fleet first; a supervisor timeout does not bound Docker descendants' resources.

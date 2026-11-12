@@ -72,7 +72,7 @@ def wait_for_port(port, host="127.0.0.1", timeout=10.0):
 async def log_mavsdk_output(mavsdk_server):
     """Drain both native streams concurrently with their declared severity."""
     from src.mavsdk_server_logging import drain_mavsdk_output
-    await drain_mavsdk_output(mavsdk_server, logging.getLogger(__name__))
+    await drain_mavsdk_output(mavsdk_server, logger)
 
 
 def find_mavsdk_server():

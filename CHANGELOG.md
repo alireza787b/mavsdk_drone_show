@@ -37,6 +37,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Bootstrap and image preparation include the ICMP diagnostic utility. Missing
   or unexecutable ICMP probes report unknown instead of a false disconnected
   link. Runtime validators retain native readiness blockers on timeout.
+- Unattended SDK-pair changes now require a prevalidated selected environment
+  before any runtime mutation. A mismatch restores the previous source commit
+  without replacing the working server/packages/services; first bootstrap stays
+  separate from migration. Compatible requirement updates use the selected Python.
+- Action and QuickScout native-output wrappers use their registered component
+  loggers, fixing an undefined logger reference that could stop pipe draining.
 
 - Fixed the shared console-dialog field rule expanding radio/checkbox controls
   to full width and clipping aircraft/source labels. Browser regression checks

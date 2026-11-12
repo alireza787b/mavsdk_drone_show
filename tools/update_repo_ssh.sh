@@ -18,6 +18,10 @@ if [[ -f "${DEPLOYMENT_PROFILE_LOADER}" ]]; then
     # shellcheck disable=SC1090
     source "${DEPLOYMENT_PROFILE_LOADER}"
 fi
+if [[ -f "${SCRIPT_DIR}/git_sync_mds/sdk_runtime_guard.sh" ]]; then
+    # shellcheck source=git_sync_mds/sdk_runtime_guard.sh
+    source "${SCRIPT_DIR}/git_sync_mds/sdk_runtime_guard.sh"
+fi
 
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
@@ -1205,7 +1209,7 @@ ensure_mavsdk_runtime_artifact() {
 # ----------------------------------
 check_requirements_update() {
     local component="PIP-UPDATE"
-    local mds_dir="${HOME}/.mds"
+    local mds_dir="${RESOLVED_HOME}/.mds"
     local req_hash_file="${mds_dir}/requirements.sha256"
 
     # Ensure .mds directory exists
@@ -1217,38 +1221,36 @@ check_requirements_update() {
         return 0
     fi
 
+    local runtime_python=""
+    if ! preflight_validate_mavsdk_sync_environment; then
+        REQUIREMENTS_UPDATE_STATUS="maintenance_required"
+        return 1
+    fi
+    if ! runtime_python=$(resolve_sdk_sync_python); then
+        REQUIREMENTS_UPDATE_STATUS="bootstrap_pending"
+        return 0
+    fi
+
     local current_hash
     current_hash=$(sha256sum "$REPO_DIR/requirements.txt" 2>/dev/null | cut -d' ' -f1)
 
-    # A missing marker must not bless an old client after a server upgrade.
-    # Probe the exact generated client, not just successful pip metadata.
-    local sdk_needs_update="false"
-    if [[ -f "$REPO_DIR/tools/mavsdk_runtime.py" ]] && \
-        ! "$REPO_DIR/venv/bin/python" "$REPO_DIR/tools/mavsdk_runtime.py" python-check >/dev/null 2>&1; then
-        sdk_needs_update="true"
-        if ! python3 "$REPO_DIR/tools/mavsdk_runtime.py" idle; then
-            REQUIREMENTS_UPDATE_STATUS="warning"
-            return 1
-        fi
-    fi
-
-    if [[ -f "$req_hash_file" ]] || [[ "$sdk_needs_update" == true ]]; then
+    if [[ -f "$req_hash_file" ]]; then
         local stored_hash
         stored_hash=$(cat "$req_hash_file" 2>/dev/null || true)
 
-        if [[ "$current_hash" != "$stored_hash" ]] || [[ "$sdk_needs_update" == true ]]; then
+        if [[ "$current_hash" != "$stored_hash" ]]; then
             log_info "$component" "requirements.txt changed, updating venv..."
             set_led_status "SERVICES_UPDATING"
 
-            if [[ -x "$REPO_DIR/venv/bin/pip" ]]; then
+            if "$runtime_python" -m pip --version >/dev/null 2>&1; then
                 if [[ -f "$REPO_DIR/tools/mavsdk_runtime.py" ]] && \
-                    ! "$REPO_DIR/venv/bin/python" "$REPO_DIR/tools/mavsdk_runtime.py" python-platform; then
+                    ! "$runtime_python" "$REPO_DIR/tools/mavsdk_runtime.py" python-platform; then
                     REQUIREMENTS_UPDATE_STATUS="warning"
                     return 1
                 fi
-                if "$REPO_DIR/venv/bin/pip" install -r "$REPO_DIR/requirements.txt" --quiet 2>/dev/null && \
+                if "$runtime_python" -m pip install -r "$REPO_DIR/requirements.txt" --quiet 2>/dev/null && \
                     { [[ ! -f "$REPO_DIR/tools/mavsdk_runtime.py" ]] || \
-                      "$REPO_DIR/venv/bin/python" "$REPO_DIR/tools/mavsdk_runtime.py" python-check; }; then
+                      "$runtime_python" "$REPO_DIR/tools/mavsdk_runtime.py" python-check; }; then
                     log_info "$component" "Python requirements updated successfully"
                     echo "$current_hash" > "$req_hash_file"
                     REQUIREMENTS_UPDATE_STATUS="updated"
@@ -1260,7 +1262,7 @@ check_requirements_update() {
                 fi
             else
                 REQUIREMENTS_UPDATE_STATUS="warning"
-                log_warn "$component" "venv pip not found at $REPO_DIR/venv/bin/pip"
+                log_warn "$component" "pip is unavailable in the selected runtime Python: $runtime_python"
                 return 1
             fi
         else
@@ -2129,6 +2131,15 @@ main() {
             exit_with_failure_result "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and were rolled back to the previous commit" 1 "GIT_FAILED_CONTINUING"
         fi
         log_error_and_exit "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and rollback did not succeed"
+    fi
+    # Admit the complete SDK source/environment contract before changing any
+    # server binary, requirements, systemd templates or connectivity sidecars.
+    if ! source "${REPO_DIR}/tools/git_sync_mds/sdk_runtime_guard.sh" ||
+       ! preflight_validate_mavsdk_sync_environment; then
+        if rollback_repository_to_previous_head "$previous_head" "SDK-MAINTENANCE"; then
+            exit_with_failure_result "SDK-MAINTENANCE" "SDK migration requires a staged compatible environment; source rolled back and existing runtime preserved" 1 "GIT_FAILED_CONTINUING"
+        fi
+        log_error_and_exit "SDK-MAINTENANCE" "SDK admission failed and source rollback did not succeed"
     fi
     report_git_sync_phase "service_reconcile" "Reconciling systemd service templates" "running"
     if ! check_service_updates; then

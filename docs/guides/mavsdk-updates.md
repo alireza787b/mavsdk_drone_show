@@ -31,7 +31,28 @@ a motion lease, or take over a borrowed server. A source pull alone is not an
 atomic fleet upgrade.
 Do not run an unattended SDK-pair migration against an operating aircraft.
 
-From the intended checkout and its intended virtual environment:
+Unattended companion Git sync checks the pulled source against the selected
+Python environment **before** changing the native server, packages, service
+templates or network sidecars. An incompatible/missing existing SDK environment
+reports `SDK-MAINTENANCE`, restores the previous source commit and retains the
+existing runtime. It never tries to repair a breaking SDK migration with in-place
+pip. A source-only first bootstrap still lets initial setup create its environment.
+`MDS_PYTHON_BIN` takes precedence over `MDS_VENV_PATH`; without either, companion
+sync uses the checkout's `venv`. An invalid explicit selection never falls back
+to a different interpreter.
+
+For a breaking update, keep the known-working environment intact and create a
+replacement at a stable, versioned path. Install and import-check the new source's
+requirements there, while grounded and stopped. Then select it using the actual
+deployment launcher: GCS supports `MDS_VENV_PATH`/`MDS_PYTHON_BIN`; stock companion
+units use `venv/bin/python`, so switch that path to the staged environment only
+as an explicit maintenance step. Preserve the prior source/environment/server
+tuple for rollback. Do not move an environment and assume its absolute script
+shebangs were rewritten. Ordinary compatible requirement updates retain the
+existing updater workflow; they are not a transactional package-manager rollback.
+
+From the intended checkout, after selecting the **staged replacement** environment
+as `venv` (or substitute its exact Python path below), and retaining the old tuple:
 
 ```bash
 python3 tools/mavsdk_runtime.py manifest
