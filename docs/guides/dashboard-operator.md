@@ -78,7 +78,9 @@ Fleet Map's 2D and 3D aircraft popups use the same transport labels and console
 theme. **Details** reveals the configured IP, reported network/interface and last
 telemetry time. Selecting another aircraft closes its previous action/jog review;
 it cannot inherit a reviewed target. Source coordinates and map positioning are
-not changed by this presentation update.
+not changed by this presentation update. A single bounded inspector serves the
+2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.
+Expanded details scroll inside it instead of clipping behind the map boundary.
 
 ## Select command targets
 

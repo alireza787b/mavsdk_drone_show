@@ -87,6 +87,13 @@ or duplicate native readiness/command policy in a view component. See the
 
 ## Copy Standard
 
+Map and 3D aircraft details share `MapAircraftInspector`, with one bounded,
+scrollable viewport and an accessible identity/Close header. Do not recreate
+provider-specific popups with guessed content heights or frame-by-frame React
+position updates. Keep inspection identity separate from command targets; a new
+aircraft must not inherit an open action or jog review. Network icons/labels come
+from the reported transport, not IP ranges or the presence of a secondary radio.
+
 - Page subtitles should be one short sentence.
 - Buttons should use one or two words where practical.
 - Badges should be noun/adjective states: `Ready`, `Blocked`, `SITL`, `REAL`.

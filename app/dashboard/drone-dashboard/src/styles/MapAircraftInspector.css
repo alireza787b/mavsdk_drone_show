@@ -1,0 +1,5 @@
+.fleet-map-inspector { position:absolute; inset:64px 12px auto auto; z-index:var(--z-tooltip); width:min(320px,calc(100% - 24px)); max-height:calc(100% - 76px); overflow:auto; overscroll-behavior:contain; color:var(--color-text-primary); background:var(--color-bg-primary); border:1px solid var(--color-border-primary); border-radius:0; }
+.fleet-map-inspector .tactical-drone-card { width:100%; border:0; }
+.fleet-map-inspector .tactical-drone-card__header { position:sticky; top:0; background:var(--color-bg-primary); z-index:1; padding-block:.3rem; }
+.fleet-map-inspector__note { padding:.5rem .8rem; border-inline-start:3px solid var(--color-warning); color:var(--color-text-secondary); font-size:.75rem; }
+@media (max-width:600px) { .fleet-map-inspector { inset:auto 12px 12px; width:auto; max-height:60%; } }

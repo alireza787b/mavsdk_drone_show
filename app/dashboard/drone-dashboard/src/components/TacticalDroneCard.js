@@ -110,8 +110,8 @@ const TacticalDroneSummary = ({ drone, onClose, className = '' }) => {
   const flightMode = getFlightModeTitle(drone?.flight_mode);
   const gpsFix = drone?.gps_fix_type == null || String(drone.gps_fix_type).trim() === ''
     ? 'GPS n/a' : GPS_FIX_LABELS[Number(drone.gps_fix_type)] || 'GPS n/a';
-  const latitude = Number(drone?.position?.[0] ?? drone?.geoPosition?.[0]);
-  const longitude = Number(drone?.position?.[1] ?? drone?.geoPosition?.[1]);
+  const latitude = Number(drone?.geoPosition?.[0] ?? drone?.position?.[0]);
+  const longitude = Number(drone?.geoPosition?.[1] ?? drone?.position?.[1]);
   const hasMapCoordinate = Number.isFinite(latitude)
     && Number.isFinite(longitude)
     && (Math.abs(latitude) > 0.000001 || Math.abs(longitude) > 0.000001);

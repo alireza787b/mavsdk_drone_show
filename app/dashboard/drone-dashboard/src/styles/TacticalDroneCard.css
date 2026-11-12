@@ -24,7 +24,4 @@
 .tactical-drone-card__action:hover:not(:disabled) { border-color:var(--color-primary); background:var(--color-bg-secondary); }
 .tactical-drone-card button:focus-visible,.tactical-drone-card summary:focus-visible { outline:2px solid var(--color-primary); outline-offset:2px; }
 .tactical-drone-card__action:disabled { opacity:.5; cursor:not-allowed; }
-.tactical-drone-leaflet-popup .leaflet-popup-content-wrapper { background:var(--color-bg-primary); color:var(--color-text-primary); border-radius:0; box-shadow:none; padding:0; }
-.tactical-drone-leaflet-popup .leaflet-popup-content { margin:0; }
-.tactical-drone-leaflet-popup .leaflet-popup-tip { background:var(--color-bg-primary); }
 @media (prefers-reduced-motion:reduce) { .tactical-drone-card * { transition:none!important; animation:none!important; } }

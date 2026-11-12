@@ -110,6 +110,11 @@ describe('TacticalDroneCard', () => {
     expect(screen.getByText('Role unknown')).toBeInTheDocument();
   });
 
+  it('3D local scene coordinates never replace the aircraft geographic evidence', () => {
+    renderCard(<TacticalDroneCard drone={{ hw_id:'1', position:[0,0,0], geoPosition:[35.1,51.2,100], distance_to_home_m:18 }} />);
+    expect(screen.getByLabelText('Distance home: 18 m')).toBeInTheDocument();
+  });
+
   it('a different inspected aircraft cannot inherit a reviewed return action', () => {
     const view = renderCard(<TacticalDroneCard drone={{ hw_id: '1', callsign: 'Alpha', is_armed: true }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Return to Launch Alpha' }));

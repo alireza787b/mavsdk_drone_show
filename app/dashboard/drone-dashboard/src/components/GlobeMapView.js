@@ -8,10 +8,10 @@ import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from './map/LeafletMapBase';
 import MapFallbackBanner from './map/MapFallbackBanner';
 import MapProviderToggle from './map/MapProviderToggle';
-import TacticalDroneCard from './TacticalDroneCard';
+import MapAircraftInspector from './MapAircraftInspector';
 import { MAP_PROVIDERS } from '../config/mapConfig';
 import { FIELD_NAMES } from '../constants/fieldMappings';
-import { Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
+import { Marker as LeafletMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
@@ -115,33 +115,18 @@ LeafletFleetFitBridge.propTypes = {
 };
 
 const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
-  const markerRef = useRef(null);
   const droneId = String(drone[FIELD_NAMES.HW_ID]);
   const identityLabel = formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`);
   const themeColors = getPlotThemeColors();
 
-  useEffect(() => {
-    if (selected) {
-      markerRef.current?.openPopup?.();
-    }
-  }, [selected]);
-
   return (
     <LeafletMarker
-      ref={markerRef}
       position={[drone.position[0], drone.position[1]]}
       icon={createDroneIcon(identityLabel, drone.marker_color, selected, drone.runtime_indicator_class, themeColors)}
       eventHandlers={{
         click: () => onSelect(droneId),
-        popupclose: () => {
-          if (selected) onSelect(null);
-        },
       }}
-    >
-      <Popup className="tactical-drone-leaflet-popup" minWidth={250} maxWidth={320} closeButton={false}>
-        <TacticalDroneCard drone={drone} onClose={() => onSelect(null)} />
-      </Popup>
-    </LeafletMarker>
+    />
   );
 };
 
@@ -238,7 +223,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
     const target = event.target;
     if (
       target?.closest?.(
-        '.globe-map-drone-card-popover, .globe-map-selected-fallback, .globe-drone-marker, .leaflet-marker-icon, .leaflet-popup, .globe-map-ops-bar, .mapboxgl-ctrl, .leaflet-control'
+        '.fleet-map-inspector, .globe-drone-marker, .leaflet-marker-icon, .globe-map-ops-bar, .mapboxgl-ctrl, .leaflet-control'
       )
     ) {
       return;
@@ -273,21 +258,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
           <span>Fit</span>
         </button>
       </div>
-      {selectedDrone && !selectedDroneHasMapFix && (
-        <div
-          className="globe-map-selected-fallback"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div
-            className="globe-map-selected-fallback__note"
-            aria-label="This drone is selected but does not currently have a non-zero GPS coordinate for the map."
-          >
-            No map fix
-          </div>
-          <TacticalDroneCard drone={selectedDrone} onClose={() => onSelectDrone(null)} />
-        </div>
-      )}
+      {selectedDrone && <MapAircraftInspector drone={selectedDrone} onClose={() => onSelectDrone(null)} noMapFix={!selectedDroneHasMapFix} />}
 
       {!useLeaflet && mapboxAvailable ? (
         <MapboxMap
@@ -333,15 +304,6 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
                   >
                     {identityLabel}
                   </button>
-                  {selected && (
-                    <div
-                      className="globe-map-drone-card-popover"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <TacticalDroneCard drone={drone} onClose={() => onSelectDrone(null)} />
-                    </div>
-                  )}
                 </div>
               </MapboxMarker>
             );

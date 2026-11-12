@@ -26,7 +26,7 @@ fs.mkdirSync(evidence, { recursive: true });
         position_long: 51.4, global_position_valid: true, follow_mode: index ? 1 : 0,
         heartbeat_network_info: { primary_link: { type: 'ethernet', interface: 'end0' } },
       }]));
-      const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme,
+      const context = await browser.newContext({ viewport: { width, height: width === 390 ? 760 : 1000 }, colorScheme: theme,
         hasTouch: width === 390, serviceWorkers: 'block' });
       await context.addInitScript(value => {
         localStorage.setItem('drone-dashboard-theme', value);
@@ -56,7 +56,7 @@ fs.mkdirSync(evidence, { recursive: true });
       // Offline basemap fixture: no external tile/provider traffic. This proves
       // marker/popup/control layout, not map-provider coverage.
       await context.route(/https:\/\/.*(?:arcgisonline\.com|tile\.openstreetmap\.org)\/.*/, route =>
-        route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64')}));
+        route.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${theme==='dark'?'#172431':'#e4e9ee'}"/><path d="M0 128h256M128 0v256" stroke="${theme==='dark'?'#253646':'#cdd6de'}" fill="none"/></svg>`}));
       const capture = async name => {
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: horizontal overflow`);
         await page.screenshot({ path:path.join(evidence,`${name}-${width}-${theme}.png`) });
@@ -90,7 +90,19 @@ fs.mkdirSync(evidence, { recursive: true });
         assert.equal(await popup.evaluate(element=>getComputedStyle(element).borderTopLeftRadius),'0px');
         await popup.locator('summary').click();
         await popup.getByText('Ethernet',{exact:true}).waitFor();
+        const assertInspectorBounds=async ownerSelector => {
+          const bounds=await page.locator('.fleet-map-inspector').boundingBox();
+          const owner=await page.locator(ownerSelector).boundingBox();
+          assert(bounds.x>=owner.x && bounds.y>=owner.y && bounds.x+bounds.width<=owner.x+owner.width+1 && bounds.y+bounds.height<=owner.y+owner.height+1,'Aircraft inspector stays inside its viewport');
+          const close=await page.locator('.fleet-map-inspector').getByRole('button',{name:/^Close .* summary$/}).boundingBox();
+          assert(close.y>=bounds.y && close.y+close.height<=bounds.y+bounds.height,'Close stays accessible');
+        };
+        await assertInspectorBounds('.globe-map-container');
         await capture('map-aircraft-details');
+        await page.getByRole('button',{name:'3D Scene',exact:true}).click();
+        await page.locator('.scene-container .fleet-map-inspector').waitFor();
+        await assertInspectorBounds('.scene-container');
+        await capture('globe-aircraft-details');
         assert.deepEqual(state.pageErrors,[]);
         assert.deepEqual(state.violations,[]);
         assert.equal(state.requests.filter(request=>request.method==='POST').length,0);

@@ -7,7 +7,7 @@ import { FaCompressAlt, FaCrosshairs, FaSlidersH } from 'react-icons/fa';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
-import TacticalDroneCard from './TacticalDroneCard';
+import MapAircraftInspector from './MapAircraftInspector';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
@@ -19,9 +19,6 @@ import { interpolateGlobePosition } from '../utilities/globeMotion';
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = 'dodgerblue';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const SELECTED_CARD_WIDTH_PX = 320;
-const SELECTED_CARD_HEIGHT_PX = 260;
-const SELECTED_CARD_GAP_PX = 18;
 const DEFAULT_CAMERA_POSITION = [12, 10, 12];
 const CAMERA_FIT_PADDING = 6;
 const CAMERA_FIT_SCALE = 1.32;
@@ -69,46 +66,6 @@ const LoadingSpinner = () => (
   </div>
 );
 
-const SelectedDroneScreenAnchor = ({ drone, onScreenPosition }) => {
-  const { camera, size } = useThree();
-  const lastPositionRef = useRef(null);
-
-  useFrame(() => {
-    if (!drone?.position) {
-      return;
-    }
-
-    const projected = new Vector3(...drone.position).project(camera);
-    const visible = projected.z >= -1 && projected.z <= 1;
-    const next = {
-      x: (projected.x * 0.5 + 0.5) * size.width,
-      y: (-projected.y * 0.5 + 0.5) * size.height,
-      width: size.width,
-      height: size.height,
-      visible,
-    };
-    const previous = lastPositionRef.current;
-    if (
-      !previous
-      || Math.abs(previous.x - next.x) > 2
-      || Math.abs(previous.y - next.y) > 2
-      || previous.visible !== next.visible
-    ) {
-      lastPositionRef.current = next;
-      onScreenPosition(next);
-    }
-  });
-
-  return null;
-};
-
-SelectedDroneScreenAnchor.propTypes = {
-  drone: PropTypes.shape({
-    position: PropTypes.arrayOf(PropTypes.number),
-  }),
-  onScreenPosition: PropTypes.func.isRequired,
-};
-
 const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
   const { camera, size } = useThree();
   const lastPayloadRef = useRef('');
@@ -151,29 +108,6 @@ DroneScreenAnchorProjector.propTypes = {
   onScreenAnchors: PropTypes.func.isRequired,
 };
 
-const resolveSelectedCardPlacement = (screenPosition) => {
-  const x = screenPosition?.x ?? 24;
-  const y = screenPosition?.y ?? 24;
-  const width = screenPosition?.width ?? 0;
-  const height = screenPosition?.height ?? 0;
-  const placeLeft = width > 0 && x > width - SELECTED_CARD_WIDTH_PX - 48;
-  const placeAbove = height > 0 && y > height * 0.38;
-  const rawLeft = Math.round(
-    placeLeft ? x - SELECTED_CARD_WIDTH_PX - SELECTED_CARD_GAP_PX : x + SELECTED_CARD_GAP_PX
-  );
-  const rawTop = Math.round(
-    placeAbove ? y - SELECTED_CARD_HEIGHT_PX - SELECTED_CARD_GAP_PX : y - 16
-  );
-
-  return {
-    placeLeft,
-    placeAbove,
-    style: {
-      left: `min(max(${rawLeft}px, 12px), calc(100% - ${SELECTED_CARD_WIDTH_PX}px))`,
-      top: `min(max(${rawTop}px, 12px), calc(100% - ${SELECTED_CARD_HEIGHT_PX}px))`,
-    },
-  };
-};
 const Drone = ({
   position,
   hw_id,
@@ -338,7 +272,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
-  const [selectedScreenPosition, setSelectedScreenPosition] = useState(null);
   const [screenAnchors, setScreenAnchors] = useState([]);
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
@@ -536,7 +469,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     const target = event.target;
     if (
       target?.closest?.(
-        '.globe-selected-card-popover, .globe-drone-screen-hit, .button-container, .globe-control-box'
+        '.fleet-map-inspector, .globe-drone-screen-hit, .button-container, .globe-control-box'
       )
     ) {
       return;
@@ -565,7 +498,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const selectedDrone = convertedDrones.find(
     (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
   ) || null;
-  const selectedCardPlacement = resolveSelectedCardPlacement(selectedScreenPosition);
 
   const toggleDroneVisibility = (droneId) => {
     setDroneVisibility(prevState => ({
@@ -596,12 +528,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
             />
           )
         ))}
-        {selectedDrone && (
-          <SelectedDroneScreenAnchor
-            drone={selectedDrone}
-            onScreenPosition={setSelectedScreenPosition}
-          />
-        )}
         <DroneScreenAnchorProjector
           drones={convertedDrones.filter((drone) => droneVisibility[drone[FIELD_NAMES.HW_ID]])}
           onScreenAnchors={setScreenAnchors}
@@ -645,29 +571,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
           )
         ))}
       </div>
-      {selectedDrone && (
-        <div
-          className={[
-            'globe-selected-card-popover',
-            selectedScreenPosition?.visible === false ? 'is-offscreen' : '',
-            selectedCardPlacement.placeLeft ? 'is-left' : '',
-            selectedCardPlacement.placeAbove ? 'is-above' : '',
-          ].filter(Boolean).join(' ')}
-          style={selectedCardPlacement.style}
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-        >
-          <TacticalDroneCard
-            drone={{
-              ...selectedDrone,
-              position: selectedDrone.position,
-              geoPosition: selectedDrone.geoPosition,
-            }}
-            onClose={() => onSelectDrone(null)}
-          />
-        </div>
-      )}
+      {selectedDrone && <MapAircraftInspector drone={selectedDrone} onClose={() => onSelectDrone(null)} noMapFix={selectedDrone.noMapFix} />}
 
       {/* Render Compass outside the Canvas */}
       

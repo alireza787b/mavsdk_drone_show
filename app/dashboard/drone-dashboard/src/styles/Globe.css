@@ -58,42 +58,9 @@
     background-color: var(--color-border-secondary);
 }
 
-.globe-selected-card-popover {
-    position: absolute;
-    z-index: var(--z-tooltip);
-    pointer-events: auto;
-}
-
-.scene-container.filters-open .globe-selected-card-popover {
+.scene-container.filters-open .fleet-map-inspector {
     opacity: 0.18;
     pointer-events: none;
-}
-
-.globe-selected-card-popover::before {
-    content: '';
-    position: absolute;
-    left: -16px;
-    top: 24px;
-    width: 16px;
-    height: 1px;
-    background: var(--color-primary);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
-}
-
-.globe-selected-card-popover.is-left::before {
-    left: auto;
-    right: -16px;
-}
-
-.globe-selected-card-popover.is-above::before {
-    bottom: 24px;
-    top: auto;
-}
-
-.globe-selected-card-popover.is-offscreen {
-    right: 16px;
-    left: auto !important;
-    top: 72px !important;
 }
 
 .globe-drone-screen-targets {
@@ -192,21 +159,6 @@
 }
 
 @media (max-width: 700px) {
-    .globe-selected-card-popover {
-        width: min(280px, calc(100% - 24px));
-        z-index: var(--z-command-overlay);
-    }
-
-    .globe-selected-card-popover::before {
-        display: block;
-    }
-
-    .globe-selected-card-popover .tactical-drone-card {
-        max-height: min(28vh, 220px);
-        overflow-y: auto;
-        width: 100%;
-    }
-
     .globe-drone-screen-hit {
         height: 48px;
         width: 48px;

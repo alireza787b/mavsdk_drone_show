@@ -398,47 +398,6 @@
     border-style: dashed;
 }
 
-.globe-map-drone-card-popover {
-    left: 34px;
-    position: absolute;
-    top: -16px;
-    z-index: var(--z-tooltip);
-}
-
-.globe-map-selected-fallback {
-    bottom: 16px;
-    left: 16px;
-    position: absolute;
-    z-index: var(--z-tooltip);
-}
-
-.globe-map-selected-fallback__note {
-    background: var(--color-surface-raised);
-    border: 1px solid var(--color-warning-border);
-    border-radius: 999px;
-    color: var(--color-warning-text);
-    display: inline-flex;
-    font-size: 11px;
-    font-weight: 900;
-    margin-bottom: 8px;
-    padding: 5px 9px;
-    text-transform: uppercase;
-}
-
-.tactical-drone-leaflet-popup .leaflet-popup-content-wrapper {
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-}
-
-.tactical-drone-leaflet-popup .leaflet-popup-content {
-    margin: 0;
-}
-
-.tactical-drone-leaflet-popup .leaflet-popup-tip {
-    background: var(--color-bg-secondary);
-}
-
 @media (max-width: 768px) {
     .globe-tactical-strip {
         gap: 7px;
@@ -460,19 +419,6 @@
         right: auto;
     }
 
-    .globe-map-drone-card-popover {
-        left: 50%;
-        position: fixed;
-        top: auto;
-        bottom: 18px;
-        transform: translateX(-50%);
-    }
-
-    .globe-map-selected-fallback {
-        bottom: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
