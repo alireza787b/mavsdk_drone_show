@@ -89,6 +89,13 @@ async function fixtures(context, page, state) {
           assert(!state.receipts.has(body.request_id), 'No automatic create replay');
           assert(await page.evaluate(id => Object.keys(localStorage).some(key => key.startsWith('mds:ulog-transfers:') && JSON.parse(localStorage.getItem(key)).some(record => record.requestId === id)), body.request_id), 'Recovery identity must precede native create');
           state.creates += 1;
+          if (state.rejectNextCreate) {
+            state.rejectNextCreate = false;
+            state.receipts.set(body.request_id, { status: 'rejected', error: 'Pre-handoff endpoint unavailable.' });
+            // A lost reply does not itself prove rejection. Only the following
+            // request-bound GET receipt may release the pending lock.
+            return reply({ detail: { request_id: body.request_id, creation_status: 'unknown', message: 'Synthetic rejection response lost.' } }, 503);
+          }
           const job = { job_id: `fixture-signed-${source}-${state.creates}`, hw_id: droneId, log_id: 7, size_bytes: 512, status: 'ready', progress: 1, created_at: now, updated_at: now, expires_at: now + 60000, download_filename: `example-H${droneId}-7.ulg` };
           state.receipts.set(body.request_id, job); state.jobs.set(job.job_id, job);
           if (state.loseNextCreate) { state.loseNextCreate = false; return reply({ detail: { request_id: body.request_id, creation_status: 'unknown', message: 'Synthetic create response lost.' } }, 503); }
@@ -96,6 +103,8 @@ async function fixtures(context, page, state) {
         }
         if (method === 'GET' && endpoint?.startsWith('/ulog/download-requests/')) {
           state.lookups += 1; const id = decodeURIComponent(endpoint.split('/').pop()), job = state.receipts.get(id);
+          if (state.holdReceipts) return reply({ request_id: id, status: 'unknown', job: null, error: 'Synthetic receipt not yet visible.', timestamp: now });
+          if (job?.status === 'rejected') return reply({ request_id: id, status: 'rejected', job: null, error: job.error, timestamp: now });
           return reply({ request_id: id, status: job ? 'accepted' : 'unknown', job: job || null, error: job ? null : 'Unconfirmed', timestamp: now });
         }
         if (method === 'GET' && endpoint?.match(/^\/ulog\/downloads\/[^/]+\/content$/)) {
@@ -178,12 +187,20 @@ async function scenario(browser, width, theme) {
     await page.getByRole('link', { name: 'Save file' }).waitFor(); assert.equal(state.contentGets, 0, 'Ready does not automatically fetch content'); await capture('guide-06-ready-save');
     const rawDownload = page.waitForEvent('download'); await page.getByRole('link', { name: 'Save file' }).click(); await rawDownload;
     await page.getByText(/Browser download requested · local save is not verified/).waitFor(); assert.equal(state.contentGets, 1);
-    await source(page, '2'); await page.getByRole('button', { name: 'Inspect flight log 7' }).click(); state.loseNextCreate = true;
-    await page.getByRole('dialog').getByRole('button', { name: 'Prepare download' }).click(); await page.getByText(/Outcome unconfirmed: Synthetic create response lost/).waitFor();
-    const creates = state.creates; await page.reload(); await page.getByRole('heading', { name: 'Logs', exact: true }).waitFor();
+    await source(page, '2'); await page.getByRole('button', { name: 'Inspect flight log 7' }).click(); state.loseNextCreate = true; state.holdReceipts = true;
+    await page.getByRole('dialog').getByRole('button', { name: 'Prepare download' }).click(); await page.locator('.logs-transfer-row').first().getByText('Outcome unconfirmed', { exact: true }).waitFor();
+    const creates = state.creates; state.holdReceipts = false; await page.reload(); await page.getByRole('heading', { name: 'Logs', exact: true }).waitFor();
     const recovery = page.locator('.logs-transfer-row').first(); await recovery.getByRole('button', { name: 'Check receipt' }).click(); await recovery.getByRole('link', { name: 'Save file' }).waitFor();
     assert.equal(state.creates, creates, 'Reload recovery must not create again'); assert(state.lookups > 0); await capture('transfer-recovered');
     await page.getByRole('tab', { name: 'Flight logs', exact: true }).click();
+    await source(page, '1'); await page.getByRole('button', { name: 'Inspect flight log 7' }).click(); state.rejectNextCreate = true; state.holdReceipts = true;
+    await page.getByRole('dialog').getByRole('button', { name: 'Prepare download' }).click();
+    await page.locator('.logs-transfer-row').first().getByText('Outcome unconfirmed', { exact: true }).waitFor();
+    const rejectedAttemptCount = state.creates, rejected = page.locator('.logs-transfer-row').first(); state.holdReceipts = false;
+    await rejected.getByRole('button', { name: 'Check receipt' }).click(); await rejected.getByText('Not started', { exact: true }).waitFor();
+    await rejected.getByText('Pre-handoff endpoint unavailable.', { exact: true }).waitFor();
+    assert.equal(state.creates, rejectedAttemptCount, 'A proven rejected receipt is lookup-only, not an automatic retry');
+    await capture('not-started-recovered');
     await page.getByLabel('Open local ULog file').setInputFiles({ name: 'example.ulg', mimeType: 'application/octet-stream', buffer: Buffer.from('ULog fixture') });
     await page.getByRole('dialog', { name: 'Local flight log' }).waitFor(); await capture('local-summary'); await page.keyboard.press('Escape');
     state.role = 'viewer'; state.emptyRoster = true; await page.reload(); await page.getByRole('heading', { name: 'Logs', exact: true }).waitFor();
@@ -191,7 +208,7 @@ async function scenario(browser, width, theme) {
     await page.getByText('No configured aircraft.', { exact: true }).waitFor(); assert(await page.getByRole('dialog').getByRole('button', { name: 'Use source' }).isDisabled());
     await capture('no-aircraft'); await page.keyboard.press('Escape'); assert.equal(await page.getByRole('button', { name: 'Erase onboard logs', exact: true }).count(), 0);
     assert.deepEqual(state.violations, []); assert.deepEqual(state.fixtureErrors, []); assert.deepEqual(state.errors, []); assert.deepEqual(state.consoleErrors, []);
-    return { width, theme, passed: true, creates: state.creates, receiptLookups: state.lookups, contentGets: state.contentGets, uploads: state.uploads, screenshots };
+    return { width, theme, passed: true, createRequests: state.creates, nativeJobs: state.jobs.size, receiptLookups: state.lookups, contentGets: state.contentGets, uploads: state.uploads, screenshots };
   } catch (error) {
     await page.screenshot({ path: path.join(out, `failure-${width}-${theme}.png`), fullPage: true }).catch(() => {});
     fs.writeFileSync(path.join(out, `failure-${width}-${theme}.json`), JSON.stringify({ error: error.stack, ...state, receipts: [...state.receipts], jobs: [...state.jobs] }, null, 2)); throw error;

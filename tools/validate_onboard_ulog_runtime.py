@@ -145,7 +145,7 @@ def _list_if_empty(client: ApiClient, drone_id: int) -> dict[str, Any] | bool:
 def wait_for_download_job(client: ApiClient, drone_id: int, job_id: str, *, timeout: int) -> dict[str, Any]:
     return wait_for(
         lambda: _job_if_terminal(client, drone_id, job_id),
-        label=f"ULog download job {job_id} ready",
+        label=f"ULog download for H{drone_id} ready",
         timeout=timeout,
         interval=1.0,
     )

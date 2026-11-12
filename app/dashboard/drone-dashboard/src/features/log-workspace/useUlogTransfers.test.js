@@ -87,3 +87,18 @@ test('lost create response can recover a proven Not started receipt without repl
   expect(result.current.records[0].creationStatus).toBe('rejected');
   expect(service.createDroneUlogDownloadJob).toHaveBeenCalledTimes(1);
 });
+test('proven rejection survives a later timeout from the original pending create', async () => {
+  let rejectCreate;
+  service.createDroneUlogDownloadJob.mockImplementation(() => new Promise((resolve, reject) => { rejectCreate = reject; }));
+  const { result } = renderHook(() => useUlogTransfers(KEY));
+  let creating;
+  act(() => { creating = result.current.prepare({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1' }); });
+  const record = result.current.records[0];
+  service.getDroneUlogDownloadRequest.mockResolvedValue({ request_id: record.requestId, status: 'rejected', job: null, error: 'Proven pre-handoff rejection.' });
+  await act(async () => { await result.current.check(record); });
+  expect(result.current.pending).toBe(false);
+  await act(async () => { rejectCreate(new Error('Late transport timeout')); await creating; });
+  expect(result.current.records[0].creationStatus).toBe('rejected');
+  expect(result.current.pending).toBe(false);
+  expect(service.createDroneUlogDownloadJob).toHaveBeenCalledTimes(1);
+});

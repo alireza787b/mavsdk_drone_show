@@ -35,6 +35,7 @@ export default function useUlogTransfers(storageKey) {
     try {
       const saved = read(key);
       const prior = saved.find(item => item.requestId === record.requestId);
+      if (prior?.creationStatus === 'rejected' && !record.job) record = { ...record, creationStatus: 'rejected', error: prior.error || record.error };
       if (prior?.job && !record.job) record = { ...record, job: prior.job, creationStatus: 'accepted', error: prior.error || '' };
       else if (prior?.job && ((ULOG_TERMINAL.has(prior.job.status) && !ULOG_TERMINAL.has(record.job.status))
         || (Number(prior.job.updated_at) > Number(record.job.updated_at)))) record = { ...record, job: prior.job, creationStatus: 'accepted' };
