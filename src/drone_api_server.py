@@ -5092,6 +5092,12 @@ class DroneAPIServer:
             app=self.app,
             host=host,
             port=port,
+            # This server shares a multithreaded process with native gRPC and
+            # the mission scheduler. Auto/uvloop installs a process-wide loop
+            # policy from this thread; libuv's fork can then hang in gRPC's
+            # child at-fork handler before a recovery controller execs. Keep
+            # the standard asyncio subprocess path and its FD/session contract.
+            loop="asyncio",
             log_level="info" if self.params.env_mode == 'development' else "warning",
             access_log=self.params.env_mode == 'development',
             reload=False  # No auto-reload for embedded systems

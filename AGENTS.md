@@ -76,6 +76,11 @@ Do not assume the environment. Detect it first.
   Slot comparison/adoption requires fresh heartbeat-specific evidence, not just
   telemetry presence; never suppress a numeric slot globally to hide missing data.
 - Keep code changes minimal, explainable, and test-backed.
+- An embedded HTTP server shares its process with the companion scheduler and
+  native gRPC threads. Preserve explicit standard asyncio loop selection; an
+  automatic uvloop policy can redirect later controller spawns through libuv
+  fork and deadlock before exec. Verify real FD/session-preserving subprocess
+  startup, not just mocked process creation or an accepted recovery receipt.
 - Keep modules cohesive and reviewable. Avoid growing central files with
   scenario-specific branches; extract a shared component only when it creates a
   clear ownership boundary or removes proven duplication.

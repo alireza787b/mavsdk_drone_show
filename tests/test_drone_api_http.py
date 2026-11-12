@@ -35,6 +35,19 @@ from src.security.auth import (
 from src.ulog_service import UlogJobConflictError, UlogTransportTimeoutError
 
 
+def test_embedded_api_preserves_standard_scheduler_subprocess_loop(api_server, monkeypatch):
+    configurations = []
+    server = Mock()
+    monkeypatch.setattr("src.drone_api_server.uvicorn.Config", lambda **kwargs: configurations.append(kwargs) or kwargs)
+    monkeypatch.setattr("src.drone_api_server.uvicorn.Server", lambda config: server)
+
+    api_server.run()
+
+    assert configurations[0]["loop"] == "asyncio"
+    assert configurations[0]["reload"] is False
+    server.run.assert_called_once_with()
+
+
 @pytest.mark.parametrize("exit_with_error", [False, True])
 async def test_drone_api_lifespan_cancels_and_awaits_both_task_groups(api_server, exit_with_error):
     cancelled = []

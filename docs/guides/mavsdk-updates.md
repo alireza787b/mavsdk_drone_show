@@ -154,6 +154,17 @@ override manual modes, normalize uncertain flight state or bypass preflight.
 An unconfirmed mode change stays diagnostic; the next launch still requires
 native readiness. This is a lifecycle correction, not a flight-tuning change.
 
+The embedded companion HTTP server explicitly uses standard asyncio. Uvicorn's
+auto loop selection can install uvloop's process-wide policy from the HTTP
+thread; subsequent mission subprocess creation then uses libuv's fork path.
+During three-aircraft validation a recovery child hung inside gRPC's native
+post-fork handler before executing its controller, also blocking the API. The
+standard subprocess path preserves passed evidence FDs and process-group
+ownership without this loop-policy substitution. Do not enable experimental
+gRPC fork support or change flight guards to work around process-launch hangs.
+See [gRPC's fork limitations](https://github.com/grpc/grpc/blob/v1.75.1/doc/fork_support.md)
+and the [pinned Uvicorn uvloop setup](https://github.com/encode/uvicorn/blob/0.32.0/uvicorn/loops/uvloop.py).
+
 ## Metadata and future capabilities
 
 The v4 gRPC wrapper exposes `component_metadata` rather than the retired
