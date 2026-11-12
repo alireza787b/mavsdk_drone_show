@@ -37,8 +37,8 @@ changing the aircraft being inspected never writes to PX4.
 - search and filter parameters
 - use a scan-first list/table plus one consistent detail dialog across phone,
   tablet, and desktop widths
-- group compact/touch browsing by PX4 section when no parameter search is
-  active, then flatten matching rows automatically during search
+- choose List or collapsible Groups at every screen width; both use a
+  virtualized scrolling surface, with matching rows revealed during search
 - inspect current/default/min/max metadata when available
 - display numeric values with PX4 decimal hints when available, otherwise use a
   trimmed operator-readable precision instead of raw full-float output

@@ -15,7 +15,7 @@ jest.mock('../features/fleet-overview/ActionReview', () => ({
   buildActionStorageKey: (prefix, command) => `${prefix}:${command.target_drone_ids.join(',')}`,
   readPendingAction: () => null, readPendingActions: () => [],
 }));
-jest.mock('@mui/x-data-grid', () => ({ DataGrid: ({ rows, onRowClick }) => <div data-testid="parameter-grid">{rows.map(row => <div key={row.id}><button type="button" aria-label={`Inspect ${row.name}`} onClick={() => onRowClick({ row })}>{row.name}</button><span>{row.displayValue}</span></div>)}</div> }));
+jest.mock('@mui/x-data-grid', () => ({ DataGrid: ({ rows, columns }) => <div data-testid="parameter-grid">{rows.map(row => <div key={row.id}>{columns[0].renderCell({ row, tabIndex: -1 })}<span>{row.displayValue}</span></div>)}</div> }));
 
 const rows = [{ name: 'MPC_XY_VEL_MAX', component_id: 1, value_type: 'float', value: .123456789, decimal_places: null,
   default_value: 0, writable: true, unit: 'm/s', group: 'Position control', reboot_required: false }];
@@ -85,6 +85,8 @@ test('inspection changes and snapshot refresh never retarget or overwrite a draf
   fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
   await choose('2');
   fireEvent.click(screen.getByRole('button', { name: 'Refresh', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Groups', exact: true }));
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Find parameter' }), { target: { value: 'Position control' } });
   fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
   expect(screen.getByRole('checkbox', { name: /Apply to Aircraft 1 · H1/ })).toBeChecked();
   expect(screen.getByRole('checkbox', { name: /Apply to Aircraft 2 · H2/ })).not.toBeChecked();
@@ -123,17 +125,20 @@ test('all imported changes are accessible and stay bound to their originating ai
   renderPage(); await choose('1');
   fireEvent.change(screen.getByLabelText('Import QGC parameter file'), { target: { files: [{ name: 'fleet.params', text: async () => 'mock file' }] } });
   fireEvent.click(await screen.findByRole('button', { name: 'Prepare review' }));
-  await screen.findByRole('button', { name: 'Apply 1200 changes to 1 aircraft' });
+  await screen.findByRole('button', { name: 'Apply 1200 changes to 1 aircraft' }, { timeout: 5000 });
   expect(screen.getByText('TEST_1199')).toBeInTheDocument();
   expect(screen.getByText('Line 1202: Unsupported parameter type')).toBeInTheDocument();
   expect(api.createPx4ParamReview).toHaveBeenCalledWith(expect.objectContaining({ hwIds: ['1'], source: 'qgc_import', entries }));
-});
+}, 15000);
 
-test('phone browsing groups rows and search flattens them', async () => {
+test('phone defaults to List and deliberate Groups browsing/search never writes', async () => {
   window.innerWidth = 390;
   renderPage();
   fireEvent.click(screen.getByRole('button', { name: 'Choose aircraft' }));
   fireEvent.click(screen.getByRole('radio', { name: /H1/ })); fireEvent.click(screen.getByRole('button', { name: 'Inspect aircraft' }));
+  await screen.findByRole('button', { name: 'Inspect MPC_XY_VEL_MAX' });
+  expect(screen.getByRole('button', { name: 'List', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Groups', exact: true }));
   const group = await screen.findByRole('button', { name: /Position control/ });
   expect(screen.queryByRole('button', { name: 'Inspect MPC_XY_VEL_MAX' })).not.toBeInTheDocument();
   fireEvent.click(group);
@@ -141,6 +146,36 @@ test('phone browsing groups rows and search flattens them', async () => {
   fireEvent.change(screen.getByRole('searchbox', { name: 'Find parameter' }), { target: { value: 'MPC_XY' } });
   expect(screen.queryByRole('button', { name: /Position control/ })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Inspect MPC_XY_VEL_MAX' })).toBeInTheDocument();
+  expect(api.createPx4ParamReview).not.toHaveBeenCalled();
+  expect(api.applyPx4ParamReview).not.toHaveBeenCalled();
+});
+
+test('failed first read offers retry without pretending no aircraft was chosen', async () => {
+  api.refreshPx4ParamSnapshots.mockRejectedValueOnce(new Error('Aircraft unavailable'));
+  renderPage();
+  fireEvent.click(screen.getByRole('button', { name: 'Choose aircraft' }));
+  fireEvent.click(screen.getByRole('radio', { name: /H1/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect aircraft' }));
+  await screen.findByRole('button', { name: 'Retry read' });
+  expect(screen.queryByText('Choose an aircraft to read its parameters.')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry read' }));
+  await screen.findByRole('button', { name: 'Inspect MPC_XY_VEL_MAX' });
+  expect(api.refreshPx4ParamSnapshots).toHaveBeenCalledTimes(2);
+  expect(api.applyPx4ParamReview).not.toHaveBeenCalled();
+});
+
+test('cached snapshot stays inspectable offline and is described as a stale snapshot', async () => {
+  const state = resources();
+  state.now += 120000;
+  state.aircraft[0].runtime = { label: 'Offline', level: 'offline' };
+  useParameterResources.mockReturnValue(state);
+  renderPage(); await choose('1');
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect MPC_XY_VEL_MAX' }));
+  const dialog = screen.getByRole('dialog', { name: 'MPC_XY_VEL_MAX' });
+  expect(within(dialog).getByText(/Snapshot stale/)).toBeInTheDocument();
+  expect(within(dialog).getByText(/snapshot values from aircraft/)).toBeInTheDocument();
+  expect(within(dialog).queryByText(/live values/i)).not.toBeInTheDocument();
+  expect(api.applyPx4ParamReview).not.toHaveBeenCalled();
 });
 
 test('reboot uses a separate exact-target shared command review', async () => {

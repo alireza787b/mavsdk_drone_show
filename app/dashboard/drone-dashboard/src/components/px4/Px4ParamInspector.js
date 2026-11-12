@@ -24,7 +24,7 @@ export function buildParameterDescriptions(row) {
 }
 
 /** Inspection is read-only until Edit. Exact numeric text is never display-rounded. */
-export default function Px4ParamInspector({ row, aircraftLabel, onClose, onStage, blockedReason = '' }) {
+export default function Px4ParamInspector({ row, aircraftLabel, onClose, onStage, blockedReason = '', snapshotLabel = 'Aircraft snapshot', snapshotAgeLabel = '' }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(() => String(row.value ?? ''));
   const [error, setError] = useState('');
@@ -46,10 +46,11 @@ export default function Px4ParamInspector({ row, aircraftLabel, onClose, onStage
     confirmDisabled={Boolean(blockedReason) || row.writable === false}
     message={<div className="px4-inspector">
       <p className="px4-context-label">{aircraftLabel} · Component {row.component_id || 1}</p>
+      <p className={snapshotLabel === 'Snapshot stale' ? 'px4-stale' : 'px4-context-label'}>{snapshotLabel}{snapshotAgeLabel ? ` · ${snapshotAgeLabel}` : ''}</p>
       <div className="px4-reading"><strong>{formatParameterValue(row.value, row)}</strong><span>{row.unit || ''}</span></div>
       {String(row.value) !== formatParameterValue(row.value, row) && <p className="px4-exact">Exact value <code>{String(row.value)}</code></p>}
       {shortDescription && <p>{shortDescription}</p>}
-      <p className="px4-context-label">{row.metadata_authority === 'vehicle' ? 'Vehicle metadata' : row.metadata_authority === 'unavailable' ? 'Metadata unavailable' : 'Reference metadata'} · live values from aircraft</p>
+      <p className="px4-context-label">{row.metadata_authority === 'vehicle' ? 'Vehicle metadata' : row.metadata_authority === 'unavailable' ? 'Metadata unavailable' : 'Reference metadata'} · snapshot values from aircraft</p>
       <dl className="px4-facts">
         <dt>Default{row.authoritative_fields?.includes('default_value') ? '' : ' · reference'}</dt><dd>{formatParameterValue(row.default_value, row, { exact: true })}</dd>
         <dt>Range{row.authoritative_fields?.includes('min_value') || row.authoritative_fields?.includes('max_value') ? '' : ' · reference'}</dt><dd>{formatParameterRange(row)}</dd>

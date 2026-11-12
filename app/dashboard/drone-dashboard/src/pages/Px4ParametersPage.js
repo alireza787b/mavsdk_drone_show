@@ -133,6 +133,7 @@ function ParameterWorkspace({ context, runtimeMode }) {
     {workspace.error && !reviewOpen && <OperatorNotice tone="warning" title="Draft unchanged">{workspace.error}</OperatorNotice>}
     <section id={`px4-panel-${tab}`} role="tabpanel" aria-labelledby={`px4-tab-${tab}`}>
       {tab === 'parameters' ? <ParameterBrowser rows={snapshot?.rows || []} busy={workspace.snapshotBusy} selectedKey={inspectedKey}
+        aircraftId={viewId} readError={workspace.snapshotError} onRefresh={workspace.refresh}
         sessionChanges={workspace.sessionChanges} onInspect={entry => { setInspectedKey(parameterKey(entry)); setInspectorOpen(true); }} />
         : <><div className="px4-profile-toolbar"><label>Profile<select aria-label="Saved PX4 profile" value={profileId} onChange={event => setProfileId(event.target.value)}><option value="">Choose profile…</option>{resources.profiles.map(item => <option key={item.profile_id} value={item.profile_id}>{item.name}</option>)}</select></label>
           {resources.profilesError && <span>Profile library unavailable.</span>}</div>
@@ -154,6 +155,7 @@ function ParameterWorkspace({ context, runtimeMode }) {
     {manual && <ManualParameterEntry componentIds={resources.policy?.mutations?.supported_component_ids || [1]} onClose={() => setManual(false)}
       onStage={entry => stage({ title: 'Manual change', source: 'manual', entries: [entry], hwIds: [], excludedHwIds: [] })} />}
     {row && inspectorOpen && <Px4ParamInspector key={`${viewId}:${inspectedKey}`} row={row} aircraftLabel={describeAircraft(resources.aircraft, viewId)} onClose={() => setInspectorOpen(false)} blockedReason={blockEdit}
+      snapshotLabel={snapshotState(snapshot.snapshot, resources.now)} snapshotAgeLabel={snapshotAge(snapshot.snapshot, resources.now)}
       onStage={entry => stage({ title: 'Manual changes', source: 'manual', entries: [entry], hwIds: [viewId], excludedHwIds: [], originHwId: viewId, originSnapshotId: snapshot.snapshot.snapshot_id })} />}
     {workspace.draft && reviewOpen && !inspectorOpen && !manual && <ParameterReview workspace={workspace} aircraft={resources.aircraft} clusters={resources.clusters} now={resources.now} knownRuntime={knownRuntime} onClose={() => setReviewOpen(false)} />}
     {reboot && <ActionReview key={reboot.storageKey} intent={reboot.command} storageKey={reboot.storageKey} aircraft={resources.aircraft} runtimeMode={runtimeMode}

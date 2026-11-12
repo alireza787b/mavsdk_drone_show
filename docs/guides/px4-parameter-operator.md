@@ -10,7 +10,23 @@ Check the callsign/hardware ID and snapshot age. Select a row to inspect its
 value, units and available reference information. Opening another aircraft does
 not change the targets of an existing draft.
 
+**List** starts with 50 rows per page. Choose **Show all** in the existing page-size
+selector to scroll all matching parameters; it does not fetch another snapshot
+or change apply targets. **Groups** replaces the list with collapsible PX4 group
+headings and counts. Search includes group/category names and reveals matches
+without opening groups; clearing search restores the opened groups. Missing
+group metadata appears as **Ungrouped**. Both views use a bounded scrolling
+surface on desktop, tablet and phone.
+
+Alternating rows and hover/focus help scanning. The blue left edge marks the
+inspected parameter, not a staged change or an apply target. Values belong to
+the displayed aircraft snapshot, not a continuous live read. A stale snapshot
+remains inspectable; Refresh obtains a new read, and a failed first read offers
+**Retry read**.
+
 ![Inspect an aircraft parameter](../assets/px4-parameters/guide-01-inspect-1440-dark.png)
+
+![Grouped browsing with a shared scroll surface](../assets/px4-parameters/guide-06-groups-1440-dark.png)
 
 ## 2. Prepare
 
@@ -57,7 +73,9 @@ evidence. PX4 reboot, if required, is separate and guarded by native state check
 **Profiles** selects a repository-managed baseline. **Import QGC** parses a
 `.params` file and reports skipped lines. Both enter the same review; neither
 writes automatically. **Export** reads the currently inspected snapshot.
-On tablet/phone, grouped rows and the same review dialog preserve these steps.
+On tablet/phone, compact rows and the same review dialog preserve these steps.
+
+![Compact parameter list on a phone](../assets/px4-parameters/guide-07-browse-390-dark.png)
 
 ![Review a reusable profile](../assets/px4-parameters/guide-05-profile-1440-dark.png)
 
