@@ -22,6 +22,8 @@ fs.mkdirSync(evidence, { recursive: true });
       state.telemetryOverrides = Object.fromEntries(['1','2'].map(id => [id, {
         gps_fix_type: 6, satellites_visible: 20, battery_remaining_percent: 83,
         battery_voltage: 16.1, position_alt: 1200,
+        heartbeat_network_info: { primary_link: { type: id === '1' ? 'ethernet' : 'wifi',
+          interface: id === '1' ? 'end0' : 'wlan0' }, wifi: { signal_strength_percent: 72 } },
       }]));
       const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme,
         hasTouch: width === 390, serviceWorkers: 'block' });
@@ -62,6 +64,7 @@ fs.mkdirSync(evidence, { recursive: true });
       assert.equal(await link.getAttribute('href'), '/fleet-ops?tab=sync&filter=drift');
       assert.equal(await page.locator('.fleet-aircraft__metric--link').first().innerText(), '');
       assert(await page.locator('.fleet-aircraft__metric--link').first().getAttribute('aria-label'));
+      assert.equal(await page.locator('.fleet-aircraft__metric--link').nth(1).innerText(), '72%');
       const geometry = await page.locator('.sync-warning-banner').evaluate(element => ({
         radius: getComputedStyle(element).borderTopLeftRadius, width: innerWidth,
         documentWidth: document.documentElement.scrollWidth, shadow: getComputedStyle(element).boxShadow,
@@ -71,6 +74,17 @@ fs.mkdirSync(evidence, { recursive: true });
       const filename = `software-review-${width}-${theme}.png`;
       await page.screenshot({ path: path.join(evidence, filename), fullPage: false });
       await page.locator('.sync-warning-banner').screenshot({ path: path.join(evidence, `software-notice-${width}-${theme}.png`) });
+      for (const [name, expected] of [['ALPHA', 'Ethernet'], ['BRAVO', 'Wi-Fi · 72%']]) {
+        await page.getByRole('button', { name: `Inspect ${name} · H${name === 'ALPHA' ? '1' : '2'}`, exact: true }).click();
+        const inspector = page.getByRole('dialog', { name, exact: true });
+        assert.equal(await inspector.locator('dt').filter({ hasText: /^Network$/ })
+          .locator('xpath=following-sibling::dd[1]').innerText(), expected);
+        assert.equal(await inspector.getByText('Wi-Fi signal', { exact: true }).count(), 0);
+        const bounds = await inspector.boundingBox();
+        assert(bounds.x >= -1 && bounds.x + bounds.width <= width + 1, 'Inspector fits the viewport');
+        await page.screenshot({ path: path.join(evidence, `network-${name.toLowerCase()}-${width}-${theme}.png`) });
+        await inspector.getByRole('button', { name: 'Close aircraft details', exact: true }).click();
+      }
       await page.evaluate(() => { window.__softwareNotice = document.querySelector('.sync-warning-banner'); });
       failed = true;
       await page.clock.fastForward(12000);

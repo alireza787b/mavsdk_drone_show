@@ -40,6 +40,12 @@ The inspector also shows the **Configured IP**; this is an address
 from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
 warning text. Tap/click the card for satellites, voltage and full measurements.
+The **Network** detail names the companion-reported primary transport: Wi-Fi,
+Ethernet, cellular or USB network. Its icon matches the transport; only current
+Wi-Fi evidence shows a signal percentage. Older companions without a primary
+link show their single known transport or **Multiple links** rather than guessing
+which is in use. Missing evidence stays **Unknown**; stale transport is marked
+**last known**. This is not proof of Internet latency or the VPN's route.
 Unavailable card measurements use a dash, never an invented zero. Altitude
 precision adapts to scale; its datum and full reading remain in the hint.
 Small badges on the schematic distinguish initialization, stale/missing link

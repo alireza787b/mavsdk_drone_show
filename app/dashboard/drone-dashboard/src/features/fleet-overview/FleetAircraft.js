@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle } from 'react-icons/fa';
+import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 
@@ -57,6 +57,7 @@ function AircraftPortrait({ item }) {
 }
 
 const METRIC_ICONS = { battery: FaBatteryHalf, altitude: FaArrowsAltV, gnss: FaSatellite, link: FaBroadcastTower, mission: FaRoute };
+const NETWORK_ICONS = { wifi: FaWifi, ethernet: FaEthernet, usb_modem: FaUsb };
 function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon }) {
   const Icon = icon || METRIC_ICONS[kind];
   const presentation = displayValue === 'Unknown' ? '—' : displayValue;
@@ -96,9 +97,9 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
         <Metric kind="gnss" label="GNSS" value={`${item.gps.label} · ${item.gps.satellites ?? '—'} sats`}
           displayValue={item.gps.label} stale={item.gps.stale} />
         <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} displayValue={compactAltitude(item.altitude)} stale={item.altitude.stale} />
-        <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.wifi.current ? ` · Wi-Fi ${Math.round(item.wifi.percent)}%` : ''}`}
-          displayValue={item.wifi.current ? `${Math.round(item.wifi.percent)}%` : null}
-          icon={item.availability.label === 'Fresh' ? FaBroadcastTower : item.availability.stale ? FaRegClock : item.availability.label === 'Offline' ? FaUnlink : FaQuestionCircle}
+        <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : ''}` : ''}`}
+          displayValue={item.network.percent !== null ? `${Math.round(item.network.percent)}%` : null}
+          icon={item.availability.label === 'Fresh' ? NETWORK_ICONS[item.network.type] || FaBroadcastTower : item.availability.stale ? FaRegClock : item.availability.label === 'Offline' ? FaUnlink : FaQuestionCircle}
           tone={item.availability.tone} />
       </span>
       <span className="fleet-aircraft__state">
@@ -121,6 +122,7 @@ const MISSION_ROUTES = { [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: '/drone-show
 
 export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
   const dialog = useRef(null);
+  const NetworkIcon = NETWORK_ICONS[item.network.type] || FaBroadcastTower;
   useEffect(() => {
     const element = dialog.current;
     const previous = document.activeElement;
@@ -150,8 +152,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Flight mode</dt><dd>{item.flightMode.label}{item.flightMode.stale ? ' · last known' : ''}</dd>
         <dt>Mission</dt><dd>{item.mission.label}{item.mission.stale ? ' · last known' : ''}</dd>
         <dt>Readiness</dt><dd>{item.readiness.label}</dd>
-        <dt>Link</dt><dd>{item.availability.label}</dd>
-        <dt>Wi-Fi signal</dt><dd>{item.wifi.current ? `${Math.round(item.wifi.percent)}%` : 'Unknown'}</dd>
+        <dt>Network</dt><dd title={item.network.interface || undefined}><NetworkIcon aria-hidden="true" />{' '}{item.network.label}{item.network.percent !== null ? ` · ${Math.round(item.network.percent)}%` : ''}{item.network.stale ? ' · last known' : ''}</dd>
       </dl>
       {MISSION_ROUTES[mission] && <Link className="fleet-workspace-link" to={MISSION_ROUTES[mission]} onClick={onClose}>{item.mission.label} workspace →</Link>}
       <section className="fleet-inspector__actions" aria-label={`Actions for ${item.label} · H${item.id}`}>
@@ -164,6 +165,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       </section>
       <details><summary>Diagnostics</summary><dl className="fleet-inspector__facts">
         <dt>Heartbeat age</dt><dd>{heartbeatText(item.availability)}</dd>
+        <dt>Network interface</dt><dd>{item.network.interface || 'Unknown'}{item.network.stale ? ' · last known' : ''}</dd>
         <dt>Telemetry age</dt><dd>{item.runtime.telemetryAgeSec == null ? 'Never seen' : `${item.runtime.telemetryAgeSec}s ago`}</dd>
         <dt>HDOP / VDOP</dt><dd>{item.gps.hdop ?? '—'} / {item.gps.vdop ?? '—'}</dd>
         <dt>Link evidence</dt><dd>{item.runtime.tooltip}</dd>

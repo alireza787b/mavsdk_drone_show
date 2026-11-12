@@ -154,12 +154,12 @@ describe('fleet presentation truth', () => {
 
   test('Wi-Fi percentage requires a measured value and a fresh heartbeat, not telemetry success', () => {
     const drone = live('1', { heartbeat_last_seen: NOW / 1000, heartbeat_network_info: { wifi: { signal_strength_percent: 0 } } });
-    expect(build(drone).wifi).toEqual({ percent: 0, current: true });
-    expect(build({ ...drone, telemetry_available: false }).wifi.current).toBe(true);
-    expect(build(drone, NOW + 11000).wifi).toEqual({ percent: null, current: false });
-    expect(build({ ...drone, heartbeat_last_seen: undefined }).wifi.current).toBe(false);
+    expect(build(drone).network).toMatchObject({ percent: 0, current: true });
+    expect(build({ ...drone, telemetry_available: false }).network.current).toBe(true);
+    expect(build(drone, NOW + 11000).network).toMatchObject({ percent: null, current: false });
+    expect(build({ ...drone, heartbeat_last_seen: undefined }).network.current).toBe(false);
     [null, '', 'bad', -1, 101, Infinity].forEach((value) => {
-      expect(build({ ...drone, heartbeat_network_info: { wifi: { signal_strength_percent: value } } }).wifi.current).toBe(false);
+      expect(build({ ...drone, heartbeat_network_info: { wifi: { signal_strength_percent: value } } }).network.current).toBe(false);
     });
   });
 

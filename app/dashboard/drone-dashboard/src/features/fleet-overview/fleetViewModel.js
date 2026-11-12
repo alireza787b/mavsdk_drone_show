@@ -10,6 +10,7 @@ import { getCommandMetadata } from '../../constants/missionCatalog';
 import { getFriendlyMissionName } from '../../utilities/missionUtils';
 import { getAircraftAvailability } from './fleetAvailability';
 import { uniqueTargetIds } from './targetSelection';
+import { getFleetNetworkStatus } from './fleetNetworkStatus';
 
 const SAMPLE_CURRENT_MS = 10000;
 const GPS_LABELS = ['No GPS', 'No fix', '2D fix', '3D fix', 'DGPS', 'RTK float', 'RTK fixed', 'Static', 'PPP'];
@@ -66,8 +67,6 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
   const decodedMode = getFlightModeName(drone.flight_mode);
   const modeKnown = hasTelemetry && !/^(?:Unknown|No Data|Invalid Mode|Auto\.\d+)/.test(decodedMode);
   const missionMetadata = hasTelemetry ? getCommandMetadata(drone.mission) : null;
-  const wifiPercent = numberOrNull(drone.heartbeat_network_info?.wifi?.signal_strength_percent);
-  const wifiCurrent = availability.available && !availability.stale && wifiPercent !== null && wifiPercent >= 0 && wifiPercent <= 100;
   const nativeBlockers = Array.isArray(drone.preflight_blockers) && drone.preflight_blockers.length > 0;
   const readinessStatus = !current ? 'unknown' : nativeBlockers ? 'blocked'
     : ['ready', 'warning', 'blocked'].includes(drone.readiness_status) ? drone.readiness_status : 'unknown';
@@ -127,7 +126,7 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     mission: { label: missionMetadata ? getFriendlyMissionName(drone.mission) : 'Unknown', known: Boolean(missionMetadata),
       value: missionMetadata?.value ?? null, current: current && Boolean(missionMetadata),
       stale: !current && hasTelemetry && Boolean(missionMetadata) },
-    wifi: { percent: wifiCurrent ? wifiPercent : null, current: wifiCurrent },
+    network: getFleetNetworkStatus(drone.heartbeat_network_info, availability.available && !availability.stale),
     readiness: { status: readinessStatus, label: { ready: 'Ready', warning: 'Warning', blocked: 'Blocked', unknown: 'Unknown' }[readinessStatus],
       summary: current && readinessStatus !== 'unknown' ? drone.readiness_summary || '' : '' },
     battery: {

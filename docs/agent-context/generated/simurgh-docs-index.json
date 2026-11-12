@@ -6573,7 +6573,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "161f3353170f7b3366d0783c755245363389056c72025bcf01c4c4605524b9de",
+      "content_hash": "8fae1fd7f8f15500671943f1b0e0aec93e75c589184b665f21ce7167b40c347a",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6587,13 +6587,13 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "76f471bde9c02d8630b10f02cb87662ca963bbf261a2c46d499217557846ad47",
+      "content_hash": "5f10b518e765197a5457d03ecd102220bb4978edc2664ab70ad1c5928e7eaa64",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6607,7 +6607,7 @@
         "operations",
         "selection"
       ],
-      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).",
+      "text": "![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.\n\nThe compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).",
       "title": "Overview operator guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "7ec833f46f4449384ddcdab5a1e883798d8bee6ca38751eb37dfeb7a6fa0d3ff",
+      "content_hash": "9422474b91b579a6875132856bd118733e4ddd2f5b330d1546a93df213964ddb",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

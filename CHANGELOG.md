@@ -21,6 +21,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Overview link state uses radio/clock/disconnected symbols and measured signal
   instead of repeating Fresh/Stale on every card. Hover and inspection retain
   the full labels, freshness evidence and unchanged command scope.
+- Aircraft details and card icons distinguish the companion-reported Wi-Fi,
+  Ethernet and other network transports. A secondary Wi-Fi radio cannot supply
+  a misleading signal for a primary Ethernet link; stale/missing evidence is
+  explicit and older single-transport reports remain compatible.
 - Unknown Git worktree reports cannot count as both synced and unknown. Managed
   sidecar fetches retain named tags to avoid unnecessary reinstallation; staged
   virtual-environment links stay outside Git changes.

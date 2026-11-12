@@ -72,6 +72,33 @@ test('fresh cards do not display ticking second counters; inspection shows the c
   expect(age.closest('details')).not.toHaveAttribute('open');
 });
 
+test.each([
+  [{ primary_link: { type: 'ethernet', interface: 'end0' }, wifi: { signal_strength_percent: 72 } }, 'Ethernet'],
+  [{ primary_link: { type: 'wifi', interface: 'wlan0' }, wifi: { signal_strength_percent: 72 } }, 'Wi-Fi · 72%'],
+  [null, 'Unknown'],
+])('inspector labels the reported transport without an unrelated Wi-Fi row', (network, expected) => {
+  const model = aircraft({ heartbeat_network_info: network });
+  render(<MemoryRouter><AircraftInspector item={model} onClose={jest.fn()} onAction={jest.fn()} onMove={jest.fn()} /></MemoryRouter>);
+  expect(screen.getByText('Network', { selector: 'dt' }).nextElementSibling).toHaveTextContent(expected);
+  expect(screen.queryByText('Wi-Fi signal')).not.toBeInTheDocument();
+});
+
+test('Ethernet card uses the wired symbol and never presents another radio signal', () => {
+  const { container } = tile(aircraft({ heartbeat_network_info: {
+    primary_link: { type: 'ethernet', interface: 'end0' }, wifi: { signal_strength_percent: 72 },
+  } }));
+  expect(screen.getByLabelText('Link: Fresh · 0s · Ethernet')).toHaveTextContent('');
+  expect(container.querySelector('.fleet-aircraft__metric--link svg')).toBeInTheDocument();
+  expect(screen.queryByText('72%')).not.toBeInTheDocument();
+});
+
+test('stale network details clearly mark the cached transport without a cached signal', () => {
+  const model = aircraft({}, NOW + 20000);
+  render(<MemoryRouter><AircraftInspector item={model} onClose={jest.fn()} onAction={jest.fn()} onMove={jest.fn()} /></MemoryRouter>);
+  expect(screen.getByText('Network', { selector: 'dt' }).nextElementSibling).toHaveTextContent('Wi-Fi · last known');
+  expect(screen.queryByText('72%')).not.toBeInTheDocument();
+});
+
 test('ground readiness and initialization use distinct truthful aircraft badges', () => {
   const view = tile(aircraft({ readiness_status: 'ready' }));
   expect(screen.getByLabelText('Preflight ready')).toHaveAttribute('data-status', 'ready');
