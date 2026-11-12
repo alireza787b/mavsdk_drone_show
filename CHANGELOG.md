@@ -9,6 +9,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Integrated SITL validation now checks the existing ground-only trajectory
+  admission while airborne instead of requesting an unsupported handoff. It
+  verifies non-dispatch and continued live following before leader Hold/jog.
+  Phase waits fail immediately on incompatible terminal receipts and retain the
+  native preparation reason instead of spending the full polling timeout.
+
 ### Maintained flight SDK and image dependency baseline
 
 - Migrated from the shadowing vendored SDK to installed `mavsdk-grpc==4.0.5`

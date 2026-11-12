@@ -112,3 +112,24 @@ def test_interrupted_terminal_status_prefers_explicit_outcome(
     if outcome is not None:
         payload["outcome"] = outcome
     assert _is_safe_interrupted_terminal_status(payload) is expected
+
+
+@pytest.mark.parametrize("state", sorted(validator.TERMINAL_STATUSES))
+def test_phase_wait_fails_immediately_on_terminal_receipt(monkeypatch, state):
+    class Client:
+        def get_json(self, _path):
+            return {"status": state, "phase": "terminal", "error_summary": "native ground check",
+                    "preparations": {"blocked": 1}}
+
+    monkeypatch.setattr(validator.time, "sleep", lambda _: pytest.fail("Terminal receipt must not poll"))
+    with pytest.raises(RuntimeError, match="ended before phase=in_progress.*native ground check"):
+        validator.wait_for_command(Client(), "receipt-1", desired_phase="in_progress")
+
+
+def test_terminal_wait_and_matching_phase_still_return_receipt():
+    class Client:
+        def get_json(self, _path):
+            return {"status": "failed", "phase": "terminal"}
+
+    assert validator.wait_for_command(Client(), "receipt-1", terminal=True)["status"] == "failed"
+    assert validator.wait_for_command(Client(), "receipt-1", desired_phase="terminal")["status"] == "failed"

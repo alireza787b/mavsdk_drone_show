@@ -47,9 +47,11 @@ The current reusable validators cover:
 - `swarm_trajectory`
   - deterministic short-profile generation, processing, launch, formation validation, and cleanup
 - `integrated_runtime`
-  - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm
-    Trajectory/Precision Move override without ending the leader role session,
-    follower-side override release, HOLD supersession, and clean restore/land
+  - Smart Swarm cluster start, in-flight reassignment, rejected airborne
+    ground-only Swarm Trajectory launch without disturbing the formation,
+    leader HOLD/Precision Move with follower persistence, and clean restore/land
+  - Positive Swarm Trajectory launch belongs to the separate ground-start
+    `swarm_trajectory` gate. This drill does not enable airborne trajectory entry.
 - `quickscout`
   - deterministic `last_known_point` plan, targeted launch acceptance, airborne confirmation for targeted drones, non-target idle confirmation when applicable, HOLD, honest `replan_required` resume behavior, abort/end behavior, and clean fleet reset
 - `ulog`

@@ -355,6 +355,12 @@ def wait_for_command(
         if desired_phase and phase == desired_phase:
             log(f"COMMAND {command_id} reached phase={phase}: {command_summary(status)}")
             return status
+        if desired_phase and state in TERMINAL_STATUSES:
+            raise RuntimeError(
+                f"Command {command_id} ended before phase={desired_phase}: "
+                f"{command_summary(status)}; reason={status.get('error_summary')}; "
+                f"preparations={status.get('preparations')}"
+            )
         time.sleep(1.0)
     raise RuntimeError(f"Timed out waiting for command {command_id}. Last status: {command_summary(last or {})}")
 

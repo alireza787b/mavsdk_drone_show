@@ -1,6 +1,6 @@
 {
   "title": "Integrated Mixed-Mode Runtime",
-  "description": "Run one deterministic mixed-mode operator chain: Smart Swarm cluster, in-flight reassignment, leader Swarm Trajectory override, HOLD interrupt, leader Precision Move, and cleanup.",
+  "description": "Run one deterministic operator chain: Smart Swarm cluster, in-flight reassignment, rejected airborne ground-only trajectory launch, leader HOLD/Precision Move with follower persistence, and cleanup.",
   "tags": ["advanced", "mixed-mode", "overrides", "smart-swarm", "trajectory", "precision-move"],
   "steps": [
     {

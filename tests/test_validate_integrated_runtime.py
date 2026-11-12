@@ -1,9 +1,13 @@
 import argparse
+import copy
+
+import pytest
 
 from tools.validate_integrated_runtime import (
     build_demo_swarm_assignments,
     build_reassignment_patch,
     resolve_selected_ids,
+    require_ground_start_rejection,
 )
 
 
@@ -58,3 +62,36 @@ def test_resolve_selected_ids_falls_back_to_csv_argument_and_default():
 
     assert resolve_selected_ids(csv_args) == [1, 2, 3]
     assert resolve_selected_ids(default_args) == [1, 2, 3]
+
+
+def rejected_ground_launch():
+    return {"status": "failed", "submitted_at": None, "execution_started_at": None,
+            "acks": {"received": 0}, "executions": {"received": 0},
+            "preparations": {"policy": "all_required", "details": {"1": {
+                "observation": {"mission_type": 4, "admission": {
+                    "predicate": "takeoff_ground_disarmed", "ready": False}}}}}}
+
+
+def test_airborne_ground_launch_rejection_requires_native_non_dispatch_evidence():
+    require_ground_start_rejection(rejected_ground_launch(), 1)
+
+
+@pytest.mark.parametrize("path,value", [
+    (("status",), "completed"),
+    (("submitted_at",), 1000),
+    (("execution_started_at",), 1000),
+    (("acks", "received"), 1),
+    (("executions", "received"), 1),
+    (("preparations", "policy"), None),
+    (("preparations", "details", "1", "observation", "mission_type"), 10),
+    (("preparations", "details", "1", "observation", "admission", "ready"), True),
+    (("preparations", "details", "1", "observation", "admission", "predicate"), "other"),
+])
+def test_airborne_rejection_gate_rejects_dispatch_or_missing_contract(path, value):
+    status = copy.deepcopy(rejected_ground_launch())
+    node = status
+    for key in path[:-1]:
+        node = node[key]
+    node[path[-1]] = value
+    with pytest.raises(RuntimeError):
+        require_ground_start_rejection(status, 1)

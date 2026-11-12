@@ -11,9 +11,9 @@ mission-family validators:
 4. Start Smart Swarm on the full cluster and verify formation
 5. Reassign one follower in flight and verify the updated formation
 6. Generate/process a short Swarm Trajectory profile for the leader only
-7. Override just the leader into Swarm Trajectory while followers remain in
-   Smart Swarm
-8. Interrupt the leader with HOLD, then dispatch PRECISION_MOVE to that leader
+7. Verify the ground-only Swarm Trajectory is rejected without dispatch while
+   the airborne cluster remains in Smart Swarm
+8. Override the leader with HOLD, then dispatch PRECISION_MOVE to that leader
 9. Verify followers reform around the leader after both overrides
 10. LAND the cluster, restore swarm assignments, restore trajectory sources
 
@@ -58,7 +58,6 @@ from tools.validate_actions_runtime import (
     LAND,
     PRECISION_MOVE,
     TAKEOFF,
-    _is_safe_interrupted_terminal_status,
     command_summary,
     get_local_snapshots,
     require,
@@ -222,36 +221,25 @@ def apply_assignments(
     return changed_ids
 
 
-def wait_active_missions(
-    client: ApiClient,
-    *,
-    leader_id: int,
-    follower_ids: list[int],
-    timeout: int = 90,
-) -> dict[str, dict[str, Any]]:
-    def _ready():
-        telemetry = client.get_telemetry()
-        required_ids = [leader_id, *follower_ids]
-        if not all(str(drone_id) in telemetry for drone_id in required_ids):
-            return False
-
-        leader = telemetry[str(leader_id)]
-        if int(leader.get("mission", 0) or 0) != SWARM_TRAJECTORY or int(leader.get("state", 0) or 0) != 2 or not bool(leader.get("is_armed")):
-            return False
-
-        for follower_id in follower_ids:
-            follower = telemetry[str(follower_id)]
-            if int(follower.get("mission", 0) or 0) != SMART_SWARM or int(follower.get("state", 0) or 0) != 2 or not bool(follower.get("is_armed")):
-                return False
-
-        return {str(drone_id): telemetry[str(drone_id)] for drone_id in required_ids}
-
-    return wait_for(
-        _ready,
-        label=f"leader {leader_id} in Swarm Trajectory while followers {follower_ids} remain in Smart Swarm",
-        timeout=timeout,
-        interval=1.0,
-    )
+def require_ground_start_rejection(status: dict[str, Any], leader_id: int) -> None:
+    """Reject a launch, not a failed flight, with retained native admission facts."""
+    require(status.get("status") == "failed", f"Expected rejected airborne launch: {status}")
+    require(status.get("submitted_at") is None, f"Rejected launch was dispatched: {status}")
+    require(status.get("execution_started_at") is None, f"Rejected launch started execution: {status}")
+    require(int((status.get("acks") or {}).get("received", 0)) == 0,
+            f"Rejected launch received a flight-command ACK: {status}")
+    require(int((status.get("executions") or {}).get("received", 0)) == 0,
+            f"Rejected launch received an execution report: {status}")
+    preparations = status.get("preparations") or {}
+    require(preparations.get("policy") == "all_required", f"Missing launch policy: {status}")
+    preparation = (preparations.get("details") or {}).get(str(leader_id)) or {}
+    observation = preparation.get("observation") or {}
+    admission = observation.get("admission") or {}
+    require(observation.get("mission_type") == SWARM_TRAJECTORY,
+            f"Missing mission-specific observation: {status}")
+    require(admission.get("predicate") == "takeoff_ground_disarmed"
+            and admission.get("ready") is False,
+            f"Ground-start rejection not observed: {status}")
 
 
 def wait_followers_remain_in_swarm(
@@ -444,31 +432,16 @@ def main() -> int:
             "Integrated Validation Leader Trajectory",
             trigger_time=0,
         )
-        trajectory_in_progress = wait_for_command(  # command tracker gate
+        trajectory_rejected = wait_for_command(
             client,
             trajectory["command_id"],
-            desired_phase="in_progress",
-            timeout=120,
+            terminal=True,
+            timeout=45,
         )
-        results["leader_trajectory_start"] = command_summary(trajectory_in_progress)
-
-        results["mixed_mode_active"] = wait_active_missions(
-            client,
-            leader_id=leader_id,
-            follower_ids=follower_ids,
-            timeout=120,
-        )
-        current_assignments = cluster_assignments(client.get_swarm(), ids)
-        results["mixed_mode_formation"] = wait_formation(
-            client,
-            current_assignments,
-            ids,
-            horizontal_tolerance=float(args.formation_horizontal_tolerance),
-            altitude_tolerance=float(args.formation_altitude_tolerance),
-            minimum_timeout=int(args.formation_min_timeout),
-            stability_samples=int(args.stability_samples),
-            max_velocity=float(args.max_smart_swarm_velocity),
-        )
+        results["airborne_trajectory_rejection"] = trajectory_rejected
+        require_ground_start_rejection(trajectory_rejected, leader_id)
+        wait_mission(client, ids, SMART_SWARM, timeout=30)
+        results["post_rejection_roles"] = wait_followers_remain_in_swarm(client, ids, timeout=30)
 
         leader_hold = client.submit_command(HOLD, [leader_id], "Integrated Validation Leader Hold Override")
         leader_hold_status = wait_for_command(client, leader_hold["command_id"], terminal=True, timeout=120)
@@ -477,12 +450,6 @@ def main() -> int:
         require_full_execution(leader_hold_status, 1, "Integrated leader HOLD")
         results["leader_hold"] = command_summary(leader_hold_status)
 
-        interrupted_trajectory = wait_for_command(client, trajectory["command_id"], terminal=True, timeout=120)
-        require(
-            _is_safe_interrupted_terminal_status(interrupted_trajectory),
-            f"Leader trajectory did not end safely after HOLD override: {command_summary(interrupted_trajectory)}",
-        )
-        results["leader_trajectory_terminal"] = command_summary(interrupted_trajectory)
         results["post_hold_leader"] = wait_hold_ready(client, [leader_id], baseline_altitudes, args.takeoff_min_gain, timeout=120)
         results["post_hold_followers"] = wait_followers_remain_in_swarm(client, follower_ids, timeout=60)
 
