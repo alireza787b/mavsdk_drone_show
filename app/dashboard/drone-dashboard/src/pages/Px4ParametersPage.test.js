@@ -72,7 +72,7 @@ test('uses explicit exact editing, a native review, and a persisted idempotent r
   renderPage(); await choose('1'); await stageEdit();
   expect(api.applyPx4ParamReview).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Prepare review' }));
-  const apply = await screen.findByRole('button', { name: 'Apply 1 changes to 1 aircraft' });
+  const apply = await screen.findByRole('button', { name: 'Apply 1 change to 1 aircraft' });
   expect(api.createPx4ParamReview).toHaveBeenCalledWith(expect.objectContaining({ hwIds: ['1'], entries: [expect.objectContaining({ value: 9.123456789 })] }));
   fireEvent.click(apply);
   await waitFor(() => expect(api.applyPx4ParamReview).toHaveBeenCalledTimes(1));
@@ -89,7 +89,7 @@ test('inspection changes and snapshot refresh never retarget or overwrite a draf
   expect(screen.getByRole('checkbox', { name: /Apply to Aircraft 1 · H1/ })).toBeChecked();
   expect(screen.getByRole('checkbox', { name: /Apply to Aircraft 2 · H2/ })).not.toBeChecked();
   fireEvent.click(screen.getByRole('button', { name: 'Prepare review' }));
-  await screen.findByRole('button', { name: 'Apply 1 changes to 1 aircraft' });
+  await screen.findByRole('button', { name: 'Apply 1 change to 1 aircraft' });
   expect(api.createPx4ParamReview).toHaveBeenCalledWith(expect.objectContaining({ hwIds: ['1'], entries: [expect.objectContaining({ value: 8.7654321 })] }));
 });
 
@@ -100,7 +100,7 @@ test('profile source shares the review pipeline and begins with no mutation targ
   expect(screen.getByRole('button', { name: 'Prepare review' })).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: /Apply to Aircraft 2 · H2/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Prepare review' }));
-  await screen.findByRole('button', { name: 'Apply 1 changes to 1 aircraft' });
+  await screen.findByRole('button', { name: 'Apply 1 change to 1 aircraft' });
   expect(api.createPx4ParamReview).toHaveBeenCalledWith(expect.objectContaining({ hwIds: ['2'], source: 'mds_profile', profileId: 'baseline' }));
 });
 
@@ -109,7 +109,7 @@ test('a lost apply response remains uncertain and recovery only looks up its ori
   api.getPx4ParamJobByIdempotencyKey.mockImplementation(async key => ({ data: { job_id: 'found-job', review_id: 'review-1', review_hash: 'hash-1', idempotency_key: key, status: 'unknown', terminal: true, unknown_targets: 1, results: [] } }));
   renderPage(); await choose('1'); await stageEdit();
   fireEvent.click(screen.getByRole('button', { name: 'Prepare review' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 changes to 1 aircraft' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Apply 1 change to 1 aircraft' }));
   await screen.findByText(/Outcome unconfirmed: Network interrupted/);
   const saved = JSON.parse(localStorage.getItem(STORAGE))[0];
   fireEvent.click(screen.getByRole('button', { name: 'Check receipt' }));

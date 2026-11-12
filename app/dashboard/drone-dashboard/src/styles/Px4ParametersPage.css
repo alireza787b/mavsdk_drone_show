@@ -99,6 +99,13 @@
   .px4-browser-toolbar .px4-search { max-width: none; flex-basis: 100%; }
 }
 @media (max-width: 560px) {
+  .px4-change-table thead { display: none; }
+  .px4-change-table tbody { display: block; }
+  .px4-change-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--color-border-primary); }
+  .px4-change-table tbody th { grid-column: 1 / -1; min-width: 0; }
+  .px4-change-table th, .px4-change-table td { border: 0; }
+  .px4-change-table td::before { content: attr(data-label); display: block; margin-bottom: .35rem; color: var(--color-text-secondary); font-size: .7rem; }
+  .px4-change-table td:last-child { grid-column: 1 / -1; color: var(--color-text-secondary); }
   .px4-identity-strip { gap: .4rem .7rem; }
   .px4-viewed-aircraft { flex-basis: 100%; }
   .px4-identity-strip .operator-page-action-bar { margin-left: auto; }

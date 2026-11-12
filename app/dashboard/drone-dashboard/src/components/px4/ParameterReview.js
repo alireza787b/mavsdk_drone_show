@@ -6,11 +6,11 @@ import { formatParameterValue, parameterKey } from '../../utilities/px4Parameter
 export const describeAircraft = (aircraft, id) => `${aircraft.find(item => item.id === id)?.label || 'Aircraft'} · H${id}`;
 
 function ChangeTable({ entries, desired = false }) {
-  return <div className="px4-table-scroll"><table className="px4-review-table"><thead><tr><th>Parameter</th>{desired && <th>Current</th>}<th>Proposed</th><th>Reference</th></tr></thead>
+  return <div className="px4-table-scroll"><table className="px4-review-table px4-change-table"><thead><tr><th>Parameter</th>{desired && <th>Current</th>}<th>Proposed</th><th>Reference</th></tr></thead>
     <tbody>{entries.map(entry => <tr key={parameterKey(entry)}><th><code>{entry.name}</code><small>Component {entry.component_id || 1} · {entry.value_type}</small></th>
-      {desired && <td>{formatParameterValue(entry.current_value, entry, { exact: true })}</td>}
-      <td>{formatParameterValue(desired ? entry.desired_value : entry.value, entry, { exact: true })}</td>
-      <td>{entry.reboot_required === true ? 'Reboot-sensitive' : entry.reboot_required === false ? 'No reboot declared' : 'Reboot not declared'}</td>
+      {desired && <td data-label="Current">{formatParameterValue(entry.current_value, entry, { exact: true })}</td>}
+      <td data-label="Proposed">{formatParameterValue(desired ? entry.desired_value : entry.value, entry, { exact: true })}</td>
+      <td data-label="Reference">{entry.reboot_required === true ? 'Reboot-sensitive' : entry.reboot_required === false ? 'No reboot declared' : 'Reboot not declared'}</td>
     </tr>)}</tbody></table></div>;
 }
 
@@ -28,7 +28,7 @@ export default function ParameterReview({ workspace, aircraft, clusters, now, on
   });
   const hiddenCount = draft.hwIds.filter(id => !aircraft.some(item => item.id === id && matchesDroneSearchQuery(item.raw, query))).length;
   return <ConfirmDialog appearance="console" size="wide" open title={review ? 'Review parameter changes' : 'Prepare parameter changes'}
-    cancelLabel="Close" confirmLabel={review ? `Apply ${totalChanges} changes to ${review.hw_ids.length} aircraft` : 'Prepare review'}
+    cancelLabel="Close" confirmLabel={review ? `Apply ${totalChanges} change${totalChanges === 1 ? '' : 's'} to ${review.hw_ids.length} aircraft` : 'Prepare review'}
     busy={reviewBusy || applying} allowDismissWhileBusy={!applying} onCancel={onClose}
     onConfirm={review ? workspace.apply : workspace.prepare}
     confirmDisabled={!knownRuntime || Boolean(workspace.storageError) || (review ? expired || review.blocked || totalChanges === 0 : !draft.hwIds.length || !draft.entries.length)}
@@ -69,7 +69,7 @@ export default function ParameterReview({ workspace, aircraft, clusters, now, on
           {review.targets.map(item => <tr key={item.hw_id}><th>{describeAircraft(aircraft, item.hw_id)}</th><td>{item.changes.length}</td><td>{item.unchanged_count}</td><td>{item.blockers.length ? item.blockers.join(' · ') : 'Reviewed'}{item.warnings.length ? ` · ${item.warnings.join(' · ')}` : ''}</td></tr>)}
         </tbody></table></div>
         {target && <section className="px4-target-diff"><label>Review aircraft<select value={target.hw_id} onChange={event => setDetailTarget(event.target.value)} aria-label="Review aircraft">
-          {review.targets.map(item => <option key={item.hw_id} value={item.hw_id}>{describeAircraft(aircraft, item.hw_id)} · {item.changes.length} changes</option>)}
+          {review.targets.map(item => <option key={item.hw_id} value={item.hw_id}>{describeAircraft(aircraft, item.hw_id)} · {item.changes.length} change{item.changes.length === 1 ? '' : 's'}</option>)}
         </select></label><ChangeTable entries={target.changes} desired />
           <small>Baseline snapshot: {target.snapshot_id || 'Unavailable'}</small></section>}
         <div className="px4-text-actions"><button type="button" className="operator-button operator-button--ghost" disabled={applying} onClick={() => workspace.updateDraft(previous => ({ ...previous }))}>Edit review</button>

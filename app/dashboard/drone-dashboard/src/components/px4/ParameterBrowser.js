@@ -51,7 +51,7 @@ export default function ParameterBrowser({ rows, busy, selectedKey, onInspect, s
       <label className="px4-search"><span className="px4-visually-hidden">Find parameter</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} aria-label="Find parameter" placeholder="Find parameter" /></label>
       <label><span className="px4-visually-hidden">Parameter group</span><select aria-label="Parameter group" value={group} onChange={event => setGroup(event.target.value)}><option value="">All groups</option>{groups.map(name => <option key={name}>{name}</option>)}</select></label>
       <label><span className="px4-visually-hidden">Parameter filter</span><select aria-label="Parameter filter" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All parameters</option><option value="modified">Different from default</option><option value="session">Changed this session</option><option value="reboot">Reboot-sensitive</option></select></label>
-      <span className="px4-browser-count" role="status">{busy ? 'Refreshing…' : `${visible.length} parameters`}</span>
+      <span className="px4-browser-count" role="status">{busy ? 'Refreshing…' : `${visible.length} parameter${visible.length === 1 ? '' : 's'}`}</span>
     </div>
     {!visible.length ? <div className="px4-empty">{busy ? 'Reading parameters…' : rows.length ? 'No matching parameters.' : 'Choose an aircraft and fetch its parameters.'}</div>
       : compact ? <div className="px4-parameter-list">{deferred.trim() || group ? visible.map(compactRow) : grouped.map(([name, items]) => <section key={name} className="px4-parameter-group">
