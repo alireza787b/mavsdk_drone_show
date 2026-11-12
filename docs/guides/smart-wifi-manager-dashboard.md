@@ -21,18 +21,38 @@ If the icon is disabled or the URL does not open, check that the node reports
 `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080` and that your operator
 device can reach the node over the local network or VPN.
 
-Direct browser access to `:9080` is primarily a node-local diagnostic surface.
-Smart Wi-Fi Manager deliberately blocks remote mutating requests when no
-`SMART_WIFI_MANAGER_API_TOKEN` is configured. That means a remote browser may
-load the page but still fail on **Save**, **Remove Profile**, or other changes
-with:
+For direct field/VPN browser use, provision the sidecar's browser login once.
+MDS pins Smart Wi-Fi Manager **v2.1.14**, which supports browser login and the
+bundled CSRF header. Port/firewall access alone does not authorize Save or Remove.
+
+On the grounded node, from its configured Smart Wi-Fi installation directory:
+
+```bash
+sudo ./install.sh --dashboard-listen 0.0.0.0:9080 \
+  --dashboard-version v2.1.14 \
+  --dashboard-auth-user field-operator --dashboard-auth-prompt
+```
+
+Use a separate operator password, not the Linux SSH password. Automation may use
+the upstream `--dashboard-auth-password-file PATH` or password-stdin option;
+never put a raw password in command arguments, Git, reports or reusable images.
+The sidecar owns its root-readable `/etc/smart-wifi-manager/dashboard.env` and
+bcrypt hash. Normal MDS reconcile preserves that authentication; do not create
+a duplicate MDS password store or security-mode switch.
+
+Reload the node dashboard, sign in and use its normal profile controls. Use an
+encrypted VPN such as NetBird or HTTPS: HTTP Basic login does not itself encrypt
+the transport. Keep known-good network profiles and another recovery path.
+See the [upstream board setup](https://github.com/alireza787b/smart-wifi-manager/blob/v2.1.14/docs/BOARD_SETUP.md).
+
+An older dashboard or an unprovisioned remote login can still return:
 
 ```json
 {"error":"SMART_WIFI_MANAGER_API_TOKEN is required for remote mutating requests"}
 ```
 
-That error is a security guard, not a GCS/Simurgh failure. For field recovery,
-prefer one of these paths:
+That error is a security guard, not a GCS/Simurgh failure. Do not disable it.
+Upgrade/provision browser login, or use one of these recovery paths:
 
 1. Use **Fleet Ops Wi-Fi** from the GCS for profile dry-run/apply. The node API
    proxies approved profile operations to the sidecar over node loopback.
@@ -44,9 +64,9 @@ prefer one of these paths:
    ```
 
    Then open `http://127.0.0.1:9080/` on the operator machine.
-3. Use direct `http://<node-ip>:9080/` only on a trusted NetBird/local network,
-   and only for remote changes after the dashboard client and service are both
-   configured to send/accept the mutation token.
+3. Machine clients may use a separately configured `SMART_WIFI_MANAGER_API_TOKEN`
+   with a Bearer header. Browser operators should use the normal login, not
+   paste machine tokens into the page or URL.
 
 ## Add Or Update A Wi-Fi Profile
 
@@ -158,8 +178,13 @@ operator intentionally resets that node profile set.
   expected address with `ss -ltnp`, and verify
   `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` in `/etc/mds/local.env`.
 - Remove/save returns `SMART_WIFI_MANAGER_API_TOKEN is required for remote
-  mutating requests`: use Fleet Ops Wi-Fi or an SSH tunnel, or deploy a
-  token-aware remote dashboard path. Do not disable this guard for field nodes.
+  mutating requests`: check the installed dashboard version, provision its
+  browser login and reload. Fleet Ops Wi-Fi and an SSH tunnel remain recovery
+  options. Do not disable the guard for field nodes.
+- Source Git tag looks current but the page still behaves like an older build:
+  run the sidecar's `scripts/check_dashboard_version.sh`. MDS checks the actual
+  dashboard identity before skipping reconcile and after installation; an
+  unchanged profile hash is not proof the running binary was updated.
 - Save succeeds but nothing changes: click **Trigger Scan** or wait for the next
   scan interval.
 - Node disappears after a bad Wi-Fi change: recover through Ethernet, console,

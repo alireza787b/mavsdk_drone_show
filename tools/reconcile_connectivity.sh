@@ -137,7 +137,7 @@ resolve_smart_wifi_repo_url() {
 }
 
 resolve_smart_wifi_ref() {
-    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.11}}"
+    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.14}}"
 }
 
 smart_wifi_git() {
@@ -284,6 +284,18 @@ PY
     printf '%s\n' "${temp_path}"
 }
 
+smart_wifi_dashboard_version_matches() {
+    local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
+    local checker="${install_dir}/scripts/check_dashboard_version.sh"
+    local listen="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
+    [[ "${MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD:-false}" == "true" ]] && return 0
+    # Older/custom sidecars without this capability keep their existing path.
+    [[ -x "${checker}" ]] || return 0
+    SMART_WIFI_MANAGER_DASHBOARD_URL="http://127.0.0.1:${listen##*:}/api/meta" \
+    SMART_WIFI_MANAGER_DASHBOARD_BINARY="${install_dir}/build/smart-wifi-manager-dashboard" \
+        "${checker}" >/dev/null 2>&1
+}
+
 ensure_smart_wifi_manager_runtime() {
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
     local dashboard_listen="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
@@ -297,7 +309,7 @@ ensure_smart_wifi_manager_runtime() {
         if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]]; then
             local current_ref=""
             current_ref="$(smart_wifi_git describe --tags --exact-match HEAD 2>/dev/null || true)"
-            if [[ "${current_ref}" == "${repo_ref}" ]]; then
+            if [[ "${current_ref}" == "${repo_ref}" ]] && smart_wifi_dashboard_version_matches; then
                 log INFO "Smart Wi-Fi Manager runtime already at ${repo_ref}; skipping runtime fetch"
                 return 0
             fi
@@ -305,7 +317,7 @@ ensure_smart_wifi_manager_runtime() {
         log INFO "Syncing Smart Wi-Fi Manager runtime (${repo_ref})"
         smart_wifi_git remote set-url origin "${repo_url}" >/dev/null 2>&1
         if ! smart_wifi_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1; then
-            if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]]; then
+            if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]] && smart_wifi_dashboard_version_matches; then
                 log WARN "Smart Wi-Fi Manager runtime fetch failed; continuing with existing local runtime"
                 return 0
             fi
@@ -326,7 +338,11 @@ ensure_smart_wifi_manager_runtime() {
         install_args=("--skip-dashboard")
     fi
 
-    (cd "${install_dir}" && bash ./install.sh "${install_args[@]}" >/dev/null 2>&1)
+    (cd "${install_dir}" && bash ./install.sh "${install_args[@]}" >/dev/null 2>&1) || return 1
+    if ! smart_wifi_dashboard_version_matches; then
+        log ERROR "Smart Wi-Fi dashboard version is not verified after installation"
+        return 1
+    fi
 }
 
 apply_smart_wifi_manager() {
@@ -361,7 +377,7 @@ apply_smart_wifi_manager() {
         runtime_present="true"
     fi
 
-    if [[ "${FORCE}" != "true" && -n "${old_hash}" && "${old_hash}" == "${new_hash}" && "${runtime_present}" == "true" ]]; then
+    if [[ "${FORCE}" != "true" && -n "${old_hash}" && "${old_hash}" == "${new_hash}" && "${runtime_present}" == "true" ]] && smart_wifi_dashboard_version_matches; then
         log INFO "Connectivity profile unchanged; skipping Smart Wi-Fi Manager reconcile"
         return 0
     fi

@@ -64,6 +64,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[Frontend UI Audit Guide](guides/frontend-ui-audit.md)** - predeploy UI/UX cleanup guardrails, route-doc mapping rules, and audit command
 - **[GCS Auth Guide](guides/gcs-auth.md)** - optional dashboard login, roles, token management, bootstrap flags, and SSH recovery
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
+- **[SDK 4 Image Acceptance](plans/2026-11-12-sdk4-image-release-acceptance.md)** - exact baked runtime, native two/three-aircraft matrix, verified archive and separate grounded-maintenance boundary
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
 - **[Two-drone Smart Swarm Pre-field Acceptance](plans/2026-08-13-two-drone-sitl-pre-field-acceptance-checkpoint.md)** - exact H1/H2 `+6 m north` SITL rehearsal, tracking evidence, log audit, cleanup proof, and real-flight boundary
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage

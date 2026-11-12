@@ -117,7 +117,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
-    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.11")
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.14")
     smart_wifi_manager_mode = _normalize_sidecar_profile_mode(
         data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "fleet-merge"),
         default="fleet-merge",

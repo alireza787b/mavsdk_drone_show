@@ -109,7 +109,9 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 ```bash
 cd ~
 # Public Mega download via the official MEGAcmd client; large archives may take several minutes.
-mega-get 'https://mega.nz/file/iLRG3I7a#5ktNslf4c8Ewekt_Fsw8Lu7WKGPLo98BLEowPVt2eDc' .
+mega-get 'https://mega.nz/file/eHBAGSAI#QJvpeEXvbvifpAhTMDs5rKPhRMu2bKzAbW1dgIbmHVk' .
+# Verify the v6 archive bytes before extracting.
+printf '%s  %s\n' 'ed66ea06ca31db6ae1e15ea7e46b4f3e0997de1aaf9ddd9018e76daf61ec3c0c' 'mavsdk-drone-show-sitl-image.7z' | sha256sum -c -
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
@@ -150,7 +152,13 @@ docker image ls mavsdk-drone-show-sitl
 
 You should see the current official tags, including:
 - `mavsdk-drone-show-sitl:latest`
-- `mavsdk-drone-show-sitl:v5`
+- `mavsdk-drone-show-sitl:v6`
+
+This archive bakes the reviewed SDK 4 runtime at source `0bc368cb` and uses
+CPython 3.12.16. Its two/three-aircraft native acceptance and later host-tool /
+companion-provisioning follow-ups are separated in the
+[release evidence](../plans/2026-11-12-sdk4-image-release-acceptance.md).
+Image acceptance is not hardware flight clearance.
 
 After a successful `docker load`, you can reclaim several GB on smaller VPSes by deleting the temporary archive files:
 

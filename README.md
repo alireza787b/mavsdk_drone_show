@@ -104,9 +104,10 @@ selection is explicit: first-use Available or the remembered selection; filterin
 reconnecting never change its targets. See the
 [Overview operator guide](docs/guides/dashboard-operator.md).
 
-The validated 5-drone Smart Swarm acceptance flow is documented in the Smart
-Swarm and SITL guides, including the operator-safe dashboard path and the
-automation validation helper for advanced users.
+Smart Swarm operator and automation workflows are documented in the Smart
+Swarm and SITL guides. The rebuilt SDK 4 image's current two/three-aircraft
+[acceptance record](docs/plans/2026-11-12-sdk4-image-release-acceptance.md)
+distinguishes tested artifact/runtime scope from later hardware maintenance.
 
 If you need your own fork, custom image, or a pinned redistribution workflow, do not improvise from the demo path. Use:
 

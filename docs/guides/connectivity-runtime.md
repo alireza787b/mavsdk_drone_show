@@ -114,12 +114,14 @@ If Fleet Ops shows the dashboard icon as local-only, the node is probably still
 reporting `127.0.0.1:9080`; use SSH tunneling or change the listen address
 through the node-local env workflow.
 
-Remote Smart Wi-Fi dashboard mutation is intentionally stricter than viewing the
-page. Smart Wi-Fi Manager allows writes from loopback, but remote writes require
-`SMART_WIFI_MANAGER_API_TOKEN` and a token-aware client header. If a field
-operator can open the dashboard but deleting or saving a profile returns
-`SMART_WIFI_MANAGER_API_TOKEN is required for remote mutating requests`, use
-Fleet Ops Wi-Fi or an SSH tunnel for that board instead of disabling the guard.
+Remote Smart Wi-Fi dashboard mutation is intentionally authenticated. The pinned
+v2.1.14 supports normal browser login plus its bundled CSRF header; machine
+clients may use `SMART_WIFI_MANAGER_API_TOKEN`. MDS's node-local proxy uses
+loopback. Provision the sidecar browser login once using its own installer;
+MDS updates preserve that root-local authentication. Port access is not edit
+authorization. If an older/unprovisioned page reports a required token, follow
+the [dashboard setup](smart-wifi-manager-dashboard.md), or use Fleet Ops Wi-Fi /
+an SSH tunnel. Do not disable the guard or store credentials in fleet profiles.
 
 ## Transport And Internet Reporting
 

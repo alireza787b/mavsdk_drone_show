@@ -462,6 +462,16 @@ Check the installation log:
 cat /var/log/mds/mds_init.log
 ```
 
+### Configure remote Wi-Fi dashboard access
+
+If Smart Wi-Fi Manager is enabled, port reachability and edit authorization
+are separate. Keep its default loopback listener for local/proxied use. For a
+direct NetBird browser link, use the pinned sidecar's normal browser login:
+follow [Wi-Fi dashboard setup](smart-wifi-manager-dashboard.md) once on the
+grounded node, then reload the page and sign in. The sidecar owns the local
+credential/hash; ordinary MDS sync preserves it. Do not copy SSH credentials
+into the dashboard, disable remote-write protection or put passwords in Git.
+
 ### Configure MAVLink Routing
 
 Current best practice:

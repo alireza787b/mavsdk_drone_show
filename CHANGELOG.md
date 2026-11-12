@@ -9,6 +9,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Companion setup pins Smart Wi-Fi Manager v2.1.14 with its existing browser
+  login/CSRF workflow. Credentials stay sidecar-local and survive reconcile;
+  no remote-write bypass or second MDS authentication mode is introduced.
+  Reconcile checks dashboard runtime identity instead of trusting a source tag
+  or unchanged profile hash after an incomplete installation.
+
 - The host Smart Swarm validator waits for the UI's native Start review after
   Takeoff and retains structured HTTP rejection evidence. It does not queue or
   replay Start, add a flight policy, or change aircraft runtime behavior.

@@ -416,7 +416,7 @@ export MDS_BRANCH="production"
 bash tools/build_custom_image.sh "$MDS_REPO_URL" "$MDS_BRANCH" "mycompany-mds-sitl:v5-custom-2"
 ```
 
-> **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v5` and also tagged as `mavsdk-drone-show-sitl:latest`.
+> **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v6` and also tagged as `mavsdk-drone-show-sitl:latest`. See the [runtime/artifact acceptance record](../plans/2026-11-12-sdk4-image-release-acceptance.md) for its baked source and separate hardware boundary.
 
 > **Best practice:** keep custom image creation reproducible. Avoid using `docker commit` or hand-edited running containers as your normal release workflow, because they hide state and are overwritten by startup sync.
 >
