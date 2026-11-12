@@ -15,24 +15,37 @@
 .px4-browser-toolbar input { width: 100%; }
 .px4-browser-toolbar select { max-width: 17rem; }
 .px4-browser-count { color: var(--color-text-secondary); font-size: .78rem; margin-left: auto; }
+.px4-browser-views { display: flex; }
+.px4-browser-views .operator-button { border-radius: 0; }
+.px4-browser-views .operator-button + .operator-button { margin-left: -1px; }
+.px4-browser-views .operator-button[aria-pressed=true] { background: var(--color-bg-tertiary); border-bottom-color: var(--color-text-secondary); color: var(--color-text-primary); }
 .px4-grid { height: max(380px, calc(var(--workspace-height, 80dvh) - 250px)); min-width: 0; border-block: 1px solid var(--color-border-primary); }
 .px4-grid .MuiDataGrid-root { background: var(--color-bg-primary); }
 .px4-grid .MuiDataGrid-columnHeaders, .px4-grid .MuiDataGrid-columnHeader { background: var(--color-bg-secondary); color: var(--color-text-secondary); }
 .px4-grid .MuiDataGrid-cell, .px4-grid .MuiDataGrid-footerContainer { border-color: var(--color-border-primary); }
 .px4-grid .MuiTablePagination-root, .px4-grid .MuiDataGrid-overlay, .px4-grid .MuiIconButton-root, .px4-grid .MuiSvgIcon-root { color: var(--color-text-secondary); }
 .px4-grid .MuiDataGrid-overlay { background: var(--color-bg-primary); }
-.px4-grid .Mui-selected { background: var(--color-primary-light) !important; }
 .px4-grid .MuiDataGrid-cell { font-variant-numeric: tabular-nums; }
-.px4-row-link { background: none; border: 0; color: var(--color-text-primary); cursor: pointer; font: .85rem var(--font-family-mono); min-height: 44px; padding: 0; text-align: left; }
-.px4-group-heading, .px4-parameter-row { align-items: center; background: var(--color-bg-primary); border: 0; border-bottom: 1px solid var(--color-border-primary); border-radius: 0; color: var(--color-text-primary); cursor: pointer; display: flex; justify-content: space-between; gap: 1rem; min-height: 50px; padding: .65rem .3rem; text-align: left; width: 100%; }
-.px4-group-heading { font: inherit; font-weight: 600; background: var(--color-bg-secondary); padding-inline: .65rem; }
-.px4-parameter-row > span { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
-.px4-parameter-row > span:last-child { text-align: right; }
-.px4-parameter-row code { font: .83rem var(--font-family-mono); overflow-wrap: anywhere; }
-.px4-parameter-row b { font: .95rem var(--font-family-mono); }
-.px4-parameter-row small, .px4-group-heading small { color: var(--color-text-secondary); font-size: .7rem; font-weight: 400; }
-.px4-parameter-row.is-selected { box-shadow: inset 3px 0 var(--color-primary); background: var(--color-bg-secondary); }
-.px4-parameter-row:hover, .px4-row-link:hover { color: var(--color-primary); }
+.px4-grid .px4-grid-row--even { background: var(--color-bg-primary); }
+.px4-grid .px4-grid-row--odd { background: var(--color-bg-tertiary); }
+.px4-grid .MuiDataGrid-row:hover, .px4-grid .MuiDataGrid-row:focus-within { background: var(--color-bg-quaternary); }
+.px4-grid .MuiDataGrid-row.is-inspected, .px4-grid .MuiDataGrid-row.is-inspected:hover, .px4-grid .MuiDataGrid-row.is-inspected:focus-within { background: var(--color-primary-light); box-shadow: inset 3px 0 var(--color-primary); }
+.px4-grid .px4-grid-group { background: var(--color-bg-secondary); }
+.px4-row-link, .px4-group-heading { align-items: center; background: none; border: 0; border-radius: 0; color: var(--color-text-primary); cursor: pointer; display: flex; gap: .5rem; height: 100%; padding: 0; text-align: left; width: 100%; }
+.px4-row-link { font: .85rem var(--font-family-mono); }
+.px4-grid .px4-row-link { line-height: 1.3; }
+.px4-group-heading { font: inherit; font-weight: 600; }
+.px4-group-heading small { margin-left: auto; }
+.px4-row-link small, .px4-group-heading small { color: var(--color-text-secondary); font-size: .7rem; font-weight: 400; }
+.px4-grid--compact .px4-row-link { align-items: flex-start; flex-direction: column; gap: .15rem; justify-content: center; }
+.px4-grid--compact .px4-row-link small { font-family: var(--font-family-primary); font-size: .65rem; }
+/* MUI hides its page-size input below sm. Keep Show all operable on phones
+   without adding another control or losing the bounded virtualized surface. */
+.px4-grid.px4-grid--compact .MuiTablePagination-input { display: inline-flex; margin-inline: .25rem; }
+.px4-grid.px4-grid--compact .MuiTablePagination-toolbar { gap: .35rem; padding-inline: .25rem; }
+.px4-grid.px4-grid--compact .MuiTablePagination-spacer { flex: 0; }
+.px4-grid.px4-grid--compact .MuiTablePagination-displayedRows { margin: 0; }
+.px4-grid.px4-grid--compact .MuiTablePagination-actions { margin-left: .25rem; }
 .px4-empty { color: var(--color-text-secondary); padding: 2.5rem 1rem; text-align: center; }
 .px4-source-details, .px4-activity { border-top: 1px solid var(--color-border-primary); margin-top: .8rem; }
 .px4-source-details > summary, .px4-activity > summary { font-size: .8rem; color: var(--color-text-secondary); }

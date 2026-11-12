@@ -58,7 +58,7 @@ function profile(state) {
 function snapshot(state, id) {
   state.snapshots += 1;
   return { snapshot: { snapshot_id: `fixture-snapshot-${id}-${state.snapshots}`, hw_id: id, component_id: 1,
-    px4_docs_version: 'main', total_params: state.rows.length, created_at: Date.now(), stale_after_ms: 60000,
+    px4_docs_version: 'main', total_params: state.rows.length, created_at: Date.now() - (state.snapshotAgeMs || 0), stale_after_ms: 60000,
     metadata_quality: 'reference_only', metadata_sources: ['px4_docs_cache'],
     metadata_warning: 'Reference-only defaults and descriptions; live values come from the aircraft fixture.' },
   rows: state.rows.map(row => ({ ...row, value: state.values.get(id).get(entriesKey(row)) })) };
@@ -96,6 +96,10 @@ async function installFixtures(context, state, page) {
           const body = request.postDataJSON();
           if (pathname === `${API}/snapshots`) {
             assert(body.hw_ids.every(id => state.values.has(id)), 'Snapshot only the synthetic fleet');
+            if (state.failNextSnapshot) {
+              state.failNextSnapshot = false;
+              return fulfill({ detail: 'Synthetic aircraft unavailable.' }, 503);
+            }
             return fulfill({ snapshots: body.hw_ids.map(id => snapshot(state, id)), errors: [], total_targets: body.hw_ids.length, timestamp: now });
           }
           if (pathname === `${API}/reviews`) {
@@ -211,6 +215,10 @@ async function installFixtures(context, state, page) {
       state.requests.push({ method: 'FONT_CSS_FIXTURE', path: pathname });
       return route.fulfill({ status: 200, contentType: 'text/css', body: '/* Fixture-only: system-font fallback. */' });
     }
+    if (url.hostname === 'api.mapbox.com' && request.method() === 'HEAD') {
+      state.requests.push({ method: 'MAP_PROVIDER_PROBE_FIXTURE', path: pathname });
+      return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': origin } });
+    }
     if (url.origin !== origin || !['GET', 'HEAD'].includes(request.method())) {
       state.violations.push(`${request.method()} external/non-static ${url.origin}${pathname}`);
       return route.abort('blockedbyclient');
@@ -285,7 +293,7 @@ async function scenario(browser, width, theme) {
     if (width === 1440) {
       assert(await page.locator('.px4-grid').isVisible(), 'Wide desktop keeps the real DataGrid');
       assert(await page.locator('.MuiDataGrid-row').count() < 200, '2,049 parameters must remain virtualized/paginated');
-    } else if (width === 390) assert(await page.locator('.px4-group-heading').count() > 0, 'Phone starts with grouped browsing');
+    } else if (width === 390) assert(await page.locator('.px4-grid').isVisible(), 'Phone keeps the virtualized List by default');
     let dialog = await inspect(page);
     assert(await dialog.getByRole('button', { name: 'Close', exact: true }).evaluate(element => element === document.activeElement), 'Accessible inspector starts focus on Close');
     await capture('guide-01-inspect');
@@ -411,4 +419,5 @@ async function main() {
   } finally { await browser.close(); }
 }
 
-main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
+module.exports = { fixtureState, installFixtures, choose, PARAMETER };
+if (require.main === module) main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });

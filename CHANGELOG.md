@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- PX4 Parameters adds a List / Groups switch, collapsible group headings and
+  Show all in the existing pagination control, including phones. Both layouts
+  stay virtualized for large snapshots. Search includes groups/categories;
+  alternating rows, hover/focus and a distinct inspection rail improve scanning.
+  Snapshot/stale/read-failure labels remain separate from apply targets, with
+  no changes to parameter write authority or aircraft selection.
+
 - Fixed the shared console-dialog field rule expanding radio/checkbox controls
   to full width and clipping aircraft/source labels. Browser regression checks
   cover Logs and PX4 Parameters pickers across responsive widths and themes.
