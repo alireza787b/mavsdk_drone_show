@@ -124,6 +124,8 @@ Available flags:
 ## Session Management
 
 Sessions are named `s_YYYYMMDD_HHMMSS` and stored as `.jsonl` files.
+Concurrent sessions in the same second receive unique numeric suffixes using
+exclusive creation; unrelated runs never share a session file.
 
 ```python
 from mds_logging.session import create_session, list_sessions, cleanup_sessions
@@ -415,26 +417,25 @@ Default: `logs/sessions/s_YYYYMMDD_HHMMSS.jsonl`. Override with `MDS_LOG_DIR` en
 
 Navigate to `/logs` in the dashboard sidebar (under "System" section).
 
-### Modes
+### Workspaces
 
-**Operations Mode** (default):
-- Shows WARNING and ERROR entries only
-- Health bar: GCS status, live drone availability, error/warning drill-down counts
-- Live event feed with auto-scroll
-- One-click drill-down into warnings or errors from the health bar
-- Ideal for field operators during missions
+One `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is
+no Operations/Developer mode: severity, search and export are ordinary operator
+tools. GCS is the initial runtime source. **Source** chooses one aircraft by
+callsign and hardware ID; filters, reconnects and inspection never change it.
 
-**Developer Mode**:
-- All log levels (DEBUG through CRITICAL)
-- Component source tree for filtering
-- Full-text search across log messages
-- Scope switcher for `GCS` vs `Drone #N` live and historical browsing
-- Human-readable session labels in UTC, clearly marked as UTC
-- Session selector for historical log browsing
-- Time focus controls: relative live windows, absolute start/end range for historical sessions
-- Active filter chips with one-click removal and a `Clear All Filters` action
-- MUI DataGrid with virtual scroll for large datasets
-- Export to JSONL or ZIP
+- **Live** starts at Warnings+. Search and severity are visible; component and
+  time-window filters expand on request. Select a record for its complete message
+  and raw fields. Stream connection/coverage is not aircraft flight readiness.
+- **Sessions** selects one recorded session and reads bounded pages. Search,
+  component, severity and explicit **After (UTC)** / **Through (UTC)** filters
+  apply before pagination. After is exclusive; Through is inclusive.
+- **Flight logs** needs an explicit aircraft for onboard inventory, summary and
+  staged download. **Open file** also summarizes a local `.ulg` without an
+  aircraft, through the existing temporary local parser. Nothing is uploaded to
+  an external provider or retained as a new GCS archive.
+
+See the illustrated [operator workflow](logs-operator-workflow.md).
 
 ### Empty States
 
@@ -450,37 +451,62 @@ The Log Viewer uses Server-Sent Events (SSE) for real-time streaming:
 - 200ms batch interval prevents UI thrashing
 - 5000-line ring buffer prevents memory bloat
 - Auto-reconnect on connection loss
-- Pause/resume button to freeze the view without losing data
+- **Freeze view** freezes display, not logging or flight. Pending rows remain
+  bounded; overflow and stream/replay gaps are reported. **Follow latest** resumes
+  the display. **Clear view** removes browser rows only.
+- Stable `epoch:sequence` SSE IDs support bounded retained replay. Named `status`
+  and `gap` events disclose coverage separately from real log records. Silence,
+  reconnecting and unavailable sources are not replaced with fabricated events.
+- Live time windows advance with the wall clock, or the deliberately frozen
+  display clock. For complete recorded evidence, use Sessions rather than the
+  live buffer.
 
 ### Export
 
-In Developer mode, click the Export button to:
-- Select one or more sessions
-- Choose JSONL (machine-readable) or ZIP
-- Export the current scope (`GCS` or the selected drone)
+From Sessions, **Export** freezes the source and offers selected sessions in
+JSONL or ZIP (multiple sessions use ZIP). **Whole selected sessions** ignores
+view filters; **Current filters** includes all matching records, not only the
+visible page. Skipped malformed/oversized records are counted explicitly.
+
+Session reads default to 500 rows, maximum 2,000. Signed cursors pin the file's
+read boundary; append-only growth does not change later pages. A changed file,
+query or server restart requires Refresh instead of silently mixing history.
+Exports spool to temporary disk, cap output at 128 MiB, retain a 512 MiB free
+space reserve and admit at most two concurrent responses. Narrow the export
+when a bound is reached. Older companions may support bounded reads but must be
+updated for cursor paging and complete remote exports.
 
 ### Onboard ULog
 
-When a single drone scope is selected, the toolbar exposes a compact `ULog`
-action that opens the `Onboard ULog` dialog for file-backed PX4 flight logs
-stored on that vehicle.
+Flight logs lists file-backed PX4 recorder files on the selected aircraft.
+An unavailable inventory is unknown, not a successful zero-file result.
 
 Current behavior:
 - maintenance workflow anchored to `hw_id`, while the UI still shows compact
   `Pn|Hm` identity for operator clarity
 - supports `list`, on-demand derived analysis, staged `download`, and `erase all`
-- the **Analyze** control calls the GCS summary endpoint and shows bounded flight
+- the **Summary** control calls the GCS summary endpoint and shows bounded flight
   duration, local movement/altitude envelope, battery range, and command/ack
   evidence inline; raw ULog content is never rendered
-- stages downloads briefly on the drone/GCS path and then hands them off to
-  the browser; v1 does not keep a long-lived GCS archive
+- **Prepare download** stages one file on the aircraft; **Save file** streams it
+  to the browser once ready. Immediate-ready responses also offer Save. Browser
+  download requested is not proof of a completed local save or safe shutdown.
+- a context-bound Activity list survives navigation/reload using metadata and
+  signed handles only. A UUID is saved before creation; accepted requests recover
+  by receipt/status lookup, never automatic POST replay. Unknown outcomes and
+  expired staging remain explicit. Closing an inspector does not cancel work.
+- fresh native disarm evidence is checked at actual staging/erase boundaries
+  under the existing policy, including filesystem fallback. A missing or cached
+  false armed flag is not disarm authority. Listing metadata stays available.
+- unknown command/ack counts and partial duration remain unknown/partial, not
+  zero or whole-flight claims. File metadata time is not inferred flight time.
 - designed for file-backed PX4 ULogs only; MAVLink log streaming is a separate
   future feature
 - single-file delete is intentionally not exposed in the generic v1 contract
 
 Operational notes:
-- the dialog shows policy chips such as `Download requires disarmed` and
-  `Erase requires disarmed`
+- capability and recorder policy remain available in one expandable section;
+  admin erase is isolated under Maintenance with a frozen aircraft/count review
 - stock lab/demo nodes with no `MDS_GCS_API_TOKEN_FILE` use explicit
   trusted-network ULog mode and log a warning; this preserves plug-and-play
   operation but must not be exposed to untrusted peers

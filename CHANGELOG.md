@@ -9,6 +9,22 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Logs operator workspace and evidence integrity
+
+- Replaced Ops/Dev logging modes with Live / Sessions / Flight logs, one explicit
+  source, accessible record inspectors, UTC filters, bounded history and complete
+  selected-session/filter exports. Shared flat styling covers desktop, tablet and
+  phone; connection, empty, unavailable and partial-coverage states stay distinct.
+- Fixed same-second session collisions, unbounded/malformed session reads, thread
+  unsafe stream publication and silent replay/subscriber gaps. Temporary exports
+  have byte, disk, concurrency and preparation-time bounds.
+- Added metadata-only ULog request recovery and idempotency without replay after
+  an uncertain response. Ready files have explicit Save; native staging/erase use
+  fresh authoritative disarm evidence. Raw transfers remain outside optional MCP.
+- Mission Config no longer treats an unseen row's placeholder slot as a live
+  mismatch or offers stale slot adoption. Parameter profile component/type labels
+  have a separate line, preventing adjacent-column collisions.
+
 - PX4 Parameters uses one flat Parameters / Profiles workspace with explicit
   aircraft inspection, complete per-target difference reviews and recoverable
   Activity receipts. Manual edits, QGC imports and profiles share the same

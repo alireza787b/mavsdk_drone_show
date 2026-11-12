@@ -32,6 +32,11 @@ def clean_registry(tmp_path, monkeypatch):
         "MDS_AUTH_SESSION_SECRET_FILE",
         str(tmp_path / "session-secret"),
     )
+    import log_routes
+    from ulog_download_requests import UlogDownloadRequests
+    monkeypatch.setattr(log_routes, "get_ulog_download_requests", lambda: UlogDownloadRequests(
+        str(tmp_path / "ulog-request-state"), "isolated-test-runtime",
+    ))
     clear_registry()
     yield
     clear_registry()
@@ -302,6 +307,7 @@ class TestExport:
             return {
                 "session_id": session_id,
                 "lines": [{"level": "INFO", "msg": "hello from drone"}],
+                "schema_version": "1.1", "snapshot_id": session_id, "has_more": False,
             }
 
         monkeypatch.setattr(log_proxy, "fetch_drone_session_content", fake_fetch)
@@ -330,6 +336,7 @@ class TestExport:
             return {
                 "session_id": session_id,
                 "lines": [{"level": "INFO", "msg": session_id}],
+                "schema_version": "1.1", "snapshot_id": session_id, "has_more": False,
             }
 
         monkeypatch.setattr(log_proxy, "fetch_drone_session_content", fake_fetch)
@@ -562,7 +569,7 @@ class TestDroneOnboardUlogProxy:
 
         monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
 
-        async def fake_create(_drone_ip, log_id, *, access_token):
+        async def fake_create(_drone_ip, log_id, *, access_token, request_id=None, pos_id=None):
             assert log_id == 12
             assert access_token
             return {
@@ -618,7 +625,7 @@ class TestDroneOnboardUlogProxy:
 
         monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
 
-        async def fake_create(_drone_ip, log_id, *, access_token):
+        async def fake_create(_drone_ip, log_id, *, access_token, request_id=None, pos_id=None):
             assert log_id == 1
             assert access_token
             return {

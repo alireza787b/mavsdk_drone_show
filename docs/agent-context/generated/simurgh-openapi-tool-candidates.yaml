@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 231
+candidate_count: 232
 candidates:
 - callable: false
   classification:
@@ -339,16 +339,19 @@ candidates:
     name: limit
     required: false
     schema:
-      anyOf:
-      - type: integer
-      - type: 'null'
+      default: 500
+      maximum: 2000
+      minimum: 1
       title: Limit
+      type: integer
   - description: ''
     in: query
     name: offset
     required: false
     schema:
       default: 0
+      maximum: 100000
+      minimum: 0
       title: Offset
       type: integer
   - description: ''
@@ -360,6 +363,35 @@ candidates:
       - type: string
       - type: 'null'
       title: Since
+  - description: ''
+    in: query
+    name: until
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: Until
+  - description: ''
+    in: query
+    name: search
+    required: false
+    schema:
+      anyOf:
+      - maxLength: 256
+        type: string
+      - type: 'null'
+      title: Search
+  - description: ''
+    in: query
+    name: cursor
+    required: false
+    schema:
+      anyOf:
+      - maxLength: 4096
+        type: string
+      - type: 'null'
+      title: Cursor
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -446,6 +478,60 @@ candidates:
     operation_id: stream_drone_api_logs_drone__drone_id__stream_get
     path: /api/logs/drone/{drone_id}/stream
     summary: Stream Drone
+    tags:
+    - Logs
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - logs
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - actor-bound raw-download recovery may return a signed content handle; dashboard-only, not model
+      evidence
+    - drone-local log route
+    - keyword:download
+  has_request_body: false
+  id: candidate.gcs.get.api.logs.drone.by.drone.id.ulog.download.requests.by.request.id
+  parameters:
+  - description: ''
+    in: path
+    name: drone_id
+    required: true
+    schema:
+      minimum: 0
+      title: Drone Id
+      type: integer
+  - description: ''
+    in: path
+    name: request_id
+    required: true
+    schema:
+      maxLength: 128
+      minLength: 1
+      pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]*$
+      title: Request Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/UlogDownloadRequestReceipt'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_drone_ulog_download_request_api_logs_drone__drone_id__ulog_download_requests__request_id__get
+    path: /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}
+    summary: Get Drone Ulog Download Request
     tags:
     - Logs
 - callable: false
@@ -749,16 +835,19 @@ candidates:
     name: limit
     required: false
     schema:
-      anyOf:
-      - type: integer
-      - type: 'null'
+      default: 500
+      maximum: 2000
+      minimum: 1
       title: Limit
+      type: integer
   - description: ''
     in: query
     name: offset
     required: false
     schema:
       default: 0
+      maximum: 100000
+      minimum: 0
       title: Offset
       type: integer
   - description: ''
@@ -770,6 +859,35 @@ candidates:
       - type: string
       - type: 'null'
       title: Since
+  - description: ''
+    in: query
+    name: until
+    required: false
+    schema:
+      anyOf:
+      - type: string
+      - type: 'null'
+      title: Until
+  - description: ''
+    in: query
+    name: search
+    required: false
+    schema:
+      anyOf:
+      - maxLength: 256
+        type: string
+      - type: 'null'
+      title: Search
+  - description: ''
+    in: query
+    name: cursor
+    required: false
+    schema:
+      anyOf:
+      - maxLength: 4096
+        type: string
+      - type: 'null'
+      title: Cursor
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -5549,8 +5667,9 @@ candidates:
     - drone-local log route
     - keyword:download
     - non_get_method
+    - request_body_present
     - stream/download/binary artifact route
-  has_request_body: false
+  has_request_body: true
   id: candidate.gcs.post.api.logs.drone.by.drone.id.ulog.files.by.log.id.download
   parameters:
   - description: ''
@@ -5558,6 +5677,7 @@ candidates:
     name: drone_id
     required: true
     schema:
+      minimum: 0
       title: Drone Id
       type: integer
   - description: ''
@@ -5565,6 +5685,7 @@ candidates:
     name: log_id
     required: true
     schema:
+      minimum: 0
       title: Log Id
       type: integer
   promotion_contract:
@@ -5578,7 +5699,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/OnboardUlogDownloadJobResponse'
+    $ref: '#/components/schemas/UlogDownloadCreateResponse'
   review_status: needs_review
   source:
     method: POST
@@ -8996,7 +9117,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 1ae8f71f3013c02ec01d4885fc90ba375343adfb3959f78cb1747ec78055d4ff
+  openapi_sha256: 16daa79e5b0ee612dcbeae1ef31d9287cc6828d3096cbd6f4679a832478d5491
   title: GCS Server API
   version: '5.5'
 summary:

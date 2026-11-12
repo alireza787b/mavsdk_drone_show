@@ -246,6 +246,12 @@ class TestHealthEndpoints:
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == origin
         assert response.headers["access-control-allow-credentials"] == "true"
+        exposed = {value.strip().lower() for value in
+                   response.headers["access-control-expose-headers"].split(",")}
+        assert "*" not in exposed
+        assert {"x-mds-server-time", "content-disposition", "content-length",
+                "x-mds-export-records", "x-mds-export-skipped",
+                "x-mds-export-scope"} <= exposed
 
 
 class TestGlobalHttpErrorBoundary:

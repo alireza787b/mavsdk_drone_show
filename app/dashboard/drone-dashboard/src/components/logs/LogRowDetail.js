@@ -1,121 +1,17 @@
-// src/components/logs/LogRowDetail.js
-import React, { useEffect, useId } from 'react';
-import { createPortal } from 'react-dom';
-import { FaTimes } from 'react-icons/fa';
+import React from 'react';
+import { ConfirmDialog } from '../ui';
+import { recordTime } from '../../features/log-workspace/logWorkspace';
 
-const formatValue = (value) => {
-  if (value === null || value === undefined || value === '') {
-    return '-';
-  }
-  return String(value);
-};
-
-const formatTimestamp = (value) => {
-  if (!value) {
-    return '-';
-  }
-  try {
-    return new Date(value).toISOString();
-  } catch {
-    return String(value);
-  }
-};
-
-const DetailChip = ({ label, value }) => (
-  <div className="log-row-detail-chip">
-    <span>{label}</span>
-    <strong>{formatValue(value)}</strong>
-  </div>
-);
-
-const LogRowDetail = ({ entry, onClose }) => {
-  const titleId = useId();
-
-  useEffect(() => {
-    if (!entry) {
-      return undefined;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        onClose?.();
-      }
-    };
-
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [entry, onClose]);
-
+export default function LogRowDetail({ entry, sourceLabel, onClose }) {
   if (!entry) return null;
-
-  const content = (
-    <div
-      className="log-row-detail"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose?.();
-        }
-      }}
-    >
-      <section
-        className={`log-row-detail__panel level-${entry.level || 'INFO'}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <header className="log-row-detail__header">
-          <div>
-            <span className="log-row-detail__eyebrow">Log entry</span>
-            <h2 id={titleId}>{entry.level || 'INFO'} · {entry.component || 'system'}</h2>
-          </div>
-          <button
-            type="button"
-            className="log-row-detail__close"
-            onClick={onClose}
-            aria-label="Close log detail"
-          >
-            <FaTimes aria-hidden="true" />
-          </button>
-        </header>
-
-        <div className="log-row-detail__meta" aria-label="Log metadata">
-          <DetailChip label="Time" value={formatTimestamp(entry.ts)} />
-          <DetailChip label="Source" value={entry.source} />
-          <DetailChip label="Drone" value={entry.drone_id != null ? `#${entry.drone_id}` : 'GCS'} />
-          <DetailChip label="Level" value={entry.level || 'INFO'} />
-        </div>
-
-        <div className="log-row-detail__message">
-          <span>Message</span>
-          <p>{entry.msg || '-'}</p>
-        </div>
-
-        {entry.extra ? (
-          <div className="log-row-detail__json">
-            <span>Extra</span>
-            <pre>{JSON.stringify(entry.extra, null, 2)}</pre>
-          </div>
-        ) : null}
-
-        <details className="log-row-detail__raw">
-          <summary>Raw entry</summary>
-          <pre>{JSON.stringify(entry, null, 2)}</pre>
-        </details>
-      </section>
-    </div>
-  );
-
-  if (typeof document === 'undefined') {
-    return content;
-  }
-
-  return createPortal(content, document.body);
-};
-
-export default LogRowDetail;
+  const raw = entry._raw || Object.fromEntries(Object.entries(entry).filter(([key]) => !key.startsWith('_')));
+  return <ConfirmDialog appearance="console" open title={`${entry.level || 'Unknown level'} · ${entry.component || 'Unknown component'}`}
+    cancelLabel="Close" confirmLabel="Done" onCancel={onClose} onConfirm={onClose}
+    message={<div className="logs-record-detail"><p className="logs-context">{sourceLabel || entry.source || 'Unknown source'}</p>
+      <dl className="logs-facts"><dt>Time UTC</dt><dd>{recordTime(entry.ts)}</dd><dt>Recorded source</dt><dd>{entry.source || 'Unknown'}</dd>
+        <dt>Hardware</dt><dd>{entry.drone_id != null ? `#${entry.drone_id}` : 'Not recorded'}</dd><dt>Session</dt><dd>{entry.session_id || 'Not recorded'}</dd></dl>
+      <p className="logs-full-message">{entry.msg ?? 'No message recorded'}</p>
+      {entry.extra != null && <details open><summary>Structured data</summary><pre>{JSON.stringify(entry.extra, null, 2)}</pre></details>}
+      <details><summary>Raw entry</summary><pre>{JSON.stringify(raw, null, 2)}</pre></details>
+    </div>} />;
+}

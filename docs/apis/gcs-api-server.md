@@ -2426,6 +2426,92 @@ Not every current GCS API domain needs to move under `/api/v1/...`.
 
 The versioning work after the main Phase 4 cleanup is therefore focused on stream-contract policy and route quality, not on renaming these already namespaced subsystem domains for the sake of uniformity alone.
 
+### Logging API: bounded sessions, exports and ULog requests
+
+The logging root remains `/api/logs`, not `/api/v1/logs`. GCS sessions use
+`GET /api/logs/sessions` and `GET /api/logs/sessions/{session_id}`. Aircraft
+session equivalents are under `/api/logs/drone/{drone_id}/sessions`. Live SSE
+stays under `/api/logs/stream` or the selected aircraft's `/stream`; stream
+connection/coverage is not aircraft health or complete historical coverage.
+
+Session content accepts `level`, `component`, `search`, `since`, `until`,
+`limit`, `offset` and `cursor`. Filters apply before pagination. `since` is
+exclusive and `until` inclusive; timestamps without an offset mean UTC.
+The default page limit is 500, accepted limits are 1–2,000, and the initial
+offset is 0–100,000. Search is bounded to 256 characters. Invalid limits/ranges
+return `422`, not an empty success.
+
+The response retains `session_id`, `count` and `lines`, adding
+`schema_version: "1.1"`, `snapshot_id`, `entry_offsets`, `has_more`,
+`next_cursor` and `coverage`. Coverage declares the page's byte interval,
+pinned snapshot/source sizes and skipped malformed, oversized or incomplete
+records. Pages have a 2 MiB record-data budget and 16 MiB scan budget; individual
+records over 256 KiB are skipped/reported, not fabricated. A zero-row page can
+still have continuation when filtering/scanning consumes its budget.
+
+Continue with the returned cursor and the same source/session/filters. Its
+read boundary excludes later appends. A restart, expired cursor, rotation,
+truncation or changed file/filter returns `409` and requires a fresh view;
+another file must never occupy an old cursor silently. Older companions that
+cannot provide the bounded query contract require an update for paged
+search/export.
+
+`POST /api/logs/export` and `POST /api/logs/drone/{drone_id}/export` accept:
+
+```json
+{
+  "session_ids": ["selected-session"],
+  "format": "zip",
+  "filters": {"level": "WARNING", "search": "timeout"}
+}
+```
+
+Exports traverse every continuation, not just the first page. Omit `filters`
+for full selected sessions. Preparation uses temporary files outside the event
+loop, a 128 MiB aggregate JSONL-data budget, 60-second deadline, two-export
+concurrency bound and disk-reserve checks. Busy returns `429`, oversized
+exports `413`, insufficient staging space `507`, and a changed source `409`.
+`X-MDS-Export-Records`, `X-MDS-Export-Skipped` and `X-MDS-Export-Scope` describe
+the produced artifact. Temporary exports are cleaned after streaming; this is
+not a persistent archive or a claim that the browser saved a file.
+
+Raw ULog creation remains
+`POST /api/logs/drone/{drone_id}/ulog/files/{log_id}/download`. Clients should
+persist the exact aircraft/file and an opaque `request_id` before posting:
+
+```json
+{"request_id": "ulog-request-example"}
+```
+
+The successful response retains `job` and `timestamp`, adding `request_id`.
+Legacy omitted IDs are generated internally. Accepted job IDs are signed,
+actor-and-aircraft-bound GCS handles, not native job tokens.
+
+Recover a lost response with
+`GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}`. The
+response is `{request_id, status, job, error, timestamp}`: `status` is
+`accepted` or `unknown`, and `job` is the protected job object or `null`, not a
+nested response envelope. The route is operator/admin-only. Another actor,
+aircraft or runtime cannot recover that receipt; conflicting reuse for another
+aircraft/file is rejected. A failed create response includes `request_id` and
+`creation_status: "unknown"` in its detail when acceptance remains uncertain.
+
+The GCS commits bounded request metadata before calling the node. Duplicate
+known requests return the same job; uncertain requests are never silently
+resubmitted. Recovery uses native status lookup only. Native restart/expiry or
+an unavailable endpoint remains unknown/unavailable, not another staging
+attempt. Historical acceptance does not prove a staged file still exists:
+continue normal `/ulog/downloads/{handle}` polling and explicit content save.
+GCS/node receipt stores contain metadata only, capped at 16 MiB/1,024 identities
+with an 8 KiB envelope; capacity fails closed and preserves existing lookup
+identities rather than recycling them. No raw archive or node/root token is
+persisted in GCS request receipts.
+
+Raw transfer creation, request recovery, handles/content, staged-copy deletion
+and erase-all are excluded from model/MCP tools. Approved ULog inventory and
+derived-summary tools are unchanged. See the [logging guide](../guides/logging-system.md)
+for policy, roles, upload summaries and operator behavior.
+
 ### Stable Transport Roots
 
 The GCS WebSocket surface is also intentional and canonical.

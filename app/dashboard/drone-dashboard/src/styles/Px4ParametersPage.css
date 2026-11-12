@@ -79,7 +79,8 @@
 .px4-review-table thead th { color: var(--color-text-secondary); font-weight: 500; }
 .px4-review-table tbody th { font-weight: 500; min-width: 9rem; }
 .px4-review-table td { font-variant-numeric: tabular-nums; }
-.px4-review-table th small { font-size: .68rem; font-weight: 400; }
+.px4-review-table th code { display: block; overflow-wrap: anywhere; }
+.px4-review-table th small { display: block; margin-top: .2rem; font-size: .68rem; font-weight: 400; color: var(--color-text-secondary); }
 .px4-frozen-targets { border-bottom: 1px solid var(--color-border-primary); padding-block: .7rem; }
 .px4-frozen-targets h3 { font-size: .95rem; margin: .2rem 0; }
 .px4-frozen-targets small { color: var(--color-text-secondary); }

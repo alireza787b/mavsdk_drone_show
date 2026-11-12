@@ -22,7 +22,6 @@ from pydantic import ValidationError
 from config import load_config
 from mds_logging import get_logger
 from mds_logging.api_schemas import OnboardUlogSummaryResponse
-from mds_logging.schema import build_log_entry
 from mds_logging.ulog_analysis import (
     DEFAULT_ULOG_SUMMARY_MAX_BYTES,
     UlogSummaryError,
@@ -411,27 +410,61 @@ async def fetch_drone_session_content(
     limit: int | None = None,
     offset: int = 0,
     since: str | None = None,
+    until: str | None = None,
+    search: str | None = None,
+    cursor: str | None = None,
 ) -> Optional[dict]:
-    """Fetch session content from a drone. Returns None if unreachable."""
+    """Bounded page read; preserve native conflicts and missing-session errors."""
+    from mds_logging.session_query import normalize_query
+    from urllib.parse import quote
+    normalize_query(level=level, component=component, search=search, since=since, until=until)
     params: dict = {}
     if level:
         params["level"] = level
     if component:
         params["component"] = component
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit if limit is not None else 500
     if offset:
         params["offset"] = offset
     if since:
         params["since"] = since
+    if until:
+        params["until"] = until
+    if search:
+        params["search"] = search
+    if cursor:
+        params["cursor"] = cursor
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(
-                _build_drone_url(drone_ip, f"/api/logs/sessions/{session_id}"),
-                params=params,
-            )
-            resp.raise_for_status()
-            return resp.json()
+            async with client.stream("GET", _build_drone_url(drone_ip,
+                    f"/api/logs/sessions/{quote(session_id, safe='')}"), params=params) as resp:
+                if resp.status_code >= 400:
+                    # Bound an error body too; do not mask 404/409 as offline.
+                    detail = bytearray()
+                    async for chunk in resp.aiter_bytes():
+                        detail.extend(chunk[:max(0, 8192 - len(detail))])
+                        if len(detail) >= 8192:
+                            break
+                    try:
+                        message = json.loads(detail).get("detail", "Log source rejected the request")
+                    except (ValueError, AttributeError):
+                        message = "Log source rejected the request"
+                    raise DroneProxyResponseError(resp.status_code, message)
+                content = bytearray()
+                async for chunk in resp.aiter_bytes():
+                    if len(content) + len(chunk) > 4 * 1024 * 1024:
+                        raise DroneProxyResponseError(413, "Log page exceeds the transfer limit; update the companion and retry with a smaller page.")
+                    content.extend(chunk)
+                payload = json.loads(content)
+                if not isinstance(payload, dict) or not isinstance(payload.get("lines"), list):
+                    raise DroneProxyResponseError(502, "Log source returned an invalid page")
+                if len(payload["lines"]) > params["limit"]:
+                    raise DroneProxyResponseError(502, "Log source ignored the bounded page limit; update the companion.")
+                if (cursor or search or until) and payload.get("schema_version") != "1.1":
+                    raise DroneProxyResponseError(409, "The companion needs an update for paged search/time filtering.")
+                return payload
+    except DroneProxyResponseError:
+        raise
     except Exception as e:
         logger.warning(f"Drone at {drone_ip} unreachable for session {session_id}: {e}")
         return None
@@ -498,10 +531,13 @@ async def create_drone_ulog_download_job(
     *,
     pos_id: int | None = None,
     access_token: str,
+    request_id: str | None = None,
 ) -> dict:
     payload: dict[str, Any] = {}
     if pos_id is not None:
         payload["pos_id"] = int(pos_id)
+    if request_id is not None:
+        payload["request_id"] = request_id
     return await _request_json(
         "POST",
         drone_ip,
@@ -855,8 +891,18 @@ def stream_drone_logs(
     level: str | None = None,
     component: str | None = None,
     source: str | None = None,
+    *,
+    last_event_id: str | None = None,
 ):
-    """Proxy SSE from a drone as a synchronous iterator for StreamingResponse."""
+    """Forward complete SSE frames, including identity and named coverage events.
+
+    Read timeout bounds cancellation on older quiet peers; current nodes send
+    transport heartbeats every 15 seconds. Proxy failures are stream status,
+    never fabricated aircraft WARNING records.
+    """
+    from mds_logging.streaming import encode_sse_event
+    from mds_logging.watcher import LogStreamEvent
+
     params: dict = {}
     if level:
         params["level"] = level
@@ -865,32 +911,45 @@ def stream_drone_logs(
     if source:
         params["source"] = source
     try:
-        with httpx.Client(timeout=None) as client:
+        request_options = {}
+        if last_event_id:
+            if len(last_event_id) > 128 or any(char in last_event_id for char in "\r\n\x00"):
+                raise ValueError("Invalid log stream replay cursor")
+            request_options["headers"] = {"Last-Event-ID": last_event_id}
+        with httpx.Client(timeout=httpx.Timeout(connect=_TIMEOUT, read=30.0, write=_TIMEOUT, pool=_TIMEOUT)) as client:
             with client.stream(
                 "GET",
                 _build_drone_url(drone_ip, "/api/logs/stream"),
                 params=params,
+                **request_options,
             ) as resp:
                 resp.raise_for_status()
+                frame, frame_bytes = [], 0
                 for line in resp.iter_lines():
                     if isinstance(line, bytes):
                         line = line.decode("utf-8", errors="replace")
-                    if line.startswith("data: "):
-                        yield line + "\n\n"
-    except GeneratorExit:
+                    if not line:
+                        if frame:
+                            yield "\n".join(frame) + "\n\n"
+                            frame, frame_bytes = [], 0
+                        continue
+                    frame_bytes += len(line.encode("utf-8")) + 1
+                    if frame_bytes > 1024 * 1024:
+                        raise ValueError("Upstream log stream event exceeds the 1 MiB frame limit")
+                    frame.append(line)
+                reason = "upstream_truncated" if frame else "upstream_closed"
+                yield encode_sse_event(LogStreamEvent("status", {
+                    "state": "unavailable", "coverage": "unknown", "history_complete": False,
+                    "reason": reason, "drone_id": drone_id,
+                    "message": "Selected log stream ended; reconnect to recover retained entries.",
+                }))
+    except (GeneratorExit, asyncio.CancelledError):
         return
     except Exception as e:
-        error = build_log_entry(
-            level="WARNING",
-            component="log_proxy",
-            source="gcs",
-            msg=f"Drone #{drone_id} log stream unavailable: {e}",
-            session_id="",
-            drone_id=drone_id,
-            extra={
-                "kind": "proxy_stream_error",
-                "drone_ip": drone_ip,
-                "error": str(e),
-            },
-        )
-        yield f"data: {json.dumps(error)}\n\n"
+        status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+        yield encode_sse_event(LogStreamEvent("status", {
+            "state": "unavailable", "coverage": "unknown", "history_complete": False,
+            "reason": "authorization_required" if status_code in {401, 403} else "upstream_unavailable",
+            "drone_id": drone_id, "status_code": status_code,
+            "message": str(e)[:512] or type(e).__name__,
+        }))

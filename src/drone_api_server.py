@@ -43,7 +43,7 @@ from typing import Dict, Any, Optional, List, Set, Tuple, Literal
 from urllib.parse import quote
 
 # FastAPI imports
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
@@ -55,6 +55,7 @@ from mavsdk.system import System
 
 from mds_logging import get_logger
 from mds_logging.api_schemas import (
+    LogSessionContentResponse,
     OnboardUlogCapability,
     OnboardUlogDownloadRequest,
     OnboardUlogJobDeleteResponse,
@@ -113,7 +114,11 @@ from src.command_admission import (
 from src.smart_swarm_admission import SmartSwarmStartAdmission, evaluate_smart_swarm_start_admission
 from src.trajectory_runtime_state import TrajectoryRuntimeState, read_trajectory_runtime
 from src.swarm_trajectory_contract import verify_local_package
-from src.action_safety import SAFETY_EVIDENCE_VALIDITY_MS
+from src.action_safety import (
+    ACTION_STATE_OBSERVATION_TIMEOUT_SEC,
+    SAFETY_EVIDENCE_VALIDITY_MS,
+    observe_authoritative_vehicle_state,
+)
 from src.command_installation import (
     CommandInstallationRejected,
     CommandInstallationResult,
@@ -1124,6 +1129,8 @@ class DroneAPIServer:
             hw_id=str(getattr(drone_config, "hw_id", "unknown")),
             pos_id=safe_int(getattr(drone_config, "pos_id", None), None),
         )
+        self._ulog_service.download_guard = self._assert_live_ulog_download_allowed
+        self._ulog_service.erase_guard = self._assert_live_ulog_erase_allowed
 
         self.app.add_event_handler("shutdown", self._shutdown_ulog_download_tasks)
         self.app.add_event_handler("shutdown", self._shutdown_command_followup_tasks)
@@ -1801,9 +1808,10 @@ class DroneAPIServer:
     async def _run_ulog_download_job(self, job_id: str) -> None:
         """Complete a queued onboard ULog download in the background."""
         try:
-            await self._with_local_ulog_system(
-                lambda drone: self._ulog_service.perform_download(drone, job_id)
-            )
+            async def download(drone):
+                await self._assert_live_ulog_download_allowed(drone)
+                return await self._ulog_service.perform_download(drone, job_id)
+            await self._with_local_ulog_system(download)
         except asyncio.CancelledError:
             await self._ulog_service.mark_job_failed(job_id, "ULog download cancelled during shutdown")
             raise
@@ -1862,7 +1870,7 @@ class DroneAPIServer:
 
     def _assert_ulog_download_allowed(self) -> None:
         require_disarmed = bool(getattr(self.params, "ULOG_DOWNLOAD_REQUIRE_DISARMED", True))
-        if require_disarmed and bool(getattr(self.drone_config, "is_armed", False)):
+        if require_disarmed and getattr(self.drone_config, "is_armed", None) is True:
             raise HTTPException(
                 status_code=409,
                 detail="Onboard ULog download is blocked while the vehicle is armed.",
@@ -1870,11 +1878,69 @@ class DroneAPIServer:
 
     def _assert_ulog_erase_allowed(self) -> None:
         require_disarmed = bool(getattr(self.params, "ULOG_ERASE_REQUIRE_DISARMED", True))
-        if require_disarmed and bool(getattr(self.drone_config, "is_armed", False)):
+        if require_disarmed and getattr(self.drone_config, "is_armed", None) is True:
             raise HTTPException(
                 status_code=409,
                 detail="Onboard ULog erase-all is blocked while the vehicle is armed.",
             )
+
+    async def _assert_live_ulog_download_allowed(self, drone) -> None:
+        await self._assert_live_ulog_disarmed(drone, "ULOG_DOWNLOAD_REQUIRE_DISARMED", "download/staging")
+
+    async def _assert_live_ulog_erase_allowed(self, drone) -> None:
+        await self._assert_live_ulog_disarmed(drone, "ULOG_ERASE_REQUIRE_DISARMED", "erase-all")
+
+    async def _assert_live_ulog_disarmed(self, drone, policy_name: str, operation: str) -> None:
+        """Existing disarm policy, confirmed natively without GPS/health gates.
+
+        Filesystem fallback may use the current raw autopilot heartbeat already
+        received by this node. The initialized/derived is_armed=False is never
+        evidence: some legacy mode handling can clear it despite an armed bit.
+        """
+        if not bool(getattr(self.params, policy_name, True)):
+            return
+        observation = None
+        observation_error = None
+        try:
+            observation = await observe_authoritative_vehicle_state(
+                drone, timeout=ACTION_STATE_OBSERVATION_TIMEOUT_SEC, required_fields=("armed",),
+            )
+        except Exception as exc:
+            observation_error = str(exc)[:256] or type(exc).__name__
+        if observation is not None:
+            if observation.complete and observation.armed is False:
+                return
+            if observation.armed is True:
+                raise HTTPException(status_code=409, detail={
+                    "code": "ulog_vehicle_armed", "error": "ulog_vehicle_armed",
+                    "message": f"Onboard ULog {operation} is blocked while the vehicle is armed.",
+                    "operation": operation, "observation": observation.as_dict(),
+                })
+        heartbeat = getattr(self.drone_config, "heartbeat_timestamp_ms", None)
+        base_mode = getattr(self.drone_config, "base_mode", None)
+        now_ms = time.time_ns() // 1_000_000
+        raw_heartbeat_fresh = (
+            type(heartbeat) in (int, float) and math.isfinite(heartbeat)
+            and heartbeat > 0 and 0 <= now_ms - heartbeat <= SAFETY_EVIDENCE_VALIDITY_MS
+            and type(base_mode) is int and 0 <= base_mode <= 255
+        )
+        fallback_available = bool(self._ulog_service.filesystem_fallback_dirs())
+        if fallback_available and raw_heartbeat_fresh and not (base_mode & 128):
+            return
+        if fallback_available and raw_heartbeat_fresh and base_mode & 128:
+            raise HTTPException(status_code=409, detail={
+                "code": "ulog_vehicle_armed", "error": "ulog_vehicle_armed",
+                "message": f"Onboard ULog {operation} is blocked: the fresh native heartbeat reports armed.",
+                "operation": operation, "local_heartbeat_fresh": True,
+            })
+        raise HTTPException(status_code=409, detail={
+            "code": "ulog_disarm_unconfirmed", "error": "ulog_disarm_unconfirmed",
+            "message": f"Onboard ULog {operation} requires confirmed fresh native disarm; unknown state is not disarmed.",
+            "operation": operation,
+            "observation": observation.as_dict() if observation is not None else None,
+            "observation_error": observation_error,
+            "local_heartbeat_fresh": raw_heartbeat_fresh,
+        })
 
     def _require_ulog_machine_credential(
         self,
@@ -3434,13 +3500,14 @@ class DroneAPIServer:
             )
             self._assert_ulog_download_allowed()
             try:
-                return await self._with_local_ulog_system(
-                    lambda drone: self._ulog_service.summarize_entry(
+                async def summarize(drone):
+                    await self._assert_live_ulog_download_allowed(drone)
+                    return await self._ulog_service.summarize_entry(
                         drone,
                         int(log_id),
                         OnboardUlogDownloadRequest(pos_id=safe_int(getattr(self.drone_config, "pos_id", None), None)),
                     )
-                )
+                return await self._with_local_ulog_system(summarize)
             except UlogServiceError as exc:
                 raise self._ulog_failure_http_exception("summarize_ulog", exc) from exc
             except FileNotFoundError as exc:
@@ -3474,7 +3541,6 @@ class DroneAPIServer:
                 http_request,
                 operation=ULOG_OP_DOWNLOAD_CREATE,
             )
-            self._assert_ulog_download_allowed()
             if not ulog_job_token:
                 raise HTTPException(
                     status_code=401,
@@ -3482,15 +3548,23 @@ class DroneAPIServer:
                 )
             download_request = request or OnboardUlogDownloadRequest()
             try:
-                job_response = await self._with_local_ulog_system(
-                    lambda drone: self._ulog_service.create_download_job(
+                existing = await self._ulog_service.get_request_job(
+                    int(log_id), download_request, access_token=ulog_job_token,
+                )
+                if existing is not None:
+                    return existing  # Recovery is lookup-only, not another stage request.
+                self._assert_ulog_download_allowed()
+                async def create(drone):
+                    await self._assert_live_ulog_download_allowed(drone)
+                    return await self._ulog_service.create_download_job(
                         drone,
                         int(log_id),
                         download_request,
                         access_token=ulog_job_token,
                     )
-                )
-                self._start_ulog_download_task(job_response.job.job_id)
+                job_response = await self._with_local_ulog_system(create)
+                if await self._ulog_service.claim_download_start(job_response.job.job_id):
+                    self._start_ulog_download_task(job_response.job.job_id)
                 return job_response
             except UlogServiceError as exc:
                 raise self._ulog_failure_http_exception(
@@ -3629,12 +3703,13 @@ class DroneAPIServer:
             )
             self._assert_ulog_erase_allowed()
             try:
-                return await self._with_local_ulog_system(
-                    lambda drone: self._ulog_service.erase_all(
+                async def erase(drone):
+                    await self._assert_live_ulog_erase_allowed(drone)
+                    return await self._ulog_service.erase_all(
                         drone,
                         pos_id=safe_int(getattr(self.drone_config, "pos_id", None), None),
                     )
-                )
+                return await self._with_local_ulog_system(erase)
             except HTTPException:
                 raise
             except Exception as exc:
@@ -3744,48 +3819,48 @@ class DroneAPIServer:
             """List available log sessions on this drone."""
             from mds_logging.session import list_sessions
             from mds_logging.constants import get_log_dir
-            sessions = list_sessions(get_log_dir())
+            sessions = await asyncio.to_thread(list_sessions, get_log_dir())
             return {"sessions": sessions}
 
-        @self.app.get("/api/logs/sessions/{session_id}")
+        @self.app.get("/api/logs/sessions/{session_id}", response_model=LogSessionContentResponse)
         async def get_log_session(
             session_id: str,
             level: Optional[str] = None,
             component: Optional[str] = None,
-            limit: Optional[int] = None,
-            offset: int = 0,
+            limit: int = Query(500, ge=1, le=2000),
+            offset: int = Query(0, ge=0, le=100000),
             since: Optional[str] = None,
+            until: Optional[str] = None,
+            search: Optional[str] = Query(None, max_length=256),
+            cursor: Optional[str] = Query(None, max_length=4096),
         ):
             """Retrieve filtered JSONL content from a log session."""
-            from mds_logging.session import read_session_lines
+            from mds_logging.session_query import LogQueryError, read_session_page
             from mds_logging.constants import get_log_dir
-            lines = read_session_lines(
-                get_log_dir(), session_id,
-                level=level, component=component, limit=limit, offset=offset,
-                since=since,
-            )
-            if lines is None:
+            try:
+                page = await asyncio.to_thread(read_session_page, get_log_dir(), session_id,
+                    level=level, component=component, limit=limit, offset=offset,
+                    since=since, until=until, search=search, cursor=cursor)
+            except LogQueryError as exc:
+                raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            if page is None:
                 raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-            return {"session_id": session_id, "count": len(lines), "lines": lines}
+            return page
 
         @self.app.get("/api/logs/stream")
         async def stream_logs(
+            request: Request,
             level: Optional[str] = None,
             component: Optional[str] = None,
             source: Optional[str] = None,
         ):
             """Stream current session logs in real-time via SSE."""
-            import json as _json
             from mds_logging.watcher import get_watcher
-
-            async def event_generator():
-                async for entry in get_watcher().subscribe(
-                    level=level, component=component, source=source,
-                ):
-                    yield f"data: {_json.dumps(entry)}\n\n"
+            from mds_logging.streaming import sse_log_stream
 
             return StreamingResponse(
-                event_generator(),
+                sse_log_stream(get_watcher(), last_event_id=request.headers.get("last-event-id"),
+                               level=level, component=component, source=source),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )

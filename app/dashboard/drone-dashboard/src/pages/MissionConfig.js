@@ -44,7 +44,8 @@ import {
   normalizeDroneConfigData,
   normalizeDroneConfigEntry,
 } from '../utilities/missionIdentityUtils';
-import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
+import { buildMissionSlotStatusPresentation, getMissionSlotEvidence } from '../utilities/missionSlotStatus';
+import { attachDroneRuntimeClock } from '../constants/fieldMappings';
 import {
   buildClusterScopeOptions,
   buildSwarmViewModel,
@@ -153,7 +154,7 @@ const MissionConfig = () => {
   const { data: telemetryDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
   const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
   const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
-  const { data: heartbeatsFetched } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
+  const { data: heartbeatsFetched, meta: heartbeatClock } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
   const { data: fleetCandidatesFetched } = useFetch(`${GCS_ROUTE_KEYS.fleetCandidates}?runtime_mode=current`, 5000);
   const { data: savedDronePositionsFetched } = useFetch(GCS_ROUTE_KEYS.dronePositions, 10000);
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
@@ -253,12 +254,17 @@ const MissionConfig = () => {
       heartbeatsFetched.heartbeats.forEach((hb) => {
         const normalizedHwId = normalizeComparableId(hb.hw_id);
         if (normalizedHwId) {
-          heartbeatsDict[normalizedHwId] = hb;
+          heartbeatsDict[normalizedHwId] = attachDroneRuntimeClock({ ...hb }, {
+            receivedAtMs: heartbeatClock?.receivedAtMs ?? Date.now(),
+            serverNowMs: heartbeatClock?.serverNowMs ?? heartbeatsFetched.timestamp,
+          });
         }
       });
       setHeartbeats(heartbeatsDict);
+    } else {
+      setHeartbeats({});
     }
-  }, [heartbeatsFetched]);
+  }, [heartbeatsFetched, heartbeatClock]);
 
   useEffect(() => {
     if (!Array.isArray(savedDronePositionsFetched)) {
@@ -586,22 +592,12 @@ const MissionConfig = () => {
       };
     });
   }, [fleetCandidatesFetched]);
-  const getHeartbeatAgeSec = (heartbeatData) => {
-    const timestamp = Number(heartbeatData?.timestamp);
-    if (!Number.isFinite(timestamp)) {
-      return null;
-    }
-
-    return Math.floor((Date.now() - timestamp) / 1000);
-  };
   const getAssignmentSignals = (drone) => {
     const hwId = normalizeComparableId(drone.hw_id);
     const configPosId = normalizeComparableId(drone.pos_id, drone.hw_id);
     const heartbeatData = heartbeats[hwId] || null;
-    const heartbeatAgeSec = getHeartbeatAgeSec(heartbeatData);
+    const { ageSec: heartbeatAgeSec, assignedPosId, autoPosId } = getMissionSlotEvidence(heartbeatData);
     const presenceState = String(heartbeatData?.presence?.state || heartbeatData?.presence_state || '').trim().toLowerCase();
-    const assignedPosId = normalizeComparableId(heartbeatData?.pos_id);
-    const autoPosId = normalizeComparableId(heartbeatData?.detected_pos_id);
     const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
     const isRoleSwap = Boolean(hwId && configPosId && hwId !== configPosId);
     const isOffline = ['offline', 'never_seen'].includes(presenceState)

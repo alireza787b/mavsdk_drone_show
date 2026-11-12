@@ -25,7 +25,6 @@ import {
   formatDroneLabel,
   formatShowSlotLabel,
   findDuplicatePositionAssignment,
-  getHeartbeatTimestamp,
   isPositiveIntegerId,
   normalizeComparableId,
   normalizeRuntimeIp,
@@ -47,7 +46,7 @@ import {
   serializeMissionConfigFormState,
   validateMissionCustomFields,
 } from '../utilities/missionConfigFields';
-import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
+import { buildMissionSlotStatusPresentation, getMissionSlotEvidence } from '../utilities/missionSlotStatus';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneConfigCard.css';
 
@@ -773,9 +772,7 @@ function buildHeartbeatPresencePresentation(heartbeatData, heartbeatAgeSec) {
     ? heartbeatData.presence
     : null;
   const presenceState = String(presence?.state || heartbeatData?.presence_state || '').trim().toLowerCase();
-  const ageSec = Number.isFinite(Number(presence?.heartbeat_age_sec ?? heartbeatData?.heartbeat_age_sec))
-    ? Number(presence?.heartbeat_age_sec ?? heartbeatData?.heartbeat_age_sec)
-    : heartbeatAgeSec;
+  const ageSec = heartbeatAgeSec;
 
   const longOffline = Boolean(presence?.long_offline);
   const byState = {
@@ -786,7 +783,10 @@ function buildHeartbeatPresencePresentation(heartbeatData, heartbeatAgeSec) {
     offline: { label: longOffline ? 'Long offline' : 'Offline', statusClass: 'offline', cardClass: 'status-offline' },
     never_seen: { label: 'Never seen', statusClass: 'unknown', cardClass: 'status-unknown' },
   };
-  if (byState[presenceState]) {
+  const liveSec = presence?.thresholds?.live_sec ?? 20;
+  const snapshotExpired = ['live', 'blocked'].includes(presenceState)
+    && ageSec !== null && ageSec > liveSec;
+  if (byState[presenceState] && !snapshotExpired) {
     return {
       ...byState[presenceState],
       ageSec,
@@ -1545,12 +1545,9 @@ export default function DroneConfigCard({
   const safeHb = heartbeatData || {};
   const heartbeatIp = normalizeRuntimeIp(safeHb.ip);
   const configuredIp = normalizeRuntimeIp(drone.ip);
-  const timestampVal = getHeartbeatTimestamp(safeHb);
   const now = Date.now();
-  const fallbackHeartbeatAgeSec =
-    timestampVal !== null
-      ? Math.floor((now - timestampVal) / 1000)
-      : null;
+  const slotEvidence = getMissionSlotEvidence(safeHb, now);
+  const fallbackHeartbeatAgeSec = slotEvidence.ageSec === null ? null : Math.floor(slotEvidence.ageSec);
   const heartbeatPresentation = buildHeartbeatPresencePresentation(safeHb, fallbackHeartbeatAgeSec);
   const heartbeatStatus = heartbeatPresentation.label;
   const heartbeatStatusClass = heartbeatPresentation.statusClass;
@@ -1561,8 +1558,7 @@ export default function DroneConfigCard({
 
   // Position IDs from config & heartbeat
   const configPosId = normalizeComparableId(drone.pos_id, drone.hw_id); // from config
-  const assignedPosId = normalizeComparableId(safeHb.pos_id); // heartbeat assigned
-  const autoPosId = normalizeComparableId(safeHb.detected_pos_id);
+  const { assignedPosId, autoPosId } = slotEvidence;
 
   // Additional highlight if mismatch or newly detected
   const hasAnyMismatch = ipMismatch || drone.isNew;

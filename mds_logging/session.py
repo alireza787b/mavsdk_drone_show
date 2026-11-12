@@ -6,7 +6,6 @@ Reference: docs/guides/logging-system.md
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 from datetime import datetime, timezone
@@ -33,14 +32,16 @@ def create_session(log_dir: str) -> str:
     """Create a new session, return its ID. Creates dir if needed."""
     os.makedirs(log_dir, exist_ok=True)
     now = datetime.now(timezone.utc)
-    session_id = now.strftime("s_%Y%m%d_%H%M%S")
-    filepath = os.path.join(log_dir, f"{session_id}.jsonl")
-    if os.path.exists(filepath):
-        session_id = session_id + "_2"
-        filepath = os.path.join(log_dir, f"{session_id}.jsonl")
-    # Create empty file
-    open(filepath, "a").close()
-    return session_id
+    base = now.strftime("s_%Y%m%d_%H%M%S")
+    suffix = 1
+    while True:
+        session_id = base if suffix == 1 else f"{base}_{suffix}"
+        try:
+            with open(os.path.join(log_dir, f"{session_id}.jsonl"), "x"):
+                pass
+            return session_id
+        except FileExistsError:
+            suffix += 1
 
 
 def get_session_id() -> str:
@@ -77,8 +78,6 @@ def list_sessions(log_dir: str) -> list[dict]:
 
 
 # Level ordering for filtering (same values as watcher.py)
-_LEVEL_ORDER = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
-
 
 def read_session_lines(
     log_dir: str,
@@ -89,44 +88,14 @@ def read_session_lines(
     offset: int = 0,
     since: str | None = None,
 ) -> list[dict] | None:
-    """Read and filter JSONL lines from a session file.
+    """Compatibility list reader; bounded by the same contract as HTTP pages.
 
-    Returns None if the session file does not exist.
-    Silently skips malformed lines.
-    ``since`` filters by ISO 8601 timestamp string comparison (lexicographic).
+    Use read_session_page for continuation/coverage, not repeated full reads.
     """
-    filepath = _resolve_session_filepath(log_dir, session_id)
-    if filepath is None or not filepath.is_file():
-        return None
-
-    min_level = _LEVEL_ORDER.get(level, 0) if level else 0
-    results: list[dict] = []
-    with open(filepath, "r", encoding="utf-8") as f:
-        idx = 0
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except (json.JSONDecodeError, ValueError):
-                continue
-            # Apply filters
-            if level and _LEVEL_ORDER.get(entry.get("level", ""), 0) < min_level:
-                continue
-            if component and entry.get("component") != component:
-                continue
-            if since and entry.get("ts", "") <= since:
-                continue
-            # Apply offset
-            if idx < offset:
-                idx += 1
-                continue
-            idx += 1
-            results.append(entry)
-            if limit is not None and len(results) >= limit:
-                break
-    return results
+    from mds_logging.session_query import read_session_page
+    page = read_session_page(log_dir, session_id, level=level, component=component,
+                             limit=limit, offset=offset, since=since)
+    return None if page is None else page["lines"]
 
 
 def cleanup_sessions(log_dir: str, max_sessions: int, max_size_mb: int) -> None:

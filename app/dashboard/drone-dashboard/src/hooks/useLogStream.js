@@ -1,121 +1,59 @@
-// src/hooks/useLogStream.js
-// SSE hook for real-time log streaming with batching and ring buffer
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MAX_LOG_LINES, SSE_BATCH_INTERVAL_MS } from '../constants/logConstants';
 import { buildStreamURL } from '../services/logService';
 
-/**
- * useLogStream — connects to SSE log endpoint, batches incoming entries,
- * maintains a capped ring buffer.
- *
- * @param {object} options
- * @param {string|null} options.level - Minimum log level filter
- * @param {string|null} options.component - Component name filter
- * @param {string|null} options.source - Source filter (drone/gcs/frontend)
- * @param {number|null} options.droneId - Drone ID for proxy stream (null = GCS)
- * @param {boolean} options.enabled - Whether streaming is active (false = disconnected)
- * @returns {{ entries: Array, connected: boolean, error: string|null, clear: Function }}
- */
-const useLogStream = ({ level = null, component = null, source = null, droneId = null, enabled = true, paused = false } = {}) => {
-  const [entries, setEntries] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState(null);
-  const batchRef = useRef([]);
-  const esRef = useRef(null);
-  const timerRef = useRef(null);
-  const idCounterRef = useRef(0);
-  const pausedRef = useRef(paused);
+export default function useLogStream({ level = null, component = null, source = null, droneId = null, enabled = true, paused = false, contextKey = '' } = {}) {
+  const [entries, setEntries] = useState([]), [status, setStatus] = useState('loading'), [error, setError] = useState(null);
+  const [pending, setPending] = useState(0), [discarded, setDiscarded] = useState(0), [coverage, setCoverage] = useState(null);
+  const [frozenAt, setFrozenAt] = useState(null);
+  const batch = useRef([]), visible = useRef([]), pausedRef = useRef(paused), counter = useRef(0);
   pausedRef.current = paused;
-
-  // Flush batched entries into state (ring buffer)
-  // When paused, entries accumulate in batchRef but are not flushed to state
-  // (SSE stays connected — no data loss per §12.8)
   const flush = useCallback(() => {
-    if (batchRef.current.length === 0) return;
-    if (pausedRef.current) return; // Keep buffering, don't update display
-    const batch = batchRef.current;
-    batchRef.current = [];
-    setEntries(prev => {
-      const merged = [...prev, ...batch];
-      return merged.length > MAX_LOG_LINES
-        ? merged.slice(merged.length - MAX_LOG_LINES)
-        : merged;
-    });
+    if (pausedRef.current || !batch.current.length) return;
+    const next = batch.current; batch.current = []; setPending(0);
+    const combined = [...visible.current, ...next];
+    if (combined.length > MAX_LOG_LINES) setDiscarded(value => value + combined.length - MAX_LOG_LINES);
+    visible.current = combined.slice(-MAX_LOG_LINES); setEntries(visible.current);
   }, []);
-
-  const clear = useCallback(() => {
-    batchRef.current = [];
-    setEntries([]);
-  }, []);
-
+  useEffect(() => { setFrozenAt(paused ? Date.now() : null); if (!paused) flush(); }, [paused, flush]);
+  const clear = useCallback(() => { batch.current = []; visible.current = []; setEntries([]); setPending(0); setDiscarded(0); }, []);
   useEffect(() => {
-    if (!enabled) {
-      // Disconnect
-      if (esRef.current) {
-        esRef.current.close();
-        esRef.current = null;
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      batchRef.current = [];
-      idCounterRef.current = 0;
-      setEntries([]);
-      setConnected(false);
-      return;
-    }
-
-    batchRef.current = [];
-    idCounterRef.current = 0;
-    setEntries([]);
-    const url = buildStreamURL({ level, component, source }, droneId);
-    const es = new EventSource(url, { withCredentials: true });
-    esRef.current = es;
-
-    es.onopen = () => {
-      setConnected(true);
-      setError(null);
-    };
-
-    es.onmessage = (event) => {
+    let active = true;
+    batch.current = []; visible.current = []; setEntries([]); setPending(0); setDiscarded(0); setCoverage(null); setError(null);
+    if (!enabled) { setStatus('idle'); return undefined; }
+    setStatus('loading');
+    const epoch = `${contextKey}:${droneId ?? 'gcs'}:${Date.now()}:${counter.current++}`;
+    const seen = new Set();
+    const es = new EventSource(buildStreamURL({ level, component, source }, droneId), { withCredentials: true });
+    es.onopen = () => { if (active) { setStatus('connected'); setError(null); } };
+    es.onmessage = event => {
+      if (!active) return;
       try {
-        const entry = JSON.parse(event.data);
-        entry._id = idCounterRef.current++;  // Stable monotonic ID for DataGrid row key
-        batchRef.current.push(entry);
-        // Cap batch size to prevent unbounded growth when paused
-        if (batchRef.current.length > MAX_LOG_LINES) {
-          batchRef.current = batchRef.current.slice(-MAX_LOG_LINES);
-        }
-      } catch {
-        // Skip malformed SSE data
-      }
+        const raw = JSON.parse(event.data);
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || typeof raw.msg !== 'string') throw new Error('Invalid log record');
+        const id = event.lastEventId ? `${contextKey}:${droneId ?? 'gcs'}:${event.lastEventId}` : `${epoch}:${counter.current++}`;
+        if (event.lastEventId && seen.has(id)) return;
+        seen.add(id); if (seen.size > MAX_LOG_LINES * 2) seen.delete(seen.values().next().value);
+        batch.current.push({ ...raw, _raw: raw, _id: id });
+        if (batch.current.length > MAX_LOG_LINES) { batch.current.shift(); setDiscarded(value => value + 1); }
+        if (pausedRef.current) setPending(batch.current.length);
+      } catch (_) { setCoverage(previous => ({ ...previous, malformed_records: (previous?.malformed_records || 0) + 1 })); }
     };
-
-    es.onerror = () => {
-      setConnected(false);
-      setError('SSE connection lost — reconnecting...');
-      // EventSource auto-reconnects
+    const metadata = event => {
+      if (!active) return;
+      try {
+        const value = JSON.parse(event.data);
+        setCoverage(previous => ({ ...previous, ...value,
+          gapCount: (previous?.gapCount || 0) + (event.type === 'gap' ? 1 : 0),
+          droppedEvents: (previous?.droppedEvents || 0) + (event.type === 'gap' && Number.isFinite(value.lost_count) ? value.lost_count : 0) }));
+        if (value.state === 'unavailable') { setStatus('offline'); setError(value.message || 'Selected log source is unavailable.'); }
+        else if (value.state === 'connected') { setStatus('connected'); setError(null); }
+      } catch (_) { /* Ignore malformed status, never fabricate a log row. */ }
     };
-
-    // Start batch flush timer
-    timerRef.current = setInterval(flush, SSE_BATCH_INTERVAL_MS);
-
-    return () => {
-      es.close();
-      esRef.current = null;
-      batchRef.current = []; // Clear pending batch to prevent stale entries leaking
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setEntries([]);
-      setConnected(false);
-    };
-  }, [level, component, source, droneId, enabled, flush]);
-
-  return { entries, connected, error, clear };
-};
-
-export default useLogStream;
+    es.addEventListener?.('status', metadata); es.addEventListener?.('gap', metadata);
+    es.onerror = () => { if (active) { setStatus(es.readyState === 2 ? 'offline' : 'reconnecting'); setError('Log stream unavailable. Retained rows are last observed.'); } };
+    const timer = setInterval(flush, SSE_BATCH_INTERVAL_MS);
+    return () => { active = false; es.close(); clearInterval(timer); batch.current = []; };
+  }, [level, component, source, droneId, enabled, contextKey, flush]);
+  return { entries, connected: status === 'connected', status, error, clear, pending, discarded, coverage, frozenAt };
+}

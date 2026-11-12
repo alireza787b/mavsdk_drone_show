@@ -218,6 +218,19 @@ def test_openapi_candidate_generation_reports_registry_coverage():
     ]
 
 
+def test_raw_ulog_request_recovery_is_explicitly_excluded_from_mcp_candidates():
+    generator = _load_generator()
+    path = "/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}"
+    candidate = generator.build_candidate("GET", path, {
+        "operationId": "get_drone_ulog_download_request", "tags": ["Logs"],
+        "responses": {"200": {"content": {"application/json": {"schema": {"type": "object"}}}}},
+    })
+    assert candidate["callable"] is False
+    assert candidate["classification"]["eligible_read_only_mcp_candidate"] is False
+    assert candidate["registry_candidate"]["default_exposure"] == "exclude"
+    assert any("signed content handle" in reason for reason in candidate["classification"]["review_reasons"])
+
+
 def test_openapi_schema_canonicalization_removes_representation_only_drift():
     generator = _load_generator()
     schema = {
@@ -274,6 +287,7 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     assert "first-party operator action-run state route" in by_path["/api/v1/simurgh/action-runs"]["classification"]["review_reasons"]
     assert by_path["/api/logs/sessions/{session_id}"]["classification"]["eligible_read_only_mcp_candidate"] is True
     assert by_path["/api/logs/stream"]["classification"]["eligible_read_only_mcp_candidate"] is False
+    assert by_path["/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/swarm-trajectories/download-kml/{drone_id}"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/shows/skybrush/metrics/snapshot"]["classification"]["eligible_read_only_mcp_candidate"] is True
     assert by_path["/api/v1/shows/skybrush/safety-report"]["classification"]["eligible_read_only_mcp_candidate"] is True

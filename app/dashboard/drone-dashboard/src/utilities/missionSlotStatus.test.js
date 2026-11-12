@@ -1,7 +1,9 @@
 import {
   buildMissionSlotStatusPresentation,
   determineMissionSlotStatus,
+  getMissionSlotEvidence,
 } from './missionSlotStatus';
+import { attachDroneRuntimeClock } from '../constants/fieldMappings';
 
 describe('missionSlotStatus', () => {
   test('detects fully aligned mission slot sources', () => {
@@ -29,7 +31,7 @@ describe('missionSlotStatus', () => {
   test('surfaces a pending state when live slot data has not arrived yet', () => {
     expect(buildMissionSlotStatusPresentation('4', '', '')).toMatchObject({
       tone: 'pending',
-      headline: 'Awaiting runtime slot check',
+      headline: 'Slot not checked',
       chips: [
         expect.objectContaining({ label: 'Cfg', value: 'P4', tone: 'aligned' }),
       ],
@@ -56,11 +58,43 @@ describe('missionSlotStatus', () => {
     expect(buildMissionSlotStatusPresentation('3', '3', '0')).toMatchObject({
       tone: 'verified',
       headline: 'Slot confirmed',
-      footnote: 'Auto-detect is unavailable in the current runtime.',
+      footnote: '',
       chips: [
         expect.objectContaining({ label: 'Cfg', value: 'P3' }),
         expect.objectContaining({ label: 'HB', value: 'P3' }),
       ],
     });
+  });
+
+  test('never treats the unseen configured row or stale slot as a live mismatch', () => {
+    const now = Date.now();
+    for (const heartbeat of [null, { pos_id: 0, last_heartbeat: 0, presence: { state: 'never_seen' } },
+      { pos_id: 0, last_heartbeat: now - 60000, presence: { state: 'offline' } },
+      { pos_id: 2, last_heartbeat: null }]) {
+      const evidence = getMissionSlotEvidence(heartbeat, now);
+      expect(evidence).toMatchObject({ fresh: false, assignedPosId: '', autoPosId: '' });
+      expect(buildMissionSlotStatusPresentation('1', evidence.assignedPosId, evidence.autoPosId))
+        .toMatchObject({ tone: 'pending', actions: {} });
+    }
+  });
+
+  test('slot authority requires a recent heartbeat, not only recent telemetry', () => {
+    const now = Date.now();
+    expect(getMissionSlotEvidence({ pos_id: 0, last_heartbeat: now,
+      presence: { fresh: true, telemetry_recent: true, heartbeat_recent: false } }, now).fresh).toBe(false);
+    const actualZero = getMissionSlotEvidence({ pos_id: 0, last_heartbeat: now }, now);
+    expect(actualZero).toMatchObject({ fresh: true, assignedPosId: '0' });
+    expect(determineMissionSlotStatus('0', actualZero.assignedPosId, '')).toMatchObject({
+      configAssignedMatchNoAuto: true, anyMismatch: false,
+    });
+  });
+
+  test('uses GCS time, then ages a retained presence snapshot when refresh fails', () => {
+    const browserNow = Date.now(), serverNow = browserNow - 3600000;
+    const heartbeat = attachDroneRuntimeClock({ pos_id: 2, last_heartbeat: serverNow - 1000,
+      presence: { state: 'live', heartbeat_recent: true, thresholds: { live_sec: 10 } } },
+    { receivedAtMs: browserNow, serverNowMs: serverNow });
+    expect(getMissionSlotEvidence(heartbeat, browserNow)).toMatchObject({ fresh: true, assignedPosId: '2' });
+    expect(getMissionSlotEvidence(heartbeat, browserNow + 11000)).toMatchObject({ fresh: false, assignedPosId: '' });
   });
 });

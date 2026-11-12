@@ -1,4 +1,25 @@
-import { normalizeComparableId } from './missionIdentityUtils';
+import { getHeartbeatTimestamp, normalizeComparableId } from './missionIdentityUtils';
+import { getDroneReferenceNowMs } from './droneRuntimeStatus';
+
+// Slot fields on a configured-but-unseen heartbeat row are placeholders, not
+// assignment observations. Liveness of telemetry alone cannot validate them.
+export function getMissionSlotEvidence(heartbeat, nowMs = Date.now()) {
+  const timestamp = getHeartbeatTimestamp(heartbeat);
+  const now = getDroneReferenceNowMs(heartbeat, nowMs);
+  const ageSec = timestamp === null ? null : Math.max(0, (now - timestamp) / 1000);
+  const presence = heartbeat?.presence;
+  const threshold = presence?.thresholds?.live_sec;
+  const liveSec = Number.isFinite(threshold) && threshold > 0 ? threshold : 20;
+  const state = presence?.state || heartbeat?.presence_state;
+  const fresh = ageSec !== null && ageSec <= liveSec
+    && presence?.heartbeat_recent !== false
+    && !['never_seen', 'offline', 'stale', 'recently_lost'].includes(state);
+  return {
+    fresh, ageSec,
+    assignedPosId: fresh ? normalizeComparableId(heartbeat?.pos_id) : '',
+    autoPosId: fresh ? normalizeComparableId(heartbeat?.detected_pos_id) : '',
+  };
+}
 
 function formatSlotValue(value) {
   return value ? `P${value}` : 'Unavailable';
@@ -74,11 +95,11 @@ export function buildMissionSlotStatusPresentation(configPosId, assignedPosId, a
     return {
       ...slotStatus,
       tone: 'pending',
-      headline: 'Awaiting runtime slot check',
+      headline: 'Slot not checked',
       detail: configStr
         ? `Mission config is staged for ${formatSlotValue(configStr)}.`
         : 'Mission config does not include a confirmed slot yet.',
-      footnote: 'Heartbeat and auto-detect values appear after the drone reports live slot data.',
+      footnote: 'Connect the aircraft for a live slot check.',
       chips: [
         buildSlotChip('Cfg', configStr, 'aligned'),
       ],
@@ -108,7 +129,7 @@ export function buildMissionSlotStatusPresentation(configPosId, assignedPosId, a
       tone: 'verified',
       headline: 'Slot confirmed',
       detail: 'Mission config matches the live heartbeat slot.',
-      footnote: 'Auto-detect is unavailable in the current runtime.',
+      footnote: '',
       chips: [
         buildSlotChip('Cfg', configStr, 'aligned'),
         buildSlotChip('HB', assignedStr, 'aligned'),
@@ -123,7 +144,7 @@ export function buildMissionSlotStatusPresentation(configPosId, assignedPosId, a
       tone: 'review',
       headline: 'Slot mismatch',
       detail: 'Configured and live slot sources disagree. Review before flight.',
-      footnote: noAutoDetection ? 'Auto-detect is unavailable in the current runtime.' : '',
+      footnote: '',
       chips: [
         buildSlotChip('Cfg', configStr, 'configured'),
         buildSlotChip('HB', assignedStr, assignedStr && assignedStr === configStr ? 'aligned' : 'attention'),

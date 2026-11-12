@@ -11,8 +11,8 @@ import {
 } from './gcsApiService';
 
 /** GET /api/logs/sources — registered components */
-export const getSources = async () => {
-  const resp = await fetchGcsResource(buildLogsUrl('/sources'));
+export const getSources = async (options = {}) => {
+  const resp = await fetchGcsResource(buildLogsUrl('/sources'), options);
   return resp.data;
 };
 
@@ -29,40 +29,31 @@ export const getHeartbeats = async () => {
 };
 
 /** GET /api/logs/sessions — list GCS sessions */
-export const getSessions = async () => {
-  const resp = await fetchGcsResource(buildLogsUrl('/sessions'));
+export const getSessions = async (options = {}) => {
+  const resp = await fetchGcsResource(buildLogsUrl('/sessions'), options);
   return resp.data;
 };
 
 /** GET /api/logs/sessions/:id — retrieve session content with filters */
-export const getSessionContent = async (sessionId, { level, component, limit, offset, since } = {}) => {
-  const params = {};
-  if (level) params.level = level;
-  if (component) params.component = component;
-  if (limit) params.limit = limit;
-  if (offset) params.offset = offset;
-  if (since) params.since = since;
-  const resp = await fetchGcsResource(buildLogsUrl(`/sessions/${encodeURIComponent(sessionId)}`), { params });
+const sessionQuery = query => Object.fromEntries(['level', 'component', 'limit', 'offset', 'since', 'until', 'search', 'cursor']
+  .filter(key => query[key] !== undefined && query[key] !== null && query[key] !== '').map(key => [key, query[key]]));
+
+export const getSessionContent = async (sessionId, query = {}, options = {}) => {
+  const resp = await fetchGcsResource(buildLogsUrl(`/sessions/${encodeURIComponent(sessionId)}`), { timeout: 30000, ...options, params: sessionQuery(query) });
   return resp.data;
 };
 
 /** GET /api/logs/drone/:id/sessions — list sessions on a drone */
-export const getDroneSessions = async (droneId) => {
-  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions`));
+export const getDroneSessions = async (droneId, options = {}) => {
+  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions`), options);
   return resp.data;
 };
 
 /** GET /api/logs/drone/:id/sessions/:sid — retrieve drone session content */
-export const getDroneSessionContent = async (droneId, sessionId, { level, component, limit, offset, since } = {}) => {
-  const params = {};
-  if (level) params.level = level;
-  if (component) params.component = component;
-  if (limit) params.limit = limit;
-  if (offset) params.offset = offset;
-  if (since) params.since = since;
+export const getDroneSessionContent = async (droneId, sessionId, query = {}, options = {}) => {
   const resp = await fetchGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions/${encodeURIComponent(sessionId)}`),
-    { params },
+    { timeout: 30000, ...options, params: sessionQuery(query) },
   );
   return resp.data;
 };
@@ -88,10 +79,22 @@ export const getDroneUlogSummary = async (droneId, logId) => {
 };
 
 /** POST /api/logs/drone/:id/ulog/files/:logId/download — create staged download job */
-export const createDroneUlogDownloadJob = async (droneId, logId) => {
+export const createDroneUlogDownloadJob = async (droneId, logId, { requestId } = {}) => {
   const resp = await postGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/download`),
+    ...(requestId ? [{ request_id: requestId }, { timeout: 30000 }] : []),
   );
+  return resp.data;
+};
+
+export const getDroneUlogDownloadRequest = async (droneId, requestId) => {
+  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/download-requests/${encodeURIComponent(requestId)}`), { timeout: 15000 });
+  return resp.data;
+};
+
+export const summarizeUploadedUlog = async file => {
+  const form = new FormData(); form.append('file', file);
+  const resp = await postGcsResource(buildLogsUrl('/ulog/summary'), form, { timeout: 120000 });
   return resp.data;
 };
 
@@ -123,14 +126,14 @@ export const buildDroneUlogDownloadURL = (droneId, jobId) => (
 );
 
 /** POST /api/logs/export — export sessions as JSONL or ZIP */
-export const exportSessions = async (sessionIds, format = 'jsonl', droneId = null) => {
+export const exportSessions = async (sessionIds, format = 'jsonl', droneId = null, filters = null) => {
   const endpoint = droneId != null
     ? buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/export`)
     : buildLogsUrl('/export');
   const resp = await postGcsResource(
     endpoint,
-    { session_ids: sessionIds, format },
-    { responseType: 'blob' },
+    { session_ids: sessionIds, format, ...(filters ? { filters } : {}) },
+    { responseType: 'blob', timeout: 120000 },
   );
   return resp;
 };

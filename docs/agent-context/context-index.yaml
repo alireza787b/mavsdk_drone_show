@@ -381,6 +381,17 @@ resources:
   - logs
   - diagnostics
   searchable: true
+- id: mds.logs_operator_workflow
+  title: Logs operator workflow
+  path: docs/guides/logs-operator-workflow.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Illustrated live review, recorded-session export and onboard flight-log retrieval.
+  tags:
+  - logs
+  - diagnostics
+  searchable: true
 - id: mds.mavlink_routing_setup
   title: MAVLink routing setup
   path: docs/guides/mavlink-routing-setup.md

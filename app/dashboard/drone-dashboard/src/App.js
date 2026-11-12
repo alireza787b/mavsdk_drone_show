@@ -253,7 +253,7 @@ const AppShell = () => {
                       <Route path="/runtime-admin" element={<RuntimeAdminPage />} />
                       <Route path="/environments" element={<EnvironmentsPage />} />
                       <Route path="/simurgh" element={<SimurghOperatorPage />} />
-                      <Route path="/logs" element={<LogViewer />} />
+                      <Route path="/logs" element={<LogViewer runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} userRole={auth.role || 'viewer'} />} />
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 
                       {/* Backward-compatible alias used by workflow guidance */}

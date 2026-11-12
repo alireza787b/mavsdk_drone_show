@@ -11,6 +11,10 @@ import {
   getDroneUlogDownloadJob,
   getDroneSessions,
   getHeartbeats,
+  getSessionContent,
+  getDroneSessionContent,
+  getDroneUlogDownloadRequest,
+  exportSessions,
 } from './logService';
 import {
   buildLogsUrl,
@@ -84,7 +88,7 @@ describe('logService', () => {
     await getDroneSessions('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/sessions');
-    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/sessions');
+    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/sessions', {});
   });
 
   test('builds onboard ULog browser download URL', () => {
@@ -145,5 +149,29 @@ describe('logService', () => {
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/erase-all');
     expect(postGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/erase-all');
     expect(result.status).toBe('accepted');
+  });
+
+  test('preserves bounded UTC/search/cursor history queries including zero offset', async () => {
+    fetchGcsResource.mockResolvedValue({ data: { lines: [] } });
+    const query = { level: 'WARNING', search: 'warning', since: '2026-11-12T00:00:00Z', until: '2026-11-13T00:00:00Z', limit: 500, offset: 0, cursor: 'cursor' };
+    await getSessionContent('session/id', query);
+    expect(fetchGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/logs/sessions/session%2Fid', { timeout: 30000, params: query });
+    await getDroneSessionContent('1', 'session/id', query);
+    expect(fetchGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/logs/drone/1/sessions/session%2Fid', { timeout: 30000, params: query });
+  });
+
+  test('ULog create carries persisted identity and recovery is GET-only', async () => {
+    postGcsResource.mockResolvedValue({ data: { request_id: 'request', job: {} } });
+    fetchGcsResource.mockResolvedValue({ data: { status: 'unknown', job: null } });
+    await createDroneUlogDownloadJob('1', 7, { requestId: 'request' });
+    expect(postGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/logs/drone/1/ulog/files/7/download', { request_id: 'request' }, { timeout: 30000 });
+    await getDroneUlogDownloadRequest('1', 'request/1');
+    expect(fetchGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/logs/drone/1/ulog/download-requests/request%2F1', { timeout: 15000 });
+  });
+
+  test('exports whole sessions unless explicitly given frozen filters', async () => {
+    postGcsResource.mockResolvedValue({ data: new Blob() });
+    await exportSessions(['session'], 'jsonl', null, { level: 'WARNING', search: 'loss' });
+    expect(postGcsResource).toHaveBeenLastCalledWith('http://gcs.test:5030/api/logs/export', { session_ids: ['session'], format: 'jsonl', filters: { level: 'WARNING', search: 'loss' } }, { responseType: 'blob', timeout: 120000 });
   });
 });

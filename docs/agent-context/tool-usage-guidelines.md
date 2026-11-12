@@ -71,6 +71,13 @@ Current callable argument scope:
   ULog bytes, raw topic arrays, raw logged-message text, erase actions, browser
   download content, pasted artifacts, streams, or raw ULog/QGC/field-log
   artifacts to a provider or public context.
+- Raw ULog create, staged-job status/content, deletion, erase-all, and
+  `GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` remain
+  outside model/MCP tools. Request recovery is actor-bound browser transfer
+  state and can issue a signed content handle; returning JSON or using GET does
+  not make it sanitized read-only evidence. Use the approved inventory and
+  derived-summary tools instead. Never replay a download create to resolve an
+  uncertain result.
 - SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,
   `mds.shows.skybrush.safety_report.read`, and
   `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current

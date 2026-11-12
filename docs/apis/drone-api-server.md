@@ -492,6 +492,23 @@ returns `404` for a mismatched capability so job existence is not disclosed.
 The dashboard receives neither this capability nor the drone-local job id; it
 receives a signed opaque GCS handle bound to the authenticated actor and drone.
 
+`POST /api/v1/ulog/files/{log_id}/download` accepts an optional `request_id`
+(1–128 ASCII letters/digits plus `_.:-`, beginning with a letter/digit) alongside
+the existing optional `pos_id`. GCS supplies a stable request ID and capability
+before native staging. Repeating that identity and immutable file/runtime scope
+returns the existing job without re-listing or scheduling another transfer;
+conflicting reuse returns `409`. A small durable metadata claim survives native
+restart, but staged jobs do not: a claimed identity without runtime job state is
+unavailable/unknown, never permission to recreate it. Direct legacy calls that
+omit `request_id` retain one new job per create call.
+
+Under the configured download/erase disarm policy, native execution checks
+confirmed fresh disarm immediately before staging/copy, the MAVSDK download, or
+erase. Filesystem fallback and summary-internal staging use the same guard.
+Missing/stale evidence is not disarm; these checks add no GPS gate and do not
+disarm aircraft. Inventory and existing-job recovery remain reads, not new
+staging authority.
+
 Summary parsing runs in an isolated, killable child process with configured
 input, memory, concurrency, and wall-clock limits. Raw transfers enforce
 per-file and aggregate limits, disk reserve, total and idle deadlines, job

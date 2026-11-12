@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, BinaryIO, Optional
+from typing import Any, AsyncIterator, Awaitable, BinaryIO, Callable, Optional
 
 from mavsdk.log_files import Entry as MavsdkLogEntry
 from mavsdk.log_files import LogFilesError, LogFilesResult
@@ -38,6 +38,10 @@ from src.ulog_transfer_policy import (
     ulog_download_max_bytes,
     ulog_download_min_free_bytes,
     ulog_download_timeout_seconds,
+)
+from src.ulog_request_receipts import (
+    UlogRequestConflict, UlogRequestReceiptStore, UlogRequestStorageError,
+    native_download_job_id, request_fingerprint,
 )
 
 
@@ -139,6 +143,10 @@ class OnboardUlogService:
         self._job_reserved_bytes: dict[str, int] = {}
         self._job_stage_identities: dict[str, tuple[int, int]] = {}
         self._active_job_ids: set[str] = set()
+        self._scheduled_job_ids: set[str] = set()
+        self._request_receipts: UlogRequestReceiptStore | None = None
+        self.download_guard: Callable[[Any], Awaitable[None]] | None = None
+        self.erase_guard: Callable[[Any], Awaitable[None]] | None = None
         self._fallback_entries: dict[int, _IndexedUlogFile] = {}
         self._lock = asyncio.Lock()
         self._cleanup_orphaned_stage_files()
@@ -176,6 +184,25 @@ class OnboardUlogService:
         *,
         access_token: str | None = None,
     ) -> OnboardUlogDownloadJobResponse:
+        job_id = uuid.uuid4().hex
+        if getattr(request, "request_id", None):
+            existing = await self.get_request_job(log_id, request, access_token=access_token)
+            if existing is not None:
+                return existing
+            scope, fingerprint = self._download_request_binding(log_id, request, access_token)
+            job_id = native_download_job_id(self.hw_id, request.request_id, access_token)
+            try:
+                _, created = await asyncio.to_thread(
+                    self._download_request_store().claim, scope, request.request_id,
+                    fingerprint, {"job_id": job_id, "fingerprint": fingerprint},
+                )
+            except UlogRequestConflict as exc:
+                raise UlogJobConflictError(str(exc)) from exc
+            except UlogRequestStorageError as exc:
+                raise UlogStorageError(str(exc)) from exc
+            if not created:
+                return await self.get_request_job(log_id, request, access_token=access_token)
+
         entries = await self._fetch_entries(drone)
         entry = next((candidate for candidate in entries if candidate.id == int(log_id)), None)
         if entry is None:
@@ -194,7 +221,7 @@ class OnboardUlogService:
         expires_at = now_ms + int(self._safe_float("ULOG_DOWNLOAD_JOB_TTL_SEC", 1800.0) * 1000)
 
         job = OnboardUlogDownloadJob(
-            job_id=uuid.uuid4().hex,
+            job_id=job_id,
             hw_id=self.hw_id,
             pos_id=pos_id,
             log_id=entry.id,
@@ -231,6 +258,61 @@ class OnboardUlogService:
                 self._job_fallback_files[job.job_id] = fallback_file
             self._trim_job_count_locked()
             return OnboardUlogDownloadJobResponse(job=job.model_copy(deep=True), timestamp=now_ms)
+
+    def _download_request_store(self) -> UlogRequestReceiptStore:
+        if self._request_receipts is None:
+            try:
+                stage_dir = self._secure_stage_dir(create=True)
+                self._request_receipts = UlogRequestReceiptStore(stage_dir / "ulog-download-requests.sqlite3")
+            except UlogRequestStorageError as exc:
+                raise UlogStorageError(str(exc)) from exc
+        return self._request_receipts
+
+    def _download_request_binding(self, log_id, request, access_token):
+        scope = request_fingerprint({
+            "scope": "native-ulog-create-v1", "hw_id": self.hw_id,
+            "access_hash": self._hash_access_token(access_token or ""),
+        })
+        fingerprint = request_fingerprint({
+            "log_id": int(log_id), "pos_id": self._resolve_pos_id(request.pos_id),
+            "mode": str(getattr(self.params, "runtime_mode", "unknown")),
+        })
+        return scope, fingerprint
+
+    async def get_request_job(
+        self, log_id: int, request: OnboardUlogDownloadRequest, *, access_token: str | None = None,
+    ) -> OnboardUlogDownloadJobResponse | None:
+        """Read a previously claimed identity; absent runtime state is not a replay lease."""
+        if not getattr(request, "request_id", None):
+            return None
+        scope, fingerprint = self._download_request_binding(log_id, request, access_token)
+        try:
+            stored = await asyncio.to_thread(self._download_request_store().get, scope, request.request_id)
+        except UlogRequestStorageError as exc:
+            raise UlogStorageError(str(exc)) from exc
+        if stored is None:
+            return None
+        if stored["fingerprint"] != fingerprint:
+            raise UlogJobConflictError("Request identity is bound to a different ULog download")
+        async with self._lock:
+            self._cleanup_expired_jobs_locked(self._now_ms())
+            job = self._jobs.get(stored["job_id"])
+            if job is None:
+                raise UlogJobConflictError(
+                    "Previous ULog request is in progress or unavailable after restart/expiry; creation will not be replayed"
+                )
+            return OnboardUlogDownloadJobResponse(job=job.model_copy(deep=True), timestamp=self._now_ms())
+
+    async def claim_download_start(self, job_id: str) -> bool:
+        """Reserve background scheduling once, including the queued-task window."""
+        async with self._lock:
+            job = self._jobs.get(str(job_id))
+            if job is None:
+                raise UlogNotFoundError(f"ULog download job {job_id} not found")
+            if job.status != "queued" or str(job_id) in self._scheduled_job_ids:
+                return False
+            self._scheduled_job_ids.add(str(job_id))
+            return True
 
     async def authorize_job(self, job_id: str, access_token: str | None) -> bool:
         """Validate the transient capability assigned to one raw-download job."""
@@ -312,6 +394,8 @@ class OnboardUlogService:
 
         stage_identity: tuple[int, int] | None = None
         try:
+            if self.download_guard is not None:
+                await self.download_guard(drone)
             if fallback_file is not None:
                 stage_identity = self._prepare_stage_file(stage_path)
                 async with self._lock:
@@ -341,6 +425,8 @@ class OnboardUlogService:
                         raise UlogUnsafePathError(
                             f"ULog download job {job_id} has no trusted staging identity"
                         )
+                    if self.download_guard is not None:
+                        await self.download_guard(drone)
                     await asyncio.to_thread(
                         self._copy_file_bounded,
                         fallback_file,
@@ -362,6 +448,8 @@ class OnboardUlogService:
                     return
 
                 entry = await self._resolve_download_entry(drone, job)
+                if self.download_guard is not None:
+                    await self.download_guard(drone)
                 progress_stream = drone.log_files.download_log_file(entry, str(stage_path))
                 iterator = progress_stream.__aiter__()
                 while True:
@@ -583,7 +671,11 @@ class OnboardUlogService:
         )
 
     async def erase_all(self, drone: Any, *, pos_id: int | None = None) -> OnboardUlogEraseAllResponse:
+        if self.erase_guard is not None:
+            await self.erase_guard(drone)
         fallback_deleted = self._erase_filesystem_logs()
+        if self.erase_guard is not None:
+            await self.erase_guard(drone)
         try:
             await drone.log_files.erase_all_log_files()
         except Exception:
@@ -1398,6 +1490,7 @@ class OnboardUlogService:
         self._job_reserved_bytes.pop(job_id, None)
         self._job_stage_identities.pop(job_id, None)
         self._active_job_ids.discard(job_id)
+        self._scheduled_job_ids.discard(job_id)
         return self._jobs.pop(job_id, None) is not None
 
     def _make_job_capacity_locked(self, *, expected_size: int, stage_dir: Path) -> None:

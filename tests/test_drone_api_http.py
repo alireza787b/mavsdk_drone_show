@@ -1244,12 +1244,15 @@ class TestDroneState:
         scheduled = []
 
         async def fake_with_local_system(operation):
-            return await operation(object())
-
-        def fake_create_task(coro):
-            scheduled.append(True)
-            coro.close()
-            return Mock()
+            from types import SimpleNamespace
+            async def samples(value):
+                yield value
+                await asyncio.Event().wait()
+            drone = SimpleNamespace(
+                core=SimpleNamespace(connection_state=lambda: samples(SimpleNamespace(is_connected=True))),
+                telemetry=SimpleNamespace(armed=lambda: samples(False)),
+            )
+            return await operation(drone)
 
         monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
         monkeypatch.setattr(
@@ -1278,7 +1281,8 @@ class TestDroneState:
             ),
         )
         monkeypatch.setattr(api_server, "_run_ulog_download_job", AsyncMock(return_value=None))
-        monkeypatch.setattr(asyncio, "create_task", fake_create_task)
+        monkeypatch.setattr(api_server._ulog_service, "claim_download_start", AsyncMock(return_value=True))
+        monkeypatch.setattr(api_server, "_start_ulog_download_task", lambda _job_id: scheduled.append(True))
 
         headers = ulog_machine_headers(ULOG_OP_DOWNLOAD_CREATE)
         headers["X-MDS-ULog-Job-Token"] = "test-capability"

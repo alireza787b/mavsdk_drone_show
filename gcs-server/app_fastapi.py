@@ -953,7 +953,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    # With credentials, browsers treat '*' as a literal header name, not a
+    # wildcard. Expose the metadata used by freshness and bounded exports.
+    expose_headers=[
+        "X-MDS-Server-Time", "Content-Disposition", "Content-Length",
+        "X-MDS-Export-Records", "X-MDS-Export-Skipped", "X-MDS-Export-Scope",
+    ],
     max_age=3600,
 )
 

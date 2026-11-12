@@ -40,7 +40,7 @@ describe('LogRowDetail', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /close log detail/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });

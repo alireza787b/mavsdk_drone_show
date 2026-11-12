@@ -60,6 +60,13 @@ Do not assume the environment. Detect it first.
   opt-in. Do not introduce a second security-mode switch when existing auth,
   network, and secret-path settings already express the posture.
 - Use unified logs as the first debugging surface before speculative fixes.
+- Treat live-log buffers as partial observations, not archives or aircraft
+  readiness. Preserve source/session/stream identity and coverage across paging,
+  reconnects and freezes. A ready staged ULog is not a completed client download;
+  uncertain create receipts recover by lookup, never automatic replay.
+- Configured heartbeat rows can contain placeholder slots without any heartbeat.
+  Slot comparison/adoption requires fresh heartbeat-specific evidence, not just
+  telemetry presence; never suppress a numeric slot globally to hide missing data.
 - Keep code changes minimal, explainable, and test-backed.
 - Keep modules cohesive and reviewable. Avoid growing central files with
   scenario-specific branches; extract a shared component only when it creates a

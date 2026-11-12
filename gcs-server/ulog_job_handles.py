@@ -59,6 +59,16 @@ def create_ulog_job_capability(
     )
 
 
+def restore_ulog_job_capability(
+    *, nonce: str, drone_id: int, owner_fingerprint: str,
+) -> UlogJobCapability:
+    """Re-derive a transient capability; receipt storage retains no raw token."""
+    return UlogJobCapability(
+        nonce=nonce,
+        access_token=_derive_access_token(nonce=nonce, drone_id=drone_id, owner_fingerprint=owner_fingerprint),
+    )
+
+
 def require_raw_ulog_actor(request: Request) -> str:
     """Require an operator identity and return its non-reversible fingerprint."""
 

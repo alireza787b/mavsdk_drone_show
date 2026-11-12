@@ -117,30 +117,21 @@ class TestFetchDroneSessions:
 class TestFetchDroneSessionContent:
     @pytest.mark.asyncio
     async def test_fetch_content_with_filters(self):
+        import httpx
         from log_proxy import fetch_drone_session_content
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.raise_for_status = MagicMock()
-        mock_response.json.return_value = {
-            "session_id": "s_20260319_100000",
-            "count": 1,
-            "lines": [{"level": "WARNING", "msg": "test"}],
-        }
-
-        with patch("log_proxy.httpx.AsyncClient") as MockClient:
-            client_instance = AsyncMock()
-            client_instance.get = AsyncMock(return_value=mock_response)
-            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-            client_instance.__aexit__ = AsyncMock(return_value=None)
-            MockClient.return_value = client_instance
-
+        seen = []
+        def transport(request):
+            seen.append(request)
+            return httpx.Response(200, json={"session_id": "s_20260319_100000", "count": 1,
+                "lines": [{"level": "WARNING", "msg": "test"}]})
+        native_client = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+        with patch("log_proxy.httpx.AsyncClient", return_value=native_client):
             result = await fetch_drone_session_content(
                 "192.168.1.105", "s_20260319_100000", level="WARNING"
             )
             assert result["count"] == 1
-            # Verify query params were passed
-            call_args = client_instance.get.call_args
-            assert call_args.kwargs.get("params", {}).get("level") == "WARNING"
+            assert seen[0].url.params["level"] == "WARNING"
+            assert seen[0].url.params["limit"] == "500"
 
 
 class TestFetchDroneJsonSync:
@@ -469,7 +460,7 @@ class TestUlogSummaryFallback:
 
 
 class TestStreamDroneLogs:
-    def test_stream_error_emits_structured_warning_entry(self):
+    def test_stream_error_emits_named_status_not_a_fabricated_aircraft_record(self):
         from log_proxy import stream_drone_logs
 
         with patch("log_proxy.httpx.Client") as MockClient:
@@ -482,13 +473,14 @@ class TestStreamDroneLogs:
             stream = stream_drone_logs("192.168.1.105", drone_id=5)
             line = next(stream)
 
-        assert line.startswith("data: ")
-        payload = json.loads(line[len("data: "):])
-        assert payload["level"] == "WARNING"
-        assert payload["component"] == "log_proxy"
-        assert payload["source"] == "gcs"
+        assert line.startswith("event: status\ndata: ")
+        payload = json.loads(line.split("data: ", 1)[1])
+        assert payload["state"] == "unavailable"
+        assert payload["coverage"] == "unknown"
+        assert payload["history_complete"] is False
+        assert "level" not in payload and "msg" not in payload
         assert payload["drone_id"] == 5
-        assert "All connection attempts failed" in payload["msg"]
+        assert "All connection attempts failed" in payload["message"]
 
     def test_stream_cancellation_exits_quietly(self):
         from log_proxy import stream_drone_logs
@@ -518,3 +510,53 @@ class TestStreamDroneLogs:
             stream = stream_drone_logs("192.168.1.105", drone_id=5)
             with pytest.raises(StopIteration):
                 next(stream)
+
+    def test_stream_preserves_ids_named_events_and_multiline_frames(self):
+        from log_proxy import stream_drone_logs
+
+        lines = [
+            "id: nativeepoch:8", 'data: {"msg":', 'data: "repeated"}', "",
+            "event: gap", 'data: {"reason":"retention","lost_count":2}', "",
+            "event: status", 'data: {"state":"connected","heartbeat":true}', "",
+        ]
+        with patch("log_proxy.httpx.Client") as client_class:
+            client = client_class.return_value.__enter__.return_value
+            response = client.stream.return_value.__enter__.return_value
+            response.iter_lines.return_value = iter(lines)
+            frames = list(stream_drone_logs("192.168.1.105", 5, level="WARNING", last_event_id="nativeepoch:7"))
+            call = client.stream.call_args
+            assert call.kwargs["headers"] == {"Last-Event-ID": "nativeepoch:7"}
+            assert call.kwargs["params"] == {"level": "WARNING"}
+            timeout = client_class.call_args.kwargs["timeout"]
+            assert timeout.connect == 5.0 and timeout.read == 30.0
+        assert frames[:3] == [
+            'id: nativeepoch:8\ndata: {"msg":\ndata: "repeated"}\n\n',
+            'event: gap\ndata: {"reason":"retention","lost_count":2}\n\n',
+            'event: status\ndata: {"state":"connected","heartbeat":true}\n\n',
+        ]
+        assert '"reason":"upstream_closed"' in frames[-1]
+
+    def test_incomplete_upstream_frame_is_not_published_as_a_record(self):
+        from log_proxy import stream_drone_logs
+
+        with patch("log_proxy.httpx.Client") as client_class:
+            response = client_class.return_value.__enter__.return_value.stream.return_value.__enter__.return_value
+            response.iter_lines.return_value = iter(["id: epoch:1", 'data: {"msg": "truncated'])
+            frames = list(stream_drone_logs("192.168.1.105", 5))
+        assert len(frames) == 1
+        assert frames[0].startswith("event: status\n")
+        assert '"reason":"upstream_truncated"' in frames[0]
+        assert "id: epoch:1" not in frames[0]
+
+    def test_downstream_cancel_closes_upstream_response(self):
+        from log_proxy import stream_drone_logs
+
+        with patch("log_proxy.httpx.Client") as client_class:
+            client = client_class.return_value.__enter__.return_value
+            stream_context = client.stream.return_value
+            response = stream_context.__enter__.return_value
+            response.iter_lines.return_value = iter(['data: {"msg":"one"}', "", 'data: {"msg":"two"}', ""])
+            stream = stream_drone_logs("192.168.1.105", 5)
+            assert next(stream).startswith("data: ")
+            stream.close()
+            stream_context.__exit__.assert_called_once()

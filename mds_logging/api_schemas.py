@@ -21,10 +21,28 @@ class LogSessionsResponse(BaseModel):
     sessions: list[LogSessionSummary]
 
 
+class LogPageCoverage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope: Literal["page"] = "page"
+    byte_start: int = Field(ge=0)
+    byte_end: int = Field(ge=0)
+    snapshot_size_bytes: int = Field(ge=0)
+    source_size_bytes: int = Field(ge=0)
+    malformed_records: int = Field(0, ge=0)
+    oversized_records: int = Field(0, ge=0)
+    incomplete_records: int = Field(0, ge=0)
+
+
 class LogSessionContentResponse(BaseModel):
     session_id: str
     count: int
-    lines: list[dict[str, Any]]
+    lines: list[dict[str, Any]] = Field(max_length=2000)
+    schema_version: str | None = None
+    snapshot_id: str | None = None
+    entry_offsets: list[int] = Field(default_factory=list, max_length=2000)
+    next_cursor: str | None = None
+    has_more: bool | None = None
+    coverage: LogPageCoverage | None = None
 
 
 class FrontendLogReportRequest(BaseModel):
@@ -34,9 +52,19 @@ class FrontendLogReportRequest(BaseModel):
     extra: Any | None = None
 
 
+class LogExportFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None
+    component: str | None = Field(None, max_length=128)
+    search: str | None = Field(None, max_length=256)
+    since: str | None = Field(None, max_length=80)
+    until: str | None = Field(None, max_length=80)
+
+
 class LogExportRequest(BaseModel):
-    session_ids: list[str] = Field(default_factory=list)
+    session_ids: list[Annotated[str, Field(max_length=128)]] = Field(default_factory=list, max_length=100)
     format: Literal["jsonl", "zip"] = "jsonl"
+    filters: LogExportFilters | None = None
 
 
 class LogConfigUpdateRequest(BaseModel):
@@ -302,6 +330,7 @@ class OnboardUlogSummaryResponse(UlogDerivedSummary):
 
 class OnboardUlogDownloadRequest(BaseModel):
     pos_id: int | None = None
+    request_id: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$", strict=True)
 
 
 class OnboardUlogDownloadJob(BaseModel):

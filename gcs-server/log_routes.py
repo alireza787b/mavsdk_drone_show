@@ -12,15 +12,16 @@ Reference: docs/guides/logging-system.md
 """
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 import os
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Path as ApiPath, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from mds_logging.api_schemas import (
@@ -32,6 +33,7 @@ from mds_logging.api_schemas import (
     LogSourcesResponse,
     LogStatusResponse,
     OnboardUlogDownloadJobResponse,
+    OnboardUlogDownloadRequest,
     OnboardUlogEraseAllResponse,
     OnboardUlogJobDeleteResponse,
     OnboardUlogListResponse,
@@ -39,10 +41,15 @@ from mds_logging.api_schemas import (
     OnboardUlogSummaryResponse,
 )
 from mds_logging.registry import get_registry
-from mds_logging.session import get_session_filepath, list_sessions, read_session_lines
+from mds_logging.session import list_sessions
+from mds_logging.session_query import LogQueryError, read_session_page
 from mds_logging.watcher import get_watcher, LogWatcher
 from mds_logging.constants import get_log_dir
 from mds_logging import get_logger
+from ulog_download_requests import (
+    UlogDownloadCreateResponse, UlogDownloadRequestReceipt, get_ulog_download_requests,
+)
+from src.ulog_request_receipts import UlogRequestConflict, UlogRequestStorageError
 
 logger = get_logger("log_api")
 
@@ -62,15 +69,6 @@ def create_log_router(
 
     router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
-    def _resolve_existing_session_file(session_id: str) -> str:
-        try:
-            filepath = get_session_filepath(_log_dir, session_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found") from exc
-        if not os.path.isfile(filepath):
-            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-        return filepath
-
     def _ulog_upload_summary_max_bytes() -> int:
         raw = os.getenv("MDS_ULOG_UPLOAD_SUMMARY_MAX_BYTES")
         try:
@@ -87,7 +85,7 @@ def create_log_router(
     @router.get("/sessions", response_model=LogSessionsResponse)
     async def get_sessions():
         """List GCS log sessions, newest first."""
-        sessions = list_sessions(_log_dir)
+        sessions = await asyncio.to_thread(list_sessions, _log_dir)
         return {"sessions": sessions}
 
     @router.get("/sessions/{session_id}", response_model=LogSessionContentResponse)
@@ -95,36 +93,37 @@ def create_log_router(
         session_id: str,
         level: Optional[str] = None,
         component: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: int = 0,
+        limit: int = Query(500, ge=1, le=2000),
+        offset: int = Query(0, ge=0, le=100000),
         since: Optional[str] = None,
+        until: Optional[str] = None,
+        search: Optional[str] = Query(None, max_length=256),
+        cursor: Optional[str] = Query(None, max_length=4096),
     ):
         """Retrieve filtered JSONL content from a GCS log session."""
-        lines = read_session_lines(
-            _log_dir, session_id,
-            level=level, component=component, limit=limit, offset=offset,
-            since=since,
-        )
-        if lines is None:
+        try:
+            page = await asyncio.to_thread(read_session_page, _log_dir, session_id,
+                level=level, component=component, limit=limit, offset=offset,
+                since=since, until=until, search=search, cursor=cursor)
+        except LogQueryError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if page is None:
             raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-        return {"session_id": session_id, "count": len(lines), "lines": lines}
+        return page
 
     @router.get("/stream")
     async def stream_logs(
+        request: Request,
         level: Optional[str] = None,
         component: Optional[str] = None,
         source: Optional[str] = None,
         drone_id: Optional[int] = None,
     ):
         """Stream GCS logs in real-time via SSE."""
-        async def event_generator():
-            async for entry in _watcher.subscribe(
-                level=level, component=component, source=source, drone_id=drone_id,
-            ):
-                yield f"data: {json.dumps(entry)}\n\n"
-
+        from mds_logging.streaming import sse_log_stream
         return StreamingResponse(
-            event_generator(),
+            sse_log_stream(_watcher, last_event_id=request.headers.get("last-event-id"),
+                           level=level, component=component, source=source, drone_id=drone_id),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -148,93 +147,25 @@ def create_log_router(
     @router.post("/export")
     async def export_sessions(request: LogExportRequest):
         """Export one or more sessions as JSONL or ZIP."""
-        import io
-        import zipfile
-        from fastapi.responses import Response
-
-        session_ids = request.session_ids
-        fmt = request.format
-
-        if not session_ids:
-            raise HTTPException(status_code=400, detail="session_ids required")
-
-        # Verify all sessions exist
-        for sid in session_ids:
-            _resolve_existing_session_file(sid)
-
-        if fmt == "zip" or len(session_ids) > 1:
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                for sid in session_ids:
-                    filepath = _resolve_existing_session_file(sid)
-                    zf.write(filepath, f"{sid}.jsonl")
-            buf.seek(0)
-            return Response(
-                content=buf.getvalue(),
-                media_type="application/zip",
-                headers={"Content-Disposition": "attachment; filename=mds_logs_export.zip"},
-            )
-        else:
-            filepath = _resolve_existing_session_file(session_ids[0])
-            with open(filepath, "r") as f:
-                content = f.read()
-            return Response(
-                content=content,
-                media_type="application/x-ndjson",
-                headers={"Content-Disposition": f"attachment; filename={session_ids[0]}.jsonl"},
-            )
+        from log_exports import create_log_export
+        return await create_log_export(request, log_dir=_log_dir)
 
     # --- Drone proxy endpoints ---
 
     @router.post("/drone/{drone_id}/export")
     async def export_drone_sessions(drone_id: int, request: LogExportRequest):
         """Export one or more sessions from a specific drone as JSONL or ZIP."""
-        import io
-        import zipfile
-        from fastapi.responses import Response
-
-        from log_proxy import resolve_drone_ip, fetch_drone_session_content
-
-        session_ids = request.session_ids
-        fmt = request.format
-
-        if not session_ids:
-            raise HTTPException(status_code=400, detail="session_ids required")
-
+        from log_exports import create_log_export
+        from log_proxy import DroneProxyResponseError, resolve_drone_ip, fetch_drone_session_content
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
-
-        session_payloads: list[tuple[str, list[dict]]] = []
-        for sid in session_ids:
-            result = await fetch_drone_session_content(ip, sid)
-            if result is None:
-                raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
-            session_payloads.append((sid, result.get("lines", [])))
-
-        def _to_jsonl(lines: list[dict]) -> str:
-            if not lines:
-                return ""
-            return "".join(f"{json.dumps(line)}\n" for line in lines)
-
-        if fmt == "zip" or len(session_ids) > 1:
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                for sid, lines in session_payloads:
-                    zf.writestr(f"{sid}.jsonl", _to_jsonl(lines))
-            buf.seek(0)
-            return Response(
-                content=buf.getvalue(),
-                media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename=drone_{drone_id}_logs_export.zip"},
-            )
-
-        sid, lines = session_payloads[0]
-        return Response(
-            content=_to_jsonl(lines),
-            media_type="application/x-ndjson",
-            headers={"Content-Disposition": f"attachment; filename={sid}.jsonl"},
-        )
+        async def remote_page(session_id, **query):
+            return await fetch_drone_session_content(ip, session_id, **query)
+        try:
+            return await create_log_export(request, drone_id=drone_id, remote_page=remote_page)
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
     @router.get("/drone/{drone_id}/sessions", response_model=LogSessionsResponse)
     async def get_drone_sessions(drone_id: int):
@@ -254,25 +185,35 @@ def create_log_router(
         session_id: str,
         level: Optional[str] = None,
         component: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: int = 0,
+        limit: int = Query(500, ge=1, le=2000),
+        offset: int = Query(0, ge=0, le=100000),
         since: Optional[str] = None,
+        until: Optional[str] = None,
+        search: Optional[str] = Query(None, max_length=256),
+        cursor: Optional[str] = Query(None, max_length=4096),
     ):
         """Retrieve session content from a specific drone (proxied)."""
         from log_proxy import resolve_drone_ip, fetch_drone_session_content
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
-        result = await fetch_drone_session_content(
-            ip, session_id, level=level, component=component, limit=limit, offset=offset,
-            since=since,
-        )
+        from log_proxy import DroneProxyResponseError
+        try:
+            result = await fetch_drone_session_content(
+                ip, session_id, level=level, component=component, limit=limit, offset=offset,
+                since=since, until=until, search=search, cursor=cursor,
+            )
+        except LogQueryError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
         if result is None:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
         return result
 
     @router.get("/drone/{drone_id}/stream")
     async def stream_drone(
+        request: Request,
         drone_id: int,
         level: Optional[str] = None,
         component: Optional[str] = None,
@@ -284,7 +225,8 @@ def create_log_router(
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         return StreamingResponse(
-            stream_drone_logs(ip, drone_id=drone_id, level=level, component=component, source=source),
+            stream_drone_logs(ip, drone_id=drone_id, level=level, component=component,
+                              source=source, last_event_id=request.headers.get("last-event-id")),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -419,52 +361,54 @@ def create_log_router(
 
     @router.post(
         "/drone/{drone_id}/ulog/files/{log_id}/download",
-        response_model=OnboardUlogDownloadJobResponse,
+        response_model=UlogDownloadCreateResponse,
     )
-    async def create_drone_ulog_download_job_route(request: Request, drone_id: int, log_id: int):
-        """Start a staged onboard ULog download job on a specific drone."""
-        from log_proxy import (
-            DroneProxyResponseError,
-            DroneProxyUnavailableError,
-            create_drone_ulog_download_job as create_job,
-            resolve_drone_ip,
-        )
-        from ulog_job_handles import (
-            create_ulog_job_capability,
-            issue_ulog_job_handle,
-            protect_ulog_job_payload,
-            require_raw_ulog_actor,
-        )
+    async def create_drone_ulog_download_job_route(
+        request: Request, drone_id: int = ApiPath(..., ge=0), log_id: int = ApiPath(..., ge=0),
+        download_request: OnboardUlogDownloadRequest | None = None,
+    ):
+        """Accept one actor-bound create attempt before any native staging."""
+        from log_proxy import resolve_drone_ip
+        from ulog_job_handles import require_raw_ulog_actor
 
         owner = require_raw_ulog_actor(request)
-        capability = create_ulog_job_capability(
-            drone_id=drone_id,
-            owner_fingerprint=owner,
-        )
+        body = download_request or OnboardUlogDownloadRequest()
+        if body.request_id is None:
+            body = body.model_copy(update={"request_id": uuid.uuid4().hex})
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         try:
-            payload = await create_job(
-                ip,
-                log_id,
-                access_token=capability.access_token,
-            )
-            raw_job = payload.get("job") if isinstance(payload, dict) else None
-            if not isinstance(raw_job, dict):
-                raise HTTPException(status_code=502, detail="Drone returned an invalid ULog job.")
-            handle = issue_ulog_job_handle(
-                drone_id=drone_id,
-                node_job_id=str(raw_job.get("job_id") or ""),
-                owner_fingerprint=owner,
-                expires_at_ms=raw_job.get("expires_at"),
-                capability_nonce=capability.nonce,
-            )
-            return protect_ulog_job_payload(payload, handle=handle)
-        except DroneProxyUnavailableError as exc:
-            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
-        except DroneProxyResponseError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+            service = await asyncio.to_thread(get_ulog_download_requests)
+            return await service.create(owner, drone_id, log_id, ip, body)
+        except UlogRequestConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except UlogRequestStorageError as exc:
+            raise HTTPException(status_code=503, detail={
+                "request_id": body.request_id, "creation_status": "unknown", "message": str(exc),
+            }) from exc
+
+    @router.get(
+        "/drone/{drone_id}/ulog/download-requests/{request_id}",
+        response_model=UlogDownloadRequestReceipt,
+    )
+    async def get_drone_ulog_download_request(
+        request: Request, drone_id: int = ApiPath(..., ge=0),
+        request_id: str = ApiPath(..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$"),
+    ):
+        """Recover request metadata using native status lookup, never create replay."""
+        from log_proxy import resolve_drone_ip
+        from ulog_job_handles import require_raw_ulog_actor
+
+        owner = require_raw_ulog_actor(request)
+        try:
+            service = await asyncio.to_thread(get_ulog_download_requests)
+            receipt = await service.lookup(owner, drone_id, request_id, resolve_drone_ip(drone_id))
+        except UlogRequestStorageError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if receipt is None:
+            raise HTTPException(status_code=404, detail="ULog download request not found for this actor and aircraft")
+        return receipt
 
     @router.get(
         "/drone/{drone_id}/ulog/downloads/{job_id}",

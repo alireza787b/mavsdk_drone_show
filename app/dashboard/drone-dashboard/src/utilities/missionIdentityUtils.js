@@ -320,7 +320,8 @@ export function getHeartbeatTimestamp(heartbeat) {
     ?? heartbeat?.last_heartbeat
     ?? heartbeat?.timestamp;
   const numeric = Number(timestamp);
-  return Number.isFinite(numeric) ? numeric : null;
+  return timestamp !== null && timestamp !== undefined && timestamp !== ''
+    && Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
 export function getOnlineDroneCount(heartbeats = {}, staleThresholdSeconds = 20) {

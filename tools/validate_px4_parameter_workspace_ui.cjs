@@ -340,6 +340,14 @@ async function scenario(browser, width, theme) {
 
     await page.getByRole('tab', { name: 'Profiles', exact: true }).click();
     await page.getByRole('heading', { name: 'Sample fleet baseline', exact: true }).waitFor();
+    const labelLayout = await page.locator('.px4-profile .px4-change-table tbody th').first().evaluate(cell => {
+      const name = cell.querySelector('code').getBoundingClientRect();
+      const component = cell.querySelector('small').getBoundingClientRect();
+      const next = cell.nextElementSibling.getBoundingClientRect();
+      return { vertical: component.top >= name.bottom - 1, contained: component.right <= next.left + 1 };
+    });
+    assert(labelLayout.vertical, 'Profile component/type must sit below the parameter name');
+    if (width > 560) assert(labelLayout.contained, 'Profile label must not overlap its next value column');
     await capture('guide-05-profile');
     await page.getByRole('button', { name: 'Review for aircraft', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Prepare parameter changes', exact: true });

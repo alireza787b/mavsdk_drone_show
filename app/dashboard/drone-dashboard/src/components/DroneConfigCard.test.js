@@ -4,6 +4,19 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import DroneConfigCard from './DroneConfigCard';
 
 describe('DroneConfigCard', () => {
+  it.each([
+    { pos_id: 0, last_heartbeat: 0, presence: { state: 'never_seen', heartbeat_age_sec: null } },
+    { pos_id: 0, last_heartbeat: Date.now() - 120000, presence: { state: 'offline' } },
+  ])('keeps an unobserved or stale slot out of mismatch/adopt controls', heartbeat => {
+    render(<DroneConfigCard drone={{ hw_id: '1', pos_id: '1', ip: '192.0.2.11' }}
+      configData={[]} availableHwIds={['1']} editingDroneId={null} setEditingDroneId={jest.fn()}
+      saveChanges={jest.fn()} removeDrone={jest.fn()} heartbeatData={heartbeat} />);
+    fireEvent.click(within(screen.getByLabelText('Operator card indicators')).getByRole('button', { name: /slot/i }));
+    expect(screen.getByText('Slot not checked')).toBeInTheDocument();
+    expect(screen.queryByText('Slot mismatch')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept heartbeat/ })).not.toBeInTheDocument();
+  });
+
   it('renders compact operator indicators and opens git details on demand', () => {
     render(
       <DroneConfigCard

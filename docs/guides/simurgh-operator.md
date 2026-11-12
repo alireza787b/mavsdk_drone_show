@@ -987,6 +987,14 @@ context and still blocks direct operational requests. The endpoint rejects
 JSON-RPC batching, invalid origins, unsupported protocol headers, unknown tools,
 denied tools, and unexpected tool arguments.
 
+Raw ULog browser transfers remain excluded, including the metadata-only
+`GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` recovery
+route. That actor-bound route may return a signed content handle; it is not an
+inventory/summary evidence tool and must not be promoted merely because it uses
+GET or JSON. Raw create, content, staged-copy deletion and erase-all remain
+outside model-driven tooling. Download uncertainty never authorizes create
+replay.
+
 ### Production MCP Setup
 
 Use this path for n8n, Claude Desktop/VS Code bridges, or any external agent
