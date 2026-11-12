@@ -44,7 +44,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Action and QuickScout native-output wrappers use their registered component
   loggers, fixing an undefined logger reference that could stop pipe draining.
 - Completed MDS landing/RTL and show paths clear residual Offboard only after
-  fresh connected disarmed/ON_GROUND evidence, then verify Hold. Other modes and
+  fresh connected disarmed/ON_GROUND evidence, then verify Hold. Grounded LAND/
+  RETURN_TO_LAUNCH completion uses the same path. Other modes and
   unknown/airborne states are untouched; recovery is never gated on this step.
 
 - Fixed the shared console-dialog field rule expanding radio/checkbox controls
