@@ -79,6 +79,7 @@ from src.led_controller import LEDController
 from src.mission_startup import LaunchReadinessError, arm_with_preflight_gate, probe_offboard_armability
 from src.enums import Mission
 from src.params import Params
+from src.postflight_mode import finish_grounded_offboard
 
 # Unified logging system
 from mds_logging.drone import init_drone_logging
@@ -1659,6 +1660,10 @@ async def land(drone):
             else:
                 raise
 
+        postflight = await finish_grounded_offboard(drone, logger=logger)
+        final_state = dict(postflight.get('observation') or {})
+        final_state['postflight_mode'] = {k: v for k, v in postflight.items() if k != 'observation'}
+        _set_final_vehicle_state(final_state)
         logger.info("Landing successful.")
     except ActionError as e:
         logger.error(f"Landing failed: {e}")
@@ -1714,6 +1719,10 @@ async def return_rtl(drone):
             else:
                 raise
 
+        postflight = await finish_grounded_offboard(drone, logger=logger)
+        final_state = dict(postflight.get('observation') or {})
+        final_state['postflight_mode'] = {k: v for k, v in postflight.items() if k != 'observation'}
+        _set_final_vehicle_state(final_state)
         logger.info("RTL successful.")
     except ActionError as e:
         logger.error(f"RTL failed: {e}")

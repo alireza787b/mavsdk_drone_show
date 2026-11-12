@@ -43,6 +43,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   separate from migration. Compatible requirement updates use the selected Python.
 - Action and QuickScout native-output wrappers use their registered component
   loggers, fixing an undefined logger reference that could stop pipe draining.
+- Completed MDS landing/RTL and show paths clear residual Offboard only after
+  fresh connected disarmed/ON_GROUND evidence, then verify Hold. Other modes and
+  unknown/airborne states are untouched; recovery is never gated on this step.
 
 - Fixed the shared console-dialog field rule expanding radio/checkbox controls
   to full width and clipping aircraft/source labels. Browser regression checks

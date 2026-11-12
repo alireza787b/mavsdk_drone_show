@@ -142,6 +142,16 @@ readiness. Named enums remain named contracts; do not assume numeric values are
 unchanged. Concurrent stderr/stdout draining is a compatibility fix, not evidence
 of better synchronized flight.
 
+The sequential-mission regression also exercises recovery followed by a new
+launch without resetting the simulator. A completed MDS LAND/RTL or show may
+leave PX4 disarmed but in residual Offboard, which correctly fails the next
+native armability check when its setpoint stream has ended. Postflight completion
+now requests Hold once **only** with fresh connected disarmed, ON_GROUND and
+OFFBOARD evidence, and verifies the result. It does not precede/gate recovery,
+override manual modes, normalize uncertain flight state or bypass preflight.
+An unconfirmed mode change stays diagnostic; the next launch still requires
+native readiness. This is a lifecycle correction, not a flight-tuning change.
+
 ## Metadata and future capabilities
 
 The v4 gRPC wrapper exposes `component_metadata` rather than the retired

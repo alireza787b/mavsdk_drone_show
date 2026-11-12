@@ -96,6 +96,7 @@ import asyncio
 import csv
 import json
 import logging
+from src.postflight_mode import finish_grounded_offboard
 import subprocess
 import socket
 import psutil
@@ -2150,6 +2151,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             use_global_setpoints=effective_use_global_setpoints
         )
 
+        await finish_grounded_offboard(drone, logger=logger)
         logger.info("Mission completed successfully.")
         sys.exit(0)
 
