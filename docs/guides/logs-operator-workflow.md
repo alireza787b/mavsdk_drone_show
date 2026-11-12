@@ -3,6 +3,8 @@
 Open **Logs** in the sidebar. Start with the tab matching your task; GCS is the
 initial source. These screenshots use synthetic aircraft, not a live fleet.
 
+[Full-resolution six-step walkthrough](../assets/log-workspace/operator-guide.png)
+
 | Task | Tab | Next action |
 |---|---|---|
 | Understand a current message | Live | Select a record |

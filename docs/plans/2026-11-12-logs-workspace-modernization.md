@@ -1,8 +1,8 @@
 # Logs workspace modernization
 
-Status: approved; implementation in progress. Baseline checks are not post-fix
-acceptance. Production and aircraft behavior remain unchanged until validated
-deployment.
+Status: source-workspace implementation and acceptance complete: source tests,
+final built-browser acceptance and isolated source-overlay SITL validated.
+This checkpoint is not a refreshed pinned image or real-aircraft flight clearance.
 
 ## Product decision
 
@@ -300,3 +300,32 @@ Design references (not certification/equivalence claims):
   keyboard and non-interrupting status behavior.
 - The repository [frontend design system](../guides/frontend-design-system.md)
   and [logging guide](../guides/logging-system.md) remain canonical MDS guidance.
+
+## Implementation evidence
+
+- Backend acceptance: 487 tests passed using the pinned pyulog 1.3.0 parser.
+- Dashboard: full baseline 171 suites / 1,275 tests; final focused delayed-response
+  regression batch 5 suites / 40 tests passed.
+- Final real-built Logs browser: 1,440 / 900 / 390 pixels, dark and light, all
+  six cases passed. Covered cursor/export scope, source changes, stream gaps,
+  missing aircraft, explicit Save, uploads, uncertain responses and terminal
+  rejection recovery without replay. Parameters browser regression also passed
+  all six viewport/theme cases, including component-label column boundaries.
+- Disposable source-overlay SITL: Takeoff/Land completed; three armed recorder
+  operations correctly rejected. The 7,902,111-byte ULog matched expected/HTTP
+  size and header, SHA-256
+  `751ca298e8a8a6893b57ef7b2b0acfd9bd3f06178bde37e7a6b8737108c742a0`.
+  Receipt/job recovery used GET only; summary parsed, staging cleaned, and erase
+  was followed by verified empty inventory. An SSH-output interruption split
+  flight and post-flight reports; the original partial report was preserved,
+  and a detached continuation verified the already-landed flight without replay.
+- Configured-but-unseen heartbeat placeholders no longer become slot mismatches.
+  Stale assignment/IP observations cannot be adopted as current configuration.
+  A real fresh slot zero is not globally discarded.
+- Native/public source and image distribution remain distinct. A later approved
+  SDK/image modernization slice must rerun acceptance on its actual rebuilt image
+  and publish its own provenance; this checkpoint does not stand in for it.
+
+The [illustrated operator workflow](../guides/logs-operator-workflow.md) and
+original-resolution screenshots use synthetic identities only. Raw diagnostics,
+job capabilities and deployment configuration remain outside public documentation.

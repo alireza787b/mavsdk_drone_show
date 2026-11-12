@@ -1,5 +1,5 @@
 {
-  "chunk_count": 858,
+  "chunk_count": 869,
   "chunks": [
     {
       "audience": "operator",
@@ -242,7 +242,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "4fd46b17a7b29f7118f600693b4ef6e416358019db740f0a51ed984a6b014146",
+      "content_hash": "dbc5f396bf8e9e3c180f6f47314388e42be2448e43c4eac09ce0ea2578b2024f",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-02-simurgh-tool-usage-guidelines",
       "links": [],
@@ -256,13 +256,13 @@
         "tools",
         "mcp"
       ],
-      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- Drone log/ULog inventory and post-brief questions such as “do we have a ULog\n stored?” or “check the ULog and unified log for that mission” stay on the\n local advisory/read-only path. Simurgh may summarize command-tracker records,\n per-drone log sessions, ULog file metadata, and bounded local ULog summary\n metrics that the approved GCS endpoints already expose. Safe summary metrics\n include duration, topic/sample counts, local-position envelope, battery range,\n command/ack counts, and dropout counts. It must not expose raw\n ULog bytes, raw topic arrays, raw logged-message text, erase actions, browser\n download content, pasted artifacts, streams, or raw ULog/QGC/field-log\n artifacts to a provider or public context.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n-",
+      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- Drone log/ULog inventory and post-brief questions such as “do we have a ULog\n stored?” or “check the ULog and unified log for that mission” stay on the\n local advisory/read-only path. Simurgh may summarize command-tracker records,\n per-drone log sessions, ULog file metadata, and bounded local ULog summary\n metrics that the approved GCS endpoints already expose. Safe summary metrics\n include duration, topic/sample counts, local-position envelope, battery range,\n command/ack counts, and dropout counts. It must not expose raw\n ULog bytes, raw topic arrays, raw logged-message text, erase actions, browser\n download content, pasted artifacts, streams, or raw ULog/QGC/field-log\n artifacts to a provider or public context.\n- Raw ULog create, staged-job status/content, deletion, erase-all, and\n `GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` remain\n outside model/MCP tools. Request recovery is actor-bound browser transfer\n state and can issue a signed content handle; returning JSON or using GET does\n not make it sanitized read-only evidence. Use the approved inventory and\n derived-summary tools instead. Never replay a download create",
       "title": "Simurgh tool usage guidelines"
     },
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "f5f7d0b48236ee667e6e0dcdcd4fab0b205e1a15c057c6de460427a6574de0a5",
+      "content_hash": "41f12c844053115a4f9a9f3a4dab4113c4665c34a177f080e7bccb38dfe76f31",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
       "links": [
@@ -280,7 +280,7 @@
         "tools",
         "mcp"
       ],
-      "text": "the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops\n sync posture only. It must not run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,\n download, or artifact forms through this registry tool.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- The Drone Show operator workspace uses the read-only aggregate routes\n `GET /api/v1/shows/skybrush/workspace` and\n `GET /api/v1/shows/operation/status`. They expose package/readiness and live\n operation evidence only; they do not import, deploy, or send flight commands.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.",
+      "text": "r-bound browser transfer\n state and can issue a signed content handle; returning JSON or using GET does\n not make it sanitized read-only evidence. Use the approved inventory and\n derived-summary tools instead. Never replay a download create to resolve an\n uncertain result.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops\n sync posture only. It must not run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,\n download, or artifact forms through this registry tool.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- The Drone Show operator workspace uses the read-only aggregate routes\n `GET /api/v1/shows/skybrush/workspace` and\n `GET /api/v1/shows/operation/status`. They expose package/readiness and live\n operation evidence only; they do not import, deploy, or send flight commands.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -1193,6 +1193,26 @@
         "dashboard"
       ],
       "text": "## MCP Endpoint\n\nThe MCP endpoint is mounted at:\n\n- `POST /api/v1/simurgh/mcp`\n- `GET /.well-known/oauth-protected-resource`\n- `GET /.well-known/oauth-protected-resource/api/v1/simurgh/mcp`\n\nIt is off by default and requires both:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=true\n```\n\nThe default is fail-closed because MCP is an external interoperability surface.\nIt is production-acceptable to enable MCP only when `MDS_MCP_REQUIRE_AUTH=true`,\ndashboard cookie sessions are rejected, and issued bearer tokens have the least-privilege `agent` scope.\n\nProtocol slice:\n\n- Protocol version: `2025-11-25`\n- Transport: Streamable HTTP request/response JSON only\n- SSE/GET stream: not supported; `GET /api/v1/simurgh/mcp` returns `405`\n- Capabilities: `prompts`, `resources`, and `tools`\n- MCP tools: `tools/list` returns policy-allowed read-only tools from\n `config/agent_tools.yaml`; `tools/call` executes only read-only route tools\n and approved route-less advisory/docs tools that pass Simurgh policy for the\n `mcp` channel\n- Auth challenge: `WWW-Authenticate: Bearer ... scope=\"agent\"` when MDS auth is\n enabled and the request has no acceptable bearer token\n\nResources exposed:\n\n- `mds://simurgh/status`\n- `mds://simurgh/policy`\n- `mds://simurgh/tool-registry`\n- `mds://simurgh/context-index`\n- `mds://simurgh/sessions`\n- `mds://simurgh/audit`\n- `mds://simurgh/context/{resource_id}` for public context resources\n\nThe tool registry remains the source of truth for the MCP menu. Excluded tools,\nnon-GCS tools, raw command routes, drone-local APIs, destructive routes, and\nnon-read-only routes are not callable. The route-less\n`mds.operator.question.answer` tool is the shared natural-language advisory\nwrapper for dashboard chat and external MCP clients; it answers with read-only\ncontext and still blocks direct operational requests. The endpoint rejects\nJSON-RPC batching, invalid origins, unsupported protocol headers, unknown tools,\ndenied tools, and unexpected tool arguments.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "af590d350a95d5291e0961ddb8ea6f8c1d33ab5c2c01517114fd3797dfd7de87",
+      "heading": "MCP Endpoint",
+      "id": "simurgh.operator_guide:016-02-mcp-endpoint",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "Raw ULog browser transfers remain excluded, including the metadata-only\n`GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` recovery\nroute. That actor-bound route may return a signed content handle; it is not an\ninventory/summary evidence tool and must not be promoted merely because it uses\nGET or JSON. Raw create, content, staged-copy deletion and erase-all remain\noutside model-driven tooling. Download uncertainty never authorizes create\nreplay.",
       "title": "Simurgh operator guide"
     },
     {
@@ -9123,9 +9143,66 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "7dbf58f14057d0212139120b38f47578c6a9ba55eb98e7ca9e417a8ebb0972e1",
+      "heading": "Logging API: bounded sessions, exports and ULog requests",
+      "id": "mds.gcs_api:131-01-logging-api-bounded-sessions-exports-and-ulog-requests",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "### Logging API: bounded sessions, exports and ULog requests\n\nThe logging root remains `/api/logs`, not `/api/v1/logs`. GCS sessions use\n`GET /api/logs/sessions` and `GET /api/logs/sessions/{session_id}`. Aircraft\nsession equivalents are under `/api/logs/drone/{drone_id}/sessions`. Live SSE\nstays under `/api/logs/stream` or the selected aircraft's `/stream`; stream\nconnection/coverage is not aircraft health or complete historical coverage.\n\nSession content accepts `level`, `component`, `search`, `since`, `until`,\n`limit`, `offset` and `cursor`. Filters apply before pagination. `since` is\nexclusive and `until` inclusive; timestamps without an offset mean UTC.\nThe default page limit is 500, accepted limits are 1–2,000, and the initial\noffset is 0–100,000. Search is bounded to 256 characters. Invalid limits/ranges\nreturn `422`, not an empty success.\n\nThe response retains `session_id`, `count` and `lines`, adding\n`schema_version: \"1.1\"`, `snapshot_id`, `entry_offsets`, `has_more`,\n`next_cursor` and `coverage`. Coverage declares the page's byte interval,\npinned snapshot/source sizes and skipped malformed, oversized or incomplete\nrecords. Pages have a 2 MiB record-data budget and 16 MiB scan budget; individual\nrecords over 256 KiB are skipped/reported, not fabricated. A zero-row page can\nstill have continuation when filtering/scanning consumes its budget.\n\nContinue with the returned cursor and the same source/session/filters. Its\nread boundary excludes later appends. A restart, expired cursor, rotation,\ntruncation or changed file/filter returns `409` and requires a fresh view;\nanother file must never occupy an old cursor silently. Older companions that\ncannot provide the bounded query contract require an update for paged\nsearch/export.\n\n`POST /api/logs/export` and `POST /api/logs/drone/{drone_id}/export` accept:\n\n```json\n{\n \"session_ids\": [\"selected-session\"],\n \"format\": \"zip\",\n \"filters\": {\"level\": \"WARNING\", \"search\": \"timeout\"}\n}\n```",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "d7a1a6c1efaff6bff28fce6d4d84ed19f7139da99273e443d0f3db17f2911715",
+      "heading": "Logging API: bounded sessions, exports and ULog requests",
+      "id": "mds.gcs_api:131-02-logging-api-bounded-sessions-exports-and-ulog-requests",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "Exports traverse every continuation, not just the first page. Omit `filters`\nfor full selected sessions. Preparation uses temporary files outside the event\nloop, a 128 MiB aggregate JSONL-data budget, 60-second deadline, two-export\nconcurrency bound and disk-reserve checks. Busy returns `429`, oversized\nexports `413`, insufficient staging space `507`, and a changed source `409`.\n`X-MDS-Export-Records`, `X-MDS-Export-Skipped` and `X-MDS-Export-Scope` describe\nthe produced artifact. Temporary exports are cleaned after streaming; this is\nnot a persistent archive or a claim that the browser saved a file.\n\nRaw ULog creation remains\n`POST /api/logs/drone/{drone_id}/ulog/files/{log_id}/download`. Clients should\npersist the exact aircraft/file and an opaque `request_id` before posting:\n\n```json\n{\"request_id\": \"ulog-request-example\"}\n```\n\nThe successful response retains `job` and `timestamp`, adding `request_id`.\nLegacy omitted IDs are generated internally. Accepted job IDs are signed,\nactor-and-aircraft-bound GCS handles, not native job tokens.\n\nRecover a lost response with\n`GET /api/logs/drone/{drone_id}/ulog/download-requests/{request_id}`. The\nresponse is `{request_id, status, job, error, timestamp}`: `status` is\n`accepted`, `unknown` or terminal `rejected`, and `job` is the protected job object or `null`, not a\nnested response envelope. The route is operator/admin-only. Another actor,\naircraft or runtime cannot recover that receipt; conflicting reuse for another\naircraft/file is rejected. A failed create response includes `request_id` and\n`creation_status: \"unknown\"` in its detail when acceptance remains uncertain.\nOnly explicit evidence can produce `creation_status: \"rejected\"`: a durable\nGCS pre-handoff failure or a request-and-capability-bound native rejection\nbefore acceptance. Rejected receipts are recoverable through the same GET and\nallow a new explicit request with a new ID. Generic HTTP errors, transport loss\nor a missing-job `404` are not proof of rejection and remain unknown.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "12a13b3605a9410b6c2a8428f5678ff7e90c755f345d17687c1e8bab28db0cfa",
+      "heading": "Logging API: bounded sessions, exports and ULog requests",
+      "id": "mds.gcs_api:131-03-logging-api-bounded-sessions-exports-and-ulog-requests",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "The GCS commits bounded request metadata before calling the node. Duplicate\nknown requests return the same job; uncertain requests are never silently\nresubmitted. Recovery uses native status lookup only. Native restart/expiry or\nan unavailable endpoint remains unknown/unavailable, not another staging\nattempt. Historical acceptance does not prove a staged file still exists:\ncontinue normal `/ulog/downloads/{handle}` polling and explicit content save.\nGCS/node receipt stores contain metadata only, capped at 16 MiB/1,024 identities\nwith an 8 KiB envelope; capacity fails closed and preserves existing lookup\nidentities rather than recycling them. No raw archive or node/root token is\npersisted in GCS request receipts.\n\nRaw transfer creation, request recovery, handles/content, staged-copy deletion\nand erase-all are excluded from model/MCP tools. Approved ULog inventory and\nderived-summary tools are unchanged. See the [logging guide](../guides/logging-system.md)\nfor policy, roles, upload summaries and operator behavior.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "d5eebef6ff07c0fa1831bea5b8459847717278999a97abd771e0755c002cd201",
       "heading": "Stable Transport Roots",
-      "id": "mds.gcs_api:131-01-stable-transport-roots",
+      "id": "mds.gcs_api:132-01-stable-transport-roots",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9144,7 +9221,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c936a9438b55eac1f8f13ea98ff3e8be090c07c1f62f5e7ce36fba704374746b",
       "heading": "Swarm Trajectory Static Assets",
-      "id": "mds.gcs_api:132-01-swarm-trajectory-static-assets",
+      "id": "mds.gcs_api:133-01-swarm-trajectory-static-assets",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9163,7 +9240,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "11d44c1f8660aed7c831d3f1e763503c34c649edc3ff0a1d54e30a155e5afe04",
       "heading": "`GET /api/v1/swarm-trajectories/plots/{filename}`",
-      "id": "mds.gcs_api:133-01-get-api-v1-swarm-trajectories-plots-filename",
+      "id": "mds.gcs_api:134-01-get-api-v1-swarm-trajectories-plots-filename",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9182,7 +9259,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "f2ae9c56c285e141fae6597609068976a2c19e9bafcce55a575ca57188d5178e",
       "heading": "WebSocket Endpoints",
-      "id": "mds.gcs_api:134-01-websocket-endpoints",
+      "id": "mds.gcs_api:135-01-websocket-endpoints",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9201,7 +9278,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "03f606b595ccd2f7900d143f82ba524c89c4fa17d72dc5ea7f99464eb4f4f78a",
       "heading": "`WS /ws/telemetry`",
-      "id": "mds.gcs_api:135-01-ws-ws-telemetry",
+      "id": "mds.gcs_api:136-01-ws-ws-telemetry",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9220,7 +9297,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "cc408ee9f6d64e0a978909c9ca89e837af8b97360cbed8578b31cab2b4e561be",
       "heading": "`WS /ws/git-status`",
-      "id": "mds.gcs_api:136-01-ws-ws-git-status",
+      "id": "mds.gcs_api:137-01-ws-ws-git-status",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9239,7 +9316,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "3b3512a212a0b25ecfc2dc139fc00e7262cdf428cc45666f85d8606a905ad6f6",
       "heading": "`WS /ws/heartbeats`",
-      "id": "mds.gcs_api:137-01-ws-ws-heartbeats",
+      "id": "mds.gcs_api:138-01-ws-ws-heartbeats",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9258,7 +9335,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "f129c79bf9770719c201b64d509ec37a69c5b3a654a7a7ae44bf2839f9bb0c80",
       "heading": "Authentication",
-      "id": "mds.gcs_api:138-01-authentication",
+      "id": "mds.gcs_api:139-01-authentication",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9277,7 +9354,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "3344095c7aca16f351fea473bbfd8e7d8b6ef3ef5228ef3adf8deaafad77d7b6",
       "heading": "Fleet Enrollment Runtime Domains",
-      "id": "mds.gcs_api:139-01-fleet-enrollment-runtime-domains",
+      "id": "mds.gcs_api:140-01-fleet-enrollment-runtime-domains",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9296,7 +9373,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c1c68831fd40145dea91ab09971b64e87a9a6726a42a9155ada55f7f5140fcbf",
       "heading": "Environment Control Plane",
-      "id": "mds.gcs_api:140-01-environment-control-plane",
+      "id": "mds.gcs_api:141-01-environment-control-plane",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9315,7 +9392,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "09ff1d154ccc17bbc62215b46f004ab443083e5414ec3c90906757002b0086c4",
       "heading": "Simurgh Operator MCP Review",
-      "id": "mds.gcs_api:141-01-simurgh-operator-mcp-review",
+      "id": "mds.gcs_api:142-01-simurgh-operator-mcp-review",
       "links": [
         "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
       ],
@@ -9336,7 +9413,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "63e66e207692fe92c3b486e83d235b6e864ca95c59092d27f56c90b9f85263b7",
       "heading": "Simurgh Operator MCP Review",
-      "id": "mds.gcs_api:141-02-simurgh-operator-mcp-review",
+      "id": "mds.gcs_api:142-02-simurgh-operator-mcp-review",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9355,7 +9432,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "48bf038a6a01d2a3aa3c0851960c0c93026ed543a953472108ec5e5f4569bd9a",
       "heading": "Error Handling",
-      "id": "mds.gcs_api:142-01-error-handling",
+      "id": "mds.gcs_api:143-01-error-handling",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9374,7 +9451,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "83b4b75e97518491cc424bc1e898a26cc2fd8fab80a6980dae71d36cb564d0c1",
       "heading": "Migration from Flask",
-      "id": "mds.gcs_api:143-01-migration-from-flask",
+      "id": "mds.gcs_api:144-01-migration-from-flask",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9393,7 +9470,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "22cc7bff87457a7036c5c646f89a0ecfa06f3e88392faf69da1b32795018f513",
       "heading": "Current Contract Policy",
-      "id": "mds.gcs_api:144-01-current-contract-policy",
+      "id": "mds.gcs_api:145-01-current-contract-policy",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9412,7 +9489,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c9a3dfe58a038a01ca50a71a2fabfd3ea5b533995a931a540757b6cbd071a02f",
       "heading": "Migration Steps",
-      "id": "mds.gcs_api:145-01-migration-steps",
+      "id": "mds.gcs_api:146-01-migration-steps",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9431,7 +9508,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "714c20b1ad05c0a67943dc4199444a2e739a397d487cd317862c155d44096292",
       "heading": "Advantages of FastAPI",
-      "id": "mds.gcs_api:146-01-advantages-of-fastapi",
+      "id": "mds.gcs_api:147-01-advantages-of-fastapi",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9450,7 +9527,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c71954ab8c8a88becb650c46d52bf934e59258c5b3ad552c79f46eb7d0dda1d7",
       "heading": "Performance Metrics",
-      "id": "mds.gcs_api:147-01-performance-metrics",
+      "id": "mds.gcs_api:148-01-performance-metrics",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9469,7 +9546,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "2f831f77a03a3917923dcdfe61983cf1a8048cdd43fd92ef11b6c1ee1442af03",
       "heading": "HTTP Endpoints",
-      "id": "mds.gcs_api:148-01-http-endpoints",
+      "id": "mds.gcs_api:149-01-http-endpoints",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9488,7 +9565,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "6cdf2af41f3d8b6fffaaaf3ae8446fee461245b812d02a8c7be2b8c221ddc756",
       "heading": "WebSocket Endpoints",
-      "id": "mds.gcs_api:149-01-websocket-endpoints",
+      "id": "mds.gcs_api:150-01-websocket-endpoints",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9507,7 +9584,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "ddc33972dde0d2d90ea41993d34ebddd992dc9a96a0b8cba7d13f17981dd18cd",
       "heading": "Support",
-      "id": "mds.gcs_api:150-01-support",
+      "id": "mds.gcs_api:151-01-support",
       "links": [
         "https://github.com/alireza787b/mavsdk_drone_show/issues"
       ],
@@ -15447,7 +15524,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "df67ad3976498713d21f5bdb68de535f152f2f30f7bf7a8690dc49c669187115",
+      "content_hash": "520dcec824c5a124cdfac0b0e3b31e2e141bc0e40f49ba98882dbd5ef25c1c9f",
       "heading": "Session Management",
       "id": "mds.logging_system:010-01-session-management",
       "links": [],
@@ -15460,7 +15537,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "## Session Management\n\nSessions are named `s_YYYYMMDD_HHMMSS` and stored as `.jsonl` files.\n\n```python\nfrom mds_logging.session import create_session, list_sessions, cleanup_sessions",
+      "text": "## Session Management\n\nSessions are named `s_YYYYMMDD_HHMMSS` and stored as `.jsonl` files.\nConcurrent sessions in the same second receive unique numeric suffixes using\nexclusive creation; unrelated runs never share a session file.\n\n```python\nfrom mds_logging.session import create_session, list_sessions, cleanup_sessions",
       "title": "MDS logging system guide"
     },
     {
@@ -15656,7 +15733,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "6bf175a3459f160866d0dcf2f3d031a1ad62f45372945ac738bd3a5686768d95",
+      "content_hash": "3b010359adb16b1a92425f4057ac11418de8f8f2826abfc93a74cb416af4a8e1",
       "heading": "GCS-Side Endpoints",
       "id": "mds.logging_system:021-01-gcs-side-endpoints",
       "links": [],
@@ -15669,7 +15746,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### GCS-Side Endpoints\n\n| Endpoint | Method | Description |\n|----------|--------|-------------|\n| `/api/logs/sources` | GET | List registered log components |\n| `/api/logs/sessions` | GET | List GCS sessions |\n| `/api/logs/sessions/{session_id}` | GET | Retrieve GCS session content |\n| `/api/logs/stream` | GET (SSE) | Real-time GCS log stream via SSE |\n| `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |\n| `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |\n| `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |\n| `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |\n| `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary` | GET | Return a derived local PX4 ULog summary without returning raw ULog content |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |\n| `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |\n| `/api/logs/ulog/summary` | POST | Summarize one uploaded PX4 ULog locally without storing or returning raw content |\n| `/api/logs/frontend` | POST | Receive frontend error reports |\n| `/api/logs/export` | POST | Export sessions as JSONL or ZIP |\n| `/api/logs/config` | POST | Toggle background pull at runtime |",
+      "text": "### GCS-Side Endpoints\n\n| Endpoint | Method | Description |\n|----------|--------|-------------|\n| `/api/logs/sources` | GET | List registered log components |\n| `/api/logs/sessions` | GET | List GCS sessions |\n| `/api/logs/sessions/{session_id}` | GET | Retrieve GCS session content |\n| `/api/logs/stream` | GET (SSE) | Real-time GCS log stream via SSE |\n| `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |\n| `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |\n| `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |\n| `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |\n| `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary` | GET | Return a derived local PX4 ULog summary without returning raw ULog content |\n| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |\n| `/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` | GET | Recover creation acceptance by actor-bound UUID without replay |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |\n| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |\n| `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |\n| `/api/logs/ulog/summary` | POST | Summarize one uploaded PX4 ULog locally without storing or returning raw content |\n| `/api/logs/frontend` | POST | Receive frontend error reports |\n| `/api/logs/export` | POST | Export sessions as JSONL or ZIP |\n| `/api/logs/config` | POST | Toggle background pull at runtime |",
       "title": "MDS logging system guide"
     },
     {
@@ -15903,9 +15980,9 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "930e6023f73a53cca6a0d887b4589193e8c9020119d0ebf49d01b6cc37c14816",
-      "heading": "Modes",
-      "id": "mds.logging_system:033-01-modes",
+      "content_hash": "0e065712ca417178ee71f6c7118ea3696a306e4cdab04aa6e8c2aaca554858e9",
+      "heading": "Workspaces",
+      "id": "mds.logging_system:033-01-workspaces",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15916,7 +15993,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Modes\n\n**Operations Mode** (default):\n- Shows WARNING and ERROR entries only\n- Health bar: GCS status, live drone availability, error/warning drill-down counts\n- Live event feed with auto-scroll\n- One-click drill-down into warnings or errors from the health bar\n- Ideal for field operators during missions\n\n**Developer Mode**:\n- All log levels (DEBUG through CRITICAL)\n- Component source tree for filtering\n- Full-text search across log messages\n- Scope switcher for `GCS` vs `Drone #N` live and historical browsing\n- Human-readable session labels in UTC, clearly marked as UTC\n- Session selector for historical log browsing\n- Time focus controls: relative live windows, absolute start/end range for historical sessions\n- Active filter chips with one-click removal and a `Clear All Filters` action\n- MUI DataGrid with virtual scroll for large datasets\n- Export to JSONL or ZIP",
+      "text": "### Workspaces\n\nOne `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is\nno Operations/Developer mode: severity, search and export are ordinary operator\ntools. GCS is the initial runtime source. **Source** chooses one aircraft by\ncallsign and hardware ID; filters, reconnects and inspection never change it.\n\n- **Live** starts at Warnings+. Search and severity are visible; component and\n time-window filters expand on request. Select a record for its complete message\n and raw fields. Stream connection/coverage is not aircraft flight readiness.\n- **Sessions** selects one recorded session and reads bounded pages. Search,\n component, severity and explicit **After (UTC)** / **Through (UTC)** filters\n apply before pagination. After is exclusive; Through is inclusive.\n- **Flight logs** needs an explicit aircraft for onboard inventory, summary and\n staged download. **Open file** also summarizes a local `.ulg` without an\n aircraft, through the existing temporary local parser. Nothing is uploaded to\n an external provider or retained as a new GCS archive.\n\nSee the illustrated [operator workflow](logs-operator-workflow.md).",
       "title": "MDS logging system guide"
     },
     {
@@ -15941,7 +16018,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "f62240ae6ea3bdba46f48698613b56e5289427e3c024109a25a5fd4e860f5451",
+      "content_hash": "cc5574fd1cc15087c13d75d64d072d1120be16addae973cde4c6adcb2c4dcd1a",
       "heading": "Real-Time Streaming",
       "id": "mds.logging_system:035-01-real-time-streaming",
       "links": [],
@@ -15954,13 +16031,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Real-Time Streaming\n\nThe Log Viewer uses Server-Sent Events (SSE) for real-time streaming:\n- 200ms batch interval prevents UI thrashing\n- 5000-line ring buffer prevents memory bloat\n- Auto-reconnect on connection loss\n- Pause/resume button to freeze the view without losing data",
+      "text": "### Real-Time Streaming\n\nThe Log Viewer uses Server-Sent Events (SSE) for real-time streaming:\n- 200ms batch interval prevents UI thrashing\n- 5000-line ring buffer prevents memory bloat\n- Auto-reconnect on connection loss\n- **Freeze view** freezes display, not logging or flight. Pending rows remain\n bounded; overflow and stream/replay gaps are reported. **Follow latest** resumes\n the display. **Clear view** removes browser rows only.\n- Stable `epoch:sequence` SSE IDs support bounded retained replay. Named `status`\n and `gap` events disclose coverage separately from real log records. Silence,\n reconnecting and unavailable sources are not replaced with fabricated events.\n- Live time windows advance with the wall clock, or the deliberately frozen\n display clock. For complete recorded evidence, use Sessions rather than the\n live buffer.",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "4a5a5af7c7353b6ed243929896f3eb45f108a59bbe57b9553a59a8d86c4a31be",
+      "content_hash": "7004b886bafb9fed34a6efe7cf3820af5372e124bf928c67335b04add6b8340e",
       "heading": "Export",
       "id": "mds.logging_system:036-01-export",
       "links": [],
@@ -15973,13 +16050,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Export\n\nIn Developer mode, click the Export button to:\n- Select one or more sessions\n- Choose JSONL (machine-readable) or ZIP\n- Export the current scope (`GCS` or the selected drone)",
+      "text": "### Export\n\nFrom Sessions, **Export** freezes the source and offers selected sessions in\nJSONL or ZIP (multiple sessions use ZIP). **Whole selected sessions** ignores\nview filters; **Current filters** includes all matching records, not only the\nvisible page. Skipped malformed/oversized records are counted explicitly.\n\nSession reads default to 500 rows, maximum 2,000. Signed cursors pin the file's\nread boundary; append-only growth does not change later pages. A changed file,\nquery or server restart requires Refresh instead of silently mixing history.\nExports spool to temporary disk, cap output at 128 MiB, retain a 512 MiB free\nspace reserve and admit at most two concurrent responses. Narrow the export\nwhen a bound is reached. Older companions may support bounded reads but must be\nupdated for cursor paging and complete remote exports.",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "010d04fa5e7ccd56b8135347ff4164afa2b18b6b0fc621cf2bf62acfdaf911b4",
+      "content_hash": "4afff82b6737a458298f3c836b1bc1bf07f333ec27c67f1e951d06d8b5746f95",
       "heading": "Onboard ULog",
       "id": "mds.logging_system:037-01-onboard-ulog",
       "links": [],
@@ -15992,13 +16069,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Onboard ULog\n\nWhen a single drone scope is selected, the toolbar exposes a compact `ULog`\naction that opens the `Onboard ULog` dialog for file-backed PX4 flight logs\nstored on that vehicle.\n\nCurrent behavior:\n- maintenance workflow anchored to `hw_id`, while the UI still shows compact\n `Pn|Hm` identity for operator clarity\n- supports `list`, on-demand derived analysis, staged `download`, and `erase all`\n- the **Analyze** control calls the GCS summary endpoint and shows bounded flight\n duration, local movement/altitude envelope, battery range, and command/ack\n evidence inline; raw ULog content is never rendered\n- stages downloads briefly on the drone/GCS path and then hands them off to\n the browser; v1 does not keep a long-lived GCS archive\n- designed for file-backed PX4 ULogs only; MAVLink log streaming is a separate\n future feature\n- single-file delete is intentionally not exposed in the generic v1 contract",
+      "text": "### Onboard ULog\n\nFlight logs lists file-backed PX4 recorder files on the selected aircraft.\nAn unavailable inventory is unknown, not a successful zero-file result.\n\nCurrent behavior:\n- maintenance workflow anchored to `hw_id`, while the UI still shows compact\n `Pn|Hm` identity for operator clarity\n- supports `list`, on-demand derived analysis, staged `download`, and `erase all`\n- the **Summary** control calls the GCS summary endpoint and shows bounded flight\n duration, local movement/altitude envelope, battery range, and command/ack\n evidence inline; raw ULog content is never rendered\n- **Prepare download** stages one file on the aircraft; **Save file** streams it\n to the browser once ready. Immediate-ready responses also offer Save. Browser\n download requested is not proof of a completed local save or safe shutdown.\n- a context-bound Activity list survives navigation/reload using metadata and\n signed handles only. A UUID is saved before creation; accepted requests recover\n by receipt/status lookup, never automatic POST replay. Unknown outcomes and\n expired staging remain explicit. Closing an inspector does not cancel work.\n- fresh native disarm evidence is checked at actual staging/erase boundaries\n under the existing policy, including filesystem fallback. A missing or cached\n false armed flag is not disarm authority. Listing metadata stays available.\n- unknown command/ack counts and partial duration remain unknown/partial, not\n zero or whole-flight claims. File metadata time is not inferred flight time.\n- designed for file-backed PX4 ULogs only; MAVLink log streaming is a separate\n future feature\n- single-file delete is intentionally not exposed in the generic v1 contract",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "077ec6f68a25cf9ccbd5df5f75ada6b96916ff7579772f69765b54bbcb337fbb",
+      "content_hash": "e6557bd6722d69c5b7c0f61ffa0b7cd5b971277b8dede6ef5ea36517753c8159",
       "heading": "Onboard ULog",
       "id": "mds.logging_system:037-02-onboard-ulog",
       "links": [],
@@ -16011,13 +16088,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "Operational notes:\n- the dialog shows policy chips such as `Download requires disarmed` and\n `Erase requires disarmed`\n- stock lab/demo nodes with no `MDS_GCS_API_TOKEN_FILE` use explicit\n trusted-network ULog mode and log a warning; this preserves plug-and-play\n operation but must not be exposed to untrusted peers\n- when `MDS_GCS_API_TOKEN_FILE` is configured, every GCS-to-node ULog request\n carries a single-use, 15-second `X-MDS-Machine-Credential` bound to the target\n hardware identity and exact ULog operation; the node verifies it from that\n root-readable token, and an unreadable configured path fails closed\n- the GCS issues hardened credentials only from an active `drone`-scoped API\n token; full API auth or a configured SITL token path prevents unauthenticated\n proxy fallback\n- SITL launchers read the host path from `MDS_SITL_GCS_API_TOKEN_FILE`, mount it\n read-only at `/run/secrets/mds_gcs_api_token`, and expose only that mounted\n path to the container as `MDS_GCS_API_TOKEN_FILE`\n- download progress is polled and surfaced as a compact job-status card before\n the browser transfer starts\n- raw job handles are opaque and bound to the authenticated operator and target\n drone; copying a handle to another session does not grant access\n- the GCS handle and the node-local `X-MDS-ULog-Job-Token` are separate\n capabilities; neither raw token is returned in assistant evidence or normal\n dashboard payloads\n- staged downloads intentionally re-fetch the current MAVSDK log entry inside\n the background worker before downloading; this keeps asynchronous browser\n jobs aligned with MAVSDK's `get_entries` then `download_log_file` flow and\n avoids stale reconstructed entries being rejected by PX4/MAVSDK\n- Simurgh and the Logs API share the same 30-second ULog inventory/maintenance\n proxy timeout; ULog parsing uses the separately bounded\n `MDS_ULOG_SUMMARY_TIMEOUT_SEC` setting\n- Simurgh scopes drone-log/ULog review to an explicit target, the most recent\n command targets, or fresh heartbeat/telemetry presence before using the\n configured fallback scan. `MDS_SIMURGH_DRONE_LOG_MAX_DRONES` bounds that\n fallback and `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES` bounds expensive parsing\n-",
+      "text": "Operational notes:\n- capability and recorder policy remain available in one expandable section;\n admin erase is isolated under Maintenance with a frozen aircraft/count review\n- stock lab/demo nodes with no `MDS_GCS_API_TOKEN_FILE` use explicit\n trusted-network ULog mode and log a warning; this preserves plug-and-play\n operation but must not be exposed to untrusted peers\n- when `MDS_GCS_API_TOKEN_FILE` is configured, every GCS-to-node ULog request\n carries a single-use, 15-second `X-MDS-Machine-Credential` bound to the target\n hardware identity and exact ULog operation; the node verifies it from that\n root-readable token, and an unreadable configured path fails closed\n- the GCS issues hardened credentials only from an active `drone`-scoped API\n token; full API auth or a configured SITL token path prevents unauthenticated\n proxy fallback\n- SITL launchers read the host path from `MDS_SITL_GCS_API_TOKEN_FILE`, mount it\n read-only at `/run/secrets/mds_gcs_api_token`, and expose only that mounted\n path to the container as `MDS_GCS_API_TOKEN_FILE`\n- download progress is polled and surfaced as a compact job-status card before\n the browser transfer starts\n- raw job handles are opaque and bound to the authenticated operator and target\n drone; copying a handle to another session does not grant access\n- the GCS handle and the node-local `X-MDS-ULog-Job-Token` are separate\n capabilities; neither raw token is returned in assistant evidence or normal\n dashboard payloads\n- staged downloads intentionally re-fetch the current MAVSDK log entry inside\n the background worker before downloading; this keeps asynchronous browser\n jobs aligned with MAVSDK's `get_entries` then `download_log_file` flow and\n avoids stale reconstructed entries being rejected by PX4/MAVSDK\n- Simurgh and the Logs API share the same 30-second ULog inventory/maintenance\n proxy timeout; ULog parsing uses the separately bounded\n `MDS_ULOG_SUMMARY_TIMEOUT_SEC` setting\n- Simurgh scopes drone-log/ULog review to an explicit target, the most recent\n command targets, or fresh heartbeat/telemetry presence before using the\n configured fallback scan. `MDS_SIMURGH_DRONE_LOG_MAX_DRONES` bounds that\n fallback and",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "90719ab5ebb0f487928373c31de50bd4a481d5cdf5597e6f4d96be89d6e50607",
+      "content_hash": "58a4823b1f1187f83e74e61dc50b40477a17b76ac571b7246147ef9c2b2506bb",
       "heading": "Onboard ULog",
       "id": "mds.logging_system:037-03-onboard-ulog",
       "links": [],
@@ -16030,13 +16107,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "he most recent\n command targets, or fresh heartbeat/telemetry presence before using the\n configured fallback scan. `MDS_SIMURGH_DRONE_LOG_MAX_DRONES` bounds that\n fallback and `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES` bounds expensive parsing\n- base per-drone session, latest-warning, and ULog inventory reads fan out with\n at most `MDS_SIMURGH_DRONE_LOG_MAX_WORKERS` workers and share one\n `MDS_SIMURGH_DRONE_LOG_EVIDENCE_DEADLINE_SEC` wall-clock budget; a slow or\n offline node becomes explicit unavailable evidence instead of serially\n delaying the complete fleet answer\n- unavailable or timed-out log sources are reported as `unknown`, not as zero\n sessions, zero ULogs, or zero warnings; partial fleet coverage and parser caps\n remain visible in the summary\n- a ULog is described as correlated with an action only when target identity,\n the action time window/reference, and the matching command IDs are all\n present in local evidence; file recency alone is not proof of association\n- staged-analysis cleanup is part of the evidence result: a failed or missing\n staged-job deletion is reported explicitly rather than silently treated as\n successful cleanup\n- blocking drone log and ULog proxy work runs outside the async assistant event\n loop, so one slow onboard log cannot freeze unrelated chat/status requests\n- ULog parsing runs in a killable resource-bounded child process; timeout,\n malformed input, oversize input, and missing-parser outcomes remain distinct\n- node-local MAVSDK server, RPC-channel, and PX4-connection setup failures are\n reported as retryable `ulog_transport_unavailable` or\n `ulog_transport_timeout` results; parser exhaustion remains the separate\n `ulog_summary_timeout` result\n- direct parser and filesystem-fallback summaries are both validated against\n the same strict versioned response schema before GCS, MCP, or Simurgh can use\n them\n- an open raw-content response holds a lease on the securely opened staged file;\n job deletion and retention expiry return a conflict or defer cleanup until the\n stream closes\n- download filenames are normalized to include slot when known, hardware id,\n PX4 log timestamp when available, and the PX4/MDS log identifier, for example",
+      "text": "g\n- Simurgh scopes drone-log/ULog review to an explicit target, the most recent\n command targets, or fresh heartbeat/telemetry presence before using the\n configured fallback scan. `MDS_SIMURGH_DRONE_LOG_MAX_DRONES` bounds that\n fallback and `MDS_SIMURGH_ULOG_SUMMARY_MAX_DRONES` bounds expensive parsing\n- base per-drone session, latest-warning, and ULog inventory reads fan out with\n at most `MDS_SIMURGH_DRONE_LOG_MAX_WORKERS` workers and share one\n `MDS_SIMURGH_DRONE_LOG_EVIDENCE_DEADLINE_SEC` wall-clock budget; a slow or\n offline node becomes explicit unavailable evidence instead of serially\n delaying the complete fleet answer\n- unavailable or timed-out log sources are reported as `unknown`, not as zero\n sessions, zero ULogs, or zero warnings; partial fleet coverage and parser caps\n remain visible in the summary\n- a ULog is described as correlated with an action only when target identity,\n the action time window/reference, and the matching command IDs are all\n present in local evidence; file recency alone is not proof of association\n- staged-analysis cleanup is part of the evidence result: a failed or missing\n staged-job deletion is reported explicitly rather than silently treated as\n successful cleanup\n- blocking drone log and ULog proxy work runs outside the async assistant event\n loop, so one slow onboard log cannot freeze unrelated chat/status requests\n- ULog parsing runs in a killable resource-bounded child process; timeout,\n malformed input, oversize input, and missing-parser outcomes remain distinct\n- node-local MAVSDK server, RPC-channel, and PX4-connection setup failures are\n reported as retryable `ulog_transport_unavailable` or\n `ulog_transport_timeout` results; parser exhaustion remains the separate\n `ulog_summary_timeout` result\n- direct parser and filesystem-fallback summaries are both validated against\n the same strict versioned response schema before GCS, MCP, or Simurgh can use\n them\n- an open raw-content response holds a lease on the securely opened staged file;\n job deletion and retention expiry return a conflict or defer cleanup until the\n stream closes\n- download filenames are normalized to include slot when known, hardware id,\n PX4 log",
       "title": "MDS logging system guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "47869cbc843a0f84fffd592555c357a231928f8a38a8bc3aa95152bec7b3427e",
+      "content_hash": "0a736a476f97cc6dd5c83bab31a0f154c184ddc2d0fe8c16b33261abff369fc1",
       "heading": "Onboard ULog",
       "id": "mds.logging_system:037-04-onboard-ulog",
       "links": [],
@@ -16049,7 +16126,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "ion and retention expiry return a conflict or defer cleanup until the\n stream closes\n- download filenames are normalized to include slot when known, hardware id,\n PX4 log timestamp when available, and the PX4/MDS log identifier, for example\n `mds-ulog_P12_H5_20260411T102233Z_L7.ulg`\n- in SITL or companion deployments where MAVSDK log listing is unavailable but\n PX4 `.ulg` files are locally accessible, MDS may fall back to the configured\n local ULog directories instead of failing the entire workflow\n- drone health and ULog policy responses include `ulog_capability`, including\n `mavsdk_server_present`, executable/path state, and configured filesystem\n fallback paths\n- if `mavsdk_server` is missing or not executable and no filesystem fallback is\n available, ULog list/download/erase routes return an actionable dependency\n error instead of a generic server failure\n\nULog-specific failures remain typed across node and GCS boundaries:\n\n| Status | Meaning |\n|--------|---------|\n| `401` | A required machine/job credential is missing, expired, replayed, or invalid |\n| `403` | Authenticated actor lacks the required operator/admin role |\n| `409` | Vehicle/runtime conflict or an active leased transfer |\n| `413` | File or parser input exceeds a configured limit |\n| `424` | MAVSDK/PX4 transport dependency setup failed before ULog access |\n| `503` | Machine authentication or a required ULog dependency is unavailable |\n| `507` | Staging quota or disk reserve cannot safely accept the file |",
+      "text": "response holds a lease on the securely opened staged file;\n job deletion and retention expiry return a conflict or defer cleanup until the\n stream closes\n- download filenames are normalized to include slot when known, hardware id,\n PX4 log timestamp when available, and the PX4/MDS log identifier, for example\n `mds-ulog_P12_H5_20260411T102233Z_L7.ulg`\n- in SITL or companion deployments where MAVSDK log listing is unavailable but\n PX4 `.ulg` files are locally accessible, MDS may fall back to the configured\n local ULog directories instead of failing the entire workflow\n- drone health and ULog policy responses include `ulog_capability`, including\n `mavsdk_server_present`, executable/path state, and configured filesystem\n fallback paths\n- if `mavsdk_server` is missing or not executable and no filesystem fallback is\n available, ULog list/download/erase routes return an actionable dependency\n error instead of a generic server failure\n\nULog-specific failures remain typed across node and GCS boundaries:\n\n| Status | Meaning |\n|--------|---------|\n| `401` | A required machine/job credential is missing, expired, replayed, or invalid |\n| `403` | Authenticated actor lacks the required operator/admin role |\n| `409` | Vehicle/runtime conflict or an active leased transfer |\n| `413` | File or parser input exceeds a configured limit |\n| `424` | MAVSDK/PX4 transport dependency setup failed before ULog access |\n| `503` | Machine authentication or a required ULog dependency is unavailable |\n| `507` | Staging quota or disk reserve cannot safely accept the file |",
       "title": "MDS logging system guide"
     },
     {
@@ -16070,6 +16147,139 @@
       ],
       "text": "### Error Boundary\n\nThe app is wrapped in an `ErrorBoundary` component that:\n- Catches React render errors anywhere in the component tree\n- Automatically reports the error to `POST /api/logs/frontend`\n- Shows a fallback UI with a \"Try Again\" button\n- The error appears in the Log Viewer under the `frontend` source",
       "title": "MDS logging system guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "de848bab8cc01de5a814ae754594ffb125495f48ccb9178868ef3d2a19a7a76d",
+      "heading": "Logs: operator workflow",
+      "id": "mds.logs_operator_workflow:001-01-logs-operator-workflow",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "# Logs: operator workflow\n\nOpen **Logs** in the sidebar. Start with the tab matching your task; GCS is the\ninitial source. These screenshots use synthetic aircraft, not a live fleet.\n\n[Full-resolution six-step walkthrough](../assets/log-workspace/operator-guide.png)\n\n| Task | Tab | Next action |\n|---|---|---|\n| Understand a current message | Live | Select a record |\n| Review/export recorded MDS events | Sessions | Choose session → Export |\n| Retrieve a PX4 recorder file | Flight logs | Choose aircraft → Inspect file |",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "4c2a9f669082fe627614b4d06078b4c82ad6b4cbcd290f727ac7653a4f0402d4",
+      "heading": "1. Watch current events",
+      "id": "mds.logs_operator_workflow:002-01-1-watch-current-events",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## 1. Watch current events\n\n![Live messages and compact source controls](../assets/log-workspace/guide-01-live-1440-dark.png)\n\n**Warnings+** is the initial severity. Search immediately; use **Filters** for\ncomponent/time window. Select a message for full details. **Freeze view** freezes\nthe display only; missions and logging continue. **Follow latest** resumes it.\nConnection and coverage labels describe this log stream, not aircraft readiness.",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "6f70ecfb79b8a69fb35d898b908a3741b3136920efcf3238c2e85169802e21b7",
+      "heading": "2. Review a recorded session",
+      "id": "mds.logs_operator_workflow:003-01-2-review-a-recorded-session",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## 2. Review a recorded session\n\n![Recorded-session review](../assets/log-workspace/guide-02-sessions-1440-dark.png)\n\nChoose **Source**, then **Sessions** and a session. Search and filters apply to\nthe recording before paging. Use **Next page** for more records. Time bounds are\nexplicitly UTC: **After** excludes its exact instant; **Through** includes it.\nAn expired/changed session view needs **Refresh**, not a different aircraft.",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "e69284cc81fbe8df52d380de330b330e4012a16ef4626c25e948810826b73ccc",
+      "heading": "3. Export evidence",
+      "id": "mds.logs_operator_workflow:004-01-3-export-evidence",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## 3. Export evidence\n\n![Export review with frozen source](../assets/log-workspace/guide-03-export-1440-dark.png)\n\n**Export** reviews the exact source and sessions. **Whole selected sessions**\nignores current filters; **Current filters** exports all matching records, not\njust the current page. Select JSONL or ZIP; multiple sessions use ZIP. A skipped\nrecord count means coverage is incomplete. Narrow an oversized export.",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "3042b25d5ea1683073eb5be17df0a60a7acea43e6c71fcc48d3dfe051397ea5c",
+      "heading": "4. Choose a flight record",
+      "id": "mds.logs_operator_workflow:005-01-4-choose-a-flight-record",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## 4. Choose a flight record\n\n![Flight recorder inventory](../assets/log-workspace/guide-04-inventory-1440-dark.png)\n\nIn **Flight logs**, choose one aircraft by callsign/hardware ID, then **Refresh**.\nInspect the intended record; file metadata time is not guaranteed takeoff time.\n**Summary** reads bounded local metrics, with missing/partial evidence labelled.\n**Open file** instead reads a local `.ulg` through the same temporary parser; it\ndoes not need an aircraft or send the file to an external provider.",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "8124dab9b5aef97dd9e6dd274266ab2382b40c186efec1143582cabd13ae83aa",
+      "heading": "5. Prepare, save, verify",
+      "id": "mds.logs_operator_workflow:006-01-5-prepare-save-verify",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## 5. Prepare, save, verify\n\n![Ready transfer and explicit Save file control](../assets/log-workspace/guide-06-ready-save-1440-dark.png)\n\nSelect **Prepare download** with the aircraft grounded/disarmed under its native\nrecorder policy. Transfers appears below the workspace. Once **Ready to save**,\nselect **Save file**. If a creation response is lost, **Check receipt** recovers\nthe existing request; it never silently starts another download. Returning to\nLogs restores context-bound transfer metadata. Closing a dialog is not cancel.\n**Not started** means a verified rejection before staging: resolve the displayed\nreason, then explicitly prepare again. A timeout or generic error stays\nunconfirmed; it is not permission to repeat creation automatically.\n\nCheck that the file actually finished saving before asking someone to switch off\nthe aircraft. Ready and Browser download requested do **not** verify the saved\nbytes. Evidence tooling additionally checks expected size, ULog header and hash.",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "06ff76b1dd210a6d02a29b3ca2a1fd829b1948f24176886aeb0a8f560d805e52",
+      "heading": "Unavailable aircraft and maintenance",
+      "id": "mds.logs_operator_workflow:007-01-unavailable-aircraft-and-maintenance",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## Unavailable aircraft and maintenance\n\n- With no aircraft selected/connected, GCS history and **Open file** remain useful.\n An unavailable inventory means unknown, not zero files.\n- Stale data remains last observed; it never grants write/erase authority.\n Retry the selected source rather than changing identity implicitly.\n- **Remove staged copy** affects only the prepared transfer, not recorder originals.\n **Maintenance → Erase onboard logs** is a separate admin-only action with an\n exact-aircraft confirmation. It cannot be undone here; verify empty inventory.\n- Raw downloads/erase are operator maintenance, not optional assistant/MCP tools.\n\nFor installation, API limits, security policy and diagnostics see the\n[logging system guide](logging-system.md). New history/recovery behavior requires\nupdated GCS and companion source; it does not itself refresh a pinned SITL image.",
+      "title": "Logs operator workflow"
     },
     {
       "audience": "operator",
@@ -16836,7 +17046,7 @@
     }
   ],
   "generated_by": "tools/generate_simurgh_docs_index.py",
-  "resource_count": 22,
+  "resource_count": 23,
   "resources": [
     {
       "audience": "operator",
@@ -16892,7 +17102,7 @@
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "chunk_count": 9,
-      "content_hash": "f84d276110e53815a7a95022536cebf102bdb26d68276d3ded6e5c937b579c63",
+      "content_hash": "6f41e71b216c556902b340f89d29836acd28af0544406e33da4a7fb2d4273a05",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -16908,8 +17118,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 53,
-      "content_hash": "292658bace44d830e58c3ee2e40392ca5c2e1cd0a337a9879334f340b01b64c7",
+      "chunk_count": 54,
+      "content_hash": "5088592c9dc18dd008f2bce350e40e243c8cef5381a732eed0a71341951ff80a",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -17060,8 +17270,8 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "chunk_count": 162,
-      "content_hash": "feb5093ca241c62cfcca54fd0cb842d201055f2c0bbeec4da3eab5d439a457a4",
+      "chunk_count": 165,
+      "content_hash": "ac30426eaee06da2782732100bb8313a092fae94177c907d959d9c0f83332859",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -17185,7 +17395,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "chunk_count": 42,
-      "content_hash": "97df98c6194a7c156ebe39d483f4eaa2bf11eb0f9696056e7d1a9bb027ab9cef",
+      "content_hash": "3a8828e6e693040ea6193321c488099bcfa5567f2389acef936724f267242304",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -17196,6 +17406,22 @@
         "diagnostics"
       ],
       "title": "MDS logging system guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "chunk_count": 7,
+      "content_hash": "650bba71aeb3fa951ecae38e72dafe51a59d89188e42944cc1349ccd45782a08",
+      "id": "mds.logs_operator_workflow",
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "title": "Logs operator workflow"
     },
     {
       "audience": "operator",
