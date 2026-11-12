@@ -245,6 +245,28 @@ If you maintain your own customer distribution, document:
 
 ## Recommended Maintenance Policy
 
+### Isolated validation beside a REAL GCS
+
+Use a separate checkout, API port, log/state directories and owned runtime env
+file. Set both the process `MDS_MODE=sitl` and the management configuration path
+`MDS_GCS_SYSTEM_CONFIG` to that owned env file. Confirm `mode=sitl`,
+`configured_mode=sitl` and `restart_required=false` through runtime-status before
+any validator dispatches a simulated command. Do not point a lab at the real
+host's configuration file or bypass the validator's mode guard.
+
+Verify container-to-GCS callbacks as well as host-to-container HTTP: one direction
+working does not prove that heartbeats/origin retrieval can return through a host
+firewall. If needed, add only a temporary bridge/source/destination/port-scoped
+rule and remove that exact rule after the owned lab stops.
+
+An explicitly recorded current-source overlay can diagnose source changes when
+rebuild headroom is unavailable. Record the base image, source commit and any
+temporary dependency additions. This is **not** a rebuilt/pinned distribution
+image or release-provenance validation. Never publish it using `docker commit`;
+rebuild/package/checksum through the documented release path when space permits.
+
+### Shared releases and custom forks
+
 For official shared releases:
 - validate on the release image first
 - publish `latest` plus the current release tag

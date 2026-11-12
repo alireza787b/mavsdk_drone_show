@@ -11,7 +11,7 @@ initial source. These screenshots use synthetic aircraft, not a live fleet.
 
 ## 1. Watch current events
 
-![Live messages and compact source controls](../images/logs-operator/live.png)
+![Live messages and compact source controls](../assets/logs/guide-01-live-1440-dark.png)
 
 **Warnings+** is the initial severity. Search immediately; use **Filters** for
 component/time window. Select a message for full details. **Freeze view** freezes
@@ -20,7 +20,7 @@ Connection and coverage labels describe this log stream, not aircraft readiness.
 
 ## 2. Review a recorded session
 
-![Recorded-session review](../images/logs-operator/sessions.png)
+![Recorded-session review](../assets/logs/guide-02-sessions-1440-dark.png)
 
 Choose **Source**, then **Sessions** and a session. Search and filters apply to
 the recording before paging. Use **Next page** for more records. Time bounds are
@@ -29,7 +29,7 @@ An expired/changed session view needs **Refresh**, not a different aircraft.
 
 ## 3. Export evidence
 
-![Export review with frozen source](../images/logs-operator/export.png)
+![Export review with frozen source](../assets/logs/guide-03-export-1440-dark.png)
 
 **Export** reviews the exact source and sessions. **Whole selected sessions**
 ignores current filters; **Current filters** exports all matching records, not
@@ -38,7 +38,7 @@ record count means coverage is incomplete. Narrow an oversized export.
 
 ## 4. Choose a flight record
 
-![Flight recorder inventory](../images/logs-operator/inventory.png)
+![Flight recorder inventory](../assets/logs/guide-04-inventory-1440-dark.png)
 
 In **Flight logs**, choose one aircraft by callsign/hardware ID, then **Refresh**.
 Inspect the intended record; file metadata time is not guaranteed takeoff time.
@@ -48,7 +48,7 @@ does not need an aircraft or send the file to an external provider.
 
 ## 5. Prepare, save, verify
 
-![Ready transfer and explicit Save file control](../images/logs-operator/ready-save.png)
+![Ready transfer and explicit Save file control](../assets/logs/guide-06-ready-save-1440-dark.png)
 
 Select **Prepare download** with the aircraft grounded/disarmed under its native
 recorder policy. Transfers appears below the workspace. Once **Ready to save**,

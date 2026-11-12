@@ -217,6 +217,7 @@ registry = get_registry()
 | `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |
 | `/api/logs/drone/{drone_id}/ulog/files/{log_id}/summary` | GET | Return a derived local PX4 ULog summary without returning raw ULog content |
 | `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |
+| `/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}` | GET | Recover creation acceptance by actor-bound UUID without replay |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |
 | `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |

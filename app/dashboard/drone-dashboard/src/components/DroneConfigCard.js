@@ -1543,10 +1543,10 @@ export default function DroneConfigCard({
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};
-  const heartbeatIp = normalizeRuntimeIp(safeHb.ip);
   const configuredIp = normalizeRuntimeIp(drone.ip);
   const now = Date.now();
   const slotEvidence = getMissionSlotEvidence(safeHb, now);
+  const heartbeatIp = slotEvidence.fresh ? normalizeRuntimeIp(safeHb.ip) : '';
   const fallbackHeartbeatAgeSec = slotEvidence.ageSec === null ? null : Math.floor(slotEvidence.ageSec);
   const heartbeatPresentation = buildHeartbeatPresencePresentation(safeHb, fallbackHeartbeatAgeSec);
   const heartbeatStatus = heartbeatPresentation.label;

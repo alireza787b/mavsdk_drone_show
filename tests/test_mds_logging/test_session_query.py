@@ -106,6 +106,8 @@ def test_response_byte_budget_and_oversized_record_coverage(tmp_path):
 def test_invalid_time_range_is_not_a_successful_empty_page(tmp_path):
     with pytest.raises(LogQueryError, match="End time"):
         read_session_page(tmp_path, SID, since="2026-11-12T13:00Z", until="2026-11-12T12:00Z")
+
+
 def test_non_finite_json_record_is_reported_without_breaking_the_page(tmp_path):
     (tmp_path / "s_nonfinite.jsonl").write_text(
         '{"msg":"invalid","extra":{"value":NaN}}\n'
@@ -113,4 +115,3 @@ def test_non_finite_json_record_is_reported_without_breaking_the_page(tmp_path):
     result = read_session_page(str(tmp_path), "s_nonfinite")
     assert result["lines"] == [{"msg": "valid", "level": "INFO"}]
     assert result["coverage"]["malformed_records"] == 1
-
