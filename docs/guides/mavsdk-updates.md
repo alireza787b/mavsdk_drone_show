@@ -56,7 +56,7 @@ as `venv` (or substitute its exact Python path below), and retaining the old tup
 
 ```bash
 python3 tools/mavsdk_runtime.py manifest
-python3 tools/mavsdk_runtime.py idle
+sudo venv/bin/python tools/mavsdk_runtime.py idle
 # Use requirements-node.txt on companions; requirements.txt on GCS/SITL.
 venv/bin/python -m pip install --upgrade pip
 venv/bin/python -m pip install -r requirements-node.txt
@@ -88,6 +88,11 @@ does not roll back pip. Select the recorded prior binary by digest, verify its
 recorded provenance, restore the matching source/environment using the normal
 deployment workflow, then repeat readiness checks before enabling operations.
 No automatic rollback or service restart is triggered by the provisioning tool.
+
+The idle inspection needs sufficient access to the host process table. On a
+multi-user companion, run that maintenance check as an administrator as shown
+above; do not bypass it after a permission failure. Runtime imports, settings
+and subsequent telemetry still need verification as the actual service user.
 
 Explicit `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` (or `--version` / `--url`) remain
 custom compatibility choices. They still require a matching host ELF and bounded

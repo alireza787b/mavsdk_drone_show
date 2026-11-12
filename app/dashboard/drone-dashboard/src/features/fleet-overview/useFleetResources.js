@@ -3,46 +3,14 @@ import { DRONE_RUNTIME_CLOCK_PROP, FIELD_NAMES, attachDroneRuntimeClock, normali
 import { normalizeComparableId } from '../../utilities/missionIdentityUtils';
 import { fetchGcsResource, getFleetConfigResponse, getFleetTelemetryResponse, GCS_ROUTE_KEYS, unwrapFleetTelemetryPayload, unwrapSwarmConfigPayload } from '../../services/gcsApiService';
 import { DEFAULT_FLEET_AVAILABILITY_POLICY } from './fleetAvailability';
+import usePollingResource from '../../hooks/usePollingResource';
 
 const loadBoot = (options) => fetchGcsResource(GCS_ROUTE_KEYS.fleetNodeBootStatus, options);
 const loadSwarm = (options) => fetchGcsResource(GCS_ROUTE_KEYS.swarmConfig, options);
 
 // Each resource has one sequential owner. Failed refreshes retain explicitly
 // aging evidence; a response from an obsolete route/mode cannot install itself.
-export function useFleetResource(load, intervalMs, contextKey) {
-  const [snapshot, setSnapshot] = useState({ response: null, error: null, loading: true });
-  useEffect(() => {
-    let live = true, timer, controller;
-    let inFlight = false;
-    setSnapshot({ response: null, error: null, loading: true });
-    const poll = async () => {
-      if (!live || inFlight || document.hidden) return;
-      inFlight = true;
-      controller = new AbortController();
-      try {
-        const response = await load({ signal: controller.signal, timeout: 10000 });
-        if (live) setSnapshot({ response, receivedAtMs: Date.now(), error: null, loading: false });
-      } catch (error) {
-        if (live && !controller.signal.aborted) setSnapshot((previous) => ({ ...previous, error, loading: false }));
-      } finally {
-        inFlight = false;
-        if (live && !document.hidden) timer = setTimeout(poll, intervalMs);
-      }
-    };
-    const resume = () => { clearTimeout(timer); if (!document.hidden) poll(); };
-    poll();
-    document.addEventListener('visibilitychange', resume);
-    window.addEventListener('focus', resume);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-      controller?.abort();
-      document.removeEventListener('visibilitychange', resume);
-      window.removeEventListener('focus', resume);
-    };
-  }, [load, intervalMs, contextKey]);
-  return snapshot;
-}
+export const useFleetResource = usePollingResource;
 
 export function mergeFleetResources(config = [], telemetry = {}, boot = {}, clock = {}) {
   const configured = new Map((Array.isArray(config) ? config : []).map((row) => [normalizeComparableId(row.hw_id), row]).filter(([id]) => id));

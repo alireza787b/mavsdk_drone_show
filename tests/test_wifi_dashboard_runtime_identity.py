@@ -58,6 +58,8 @@ test "$TEST_INITIAL_MATCH" = 1 || test -f "$TMPDIR/installed"
         assert not (tmp_path/'installed').exists()
     elif not offline:
         assert (tmp_path/'installed').exists()
+    fetches = [line for line in (tmp_path/'git-calls').read_text().splitlines() if 'fetch --depth 1' in line]
+    assert all('fetch --depth 1 --tags origin' in line for line in fetches)
     if expected == 0:
         # An unchanged policy may skip only while actual dashboard identity matches.
         (tmp_path/'installed').unlink(missing_ok=True)

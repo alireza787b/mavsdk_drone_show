@@ -185,6 +185,9 @@ operator intentionally resets that node profile set.
   run the sidecar's `scripts/check_dashboard_version.sh`. MDS checks the actual
   dashboard identity before skipping reconcile and after installation; an
   unchanged profile hash is not proof the running binary was updated.
+- A shallow installation can have the correct commit but no local release tag.
+  Reconcile fetches named tags as well as the requested ref, so a missing local
+  tag does not cause repeated sidecar reinstalls on otherwise unchanged boots.
 - Save succeeds but nothing changes: click **Trigger Scan** or wait for the next
   scan interval.
 - Node disappears after a bad Wi-Fi change: recover through Ethernet, console,

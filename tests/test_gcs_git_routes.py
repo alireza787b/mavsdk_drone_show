@@ -74,6 +74,16 @@ def test_unavailable_git_report_is_unknown_not_a_confirmed_mismatch():
     assert result.git_status['1'].last_check == 0
 
 
+def test_matching_commit_with_unknown_worktree_is_not_counted_twice():
+    deps = _make_deps()
+    deps.git_status_data_all_drones['1']['status'] = 'unknown'
+    result = git_routes._build_git_status_response(deps)
+    assert result.unknown_count == 1
+    assert result.needs_sync_count == 0
+    assert result.synced_count == 0
+    assert result.git_status['1'].in_sync_with_gcs is False
+
+
 def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(monkeypatch):
     deps = _make_deps()
     deps.get_all_heartbeats = lambda: {"1": {"timestamp": int(time.time() * 1000), "hw_id": "1"}}

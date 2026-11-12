@@ -15,7 +15,7 @@ The screenshots use a synthetic fleet, not aircraft clearance.
    and any issue. Inspection does not select it for commands.
 
 **Available** is the initial filter: an accepted heartbeat in the last minute.
-After ten seconds without a heartbeat the card says **Stale** and dims; after
+After ten seconds without a heartbeat the card dims and shows a clock; after
 one minute it leaves Available. **All aircraft** still includes it, and
 **Selected targets** finds selected aircraft even when no longer available.
 These display windows are configurable; they are not flight-readiness checks.
@@ -33,8 +33,10 @@ slots. Each card centers an aircraft schematic with a small phase marker for
 grounded, airborne, taking off, landing or unknown. The illustration is not an
 airframe footprint, heading or proof that motors stopped. Battery percentage and
 altitude/datum sit on the left; GNSS fix and stable link state on the right. Exact
-heartbeat age remains in the link hint and inspector diagnostics, not a ticking
-card label. The inspector also shows the **Configured IP**; this is an address
+heartbeat age and Fresh/Stale labels remain in the link hint and inspector
+diagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi
+percentage only when current. Tap the card for details on touch devices.
+The inspector also shows the **Configured IP**; this is an address
 from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
 warning text. Tap/click the card for satellites, voltage and full measurements.
@@ -49,6 +51,13 @@ reasons near the top. Viewing a condition does not acknowledge or clear it.
 Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
 appears only when a fresh heartbeat actually reports it, not as inferred radio
 range or end-to-end latency.
+
+The compact **Software differs** notice compares source revisions with the GCS;
+it is not a flight-health warning. **Version unavailable** is unconfirmed evidence,
+not proof that an update is required. **Review** opens Fleet operations without
+preparing or sending an update. Source updates belong to grounded maintenance.
+Brief refresh failures keep the existing surface and measurements; older software
+evidence becomes explicitly unavailable. No reconnect changes command targets.
 
 ## Select command targets
 

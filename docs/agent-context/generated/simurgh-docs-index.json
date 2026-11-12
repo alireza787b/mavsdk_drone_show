@@ -1,5 +1,5 @@
 {
-  "chunk_count": 883,
+  "chunk_count": 884,
   "chunks": [
     {
       "audience": "developer",
@@ -49,7 +49,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "content_hash": "260537929b504178b34c598f7788221ec37a63d56b89df2cc7becbe3744674b4",
+      "content_hash": "86347d75b8fecfcd553401cc2310af290f1325beb368beedce4af6d54b8dffc4",
       "heading": "Operator update and rollback boundary",
       "id": "mds.mavsdk_maintenance:002-02-operator-update-and-rollback-boundary",
       "links": [],
@@ -63,7 +63,7 @@
         "maintenance",
         "sitl"
       ],
-      "text": "```bash\npython3 tools/mavsdk_runtime.py manifest\npython3 tools/mavsdk_runtime.py idle",
+      "text": "```bash\npython3 tools/mavsdk_runtime.py manifest\nsudo venv/bin/python tools/mavsdk_runtime.py idle",
       "title": "MAVSDK runtime maintenance"
     },
     {
@@ -89,7 +89,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
-      "content_hash": "df07cc2b5ff3535f486c7f5ac63c4f4727cafc89e7f483663bfb86e4fa95b90a",
+      "content_hash": "67c2643fea4354beab6ce3e12620cac90f4ed50f5f4ca8f9a00a6e0c0adf018a",
       "heading": "Use requirements-node.txt on companions; requirements.txt on GCS/SITL.",
       "id": "mds.mavsdk_maintenance:003-02-use-requirements-node-txt-on-companions-requirements-txt-on-gcs-sitl",
       "links": [],
@@ -103,7 +103,7 @@
         "maintenance",
         "sitl"
       ],
-      "text": "Explicit `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` (or `--version` / `--url`) remain\ncustom compatibility choices. They still require a matching host ELF and bounded\nCLI probe, but unknown bytes are `custom_unverified`, with no verified version.\nEven a custom URL returning pinned bytes is identified as `custom_pinned_bytes`,\nnot a default pinned installation. Override URLs are not copied to provenance or\nerror logs. Do not treat custom operation as validated stock behavior.",
+      "text": "The idle inspection needs sufficient access to the host process table. On a\nmulti-user companion, run that maintenance check as an administrator as shown\nabove; do not bypass it after a permission failure. Runtime imports, settings\nand subsequent telemetry still need verification as the actual service user.\n\nExplicit `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` (or `--version` / `--url`) remain\ncustom compatibility choices. They still require a matching host ELF and bounded\nCLI probe, but unknown bytes are `custom_unverified`, with no verified version.\nEven a custom URL returning pinned bytes is identified as `custom_pinned_bytes`,\nnot a default pinned installation. Override URLs are not copied to provenance or\nerror logs. Do not treat custom operation as validated stock behavior.",
       "title": "MAVSDK runtime maintenance"
     },
     {
@@ -6553,7 +6553,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "e468a84f62e7cd34b86d43ecca8ab2694a38c88255d225afca3b5917de302a4e",
+      "content_hash": "e28e98103bb60afbc3fbc2017686e78ad80584e0b59152a42d27e68a7f3f5c51",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-01-check-the-aircraft",
       "links": [],
@@ -6567,13 +6567,13 @@
         "operations",
         "selection"
       ],
-      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card says **Stale** and dims; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Selected targets** finds selected aircraft even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
+      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card dims and shows a clock; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Selected targets** finds selected aircraft even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "b5f8b399a568e1ce985067d48bd7f0f0f8bd6579c102134b2b28f2e2a214ba7b",
+      "content_hash": "b152bb7526f4e80cb099e6dd54de93c12ab4ad27a62a1b60a3f4471fa7a98032",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6587,7 +6587,27 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age remains in the link hint and inspector diagnostics, not a ticking\ncard label. The inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "651a417959938667b771bc3d7ee5b0cc5c2998e7d76801101c18dd8e0cd15e76",
+      "heading": "Check the aircraft",
+      "id": "mds.dashboard_operator:002-03-check-the-aircraft",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.",
       "title": "Overview operator guide"
     },
     {
@@ -17341,7 +17361,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.mavsdk_maintenance/markdown",
       "chunk_count": 10,
-      "content_hash": "096f3e2ce507d361848f2bed1943444d5677a861a2cac1afda8fdd2ed271b30a",
+      "content_hash": "f2111e7fb06d3e45f330efaebb764b864a3d72d617e132c77233f1544264a408",
       "id": "mds.mavsdk_maintenance",
       "mime_type": "text/markdown",
       "path": "docs/guides/mavsdk-updates.md",
@@ -17559,8 +17579,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "chunk_count": 11,
-      "content_hash": "face2d2425c4634d01590f94d4126a8b0903d9da1ef541ecc31f675b55f5c641",
+      "chunk_count": 12,
+      "content_hash": "09b4f5c046ff27838605a95d85d74530569c21b74935e2b9c07fe1ede701310d",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

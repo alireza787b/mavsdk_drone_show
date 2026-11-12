@@ -9,6 +9,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Quiet software attention and grounded migration
+
+- Shared-shell software attention uses one flat review notice, distinguishes
+  unknown evidence from confirmed revision differences and never prepares an
+  update by navigation. Polling is sequential/cancellable and retains aging
+  evidence through brief outages; dismissals track affected revisions.
+- Overview link state uses radio/clock/disconnected symbols and measured signal
+  instead of repeating Fresh/Stale on every card. Hover and inspection retain
+  the full labels, freshness evidence and unchanged command scope.
+- Unknown Git worktree reports cannot count as both synced and unknown. Managed
+  sidecar fetches retain named tags to avoid unnecessary reinstallation; staged
+  virtual-environment links stay outside Git changes.
+
 - Companion setup pins Smart Wi-Fi Manager v2.1.14 with its existing browser
   login/CSRF workflow. Credentials stay sidecar-local and survive reconcile;
   no remote-write bypass or second MDS authentication mode is introduced.

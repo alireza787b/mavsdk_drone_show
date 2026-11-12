@@ -316,7 +316,7 @@ ensure_smart_wifi_manager_runtime() {
         fi
         log INFO "Syncing Smart Wi-Fi Manager runtime (${repo_ref})"
         smart_wifi_git remote set-url origin "${repo_url}" >/dev/null 2>&1
-        if ! smart_wifi_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1; then
+        if ! smart_wifi_git fetch --depth 1 --tags origin "${repo_ref}" >/dev/null 2>&1; then
             if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]] && smart_wifi_dashboard_version_matches; then
                 log WARN "Smart Wi-Fi Manager runtime fetch failed; continuing with existing local runtime"
                 return 0

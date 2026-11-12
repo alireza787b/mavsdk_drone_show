@@ -44,7 +44,8 @@ test('normal idle cards omit routine mission prose but retain all details in ins
   tile(aircraft({ mission: DRONE_MISSION_TYPES.NONE }));
   expect(screen.queryByLabelText(/Mission:/)).not.toBeInTheDocument();
   expect(screen.getByText('80%')).toBeInTheDocument();
-  expect(screen.getByText('Fresh')).toBeInTheDocument();
+  expect(screen.queryByText('Fresh')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('72%');
   expect(screen.getByText('RTK fixed')).toBeInTheDocument();
 });
 
@@ -52,7 +53,7 @@ test('fresh cards do not display ticking second counters; inspection shows the c
   const model = aircraft({ ip: '192.0.2.7' });
   const view = tile(model);
   expect(screen.queryByText(/\d+s ago/)).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('Fresh');
+  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('72%');
   view.unmount();
   render(<MemoryRouter><AircraftInspector item={model} onClose={jest.fn()} onAction={jest.fn()} onMove={jest.fn()} /></MemoryRouter>);
   expect(screen.getByText('192.0.2.7')).toBeInTheDocument();

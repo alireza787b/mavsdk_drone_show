@@ -1,72 +1,65 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExternalLinkAlt, FaSyncAlt, FaTimes } from 'react-icons/fa';
+import { FaCodeBranch, FaQuestionCircle, FaArrowRight, FaTimes } from 'react-icons/fa';
 import '../styles/SyncWarningBanner.css';
 import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
+import usePollingResource from '../hooks/usePollingResource';
+
+async function loadSoftwareRevisions(options) {
+  const response = await getUnifiedGitStatusResponse(options);
+  const data = response?.data;
+  if (!data || !Number.isInteger(data.needs_sync_count) || data.needs_sync_count < 0
+      || !Number.isInteger(data.unknown_count ?? 0) || (data.unknown_count ?? 0) < 0) {
+    throw new Error('Software revision status unavailable');
+  }
+  return response;
+}
 
 /**
  * SyncWarningBanner
  *
- * Shows an amber warning banner when drones are out of sync with GCS.
- * Auto-dismisses when all drones sync. Operator can manually dismiss.
- * Re-shows if status changes after dismissal.
+ * Source-revision attention, not a flight-health or update-authority claim.
+ * Inspecting never dispatches sync. Refresh failures retain the last evidence.
  */
 const SyncWarningBanner = () => {
-  const [syncData, setSyncData] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
-  const lastNeedsSyncCountRef = useRef(0);
-
-  const fetchGitStatus = useCallback(async () => {
-    try {
-      const response = await getUnifiedGitStatusResponse();
-      const data = response.data;
-      setSyncData(data);
-
-      const newCount = (data.needs_sync_count || 0) + (data.unknown_count || 0);
-      // Re-show banner if needs_sync_count increased (new drones went out of sync)
-      if (newCount > 0 && newCount !== lastNeedsSyncCountRef.current) {
-        setDismissed(false);
-      }
-      lastNeedsSyncCountRef.current = newCount;
-    } catch {
-      // Silently fail — polling will retry
-    }
-  }, []); // Stable — no state dependencies
-
+  const snapshot = usePollingResource(loadSoftwareRevisions, 10000, 'software-revisions');
+  const syncData = snapshot.response?.data;
+  const [dismissedSignature, setDismissedSignature] = useState(null);
+  const [nowMs, setNowMs] = useState(Date.now);
   useEffect(() => {
-    fetchGitStatus();
-    const interval = setInterval(fetchGitStatus, 10000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, [fetchGitStatus]);
-
-  // Don't show if no data, dismissed, or no sync needed
-  if (!syncData || dismissed || !(syncData.needs_sync_count || syncData.unknown_count)) {
-    return null;
-  }
+    const timer = setInterval(() => setNowMs(Date.now()), 10000);
+    return () => clearInterval(timer);
+  }, []);
+  const drift = Math.max(0, Number(syncData?.needs_sync_count) || 0);
+  const unknown = Math.max(0, Number(syncData?.unknown_count) || 0);
+  const signature = JSON.stringify([syncData?.gcs_status?.commit, drift, unknown,
+    Object.entries(syncData?.git_status || {}).filter(([, row]) => row && row.in_sync_with_gcs !== true).map(([id, row]) =>
+      [id, row.commit, row.status, row.in_sync_with_gcs]).sort((a, b) => a[0].localeCompare(b[0]))]);
+  if (!syncData || !(drift || unknown) || dismissedSignature === signature) return null;
+  const stale = nowMs - snapshot.receivedAtMs >= 30000;
+  const unavailable = stale || !drift;
+  const Icon = unavailable ? FaQuestionCircle : FaCodeBranch;
+  const count = drift + unknown;
+  const label = stale ? 'Software status unavailable' : drift ? 'Software differs' : 'Version unavailable';
+  const detail = stale
+    ? 'Last observed software status. Open Fleet operations to check connectivity and source revisions.'
+    : `${drift} different, ${unknown} unconfirmed. Source revisions compared with GCS; not a flight-health check. Review before a grounded update.`;
 
   return (
-    <div className="sync-warning-banner" role="alert">
+    <div className={`sync-warning-banner${unavailable ? ' is-unconfirmed' : ''}`} role="status" aria-live="polite">
       <div className="sync-warning-content">
-        <span className="sync-warning-icon" aria-hidden="true"><FaExclamationTriangle /></span>
-        <span className="sync-warning-text">
-          {syncData.needs_sync_count > 0
-            ? `${syncData.needs_sync_count} of ${syncData.total_drones} drones out of sync with GCS`
-            : `Software version unconfirmed for ${syncData.unknown_count} drone${syncData.unknown_count === 1 ? '' : 's'}`}
+        <Icon className="sync-warning-icon" aria-hidden="true" />
+        <span className="sync-warning-text" title={detail}>
+          <span>{label}</span><small>{count} aircraft</small>
         </span>
-        <Link className="sync-warning-action is-primary" to="/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1">
-          <FaSyncAlt aria-hidden="true" />
-          <span>Review sync</span>
-        </Link>
-        <Link className="sync-warning-action" to="/fleet-ops?tab=sync&filter=drift">
-          <FaExternalLinkAlt aria-hidden="true" />
-          <span>Details</span>
+        <Link className="sync-warning-action" to="/fleet-ops?tab=sync&filter=drift" aria-label="Review aircraft software">
+          <span>Review</span><FaArrowRight aria-hidden="true" />
         </Link>
         <button
           className="sync-warning-dismiss"
-          onClick={() => setDismissed(true)}
-          aria-label="Dismiss sync warning"
+          type="button"
+          onClick={() => setDismissedSignature(signature)}
+          aria-label="Dismiss software notice"
         >
           <FaTimes aria-hidden="true" />
         </button>

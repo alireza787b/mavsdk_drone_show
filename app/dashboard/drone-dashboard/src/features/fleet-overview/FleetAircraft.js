@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute } from 'react-icons/fa';
+import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 
@@ -57,8 +57,8 @@ function AircraftPortrait({ item }) {
 }
 
 const METRIC_ICONS = { battery: FaBatteryHalf, altitude: FaArrowsAltV, gnss: FaSatellite, link: FaBroadcastTower, mission: FaRoute };
-function Metric({ kind, label, value, displayValue = value, stale = false, tone = '' }) {
-  const Icon = METRIC_ICONS[kind];
+function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon }) {
+  const Icon = icon || METRIC_ICONS[kind];
   return <span className={`fleet-aircraft__metric fleet-aircraft__metric--${kind}${tone ? ` tone-${tone}` : ''}`}
     title={`${kind === 'link' ? 'Heartbeat age / reported signal' : label}: ${value}${stale ? ' · Last known' : ''}`} aria-label={`${label}: ${value}${stale ? ', Last known' : ''}`}>
     <span>{Icon && <Icon aria-hidden="true" />}<span>{displayValue}</span></span>{stale && <em>Last known</em>}
@@ -90,7 +90,9 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
           displayValue={item.gps.label} stale={item.gps.stale} />
         <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} stale={item.altitude.stale} />
         <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.wifi.current ? ` · Wi-Fi ${Math.round(item.wifi.percent)}%` : ''}`}
-          displayValue={item.availability.label} tone={item.availability.tone} />
+          displayValue={item.wifi.current ? `${Math.round(item.wifi.percent)}%` : null}
+          icon={item.availability.label === 'Fresh' ? FaBroadcastTower : item.availability.stale ? FaRegClock : item.availability.label === 'Offline' ? FaUnlink : FaQuestionCircle}
+          tone={item.availability.tone} />
       </span>
       <span className="fleet-aircraft__state">
         {item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}

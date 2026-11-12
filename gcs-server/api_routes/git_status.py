@@ -116,6 +116,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
             in_sync_with_gcs = (
                 same_branch_as_gcs
                 and same_commit_as_gcs
+                and mapped_status != GitStatus.UNKNOWN
                 and raw_status != "dirty"
                 and not raw_data.get("uncommitted_changes")
             )

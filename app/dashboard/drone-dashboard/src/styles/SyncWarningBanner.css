@@ -1,127 +1,35 @@
-@import './DesignTokens.css';
-
+/* A quiet software-maintenance rail, separate from aircraft safety alerts. */
 .sync-warning-banner {
-    background: var(--color-warning-light);
-    border: 1px solid var(--color-warning-border);
-    border-radius: var(--border-radius-xl);
-    box-shadow: var(--shadow-sm);
-    padding: var(--spacing-sm);
-    margin-bottom: var(--spacing-base);
-    animation: slideDown var(--transition-slow, 0.3s) ease-out;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border-block: 1px solid var(--color-border-primary);
+  border-left: 3px solid var(--color-warning);
+  margin-bottom: var(--spacing-sm);
+  padding: .45rem .65rem;
+  min-height: 52px;
 }
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.sync-warning-banner.is-unconfirmed { border-left-color: var(--color-text-secondary); }
+.sync-warning-content { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.sync-warning-icon { flex: 0 0 16px; color: var(--color-warning); }
+.is-unconfirmed .sync-warning-icon { color: var(--color-text-secondary); }
+.sync-warning-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: .65rem; font-size: .82rem; }
+.sync-warning-text > span { font-weight: 600; }
+.sync-warning-text small { color: var(--color-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sync-warning-action,.sync-warning-dismiss {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: .5rem; min-height: 44px; flex-shrink: 0;
+  border: 1px solid var(--color-border-primary); border-radius: 2px;
+  color: var(--color-text-primary); background: var(--color-bg-primary);
+  font: inherit; font-size: .8rem; text-decoration: none; cursor: pointer;
 }
-
-.sync-warning-content {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    min-width: 0;
-}
-
-.sync-warning-icon {
-    align-items: center;
-    background: rgba(var(--color-warning-rgb, 245, 158, 11), 0.14);
-    border: 1px solid var(--color-warning-border);
-    border-radius: var(--border-radius-full);
-    display: inline-flex;
-    font-size: var(--font-size-sm);
-    height: var(--button-icon-size-sm);
-    justify-content: center;
-    color: var(--color-warning);
-    flex-shrink: 0;
-    width: var(--button-icon-size-sm);
-}
-
-.sync-warning-text {
-    flex: 1;
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-text-primary);
-    min-width: 0;
-}
-
-.sync-warning-action {
-    align-items: center;
-    display: inline-flex;
-    gap: var(--spacing-xs);
-    min-height: var(--button-icon-size-sm);
-    padding: 0 var(--spacing-sm);
-    background: var(--color-surface-inset);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-warning-border);
-    border-radius: var(--border-radius-full);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: var(--transition-base);
-    white-space: nowrap;
-}
-
-.sync-warning-action:hover:not(:disabled) {
-    background: var(--operator-control-background-hover);
-}
-
-.sync-warning-action.is-primary {
-    background: var(--color-warning);
-    border-color: var(--color-warning);
-    color: var(--color-text-inverse);
-}
-
-.sync-warning-action.is-primary:hover:not(:disabled) {
-    background: var(--color-warning-hover);
-}
-
-.sync-warning-action:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.sync-warning-dismiss {
-    align-items: center;
-    background: var(--operator-control-background);
-    border: var(--operator-control-border);
-    border-radius: var(--border-radius-full);
-    color: var(--color-text-secondary);
-    display: inline-flex;
-    height: var(--button-icon-size-sm);
-    justify-content: center;
-    cursor: pointer;
-    transition: var(--transition-base);
-    flex-shrink: 0;
-    width: var(--button-icon-size-sm);
-}
-
-.sync-warning-dismiss:hover {
-    color: var(--color-text-primary);
-}
-
-@media (max-width: 480px) {
-    .sync-warning-content {
-        align-items: center;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-    }
-
-    .sync-warning-action {
-        grid-column: 2;
-        justify-content: center;
-    }
-
-    .sync-warning-action + .sync-warning-action {
-        grid-column: 2;
-    }
+.sync-warning-action { padding: .45rem .7rem; }
+.sync-warning-dismiss { width: 44px; border-color: transparent; background: transparent; color: var(--color-text-secondary); }
+.sync-warning-action:hover,.sync-warning-dismiss:hover { color: var(--color-text-primary); background: var(--color-bg-tertiary); }
+.sync-warning-action:focus-visible,.sync-warning-dismiss:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .sync-warning-banner { padding: .3rem .4rem; }
+  .sync-warning-content { gap: .4rem; }
+  .sync-warning-text { flex-direction: column; gap: .1rem; font-size: .75rem; }
+  .sync-warning-action { padding: .4rem .5rem; }
+  .sync-warning-action svg { display: none; }
 }
