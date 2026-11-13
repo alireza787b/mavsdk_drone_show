@@ -58,15 +58,15 @@ def main():
                 client.command('Page.navigate', {'url': args.base_url.rstrip('/') + '/swarm-design'})
                 deadline = time.monotonic() + 35
                 while time.monotonic() < deadline:
-                    if client.evaluate("Boolean(document.querySelector('.swarm-ops select')?.value)"):
+                    if client.evaluate("Number(document.querySelector('.swarm-ops [data-recipient-count]')?.dataset.recipientCount) > 0"):
                         break
                     time.sleep(0.3)
-                assert client.evaluate("Boolean(document.querySelector('.swarm-ops select')?.value)"), 'Saved cluster not loaded'
+                assert client.evaluate("Number(document.querySelector('.swarm-ops [data-recipient-count]')?.dataset.recipientCount) > 0"), 'Saved cluster not loaded'
                 assert client.evaluate("[...document.querySelectorAll('[role=tab]')].some(b => b.textContent === 'Operate' && b.getAttribute('aria-selected') === 'true')"), 'Operate is not default'
                 overflow = client.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
                 assert not overflow, f'{viewport}: horizontal overflow'
                 client.screenshot(args.output_dir / f'{viewport}-operate.png')
-                for label, name in [('Takeoff', 'takeoff'), ('Start Swarm', 'start'), ('Return', 'return')]:
+                for label, name in [('Takeoff', 'takeoff'), ('Start Swarm', 'start'), ('Return all', 'return')]:
                     clicked = client.evaluate(f"(() => {{ const b = [...document.querySelectorAll('.swarm-ops button')].find(b => b.textContent.trim() === {json.dumps(label)}); if (!b || b.disabled) return false; b.click(); return true; }})()")
                     assert clicked, f'{label}: control unavailable'
                     time.sleep(0.3)

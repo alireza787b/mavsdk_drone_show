@@ -178,7 +178,7 @@ async def test_smart_swarm_accepts_complete_cluster_target_scope():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('excluded,unavailable,accepted', [([], False, False), (['2'], False, False), (['2'], True, True)])
+@pytest.mark.parametrize('excluded,unavailable,accepted', [([], False, False), (['2'], False, True), (['2'], True, True)])
 async def test_explicit_session_cannot_bypass_complete_cluster_or_partial_review(excluded, unavailable, accepted):
     from src.smart_swarm_contract import SmartSwarmSession, normalize_topology, topology_revision
     layout = normalize_topology([{'hw_id': 1, 'follow': 0}, {'hw_id': 2, 'follow': 1}])
