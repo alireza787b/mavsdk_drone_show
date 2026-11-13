@@ -1,5 +1,5 @@
 {
-  "chunk_count": 884,
+  "chunk_count": 887,
   "chunks": [
     {
       "audience": "developer",
@@ -2137,7 +2137,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "1f0db48e474a98f9e5f6256701842d975a5d4111ff28d21dd67a0700d91a7e4e",
+      "content_hash": "c76693342195b8abf1e328f2744358a6d01e4f25323b792d63dd3d6d67dc7543",
       "heading": "More than one cluster",
       "id": "mds.smart_swarm_operator_workflow:005-01-more-than-one-cluster",
       "links": [],
@@ -2152,13 +2152,13 @@
         "formation",
         "capture"
       ],
-      "text": "### More than one cluster\n\nCapture keeps the cluster selected in Design or Operate. Its **Formation** selector\nappears only when there are multiple formations with followers. From **All clusters**,\nchoose the intended formation first; capture does not silently choose or combine\nindependent leaders. Each capture replaces only that cluster's draft spacing.\nCapture another cluster if needed, then review and Apply the complete draft;\nUndo reverses one capture at a time. Single-aircraft independent leaders have no\nrelative spacing to capture. Roles, heights and spacing of other clusters stay intact.\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nfollow the visible Height choice; estimated height differences are copied when\nCurrent is selected, including the automatic settled-airborne selection.\nTurning the leader after a Leader-relative capture\nrotates its future targets. Review again if positions or heading have changed.\n\nCapture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold Swarm**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
+      "text": "### More than one cluster\n\nCapture keeps the cluster selected in Design or Operate. Its **Formation** selector\nappears only when there are multiple formations with followers. From **All clusters**,\nchoose the intended formation first; capture does not silently choose or combine\nindependent leaders. Each capture replaces only that cluster's draft spacing.\nCapture another cluster if needed, then review and Apply the complete draft;\nUndo reverses one capture at a time. Single-aircraft independent leaders have no\nrelative spacing to capture. Roles, heights and spacing of other clusters stay intact.\n\nCapture records PX4's estimated horizontal spacing, not surveyed physical\nspacing. It does not calibrate GNSS, heading, home or altitude. Planned heights\nfollow the visible Height choice; estimated height differences are copied when\nCurrent is selected, including the automatic settled-airborne selection.\nTurning the leader after a Leader-relative capture\nrotates its future targets. Review again if positions or heading have changed.\n\nCapture never drops an unavailable member and never silently stops a running\ncontroller. Resolve the named issue and refresh. If following is running, use\n**Hold all**, confirm the aircraft have stopped following, then capture.\nApplying a captured draft repeats the inactive-state check; a concurrent Start\ndoes not turn a pre-start capture into an unnoticed active update.",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "3b1938083169b53953f134456ffb4bfb85ea50b8810c06922f9dbd6504f8d518",
+      "content_hash": "af3544facbbe84a9efeb5b6f4a810df7653094b765a08f45d3992446526dea08",
       "heading": "Take off and start following",
       "id": "mds.smart_swarm_operator_workflow:006-01-take-off-and-start-following",
       "links": [],
@@ -2173,15 +2173,15 @@
         "formation",
         "capture"
       ],
-      "text": "## Take off and start following\n\n1. Open **Smart Swarm -> Operate**. Confirm the intended complete cluster and\n fresh aircraft states. Overview inspection and command targets do not select\n this cluster. Resolve any named PX4 or connectivity blocker.\n2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,\n **All armed first** waits for every selected aircraft before releasing takeoff.\n It reduces partial launches; it cannot make a distributed launch atomic.\n3. Confirm takeoff and watch every aircraft reach a stable hover. Manual/RC or\n QGC takeoff is supported too; an earlier MDS Takeoff command is not required.\n4. Select **Start Swarm**, review the formation and confirm. Wait for follower\n engagement on every member before moving the leader.\n5. Begin with gentle translation. For Leader-relative, test a slow heading change separately:\n followers need additional motion to travel around the leader as it turns.\n\n![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)\n\n![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)",
+      "text": "## Take off and start following\n\n1. Open **Smart Swarm -> Operate**. The complete first cluster is selected in\n **To** by default; no extra selection step is needed. Confirm that cluster and\n fresh aircraft states. Overview inspection and command targets do not select\n this cluster. Resolve any named PX4 or connectivity blocker.\n2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,\n **All armed first** waits for every selected aircraft before releasing takeoff.\n It reduces partial launches; it cannot make a distributed launch atomic.\n3. Confirm takeoff and watch every aircraft reach a stable hover. Manual/RC or\n QGC takeoff is supported too; an earlier MDS Takeoff command is not required.\n4. Select **Start Swarm**, review the formation and confirm. Wait for follower\n engagement on every member before moving the leader.\n5. Begin with gentle translation. For Leader-relative, test a slow heading change separately:\n followers need additional motion to travel around the leader as it turns.\n\n![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)\n\n![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)",
       "title": "Smart Swarm operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "1144f59967f03971580aa9639ddd9a26a73bb23ba33903f64639e83d6114fb33",
-      "heading": "Pause and resume",
-      "id": "mds.smart_swarm_operator_workflow:007-01-pause-and-resume",
+      "content_hash": "09f63ad092f35105bd9c3771727061a38409d50897ebce5460eeb1df3b687246",
+      "heading": "Command a subset or retry one follower",
+      "id": "mds.smart_swarm_operator_workflow:007-01-command-a-subset-or-retry-one-follower",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -2194,7 +2194,28 @@
         "formation",
         "capture"
       ],
-      "text": "## Pause and resume\n\nSelect **Hold Swarm** to request Hold for the complete displayed cluster,\nincluding the leader. Confirm each aircraft reports Held or a confirmed grounded\nstate; **Hold unconfirmed** requires attention. Hold retains the formation but\ndoes not automatically restart following. Select and confirm **Start Swarm** when\nready to resume. RC takeover remains independent of the networked request.",
+      "text": "### Command a subset or retry one follower\n\n1. Open **To**, select the intended aircraft and choose **Use N aircraft**.\n **Cluster** restores the full displayed formation. Cancel changes nothing.\n2. Select **Start Swarm**. For a follower-only Start, the review identifies its\n required **Leader reference**; no Start is sent to that source aircraft.\n3. Confirm when ready, then verify the selected follower reports Following.\n An already-running selected follower must first be stopped with\n **Other actions → Stop following**, or finish its previous action.\n\nSources may be flying manually or already leading. They must have fresh native\nairborne evidence and not be taking off, returning or landing. An active relay\nmust have applied the saved follow relationship. Resolve any named issue;\nthere is no automatic inclusion or force bypass. Reference-based Start requires\nupdated companion software. The same Start receipt is looked up if its result\nis uncertain; changing To does not replace that pending command.\n\n**To** controls future Takeoff, Start and individual **Other actions** only.\nDeselecting an aircraft does not stop existing following or edit its role.\n**Hold all** and **Return all** recover the entire displayed cluster, regardless\nof To; Return all opens the existing Managed Return review. Changing clusters\nselects that cluster's full roster. Polls, reconnects and new members never\nsilently edit a custom selection.",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "ca44056572a688868bde243c267cf0a69f0415b57bb3885921881dabbb2cad7e",
+      "heading": "Pause and resume",
+      "id": "mds.smart_swarm_operator_workflow:008-01-pause-and-resume",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "## Pause and resume\n\nSelect **Hold all** to request Hold for the complete displayed cluster,\nincluding the leader. Confirm each aircraft reports Held or a confirmed grounded\nstate; **Hold unconfirmed** requires attention. Hold retains the formation but\ndoes not automatically restart following. Select and confirm **Start Swarm** when\nready to resume. RC takeover remains independent of the networked request.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -2202,7 +2223,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "95dc55f0debc940777592fa6c70be051ffd0fce733d6abf87983f452cf65ae5c",
       "heading": "Change spacing or roles",
-      "id": "mds.smart_swarm_operator_workflow:008-01-change-spacing-or-roles",
+      "id": "mds.smart_swarm_operator_workflow:009-01-change-spacing-or-roles",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -2223,7 +2244,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "10ae60cb27d03d2c8fbc71d12d5d98b2be3d93e565902fe9f73013f2c8b8b9dd",
       "heading": "Return and land",
-      "id": "mds.smart_swarm_operator_workflow:009-01-return-and-land",
+      "id": "mds.smart_swarm_operator_workflow:010-01-return-and-land",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -2244,7 +2265,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "804d28b5a05e2a858ac88f3f5394afbc8d113f56e03dc8c82b93748d70179adb",
       "heading": "Resolve a blocked step",
-      "id": "mds.smart_swarm_operator_workflow:010-01-resolve-a-blocked-step",
+      "id": "mds.smart_swarm_operator_workflow:011-01-resolve-a-blocked-step",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -6613,7 +6634,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "0c5a3d9f06bdbb0953b3c3442234683f911384b5997a4314b4e70a301ce8ca47",
+      "content_hash": "da3536eac3ed47c9948399ed8ad75174e0f81d0d3a43a811590c97b457b8b404",
       "heading": "Select command targets",
       "id": "mds.dashboard_operator:003-01-select-command-targets",
       "links": [],
@@ -6627,7 +6648,27 @@
         "operations",
         "selection"
       ],
-      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.\n If they are correct, go straight to the command—no extra selection step.\n- To change them, open **To**, check aircraft, then **Use N aircraft**.\n Search never excludes hidden rows. Cancel/Escape discards the draft.\n- **Available** snapshots aircraft available now. Cluster shortcuts appear only\n for multiple clusters; **All configured** is under the ellipsis menu. The\n clear icon makes an empty draft; applying it disables commands.\n- The eye-marked **Show**, search and Board/List/Map change only what you see.\n A paper-plane mark on a card means it is a command recipient, not ready to fly.\n Cards always open details; they never select aircraft.\n- The eye-slash count beside **To** identifies recipients outside the current\n view (including aircraft without a current map position). Click it to reveal\n the recipient list; command recipients do not change.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, the cluster icon groups the display\nwithout changing targets. It is hidden for a single formation; the cluster\nshortcut inside **To** separately changes the recipient draft.\n\n![Command recipients are reviewed separately from the display, using synthetic aircraft](../assets/operator-overview/command-aircraft-1440-dark.png)",
+      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.\n If they are correct, go straight to the command—no extra selection step.\n- To change them, open **To**, check aircraft, then **Use N aircraft**.\n Search never excludes hidden rows. Cancel/Escape discards the draft.\n- For a quick change, use the blue checkbox on a card. It updates the same\n **To** list immediately; no command is sent. It locks while an action review\n owns the recipient snapshot. The separate green readiness tick is status only.\n- **Available** snapshots aircraft available now. Cluster shortcuts appear only\n for multiple clusters; **All configured** is under the ellipsis menu. The\n clear icon makes an empty draft; applying it disables commands.\n- The eye-marked **Show**, search and Board/List/Map change only what you see.\n The card body opens details; only its blue checkbox changes recipients.\n A selected checkbox is not evidence that the aircraft is ready to fly.\n- The eye-slash count beside **To** identifies recipients outside the current\n view (including aircraft without a current map position). Click it to reveal\n the recipient list; command recipients do not change.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, the cluster icon groups the display\nwithout changing targets. It is hidden for a single formation; the cluster\nshortcut inside **To** separately changes the recipient draft.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "3f1b6d8f34d272d34d03c93e7f368fc73bbf32b22267edee74b86e3a16603e20",
+      "heading": "Select command targets",
+      "id": "mds.dashboard_operator:003-02-select-command-targets",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "![Command recipients are reviewed separately from the display, using synthetic aircraft](../assets/operator-overview/command-aircraft-1440-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -7172,7 +7213,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "512fad83648da21aeb23ec8c975a860a63c48663a28106abe03a2d975f9c93f9",
+      "content_hash": "5ad198dc3e8f00df2c47ed68d8c21a9c9883c52bede6b60df81da9869cd2f2cb",
       "heading": "Runtime and return APIs",
       "id": "mds.gcs_api:020-01-runtime-and-return-apis",
       "links": [],
@@ -7185,13 +7226,13 @@
         "api",
         "gcs"
       ],
-      "text": "#### Runtime and return APIs\n\n`GET /api/v1/swarm/runtime/preview` supplies the saved topology revision,\nclusters, runtime mode and advisory per-member telemetry to both operation\nsurfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,\n`excluded_hw_ids` and `idempotency_key`; the revision binds the reviewed layout.\nGeneric mission-2 submissions must match one complete saved cluster. Explicit\nsession payloads are checked too: only a dependency-closed, currently unavailable\nexclusion set permits partial start. Incomplete scope is rejected with HTTP 409,\nnot silently expanded or dispatched.\n\n`GET /api/v1/swarm/runtime/preview?cluster_id=1&check_start=true` adds\n`start_admissions`, keyed by hardware ID, from bounded parallel node-state\nreads for that cluster only. Ordinary background previews perform no node\nRPC. The GCS verifies node identity and subtracts its monotonic transit time\nfrom each node's `valid_for_ms`; it does not compare clocks across hosts.\nMissing/old-node responses are unknown. This read never arms or reserves.\nAll new mission-2 submissions repeat this review before any dispatch. A known\nineligible target returns HTTP 409 with `detail.message`, `start_admissions`\nand `dispatched=false`. Idempotent replay lookup happens first, so a lost\nreceipt can recover its existing command even after aircraft state changes.\nFinal transactional node admission and the required-role barrier remain\nauthoritative; a successful review cannot guarantee later acceptance.\n\n`GET /api/v1/commands/lookup?idempotency_key=...` performs read-only receipt\nrecovery (200 existing `CommandSubmissionReceipt`, 404 absent). It never\ncreates or dispatches a command. An absent receipt is not proof that an\nin-flight request cannot arrive; the UI retains the original identity and\nrequires fresh review plus explicit confirmation to submit again. Ambiguous\n5xx/invalid receipts remain unresolved unless nondispatch is authoritative.",
+      "text": "#### Runtime and return APIs\n\n`GET /api/v1/swarm/runtime/preview` supplies the saved topology revision,\nclusters, runtime mode and advisory per-member telemetry to both operation\nsurfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,\noptional `target_hw_ids` and `idempotency_key`; the revision binds the reviewed\nlayout. Omitted targets default to the full cluster. Explicit targets must be\nunique known members of that cluster; the server infers `reference_hw_ids` from\ntheir complete saved upstream chains. References receive no command. Remaining\nmembers are explicit omissions, independent of availability. Legacy\n`excluded_hw_ids` remains accepted for dependency-closed subsets, but cannot be\ncombined with explicit targets. Generic mission-2 requests without a session\nstill require one complete cluster. Explicit session payloads partition that\ncluster into disjoint targets/references/omissions; malformed scope is rejected,\nnever expanded or silently reparented.",
       "title": "GCS API server guide"
     },
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "4caeb1df0b6c51c08b21adeffbfcf54a156e7fc9fb394d741c49c7ff689b03b2",
+      "content_hash": "9d138f342467a9373ca25d7037fd0641da7304f6e1b9101ce00715e17f5048fb",
       "heading": "Runtime and return APIs",
       "id": "mds.gcs_api:020-02-runtime-and-return-apis",
       "links": [],
@@ -7204,7 +7245,26 @@
         "api",
         "gcs"
       ],
-      "text": "- `POST /api/v1/swarm/runtime/sequential-return`: start or recover an idempotent\n interval-based return queue (202). Body: `target_drone_ids` in dispatch order,\n `delay_sec` (default 10, 1–300 seconds), `idempotency_key`.\n- `GET /api/v1/swarm/runtime/sequential-return`: latest queue, or `null`.\n- `GET /api/v1/swarm/runtime/sequential-return/{return_id}`: queue status.\n- `POST /api/v1/swarm/runtime/sequential-return/{return_id}/cancel`: cancel\n commands not yet issued; already-issued commands continue.\n\nOne queue runs at a time. Reusing a key with different order/delay returns 409.\nHold and per-aircraft RTL use the canonical command lifecycle; their command IDs\nare returned in `hold_command_id` and `commands`. Queue states are `holding`,\n`dispatching`, `waiting`, `dispatched`, `cancelled`, `interrupted`, `failed`.\n`dispatched` means RTL commands started, not landings completed. GCS restarts\nnever resume pending dispatches. See [operator semantics](../features/smart-swarm.md#sequential-return).",
+      "text": "`GET /api/v1/swarm/runtime/preview?cluster_id=1&check_start=true` adds\n`start_admissions`, keyed by hardware ID, from bounded parallel node-state\nreads for that cluster only. Ordinary background previews perform no node\nRPC. The GCS verifies node identity and subtracts its monotonic transit time\nfrom each node's `valid_for_ms`; it does not compare clocks across hosts.\nMissing/old-node responses are unknown. This read never arms or reserves.\nRepeated `target_hw_ids=2&target_hw_ids=3` parameters review a selected subset.\nThe response adds `reference_hw_ids` and separate `reference_admissions` for its\nread-only sources. Source action ownership alone does not disqualify an active\nleader, but native freshness, airborne state, takeover modes and matching live\nfollow links still apply. Targets must advertise `scoped_start_supported=true`\nwhen references are needed. The startup barrier revalidates sources before\nengaging; no reference probes are needed after engagement. Empty references\nare omitted from session wire serialization for older full-cluster nodes.\nBackground previews also provide `observed_at_ms` and `runtime_nodes` keyed by\nhardware ID (latest command identity, report, `has_session`, `stale`). This is\njournal evidence, not proof of current flight state. A later retry/recovery\ncannot be masked by an older cluster session.\nAll new mission-2 submissions repeat this review before any dispatch. A known\nineligible target returns HTTP 409 with `detail.message`, `start_admissions`\nand `dispatched=false`. Idempotent replay lookup happens first, so a lost\nreceipt can recover its existing command even after aircraft state changes.\nFinal transactional node admission and the required-role barrier remain\nauthoritative; a successful review cannot guarantee later acceptance.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "d1162b593b6c882f4a4cbaf0d96b4e99df90160bb9bf27b42d442641cff87abc",
+      "heading": "Runtime and return APIs",
+      "id": "mds.gcs_api:020-03-runtime-and-return-apis",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "`GET /api/v1/commands/lookup?idempotency_key=...` performs read-only receipt\nrecovery (200 existing `CommandSubmissionReceipt`, 404 absent). It never\ncreates or dispatches a command. An absent receipt is not proof that an\nin-flight request cannot arrive; the UI retains the original identity and\nrequires fresh review plus explicit confirmation to submit again. Ambiguous\n5xx/invalid receipts remain unresolved unless nondispatch is authoritative.\n\n- `POST /api/v1/swarm/runtime/sequential-return`: start or recover an idempotent\n interval-based return queue (202). Body: `target_drone_ids` in dispatch order,\n `delay_sec` (default 10, 1–300 seconds), `idempotency_key`.\n- `GET /api/v1/swarm/runtime/sequential-return`: latest queue, or `null`.\n- `GET /api/v1/swarm/runtime/sequential-return/{return_id}`: queue status.\n- `POST /api/v1/swarm/runtime/sequential-return/{return_id}/cancel`: cancel\n commands not yet issued; already-issued commands continue.\n\nOne queue runs at a time. Reusing a key with different order/delay returns 409.\nHold and per-aircraft RTL use the canonical command lifecycle; their command IDs\nare returned in `hold_command_id` and `commands`. Queue states are `holding`,\n`dispatching`, `waiting`, `dispatched`, `cancelled`, `interrupted`, `failed`.\n`dispatched` means RTL commands started, not landings completed. GCS restarts\nnever resume pending dispatches. See [operator semantics](../features/smart-swarm.md#sequential-return).",
       "title": "GCS API server guide"
     },
     {
@@ -17479,8 +17539,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "chunk_count": 12,
-      "content_hash": "de8f16cc8d2bd676f1c50362c798fe7cf0df1134d228339823f7fc549c5d4b3f",
+      "chunk_count": 13,
+      "content_hash": "7b244470c51fe75d6918e012d7e49b0f4689614152452993e5d26175dcdd2280",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -17579,8 +17639,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "chunk_count": 12,
-      "content_hash": "c1d1e6f76472e55160e93a1aa9c1a81efa8fc5bd027130c95e863638b895680d",
+      "chunk_count": 13,
+      "content_hash": "b9d3520543c57ff4301c29f03df7bed73790ec0b8686fde45aa5f8eff4f92a28",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17596,8 +17656,8 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "chunk_count": 165,
-      "content_hash": "00de8bbe0a2b78ff506807095d9f0cfcaf038aaa66ca18a91b57ca19c124357d",
+      "chunk_count": 166,
+      "content_hash": "18d9483af27fe14858dd5efbbc7028196e2512894b9ffc7166bad058875373af",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

@@ -235,11 +235,16 @@ See the [illustrated operator workflow](../guides/smart-swarm-field-workflow.md)
 `GET /api/v1/swarm/runtime/preview` supplies the saved topology revision,
 clusters, runtime mode and advisory per-member telemetry to both operation
 surfaces. `POST /api/v1/swarm/runtime/start` takes `cluster_id`, `revision`,
-`excluded_hw_ids` and `idempotency_key`; the revision binds the reviewed layout.
-Generic mission-2 submissions must match one complete saved cluster. Explicit
-session payloads are checked too: only a dependency-closed, currently unavailable
-exclusion set permits partial start. Incomplete scope is rejected with HTTP 409,
-not silently expanded or dispatched.
+optional `target_hw_ids` and `idempotency_key`; the revision binds the reviewed
+layout. Omitted targets default to the full cluster. Explicit targets must be
+unique known members of that cluster; the server infers `reference_hw_ids` from
+their complete saved upstream chains. References receive no command. Remaining
+members are explicit omissions, independent of availability. Legacy
+`excluded_hw_ids` remains accepted for dependency-closed subsets, but cannot be
+combined with explicit targets. Generic mission-2 requests without a session
+still require one complete cluster. Explicit session payloads partition that
+cluster into disjoint targets/references/omissions; malformed scope is rejected,
+never expanded or silently reparented.
 
 `GET /api/v1/swarm/runtime/preview?cluster_id=1&check_start=true` adds
 `start_admissions`, keyed by hardware ID, from bounded parallel node-state
@@ -247,6 +252,18 @@ reads for that cluster only. Ordinary background previews perform no node
 RPC. The GCS verifies node identity and subtracts its monotonic transit time
 from each node's `valid_for_ms`; it does not compare clocks across hosts.
 Missing/old-node responses are unknown. This read never arms or reserves.
+Repeated `target_hw_ids=2&target_hw_ids=3` parameters review a selected subset.
+The response adds `reference_hw_ids` and separate `reference_admissions` for its
+read-only sources. Source action ownership alone does not disqualify an active
+leader, but native freshness, airborne state, takeover modes and matching live
+follow links still apply. Targets must advertise `scoped_start_supported=true`
+when references are needed. The startup barrier revalidates sources before
+engaging; no reference probes are needed after engagement. Empty references
+are omitted from session wire serialization for older full-cluster nodes.
+Background previews also provide `observed_at_ms` and `runtime_nodes` keyed by
+hardware ID (latest command identity, report, `has_session`, `stale`). This is
+journal evidence, not proof of current flight state. A later retry/recovery
+cannot be masked by an older cluster session.
 All new mission-2 submissions repeat this review before any dispatch. A known
 ineligible target returns HTTP 409 with `detail.message`, `start_admissions`
 and `dispatched=false`. Idempotent replay lookup happens first, so a lost

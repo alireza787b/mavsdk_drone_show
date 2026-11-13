@@ -95,12 +95,15 @@ restored—including a deliberately empty selection.
   If they are correct, go straight to the command—no extra selection step.
 - To change them, open **To**, check aircraft, then **Use N aircraft**.
   Search never excludes hidden rows. Cancel/Escape discards the draft.
+- For a quick change, use the blue checkbox on a card. It updates the same
+  **To** list immediately; no command is sent. It locks while an action review
+  owns the recipient snapshot. The separate green readiness tick is status only.
 - **Available** snapshots aircraft available now. Cluster shortcuts appear only
   for multiple clusters; **All configured** is under the ellipsis menu. The
   clear icon makes an empty draft; applying it disables commands.
 - The eye-marked **Show**, search and Board/List/Map change only what you see.
-  A paper-plane mark on a card means it is a command recipient, not ready to fly.
-  Cards always open details; they never select aircraft.
+  The card body opens details; only its blue checkbox changes recipients.
+  A selected checkbox is not evidence that the aircraft is ready to fly.
 - The eye-slash count beside **To** identifies recipients outside the current
   view (including aircraft without a current map position). Click it to reveal
   the recipient list; command recipients do not change.

@@ -890,6 +890,7 @@ class DroneCommunicator:
                 getattr(self.drone_config, "battery_timestamp_ms", 0),
             ),
             "follow_mode": safe_int(safe_get(live_swarm, 'follow')),  # Follow mode in swarm operation
+            "smart_swarm_active": live_swarm.get('active') is True,
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
             "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags

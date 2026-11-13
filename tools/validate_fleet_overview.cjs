@@ -128,8 +128,14 @@ async function run() {
       };
       const initialCount = allLive || count === 1 ? count : count - 1;
       await commandCount(initialCount);
-      assert.equal(await page.locator('.fleet-aircraft input[type="checkbox"]').count(), 0, 'Aircraft cards inspect; they never edit recipients');
-      assert.equal(await page.locator('.fleet-aircraft__recipient').count(), initialCount);
+      assert.equal(await page.locator('.fleet-aircraft input[type="checkbox"]').count(), initialCount, 'Each visible card has an explicit recipient toggle');
+      assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), initialCount);
+      const quickToggle = page.locator('.fleet-aircraft__recipient input').first();
+      await quickToggle.uncheck();
+      await commandCount(initialCount - 1);
+      assert.equal(await page.getByRole('dialog').count(), 0, 'Quick selection neither inspects nor dispatches');
+      await quickToggle.check();
+      await commandCount(initialCount);
       await assertRecipients(fleet.slice(0, initialCount).map(item => item.hw_id));
       const available = await openPicker();
       // Native keyboard traversal wraps inside the modal in both directions.
@@ -197,6 +203,7 @@ async function run() {
         await rail.getByRole('button', { name: 'Takeoff', exact: true }).click();
         const review = page.getByRole('dialog', { name: 'Takeoff', exact: true });
         await review.waitFor();
+        assert(await quickToggle.isDisabled(), 'Reviewed command scope locks card toggles');
         const reviewed = review.getByRole('checkbox', { name: /^Include / });
         assert.equal(await reviewed.count(), count - 1, 'Takeoff owns the exact initiating recipient snapshot');
         assert.deepEqual(await reviewed.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')).sort()), fleet.slice(0, count - 1).map(item => includeName(item.hw_id)).sort());
@@ -224,7 +231,7 @@ async function run() {
           await rail.getByRole('button', { name: 'Show 1 command aircraft outside this map', exact: true }).click();
           await page.locator('.fleet-aircraft').first().waitFor();
           await commandCount(count);
-          assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count);
+          assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), count);
           await page.getByRole('button', { name: 'Map', exact: true }).click();
           await page.getByRole('button', { name: /without current position/ }).click();
           await page.locator('.fleet-board--list').waitFor();
@@ -233,7 +240,7 @@ async function run() {
         }
         await page.getByRole('button', { name: 'Board', exact: true }).click();
         await show.selectOption('all');
-        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count);
+        assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), count);
         await assertRecipients(fleet.map(item => item.hw_id));
       }
       await page.evaluate(() => window.scrollTo(0, 0));

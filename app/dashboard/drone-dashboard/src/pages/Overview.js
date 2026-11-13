@@ -131,7 +131,8 @@ function FleetOverview({ runtimeMode, operatorId }) {
     request(unsent, remainingIds);
   };
   const renderTile = (item) => <AircraftTile key={item.id} item={item} list={view === 'list'} selected={selectedIds.has(item.id)} inspected={inspected?.id === item.id}
-    onInspect={inspect} />;
+    onInspect={inspect} onToggle={id => dispatch({ type: 'toggle', id })}
+    selectionDisabled={!selection.initialized || Boolean(intent || takeoff || more || moveTargets || choosingRecipients)} />;
 
   return <main className="fleet-overview" aria-label="Fleet overview">
     <header className="fleet-overview__header"><div><span className="fleet-eyebrow">OPERATIONS</span><h1>Overview</h1></div>

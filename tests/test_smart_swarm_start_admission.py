@@ -41,3 +41,17 @@ def test_unknown_or_ineligible_is_never_ready(overrides, status):
 @pytest.mark.parametrize('height', [-20, 0, 0.1, 100])
 def test_native_in_air_not_home_height_is_authoritative(height):
     assert evaluate_smart_swarm_start_admission(aircraft(relative_altitude_m=height), max_age_sec=15, now_ms=10001).status == 'ready'
+
+
+def test_busy_airborne_reference_is_not_restarted_or_treated_as_a_start_target():
+    node = aircraft(state=State.MISSION_EXECUTING.value, mission=Mission.SMART_SWARM.value)
+    assert evaluate_smart_swarm_start_admission(node, max_age_sec=15, now_ms=10001).status == 'blocked'
+    reference = evaluate_smart_swarm_start_admission(node, max_age_sec=15, now_ms=10001, reference=True)
+    assert reference.status == 'ready' and reference.scoped_start_supported
+
+
+@pytest.mark.parametrize('overrides,status', [({'is_armed':False},'blocked'), ({'heartbeat_timestamp_ms':0},'unknown'),
+    ({'landed_state':1},'blocked'), ({'custom_mode':(4<<16)|(5<<24)},'blocked'),
+    ({'state':2,'mission':Mission.TAKE_OFF.value},'waiting')])
+def test_reference_never_bypasses_airborne_freshness_or_native_recovery(overrides,status):
+    assert evaluate_smart_swarm_start_admission(aircraft(**overrides), max_age_sec=15, now_ms=10001, reference=True).status == status

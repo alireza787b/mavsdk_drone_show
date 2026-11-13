@@ -64,6 +64,18 @@ beforeEach(() => {
 });
 
 describe('Overview explicit aircraft workflow', () => {
+  test('card checkbox shares To without inspecting or dispatching, and locks during a flight review', () => {
+    render(tree());
+    const box=screen.getByRole('checkbox',{name:'Include Aircraft 1 (H1)'});
+    selected(2);
+    fireEvent.click(box);selected(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('General action review')).not.toBeInTheDocument();
+    fireEvent.click(box);selected(2);
+    fireEvent.click(within(actionRail()).getByRole('button',{name:'Takeoff'}));
+    expect(box).toBeDisabled();
+    expect(JSON.parse(screen.getByTestId('takeoff-command').textContent).target_drone_ids).toContain('1');
+  });
   test('an unrelated uncertain receipt never disables or overwrites a new recovery action', () => {
     const prefix = `mds:fleet-action:v1:${getBackendURL()}:sitl:session`;
     const previous = { mission_type: DRONE_ACTION_TYPES.TEST_LED, trigger_time: 0,
@@ -83,7 +95,7 @@ describe('Overview explicit aircraft workflow', () => {
   test.each(['sitl', 'real'])('initializes available %s aircraft, not every configured aircraft', (mode) => {
     render(tree(mode));
     ['1', '2'].forEach(id => expect(recipient(id)).toBeInTheDocument());
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     selected(2);
     expect(screen.getByText(mode.toUpperCase())).toBeInTheDocument();
     showAll();
@@ -122,7 +134,7 @@ describe('Overview explicit aircraft workflow', () => {
     changeRecipients(['1','3']);
     selected(2);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find aircraft' }), { target: { value: 'hw 1' } });
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Include Aircraft 1 (H1)' })).toBeChecked();
     expect(screen.getByRole('button',{name:'Show 1 command aircraft outside this view'})).toBeInTheDocument();
     fireEvent.click(inspect('1'));
     expect(screen.getByRole('dialog', { name: 'Aircraft 1' })).toBeInTheDocument();

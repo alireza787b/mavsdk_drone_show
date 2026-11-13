@@ -9,11 +9,29 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Shared recipient controls and selected Smart Swarm Start
+
+- Overview card checkboxes update the existing **To** state; card inspection,
+  display filters and green readiness symbols remain independent.
+- Smart Swarm defaults to its complete first cluster. Its **To** chooser also
+  permits deliberate subsets and individual follower retries, without changing
+  saved roles or restarting unselected leaders. Empty/missing selections stay
+  explicit across telemetry refreshes. **Hold all** and **Return all** retain
+  their named whole-cluster recovery scope.
+- Selected Start checks unselected upstream aircraft as read-only references.
+  Native airborne/freshness/recovery and live-follow checks apply before
+  dispatch and at the startup barrier. After engagement, existing aircraft-local
+  link/recovery policy remains authoritative. Older companions keep normal
+  full-cluster compatibility but require an update for reference-based Start.
+- Operate observes runtime ownership per aircraft, so a healthy old leader
+  session cannot hide a later follower retry. Lost receipts use the original
+  command lookup rather than replay or broader targets.
+
 ### Explicit command recipients, quiet fleet display
 
 - Overview separates eye-marked display tools from a single **To** chooser
-  beside flight controls. Cards and map markers only inspect; a small
-  paper-plane mark identifies recipients without another checkbox toolbar.
+  beside flight controls. Card bodies and map markers inspect; card checkboxes
+  offer a quick edit of the same recipient state without another toolbar.
 - The searchable chooser stages exact aircraft IDs until **Use N aircraft**.
   Cancel, filtering, reconnects, cluster changes and later arrivals cannot
   retarget commands. Empty/missing saved selections and existing native

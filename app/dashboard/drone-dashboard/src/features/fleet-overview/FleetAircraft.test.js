@@ -15,7 +15,7 @@ const aircraft = (extra = {}, now = NOW) => buildAircraftViewModel({
 }, now);
 
 function tile(item = aircraft()) {
-  const props = { item, selected: false, inspected: false, onInspect: jest.fn() };
+  const props = { item, selected: false, inspected: false, onInspect: jest.fn(), onToggle: jest.fn() };
   return { ...render(<AircraftTile {...props} />), props };
 }
 
@@ -33,10 +33,14 @@ test('tile exposes compact identity and inspection without editing command recip
   expect(container.querySelector('.fleet-aircraft__instruments')).toBeInTheDocument();
   expect(screen.queryByText('Details')).not.toBeInTheDocument();
   expect(screen.queryByText(/16\.1\s*V/)).not.toBeInTheDocument();
-  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H7)' })).not.toBeChecked();
   expect(props.onInspect).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout · H7' }));
   expect(props.onInspect).toHaveBeenCalledWith('7');
+  expect(props.onToggle).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Include Scout (H7)' }));
+  expect(props.onToggle).toHaveBeenCalledWith('7');
+  expect(props.onInspect).toHaveBeenCalledTimes(1);
 });
 
 test('normal idle cards omit routine mission prose but retain all details in inspection', () => {

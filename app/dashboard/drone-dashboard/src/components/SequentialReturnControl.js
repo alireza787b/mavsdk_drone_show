@@ -13,7 +13,7 @@ const LABELS = {
 };
 
 export default function SequentialReturnControl({ targetIds, targetNames, compact = false,
-  contextKey = '', validateReview = null }) {
+  contextKey = '', validateReview = null, buttonLabel = 'Managed Return' }) {
   const [delay, setDelay] = useState(10);
   const [confirmation, setConfirmation] = useState(null);
   const [job, setJob] = useState(null);
@@ -133,7 +133,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
           disabled={busy || active || targetIds.length === 0 || !validDelay || pollError}
           onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay), contextKey })}>
           <FaHome aria-hidden="true" />
-          {compact ? 'Managed Return' : <span className="swarm-runtime-action__copy"><strong>Managed Return</strong>
+          {compact ? buttonLabel : <span className="swarm-runtime-action__copy"><strong>Managed Return</strong>
             <small>RTL in the displayed order, {delay || '—'} s apart</small></span>}
         </button>
       </div>
@@ -179,6 +179,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
 }
 
 SequentialReturnControl.propTypes = {
+  buttonLabel: PropTypes.string,
   targetIds: PropTypes.arrayOf(PropTypes.string).isRequired,
   targetNames: PropTypes.arrayOf(PropTypes.string).isRequired,
   compact: PropTypes.bool,

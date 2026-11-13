@@ -197,6 +197,12 @@ Readiness fields:
   existing fresh airborne evidence, not a reservation or proof of engagement.
   HTTP and WebSocket state snapshots expose the same field. Missing fields
   from older nodes are unknown to a Start review, not implicitly ready.
+- `smart_swarm_reference_admission` uses the same native airborne, freshness and
+  recovery rules for an uncommanded upstream data source. Unlike a new Start,
+  an already-active leader role is permitted. New decisions advertise
+  `scoped_start_supported=true`; older nodes default unsupported for selected
+  Start requiring references. `smart_swarm_active` and `follow_mode` expose the
+  current live role for source-chain verification, not a second formation plan.
 - `readiness_status` and `readiness_summary` are the operator-facing verdict.
 - `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
 - `gps_raw_valid` is raw GPS evidence from `GPS_RAW_INT`; it does not prove the drone has a usable mappable position.

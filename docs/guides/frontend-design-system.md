@@ -78,7 +78,10 @@ their deployment/runtime/operator context; missing or invalid saved targets
 must never silently widen to All. The command-adjacent **To** chooser owns an
 explicit draft, applied with **Use N aircraft**; Cancel leaves scope unchanged.
 Its presets snapshot identities, never subscribe to availability or a cluster.
-Cards/markers inspect only; a noninteractive paper-plane mark shows membership.
+Card bodies/markers inspect only; a distinct blue card checkbox edits the same
+recipient state as **To**, never the green readiness indicator. Lock recipient
+edits while a frozen action review is open. Smart Swarm reuses this chooser with
+a full-cluster preset; it does not subscribe targets to live availability.
 The eye-marked **Show** tools affect visibility only. Hidden-recipient counts
 use actual rendered identities, including Map's current-position restriction.
 Keep essential command labels and identities visible; use symbols and hover/tap

@@ -13,7 +13,7 @@ export default function CommandAircraftControl({ ids, aircraft, review, map = fa
       <FaPaperPlane aria-hidden="true" /><span className="command-aircraft-control__label">To</span>
       <span className="command-aircraft-control__names">{summary || '—'}</span><strong>{ids.length}</strong><FaChevronDown aria-hidden="true" />
     </button>
-    <span id={descriptionId} className="fleet-visually-hidden">{ids.length} command aircraft: {names.join(', ') || 'None'}</span>
+    <span id={descriptionId} className="command-aircraft-control__description">{ids.length} command aircraft: {names.join(', ') || 'None'}</span>
     {review.unresolvedIds.length > 0 && <button type="button" className="command-aircraft-control__missing" onClick={onOpen}
       disabled={disabled} title={`Missing from configuration: ${review.unresolvedIds.join(', ')}`} aria-label="Review missing command aircraft">
       <FaExclamationTriangle aria-hidden="true" />{review.unresolvedIds.length} missing</button>}

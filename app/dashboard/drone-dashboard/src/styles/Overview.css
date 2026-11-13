@@ -29,7 +29,10 @@
 .fleet-board { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr)); gap:1px; align-content:start; border-top:1px solid var(--color-border-primary); border-left:1px solid var(--color-border-primary); }
 .fleet-aircraft { position:relative; min-width:0; background:var(--color-bg-primary); box-shadow:inset -1px -1px var(--color-border-primary); border:2px solid transparent; }
 .fleet-aircraft.is-inspected { border-color:var(--color-primary); }
-.fleet-aircraft__recipient { position:absolute; z-index:1; top:.8rem; right:.8rem; display:inline-flex; pointer-events:none; color:var(--color-primary); font-size:.75rem; }
+.fleet-aircraft__recipient { position:absolute; z-index:1; top:.1rem; right:.15rem; width:44px; height:44px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--color-primary); }
+.fleet-aircraft__recipient input[type=checkbox] { width:20px; height:20px; min-height:20px; margin:0; accent-color:var(--color-primary); }
+.fleet-aircraft__recipient:has(input:disabled) { cursor:default; }
+.fleet-aircraft__recipient:focus-within { outline:2px solid var(--color-primary); outline-offset:-3px; }
 .fleet-overview .fleet-aircraft__inspect { display:flex; width:100%; min-width:0; min-height:215px; padding:.9rem .9rem .65rem; gap:.65rem; flex-direction:column; text-align:left; background:transparent; border:0; box-shadow:none; }
 .fleet-aircraft__identity { display:flex; gap:.5rem; align-items:center; padding-right:2.2rem; width:100%; min-width:0; }
 .fleet-aircraft__identity > span { display:flex; flex-direction:column; gap:.2rem; min-width:0; }

@@ -252,6 +252,8 @@ class DroneStateResponse(BaseModel):
     pos_id: Any
     current_command_id: Optional[str] = None
     smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
+    smart_swarm_reference_admission: Optional[SmartSwarmStartAdmission] = None
+    smart_swarm_active: Optional[bool] = None
     trajectory_execution: Optional[TrajectoryRuntimeState] = None
     detected_pos_id: Any
     state: int
@@ -2228,6 +2230,10 @@ class DroneAPIServer:
             self.drone_config,
             max_age_sec=self.params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC,
             now_ms=server_time_ms,
+        ).model_dump()
+        payload['smart_swarm_reference_admission'] = evaluate_smart_swarm_start_admission(
+            self.drone_config, max_age_sec=self.params.LOCAL_MAVLINK_STALE_TIMEOUT_SEC,
+            now_ms=server_time_ms, reference=True,
         ).model_dump()
         return DroneStateResponse.model_validate(payload).model_dump()
 

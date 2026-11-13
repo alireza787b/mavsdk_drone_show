@@ -63,6 +63,8 @@
 .swarm-return-order small, .swarm-return-note { color: var(--color-text-secondary); }
 .swarm-return-note { font-size: .8rem; margin: 0; }
 .swarm-ops__confirmation { display: grid; gap: var(--spacing-sm); }
+.swarm-ops__targets { display:flex; min-width:0; }
+.swarm-ops__references { display:flex; align-items:center; gap:.4rem; }
 .swarm-ops__confirmation label { display: grid; gap: var(--spacing-xs); }
 .swarm-ops__confirmation input { max-width: 8rem; }
 .swarm-ops__confirmation small { color: var(--color-text-secondary); }

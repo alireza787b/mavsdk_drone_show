@@ -203,6 +203,13 @@ class FleetRPCService:
 
     async def review_swarm_start(self, drones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """Read the node's existing admission decision; never reserve or command."""
+        return await self._review_swarm_admission(drones, 'smart_swarm_start_admission')
+
+    async def review_swarm_references(self, drones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Read-only airborne source eligibility; never restart a busy leader."""
+        return await self._review_swarm_admission(drones, 'smart_swarm_reference_admission')
+
+    async def _review_swarm_admission(self, drones, field):
         client = await self._client_or_start()
         timeout = max(0.2, float(getattr(self.params, 'GCS_COMMAND_HTTP_TIMEOUT_SEC', 5)))
 
@@ -217,10 +224,14 @@ class FleetRPCService:
                 response = await client.get(
                     f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_STATE_ROUTE}", timeout=timeout)
                 response.raise_for_status()
-                decision = SmartSwarmStartAdmission.model_validate(response.json().get('smart_swarm_start_admission'))
+                decision = SmartSwarmStartAdmission.model_validate(response.json().get(field))
                 if decision.hw_id != _normalize_drone_id(drone):
                     return unavailable(drone)
                 value = decision.model_dump()
+                if field == 'smart_swarm_reference_admission':
+                    payload = response.json()
+                    value['swarm_active'] = payload.get('smart_swarm_active') is True
+                    value['live_follow'] = payload.get('follow_mode')
                 # Source validity minus our complete round-trip; never compare
                 # the GCS wall clock with a companion's clock.
                 remaining = max(0, decision.valid_for_ms - int((time.monotonic() - started) * 1000))

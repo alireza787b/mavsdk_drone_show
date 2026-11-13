@@ -1513,7 +1513,38 @@ class CommandTracker(CoordinatedTakeoffTrackerMixin):
         command.updated_at = timestamp
         return True
 
-    async def record_swarm_runtime(self, report, callback_capability=None):
+    async def swarm_node_evidence(self, hw_ids, revision):
+        from swarm_node_evidence import swarm_node_evidence
+        async with self._lock:
+            result = swarm_node_evidence(self._commands.values(), hw_ids, revision, int(time.time() * 1000))
+            for row in result.values():
+                command = self._commands.get(row['command_id'])
+                if command and self._is_terminal(command):
+                    row['stale'] = True
+            return result
+
+    async def pending_swarm_references(self, report, callback_capability=None):
+        """Authenticated source IDs only when the startup barrier can release.
+
+        Native reference reads happen outside this journal's lock. They are not
+        required after engagement; existing node-local link policy stays owner.
+        """
+        async with self._lock:
+            command = self._commands.get(report.command_id)
+            if command is None or not self._callback_capability_matches_locked(command, report.hw_id, callback_capability):
+                raise CommandCallbackAuthenticationError('Command callback authentication failed')
+            snapshot = command.params.get('smart_swarm') or {}
+            if self._is_terminal(command) or command.params.get('_swarm_engaged') or command.params.get('_swarm_stop_requested') or report.phase != 'ready':
+                return []
+            now = int(time.time() * 1000)
+            reports = command.params.get('_swarm_runtime', {})
+            ready = all(hw == report.hw_id or (
+                reports.get(hw, {}).get('phase') in {'ready','active','acquiring','settling','tracking','tracking_degraded','holding'}
+                and now - reports[hw]['received_at_ms'] <= 15000
+            ) for hw in command.target_drones)
+            return snapshot.get('reference_hw_ids', []) if ready else []
+
+    async def record_swarm_runtime(self, report, callback_capability=None, *, reference_valid_until=0):
         """Accept role evidence/leases, not merely subprocess creation.
 
         The startup barrier coordinates roles before followers engage. Once
@@ -1560,7 +1591,8 @@ class CommandTracker(CoordinatedTakeoffTrackerMixin):
                 and now - reports[hw]["received_at_ms"] <= 15000
                 for hw in command.target_drones
             )
-            if all_ready and not failed_targets:
+            references_ready = not snapshot.get('reference_hw_ids') or reference_valid_until > time.monotonic()
+            if all_ready and not failed_targets and references_ready:
                 command.params["_swarm_engaged"] = True
             # A per-target deadline prevents one healthy leader from extending
             # a missing follower's startup/heartbeat indefinitely.

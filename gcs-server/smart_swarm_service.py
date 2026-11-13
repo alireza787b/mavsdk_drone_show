@@ -9,8 +9,25 @@ import time
 from fastapi import HTTPException
 from src.smart_swarm_contract import (
     SmartSwarmSession, dependency_closed_targets, normalize_topology,
-    resolve_clusters, topology_revision,
+    resolve_clusters, topology_revision, required_reference_ids,
 )
+
+
+def resolve_start_scope(cluster, request):
+    """One cluster, exact command targets, inferred read-only upstream sources."""
+    all_ids = [m['hw_id'] for m in cluster['members']]
+    if request.target_hw_ids is not None:
+        if request.excluded_hw_ids:
+            raise ValueError('Use explicit aircraft or legacy exclusions, not both')
+        targets = request.target_hw_ids
+        if len(set(targets)) != len(targets) or not set(targets) <= set(all_ids):
+            raise ValueError('Choose unique aircraft from this formation')
+        references = required_reference_ids(cluster['members'], targets)
+        return targets, references, [hw for hw in all_ids if hw not in targets and hw not in references]
+    excluded = set(request.excluded_hw_ids)
+    if not excluded <= set(all_ids):
+        raise ValueError('Excluded aircraft are not in this formation')
+    return dependency_closed_targets(cluster['members'], list(excluded)), [], sorted(excluded, key=int)
 
 
 def build_preview(deps):
@@ -76,10 +93,13 @@ async def start_cluster(deps, request):
         if requested_cluster is None and len(clusters) == 1:
             requested_cluster = clusters[0]["cluster_id"]
         original_cluster = next((c for c in clusters if c["cluster_id"] == requested_cluster), None)
-        expected = (dependency_closed_targets(original_cluster["members"], request.excluded_hw_ids)
-                    if original_cluster else [])
+        try:
+            expected, references, excluded = resolve_start_scope(original_cluster, request) if original_cluster else ([], [], [])
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
         if (existing.get("mission_type") != 2 or snapshot.get("revision") != request.revision
-            or set(snapshot.get("excluded_hw_ids", [])) != set(request.excluded_hw_ids)
+            or set(snapshot.get("excluded_hw_ids", [])) != set(excluded)
+            or set(snapshot.get("reference_hw_ids", [])) != set(references)
             or set(existing.get("target_drones", [])) != set(expected)):
             raise HTTPException(409, "Idempotency key already belongs to a different command")
         return build_replay_receipt(existing)
@@ -93,12 +113,10 @@ async def start_cluster(deps, request):
         cluster = clusters[0]
     if cluster is None:
         raise HTTPException(409, "Choose the saved swarm cluster to start")
-    all_ids = [m["hw_id"] for m in cluster["members"]]
-    excluded = set(request.excluded_hw_ids)
-    allowed_exclusions = set(all_ids) - set(cluster["available_hw_ids"])
-    if excluded and excluded != allowed_exclusions:
-        raise HTTPException(409, "Availability changed; review the partial-start confirmation")
-    targets = dependency_closed_targets(cluster["members"], list(excluded))
+    try:
+        targets, references, excluded = resolve_start_scope(cluster, request)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     if not targets:
         raise HTTPException(409, "No available leader and follow chain to start")
     # A stale GCS cache is advisory. With no explicit exclusions, send the
@@ -106,7 +124,7 @@ async def start_cluster(deps, request):
     assignments = normalize_topology([member for c in preview["clusters"] for member in c["members"]])
     session = SmartSwarmSession(
         revision=preview["revision"], assignments=assignments,
-        expected_hw_ids=targets, excluded_hw_ids=sorted(excluded),
+        expected_hw_ids=targets, excluded_hw_ids=sorted(excluded), reference_hw_ids=references,
     )
     return await submit_tracked_command(deps, SubmitCommandRequest(
         mission_type=2, trigger_time=0, target_drone_ids=targets,
@@ -149,4 +167,5 @@ def runtime_summary(params, targets, *, now_ms=None, terminal=False):
         state = "starting"
     return {"state": state, "active_hw_ids": active, "targets": targets,
             "leader_session_active": leader_session_active,
-            "excluded_hw_ids": snapshot.get("excluded_hw_ids", []), "nodes": reports}
+            "excluded_hw_ids": snapshot.get("excluded_hw_ids", []),
+            "reference_hw_ids": snapshot.get("reference_hw_ids", []), "nodes": reports}

@@ -5,7 +5,7 @@ import hashlib
 import json
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
 
 
 class SwarmMember(BaseModel):
@@ -66,12 +66,36 @@ def dependency_closed_targets(members: list[dict], excluded: list[str]) -> list[
     return [m["hw_id"] for m in members if m["hw_id"] not in omitted]
 
 
+def required_reference_ids(members: list[dict], targets: list[str]) -> list[str]:
+    """Saved upstream identities needed as data sources, never extra recipients."""
+    by_id = {m['hw_id']: m for m in normalize_topology(members)}
+    included = set(targets)
+    if not included or len(included) != len(targets) or not included <= by_id.keys():
+        raise ValueError('Choose known, unique aircraft to command')
+    references = set()
+    for target in targets:
+        parent = by_id[target]['follow']
+        while parent != '0':
+            if parent not in included:
+                references.add(parent)
+            parent = by_id[parent]['follow']
+    return sorted(references, key=int)
+
+
 class SmartSwarmSession(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: str = Field(pattern=r"^[a-f0-9]{64}$")
     assignments: list[SwarmMember]
     expected_hw_ids: list[str] = Field(min_length=1)
     excluded_hw_ids: list[str] = Field(default_factory=list)
+    reference_hw_ids: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode='wrap')
+    def serialize_compatible(self, handler):
+        payload = handler(self)
+        if not self.reference_hw_ids:
+            payload.pop('reference_hw_ids', None)
+        return payload
 
     @model_validator(mode="after")
     def validate_snapshot(self):
@@ -84,9 +108,13 @@ class SmartSwarmSession(BaseModel):
             raise ValueError("Invalid Smart Swarm session targets")
         if expected & set(self.excluded_hw_ids):
             raise ValueError("Included and excluded Smart Swarm targets overlap")
-        for m in self.assignments:
-            if m.hw_id in expected and m.follow != "0" and m.follow not in expected:
-                raise ValueError(f"Follower {m.hw_id} requires leader {m.follow}")
+        if len(set(self.excluded_hw_ids)) != len(self.excluded_hw_ids) or not set(self.excluded_hw_ids) <= ids:
+            raise ValueError('Excluded aircraft must be known and unique')
+        references = required_reference_ids(assignments, self.expected_hw_ids)
+        if len(set(self.reference_hw_ids)) != len(self.reference_hw_ids) or set(self.reference_hw_ids) != set(references):
+            raise ValueError('Reference aircraft must exactly match the saved upstream chain')
+        if (expected | set(references)) & set(self.excluded_hw_ids):
+            raise ValueError('Excluded aircraft cannot be command targets or leader references')
         return self
 
 
@@ -95,6 +123,7 @@ class SwarmStartRequest(BaseModel):
     cluster_id: str | None = None
     revision: str
     excluded_hw_ids: list[str] = Field(default_factory=list)
+    target_hw_ids: list[str] | None = Field(default=None, min_length=1)
     idempotency_key: str = Field(min_length=1, max_length=200)
 
 

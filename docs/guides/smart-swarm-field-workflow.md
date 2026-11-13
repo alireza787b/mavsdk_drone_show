@@ -131,13 +131,14 @@ rotates its future targets. Review again if positions or heading have changed.
 
 Capture never drops an unavailable member and never silently stops a running
 controller. Resolve the named issue and refresh. If following is running, use
-**Hold Swarm**, confirm the aircraft have stopped following, then capture.
+**Hold all**, confirm the aircraft have stopped following, then capture.
 Applying a captured draft repeats the inactive-state check; a concurrent Start
 does not turn a pre-start capture into an unnoticed active update.
 
 ## Take off and start following
 
-1. Open **Smart Swarm -> Operate**. Confirm the intended complete cluster and
+1. Open **Smart Swarm -> Operate**. The complete first cluster is selected in
+   **To** by default; no extra selection step is needed. Confirm that cluster and
    fresh aircraft states. Overview inspection and command targets do not select
    this cluster. Resolve any named PX4 or connectivity blocker.
 2. Select **Takeoff**. Review the aircraft selection and altitude. For a group,
@@ -154,9 +155,33 @@ does not turn a pre-start capture into an unnoticed active update.
 
 ![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)
 
+### Command a subset or retry one follower
+
+1. Open **To**, select the intended aircraft and choose **Use N aircraft**.
+   **Cluster** restores the full displayed formation. Cancel changes nothing.
+2. Select **Start Swarm**. For a follower-only Start, the review identifies its
+   required **Leader reference**; no Start is sent to that source aircraft.
+3. Confirm when ready, then verify the selected follower reports Following.
+   An already-running selected follower must first be stopped with
+   **Other actions → Stop following**, or finish its previous action.
+
+Sources may be flying manually or already leading. They must have fresh native
+airborne evidence and not be taking off, returning or landing. An active relay
+must have applied the saved follow relationship. Resolve any named issue;
+there is no automatic inclusion or force bypass. Reference-based Start requires
+updated companion software. The same Start receipt is looked up if its result
+is uncertain; changing To does not replace that pending command.
+
+**To** controls future Takeoff, Start and individual **Other actions** only.
+Deselecting an aircraft does not stop existing following or edit its role.
+**Hold all** and **Return all** recover the entire displayed cluster, regardless
+of To; Return all opens the existing Managed Return review. Changing clusters
+selects that cluster's full roster. Polls, reconnects and new members never
+silently edit a custom selection.
+
 ## Pause and resume
 
-Select **Hold Swarm** to request Hold for the complete displayed cluster,
+Select **Hold all** to request Hold for the complete displayed cluster,
 including the leader. Confirm each aircraft reports Held or a confirmed grounded
 state; **Hold unconfirmed** requires attention. Hold retains the formation but
 does not automatically restart following. Select and confirm **Start Swarm** when

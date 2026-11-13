@@ -217,9 +217,10 @@ async def test_stale_dashboard_preview_is_advisory_and_does_not_silently_exclude
     request = SwarmStartRequest(cluster_id='1', revision=session.revision, idempotency_key='test')
     assert await start_cluster(deps, request) == 'submitted'
     assert submit.call_args.args[1].target_drone_ids == ['1', '2']
-    with pytest.raises(HTTPException) as caught:
-        await start_cluster(deps, request.model_copy(update={'excluded_hw_ids': ['2']}))
-    assert caught.value.status_code == 409
+    # Explicit omission is now a deliberate operator scope, not a subscription
+    # to the cached availability list. The first start above still included all.
+    assert await start_cluster(deps, request.model_copy(update={'excluded_hw_ids': ['2']})) == 'submitted'
+    assert submit.call_args.args[1].target_drone_ids == ['1']
 
 
 @pytest.mark.asyncio

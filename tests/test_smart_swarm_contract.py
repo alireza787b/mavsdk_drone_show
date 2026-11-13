@@ -1,7 +1,8 @@
 from src.smart_swarm_contract import (
     dependency_closed_targets, normalize_topology, resolve_clusters,
-    topology_revision, SmartSwarmSession,
+    topology_revision, SmartSwarmSession, required_reference_ids,
 )
+import pytest
 
 
 def topology():
@@ -29,3 +30,24 @@ def test_session_requires_current_revision_and_closed_dependencies():
     revision = topology_revision(members)
     session = SmartSwarmSession(revision=revision, assignments=members, expected_hw_ids=["1", "2"])
     assert session.expected_hw_ids == ["1", "2"]
+
+
+def test_scoped_start_requires_exact_upstream_references_without_promoting():
+    members = normalize_topology(topology())
+    assert required_reference_ids(members, ['3']) == ['1', '2']
+    original = [dict(row) for row in members]
+    session = SmartSwarmSession(assignments=members, revision=topology_revision(members),
+        expected_hw_ids=['3'], reference_hw_ids=['1','2'])
+    assert session.expected_hw_ids == ['3']
+    assert members == original
+    assert session.model_dump()['reference_hw_ids'] == ['1','2']
+    for refs in [[], ['1'], ['1','2','3'], ['1','1','2']]:
+        with pytest.raises(ValueError):
+            SmartSwarmSession(assignments=members, revision=topology_revision(members),
+                expected_hw_ids=['3'], reference_hw_ids=refs)
+
+
+def test_normal_session_wire_contract_stays_compatible_with_older_nodes():
+    members = normalize_topology(topology())
+    session = SmartSwarmSession(assignments=members, revision=topology_revision(members), expected_hw_ids=['1','2','3'])
+    assert 'reference_hw_ids' not in session.model_dump()

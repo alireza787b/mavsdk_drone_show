@@ -23,20 +23,23 @@ class SmartSwarmStartAdmission(BaseModel):
     observed_at_ms: int
     valid_for_ms: int = Field(default=0, ge=0)
     error_code: str | None = None
+    scoped_start_supported: bool = False
 
 
-def evaluate_smart_swarm_start_admission(drone_config, *, max_age_sec, now_ms=None):
+def evaluate_smart_swarm_start_admission(drone_config, *, max_age_sec, now_ms=None, reference=False):
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
     hw_id = str(getattr(drone_config, 'hw_id', ''))
 
     def result(status, reason, message, error=CommandErrorCode.INVALID_STATE.value, valid=0):
         return SmartSwarmStartAdmission(hw_id=hw_id, status=status, reason_code=reason,
-            message=message, observed_at_ms=now_ms, valid_for_ms=valid, error_code=error)
+            message=message, observed_at_ms=now_ms, valid_for_ms=valid, error_code=error,
+            scoped_start_supported=True)
 
     if drone_config.state in {State.MISSION_READY.value, State.MISSION_EXECUTING.value}:
         if drone_config.mission == Mission.TAKE_OFF.value:
             return result('waiting', 'finishing_takeoff', 'Finishing takeoff', CommandErrorCode.ALREADY_EXECUTING.value)
-        return result('blocked', 'mission_active', 'Another action is active', CommandErrorCode.ALREADY_EXECUTING.value)
+        if not reference:
+            return result('blocked', 'mission_active', 'Another action is active', CommandErrorCode.ALREADY_EXECUTING.value)
 
     airborne = evaluate_cached_airborne_admission(drone_config, max_age_sec=max_age_sec, now_ms=now_ms)
     if not airborne.accepted:

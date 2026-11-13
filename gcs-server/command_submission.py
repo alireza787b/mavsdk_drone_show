@@ -307,8 +307,7 @@ async def submit_tracked_command(
             validate_cluster_targets(
                 assignments, target_hw_ids,
                 excluded=command.smart_swarm.excluded_hw_ids if command.smart_swarm else (),
-                unavailable=[member['hw_id'] for cluster in preview['clusters']
-                             for member in cluster['members'] if not member['available']],
+                references=command.smart_swarm.reference_hw_ids if command.smart_swarm else (),
             )
         except (ValueError, TypeError, KeyError) as exc:
             raise HTTPException(409, str(exc)) from exc
@@ -459,8 +458,10 @@ async def submit_tracked_command(
         dispatch_payload['swarm_trajectory'] = command_data['swarm_trajectory']
 
     if resolved_mission == deps.Mission.SMART_SWARM:
-        from swarm_start_readiness import require_start_admissions
-        await require_start_admissions(deps, actual_targets)
+        from swarm_start_readiness import require_start_admissions, require_reference_admissions
+        await require_start_admissions(deps, actual_targets,
+            scoped=bool(command.smart_swarm and command.smart_swarm.reference_hw_ids))
+        await require_reference_admissions(deps, command.smart_swarm.reference_hw_ids if command.smart_swarm else [])
 
     mission_type_int = resolved_mission.value
     launch_preparation_required = deps.mission_requires_launch_armability_probe(resolved_mission)

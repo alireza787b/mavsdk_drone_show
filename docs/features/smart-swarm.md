@@ -213,7 +213,7 @@ the queue; it does not prove separation for other homes, heights or return paths
 
 ### Hold Swarm
 
-**Hold Swarm** sends Hold to the entire displayed cluster, including its leader,
+**Hold all** sends Hold to the entire displayed cluster, including its leader,
 in one press. It remains available while routine commands are waiting; no
 confirmation dialog or remembered Swarm session is required. Roles and offsets
 are preserved. Held aircraft do not resume following when the leader moves:
@@ -263,8 +263,10 @@ Open **Smart Swarm → Operate**, select the saved cluster and review its
 leader/offset/status summary. Use **Takeoff** there, or take off through
 QGroundControl or RC, and let the aircraft stabilize. Choose **Start Swarm** and
 confirm the reviewed aircraft. Opening the page or changing inspection never
-sends a command. MDS resolves the saved executable cluster and starts the complete
-dependency-closed cluster. The takeoff does not have to come from MDS. Overview
+sends a command. **To** initially contains the complete saved cluster. Open it
+only to deliberately command a subset. Required unselected upstream aircraft
+become read-only leader references, not additional command recipients; saved
+follow links are never rewritten. The takeoff does not have to come from MDS. Overview
 retains fleet awareness and general aircraft actions, not a second swarm launcher.
 
 The Start review reads each selected aircraft's own admission decision. A
@@ -290,11 +292,19 @@ already-confirmed command. Pending intent is scoped to that backend/runtime.
 MDS still performs authoritative node-side airborne, PX4, link, and
 configuration checks. These are not UI bypasses. Dashboard telemetry age is
 advisory, not a second start gate. Start normally includes every displayed saved
-role, independently of the dashboard's generic selection checkboxes. If a
-follower is unavailable, `Start without…` offers one explicit confirmation
-for a dependency-safe partial formation;
-this is labelled partial and never silently called a full swarm. An unavailable
-leader cannot be bypassed because its descendants would be orphaned.
+role, independently of Overview's generic selection checkboxes. **To** also
+supports an explicit healthy subset or follower retry. References need current
+native airborne evidence, compatible software and matching live follow links;
+they are checked before dispatch and again before the required-role barrier
+releases. They receive no Start and introduce no ongoing GCS flight dependency.
+An unavailable/returning source blocks Start rather than orphaning its followers.
+Full-cluster starts retain the existing older-companion wire contract.
+
+Recipient edits affect future Takeoff/Start/individual recovery commands only.
+They do not stop an existing follower. **Hold all** and **Return all** explicitly
+retain full displayed-cluster recovery; Return all opens Managed Return. The
+runtime preview reports latest ownership per aircraft, not just the newest
+cluster command, so an old leader cannot mask a new follower retry.
 
 ### 3. Advanced Swarm runtime commands
 
