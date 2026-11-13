@@ -1,4 +1,4 @@
-.aircraft-choice-row { display:flex; align-items:center; gap:.7rem; min-height:48px; min-width:0; padding:.5rem .6rem; color:var(--color-text-primary); border-bottom:1px solid var(--color-border-primary); cursor:pointer; }
+.aircraft-choice-row,.operator-console .aircraft-choice-row { display:flex; align-items:center; gap:.7rem; min-height:48px; min-width:0; padding:.5rem .6rem; color:var(--color-text-primary); border-bottom:1px solid var(--color-border-primary); cursor:pointer; }
 .aircraft-choice-row.is-included { background:var(--color-bg-secondary); }
 .aircraft-choice-row input[type=checkbox] { flex:none; width:20px; height:20px; min-height:20px; margin:0; accent-color:var(--color-primary); }
 .aircraft-choice-row strong { min-width:0; font-size:.85rem; font-weight:500; overflow-wrap:anywhere; }

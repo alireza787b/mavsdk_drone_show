@@ -17,7 +17,7 @@ The screenshots use a synthetic fleet, not aircraft clearance.
 **Available** is the initial filter: an accepted heartbeat in the last minute.
 After ten seconds without a heartbeat the card dims and shows a clock; after
 one minute it leaves Available. **All aircraft** still includes it, and
-**Selected targets** finds selected aircraft even when no longer available.
+**Command aircraft** finds recipients even when no longer available.
 These display windows are configurable; they are not flight-readiness checks.
 
 **Board** is the initial view. **List** compares aircraft in compact rows;

@@ -19,7 +19,7 @@
 .command-aircraft-picker__more summary::-webkit-details-marker { display:none; }
 .command-aircraft-picker__more[open] { flex-basis:100%; display:flex; }
 .command-aircraft-picker__more[open] button { margin-inline-start:.4rem; }
-.command-aircraft-picker__search { display:flex!important; align-items:center!important; gap:.5rem; border:1px solid var(--color-border-primary); padding-inline:.65rem; margin:.7rem 0; }
+.command-aircraft-picker .command-aircraft-picker__search { display:flex; align-items:center; gap:.5rem; border:1px solid var(--color-border-primary); padding-inline:.65rem; margin:.7rem 0; }
 .command-aircraft-picker__search > svg { flex:none; width:.85rem; color:var(--color-text-secondary); }
 .command-aircraft-picker__search input[type=search] { width:100%; min-width:0; min-height:44px; border:0!important; border-radius:0; background:var(--color-bg-primary); color:var(--color-text-primary); padding:.5rem 0; font:inherit; }
 .command-aircraft-picker__count { display:flex; justify-content:space-between; align-items:center; color:var(--color-text-secondary); font-size:.78rem; margin-bottom:.3rem; }
