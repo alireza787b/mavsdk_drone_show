@@ -32,6 +32,17 @@ describe('matchesDroneSearchQuery', () => {
     expect(matchesDroneSearchQuery(drone, 'pos:3 bravo')).toBe(false);
   });
 
+  it.each(['IDENTITY', 'HWARD', 'POSITIONER', 'CALLSIGNAL', 'SLOTTER'])('treats %s as a name, not an incomplete field prefix', callsign => {
+    expect(matchesDroneSearchQuery({ ...drone, callsign }, callsign)).toBe(true);
+    expect(matchesDroneSearchQuery({ ...drone, callsign: `AIRCRAFT-03-${callsign}` }, `AIRCRAFT-03-${callsign}`)).toBe(true);
+  });
+
+  it('requires an explicit field separator while retaining documented structured forms', () => {
+    expect(matchesDroneSearchQuery(drone, 'hardware:5 callsign Atlas')).toBe(true);
+    expect(matchesDroneSearchQuery(drone, 'slot 3 alias:Atlas')).toBe(true);
+    expect(matchesDroneSearchQuery(drone, 'hardware:2 callsign Atlas')).toBe(false);
+  });
+
   it('matches compact operator identity tokens', () => {
     expect(matchesDroneSearchQuery(drone, 'p3|h5')).toBe(true);
     expect(matchesDroneSearchQuery(drone, 'p9|h5')).toBe(false);

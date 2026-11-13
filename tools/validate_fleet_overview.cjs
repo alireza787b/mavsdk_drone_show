@@ -171,8 +171,14 @@ async function run() {
       await commandCount(count);
       if (count === 3 && width === 1440 && output) await page.screenshot({ path: path.join(output, `inspector-${theme}.png`) });
       await page.getByRole('button', { name: 'Close aircraft details' }).click();
+      await page.getByRole('dialog', { name: fleet[0].callsign, exact: true }).waitFor({ state: 'hidden' });
       await page.getByRole('searchbox', { name: 'Find aircraft' }).fill('AIRCRAFT-01');
-      await page.waitForFunction(() => document.querySelectorAll('.fleet-aircraft').length === 1);
+      try { await page.waitForFunction(() => document.querySelectorAll('.fleet-aircraft').length === 1); }
+      catch (error) {
+        if (output) await page.screenshot({ path: path.join(output, `search-failure-${count}-${width}-${theme}.png`) });
+        throw new Error(`${error.message}\n${JSON.stringify({ query: await page.getByRole('searchbox', { name: 'Find aircraft' }).inputValue(),
+          cards: await page.locator('.fleet-aircraft__identity').allTextContents(), errors })}`);
+      }
       assert.equal(await page.locator('.fleet-aircraft').count(), 1);
       if (count > 1) {
         const hidden = rail.getByRole('button', { name: `Show ${count - 1} command aircraft outside this view`, exact: true });

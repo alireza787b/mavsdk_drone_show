@@ -94,7 +94,9 @@ function parseStructuredDroneQuery(rawQuery) {
 
   const filters = [];
   const consumed = [];
-  const pattern = /\b(pos(?:ition)?|slot|hw|hardware|id|alias|callsign)\s*:?\s*([^\s]+)/gi;
+  // Structured filters are separate tokens with a colon/space separator.
+  // A keyword prefix inside an ordinary callsign is not a filter.
+  const pattern = /(?:^|\s)(pos(?:ition)?|slot|hw|hardware|id|alias|callsign)(?:\s*:\s*|\s+)([^\s]+)/gi;
   let match;
 
   while ((match = pattern.exec(query)) !== null) {

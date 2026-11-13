@@ -18,8 +18,9 @@ async function main() {
   const steps = manifest.steps || [
     ['01', 'Check the fleet', 'Confirm REAL or SITL. Check live aircraft and attention. Click an aircraft to inspect it.', 'overview-3-1440-dark.png'],
     ['02', 'Review command aircraft', 'To beside the flight controls owns recipients. Change the draft, then Use N aircraft. Cancel keeps the previous set; Show and search only change the display.', 'command-aircraft-1440-dark.png'],
-    ['03', 'Inspect without changing targets', 'Names and silhouettes open current measurements. Inspection does not select an aircraft.', 'inspector-dark.png'],
-    ['04', 'Recover deliberately', 'Overview Return is immediate PX4 RTL. Managed Return and mission Start stay on the mission page.', 'return-review-dark.png'],
+    ['03', 'Review Takeoff', 'Check aircraft, height and launch mode. The review keeps its own exact aircraft list; excluding one here does not change Overview recipients.', 'takeoff-review-dark.png'],
+    ['04', 'Inspect without changing recipients', 'Names and silhouettes open current measurements. Inspection does not select an aircraft.', 'inspector-dark.png'],
+    ['05', 'Recover deliberately', 'Overview Return is immediate PX4 RTL. Managed Return and mission Start stay on the mission page. Follow results in Activity.', 'return-review-dark.png'],
   ];
   const browser = await chromium.launch({ headless: true,
     ...((process.env.MDS_CHROMIUM_EXECUTABLE || process.env.MDS_CHROMIUM_PATH) ? { executablePath: process.env.MDS_CHROMIUM_EXECUTABLE || process.env.MDS_CHROMIUM_PATH } : {}),

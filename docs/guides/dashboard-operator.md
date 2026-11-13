@@ -4,7 +4,7 @@ Use **Overview** to check the fleet and send general aircraft commands. Set up,
 start and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,
 **Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.
 
-[Open the four-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).
+[Open the five-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).
 The screenshots use a synthetic fleet, not aircraft clearance.
 
 ## Check the aircraft

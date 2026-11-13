@@ -21,6 +21,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Hidden-recipient counts now include selected aircraft omitted from Map for
   lack of current position. Takeoff shares the controlled choice-row style,
   while keeping its own frozen roster and launch checks.
+- Shared aircraft search requires explicit separators for structured filters;
+  ordinary callsigns beginning with field keywords are no longer misread as
+  hardware/position filters.
 
 ### Quiet software attention and grounded migration
 
