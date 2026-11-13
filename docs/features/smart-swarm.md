@@ -57,7 +57,7 @@ For a clean first Smart Swarm demo in SITL:
 4. open `Smart Swarm` → `Design Swarm` and verify the saved SITL assignments from `swarm_sitl.json`
 5. use Top, Side, 3D and Links views to preview the intended cluster
 6. open `Operate`, select the saved cluster and review its aircraft; use **Takeoff** if needed, then wait for the aircraft to be airborne and settled
-7. choose **Start Swarm**, review the exact formation scope and native readiness, then confirm; use **Managed Return** on the same page when appropriate
+7. choose **Start Swarm**, review the exact formation scope and native readiness, then confirm; **Return all** opens Managed Return when needed
 8. if you want the full branch acceptance run from the command line, use:
    ```bash
    python3 tools/validate_smart_swarm_runtime.py
@@ -311,19 +311,20 @@ cluster command, so an old leader cannot mask a new follower retry.
 Use **Smart Swarm → Operate** for live Smart Swarm control:
 
 - **Start Swarm** for the reviewed saved cluster
-- **Hold Swarm** for the displayed cluster
-- **Managed Return** for sequential RTL
+- **Hold all** for the displayed cluster
+- **Return all** opens Managed Return for cluster-wide sequential RTL
 - **Other actions → Stop following / Land here / Immediate RTL** for explicit recovery
 
 The Operate cluster selection is independent of formation inspection and
-Overview's general aircraft selection. **Other actions → Recovery targets**
-selects the entire cluster or one named aircraft for individual recovery; inspect
-the exact target list before confirming. An ambiguous, stale, or non-executable
+Overview's general aircraft selection. **To** selects the aircraft for individual
+recovery under Other actions; inspect the exact target list before confirming.
+Hold all and Return all retain the entire displayed cluster. An ambiguous or non-executable
 cluster blocks cluster commands instead of silently choosing another cluster.
 Runtime preview and targets use the saved assignment; unsaved formation edits
 do not silently change a recovery target set.
 
-**Hold Swarm / Stop following** ends following and commands PX4 Hold on each selected
+**Hold all** ends following across the cluster; **Other actions → Stop following**
+ends following only for To. Both command PX4 Hold on the addressed
 airborne drone; resuming requires an explicit Start. **Land here** commands each
 selected drone to land at its current position. **Immediate RTL** ends following and
 commands each selected drone's own PX4 Return mode. It is **not** a coordinated
@@ -337,7 +338,8 @@ This keeps swarm intent explicit instead of overloading the generic command send
 
 ### Sequential Return
 
-On **Smart Swarm → Operate**, select the saved cluster and choose **Managed Return**.
+On **Smart Swarm → Operate**, select the saved cluster and choose **Return all**
+to open **Managed Return** for that entire cluster.
 Review the **Return interval** (default **10 seconds**, range 1–300 seconds).
 The confirmation lists the exact aircraft order and relative dispatch times.
 MDS ends following and confirms Hold on all selected aircraft, then dispatches
@@ -396,7 +398,7 @@ Mixed-mission leader rule:
 ### Formation preview and live readiness
 
 The dedicated **Smart Swarm → Operate** tab owns the saved-cluster control panel:
-**Takeoff → Start Swarm → Managed Return** are separate confirmed actions, never a combined
+**Takeoff → Start Swarm → Return all** are separate confirmed actions, never a combined
 automatic mission. The first saved cluster is the initial default. The runtime
 selection is retained for this GCS/mode browser session and is independent of
 drone inspection, formation plots and general dashboard dispatch selection.

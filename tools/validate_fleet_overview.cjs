@@ -294,7 +294,7 @@ async function run() {
           await picker.getByRole('checkbox', { name: includeName('1'), exact: true }).check();
           assert.equal(await picker.getByRole('checkbox', { name: /^Include / }).count(), 100);
           await applyPicker(picker, 100);
-          assert.equal(await page.locator('.fleet-aircraft__recipient').count(), 100);
+          assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), 100);
           assert.deepEqual(errors, []);
           assert.deepEqual(writes, []);
         }
@@ -313,7 +313,7 @@ async function run() {
         await page.reload();
         await page.locator('.fleet-aircraft').first().waitFor();
         await commandCount(0);
-        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), 0, 'Empty selection must restore');
+        assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), 0, 'Empty selection must restore');
         await selectAll();
         await show.selectOption('all');
         await rail.getByRole('button', { name: 'Return', exact: true }).click();
@@ -329,7 +329,7 @@ async function run() {
         assert.deepEqual(await review.locator('.fleet-review-targets li').allTextContents(), frozenNames, 'Link loss cannot retarget the frozen review');
         await commandCount(count);
         await review.getByRole('button', { name: 'Close confirmation dialog' }).click();
-        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count, 'Link loss cannot retarget Overview');
+        assert.equal(await page.locator('.fleet-aircraft__recipient input:checked').count(), count, 'Link loss cannot retarget Overview');
         await assertRecipients(fleet.map(item => item.hw_id));
         if (output) await page.screenshot({ path: path.join(output, 'overview-link-loss.png'), fullPage: true });
       }

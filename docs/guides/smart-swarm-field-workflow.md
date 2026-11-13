@@ -153,7 +153,7 @@ does not turn a pre-start capture into an unnoticed active update.
 
 ![Takeoff review separates aircraft selection from launch mode](../assets/smart-swarm/capture-03-takeoff.png)
 
-![Operate shows cluster roles and following status](../assets/smart-swarm/capture-04-operate.png)
+![Operate defaults to the full cluster with controls above the status roster; synthetic SITL aircraft](../assets/smart-swarm/operate-recipients.png)
 
 ### Command a subset or retry one follower
 
@@ -164,6 +164,10 @@ does not turn a pre-start capture into an unnoticed active update.
 3. Confirm when ready, then verify the selected follower reports Following.
    An already-running selected follower must first be stopped with
    **Other actions → Stop following**, or finish its previous action.
+
+![To stages an exact recipient choice on a phone](../assets/smart-swarm/operate-recipient-picker.png)
+
+![Follower-only Start identifies its read-only leader reference; synthetic SITL review](../assets/smart-swarm/operate-selected-follower.png)
 
 Sources may be flying manually or already leading. They must have fresh native
 airborne evidence and not be taking off, returning or landing. An active relay
@@ -216,7 +220,8 @@ may not adopt an ordinary update at the same time; do not assume simultaneous mo
 
 ## Return and land
 
-For independent aircraft, choose **Managed Return** on **Smart Swarm -> Operate**.
+For independent aircraft, choose **Return all** on **Smart Swarm -> Operate**
+to open **Managed Return** for the displayed cluster.
 Review aircraft order and the interval, then confirm. It requests Hold and submits
 native RTL commands one by one. The default interval is **10 seconds between
 submissions**, not between landings. Watch each aircraft's result.
@@ -231,8 +236,8 @@ RTL nor Managed Return guarantees nonintersecting paths; PX4 home and return
 altitude still determine the flight. A physically attached net needs a separate
 loaded-flight and recovery procedure before use.
 
-For **Immediate RTL** or **Land here**, open **Other actions** and check
-**Recovery targets**: Entire cluster or the intended individual aircraft.
+For **Immediate RTL** or **Land here**, first check **To**, then open
+**Other actions**. These commands address To, not unselected aircraft.
 Land here descends at the current location; RTL follows PX4's return procedure.
 
 ## Resolve a blocked step

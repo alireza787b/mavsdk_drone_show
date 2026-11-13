@@ -4241,6 +4241,17 @@ candidates:
       default: false
       title: Check Start
       type: boolean
+  - description: ''
+    in: query
+    name: target_hw_ids
+    required: false
+    schema:
+      anyOf:
+      - items:
+          type: string
+        type: array
+      - type: 'null'
+      title: Target Hw Ids
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -9117,7 +9128,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 7d794eabd16551c760882bacee50a8848e22001e748751d1bc3a5a7bb78c6b0d
+  openapi_sha256: 7d5abbbcd41e5b7bba21f7af9bf78c345ee45a97c0734ccd6072e6b5e0ec3c12
   title: GCS Server API
   version: '5.5'
 summary:

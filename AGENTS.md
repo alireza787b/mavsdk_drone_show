@@ -29,6 +29,10 @@ Do not assume the environment. Detect it first.
   visible/online aircraft. Filters, inspection, reconnects and disappearing
   groups must not retarget a reviewed action. Mission workspaces own mission
   launch/recovery; close capability gaps before retiring an older entry point.
+- Smart Swarm command recipients are not its formation membership. Selected
+  Start infers read-only upstream references and verifies native source evidence
+  without restarting those aircraft or rewriting saved roles. Preserve explicit
+  whole-cluster recovery labels and normal full-cluster wire compatibility.
 - Treat unknown telemetry as unknown, not fabricated GPS/health or evidence of
   disarm/landing. Inspect aircraft by identity against the current shared model.
 - Shared-shell responsive behavior has one viewport owner. CSS should consume
