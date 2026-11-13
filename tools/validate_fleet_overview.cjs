@@ -237,6 +237,7 @@ async function run() {
         await assertRecipients(fleet.map(item => item.hw_id));
       }
       await page.evaluate(() => window.scrollTo(0, 0));
+      if (allLive) await show.selectOption('available');
       const overflow = await page.evaluate(() => {
         const navigation = document.querySelector('.modern-sidebar-wrapper').getBoundingClientRect();
         return { width: innerWidth, scroll: document.documentElement.scrollWidth, scrollX, navLeft: navigation.left, navRight: navigation.right };
@@ -250,6 +251,15 @@ async function run() {
         await review.waitFor();
         await review.screenshot({ path: path.join(output, `return-review-${theme}.png`) });
         await page.getByRole('button', { name: 'Close confirmation dialog' }).click();
+        if (allLive) {
+          // Beginner guide retains one consistent full-fleet scenario. The
+          // reduced-roster Takeoff proof above is not its illustrative step.
+          await rail.getByRole('button', { name: 'Takeoff', exact: true }).click();
+          const takeoff = page.getByRole('dialog', { name: 'Takeoff', exact: true });
+          await takeoff.getByText('Ready', { exact: true }).nth(count - 1).waitFor();
+          await takeoff.screenshot({ path: path.join(output, `takeoff-review-${theme}.png`) });
+          await takeoff.getByRole('button', { name: 'Close confirmation dialog' }).click();
+        }
       }
       let soak = null;
       if (soakSeconds && count === 100 && width === 1440 && theme === 'dark') {

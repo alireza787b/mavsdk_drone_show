@@ -1,7 +1,8 @@
 # Overview: separate display from command recipients
 
-Status: approved; implementation candidate under isolated validation. No
-production deployment or aircraft operation has been performed for this phase.
+Status: implemented; source candidate accepted with isolated built-UI evidence.
+Production activation is a separate grounded-maintenance step; this UI evidence
+is not hardware flight clearance.
 
 ## Evidence and consultation
 
@@ -179,3 +180,33 @@ Keep the approved default and restoration rules. Removing permanent card
 checkbox editing is the approved material interaction change. It makes recipient editing
 one deliberate operation but adds no steps to the common all-aircraft command.
 Actual field operator feedback remains part of the usability acceptance loop.
+
+## Acceptance evidence — 13 November 2026
+
+- 179 React tests across 14 suites passed, including selection persistence,
+  exact command snapshots, unavailable/uncertain reviews, Takeoff, navigation,
+  aircraft inspection, Mission Config and shared aircraft search.
+- A strict production build passed on the designated remote validation host.
+- 32 built-browser cases passed: 1/3/20/100 aircraft × 390/768/900/1440 CSS
+  pixels × dark/light. Checks include local draft Apply/Cancel, keyboard focus
+  containment/restoration, touch targets, hidden Map recipients, a lost link
+  during a frozen review, remembered empty selection and Takeoff-local exclusions.
+- Two additional long-name cases passed at 720×480 CSS pixels / scale factor 2
+  (200%-equivalent reflow, not a claim of browser-chrome zoom automation).
+- Four all-live synthetic guide cases and one bounded 62-second, 100-aircraft
+  stability run passed: 39 browser scenarios total. Fixture writes are blocked;
+  no aircraft commands or parameter writes were sent.
+- Actual image inspection exposed a shared form-label specificity conflict;
+  the controlled row owns its horizontal layout now, with a browser assertion.
+- Long-name validation reproduced four failing shared-search regressions.
+  Explicit colon/space-delimited filter tokens fixed them without special
+  callsign exceptions; documented search forms remain covered.
+- Refreshed the [five-step operator guide](../assets/operator-overview/overview-operator-guide.png),
+  desktop/phone and light/dark screenshots, operator documentation and generated
+  documentation index. Images use synthetic identities, not a customer fleet.
+
+No native command/admission, flight controller, formation, SDK dependency or
+API/MCP schema change is part of this release. Existing mission and Takeoff
+ownership is unchanged. No new aircraft/SITL image is required for this GCS UI
+change. A staged source candidate must not be described as an activated portal
+until its separate maintenance deployment is confirmed and verified.

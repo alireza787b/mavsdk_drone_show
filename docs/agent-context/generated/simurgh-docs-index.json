@@ -6533,7 +6533,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "564b1457c839d1614675147f62daf16e04a09bfa1f361aaa7fb011b74bb880f3",
+      "content_hash": "ea7f9feccd41f41ecde39ade2db323f3417604041c781ab9b978a5f8b3b3b884",
       "heading": "Overview operator guide",
       "id": "mds.dashboard_operator:001-01-overview-operator-guide",
       "links": [],
@@ -6547,13 +6547,13 @@
         "operations",
         "selection"
       ],
-      "text": "# Overview operator guide\n\nUse **Overview** to check the fleet and send general aircraft commands. Set up,\nstart and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,\n**Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.\n\n[Open the four-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).\nThe screenshots use a synthetic fleet, not aircraft clearance.",
+      "text": "# Overview operator guide\n\nUse **Overview** to check the fleet and send general aircraft commands. Set up,\nstart and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,\n**Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.\n\n[Open the five-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).\nThe screenshots use a synthetic fleet, not aircraft clearance.",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "e28e98103bb60afbc3fbc2017686e78ad80584e0b59152a42d27e68a7f3f5c51",
+      "content_hash": "b872a6f75dd1821f54fe14c7006beeb98263e374804461cad8f61a803b7afb4b",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-01-check-the-aircraft",
       "links": [],
@@ -6567,7 +6567,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card dims and shows a clock; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Selected targets** finds selected aircraft even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
+      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card dims and shows a clock; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Command aircraft** finds recipients even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "fe2c5d2243fd4e285f2c014819c9dbb93dfb983326aaa71acf8675a6f70a7f9f",
+      "content_hash": "c1d1e6f76472e55160e93a1aa9c1a81efa8fc5bd027130c95e863638b895680d",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
