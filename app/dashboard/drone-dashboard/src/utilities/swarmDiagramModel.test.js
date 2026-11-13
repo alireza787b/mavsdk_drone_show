@@ -32,3 +32,11 @@ test('fresh runtime still shows real controller failure and normal following dis
   });
   expect(swarmNodeStatus(member, { phase: 'active', received_at_ms: 1000 }, options).label).toBe('Following');
 });
+
+test('an old operation cannot keep a freshly disarmed aircraft permanently unconfirmed',()=>{
+  const member={hw_id:'2',follow:'1',available:true,armed:false};
+  expect(swarmNodeStatus(member,null,{hasSession:true,stale:true}).label).toBe('Not following');
+  expect(swarmNodeStatus({...member,available:false},null,{hasSession:true,stale:true}).label).toBe('Telemetry delayed');
+  expect(swarmNodeStatus({...member,armed:undefined},null,{hasSession:true,stale:true}).label).toBe('Unconfirmed');
+  expect(swarmNodeStatus(member,{phase:'failed',received_at_ms:1000},{hasSession:true,now:1001}).label).toBe('Failed');
+});

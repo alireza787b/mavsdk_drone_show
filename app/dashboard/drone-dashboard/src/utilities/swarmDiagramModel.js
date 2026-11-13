@@ -30,6 +30,9 @@ export function swarmNodeStatus(member, node, { stale = false, hasSession = fals
   if (!member.available) return { label: 'Telemetry delayed', tone: 'warning', symbol: '?' };
   if (!hasSession) return { label: 'Not following', tone: 'neutral', symbol: '—' };
   if (stale || !node || !Number.isFinite(node.received_at_ms) || now - node.received_at_ms > 15000) {
+    // Fresh disarm is enough to rule out live following, not to claim landing.
+    // An old session must not leave an idle aircraft permanently Unconfirmed.
+    if (member.armed === false) return { label: 'Not following', tone: 'neutral', symbol: '—' };
     return { label: 'Unconfirmed', tone: 'warning', symbol: '?' };
   }
   const phases = {
