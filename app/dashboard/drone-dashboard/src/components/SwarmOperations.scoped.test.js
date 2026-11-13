@@ -71,3 +71,25 @@ test('empty To stays explicit; Hold all and Return all keep their named full-clu
   await waitFor(()=>expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
   expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].target_drone_ids).toEqual(['1','2','3']);
 });
+
+test.each([1,100])('%i aircraft default to the whole formation with controls before the roster',async count=>{
+  const roster=Array.from({length:count},(_,i)=>({...members[0],hw_id:String(i+1),follow:i?'1':'0'}));
+  fetchGcsResource.mockResolvedValue({data:{runtime_mode:'SITL',revision:'same',clusters:[{cluster_id:'1',members:roster}]}});
+  render(<SwarmOperations/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count',String(count)));
+  expect(screen.queryByRole('combobox',{name:'Swarm formation'})).not.toBeInTheDocument();
+  const diagram=screen.getByRole('list',{name:'Cluster aircraft'});
+  expect(within(diagram).getAllByRole('button')).toHaveLength(count);
+  expect(screen.getByRole('button',{name:'Hold all'}).compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test('a deliberate cluster change selects only that cluster, not the entire fleet',async()=>{
+  fetchGcsResource.mockResolvedValue({data:{runtime_mode:'SITL',revision:'same',clusters:[
+    {cluster_id:'1',members}, {cluster_id:'4',members:[{...members[0],hw_id:'4'}]},
+  ]}});
+  await mount();choose(['2']);
+  fireEvent.change(screen.getByRole('combobox',{name:'Swarm formation'}),{target:{value:'4'}});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','1'));
+  expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('title','Command recipients: Drone 4');
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+});

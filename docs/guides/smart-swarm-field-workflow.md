@@ -179,6 +179,12 @@ of To; Return all opens the existing Managed Return review. Changing clusters
 selects that cluster's full roster. Polls, reconnects and new members never
 silently edit a custom selection.
 
+Takeoff/Start/Hold all/Return all stay above the bounded status roster, even for
+large clusters. A single cluster has no formation selector; multiple clusters
+show one selector. Large recipient summaries collapse to a count, while To and
+the aircraft details retain exact identities. Scrolling the roster selects no
+aircraft and dispatches nothing.
+
 ## Pause and resume
 
 Select **Hold all** to request Hold for the complete displayed cluster,

@@ -1,4 +1,9 @@
-import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence } from './swarmCommandScope';
+import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence, swarmNamesSummary } from './swarmCommandScope';
+
+test('large rosters keep the visible summary compact without losing the count',()=>{
+  expect(swarmNamesSummary(['One'])).toBe('One');
+  expect(swarmNamesSummary(Array.from({length:100},(_,i)=>`H${i+1}`))).toBe('H1 · H2 +98');
+});
 import { swarmStartValidUntil } from './swarmStartReadiness';
 const members=[{hw_id:'1',follow:'0'},{hw_id:'2',follow:'1'},{hw_id:'3',follow:'2'},{hw_id:'4',follow:'0'}];
 test('upstream sources are explicit, do not widen recipients, and preserve relay roles',()=>{

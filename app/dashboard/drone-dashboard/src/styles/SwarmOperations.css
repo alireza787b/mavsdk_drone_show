@@ -19,6 +19,7 @@
 .swarm-ops__header > div:first-child { margin-right: auto; }
 .swarm-ops__header .swarm-ops__overflow { width: 44px; padding: 0; flex: 0 0 44px; }
 .swarm-ops h3 { margin: 0; }
+.swarm-ops > .swarm-diagram { max-height: min(45vh, 28rem); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .swarm-ops select, .swarm-ops input {
   color: var(--color-text-primary);
   background: var(--color-surface-inset);

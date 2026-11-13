@@ -14,7 +14,7 @@ import TakeoffDialog from './TakeoffDialog';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
 import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
 import useSwarmCommandScope from '../features/fleet-overview/useSwarmCommandScope';
-import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence } from '../utilities/swarmCommandScope';
+import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence, swarmNamesSummary } from '../utilities/swarmCommandScope';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
 import { swarmStartReadiness, swarmStartValidUntil } from '../utilities/swarmStartReadiness';
 import { formationReferenceLabel } from '../utilities/swarmDesignPresentation';
@@ -344,20 +344,6 @@ export default function SwarmOperations() {
         planHref={`/swarm-design?tab=formation${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         disabled={busy} captureDisabled={!cluster || members.length < 2} />
-      <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
-        statuses={Object.fromEntries(members.map((m) => {
-          const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
-          return [m.hw_id, { ...node,
-            label: `${heldScope ? '' : `${states[m.hw_id]} · `}${node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
-        }))} />
-      {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
-        <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
-        {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
-        <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
-      </div>}
-      {members.some((m) => m.available && m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
-        {members.filter((m) => m.available && m.readiness_status === 'blocked').map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
-      </p>}
       <div className="swarm-ops__targets">
         <CommandAircraftControl ids={commandScope.ids} aircraft={pickerAircraft}
           review={{ unresolvedIds: commandScope.missing, hiddenIds: [] }}
@@ -379,6 +365,21 @@ export default function SwarmOperations() {
             setHoldReceipt(null);
           }} />
       </div>
+      <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
+        statuses={Object.fromEntries(members.map((m) => {
+          const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
+          return [m.hw_id, { ...node,
+            label: `${heldScope ? '' : `${states[m.hw_id]} · `}${node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
+        }))} />
+      {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
+        <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
+        {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
+        <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
+      </div>}
+      {members.some((m) => m.available && m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
+        {members.filter((m) => m.available && m.readiness_status === 'blocked').slice(0, 2).map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
+        {members.filter((m) => m.available && m.readiness_status === 'blocked').length > 2 && ' · More in aircraft details'}
+      </p>}
       {advanced && <div className="swarm-ops__advanced">
         <a href="/globe-view">Globe</a>
         {['hold', 'land', 'rtl'].map((action) => <button className="operator-button operator-button--ghost" type="button" key={action} disabled={busy || !canCommand} onClick={() => review(action)}>{LABELS[action]}</button>)}
@@ -405,10 +406,10 @@ export default function SwarmOperations() {
           setConfirmation(null);
         }} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">
-          <strong>{confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })).join(' · ')}</strong>
+          <strong title={`${confirmation.targets.length} aircraft`}>{swarmNamesSummary(confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })))}</strong>
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
-            {(confirmation.references || []).length > 0 && <small className="swarm-ops__references" title="Read-only leader references. No command is sent to these aircraft."><FaLink aria-hidden="true" /> Leader reference: {confirmation.references.map(id => members.find(m => m.hw_id === id)?.callsign || `H${id}`).join(', ')}</small>}
+            {(confirmation.references || []).length > 0 && <small className="swarm-ops__references" title="Read-only leader references. No command is sent to these aircraft."><FaLink aria-hidden="true" /> Leader reference: {swarmNamesSummary(confirmation.references.map(id => members.find(m => m.hw_id === id)?.callsign || `H${id}`))}</small>}
             <details><summary>Spacing</summary><ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {formationReferenceLabel(m.frame)}</li>)}</ul></details></>}
           {confirmation.excluded.length > 0 && <p>Partial formation · excludes Drone {confirmation.excluded.join(', ')}.</p>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}

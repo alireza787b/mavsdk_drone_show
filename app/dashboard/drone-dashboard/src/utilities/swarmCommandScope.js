@@ -1,4 +1,7 @@
 /** Advisory display of saved upstream links, never edits or flight admission. */
+export const swarmNamesSummary = names => names.length <= 3 ? names.join(' · ')
+  : `${names.slice(0, 2).join(' · ')} +${names.length - 2}`;
+
 export function swarmReferenceIds(members, targets) {
   const byId = new Map(members.map(row => [String(row.hw_id), row]));
   const included = new Set(targets), references = new Set();
