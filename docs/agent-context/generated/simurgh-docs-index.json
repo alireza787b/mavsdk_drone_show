@@ -6613,7 +6613,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "def912f9a8d83a57d1964083cc40c257599a21f07c7c2605106019bc6321cdf7",
+      "content_hash": "0c5a3d9f06bdbb0953b3c3442234683f911384b5997a4314b4e70a301ce8ca47",
       "heading": "Select command targets",
       "id": "mds.dashboard_operator:003-01-select-command-targets",
       "links": [],
@@ -6627,7 +6627,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- Check an aircraft's box to include or exclude it.\n- **Available**, **All**, **None** and **Select group** are deliberate selection actions.\n- Search and filters only change what you see. The selected count includes\n hidden aircraft. Click that count to show the selected set.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, **Clusters** groups the display without\nchanging targets. It is hidden for a single formation; **Select group** is the\nseparate, explicit command-target control.",
+      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.\n If they are correct, go straight to the command—no extra selection step.\n- To change them, open **To**, check aircraft, then **Use N aircraft**.\n Search never excludes hidden rows. Cancel/Escape discards the draft.\n- **Available** snapshots aircraft available now. Cluster shortcuts appear only\n for multiple clusters; **All configured** is under the ellipsis menu. The\n clear icon makes an empty draft; applying it disables commands.\n- The eye-marked **Show**, search and Board/List/Map change only what you see.\n A paper-plane mark on a card means it is a command recipient, not ready to fly.\n Cards always open details; they never select aircraft.\n- The eye-slash count beside **To** identifies recipients outside the current\n view (including aircraft without a current map position). Click it to reveal\n the recipient list; command recipients do not change.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, the cluster icon groups the display\nwithout changing targets. It is hidden for a single formation; the cluster\nshortcut inside **To** separately changes the recipient draft.\n\n![Command recipients are reviewed separately from the display, using synthetic aircraft](../assets/operator-overview/command-aircraft-1440-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -17580,7 +17580,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 12,
-      "content_hash": "8fe237401fdf49b0d1d16e92580e8088fadff21b42f33c034b1b98716e0543c2",
+      "content_hash": "fe2c5d2243fd4e285f2c014819c9dbb93dfb983326aaa71acf8675a6f70a7f9f",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

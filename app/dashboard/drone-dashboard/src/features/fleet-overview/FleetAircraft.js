@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
+import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb, FaPaperPlane } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 
@@ -81,12 +81,12 @@ function heartbeatText(availability) {
   return availability.ageSec == null ? 'Unknown' : `${availability.label} · ${Math.round(availability.ageSec)}s`;
 }
 
-export const AircraftTile = memo(function AircraftTile({ item, selected, inspected, onToggle, onInspect, list = false }) {
+export const AircraftTile = memo(function AircraftTile({ item, selected, inspected, onInspect, list = false }) {
   const issue = item.issues[0];
   return <article className={`fleet-aircraft ${list ? 'fleet-aircraft--row' : ''} ${selected ? 'is-selected' : ''} ${inspected ? 'is-inspected' : ''} ${item.availability.stale || item.availability.label === 'Offline' ? 'is-stale' : ''}`}
     data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()}>
-    <label className="fleet-aircraft__select"><input type="checkbox" checked={selected} onChange={() => onToggle(item.id)}
-      aria-label={`Select ${item.label} · H${item.id}`} /><span className="fleet-visually-hidden">Command target</span></label>
+    {selected && <span className="fleet-aircraft__recipient" aria-label={`Command recipient: ${item.label} · H${item.id}`}
+      title="Included in command recipients"><FaPaperPlane aria-hidden="true" /></span>}
     <button type="button" className="fleet-aircraft__inspect" onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}>
       <span className="fleet-aircraft__identity"><span><strong>{item.label}</strong><small>H{item.id}{item.identity.posId ? ` · P${item.identity.posId}` : ''}</small></span>
         <FaInfoCircle className="fleet-aircraft__info" aria-hidden="true" /></span>

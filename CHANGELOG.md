@@ -9,6 +9,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Explicit command recipients, quiet fleet display
+
+- Overview separates eye-marked display tools from a single **To** chooser
+  beside flight controls. Cards and map markers only inspect; a small
+  paper-plane mark identifies recipients without another checkbox toolbar.
+- The searchable chooser stages exact aircraft IDs until **Use N aircraft**.
+  Cancel, filtering, reconnects, cluster changes and later arrivals cannot
+  retarget commands. Empty/missing saved selections and existing native
+  readiness, request identity and unavailable-aircraft reviews are preserved.
+- Hidden-recipient counts now include selected aircraft omitted from Map for
+  lack of current position. Takeoff shares the controlled choice-row style,
+  while keeping its own frozen roster and launch checks.
+
 ### Quiet software attention and grounded migration
 
 - Mission Config is focused on aircraft/slot editing with scoped, theme-aware

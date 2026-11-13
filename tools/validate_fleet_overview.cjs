@@ -70,9 +70,62 @@ async function run() {
         throw new Error(`${error.message}\n${JSON.stringify({ errors, reads, text: (await page.locator('body').innerText()).slice(0, 1800) })}`);
       }
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; document.documentElement.classList.toggle('theme-dark', theme === 'dark'); document.documentElement.classList.toggle('theme-light', theme === 'light'); }, theme);
-      const boxes = page.getByRole('checkbox', { name: /^Select / });
-      await page.waitForFunction(count => document.querySelectorAll('.fleet-aircraft input:checked').length === count, count);
-      assert.equal(await boxes.count(), count);
+      const rail = page.locator('.fleet-action-rail[aria-label="Selected aircraft actions"]');
+      const scope = rail.getByRole('button', { name: 'Choose command aircraft', exact: true });
+      const show = page.getByRole('combobox', { name: 'Show aircraft', exact: true });
+      const commandCount = async expected => {
+        await page.waitForFunction(expected => document.querySelector('[aria-label="Choose command aircraft"]')?.getAttribute('data-recipient-count') === String(expected), expected);
+        assert.equal(await scope.getAttribute('data-recipient-count'), String(expected));
+      };
+      const openPicker = async () => {
+        await scope.click();
+        const dialog = page.getByRole('dialog', { name: 'Command aircraft', exact: true });
+        await dialog.waitFor();
+        const bounds = await dialog.boundingBox();
+        assert(bounds && bounds.x >= -2 && bounds.x + bounds.width <= width + 2
+          && bounds.y >= -2 && bounds.y + bounds.height <= 962, 'Command aircraft picker must remain inside the viewport');
+        return dialog;
+      };
+      const applyPicker = async (dialog, expected) => {
+        await dialog.getByRole('button', { name: `Use ${expected} aircraft`, exact: true }).click();
+        await dialog.waitFor({ state: 'hidden' });
+        await commandCount(expected);
+      };
+      const selectAll = async () => {
+        const dialog = await openPicker();
+        const all = dialog.getByRole('button', { name: 'All configured', exact: true, includeHidden: true });
+        if (!await all.isVisible()) {
+          await dialog.locator('summary[aria-label="More command aircraft options"]').click();
+        }
+        await all.click();
+        await applyPicker(dialog, count);
+      };
+      const includeName = id => `Include ${fleet[Number(id) - 1].callsign} (H${id})`;
+      const assertRecipients = async ids => {
+        const dialog = await openPicker();
+        const boxes = dialog.getByRole('checkbox', { name: /^Include / });
+        assert.equal(await boxes.count(), count, 'Picker includes the configured roster, not only displayed aircraft');
+        const checked = await boxes.evaluateAll(nodes => nodes.filter(node => node.checked).map(node => node.getAttribute('aria-label')).sort());
+        assert.deepEqual(checked, ids.map(includeName).sort());
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      };
+      const initialCount = allLive || count === 1 ? count : count - 1;
+      await commandCount(initialCount);
+      assert.equal(await page.locator('.fleet-aircraft input[type="checkbox"]').count(), 0, 'Aircraft cards inspect; they never edit recipients');
+      assert.equal(await page.locator('.fleet-aircraft__recipient').count(), initialCount);
+      await assertRecipients(fleet.slice(0, initialCount).map(item => item.hw_id));
+      const available = await openPicker();
+      await available.getByRole('button', { name: 'Use available now', exact: true }).click();
+      if (count === 3 && [390, 1440].includes(width) && output) await available.screenshot({ path: path.join(output, `command-aircraft-${width}-${theme}.png`) });
+      await applyPicker(available, initialCount);
+      // Available is a one-time default snapshot. Broader scope is deliberate.
+      await selectAll();
+      await show.selectOption('all');
+      assert.equal(await page.locator('.fleet-aircraft').count(), count);
+      const cancelled = await openPicker();
+      await cancelled.getByRole('checkbox', { name: includeName('1'), exact: true }).uncheck();
+      await cancelled.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await commandCount(count);
       const guide = await page.locator('.route-docs-shortcut a').boundingBox();
       const alerts = await page.locator('.fleet-alerts__trigger').boundingBox();
       assert(guide && guide.width >= 44 && guide.height >= 44, 'Page guide must retain a touch-sized target');
@@ -89,22 +142,38 @@ async function run() {
       const first = page.getByRole('button', { name: /^Inspect AIRCRAFT-01/ });
       await first.click();
       await page.getByRole('dialog', { name: 'AIRCRAFT-01' }).waitFor();
-      assert.equal(await boxes.count(), count);
+      await commandCount(count);
       if (count === 3 && width === 1440 && output) await page.screenshot({ path: path.join(output, `inspector-${theme}.png`) });
       await page.getByRole('button', { name: 'Close aircraft details' }).click();
       await page.getByRole('searchbox', { name: 'Find aircraft' }).fill('AIRCRAFT-01');
       assert.equal(await page.locator('.fleet-aircraft').count(), 1);
-      if (count > 1) await page.getByText(`${count} selected · ${count - 1} hidden`, { exact: true }).waitFor();
-      await page.getByRole('searchbox', { name: 'Find aircraft' }).fill('');
       if (count > 1) {
-        await boxes.last().uncheck();
-        await page.getByRole('button', { name: 'Takeoff', exact: true }).click();
+        const hidden = rail.getByRole('button', { name: `Show ${count - 1} command aircraft outside this view`, exact: true });
+        await hidden.waitFor();
+        await commandCount(count);
+        await hidden.click();
+        assert.equal(await page.locator('.fleet-aircraft').count(), count, 'Show hidden recipients changes display only');
+        await commandCount(count);
+      } else await page.getByRole('searchbox', { name: 'Find aircraft' }).fill('');
+      if (count > 1) {
+        const picker = await openPicker();
+        await picker.getByRole('searchbox', { name: 'Find command aircraft', exact: true }).fill(fleet[count - 1].callsign);
+        await picker.getByRole('checkbox', { name: includeName(String(count)), exact: true }).uncheck();
+        await applyPicker(picker, count - 1);
+        await rail.getByRole('button', { name: 'Takeoff', exact: true }).click();
         const review = page.getByRole('dialog', { name: 'Takeoff', exact: true });
         await review.waitFor();
-        assert.equal(await review.getByRole('checkbox').count(), count - 1);
+        const reviewed = review.getByRole('checkbox', { name: /^Include / });
+        assert.equal(await reviewed.count(), count - 1, 'Takeoff owns the exact initiating recipient snapshot');
+        assert.deepEqual(await reviewed.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')).sort()), fleet.slice(0, count - 1).map(item => includeName(item.hw_id)).sort());
+        // Takeoff-local exclusions do not edit Overview's saved command scope.
+        await reviewed.first().uncheck();
+        await commandCount(count - 1);
+        await reviewed.first().check();
         if (count === 3 && width === 1440 && output) await review.screenshot({ path: path.join(output, `takeoff-review-${theme}.png`) });
-        await page.getByRole('button', { name: 'Close confirmation dialog' }).click();
-        await boxes.last().check();
+        await review.getByRole('button', { name: 'Close confirmation dialog' }).click();
+        await assertRecipients(fleet.slice(0, count - 1).map(item => item.hw_id));
+        await selectAll();
       }
       await page.getByRole('button', { name: 'List', exact: true }).click();
       await page.locator('.fleet-board--list').waitFor();
@@ -112,10 +181,26 @@ async function run() {
       if (count === 3 && width === 1440) {
         await page.getByRole('button', { name: 'Map', exact: true }).click();
         await page.locator('.leaflet-container').waitFor();
-        if (!allLive) await page.getByRole('button', { name: /without current position/ }).waitFor();
+        if (!allLive) {
+          await page.getByRole('button', { name: /without current position/ }).waitFor();
+          await rail.getByRole('button', { name: 'Show 1 command aircraft outside this map', exact: true }).waitFor();
+        }
         if (output) await page.screenshot({ path: path.join(output, `overview-map-${theme}.png`) });
+        if (!allLive) {
+          await rail.getByRole('button', { name: 'Show 1 command aircraft outside this map', exact: true }).click();
+          await page.locator('.fleet-aircraft').first().waitFor();
+          await commandCount(count);
+          assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count);
+          await page.getByRole('button', { name: 'Map', exact: true }).click();
+          await page.getByRole('button', { name: /without current position/ }).click();
+          await page.locator('.fleet-board--list').waitFor();
+          assert.equal(await page.locator('.fleet-aircraft').count(), 1, 'Unmapped lookup shows the missing-position aircraft');
+          await commandCount(count);
+        }
         await page.getByRole('button', { name: 'Board', exact: true }).click();
-        assert.equal(await page.locator('.fleet-aircraft input:checked').count(), count);
+        await show.selectOption('all');
+        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count);
+        await assertRecipients(fleet.map(item => item.hw_id));
       }
       await page.evaluate(() => window.scrollTo(0, 0));
       const overflow = await page.evaluate(() => {
@@ -148,16 +233,17 @@ async function run() {
           await page.getByRole('button', { name: 'Board', exact: true }).click();
           await first.click();
           await page.getByRole('button', { name: 'Close aircraft details' }).click();
-          const elapsed = await page.evaluate(() => new Promise(resolve => {
-            const input = document.querySelector('.fleet-aircraft input');
+          const picker = await openPicker();
+          const elapsed = await picker.getByRole('checkbox', { name: includeName('1'), exact: true }).evaluate(input => new Promise(resolve => {
             const started = performance.now();
             input.click();
             requestAnimationFrame(() => resolve(performance.now() - started));
           }));
           interactions.push(elapsed);
-          await boxes.first().check();
-          assert.equal(await boxes.count(), 100);
-          assert.equal(await page.locator('.fleet-aircraft input:checked').count(), 100);
+          await picker.getByRole('checkbox', { name: includeName('1'), exact: true }).check();
+          assert.equal(await picker.getByRole('checkbox', { name: /^Include / }).count(), 100);
+          await applyPicker(picker, 100);
+          assert.equal(await page.locator('.fleet-aircraft__recipient').count(), 100);
           assert.deepEqual(errors, []);
           assert.deepEqual(writes, []);
         }
@@ -170,14 +256,30 @@ async function run() {
         console.log(JSON.stringify({ status: 'soak-passed', ...soak }));
       }
       if (count === 3 && width === 1440 && theme === 'dark') {
-        await page.getByRole('button', { name: 'None', exact: true }).click();
+        const picker = await openPicker();
+        await picker.getByRole('button', { name: 'Clear command aircraft', exact: true }).click();
+        await applyPicker(picker, 0);
         await page.reload();
         await page.locator('.fleet-aircraft').first().waitFor();
-        assert.equal(await page.locator('.fleet-aircraft input:checked').count(), 0, 'Empty selection must restore');
-        await page.getByRole('button', { name: 'All', exact: true }).click();
+        await commandCount(0);
+        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), 0, 'Empty selection must restore');
+        await selectAll();
+        await show.selectOption('all');
+        await rail.getByRole('button', { name: 'Return', exact: true }).click();
+        const review = page.getByRole('dialog', { name: 'Return', exact: true });
+        await review.waitFor();
+        const frozenNames = await review.locator('.fleet-review-targets li').allTextContents();
+        assert.equal(frozenNames.length, count);
         stale = true;
-        await page.waitForFunction(() => [...document.querySelectorAll('.fleet-aircraft')].every(node => node.dataset.current === 'false'));
-        assert.equal(await page.locator('.fleet-aircraft input:checked').count(), count, 'Link loss cannot retarget');
+        await page.waitForFunction(count => {
+          const cards = [...document.querySelectorAll('.fleet-aircraft')];
+          return cards.length === count && cards.every(node => node.dataset.current === 'false');
+        }, count);
+        assert.deepEqual(await review.locator('.fleet-review-targets li').allTextContents(), frozenNames, 'Link loss cannot retarget the frozen review');
+        await commandCount(count);
+        await review.getByRole('button', { name: 'Close confirmation dialog' }).click();
+        assert.equal(await page.locator('.fleet-aircraft__recipient').count(), count, 'Link loss cannot retarget Overview');
+        await assertRecipients(fleet.map(item => item.hw_id));
         if (output) await page.screenshot({ path: path.join(output, 'overview-link-loss.png'), fullPage: true });
       }
       assert.deepEqual(writes, [], 'Read-only acceptance must never dispatch');

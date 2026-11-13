@@ -1,10 +1,16 @@
-import { filterFleetAircraft, groupFleetAircraft } from './fleetDisplay';
+import { filterFleetAircraft, groupFleetAircraft, renderedFleetAircraft } from './fleetDisplay';
 
 const rows = [
   { id: '1', raw: {}, availability: { available: true }, position: { current: true }, flightState: 'Grounded' },
   { id: '2', raw: {}, availability: { available: false }, position: { current: false }, flightState: 'Unknown', attention: true },
   { id: '3', raw: {}, availability: { available: true }, position: { current: true }, flightState: 'Airborne' },
 ];
+test('map rendered identities omit only unavailable positions, not command recipients', () => {
+  expect(renderedFleetAircraft(rows,'board')).toBe(rows);
+  expect(renderedFleetAircraft(rows,'list')).toBe(rows);
+  expect(renderedFleetAircraft(rows,'map').map(row => row.id)).toEqual(['1','3']);
+  expect(rows).toHaveLength(3);
+});
 test('available default and selected filter do not mutate membership', () => {
   const selectedIds = new Set(['2']);
   expect(filterFleetAircraft(rows).map((row) => row.id)).toEqual(['1', '3']);

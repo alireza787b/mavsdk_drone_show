@@ -1,0 +1,29 @@
+.command-aircraft-control { display:flex; align-items:center; gap:.4rem; flex:1 1 240px; min-width:0; }
+.fleet-overview .command-aircraft-control__choose { display:flex; align-items:center; gap:.5rem; min-width:0; max-width:100%; border-color:var(--color-primary-border); }
+.command-aircraft-control__choose > svg { flex:none; width:.9rem; }
+.command-aircraft-control__choose > svg:first-child { color:var(--color-primary); }
+.command-aircraft-control__label { color:var(--color-text-secondary); font-size:.78rem; }
+.command-aircraft-control__names { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; max-width:22rem; text-align:left; font-size:.82rem; }
+.command-aircraft-control__choose strong { font-variant-numeric:tabular-nums; padding-inline:.3rem; border-inline-start:1px solid var(--color-border-primary); }
+.fleet-overview .command-aircraft-control__hidden,.fleet-overview .command-aircraft-control__missing { display:inline-flex; align-items:center; gap:.4rem; padding-inline:.5rem; }
+.command-aircraft-control__missing { color:var(--color-warning)!important; }
+.command-aircraft-picker { min-width:0; }
+.command-aircraft-picker__tools { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; }
+.command-aircraft-picker__tools :is(button,select,summary) { min-height:44px; border:1px solid var(--color-border-primary); border-radius:2px; background:var(--color-bg-primary); color:var(--color-text-primary); padding:.5rem .7rem; font:inherit; font-size:.82rem; cursor:pointer; }
+.command-aircraft-picker__tools button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; }
+.command-aircraft-picker__tools button:disabled { opacity:.5; cursor:default; }
+.command-aircraft-picker__tools button small { color:var(--color-text-secondary); font-variant-numeric:tabular-nums; }
+.command-aircraft-picker__tools select { min-width:0; max-width:100%; }
+.command-aircraft-picker__more { margin-inline-start:auto; }
+.command-aircraft-picker__more summary { display:flex; align-items:center; justify-content:center; list-style:none; }
+.command-aircraft-picker__more summary::-webkit-details-marker { display:none; }
+.command-aircraft-picker__more[open] { flex-basis:100%; display:flex; }
+.command-aircraft-picker__more[open] button { margin-inline-start:.4rem; }
+.command-aircraft-picker__search { display:flex!important; align-items:center!important; gap:.5rem; border:1px solid var(--color-border-primary); padding-inline:.65rem; margin:.7rem 0; }
+.command-aircraft-picker__search > svg { flex:none; width:.85rem; color:var(--color-text-secondary); }
+.command-aircraft-picker__search input[type=search] { width:100%; min-width:0; min-height:44px; border:0!important; border-radius:0; background:var(--color-bg-primary); color:var(--color-text-primary); padding:.5rem 0; font:inherit; }
+.command-aircraft-picker__count { display:flex; justify-content:space-between; align-items:center; color:var(--color-text-secondary); font-size:.78rem; margin-bottom:.3rem; }
+.command-aircraft-picker__roster { max-height:min(46dvh,420px); overflow:auto; overscroll-behavior:contain; border-top:1px solid var(--color-border-primary); }
+.command-aircraft-picker__empty { padding:1rem 0; text-align:center; color:var(--color-text-secondary); font-size:.8rem; }
+.command-aircraft-picker :focus-visible { outline:2px solid var(--color-primary); outline-offset:2px; }
+@media(max-width:620px) { .command-aircraft-control { flex-basis:100%; width:100%; } .command-aircraft-control__choose { flex:1; } .command-aircraft-control__names { max-width:none; } }

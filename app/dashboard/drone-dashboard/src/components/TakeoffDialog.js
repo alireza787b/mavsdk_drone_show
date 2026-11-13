@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ConfirmDialog } from './ui';
+import AircraftChoiceRow from './ui/AircraftChoiceRow';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { getBackendURL } from '../config/apiConfig';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
@@ -225,10 +226,9 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
           const label = !row.selected ? 'Not included' : inProgress ? (status.replaceAll('_', ' ')) : { ready: 'Ready', blocked: 'Blocked', checking: 'Checking', unavailable: 'Unavailable' }[status] || 'Checking';
           const reason = row.selected && (inProgress ? execution?.reason : row.reason);
           return <li key={row.id} className={`takeoff-review__aircraft--${status}`}>
-            <label className="takeoff-review__member"><input type="checkbox" checked={row.selected}
-              aria-label={`Include ${row.name} (H${row.id})`} disabled={inProgress || busy}
-              onChange={(event) => selectTargets(event.target.checked ? [...targets, row.id] : targets.filter((id) => id !== row.id))} />
-              <strong>{row.name}<small>H{row.id}</small></strong></label>
+            <AircraftChoiceRow id={row.id} name={row.name} detail={`H${row.id}`} checked={row.selected}
+              className="takeoff-review__member" disabled={inProgress || busy}
+              onChange={include => selectTargets(include ? [...targets, row.id] : targets.filter(id => id !== row.id))} />
             <span><b>{label}</b>{reason && status !== 'ready' && <small>{reason}</small>}</span></li>;
         })}
       </ul>

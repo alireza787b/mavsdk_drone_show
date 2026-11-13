@@ -375,6 +375,7 @@ export function ConfirmDialog({
   appearance = 'default',
   size = 'default',
   confirmDisabled = false,
+  initialFocusRef = null,
   onConfirm,
   onCancel,
 }) {
@@ -388,8 +389,8 @@ export function ConfirmDialog({
     const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, summary, a[href], [tabindex="0"]')]
       .filter((element) => !element.disabled && !element.closest('[hidden]')
         && (!element.closest('details:not([open])') || element.closest('summary')));
-    // Start on Cancel, never on the flight-command confirmation.
-    (panel.querySelector('[data-dialog-cancel]') || panel).focus();
+    // Flight reviews start on Cancel; non-dispatch pickers may focus their search.
+    (initialFocusRef?.current || panel.querySelector('[data-dialog-cancel]') || panel).focus();
     const trapFocus = (event) => {
       if (event.key !== 'Tab') return;
       const items = focusable();
@@ -407,7 +408,7 @@ export function ConfirmDialog({
       panel.removeEventListener('keydown', trapFocus);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [open]);
+  }, [open, initialFocusRef]);
 
   useEffect(() => {
     if (!open) {
@@ -495,6 +496,7 @@ ConfirmDialog.propTypes = {
   busy: PropTypes.bool,
   appearance: PropTypes.oneOf(['default', 'console']),
   confirmDisabled: PropTypes.bool,
+  initialFocusRef: PropTypes.shape({ current: PropTypes.any }),
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
 };

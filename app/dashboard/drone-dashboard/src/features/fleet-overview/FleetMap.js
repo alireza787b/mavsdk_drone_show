@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { CircleMarker, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import LeafletMapBase from '../../components/map/LeafletMapBase';
+import { renderedFleetAircraft } from './fleetDisplay';
 
 function FitAircraft({ aircraft, fitSignal }) {
   const map = useMap();
@@ -18,7 +19,7 @@ function FitAircraft({ aircraft, fitSignal }) {
 
 /** Read-only map: marker inspection and camera gestures never select targets. */
 export default function FleetMap({ aircraft, selectedIds, onInspect, onShowUnmapped }) {
-  const mapped = aircraft.filter((item) => item.position.current);
+  const mapped = renderedFleetAircraft(aircraft, 'map');
   const [fitSignal, setFitSignal] = React.useState(0);
   const firstFit = useRef(false);
   useEffect(() => {

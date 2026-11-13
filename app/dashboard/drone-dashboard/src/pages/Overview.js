@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FaBorderAll, FaList, FaMapMarkedAlt, FaPlaneDeparture, FaHandPaper, FaPlaneArrival, FaHome, FaEllipsisH, FaExclamationTriangle, FaLayerGroup } from 'react-icons/fa';
+import { FaBorderAll, FaList, FaMapMarkedAlt, FaPlaneDeparture, FaHandPaper, FaPlaneArrival, FaHome, FaEllipsisH, FaExclamationTriangle, FaLayerGroup, FaEye, FaBroadcastTower, FaPlane } from 'react-icons/fa';
 import { getBackendURL } from '../config/apiConfig';
 import { DRONE_ACTION_TYPES, getCommandName } from '../constants/droneConstants';
 import { getFleetReferenceClock } from '../utilities/commandScheduling';
@@ -13,7 +13,9 @@ import { AircraftInspector, AircraftTile } from '../features/fleet-overview/Flee
 import ActionReview, { buildActionStorageKey, readPendingAction, readPendingActions } from '../features/fleet-overview/ActionReview';
 import useFleetResources from '../features/fleet-overview/useFleetResources';
 import { buildFleetViewModel } from '../features/fleet-overview/fleetViewModel';
-import { filterFleetAircraft, groupFleetAircraft } from '../features/fleet-overview/fleetDisplay';
+import { filterFleetAircraft, groupFleetAircraft, renderedFleetAircraft } from '../features/fleet-overview/fleetDisplay';
+import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
+import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
 import { useFleetAlerts } from '../features/fleet-overview/FleetAlertsContext';
 import { createTargetSelectionState, getTargetSelectionReview, getTargetSelectionStorageScope, parseTargetSelection, serializeTargetSelection, targetSelectionReducer } from '../features/fleet-overview/targetSelection';
 import '../styles/Overview.css';
@@ -55,6 +57,7 @@ function FleetOverview({ runtimeMode, operatorId }) {
   const [view, setView] = useState(() => readPreference('mds:fleet-view:v1', 'board'));
   const [more, setMore] = useState(null);
   const [grouped, setGrouped] = useState(false);
+  const [choosingRecipients, setChoosingRecipients] = useState(false);
   useEffect(() => {
     // Browser receipt reconciliation only: this never sends or retries a command.
     setPending((previous) => {
@@ -85,11 +88,13 @@ function FleetOverview({ runtimeMode, operatorId }) {
   const selectedIds = new Set(selection.ids);
   const visible = filterFleetAircraft(model.aircraft, { query, filter, selectedIds, matches: matchesDroneSearchQuery });
   const displayGroups = groupFleetAircraft(visible, groups, grouped && hasMultipleGroups);
-  const review = getTargetSelectionReview(selection, resources.configuredIds, visible.map((item) => item.id));
+  const rendered = renderedFleetAircraft(visible, view);
+  const review = getTargetSelectionReview(selection, resources.configuredIds, rendered.map(item => item.id));
   const runtimeKnown = ['real', 'sitl'].includes(runtimeMode);
   const canAct = runtimeKnown && selection.initialized && review.count > 0 && !review.unresolvedIds.length;
   const clock = getFleetReferenceClock(resources.drones, resources.nowMs);
   const chooseView = (next) => { setView(next); try { localStorage.setItem('mds:fleet-view:v1', next); } catch (_) {} };
+  const showRecipients = () => { setFilter('selected'); setQuery(''); if (view === 'map') chooseView('list'); };
   const closeReview = () => { setIntent(null); setPending(readPendingActions(pendingKey)); };
   const request = (body, ids = selection.ids) => {
     if (!runtimeKnown || !ids.length || ids.some((id) => !resources.configuredIds.includes(id))) return;
@@ -126,14 +131,16 @@ function FleetOverview({ runtimeMode, operatorId }) {
     request(unsent, remainingIds);
   };
   const renderTile = (item) => <AircraftTile key={item.id} item={item} list={view === 'list'} selected={selectedIds.has(item.id)} inspected={inspected?.id === item.id}
-    onInspect={inspect} onToggle={(id) => dispatch({ type: 'toggle', id })} />;
+    onInspect={inspect} />;
 
   return <main className="fleet-overview" aria-label="Fleet overview">
     <header className="fleet-overview__header"><div><span className="fleet-eyebrow">OPERATIONS</span><h1>Overview</h1></div>
       <div className="fleet-status-strip" aria-label="Fleet status"><strong className={`fleet-runtime is-${runtimeMode}`}>{runtimeMode.toUpperCase()}</strong>
-        <span>{model.summary.available} available <small>/ {model.summary.total}</small></span><span>{model.summary.airborne} airborne</span>
-        <button type="button" className={model.summary.attention ? 'tone-warning' : ''} onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')} aria-pressed={filter === 'attention'}>
-          {model.summary.attention > 0 && <FaExclamationTriangle aria-hidden="true" />} {model.summary.attention} need attention</button></div>
+        <span title={`${model.summary.available} available of ${model.summary.total} configured aircraft`} aria-label={`${model.summary.available} available of ${model.summary.total}`}><FaBroadcastTower aria-hidden="true" /> {model.summary.available}<small> / {model.summary.total}</small></span>
+        <span title={`${model.summary.airborne} airborne`} aria-label={`${model.summary.airborne} airborne`}><FaPlane aria-hidden="true" /> {model.summary.airborne}</span>
+        {model.summary.attention > 0 && <button type="button" className="tone-warning" title="Show aircraft needing attention" aria-label={`Show ${model.summary.attention} aircraft needing attention`}
+          onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')} aria-pressed={filter === 'attention'}>
+          <FaExclamationTriangle aria-hidden="true" /> {model.summary.attention}</button>}</div>
     </header>
     {resources.telemetry.error && <div role="alert" className="fleet-inline-warning">GCS telemetry unavailable · displayed measurements are aging. Reconnecting.</div>}
     {resources.config.error && <div role="alert" className="fleet-inline-warning">Aircraft configuration could not refresh. Review targets before sending.</div>}
@@ -144,24 +151,12 @@ function FleetOverview({ runtimeMode, operatorId }) {
     </details></div>}
     <section className="fleet-toolbar" aria-label="Aircraft display">
       <label className="fleet-search"><span className="fleet-visually-hidden">Find aircraft</span><input type="search" placeholder="Find aircraft" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-      <label><span className="fleet-visually-hidden">Filter aircraft</span><select aria-label="Filter aircraft" value={filter} onChange={(event) => setFilter(event.target.value)}>
-        <option value="available">Available</option><option value="all">All aircraft</option><option value="selected">Selected targets</option><option value="attention">Needs attention</option><option value="unavailable">Unavailable</option><option value="airborne">Airborne</option><option value="unmapped">No current position</option></select></label>
-      {hasMultipleGroups && view !== 'map' && <button type="button" className="fleet-group-toggle" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}><FaLayerGroup aria-hidden="true" /><span>Clusters</span></button>}
+      <label className="fleet-display-filter"><span title="Display only; command recipients are set beside the flight controls"><FaEye aria-hidden="true" /> Show</span><select aria-label="Show aircraft" value={filter} onChange={(event) => setFilter(event.target.value)}>
+        <option value="available">Available</option><option value="all">All aircraft</option><option value="selected">Command aircraft</option><option value="attention">Needs attention</option><option value="unavailable">Unavailable</option><option value="airborne">Airborne</option><option value="unmapped">No current position</option></select></label>
+      {hasMultipleGroups && view !== 'map' && <button type="button" className="fleet-group-toggle" title="Group display by cluster" aria-label="Group by cluster" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}><FaLayerGroup aria-hidden="true" /></button>}
       <div className="fleet-view-switch" role="group" aria-label="Aircraft view">{[['board', 'Board', FaBorderAll], ['list', 'List', FaList], ['map', 'Map', FaMapMarkedAlt]].map(([key, label, Icon]) =>
-        <button type="button" key={key} aria-pressed={view === key} onClick={() => chooseView(key)}><Icon aria-hidden="true" /><span>{label}</span></button>)}</div>
+        <button type="button" key={key} aria-label={label} title={`${label} view`} aria-pressed={view === key} onClick={() => chooseView(key)}><Icon aria-hidden="true" /></button>)}</div>
     </section>
-    <section className="fleet-selection-tools" aria-label="Target selection"><span>Targets</span>
-      <button type="button" disabled={!selection.initialized} onClick={() => dispatch({ type: 'group', ids: model.aircraft.filter((item) => item.availability.available).map((item) => item.id).filter((id) => resources.configuredIds.includes(id)) })}>Available</button>
-      <button type="button" disabled={!selection.initialized} onClick={() => dispatch({ type: 'all', ids: resources.configuredIds })}>All</button>
-      <button type="button" disabled={!selection.initialized} onClick={() => dispatch({ type: 'none' })}>None</button>
-      {groups.length > 1 && <select aria-label="Select target group" value="" onChange={(event) => {
-        const group = groups.find((item) => String(item.id) === event.target.value);
-        if (group) dispatch({ type: 'group', ids: group.drones.map((item) => String(item.hw_id)) });
-      }}><option value="">Select group…</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.label || `Cluster ${group.leaderId || group.id}`}</option>)}</select>}
-      <button type="button" className="fleet-selection-tools__count" onClick={() => { setFilter('selected'); setQuery(''); }} title="Show selected command targets">{review.count} selected{review.hiddenIds.length > 0 ? ` · ${review.hiddenIds.length} hidden` : ''}</button>
-    </section>
-    {!!review.unresolvedIds.length && <div className="fleet-inline-warning" role="alert">Unknown selected aircraft: {review.unresolvedIds.join(', ')}.
-      <button type="button" onClick={() => dispatch({ type: 'group', ids: selection.ids.filter((id) => resources.configuredIds.includes(id)) })}>Remove missing targets</button></div>}
     <div className="fleet-surface">
       {resources.loading ? <p role="status">Loading aircraft…</p> : view === 'map' ? <Suspense fallback={<p role="status">Loading map…</p>}>
         <FleetMap aircraft={visible} selectedIds={selectedIds} onInspect={inspect} onShowUnmapped={() => { chooseView('list'); setFilter('unmapped'); }} />
@@ -175,11 +170,15 @@ function FleetOverview({ runtimeMode, operatorId }) {
     {more && <MoreActionsPanel targetCount={more.ids.length} targetLabel={more.label} runtimeMode={runtimeMode} referenceNowMs={clock.referenceNowMs}
       onClose={() => setMore(null)} onSendCommand={(body) => request(body, more.ids)} canPrecisionMove={canPrecisionMove}
       onRequestPrecisionMove={() => { if (canPrecisionMove) openMove(moveItem); }} />}
-    <footer className="fleet-action-rail" aria-label="Selected aircraft actions"><strong>{review.count}<span> selected</span></strong>
+    <footer className="fleet-action-rail" aria-label="Selected aircraft actions">
+      <CommandAircraftControl ids={selection.ids} aircraft={model.aircraft} review={review} map={view === 'map'}
+        disabled={!selection.initialized || Boolean(intent || takeoff || more || moveTargets)} onOpen={() => { inspect(null); setChoosingRecipients(true); }} onShowRecipients={showRecipients} />
       <div className="fleet-action-rail__buttons">{PRIMARY.map(([key, label, Icon]) => <button key={key} type="button" disabled={!canAct} onClick={() => action(key)}
         title={key === 'RETURN_RTL' ? 'Immediate PX4 RTL · no sequencing' : undefined}><Icon aria-hidden="true" /><span>{label}</span></button>)}
-        <button type="button" aria-expanded={Boolean(more)} disabled={!canAct} onClick={() => openMore()}><FaEllipsisH aria-hidden="true" /><span>More</span></button></div>
+        <button type="button" aria-label="More" title="More aircraft actions" aria-expanded={Boolean(more)} disabled={!canAct} onClick={() => openMore()}><FaEllipsisH aria-hidden="true" /></button></div>
     </footer>
+    {choosingRecipients && <CommandAircraftPicker selectedIds={selection.ids} configuredIds={resources.configuredIds} aircraft={model.aircraft} groups={groups}
+      onClose={() => setChoosingRecipients(false)} onApply={ids => { dispatch({ type: 'group', ids }); setChoosingRecipients(false); }} />}
     {inspected && !more && !intent && !takeoff && !moveTargets && <AircraftInspector item={inspected} onClose={() => inspect(null)} onAction={action} onMove={openMove} onMore={openMore} />}
     {intent && <ActionReview key={`${intent.storageKey}:${intent.command.idempotency_key || 'review'}`} intent={intent.command} storageKey={intent.storageKey} runtimeMode={runtimeMode} aircraft={model.aircraft}
       onClose={closeReview} onResolved={() => setPending(readPendingActions(pendingKey))} onRemoveUnavailable={removeUnavailable} />}

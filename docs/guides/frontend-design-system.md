@@ -72,11 +72,17 @@ Overview Board, List, and Map are deliberate views of the same fleet resource
 model, not simultaneous independently polling surfaces. Keep aircraft identity
 and ordering stable. Inspection is separate from command-target selection;
 changing a filter, view, or inspected aircraft must not retarget a command.
-Initialize targets to all configured aircraft only when the roster is known and
-no saved selection exists. Restore deliberate selections, including None, in
+Initialize a one-time snapshot of available configured aircraft only when the
+roster and heartbeat snapshot are known and no saved selection exists. Restore deliberate selections, including None, in
 their deployment/runtime/operator context; missing or invalid saved targets
-must never silently widen to All. `Targets -> All` changes command scope;
-`Filter aircraft -> All aircraft` changes visibility only.
+must never silently widen to All. The command-adjacent **To** chooser owns an
+explicit draft, applied with **Use N aircraft**; Cancel leaves scope unchanged.
+Its presets snapshot identities, never subscribe to availability or a cluster.
+Cards/markers inspect only; a noninteractive paper-plane mark shows membership.
+The eye-marked **Show** tools affect visibility only. Hidden-recipient counts
+use actual rendered identities, including Map's current-position restriction.
+Keep essential command labels and identities visible; use symbols and hover/tap
+help for routine status, without hiding consequential actions behind hover.
 
 Widgets and the inspector consume the shared resource/model freshness and
 source labels. Failed polling must not freeze a fresh badge indefinitely.

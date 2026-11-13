@@ -15,11 +15,11 @@ const aircraft = (extra = {}, now = NOW) => buildAircraftViewModel({
 }, now);
 
 function tile(item = aircraft()) {
-  const props = { item, selected: false, inspected: false, onToggle: jest.fn(), onInspect: jest.fn() };
+  const props = { item, selected: false, inspected: false, onInspect: jest.fn() };
   return { ...render(<AircraftTile {...props} />), props };
 }
 
-test('tile exposes compact identity, named telemetry and separately addressable selection/inspection', () => {
+test('tile exposes compact identity and inspection without editing command recipients', () => {
   const { props, container } = tile();
   expect(screen.getByText('H7 · P3')).toBeInTheDocument();
   expect(screen.getByLabelText('Flight mode: Hold')).toBeInTheDocument();
@@ -33,8 +33,7 @@ test('tile exposes compact identity, named telemetry and separately addressable 
   expect(container.querySelector('.fleet-aircraft__instruments')).toBeInTheDocument();
   expect(screen.queryByText('Details')).not.toBeInTheDocument();
   expect(screen.queryByText(/16\.1\s*V/)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Select Scout · H7' }));
-  expect(props.onToggle).toHaveBeenCalledWith('7');
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   expect(props.onInspect).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout · H7' }));
   expect(props.onInspect).toHaveBeenCalledWith('7');
@@ -122,7 +121,6 @@ test('stale-link and prioritized alert badges open inspection without changing t
   expect(alert).toHaveClass('tone-danger');
   fireEvent.click(alert);
   expect(props.onInspect).toHaveBeenCalledWith('7');
-  expect(props.onToggle).not.toHaveBeenCalled();
   expect(screen.getByText('Heading estimate not stable')).toBeInTheDocument();
 });
 

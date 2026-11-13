@@ -91,10 +91,19 @@ once the first configuration and heartbeat snapshot have loaded. Where a
 saved selection is available for the same operator, GCS and runtime, it is
 restored—including a deliberately empty selection.
 
-- Check an aircraft's box to include or exclude it.
-- **Available**, **All**, **None** and **Select group** are deliberate selection actions.
-- Search and filters only change what you see. The selected count includes
-  hidden aircraft. Click that count to show the selected set.
+- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.
+  If they are correct, go straight to the command—no extra selection step.
+- To change them, open **To**, check aircraft, then **Use N aircraft**.
+  Search never excludes hidden rows. Cancel/Escape discards the draft.
+- **Available** snapshots aircraft available now. Cluster shortcuts appear only
+  for multiple clusters; **All configured** is under the ellipsis menu. The
+  clear icon makes an empty draft; applying it disables commands.
+- The eye-marked **Show**, search and Board/List/Map change only what you see.
+  A paper-plane mark on a card means it is a command recipient, not ready to fly.
+  Cards always open details; they never select aircraft.
+- The eye-slash count beside **To** identifies recipients outside the current
+  view (including aircraft without a current map position). Click it to reveal
+  the recipient list; command recipients do not change.
 - Link loss, reconnects and newly discovered aircraft never change your targets.
 - If a remembered aircraft no longer exists in the configuration, resolve the
   named missing target before dispatch. It is never silently replaced.
@@ -102,9 +111,11 @@ restored—including a deliberately empty selection.
 Unselected aircraft stay readable so their hazards are not hidden. Before
 confirming an action, check its aircraft names and count again.
 
-For multiple multi-aircraft formations, **Clusters** groups the display without
-changing targets. It is hidden for a single formation; **Select group** is the
-separate, explicit command-target control.
+For multiple multi-aircraft formations, the cluster icon groups the display
+without changing targets. It is hidden for a single formation; the cluster
+shortcut inside **To** separately changes the recipient draft.
+
+![Command recipients are reviewed separately from the display, using synthetic aircraft](../assets/operator-overview/command-aircraft-1440-dark.png)
 
 ## Send a general command
 

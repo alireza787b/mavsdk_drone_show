@@ -1,4 +1,8 @@
 /** Presentation grouping/filtering never owns command membership. */
+export function renderedFleetAircraft(aircraft, view) {
+  return view === 'map' ? aircraft.filter(item => item.position.current) : aircraft;
+}
+
 export function filterFleetAircraft(aircraft, { query = '', filter = 'available', selectedIds = new Set(), matches = () => true } = {}) {
   return aircraft.filter((item) => matches(item.raw, query) && (
     filter === 'all' || (filter === 'available' && item.availability.available)
