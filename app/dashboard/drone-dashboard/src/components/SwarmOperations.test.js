@@ -4,6 +4,7 @@ import SwarmOperations from './SwarmOperations';
 import { fetchGcsResource } from '../services/gcsApiService';
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
 jest.mock('../services/gcsApiService', () => ({ fetchGcsResource: jest.fn() }));
+jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ loading: false, user: { username: 'operator' } }) }));
 jest.mock('../utilities/commandLifecycleFeedback', () => ({ submitCommandWithLifecycleFeedback: jest.fn(), trackCommandReceipt: jest.fn() }));
 const mockMonitors = [];
 jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: {}, commandMonitors: mockMonitors }) }));

@@ -15,13 +15,13 @@ const REVIEW_STATUS_MAX_AGE_MS = 5000;
 
 // One review and one owned command, shared by every standalone Takeoff entry.
 // Native readiness is advisory here; node admission is repeated at execution.
-export default function TakeoffDialog({ open, command, aircraft = [], beforeSubmit, onClose }) {
+export default function TakeoffDialog({ open, command, aircraft = [], beforeSubmit, onAccepted, onClose }) {
   if (!open || !command) return null;
   return <TakeoffReview key={command.idempotency_key || command.uiMeta?.reviewKey || 'takeoff-review'}
-    command={command} aircraft={aircraft} beforeSubmit={beforeSubmit} onClose={onClose} />;
+    command={command} aircraft={aircraft} beforeSubmit={beforeSubmit} onAccepted={onAccepted} onClose={onClose} />;
 }
 
-function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
+function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose }) {
   // The initiating page defines the review boundary, not the entire fleet.
   const [roster] = useState(() => [...command.target_drone_ids].map(String));
   const [pendingKey] = useState(() => `mds-takeoff:${getBackendURL()}:${[...command.target_drone_ids].map(String).sort().join(',')}`);
@@ -148,6 +148,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
         const response = trackCommandReceipt(submittedPayload.current, data, lifecycle);
         rememberPending(null);
         if (mounted.current) { setSubmitted(response); setUncertain(false); }
+        try { onAccepted?.(submittedPayload.current, response); } catch (_) { /* bookkeeping cannot invalidate a confirmed receipt */ }
         return;
       }
       const payload = { ...intent, idempotency_key: attemptKey.current,
@@ -158,10 +159,11 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onClose }) {
       if (multiple) payload.takeoff_mode = coordinated ? 'coordinated' : 'independent';
       submittedPayload.current = payload;
       rememberPending(payload);
-      await beforeSubmit?.();
+      await beforeSubmit?.(payload);
       const response = await submitCommandWithLifecycleFeedback(payload, lifecycle);
       rememberPending(null);
       if (mounted.current) setSubmitted(response);
+      try { onAccepted?.(payload, response); } catch (_) { /* bookkeeping cannot invalidate a confirmed receipt */ }
     } catch (exc) {
       if (isAmbiguousSubmissionTransportFailure(exc)) {
         if (mounted.current) { setUncertain(true); setError('Receipt unconfirmed. Check this launch before trying again.'); }

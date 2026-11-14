@@ -7,12 +7,13 @@ import csv
 import json
 import sys
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from tools.runtime_validation_support import ValidationApiClient, fetch_and_require_sitl_runtime, require
+from tools.runtime_validation_support import ValidationApiClient, ValidationHttpError, fetch_and_require_sitl_runtime, require
 
 
 def run(args):
@@ -74,11 +75,21 @@ def run(args):
         def start_saved_cluster():
             preview = client.get_json('/api/v1/swarm/runtime/preview')
             cluster = next((c for c in preview['clusters']
-                            if {m['hw_id'] for m in c['members']} == set(ids)), None)
-            require(cluster is not None, 'Requested drones must match one saved cluster')
+                            if set(ids) <= {m['hw_id'] for m in c['members']}), None)
+            require(cluster is not None, 'Requested drones must belong to one saved cluster')
+            query = urllib.parse.urlencode([('cluster_id', cluster['cluster_id']), ('check_start', 'true'),
+                                             *[('target_hw_ids', hw) for hw in ids]])
+            def ready(_):
+                review = client.get_json('/api/v1/swarm/runtime/preview?' + query)
+                require(review['revision'] == preview['revision'], 'Saved formation changed')
+                decisions = {**review.get('start_admissions', {}), **review.get('reference_admissions', {})}
+                expected = set(ids) | set(review.get('reference_hw_ids', []))
+                return review if all(decisions.get(hw, {}).get('status') == 'ready'
+                    and float(decisions[hw].get('valid_for_ms') or 0) > 0 for hw in expected) else False
+            report['start_review'] = wait(ready, 'Selected native Start review ready', timeout=60)
             return client.post_json('/api/v1/swarm/runtime/start', {
                 'cluster_id': cluster['cluster_id'], 'revision': preview['revision'],
-                'excluded_hw_ids': [], 'idempotency_key': f'return-validation-{uuid.uuid4()}',
+                'target_hw_ids': ids, 'idempotency_key': f'return-validation-{uuid.uuid4()}',
             })['command_id']
 
         report["swarm_command_id"] = start_saved_cluster()
@@ -89,6 +100,24 @@ def run(args):
             return len((status.get("swarm_runtime") or {}).get("active_hw_ids", [])) == len(ids)
 
         wait(roles_started, "Both Smart Swarm roles reporting")
+        if getattr(args, 'check_partial_leader_return', False):
+            preview = client.get_json('/api/v1/swarm/runtime/preview')
+            cluster = next(c for c in preview['clusters'] if set(ids) <= {m['hw_id'] for m in c['members']})
+            leader = cluster['cluster_id']
+            require(leader in ids and len(ids) > 1, 'Negative check requires the leader and an active follower')
+            before = client.get_json('/api/v1/swarm/runtime/sequential-return')
+            try:
+                client.post_json('/api/v1/swarm/runtime/sequential-return', {
+                    'target_drone_ids': [leader], 'delay_sec': args.delay_sec,
+                    'idempotency_key': f'return-negative-{uuid.uuid4()}',
+                })
+                raise RuntimeError('Leader-only Return was unexpectedly accepted')
+            except ValidationHttpError as exc:
+                require(exc.status_code == 409, 'Expected omitted follower conflict')
+                report['partial_leader_return_rejected'] = exc.payload
+            require(client.get_json('/api/v1/swarm/runtime/sequential-return') == before,
+                    'Rejected leader-only Return created or changed a queue')
+            require(roles_started(None), 'Rejected leader Return disturbed active roles')
         if getattr(args, 'exercise_operator_flow', False):
             # A bounded leader jog exercises following, then the explicit
             # Stop / Start workflow. Never used until SITL mode was verified.
@@ -191,6 +220,8 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument('--exercise-operator-flow', action='store_true',
                         help='Also validate leader jog, follower motion and explicit Stop/Start in SITL')
+    parser.add_argument('--check-partial-leader-return', action='store_true',
+                        help='Verify leader-only Return is rejected before Hold while a selected follower is active')
     args = parser.parse_args()
     require(1 <= args.delay_sec <= 300, "Interval must be 1–300 seconds")
     run(args)

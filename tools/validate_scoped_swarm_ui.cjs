@@ -70,7 +70,7 @@ async function run() {
         await page.waitForFunction(()=>document.querySelector('[aria-label="Choose command aircraft"]')?.title.includes('AIRCRAFT-1,'));
       }
       assert.equal(await page.getByRole('button',{name:'Hold all',exact:true}).count(),1);
-      assert.equal(await page.getByRole('button',{name:'Return all',exact:true}).count(),1);
+      assert.equal(await page.getByRole('button',{name:'Managed Return',exact:true}).count(),1);
       const prefix=`${scenario.count}-${scenario.groups}-${width}-${theme}`;
       const actions=await page.locator('.swarm-ops__actions').boundingBox();
       const diagram=await page.locator('.swarm-ops > .swarm-diagram').boundingBox();
@@ -103,6 +103,21 @@ async function run() {
       assert.equal(writes[0].path,'/api/v1/swarm/runtime/start');
       assert.deepEqual(writes[0].body.target_hw_ids,[selected]);
       await review.getByRole('button',{name:'Cancel',exact:true}).click();
+      await page.reload();
+      await page.waitForFunction(()=>document.querySelector('[data-recipient-count]')?.dataset.recipientCount==='1');
+      await page.getByRole('button',{name:'Managed Return',exact:true}).click();
+      const recovery=page.getByRole('dialog',{name:'Managed Return',exact:true});
+      await recovery.waitFor();
+      assert.equal(await recovery.locator('.swarm-return-order li').count(),1,'Return keeps the selected subset after remount');
+      assert((await recovery.locator('.swarm-return-order').innerText()).includes(`AIRCRAFT-${selected}`));
+      const recoveryBounds=await recovery.boundingBox();
+      assert(recoveryBounds.x>=-2&&recoveryBounds.x+recoveryBounds.width<=width+2,'Return review inside viewport');
+      if(output)await recovery.screenshot({path:path.join(output,`swarm-return-${prefix}.png`)});
+      await recovery.getByRole('button',{name:'Start return',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('[role=alert]')?.textContent.includes('Fixture'));
+      assert.equal(writes.length,2);
+      assert.equal(writes[1].path,'/api/v1/swarm/runtime/sequential-return');
+      assert.deepEqual(writes[1].body.target_drone_ids,[selected]);
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'No horizontal overflow');
       assert.deepEqual(errors,[]);
       results.push({...scenario,width,theme,passed:true,fixture_submissions:writes.length,real_commands:0,errors});

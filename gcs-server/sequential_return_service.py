@@ -19,10 +19,24 @@ from command_submission import submit_tracked_command
 from schemas import SubmitCommandRequest
 from src.enums import Mission
 from src.px4_flight_modes import describe_px4_custom_mode
+from swarm_return_scope import omitted_followers
 from mds_logging import get_logger
 
 logger = get_logger("sequential_return")
 ACTIVE_STATES = {"holding", "dispatching", "waiting"}
+
+
+def command_failure_reason(status):
+    """Name failed targets without hiding them behind an aggregate count."""
+    reasons = []
+    for hw_id, ack in status.get("acks", {}).get("details", {}).items():
+        category = ack.get("category") or ack.get("status")
+        if category in {"offline", "rejected", "error"}:
+            reason = "unavailable" if category == "offline" else ack.get("message") or category
+            reasons.append(f"Drone {hw_id}: {str(reason)[:200]}")
+    if reasons:
+        return "; ".join(reasons[:3]) + (f"; +{len(reasons)-3} aircraft" if len(reasons) > 3 else "")
+    return status.get("error_summary") or "Aircraft command not confirmed"
 
 
 class SequentialReturnRequest(BaseModel):
@@ -88,6 +102,7 @@ class SequentialReturnService:
             known = {str(item["hw_id"]) for item in self.deps.load_config()}
             if not set(request.target_drone_ids) <= known:
                 raise HTTPException(409, "Return targets changed; review the selected drones")
+            await self._check_followers(request.target_drone_ids)
             # Bound durable UI history, preserving the active job and retry identity.
             while len(self.jobs) >= 100:
                 self.jobs.pop(next(iter(self.jobs)))
@@ -142,6 +157,13 @@ class SequentialReturnService:
         ))
         return receipt.command_id
 
+    async def _check_followers(self, targets):
+        commands = await self.deps.get_command_tracker().get_active_commands()
+        missing = omitted_followers(commands, targets)
+        if missing:
+            names = ', '.join(missing[:3]) + (f' +{len(missing)-3}' if len(missing) > 3 else '')
+            raise HTTPException(409, f"Include following aircraft {names} in To, or use Hold all before returning their leader")
+
     async def _wait_command(self, command_id, *, completed=False, hw_id=None):
         # HOLD must complete, RTL only needs execution-start evidence. Never wait
         # for landing to release the next aircraft in this explicitly timed mode.
@@ -152,10 +174,10 @@ class SequentialReturnService:
                 if status.get("status") == "completed":
                     return
                 if status.get("phase") == "terminal":
-                    raise RuntimeError(status.get("error_summary") or "Aircraft command did not succeed")
+                    raise RuntimeError(command_failure_reason(status))
                 acks = status.get("acks", {})
                 if any(acks.get(key, 0) for key in ("rejected", "offline", "errors")):
-                    raise RuntimeError(status.get("error_summary") or "Aircraft did not accept the command")
+                    raise RuntimeError(command_failure_reason(status))
                 if not completed and status.get("execution_started_at"):
                     # A subprocess starting is not proof that PX4 accepted RTL.
                     state, mode, fresh = self._telemetry(hw_id)
@@ -223,6 +245,9 @@ class SequentialReturnService:
                             break
                         await asyncio.sleep(min(0.25, remaining))
                 self._check_waiting_drone(hw_id)
+                # Recheck pending/active followers before each RTL: the scope
+                # may have acquired newer tracked work during the interval.
+                await self._check_followers(job["target_drone_ids"])
                 self._update(job, state="dispatching", next_hw_id=hw_id, next_dispatch_at_ms=None,
                              message=f"Sending RTL to drone {hw_id}")
                 command_id = await self._command(job, Mission.RETURN_RTL, [hw_id], hw_id)
@@ -238,6 +263,8 @@ class SequentialReturnService:
             raise
         except Exception as exc:
             detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+            if job["state"] == "holding" and not job["commands"]:
+                detail = f"Hold not confirmed: {detail}. No RTL commands sent."
             self._update(job, state="failed", next_hw_id=None, next_dispatch_at_ms=None,
                          message=str(detail))
             logger.warning("Sequential return %s stopped: %s", job["return_id"], detail)

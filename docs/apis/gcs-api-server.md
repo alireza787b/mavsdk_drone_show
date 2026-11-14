@@ -287,6 +287,14 @@ requires fresh review plus explicit confirmation to submit again. Ambiguous
   commands not yet issued; already-issued commands continue.
 
 One queue runs at a time. Reusing a key with different order/delay returns 409.
+Targets are explicit, not implicitly expanded to the cluster. Returning a source
+while omitting its tracked pending/active Smart Swarm followers returns 409 before
+Hold; the check repeats before each RTL. Include those followers or explicitly
+stop them first. The check uses tracked session topology and matching native
+control-release evidence, not just a failed/missing execution receipt; it is not
+collision avoidance or authority over external/untracked controllers. If initial
+Hold fails, the status identifies unavailable/rejected targets and reports that
+no RTL commands were sent. An uncertain RTL submission is not labelled unsent.
 Hold and per-aircraft RTL use the canonical command lifecycle; their command IDs
 are returned in `hold_command_id` and `commands`. Queue states are `holding`,
 `dispatching`, `waiting`, `dispatched`, `cancelled`, `interrupted`, `failed`.

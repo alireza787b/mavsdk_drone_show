@@ -9,6 +9,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Consistent mission recipients and actionable return status
+
+- Smart Swarm shares one **To** choice across Takeoff, Start and Managed Return.
+  Accepted reduced Takeoff targets carry forward; cancelled edits do not. Exact
+  selections survive navigation in the same browser session/operator/cluster;
+  reconnects never add aircraft. **Hold all** remains whole-cluster recovery.
+- Managed Return rejects an omitted tracked follower before returning its
+  source, with another check before each RTL. It neither expands targets nor
+  changes roles. A failed initial Hold identifies unavailable aircraft and
+  explicitly reports that no RTL commands were sent.
+- Start review retains named unavailable/blocking evidence instead of replacing
+  it with a generic Checking indicator when a different readiness lease expires.
+  Expired ready evidence still cannot authorize dispatch.
+
 ### Shared recipient controls and selected Smart Swarm Start
 
 - Overview card checkboxes update the existing **To** state; card inspection,
@@ -16,8 +30,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Smart Swarm defaults to its complete first cluster. Its **To** chooser also
   permits deliberate subsets and individual follower retries, without changing
   saved roles or restarting unselected leaders. Empty/missing selections stay
-  explicit across telemetry refreshes. **Hold all** and **Return all** retain
-  their named whole-cluster recovery scope.
+  explicit across telemetry refreshes. **Hold all** retains whole-cluster
+  recovery; Managed Return uses the same explicit recipients as launch.
 - Selected Start checks unselected upstream aircraft as read-only references.
   Native airborne/freshness/recovery and live-follow checks apply before
   dispatch and at the startup barrier. After engagement, existing aircraft-local

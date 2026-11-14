@@ -4,6 +4,7 @@ import { fetchGcsResource } from '../services/gcsApiService';
 import { isAmbiguousSubmissionTransportFailure } from '../services/droneApiService';
 import { getBackendURL } from '../config/apiConfig';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
+import { useAuth } from '../contexts/AuthContext';
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
 import { holdNodeStatus, memberFlightState, memberLabel, movementSummary } from '../utilities/swarmOperationModel';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
@@ -52,6 +53,7 @@ export default function SwarmOperations() {
   const intentEpoch = useRef(0);
   const scope = useRef(null);
   const { commandLifecycleCallbacks, commandMonitors = [] } = useCommandActivity();
+  const auth = useAuth();
 
   useEffect(() => {
     let live = true;
@@ -109,8 +111,11 @@ export default function SwarmOperations() {
         const evidence = swarmReviewEvidence(confirmation, data, requestedAt, swarmStartValidUntil);
         setStartCheck(evidence);
         clearTimeout(expiryTimer);
-        if (evidence) expiryTimer = setTimeout(() => live && setStartCheck(null), Math.max(0, evidence.until - Date.now()));
-      } catch (_) { if (live) setStartCheck(null); }
+        if (evidence) expiryTimer = setTimeout(() => live && setStartCheck({ ...evidence }), Math.max(0, evidence.until - Date.now()));
+      } catch (exc) {
+        const detail = exc?.response?.data?.detail;
+        if (live) setStartCheck({ error: typeof detail === 'string' ? detail : detail?.message || 'Readiness unavailable. Check the aircraft link.' });
+      }
       finally { if (live) pollTimer = setTimeout(check, 1000); }
     };
     check();
@@ -138,11 +143,11 @@ export default function SwarmOperations() {
     ? (cluster?.members || EMPTY_MEMBERS).map((member) => ({ ...member, available: false }))
     : cluster?.members || EMPTY_MEMBERS, [cluster, previewError]);
   const ids = members.map((m) => m.hw_id);
-  const commandScope = useSwarmCommandScope(cluster ? `${storageKey}:${cluster.cluster_id}` : null, ids);
+  const commandScope = useSwarmCommandScope(cluster && !auth.loading
+    ? JSON.stringify([storageKey, cluster.cluster_id, auth.user?.username || auth.user?.id || 'trusted-session']) : null, ids);
   const canCommand = commandScope.initialized && commandScope.ids.length > 0 && !commandScope.missing.length;
   const pickerAircraft = members.map(member => ({ id: member.hw_id, label: member.callsign || `Drone ${member.hw_id}`,
     raw: member, identity: { posId: member.pos_id }, availability: { available: member.available, label: member.available ? 'Available' : 'Telemetry delayed' } }));
-  const names = members.map(memberLabel);
   const states = Object.fromEntries(members.map((m) => [m.hw_id, memberFlightState(m)]));
   const inspected = members.find((m) => m.hw_id === inspectedId);
   const airborne = members.filter((m) => ['Airborne', 'Taking off', 'Returning', 'Landing'].includes(states[m.hw_id])).length;
@@ -323,7 +328,8 @@ export default function SwarmOperations() {
     }
   };
   const contextKey = `${selection.id}:${preview?.revision}`;
-  const startReadiness = swarmStartReadiness([...(confirmation?.targets || []), ...(confirmation?.references || [])], startCheck?.decisions, startCheck?.until || 0);
+  const startReadiness = startCheck?.error ? { ready: false, label: startCheck.error }
+    : swarmStartReadiness([...(confirmation?.targets || []), ...(confirmation?.references || [])], startCheck?.decisions, startCheck?.until || 0);
 
   return (
     <section className="swarm-ops operator-console" aria-label="Swarm operations">
@@ -345,7 +351,7 @@ export default function SwarmOperations() {
         captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         disabled={busy} captureDisabled={!cluster || members.length < 2} />
       <div className="swarm-ops__targets">
-        <CommandAircraftControl ids={commandScope.ids} aircraft={pickerAircraft}
+        <CommandAircraftControl ids={commandScope.ids} aircraft={pickerAircraft} totalCount={ids.length}
           review={{ unresolvedIds: commandScope.missing, hiddenIds: [] }}
           disabled={!commandScope.initialized || Boolean(confirmation) || busy}
           onOpen={() => setChoosingRecipients(true)} />
@@ -357,10 +363,11 @@ export default function SwarmOperations() {
           disabled={busy || (!canCommand && !pendingStart)} onClick={() => review('start')}><FaPlay aria-hidden="true" /> {pendingStart ? (pendingStart.needsReview ? 'Review Start' : 'Check Start command') : 'Start Swarm'}</button>
         <button type="button" className="operator-button operator-button--ghost" disabled={holdBusy || !cluster}
           title="Hold the entire displayed cluster, regardless of To" onClick={holdSwarm}><FaPause aria-hidden="true" /> {holdBusy ? 'Sending Hold…' : 'Hold all'}</button>
-        <SequentialReturnControl targetIds={ids} targetNames={names} compact contextKey={contextKey} buttonLabel="Return all"
+        <SequentialReturnControl targetIds={commandScope.ids} targetNames={commandScope.ids.map(id => memberLabel(members.find(m => m.hw_id === id) || { hw_id: id }))}
+          compact contextKey={contextKey} buttonLabel="Managed Return" disabled={!canCommand}
           aircraftStates={states} validateReview={async () => {
             const epoch = intentEpoch.current;
-            await freshReview({ clusterId: selection.id, revision: preview.revision });
+            await freshReview({ clusterId: selection.id, revision: preview.revision, targets: commandScope.ids });
             if (epoch !== intentEpoch.current) throw new Error('Newer recovery requested. Review Return again.');
             setHoldReceipt(null);
           }} />
@@ -394,7 +401,8 @@ export default function SwarmOperations() {
         command={confirmation ? { mission_type: 10, trigger_time: 0, target_drone_ids: confirmation.targets,
           idempotency_key: confirmation.key, takeoff_altitude: height,
           uiMeta: { operatorLabel: 'Takeoff', targetLabel: `Cluster ${confirmation.clusterId}` } } : null}
-        aircraft={members} beforeSubmit={() => freshReview(confirmation)} onClose={() => setConfirmation(null)} />
+        aircraft={members} beforeSubmit={payload => freshReview({ ...confirmation, targets: payload.target_drone_ids })}
+        onAccepted={payload => commandScope.choose(payload.target_drone_ids)} onClose={() => setConfirmation(null)} />
       <ConfirmDialog appearance="console" open={Boolean(confirmation) && confirmation.action !== 'takeoff'} title={confirmation ? LABELS[confirmation.action] : 'Confirm'}
         confirmDisabled={confirmation?.action === 'start' && (!pendingStart || pendingStart.needsReview) && !startReadiness.ready}
         confirmLabel={confirmation?.action === 'start' && pendingStart && !pendingStart.needsReview ? 'Check command' : confirmation ? `Confirm ${LABELS[confirmation.action]}` : 'Confirm'} busy={busy}
@@ -407,11 +415,12 @@ export default function SwarmOperations() {
         }} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">
           <strong title={`${confirmation.targets.length} aircraft`}>{swarmNamesSummary(confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })))}</strong>
+          <small title={`Not commanded: ${swarmNamesSummary(members.filter(m => !confirmation.targets.includes(m.hw_id)).map(memberLabel)) || 'None'}`}>
+            {confirmation.targets.length}/{members.length} aircraft</small>
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
             {(confirmation.references || []).length > 0 && <small className="swarm-ops__references" title="Read-only leader references. No command is sent to these aircraft."><FaLink aria-hidden="true" /> Leader reference: {swarmNamesSummary(confirmation.references.map(id => members.find(m => m.hw_id === id)?.callsign || `H${id}`))}</small>}
             <details><summary>Spacing</summary><ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {formationReferenceLabel(m.frame)}</li>)}</ul></details></>}
-          {confirmation.excluded.length > 0 && <p>Partial formation · excludes Drone {confirmation.excluded.join(', ')}.</p>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}
           {confirmation.action === 'land' && <p>Land at current positions.</p>}
           {confirmation.action === 'rtl' && <p>Immediate PX4 RTL · paths may overlap. Return heights: unavailable here; each aircraft uses its configured settings.</p>}

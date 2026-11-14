@@ -82,6 +82,12 @@ Card bodies/markers inspect only; a distinct blue card checkbox edits the same
 recipient state as **To**, never the green readiness indicator. Lock recipient
 edits while a frozen action review is open. Smart Swarm reuses this chooser with
 a full-cluster preset; it does not subscribe targets to live availability.
+Its **To** choice covers Takeoff, Start and Managed Return; **Hold all** alone
+is explicitly whole-cluster. Persist exact choices in their browser-session,
+operator, runtime and cluster context. Carry forward only the accepted Takeoff
+payload, never cancelled edits or the pre-review roster. Show the selected/total
+count beside controls and retain named blocked/unavailable evidence while
+refreshing; only fresh native readiness may enable Start.
 The eye-marked **Show** tools affect visibility only. Hidden-recipient counts
 use actual rendered identities, including Map's current-position restriction.
 Keep essential command labels and identities visible; use symbols and hover/tap

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="400" viewBox="0 0 1100 400" role="img" aria-labelledby="title desc">
+<title id="title">One To selection for Smart Swarm operations</title>
+<desc id="desc">Two of three aircraft selected: takeoff, start swarm and managed return address the same two aircraft. Hold all addresses the whole formation.</desc>
+<rect width="1100" height="400" fill="#101923"/>
+<g font-family="Arial,sans-serif" fill="#edf3f8">
+<text x="45" y="57" font-size="28">SMART SWARM / OPERATE</text>
+<text x="45" y="115" font-size="26" fill="#74bbff">To 2/3</text>
+<g font-size="24"><text x="235" y="115" fill="#74bbff">☑ H1</text><text x="405" y="115" fill="#74bbff">☑ H2</text><text x="575" y="115" fill="#8c99a7">☐ H3</text></g>
+<path d="M45 145H1055" stroke="#415267"/>
+<g fill="#182c40" stroke="#74bbff"><rect x="45" y="185" width="245" height="68" rx="2"/><rect x="365" y="185" width="290" height="68" rx="2"/><rect x="730" y="185" width="325" height="68" rx="2"/></g>
+<g font-size="25" text-anchor="middle"><text x="167" y="228">↑ Takeoff</text><text x="510" y="228">▶ Start Swarm</text><text x="892" y="228">⌂ Managed Return</text></g>
+<path d="M305 219H345M335 211L345 219L335 227M670 219H710M700 211L710 219L700 227" fill="none" stroke="#74bbff" stroke-width="3"/>
+<text x="45" y="300" font-size="21" fill="#b1bfcd">Same selected aircraft. Separate confirmations.</text>
+<path d="M45 323H1055" stroke="#415267"/>
+<text x="45" y="367" font-size="24" fill="#f4cb80">Ⅱ Hold all</text><text x="310" y="367" font-size="21" fill="#b1bfcd">Entire displayed formation — independent of To</text>
+</g></svg>

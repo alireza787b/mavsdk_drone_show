@@ -2,7 +2,7 @@ import React, { useId } from 'react';
 import { FaPaperPlane, FaChevronDown, FaEyeSlash, FaExclamationTriangle } from 'react-icons/fa';
 import './CommandAircraft.css';
 
-export default function CommandAircraftControl({ ids, aircraft, review, map = false, disabled = false, onOpen, onShowRecipients }) {
+export default function CommandAircraftControl({ ids, aircraft, review, totalCount, map = false, disabled = false, onOpen, onShowRecipients }) {
   const descriptionId = useId();
   const names = ids.map(id => aircraft.find(item => item.id === id)?.label || `H${id}`);
   const summary = names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
@@ -11,7 +11,9 @@ export default function CommandAircraftControl({ ids, aircraft, review, map = fa
       aria-describedby={descriptionId} data-recipient-count={ids.length} disabled={disabled} onClick={onOpen}
       title={`Command recipients: ${names.join(', ') || 'None'}`}>
       <FaPaperPlane aria-hidden="true" /><span className="command-aircraft-control__label">To</span>
-      <span className="command-aircraft-control__names">{summary || '—'}</span><strong>{ids.length}</strong><FaChevronDown aria-hidden="true" />
+      <span className="command-aircraft-control__names">{summary || '—'}</span>
+      <strong title={Number.isInteger(totalCount) ? `${ids.length} of ${totalCount} aircraft are command targets` : undefined}>
+        {ids.length}{Number.isInteger(totalCount) ? `/${totalCount}` : ''}</strong><FaChevronDown aria-hidden="true" />
     </button>
     <span id={descriptionId} className="command-aircraft-control__description">{ids.length} command aircraft: {names.join(', ') || 'None'}</span>
     {review.unresolvedIds.length > 0 && <button type="button" className="command-aircraft-control__missing" onClick={onOpen}

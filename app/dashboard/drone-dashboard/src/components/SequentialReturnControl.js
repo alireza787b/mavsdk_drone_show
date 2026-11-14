@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { FaHome } from 'react-icons/fa';
+import { FaArrowRight, FaHome, FaPause } from 'react-icons/fa';
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
 
@@ -13,7 +13,7 @@ const LABELS = {
 };
 
 export default function SequentialReturnControl({ targetIds, targetNames, compact = false,
-  contextKey = '', validateReview = null, buttonLabel = 'Managed Return' }) {
+  contextKey = '', validateReview = null, buttonLabel = 'Managed Return', disabled = false }) {
   const [delay, setDelay] = useState(10);
   const [confirmation, setConfirmation] = useState(null);
   const [job, setJob] = useState(null);
@@ -130,7 +130,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
           </span>
         </label>}
         <button type="button" className={compact ? 'operator-button operator-button--ghost' : 'swarm-runtime-action warning'}
-          disabled={busy || active || targetIds.length === 0 || !validDelay || pollError}
+          disabled={disabled || busy || active || targetIds.length === 0 || !validDelay || pollError}
           onClick={() => setConfirmation({ targetIds: [...targetIds], targetNames: [...targetNames], delay: Number(delay), contextKey })}>
           <FaHome aria-hidden="true" />
           {compact ? buttonLabel : <span className="swarm-runtime-action__copy"><strong>Managed Return</strong>
@@ -160,7 +160,10 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
         onCancel={() => setConfirmation(null)} onConfirm={start} busy={busy}
         message={confirmation ? (
           <div className="swarm-confirm-summary swarm-confirm-summary--managed-return">
-            <p><strong>Managed Return</strong> confirms Hold, then sends the selected aircraft home in the displayed order.</p>
+            <div className="swarm-return-flow" aria-label="Confirm Hold, then send RTL in the displayed order">
+              <FaPause aria-hidden="true" /> Hold <FaArrowRight aria-hidden="true" /> <FaHome aria-hidden="true" /> RTL
+              <span>{confirmation.targetIds.length} aircraft</span>
+            </div>
             <label className="swarm-return-field">Interval between aircraft
               <span><input type="number" aria-label="Return interval" min="1" max="300" step="1" value={confirmation.delay}
                 onChange={(e) => setConfirmation({ ...confirmation, delay: Number(e.target.value) })} /> s</span>
@@ -168,9 +171,9 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
             <div className="swarm-return-order-heading">Return order</div>
             <ol className="swarm-return-order" aria-label="Return order">{confirmation.targetNames.map((name, index) => {
               const timing = index === 0 ? 'first' : `+${index * confirmation.delay} s`;
-              return <li key={confirmation.targetIds[index]}><span>{name} · {timing}</span><small>{index === 0 ? 'first aircraft' : `after ${index * confirmation.delay} s`}</small></li>;
+              return <li key={confirmation.targetIds[index]}><span>{name} · {timing}</span></li>;
             })}</ol>
-            <p className="swarm-return-note">PX4 home and return height are used for each aircraft. The next command starts after the interval; it does not wait for landing.</p>
+            <p className="swarm-return-note" title="Each aircraft uses its own PX4 home and return-height settings. The interval separates RTL starts, not completed landings; this is not collision avoidance.">PX4 home/height · timed starts, not landing order</p>
             {(!Number.isFinite(confirmation.delay) || confirmation.delay < 1 || confirmation.delay > 300) && <p role="alert">Use an interval from 1 to 300 s.</p>}
           </div>
         ) : ''} />
@@ -180,6 +183,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
 
 SequentialReturnControl.propTypes = {
   buttonLabel: PropTypes.string,
+  disabled: PropTypes.bool,
   targetIds: PropTypes.arrayOf(PropTypes.string).isRequired,
   targetNames: PropTypes.arrayOf(PropTypes.string).isRequired,
   compact: PropTypes.bool,

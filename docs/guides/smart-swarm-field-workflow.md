@@ -176,14 +176,17 @@ there is no automatic inclusion or force bypass. Reference-based Start requires
 updated companion software. The same Start receipt is looked up if its result
 is uncertain; changing To does not replace that pending command.
 
-**To** controls future Takeoff, Start and individual **Other actions** only.
+**To** controls Takeoff, Start, Managed Return and individual **Other actions**.
 Deselecting an aircraft does not stop existing following or edit its role.
-**Hold all** and **Return all** recover the entire displayed cluster, regardless
-of To; Return all opens the existing Managed Return review. Changing clusters
-selects that cluster's full roster. Polls, reconnects and new members never
-silently edit a custom selection.
+**Hold all** alone recovers the entire displayed cluster, regardless of To.
+An accepted reduced Takeoff becomes the To choice for the next Start and Return;
+cancelling the Takeoff review leaves To unchanged. Choices are remembered for
+each cluster/operator/runtime in this browser session. A first visit selects
+the full cluster; polls, reconnects and new members never silently add targets.
 
-Takeoff/Start/Hold all/Return all stay above the bounded status roster, even for
+![One recipient choice across launch, following and return](../assets/smart-swarm/command-scope.svg)
+
+Takeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for
 large clusters. A single cluster has no formation selector; multiple clusters
 show one selector. Large recipient summaries collapse to a count, while To and
 the aircraft details retain exact identities. Scrolling the roster selects no
@@ -220,11 +223,17 @@ may not adopt an ordinary update at the same time; do not assume simultaneous mo
 
 ## Return and land
 
-For independent aircraft, choose **Return all** on **Smart Swarm -> Operate**
-to open **Managed Return** for the displayed cluster.
+For independent aircraft, check **To** on **Smart Swarm -> Operate**, then open
+**Managed Return** for those aircraft.
 Review aircraft order and the interval, then confirm. It requests Hold and submits
 native RTL commands one by one. The default interval is **10 seconds between
 submissions**, not between landings. Watch each aircraft's result.
+
+If returning a leader would leave a tracked active or pending follower behind,
+include the named follower in To or use **Hold all** first. Targets are never
+expanded automatically. If initial Hold fails, the queue names the unavailable
+aircraft and confirms that no RTL commands were sent; inspect the result before
+retrying. A request receipt alone is not a completed Hold or Return.
 
 Overview **Return** submits an immediate native return request to its reviewed
 targets; it does not run the mission workspace's Managed Return sequence.

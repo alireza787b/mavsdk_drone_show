@@ -4,10 +4,11 @@ import SwarmOperations from './SwarmOperations';
 import { fetchGcsResource } from '../services/gcsApiService';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 jest.mock('../services/gcsApiService',()=>({fetchGcsResource:jest.fn()}));
+jest.mock('../contexts/AuthContext',()=>({useAuth:()=>({loading:false,user:{username:'operator'}})}));
 jest.mock('../utilities/commandLifecycleFeedback',()=>({submitCommandWithLifecycleFeedback:jest.fn(),trackCommandReceipt:jest.fn()}));
 const mockMonitors=[];
 jest.mock('../contexts/CommandActivityContext',()=>({useCommandActivity:()=>({commandMonitors:mockMonitors,commandLifecycleCallbacks:{}})}));
-jest.mock('./SequentialReturnControl',()=>({targetIds,buttonLabel})=><button data-targets={targetIds.join(',')}>{buttonLabel}</button>);
+jest.mock('./SequentialReturnControl',()=>({targetIds,buttonLabel,disabled})=><button disabled={disabled} data-targets={targetIds.join(',')}>{buttonLabel}</button>);
 const members=['1','2','3'].map(hw_id=>({hw_id,follow:hw_id==='1'?'0':'1',available:true,armed:true,landed_state:2,frame:'body'}));
 const ready=id=>({hw_id:id,status:'ready',valid_for_ms:10000,scoped_start_supported:true});
 let referenceBlocked;
@@ -15,6 +16,8 @@ beforeEach(()=>{
   jest.clearAllMocks();sessionStorage.clear();mockMonitors.length=0;referenceBlocked=false;
   submitCommandWithLifecycleFeedback.mockResolvedValue({command_id:'retry'});
   fetchGcsResource.mockImplementation((_path,options)=>{
+    if (_path.startsWith('/api/v1/commands/takeoff-readiness')) return Promise.resolve({data:{valid_for_ms:10000,
+      targets:['1','2','3'].map(hw_id=>({hw_id,status:'ready',coordinated_takeoff_supported:true}))}});
     const targets=options?.params?.getAll?.('target_hw_ids') || ['1','2','3'];
     const references=targets.includes('1')?[]:['1'];
     return Promise.resolve({data:{runtime_mode:'SITL',revision:'same',clusters:[{cluster_id:'1',members}],
@@ -23,6 +26,34 @@ beforeEach(()=>{
       reference_hw_ids:references,reference_admissions:{'1':referenceBlocked
         ? {...ready('1'),status:'blocked',message:'PX4 RTL active'}:ready('1')}}});
   });
+});
+
+test('an accepted reduced Takeoff becomes the same To for the subsequent Start and survives remount',async()=>{
+  const first=render(<SwarmOperations/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','3'));
+  fireEvent.click(screen.getByRole('button',{name:'Takeoff'}));
+  fireEvent.click(within(screen.getByRole('dialog',{name:'Takeoff'})).getByRole('checkbox',{name:/Include .*3.*H3/}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:/^Arm & take off/})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:/^Arm & take off/}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','2'));
+  expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].target_drone_ids).toEqual(['1','2']);
+  first.unmount();render(<SwarmOperations/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','2'));
+  fireEvent.click(screen.getByRole('button',{name:'Start Swarm'}));
+  expect(screen.getByText('2/3 aircraft')).toBeInTheDocument();
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Start Swarm'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'Confirm Start Swarm'}));
+  await waitFor(()=>expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2));
+  expect(submitCommandWithLifecycleFeedback.mock.calls[1][0].target_drone_ids).toEqual(['1','2']);
+});
+
+test('cancelling a reduced Takeoff does not change the mission To',async()=>{
+  await mount();fireEvent.click(screen.getByRole('button',{name:'Takeoff'}));
+  const dialog=within(screen.getByRole('dialog',{name:'Takeoff'}));
+  fireEvent.click(dialog.getByRole('checkbox',{name:/Include .*3.*H3/}));
+  fireEvent.click(dialog.getByRole('button',{name:'Cancel'}));
+  expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','3');
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 async function mount(){render(<SwarmOperations/>);await waitFor(()=>expect(screen.getByRole('button',{name:'Choose command aircraft'})).toHaveAttribute('data-recipient-count','3'));}
 function choose(ids){
@@ -62,11 +93,12 @@ test('a recovering reference blocks the selected Start without commanding it',as
   expect(screen.getByRole('button',{name:'Confirm Start Swarm'})).toBeDisabled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
-test('empty To stays explicit; Hold all and Return all keep their named full-cluster scope',async()=>{
+test('empty To stays explicit for Return too; Hold all keeps its named full-cluster scope',async()=>{
   await mount();choose([]);
   expect(screen.getByRole('button',{name:'Start Swarm'})).toBeDisabled();
   expect(screen.getByRole('button',{name:'Takeoff'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:'Return all'})).toHaveAttribute('data-targets','1,2,3');
+  expect(screen.getByRole('button',{name:'Managed Return'})).toHaveAttribute('data-targets','');
+  expect(screen.getByRole('button',{name:'Managed Return'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button',{name:'Hold all'}));
   await waitFor(()=>expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
   expect(submitCommandWithLifecycleFeedback.mock.calls[0][0].target_drone_ids).toEqual(['1','2','3']);

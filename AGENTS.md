@@ -32,7 +32,11 @@ Do not assume the environment. Detect it first.
 - Smart Swarm command recipients are not its formation membership. Selected
   Start infers read-only upstream references and verifies native source evidence
   without restarting those aircraft or rewriting saved roles. Preserve explicit
-  whole-cluster recovery labels and normal full-cluster wire compatibility.
+  shared To across Takeoff, Start and Managed Return; only Hold all has explicit
+  whole-cluster scope. Remember exact choices in their operator/runtime/cluster
+  context, and carry accepted Takeoff subsets forward, never cancelled edits.
+  Partial leader return must account for omitted tracked pending/active followers.
+  Preserve normal full-cluster wire compatibility.
 - Treat unknown telemetry as unknown, not fabricated GPS/health or evidence of
   disarm/landing. Inspect aircraft by identity against the current shared model.
 - Shared-shell responsive behavior has one viewport owner. CSS should consume

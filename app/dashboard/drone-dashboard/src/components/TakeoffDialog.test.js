@@ -24,6 +24,26 @@ async function ready(props = {}) {
   return result;
 }
 
+test('accepted scope bookkeeping gets the exact submitted targets, not the initiating roster', async()=>{
+  const onAccepted=jest.fn();const beforeSubmit=jest.fn();
+  await ready({onAccepted,beforeSubmit});
+  fireEvent.click(screen.getByRole('checkbox',{name:/Include Wing/}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:/^Arm & take off/})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:/^Arm & take off/}));
+  await waitFor(()=>expect(onAccepted).toHaveBeenCalledTimes(1));
+  expect(beforeSubmit.mock.calls[0][0].target_drone_ids).toEqual(['1']);
+  expect(onAccepted.mock.calls[0][0].target_drone_ids).toEqual(['1']);
+});
+
+test('a known rejection never tells the workspace that a different scope was accepted',async()=>{
+  const onAccepted=jest.fn();
+  submitCommandWithLifecycleFeedback.mockRejectedValue({response:{status:409,data:{detail:'Not ready'}}});
+  await ready({onAccepted});
+  fireEvent.click(screen.getByRole('button',{name:/^Arm & take off/}));
+  await screen.findByText('Not ready');
+  expect(onAccepted).not.toHaveBeenCalled();
+});
+
 test('review is read-only and multi-aircraft defaults to the armed barrier', async () => {
   await ready();
   expect(screen.getByRole('radio', { name: 'All armed first' })).toBeChecked();

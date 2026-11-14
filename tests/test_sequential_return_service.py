@@ -29,7 +29,8 @@ def make_service(tmp_path, monkeypatch, *, fail_hold=False):
         return SimpleNamespace(command_id=command_id)
 
     monkeypatch.setattr(module, "submit_tracked_command", submit)
-    tracker = SimpleNamespace(get_status=AsyncMock(side_effect=lambda key: statuses[key]))
+    tracker = SimpleNamespace(get_status=AsyncMock(side_effect=lambda key: statuses[key]),
+                              get_active_commands=AsyncMock(return_value=[]))
     deps = SimpleNamespace(
         Params=SimpleNamespace(GCS_COMMAND_STATE_DIR=str(tmp_path)),
         load_config=lambda: [{"hw_id": "1"}, {"hw_id": "2"}],
@@ -73,7 +74,53 @@ async def test_rejection_stops_queue_before_any_rtl(tmp_path, monkeypatch):
     await service.task
     assert len(calls) == 1
     assert service.latest()["state"] == "failed"
-    assert service.latest()["message"] == "Hold rejected"
+    assert service.latest()["message"] == "Hold not confirmed: Hold rejected. No RTL commands sent."
+
+
+def test_offline_return_target_is_named_without_implying_any_rtl_was_sent():
+    status = {"acks": {"details": {"1": {"category": "accepted"},
+                                     "3": {"category": "offline", "message": "No route to host"}}}}
+    assert module.command_failure_reason(status) == "Drone 3: unavailable"
+
+
+@pytest.mark.asyncio
+async def test_omitted_active_follower_is_rejected_before_any_hold(tmp_path, monkeypatch):
+    service, calls, deps = make_service(tmp_path, monkeypatch)
+    deps.get_command_tracker().get_active_commands.return_value = [{
+        'command_id': 'swarm', 'mission_type': 2, 'target_drones': ['1','2'],
+        'params': {'smart_swarm': {'assignments': [{'hw_id':'1','follow':'0'}, {'hw_id':'2','follow':'1'}]}},
+    }]
+    with pytest.raises(HTTPException) as exc:
+        await service.start(request(target_drone_ids=['1']))
+    assert exc.value.status_code == 409 and 'Include following aircraft 2' in exc.value.detail
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_uncertain_first_rtl_is_not_reported_as_never_sent(tmp_path, monkeypatch):
+    service, calls, _ = make_service(tmp_path, monkeypatch)
+    original_submit = module.submit_tracked_command
+    async def uncertain_submit(deps, command):
+        if command.mission_type == 104:
+            raise RuntimeError('RTL receipt uncertain')
+        return await original_submit(deps, command)
+    monkeypatch.setattr(module, 'submit_tracked_command', uncertain_submit)
+    await service.start(request())
+    await service.task
+    assert service.latest()['message'] == 'RTL receipt uncertain'
+
+
+@pytest.mark.asyncio
+async def test_new_following_work_during_hold_blocks_before_first_rtl(tmp_path, monkeypatch):
+    service, calls, deps = make_service(tmp_path, monkeypatch)
+    follower = {'command_id':'new-follow', 'mission_type':2, 'target_drones':['3'],
+                'params':{'smart_swarm':{'assignments':[{'hw_id':'1','follow':'0'},{'hw_id':'3','follow':'1'}]}}}
+    deps.get_command_tracker().get_active_commands.side_effect = [[], [follower]]
+    await service.start(request())
+    await service.task
+    assert len(calls) == 1 and calls[0][0].mission_type == 102
+    assert 'Include following aircraft 3' in service.latest()['message']
+    assert service.latest()['commands'] == []
 
 
 @pytest.mark.asyncio

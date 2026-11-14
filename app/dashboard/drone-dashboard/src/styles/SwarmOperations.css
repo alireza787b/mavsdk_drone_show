@@ -58,6 +58,8 @@
 .swarm-confirm-summary--managed-return { min-width: min(32rem, 80vw); }
 .swarm-return-field { align-items: center; display: flex; gap: .8rem; justify-content: space-between; }
 .swarm-return-field span { align-items: center; display: inline-flex; gap: .3rem; }
+.swarm-return-flow { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.swarm-return-flow > span { margin-left:auto; color:var(--color-text-secondary); font-size:.8rem; }
 .swarm-return-order-heading { border-bottom: 1px solid var(--color-border-primary); color: var(--color-text-secondary); font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .swarm-return-order { display: grid; gap: .35rem; list-style: decimal; margin: 0; padding-left: 1.4rem; }
 .swarm-return-order li { align-items: baseline; display: flex; gap: .5rem; justify-content: space-between; }
