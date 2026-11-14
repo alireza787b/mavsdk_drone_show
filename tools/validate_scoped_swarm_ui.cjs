@@ -29,7 +29,8 @@ async function run() {
         const request=route.request(),url=new URL(request.url());
         if (!['GET','HEAD','OPTIONS'].includes(request.method())) {
           writes.push({path:url.pathname,body:request.postDataJSON()});
-          return route.fulfill({status:409,json:{detail:{message:'Fixture: no dispatch',dispatched:false}}});
+          return route.fulfill({status:409,json:{detail:url.pathname.endsWith('/sequential-return')
+            ? 'Fixture: no dispatch' : {message:'Fixture: no dispatch',dispatched:false}}});
         }
         if(url.port!=='5030' && !url.pathname.startsWith('/api/')) return route.continue();
         let json;
