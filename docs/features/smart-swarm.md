@@ -218,6 +218,18 @@ This check repeats before each RTL and does not replace flight-path separation.
 Measured SITL example: the dashed lines mark RTL submissions, not landing
 clearance. Height is relative to each aircraft's own home. This run illustrates
 the queue; it does not prove separation for other homes, heights or return paths.
+The rehearsal selected two flying aircraft with a third configured but offline:
+Takeoff, following, Stop/Start and selected Managed Return completed without
+changing the saved formation. Returning only the leader while its follower was
+active was rejected before Hold. To repeat this in an isolated SITL deployment:
+
+```bash
+python3 tools/validate_sequential_return_runtime.py \
+  --base-url http://127.0.0.1:5000 --drone-ids 1 2 --delay-sec 10 \
+  --exercise-operator-flow --check-partial-leader-return --output-dir /tmp/return-rehearsal
+```
+
+This validator refuses REAL mode and never changes saved roles or offsets.
 
 ### Hold Swarm
 

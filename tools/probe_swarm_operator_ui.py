@@ -66,7 +66,7 @@ def main():
                 overflow = client.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
                 assert not overflow, f'{viewport}: horizontal overflow'
                 client.screenshot(args.output_dir / f'{viewport}-operate.png')
-                for label, name in [('Takeoff', 'takeoff'), ('Start Swarm', 'start'), ('Return all', 'return')]:
+                for label, name in [('Takeoff', 'takeoff'), ('Start Swarm', 'start'), ('Managed Return', 'return')]:
                     clicked = client.evaluate(f"(() => {{ const b = [...document.querySelectorAll('.swarm-ops button')].find(b => b.textContent.trim() === {json.dumps(label)}); if (!b || b.disabled) return false; b.click(); return true; }})()")
                     assert clicked, f'{label}: control unavailable'
                     time.sleep(0.3)

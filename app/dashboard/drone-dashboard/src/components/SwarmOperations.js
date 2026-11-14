@@ -395,7 +395,7 @@ export default function SwarmOperations() {
       {error && <p role="alert">{error}</p>}
       {choosingRecipients && <CommandAircraftPicker selectedIds={commandScope.ids} configuredIds={ids} aircraft={pickerAircraft}
         preset={{ label: 'Cluster', ariaLabel: 'Use entire cluster', ids, Icon: FaLayerGroup, title: 'Use the entire displayed formation' }}
-        showAllConfigured={false} help="Recipients for the next action. Saved roles stay unchanged; required upstream leaders are read-only references. Hold all and Return all recover the entire cluster."
+        showAllConfigured={false} help="To applies to Takeoff, Start and Managed Return. Hold all stops the whole formation. Saved roles stay unchanged."
         onClose={() => setChoosingRecipients(false)} onApply={next => { commandScope.choose(next); setChoosingRecipients(false); }} />}
       <TakeoffDialog open={confirmation?.action === 'takeoff'}
         command={confirmation ? { mission_type: 10, trigger_time: 0, target_drone_ids: confirmation.targets,
