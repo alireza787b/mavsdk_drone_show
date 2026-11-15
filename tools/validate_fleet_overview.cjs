@@ -277,6 +277,15 @@ async function run() {
       }
       await page.getByRole('button', { name: 'List', exact: true }).click();
       await page.locator('.fleet-board--list').waitFor();
+      assert(await page.locator('.fleet-board--list .fleet-aircraft').evaluateAll(cards=>cards.every(card=>{
+        const rail=card.querySelector('.fleet-aircraft__instruments');
+        const box=card.getBoundingClientRect();
+        const metrics=[...rail.children].map(node=>node.getBoundingClientRect());
+        return metrics.length===4&&metrics.every((metric,index)=>metric.width>0
+          &&metric.left>=box.left&&metric.right<=box.right
+          &&(!index||metric.left>=metrics[index-1].right));
+      })), 'List preserves four non-overlapping instruments inside every aircraft row');
+      if (output && [3,100].includes(count)) await page.screenshot({path:path.join(output,`list-${count}-${width}-${theme}.png`)});
       await page.getByRole('button', { name: 'Board', exact: true }).click();
       if (count === 3 && width === 1440) {
         await page.getByRole('button', { name: 'Map', exact: true }).click();
