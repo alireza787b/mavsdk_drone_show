@@ -77,6 +77,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[MDS vNext Architecture Consultation](plans/2026-07-28-mds-next-major-architecture-consultation.md)** - data ownership, migration boundaries, rollout phases, and architecture decisions for the next major version
 - **[MDS vNext Plain-Language and Private-Drift Review](plans/2026-07-28-mds-vnext-plain-language-and-private-drift-review.md)** - beginner-friendly lifecycle examples, official/private drift analysis, and operator workflows
 - **[MDS vNext Connectivity, Recovery, and Operations Review](plans/2026-07-28-mds-vnext-connectivity-recovery-and-operations-review.md)** - NetBird/Tailscale/LAN connectivity, MAVLink Anywhere, Smart WiFi, GCS loss, recovery, and scale scenarios
+- **[Communications Modernization Plan](plans/2026-11-15-communications-modernization.md)** - proposed shared observations, bounded WS/HTTP recovery, preserved command/motion lanes and measured migration gates; not deployed behavior
 - **[Field Launch Readiness Incident Checkpoint](plans/2026-08-02-field-launch-readiness-incident.md)** - sanitized field timeline, safety boundary, proven launch/readiness/control-plane defects, reconnect evidence plan, and systematic cross-repo fix boundary
 - **[Field Launch Readiness Release Gate](plans/2026-08-03-field-launch-readiness-release-gate.md)** - finite P0 closure bar, one-pass validation sequence, explicit deferrals, and promotion/field-test boundary
 - **[Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md)** - historical checkpoint retained for project history; not indexed as live agent context
@@ -253,7 +254,7 @@ sudo ./tools/mds_gcs_init.sh
 - **MAVLink2REST** - REST API for MAVLink messages
   - [Official Documentation](https://github.com/mavlink/mavlink2rest)
 - **WebSocket** - Real-time telemetry streaming
-  - Protocol documentation: *(TBD)*
+  - [GCS stream contracts](apis/gcs-api-server.md#websocket-endpoints) and [aircraft stream contracts](apis/drone-api-server.md#websocket-endpoint-real-time-streaming)
 
 ### Integration Examples
 

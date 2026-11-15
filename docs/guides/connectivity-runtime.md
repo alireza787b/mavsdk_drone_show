@@ -182,23 +182,15 @@ The existing 10-second stale/60-second Available display windows are unchanged.
 
 ### Communications roadmap — proposed, not implemented
 
-1. Measure each hop separately: FC sample time, companion receipt, GCS accepted
-   receipt, browser receipt, failure streak and next retry. Use transition logs
-   and bounded metrics, not high-rate payload dumps. Source age is not one-way
-   Wi-Fi/4G latency without an aligned-clock measurement.
-2. Evolve one identity-scoped fleet evidence snapshot for REST, existing WS and
-   optional MCP readers. Retain separate presence, FC freshness and authoritative
-   action readiness; avoid a second meaning of “online” in each consumer.
-3. Migrate remaining overlapping/clear-on-error browser polling incrementally
-   to shared sequential ownership. Preserve receipt clocks across retries,
-   pause hidden pages and never treat reconnect as new aircraft evidence.
-4. Add sequence/snapshot identity, bounded coalescing and gap-resync to the
-   existing telemetry WS before considering aircraft-push transport. Commands
-   remain separately tracked/idempotent; reconnect must never replay actuation.
+The [communications modernization plan](../plans/2026-11-15-communications-modernization.md)
+defines the proposed shared snapshot/subscription ownership, HTTP compatibility,
+bounded delivery, identity/clock contracts, migration slices and validation gates.
+It is not a deployed transport upgrade. Measure each hop before selecting rates,
+queues or encoding; source age is not pure network latency.
 
-These are future engineering choices, not capabilities delivered by the gauge
-or warning-presentation update. Measure bandwidth/jitter and missing-data episodes
-before choosing rates, queues or a different transport.
+The plan consolidates supervisory observations, not commands, bulk transfers and
+flight-control traffic into one queue. It preserves existing native admission,
+exact command recipients and the optional MCP boundary.
 
 Smart Swarm's aircraft-to-aircraft leader-state WS stream and HTTP fallback are
 already separate from dashboard monitoring. Evaluate their existing source-age,
