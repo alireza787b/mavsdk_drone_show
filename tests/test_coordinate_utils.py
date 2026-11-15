@@ -183,6 +183,30 @@ class TestGetExpectedPositionFromTrajectory:
         assert north == 12.0
         assert east == -3.5
 
+    def test_nonfinite_px_returns_none(self, tmp_path):
+        """Non-finite px must not become an expected position."""
+        from src.coordinate_utils import get_expected_position_from_trajectory
+
+        trajectory_dir = tmp_path / "shapes" / "swarm" / "processed"
+        trajectory_dir.mkdir(parents=True)
+        (trajectory_dir / "Drone 1.csv").write_text(
+            "t,px,py,pz,vx,vy,vz\n0.0,inf,1.0,0,0,0,0\n"
+        )
+        north, east = get_expected_position_from_trajectory(1, sim_mode=False, base_dir=str(tmp_path))
+        assert north is None and east is None
+
+    def test_nonfinite_py_nan_returns_none(self, tmp_path):
+        """NaN py must not become an expected position."""
+        from src.coordinate_utils import get_expected_position_from_trajectory
+
+        trajectory_dir = tmp_path / "shapes" / "swarm" / "processed"
+        trajectory_dir.mkdir(parents=True)
+        (trajectory_dir / "Drone 1.csv").write_text(
+            "t,px,py,pz,vx,vy,vz\n0.0,1.5,nan,0,0,0,0\n"
+        )
+        north, east = get_expected_position_from_trajectory(1, sim_mode=False, base_dir=str(tmp_path))
+        assert north is None and east is None
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
