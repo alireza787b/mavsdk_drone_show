@@ -17,11 +17,11 @@ export function BatteryGauge({ battery }) {
   const known = Number.isFinite(battery.remaining) && battery.remaining >= 0 && battery.remaining <= 100;
   const charging = battery.current && battery.chargeState === 7 && !battery.faultBitmask && battery.tone !== 'danger';
   return <span className="fleet-battery-instrument" data-current={battery.current}>
-    <svg viewBox="0 0 54 26" className="fleet-battery-gauge" data-charge={known ? Math.round(battery.remaining) : 'unknown'} aria-hidden="true">
-      <rect className="fleet-battery-gauge__outline" x="1" y="2" width="47" height="22" rx="2" />
-      <path d="M51 9v8" className="fleet-battery-gauge__terminal" />
-      {known && <rect className="fleet-battery-gauge__fill" x="4" y="5" width={41 * battery.remaining / 100} height="16" />}
-      <text x="24" y="17" textAnchor="middle">{known ? `${Math.round(battery.remaining)}%` : '—'}</text>
+    <svg viewBox="0 0 46 22" className="fleet-battery-gauge" data-charge={known ? Math.round(battery.remaining) : 'unknown'} aria-hidden="true">
+      <rect className="fleet-battery-gauge__outline" x="1" y="1" width="40" height="20" rx="2" />
+      <path d="M44 8v6" className="fleet-battery-gauge__terminal" />
+      {known && <rect className="fleet-battery-gauge__fill" x="3.5" y="3.5" width={35 * battery.remaining / 100} height="15" />}
+      <text x="21" y="15" textAnchor="middle">{known ? `${Math.round(battery.remaining)}%` : '—'}</text>
     </svg>
     {charging && <FaBolt className="fleet-battery-instrument__charging" aria-hidden="true" />}
   </span>;

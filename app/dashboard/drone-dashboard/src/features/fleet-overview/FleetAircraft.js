@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useId, useRef, useState } from 'react';
+import React, { memo, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
@@ -62,9 +62,9 @@ const NETWORK_ICONS = { wifi: FaWifi, ethernet: FaEthernet, usb_modem: FaUsb };
 function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon, children, help }) {
   const Icon = icon || METRIC_ICONS[kind];
   const presentation = displayValue === 'Unknown' ? '—' : displayValue;
-  return <span className={`fleet-aircraft__metric fleet-aircraft__metric--${kind}${tone ? ` tone-${tone}` : ''}`}
+  return <span className={`fleet-aircraft__metric fleet-aircraft__metric--${kind}${tone ? ` tone-${tone}` : ''}`} data-stale={stale}
     title={help || `${kind === 'link' ? 'Heartbeat age / reported signal' : label}: ${value}${stale ? ' · Last known' : ''}`} aria-label={`${label}: ${value}${stale ? ', Last known' : ''}`}>
-    <span>{children || <>{Icon && <Icon aria-hidden="true" />}<span>{presentation}</span></>}</span>{stale && <em>Last known</em>}
+    <span>{children || <>{Icon && <Icon aria-hidden="true" />}<span className="fleet-aircraft__value">{presentation}</span></>}</span>
   </span>;
 }
 
@@ -84,7 +84,6 @@ function heartbeatText(availability) {
 
 export const AircraftTile = memo(function AircraftTile({ item, selected, inspected, onInspect, onToggle, selectionDisabled = false, list = false }) {
   const hintId = useId();
-  const [hintDismissed, setHintDismissed] = useState(false);
   const issue = item.issues[0];
   const networkDetails = item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : item.network.type === 'wifi' ? ' · signal unavailable' : ''}` : '';
   const linkText = `${heartbeatText(item.availability)}${networkDetails}`;
@@ -98,14 +97,22 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       {selected && <span className="fleet-visually-hidden" aria-label={`Command recipient: ${item.label} · H${item.id}`}>Included</span>}
     </label>
     <button type="button" className="fleet-aircraft__inspect" onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}
-      aria-describedby={hintId} data-hint-dismissed={hintDismissed} onFocus={() => setHintDismissed(false)}
-      onKeyDown={event => { if (event.key === 'Escape') setHintDismissed(true); }}>
-      <span className="fleet-aircraft__identity"><span><strong>{item.label}</strong><small>H{item.id}{item.identity.posId ? ` · P${item.identity.posId}` : ''}</small></span>
+      aria-describedby={hintId}>
+      <span className="fleet-aircraft__identity"><span><strong title={item.label}>{item.label}</strong><small>H{item.id}{item.identity.posId ? ` · P${item.identity.posId}` : ''}</small></span>
         <FaInfoCircle className="fleet-aircraft__info" aria-hidden="true" /></span>
-      <span className="fleet-aircraft__instruments">
-        <Metric kind="battery" label="Battery" value={item.battery.text}
-          stale={item.battery.stale} tone={item.battery.current ? item.battery.tone : 'muted'} help={batteryHelp}><BatteryGauge battery={item.battery} /></Metric>
+      <span className="fleet-aircraft__flight">
         <AircraftPortrait item={item} />
+        <span className="fleet-aircraft__state">
+          <strong>{item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}</strong>
+          <small className="fleet-aircraft__mode" data-stale={item.flightMode.stale}
+            aria-label={`Flight mode: ${item.flightMode.label}${item.flightMode.stale ? ', Last known' : ''}`}>
+            {item.flightMode.label}</small>
+          {item.flightState === 'Grounded' && <small className={`fleet-aircraft__readiness is-${item.readiness.status}`}>
+            {item.readiness.status === 'warning' ? 'Check' : item.readiness.label}</small>}
+          {item.mission.known && item.mission.value !== DRONE_MISSION_TYPES.NONE && <Metric kind="mission" label="Mission" value={item.mission.label} stale={item.mission.stale} />}
+        </span>
+      </span>
+      <span className="fleet-aircraft__instruments">
         <Metric kind="gnss" label="GNSS" value={`${item.gps.label} · ${item.gps.satellites ?? '—'} sats`}
           displayValue={item.gps.label} stale={item.gps.stale} />
         <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} displayValue={compactAltitude(item.altitude)} stale={item.altitude.stale} />
@@ -114,18 +121,17 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
           tone={item.linkAttention === 'pending' ? 'muted' : item.availability.label === 'Fresh' ? '' : item.availability.tone}>
           {item.network.type === 'wifi' && item.network.current && <WifiStrength percent={item.network.percent} />}
         </Metric>
+        <Metric kind="battery" label="Battery" value={item.battery.text}
+          stale={item.battery.stale} tone={item.battery.current ? item.battery.tone : 'muted'} help={batteryHelp}><BatteryGauge battery={item.battery} /></Metric>
       </span>
-      <span className="fleet-aircraft__state">
-        {item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}
-        <small className="fleet-aircraft__mode" aria-label={`Flight mode: ${item.flightMode.label}${item.flightMode.stale ? ', Last known' : ''}`}>
-          {item.flightMode.label}{item.flightMode.stale ? ' · Last known' : ''}</small>
-        {item.flightState === 'Grounded' && <small className={`fleet-aircraft__readiness is-${item.readiness.status}`}>
-          {item.readiness.status === 'warning' ? 'Check' : item.readiness.label}</small>}</span>
-      {item.mission.known && item.mission.value !== DRONE_MISSION_TYPES.NONE && <Metric kind="mission" label="Mission" value={item.mission.label} stale={item.mission.stale} />}
-      <span className={`fleet-aircraft__issue tone-${issue?.tone || 'neutral'}`}>
-        {issue && <><FaExclamationTriangle aria-hidden="true" /><span>{issue.label}</span>{item.issues.length > 1 && <small>+{item.issues.length - 1}</small>}</>}
+      {issue && <span className={`fleet-aircraft__issue tone-${issue.tone}`}>
+        <FaExclamationTriangle aria-hidden="true" /><span>{issue.label}</span>{item.issues.length > 1 && <small>+{item.issues.length - 1}</small>}
+      </span>}
+      <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
+        {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
+        {item.flightState === 'Grounded' ? ` Preflight: ${item.readiness.label}.` : ''}
+        {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
       </span>
-      <span id={hintId} className="fleet-aircraft__focus-help">Battery: {batteryHelp}<br />Link: {networkHelp}</span>
     </button>
   </article>;
 });

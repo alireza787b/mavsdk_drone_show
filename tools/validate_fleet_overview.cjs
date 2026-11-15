@@ -218,9 +218,18 @@ async function run() {
         await page.keyboard.press('Shift+Tab');
         await page.keyboard.press('Tab');
         const hint=first.locator('.fleet-aircraft__focus-help');
-        assert.equal(await hint.evaluate(node=>getComputedStyle(node).opacity),'1','Keyboard focus reveals the same detail');
-        await page.keyboard.press('Escape');
-        assert.equal(await hint.evaluate(node=>getComputedStyle(node).opacity),'0','Escape dismisses focus help');
+        assert.equal(await first.getAttribute('aria-describedby'),await hint.getAttribute('id'));
+        assert((await hint.textContent()).includes('Flight mode: Hold'),'Keyboard description includes native flight mode');
+        assert(await hint.evaluate(node=>node.getBoundingClientRect().width<=1),'Accessible description never covers aircraft conditions');
+        const instruments=await firstCard.locator('.fleet-aircraft__instruments > .fleet-aircraft__metric').evaluateAll(nodes=>nodes.map(node=>({
+          label:node.getAttribute('aria-label').split(':')[0],x:node.getBoundingClientRect().x,y:node.getBoundingClientRect().y,
+          bottom:node.getBoundingClientRect().bottom,
+        })));
+        assert.deepEqual(instruments.map(node=>node.label),['GNSS','Altitude','Link','Battery'],'All cards retain the same instrument comparison order');
+        assert(instruments.every((node,index)=>!index||node.x>instruments[index-1].x),'Indicators never wrap into scattered positions');
+        assert(Math.max(...instruments.map(node=>node.y))-Math.min(...instruments.map(node=>node.y))<=6,'Instruments share one aligned rail');
+        const battery=await firstCard.locator('.fleet-battery-gauge').boundingBox();
+        assert(battery.width<=46.1&&battery.height<=22.1,'Battery is compact without shrinking its 11px percentage text');
       }
       await first.click();
       await page.getByRole('dialog', { name: fleet[0].callsign, exact: true }).waitFor();

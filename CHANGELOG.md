@@ -9,6 +9,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Overview aircraft cards use one aligned GNSS/altitude/link/battery strip,
+  a compact percentage gauge and a single aircraft/state anchor. Cached values
+  retain provenance without repeated labels; keyboard descriptions no longer
+  cover warnings. Selection, freshness and aircraft command policies are unchanged.
+
 - Aircraft selectors no longer focus their search field automatically on touch
   devices. Desktop search focus and safe flight-confirmation focus are retained.
 

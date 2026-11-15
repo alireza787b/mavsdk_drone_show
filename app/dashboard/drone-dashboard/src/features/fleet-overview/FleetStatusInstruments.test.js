@@ -10,6 +10,7 @@ test.each([[0,0],[1,1],[33,1],[34,2],[67,3],[100,3],[null,'unknown'],[-1,'unknow
 test.each([0,100,null])('battery%s uses reported percentage only', remaining=>{
   const {container}=render(<BatteryGauge battery={{remaining,voltage:24,current:true}}/>);
   expect(container.querySelector('svg')).toHaveAttribute('data-charge',remaining===null?'unknown':String(remaining));
+  expect(container.querySelector('svg')).toHaveAttribute('viewBox','0 0 46 22');
   expect(container.querySelector('text')).toHaveTextContent(remaining===null?'—':`${remaining}%`);
   expect(container.querySelectorAll('.fleet-battery-gauge__fill')).toHaveLength(remaining===null?0:1);
 });

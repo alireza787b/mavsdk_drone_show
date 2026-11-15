@@ -28,7 +28,7 @@ test('hover details and keyboard description share current SSID/voltage without 
   expect(document.getElementById(button.getAttribute('aria-describedby'))).toHaveTextContent('16.1V');
   expect(button.querySelectorAll('button,input,[tabindex]')).toHaveLength(0);
   fireEvent.focus(button);fireEvent.keyDown(button,{key:'Escape'});
-  expect(button).toHaveAttribute('data-hint-dismissed','true');
+  expect(button.querySelector('.fleet-aircraft__focus-help')).toHaveClass('fleet-visually-hidden');
   expect(props.onInspect).not.toHaveBeenCalled();expect(props.onToggle).not.toHaveBeenCalled();
 });
 
@@ -64,6 +64,27 @@ test('normal idle cards omit routine mission prose but retain all details in ins
   expect(screen.queryByText('Fresh')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('');
   expect(screen.getByText('RTK fixed')).toBeInTheDocument();
+});
+
+test('state has one anchor and instruments keep one comparison order', () => {
+  const { container } = tile(aircraft({ readiness_status: 'ready' }));
+  const anchor = container.querySelector('.fleet-aircraft__flight');
+  expect(anchor.querySelector('.fleet-aircraft__portrait')).toBeInTheDocument();
+  expect(anchor.querySelector('.fleet-aircraft__state')).toHaveTextContent('Grounded');
+  expect(Array.from(container.querySelector('.fleet-aircraft__instruments').children)
+    .map(node => node.getAttribute('aria-label').split(':')[0])).toEqual(['GNSS', 'Altitude', 'Link', 'Battery']);
+  expect(container.querySelector('.fleet-aircraft__issue')).toBeNull();
+  const inspect = screen.getByRole('button', { name: 'Inspect Scout · H7' });
+  const description = document.getElementById(inspect.getAttribute('aria-describedby'));
+  expect(description).toHaveTextContent('Preflight: Ready');
+  expect(description).toHaveClass('fleet-visually-hidden');
+});
+
+test('cached instrument values retain explicit accessible provenance without repeated visible prose', () => {
+  const { container } = tile(aircraft({}, NOW + 20000));
+  expect(screen.getByLabelText('Altitude: 1200.0 m MSL, Last known')).toHaveAttribute('data-stale', 'true');
+  expect(screen.getByLabelText('Flight mode: Hold, Last known')).toHaveAttribute('data-stale', 'true');
+  expect(container.querySelectorAll('.fleet-aircraft__metric em')).toHaveLength(0);
 });
 
 test('unknown measurements use a compact mark without inventing a measured value', () => {

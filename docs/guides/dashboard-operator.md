@@ -29,18 +29,23 @@ to find them. A map marker opens inspection, not command selection.
 
 Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical
 aircraft even when names are duplicated. **P1**, **P2**, etc. identify position
-slots. Each card centers an aircraft schematic with a small phase marker for
+slots. Each card pairs an aircraft schematic with a small phase marker for
 grounded, airborne, taking off, landing or unknown. The illustration is not an
-airframe footprint, heading or proof that motors stopped. Battery percentage and
-altitude/datum sit on the left; GNSS fix and stable link state on the right. Exact
+airframe footprint, heading or proof that motors stopped. Phase, named flight
+mode and ground readiness sit together beside it. One fixed strip below shows
+GNSS fix, altitude/datum, transport and battery in that order, in Board and List.
+Battery percentage remains readable inside the smaller gauge. Exact
 heartbeat age and Fresh/Stale labels remain in the link hint and inspector
 diagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/
 USB transport symbol. No percentage is permanently repeated beside Wi-Fi.
 The battery outline fills to PX4's reported percentage, shown inside; a bolt
 means current, fault-free charging evidence. Unknown charge is a dash, not an
 empty battery or a voltage-based estimate. Hover the instruments for voltage,
-SSID and reported signal; keyboard focus on the card reveals the same concise
-details (Escape dismisses). Tap the card for details on touch devices.
+SSID and reported signal. Keyboard focus announces phase, readiness, the first
+issue, battery and link; Enter opens full details. Focus never puts a tooltip
+over aircraft warnings. Tap the card for details on touch devices. Cached
+measurements have a dotted underline and the shared stale/link marker; their
+hints and inspection retain explicit last-known provenance.
 The inspector also shows the **Configured IP**; this is an address
 from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
