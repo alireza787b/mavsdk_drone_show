@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import math
 import time
 from typing import Optional
 
@@ -40,6 +41,13 @@ def resolve_requested_start_time(
             )
         return None
 
+    if not math.isfinite(normalized):
+        if logger is not None:
+            logger.warning(
+                "Non-finite synchronized start time provided. Immediate launch will anchor at the local startup gate."
+            )
+        return None
+
     if normalized <= 0:
         if logger is not None:
             logger.info(
@@ -63,8 +71,20 @@ def evaluate_synchronized_start(
     `synchronized_start_time` is expected to be an epoch-second timestamp.
     A value of `None`, `0`, or a negative number means "start immediately".
     """
-    resolved_now = float(time.time() if now is None else now)
-    tolerance = max(0.0, float(late_tolerance_sec))
+    try:
+        resolved_now = float(time.time() if now is None else now)
+    except (TypeError, ValueError):
+        resolved_now = float(time.time())
+    if not math.isfinite(resolved_now):
+        resolved_now = float(time.time())
+
+    try:
+        tolerance = float(late_tolerance_sec)
+    except (TypeError, ValueError):
+        tolerance = 0.0
+    if not math.isfinite(tolerance):
+        tolerance = 0.0
+    tolerance = max(0.0, tolerance)
 
     if synchronized_start_time is None:
         return SynchronizedStartDecision(
@@ -86,6 +106,16 @@ def evaluate_synchronized_start(
             should_wait=False,
             should_abort=False,
             reason="Invalid start_time provided; using now.",
+        )
+
+    if not math.isfinite(requested_start_time):
+        return SynchronizedStartDecision(
+            effective_start_time=resolved_now,
+            wait_seconds=0.0,
+            late_by_seconds=0.0,
+            should_wait=False,
+            should_abort=False,
+            reason="Non-finite start_time provided; using now.",
         )
 
     if requested_start_time <= 0:
