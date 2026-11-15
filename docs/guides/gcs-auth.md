@@ -101,6 +101,12 @@ When dashboard auth is enabled:
 If auth is enabled but no admin user exists, the login page shows the SSH
 recovery command instead of leaving the operator guessing.
 
+Shared observation sockets use the same read authority as HTTP, validate browser
+Origin and periodically recheck credentials. Modern v1 clients use browser
+cookies or authorization headers, not bearer tokens in URLs. Expiry requires
+renewed login, not repeated radio reconnects. See the
+[GCS API stream contract](../apis/gcs-api-server.md) for bounds and legacy support.
+
 ## SSH Recovery CLI
 
 Use the CLI when the browser session is broken, a password is lost, or the first

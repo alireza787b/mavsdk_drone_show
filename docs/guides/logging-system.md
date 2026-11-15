@@ -21,6 +21,13 @@ size, has a valid ULog header and has a recorded checksum. Preserve partial
 coverage explicitly on failure. ULog inventory dates may describe file ending;
 use embedded GPS/boot timestamps to align the actual flight, not file recency.
 
+Communications diagnostics distinguish transport recovery from aircraft state.
+An open/silent WS is not fresh FC evidence, and an HTTP success receipt is not
+command execution. The shared observation stream is latest-state delivery, not
+a log archive: skipped generations are expected for slow readers. Retain native
+source times and consult unified node/GCS logs when investigating a gap; do not
+tune flight gains or suppress a native blocker to conceal a transport failure.
+
 All MDS components share a single logging contract via the `mds_logging` package:
 
 ```

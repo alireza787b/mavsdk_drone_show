@@ -15802,7 +15802,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "6c64b02eaf5aefb10021407fb1acf24e6a3d22a147c953dea9c7ab5317603aa4",
+      "content_hash": "bb16c8a26c954ea41238eb9b4d4ed5439e708e5b17a7ed190cbdb2edd87ef9e0",
       "heading": "Architecture",
       "id": "mds.logging_system:002-01-architecture",
       "links": [],
@@ -15815,7 +15815,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "## Architecture\n\nPX4 status text is retained as an event; its severity is not itself evidence\nof a failed current launch check. Classification must match complete phrases:\n`Arming denied` is a launch blocker, while `Disarming denied: not landed` is\na distinct in-flight event and must not match the embedded substring `arming\ndenied`. Preserve the latter in history and investigate its command/RC source;\ndo not hide it or relax native disarm protection.\n\nFor field evidence collection, distinguish the node's staged ULog job from the\nfile saved on the analysis host. Download status responses wrap state inside\n`job`; `job.status == \"ready\"` is not proof the client has fetched the bytes.\nOnly confirm shutdown after every selected flight file matches its expected\nsize, has a valid ULog header and has a recorded checksum. Preserve partial\ncoverage explicitly on failure. ULog inventory dates may describe file ending;\nuse embedded GPS/boot timestamps to align the actual flight, not file recency.\n\nAll MDS components share a single logging contract via the `mds_logging` package:\n\n```\nmds_logging/\n __init__.py # Public API: get_logger(), set_session(), set_source()\n schema.py # JSONL field definitions and validation\n constants.py # Environment variable config (MDS_LOG_* prefix)\n formatter.py # JSONLFormatter (file) + ConsoleFormatter (terminal)\n session.py # Session lifecycle: create, list, cleanup\n handlers.py # SessionFileHandler + WatcherHandler\n watcher.py # In-memory pub/sub for SSE streaming\n registry.py # Component self-registration\n cli.py # Shared CLI flags (--verbose, --debug, --quiet, etc.)\n drone.py # init_drone_logging() — drone-side init\n server.py # init_server_logging() — GCS server init\n```",
+      "text": "## Architecture\n\nPX4 status text is retained as an event; its severity is not itself evidence\nof a failed current launch check. Classification must match complete phrases:\n`Arming denied` is a launch blocker, while `Disarming denied: not landed` is\na distinct in-flight event and must not match the embedded substring `arming\ndenied`. Preserve the latter in history and investigate its command/RC source;\ndo not hide it or relax native disarm protection.\n\nFor field evidence collection, distinguish the node's staged ULog job from the\nfile saved on the analysis host. Download status responses wrap state inside\n`job`; `job.status == \"ready\"` is not proof the client has fetched the bytes.\nOnly confirm shutdown after every selected flight file matches its expected\nsize, has a valid ULog header and has a recorded checksum. Preserve partial\ncoverage explicitly on failure. ULog inventory dates may describe file ending;\nuse embedded GPS/boot timestamps to align the actual flight, not file recency.\n\nCommunications diagnostics distinguish transport recovery from aircraft state.\nAn open/silent WS is not fresh FC evidence, and an HTTP success receipt is not\ncommand execution. The shared observation stream is latest-state delivery, not\na log archive: skipped generations are expected for slow readers. Retain native\nsource times and consult unified node/GCS logs when investigating a gap; do not\ntune flight gains or suppress a native blocker to conceal a transport failure.\n\nAll MDS components share a single logging contract via the `mds_logging` package:\n\n```\nmds_logging/\n __init__.py # Public API: get_logger(), set_session(), set_source()\n schema.py # JSONL field definitions and validation\n constants.py # Environment variable config (MDS_LOG_* prefix)\n formatter.py # JSONLFormatter (file) + ConsoleFormatter (terminal)\n session.py # Session lifecycle: create, list, cleanup\n handlers.py # SessionFileHandler + WatcherHandler\n watcher.py # In-memory pub/sub for SSE streaming\n registry.py # Component self-registration\n cli.py # Shared CLI flags (--verbose, --debug, --quiet, etc.)\n drone.py # init_drone_logging() — drone-side init\n server.py # init_server_logging() — GCS server init\n```",
       "title": "MDS logging system guide"
     },
     {
@@ -17842,7 +17842,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "chunk_count": 42,
-      "content_hash": "3a8828e6e693040ea6193321c488099bcfa5567f2389acef936724f267242304",
+      "content_hash": "a630dd672dac2784c93941cadf4524f239fa52101383ce2f19574b5611177d95",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",

@@ -62,6 +62,29 @@ The current reusable validators cover:
   - file-backed onboard PX4 ULog list/download/erase validation on a live
     drone after a short takeoff/land sequence that guarantees a fresh log file
 
+## Communications before native flight
+
+Validate shared delivery and fault recovery without starting PX4:
+
+```bash
+python tools/validate_communications_runtime.py \
+  --output-dir /path/to/comms-evidence --aircraft 100 --clients 5
+```
+
+This bounded Linux harness uses loopback-only synthetic companions with actual
+HTTP/WS clients and the production acquisition/publisher modules. It leaves
+host networking and deployment settings untouched. Its JSON/CSV records cover
+silent/dropped streams, HTTP fallback, old-response fencing, coalescing, schema
+and epoch recovery. Source age and JSON payload bytes are not radio latency or
+wire throughput. Use the native mission and leader-outage rehearsals below to
+verify flight behavior separately.
+
+For an already served dashboard build, `tools/validate_observation_browser.cjs`
+intercepts observations and blocks writes while checking shared ownership,
+navigation and stream fallback. Set `MDS_OVERVIEW_URL`, `MDS_OVERVIEW_OUTPUT`
+and, if needed, the documented Playwright/Chromium module paths on the validation
+host. The fixture never dispatches a flight command.
+
 ## Built-In Templates
 
 Container/API startup is infrastructure readiness, not fresh flight telemetry.

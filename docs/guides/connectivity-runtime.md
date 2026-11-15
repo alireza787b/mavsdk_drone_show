@@ -187,6 +187,8 @@ defines shared snapshot/subscription ownership, HTTP compatibility, bounded
 delivery, identity/clock contracts, migration slices and validation gates.
 Current-source behavior is described below; release/image and hardware acceptance
 must cite the matching validation record. Source age is not pure network latency.
+See the [source and SITL validation record](../plans/2026-11-15-communications-validation.md)
+for measured capacity, fault coverage and the separate image/hardware boundaries.
 
 The GCS owns one per-aircraft supervisory acquisition task: node-state WebSocket
 after a valid identity-matching sample, with independent sequential pooled HTTP

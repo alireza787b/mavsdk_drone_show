@@ -35,6 +35,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | control local SITL containers from the dashboard | [SITL Control Guide](guides/sitl-control.md) |
 | configure Mapbox-backed map views | [Mapbox Setup](guides/mapbox-setup.md) |
 | inspect logs | [Logging System Guide](guides/logging-system.md) |
+| validate communication ownership and recovery | [Connectivity Runtime](guides/connectivity-runtime.md#shared-observations-and-transport-recovery) |
 | use the Simurgh operator assistant or MCP layer | [Simurgh Operator](guides/simurgh-operator.md) |
 | connect n8n, Claude, VS Code, or custom agents through MCP | [Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md) |
 
