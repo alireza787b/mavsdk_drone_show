@@ -18,6 +18,7 @@ from src.drone_api_routes import (
     DRONE_STATE_ROUTE,
 )
 from src.gcs_api_routes import GCS_FLEET_HEARTBEATS_ROUTE
+import math
 
 logger = get_logger("params")
 
@@ -48,7 +49,13 @@ def _safe_int(value: str, default: int) -> int:
 def _safe_float(value: str, default: float) -> float:
     """Safely convert string to float with fallback to default."""
     try:
-        return float(value)
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            logger.warning(
+                f"Non-finite float value {value!r}, using default {default}"
+            )
+            return default
+        return parsed
     except (ValueError, TypeError):
         logger.warning(f"Invalid float value '{value}', using default {default}")
         return default
