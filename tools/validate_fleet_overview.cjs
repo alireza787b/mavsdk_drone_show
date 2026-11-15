@@ -101,7 +101,13 @@ async function run() {
         assert(bounds && bounds.x >= -2 && bounds.x + bounds.width <= width + 2
           && bounds.y >= -2 && bounds.y + bounds.height <= height + 2, 'Command aircraft picker must remain inside the viewport');
         const search = dialog.getByRole('searchbox', { name: 'Find command aircraft', exact: true });
-        assert(await search.evaluate(input => input === document.activeElement), 'Picker starts on search, not Apply');
+        const touchInput = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+        if (touchInput) {
+          assert(await dialog.evaluate(panel => panel === document.activeElement), 'Touch picker focuses its panel without opening a keyboard');
+          assert(!await search.evaluate(input => input === document.activeElement), 'Search starts only on operator demand on touch devices');
+        } else {
+          assert(await search.evaluate(input => input === document.activeElement), 'Desktop picker starts on search, not Apply');
+        }
         const row = dialog.locator('.aircraft-choice-row').first();
         if (await row.count()) assert(await row.evaluate(element => {
           const box = element.querySelector('input').getBoundingClientRect();

@@ -14,6 +14,19 @@ import {
 } from './OperatorPrimitives';
 
 describe('operator UI primitives', () => {
+  test('touch flight reviews still start on Cancel rather than a dispatch action', () => {
+    const original = window.matchMedia;
+    const media = jest.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      ...original(query), matches: query === '(pointer: coarse)',
+    }));
+    try {
+      render(<ConfirmDialog open title="Takeoff" message="Review aircraft"
+        onConfirm={jest.fn()} onCancel={jest.fn()} />);
+      expect(screen.getByRole('button', { name: 'Cancel', exact: true })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Confirm', exact: true })).not.toHaveFocus();
+    } finally { media.mockRestore(); }
+  });
+
   test('renders compact page shell with route-aware docs link', () => {
     render(
       <PageShell

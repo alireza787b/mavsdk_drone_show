@@ -9,6 +9,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Aircraft selectors no longer focus their search field automatically on touch
+  devices. Desktop search focus and safe flight-confirmation focus are retained.
+
 ### Shared observations and recoverable communications
 
 - Shared authenticated browser resource ownership replaces independent fleet

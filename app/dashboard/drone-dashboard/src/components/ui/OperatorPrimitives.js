@@ -389,8 +389,13 @@ export function ConfirmDialog({
     const focusable = () => [...panel.querySelectorAll('button, input, select, textarea, summary, a[href], [tabindex="0"]')]
       .filter((element) => !element.disabled && !element.closest('[hidden]')
         && (!element.closest('details:not([open])') || element.closest('summary')));
-    // Flight reviews start on Cancel; non-dispatch pickers may focus their search.
-    (initialFocusRef?.current || panel.querySelector('[data-dialog-cancel]') || panel).focus();
+    // Preserve desktop search shortcuts, but do not summon a touch keyboard
+    // merely by opening a picker. The panel retains accessible modal focus.
+    const preferred = initialFocusRef?.current;
+    const editable = preferred?.isContentEditable || preferred?.matches('input:not([type="checkbox"]):not([type="radio"]), textarea');
+    const avoidKeyboard = editable && window.matchMedia?.('(pointer: coarse)').matches;
+    const initialTarget = avoidKeyboard ? panel : preferred || panel.querySelector('[data-dialog-cancel]') || panel;
+    initialTarget.focus({ preventScroll: true });
     const trapFocus = (event) => {
       if (event.key !== 'Tab') return;
       const items = focusable();

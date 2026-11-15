@@ -124,6 +124,12 @@ Persistent issues belong in `OperatorNotice` or the page state card.
 
 ## Visual Standard
 
+Modal focus must not open a touch keyboard just to review a selection. Shared
+dialogs keep initial text-field focus on fine-pointer desktops; on coarse-pointer
+devices they focus the dialog panel until the operator taps the field. Preserve
+focus trapping/return and the Cancel-first default for flight confirmations.
+Use input capability, not a second viewport breakpoint, for this behavior.
+
 Overview instruments are small SVG/CSS gauges, not additional controls: measured
 Wi-Fi arcs, real transport icons and a state-of-charge battery with its percentage
 inside. Zero, unknown and stale evidence must be visually distinct. Never derive

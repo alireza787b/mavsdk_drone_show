@@ -24,6 +24,28 @@ test('editing/search are local, Cancel does not publish a draft',()=>{
   expect(props.selectedIds).toEqual(['1','3']);
 });
 
+test('touch opens on the dialog without focusing search; search remains available on demand',()=>{
+  const original = window.matchMedia;
+  const media = jest.spyOn(window,'matchMedia').mockImplementation(query=>({
+    ...original(query),matches:query==='(pointer: coarse)',
+  }));
+  try {
+    const {props}=setup();
+    const dialog=screen.getByRole('dialog',{name:'Command aircraft'});
+    const search=screen.getByRole('searchbox',{name:'Find command aircraft'});
+    expect(dialog).toHaveFocus();
+    expect(search).not.toHaveFocus();
+    expect(props.onApply).not.toHaveBeenCalled();
+    fireEvent.keyDown(dialog,{key:'Tab'});
+    expect(screen.getByRole('button',{name:'Close confirmation dialog'})).toHaveFocus();
+    search.focus();
+    expect(search).toHaveFocus();
+    fireEvent.change(search,{target:{value:'ALPHA-1'}});
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(props.selectedIds).toEqual(['1','3']);
+  } finally { media.mockRestore(); }
+});
+
 test('Apply publishes the exact draft, including hidden/unavailable choices',()=>{
   const {props}=setup();
   fireEvent.click(checkbox('2'));
