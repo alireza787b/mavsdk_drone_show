@@ -139,14 +139,15 @@ class TestWebSocketDataFormat:
             parsed = json.loads(raw_data)
             assert isinstance(parsed, dict)
 
-    def test_timestamp_format(self, test_client):
-        """Test that timestamp is in milliseconds"""
+    def test_timestamp_format(self, test_client, mock_drone_communicator):
+        """Known native source time is emitted in milliseconds, not receipt time."""
+        mock_drone_communicator.get_drone_state.return_value["update_time"] = 1732270245
         with test_client.websocket_connect("/ws/drone-state") as websocket:
             data = websocket.receive_json()
 
             # Timestamp should be in milliseconds (13 digits)
             assert 'timestamp' in data
-            assert len(str(data['timestamp'])) == 13
+            assert data['timestamp'] == 1732270245000
 
     def test_data_schema_matches_http(self, test_client, mock_drone_communicator):
         """Test WebSocket data matches HTTP endpoint schema"""
@@ -163,3 +164,32 @@ class TestWebSocketDataFormat:
         ws_keys = set(ws_data.keys()) - {'timestamp'}
 
         assert http_keys == ws_keys
+
+    @pytest.mark.parametrize("available", [True, False, None])
+    def test_native_identity_and_availability_survive_both_wire_contracts(
+        self, test_client, mock_drone_communicator, available
+    ):
+        state = mock_drone_communicator.get_drone_state.return_value
+        state.update(hw_id=1, telemetry_available=available,
+                     telemetry_last_update_age_ms=123,
+                     telemetry_stale_threshold_ms=15000,
+                     telemetry_error="source unavailable" if available is not True else None)
+        http = test_client.get("/api/v1/drone/state").json()
+        with test_client.websocket_connect("/ws/drone-state") as socket:
+            streamed = socket.receive_json()
+        for payload in (http, streamed):
+            assert payload["hw_id"] == 1
+            assert payload["telemetry_available"] is available
+            assert payload["telemetry_last_update_age_ms"] == 123
+            assert payload["telemetry_stale_threshold_ms"] == 15000
+            assert payload["telemetry_error"] == state["telemetry_error"]
+
+    @pytest.mark.parametrize("stamp", [None, 0, -1, "invalid", float("nan"), float("inf")])
+    def test_missing_native_time_is_not_replaced_by_publication_time(
+        self, api_server, mock_drone_communicator, stamp
+    ):
+        state = dict(mock_drone_communicator.get_drone_state.return_value)
+        state["update_time"] = stamp
+        payload = api_server._serialize_drone_state_payload(state)
+        assert payload["timestamp"] == 0
+        assert payload["server_time"] > 0

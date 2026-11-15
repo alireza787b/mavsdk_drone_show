@@ -250,6 +250,11 @@ class ReadinessMessageResponse(BaseModel):
 
 class DroneStateResponse(BaseModel):
     """Drone state response"""
+    hw_id: int = Field(ge=1)
+    telemetry_available: Optional[bool] = None
+    telemetry_error: Optional[str] = None
+    telemetry_last_update_age_ms: Optional[int] = None
+    telemetry_stale_threshold_ms: Optional[int] = None
     pos_id: Any
     current_command_id: Optional[str] = None
     smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
@@ -324,6 +329,7 @@ class DroneStateResponse(BaseModel):
     hdop: float
     vdop: float
     gps_fix_type: int
+    gps_report: Dict[str, Any] = Field(default_factory=dict)
     satellites_visible: int
     ip: str
 
@@ -2227,13 +2233,15 @@ class DroneAPIServer:
         except (TypeError, ValueError):
             numeric_update_time = 0.0
 
-        if numeric_update_time > 0:
+        if math.isfinite(numeric_update_time) and numeric_update_time > 0:
             if numeric_update_time < 1_000_000_000_000:
                 payload['timestamp'] = int(numeric_update_time * 1000)
             else:
                 payload['timestamp'] = int(numeric_update_time)
         else:
-            payload['timestamp'] = server_time_ms
+            # Publication/receipt is not a native FC sample. Preserve missing
+            # source time instead of making an uninitialized aircraft fresh.
+            payload['timestamp'] = 0
 
         payload['server_time'] = server_time_ms
         payload['trajectory_execution'] = read_trajectory_runtime(

@@ -708,6 +708,9 @@ supervisory stream. Changing a browser rate does not change flight-control rates
 
 - When state is available, each WebSocket message uses the same canonical
   payload shape as `GET /api/v1/drone/state`.
+- The typed contract retains `hw_id` and native `telemetry_available`, error and
+  sample-age fields. Unknown availability remains `null`; no FC sample time
+  produces `timestamp: 0`, never a manufactured publication timestamp.
 - When state is temporarily unavailable, the server sends the sentinel payload
   `{"error": "Drone state not available", "timestamp": ...}`.
 - This endpoint is currently a one-way monitoring stream. Command submission
@@ -715,6 +718,9 @@ supervisory stream. Changing a browser rate does not change flight-control rates
 
 Connection admission, snapshot size and send deadlines are bounded. A slow or
 disconnected viewer cannot create an unlimited historical telemetry backlog.
+The node's encoded state-frame budget is 1 MiB; oversize or nonfinite source
+state produces an unavailable sentinel, not a truncated or apparently healthy
+snapshot.
 
 ### Data Format
 

@@ -220,6 +220,7 @@ class TestDroneStateTelemetryFields:
     def test_state_preserves_altitude_policy_evidence(self, api_server):
         payload = api_server._serialize_drone_state_payload(
             {
+                "hw_id": 1,
                 "pos_id": 1,
                 "detected_pos_id": 1,
                 "state": 0,
