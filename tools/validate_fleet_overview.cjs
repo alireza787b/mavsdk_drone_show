@@ -209,6 +209,8 @@ async function run() {
         assert(!(await firstCard.locator('.fleet-aircraft__metric--link').innerText()).includes('%'),'Wi-Fi percentage is not permanent card copy');
         assert.equal(await first.locator('button,input,[tabindex]').count(),0,'Status instruments are not nested controls');
         await first.focus();
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Tab');
         const hint=first.locator('.fleet-aircraft__focus-help');
         assert.equal(await hint.evaluate(node=>getComputedStyle(node).opacity),'1','Keyboard focus reveals the same detail');
         await page.keyboard.press('Escape');

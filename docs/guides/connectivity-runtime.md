@@ -200,6 +200,12 @@ These are future engineering choices, not capabilities delivered by the gauge
 or warning-presentation update. Measure bandwidth/jitter and missing-data episodes
 before choosing rates, queues or a different transport.
 
+Smart Swarm's aircraft-to-aircraft leader-state WS stream and HTTP fallback are
+already separate from dashboard monitoring. Evaluate their existing source-age,
+sequence, boot-clock and fallback evidence separately; compare direct local and
+VPN/relay paths before changing stream rates or reconnect budgets. Do not route
+flight-critical following through a browser or optional MCP/assistant layer.
+
 Related guides:
 
 - [Fleet Ops](fleet-ops.md)
