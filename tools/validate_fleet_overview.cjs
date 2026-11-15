@@ -58,7 +58,7 @@ async function run() {
           // Presence requires a heartbeat receipt, never a telemetry timestamp.
           presence: { heartbeat_received_at_gcs_ms: Date.now() - (stale || !allLive && i === count - 1 && count > 1 ? 80000 : 1000) },
           is_armed: false, landed_state: 1, gps_fix_type: 4, satellites_visible: 17, global_position_valid: true,
-          flight_mode: 50593792, readiness_status: 'ready', is_ready_to_arm: true, preflight_blockers: [],
+          flight_mode: 50593792, readiness_status: i===3?'unknown':'ready', is_ready_to_arm: i!==3, preflight_blockers: [],
           position_lat: 35.7 + i * .00003, position_long: 51.4 + i * .00002, position_alt: 1200,
           battery_remaining_percent: i===3?0:i===4?100:i===5?null:i === count - 1 ? 26 : 83, battery_voltage: 15.8,
           battery_charge_state: i===3?3:i===4?7:i === count - 1 && count > 1 ? 2 : 1,
