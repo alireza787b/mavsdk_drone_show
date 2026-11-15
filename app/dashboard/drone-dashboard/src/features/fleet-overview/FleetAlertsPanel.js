@@ -43,7 +43,7 @@ function AlertsDialog({ state, markSeen, onClose }) {
     <header><h2 id={titleId}>Fleet alerts</h2><button type="button" onClick={onClose} aria-label="Close fleet alerts">×</button></header>
     <p className="fleet-alerts__scope">Session alerts · Seen does not clear a condition.</p>
     {!recentObservation && state.observedAtMs !== null && <p>Last observed {ageLabel(state.observedAtMs, now)} · not live.</p>}
-    {state.sourceError && <p>{recentObservation
+    {state.sourceError && <p>{state.sourceRecovering ? 'Telemetry source recovering.' : recentObservation
       ? 'Telemetry source unavailable · aircraft updates paused.'
       : 'Last observed: telemetry source unavailable.'}</p>}
     {!!(state.omittedAircraft || state.omittedConditions) && <p>{state.omittedAircraft} additional aircraft and {state.omittedConditions} conditions omitted from this bounded view.</p>}
@@ -58,7 +58,7 @@ export default function FleetAlertsPanel({ className = '' }) {
   const { state, markSeen } = useFleetAlerts();
   const [open, setOpen] = useState(false);
   // A GCS outage is one alert, never 100 derived aircraft-loss notifications.
-  const count = state.sourceError ? state.active.filter((episode) => episode.aircraftId === null).length : state.active.length;
+  const count = state.sourceError && !state.sourceRecovering ? state.active.filter((episode) => episode.aircraftId === null).length : state.active.length;
   return <div className={`fleet-alerts ${className}`}>
     <button type="button" className={`fleet-alerts__trigger ${count ? 'has-alerts' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
       {count > 0 && <FaExclamationTriangle aria-hidden="true" />}<span>Alerts</span>{count > 0 && <span>{count}</span>}

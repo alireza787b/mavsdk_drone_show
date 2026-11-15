@@ -92,6 +92,12 @@ describe('sequential resource ownership', () => {
     expect(result.current.receivedAtMs).toBe(NOW);
     await advance(1000);
     expect(result.current).toMatchObject({ response: { data: 'first' }, receivedAtMs: NOW, error: failure, loading: false });
+    expect(result.current.consecutiveFailures).toBe(1);
+    await advance(1000);
+    expect(result.current.consecutiveFailures).toBe(2);
+    load.mockResolvedValue({data:'recovered'});
+    await advance(1000);
+    expect(result.current.consecutiveFailures).toBe(0);
   });
 });
 

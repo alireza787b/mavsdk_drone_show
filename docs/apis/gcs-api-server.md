@@ -37,6 +37,14 @@ The GCS (Ground Control Station) API Server provides comprehensive control and m
 
 ## API Evolution Note
 
+Fleet telemetry REST responses and `/ws/telemetry` join the latest accepted
+heartbeat metadata when read, independently of FC telemetry-poll backoff. They
+copy cached rows under the telemetry lock, then read heartbeat snapshots under
+their own lock; no lock nesting or mutation of the stored FC sample occurs.
+Only heartbeat receipt/network metadata is refreshed. Native timestamps,
+telemetry availability, readiness, flight state, roster and command authority
+are not refreshed by an HTTP/WebSocket response or a companion heartbeat.
+
 Execution callbacks and command status retain optional bounded `action_result`,
 `control_release` and `teardown_forced` evidence. Action results preserve the
 exact admission/recovery predicate and final observed state. Control release is

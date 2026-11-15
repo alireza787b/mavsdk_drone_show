@@ -34,8 +34,13 @@ grounded, airborne, taking off, landing or unknown. The illustration is not an
 airframe footprint, heading or proof that motors stopped. Battery percentage and
 altitude/datum sit on the left; GNSS fix and stable link state on the right. Exact
 heartbeat age and Fresh/Stale labels remain in the link hint and inspector
-diagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi
-percentage only when current. Tap the card for details on touch devices.
+diagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/
+USB transport symbol. No percentage is permanently repeated beside Wi-Fi.
+The battery outline fills to PX4's reported percentage, shown inside; a bolt
+means current, fault-free charging evidence. Unknown charge is a dash, not an
+empty battery or a voltage-based estimate. Hover the instruments for voltage,
+SSID and reported signal; keyboard focus on the card reveals the same concise
+details (Escape dismisses). Tap the card for details on touch devices.
 The inspector also shows the **Configured IP**; this is an address
 from the shared fleet model, not proof that the aircraft is reachable. The
 current state/mode and any active mission appear below. Only actual issues add
@@ -56,9 +61,20 @@ reasons near the top. Viewing a condition does not acknowledge or clear it.
 ![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)
 
 ![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)
-Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent
-appears only when a fresh heartbeat actually reports it, not as inferred radio
-range or end-to-end latency.
+Flight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal
+is drawn only when a fresh heartbeat actually reports it, not as inferred radio
+range, packet-delivery rate or end-to-end latency. A clock replaces stale signal;
+unknown strength is marked with a question mark rather than zero bars.
+
+A brief refresh/link failure immediately ages the underlying evidence and may
+show a neutral clock or unknown flight state; it does not immediately create a
+large warning. Routine link attention requires three seconds of persistence,
+then two seconds of stable recovery to clear. Already-offline evidence, native
+PX4 conditions and urgent battery alerts are not delayed. Raw facts remain in
+aircraft details throughout. These presentation delays do not extend the
+10-second stale/60-second Available windows or relax any command/flight checks.
+Failed configuration refresh is not labelled a telemetry outage. With a cached
+roster, a lone failed configuration refresh stays quiet; repeated failures warn.
 
 The compact **Software differs** notice compares source revisions with the GCS;
 it is not a flight-health warning. **Version unavailable** is unconfirmed evidence,

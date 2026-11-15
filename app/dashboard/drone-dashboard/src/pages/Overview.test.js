@@ -159,6 +159,9 @@ describe('Overview explicit aircraft workflow', () => {
     useFleetResources.mockReturnValue({ ...snapshot, nowMs: NOW + 65000, telemetry: { ...snapshot.telemetry, error: new Error('network') } });
     view.rerender(tree());
     expect(recipient('1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    useFleetResources.mockReturnValue({ ...snapshot, nowMs: NOW + 68000, telemetry: { ...snapshot.telemetry, error: new Error('network') } });
+    view.rerender(tree());
     expect(screen.getByRole('alert')).toHaveTextContent('measurements are aging');
     selected(1);
     fireEvent.click(screen.getByRole('button', { name: 'Show 1 command aircraft outside this view' }));

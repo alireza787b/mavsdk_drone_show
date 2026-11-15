@@ -1,5 +1,5 @@
 {
-  "chunk_count": 888,
+  "chunk_count": 889,
   "chunks": [
     {
       "audience": "developer",
@@ -6615,7 +6615,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "8fae1fd7f8f15500671943f1b0e0aec93e75c589184b665f21ce7167b40c347a",
+      "content_hash": "c04a6cdbeecf5527182ec232319ee62c4ec16959630cd3742576bce6414257f7",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6629,13 +6629,13 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses radio/clock/disconnected symbols, with measured Wi-Fi\npercentage only when current. Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/\nUSB transport symbol. No percentage is permanently repeated beside Wi-Fi.\nThe battery outline fills to PX4's reported percentage, shown inside; a bolt\nmeans current, fault-free charging evidence. Unknown charge is a dash, not an\nempty battery or a voltage-based estimate. Hover the instruments for voltage,\nSSID and reported signal; keyboard focus on the card reveals the same concise\ndetails (Escape dismisses). Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "467634801dee023876a5a846a7fce532be86766049870713f7cc9fe10ab5bc34",
+      "content_hash": "f25cef82b23390ab6e563442d3e2bfc749af2fe21944ddb5178615290ac1aa1c",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6649,7 +6649,27 @@
         "operations",
         "selection"
       ],
-      "text": "![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi percent\nappears only when a fresh heartbeat actually reports it, not as inferred radio\nrange or end-to-end latency.\n\nThe compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).\n\nFleet Map's 2D and 3D aircraft popups use the same transport labels and console\ntheme. **Details** reveals the configured IP, reported network/interface and last\ntelemetry time. Selecting another aircraft closes its previous action/jog review;\nit cannot inherit a reviewed target. Source coordinates and map positioning are\nnot changed by this presentation update. A single bounded inspector serves the\n2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.\nExpanded details scroll inside it instead of clipping behind the map boundary.\n\n![Bounded aircraft inspector, using synthetic aircraft and an offline grid rather than a surveyed basemap](../assets/operator-overview/map-inspector-desktop-dark.png)",
+      "text": "to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "57e4d8ae7db9b8583dde65c8a73b9e335a557530a6047db9376eb98109bdd958",
+      "heading": "Check the aircraft",
+      "id": "mds.dashboard_operator:002-04-check-the-aircraft",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).\n\nFleet Map's 2D and 3D aircraft popups use the same transport labels and console\ntheme. **Details** reveals the configured IP, reported network/interface and last\ntelemetry time. Selecting another aircraft closes its previous action/jog review;\nit cannot inherit a reviewed target. Source coordinates and map positioning are\nnot changed by this presentation update. A single bounded inspector serves the\n2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.\nExpanded details scroll inside it instead of clipping behind the map boundary.\n\n![Bounded aircraft inspector, using synthetic aircraft and an offline grid rather than a surveyed basemap](../assets/operator-overview/map-inspector-desktop-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -6892,7 +6912,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "4a1d9e56897e3b6b4364755c3c26af031501abb252310ea8b0e8998e5e7974e7",
+      "content_hash": "98bb7d30f235fdda09d018175d54c841214773dcf5d3d9e40f1667f5d5206e63",
       "heading": "API Evolution Note",
       "id": "mds.gcs_api:004-01-api-evolution-note",
       "links": [],
@@ -6905,7 +6925,7 @@
         "api",
         "gcs"
       ],
-      "text": "## API Evolution Note\n\nExecution callbacks and command status retain optional bounded `action_result`,\n`control_release` and `teardown_forced` evidence. Action results preserve the\nexact admission/recovery predicate and final observed state. Control release is\nbound to command, aircraft and process ownership; it proves released authority,\nnot that a replacement Hold or RTL completed. Deploy the GCS before nodes using\nthese callback fields; roll back both together rather than stripping evidence\nto accommodate an older server.\n\nAs of the 2026-04-03 API modernization checkpoints, the GCS business API source of truth is the canonical `/api/v1/...` surface.\n\nThe remaining versionless roots are intentional:\n- `/health` and `/ping` remain stable operational health probes\n- `/ws/*` remains the stable real-time transport surface\n- `/api/logs/*` and `/api/sar/*` remain stable subsystem roots\n\nUse [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.\n\n---",
+      "text": "## API Evolution Note\n\nFleet telemetry REST responses and `/ws/telemetry` join the latest accepted\nheartbeat metadata when read, independently of FC telemetry-poll backoff. They\ncopy cached rows under the telemetry lock, then read heartbeat snapshots under\ntheir own lock; no lock nesting or mutation of the stored FC sample occurs.\nOnly heartbeat receipt/network metadata is refreshed. Native timestamps,\ntelemetry availability, readiness, flight state, roster and command authority\nare not refreshed by an HTTP/WebSocket response or a companion heartbeat.\n\nExecution callbacks and command status retain optional bounded `action_result`,\n`control_release` and `teardown_forced` evidence. Action results preserve the\nexact admission/recovery predicate and final observed state. Control release is\nbound to command, aircraft and process ownership; it proves released authority,\nnot that a replacement Hold or RTL completed. Deploy the GCS before nodes using\nthese callback fields; roll back both together rather than stripping evidence\nto accommodate an older server.\n\nAs of the 2026-04-03 API modernization checkpoints, the GCS business API source of truth is the canonical `/api/v1/...` surface.\n\nThe remaining versionless roots are intentional:\n- `/health` and `/ping` remain stable operational health probes\n- `/ws/*` remains the stable real-time transport surface\n- `/api/logs/*` and `/api/sar/*` remain stable subsystem roots\n\nUse [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.\n\n---",
       "title": "GCS API server guide"
     },
     {
@@ -17660,8 +17680,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "chunk_count": 13,
-      "content_hash": "b9d3520543c57ff4301c29f03df7bed73790ec0b8686fde45aa5f8eff4f92a28",
+      "chunk_count": 14,
+      "content_hash": "afd3b3efdc59da619b26c6dc3d269558e057b876b3bdea6d182159e9a3c7363f",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17678,7 +17698,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 166,
-      "content_hash": "bd8bf90c3875ffedb905b4a7c085fc58a031d571183bc6e39311f6378fbc5d3d",
+      "content_hash": "3911b400724b71b727557ae44a427579820d3cd9b7f29befd9018a094454343f",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

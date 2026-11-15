@@ -120,6 +120,26 @@ def test_core_router_typed_telemetry_sets_server_time_header():
     assert response.json()["total_drones"] == 1
 
 
+def test_rest_and_websocket_join_current_heartbeat_without_refreshing_fc_evidence(monkeypatch):
+    from unittest.mock import AsyncMock
+    import api_routes.core as core
+    deps = _make_deps()
+    deps.telemetry_data_all_drones['1'].update(telemetry_available=False,update_time=1000)
+    deps.get_all_heartbeats = lambda: {'1': {'received_at_gcs_ms': 1700000001234,
+        'timestamp': 9999999999999, 'network_info': {'wifi': {'ssid': 'New'}}}}
+    monkeypatch.setattr(core, 'authorize_websocket', AsyncMock(return_value=object()))
+    app=FastAPI(); app.include_router(create_core_router(deps))
+    with TestClient(app) as client:
+        row=client.get('/api/v1/fleet/telemetry').json()['telemetry']['1']
+        with client.websocket_connect('/ws/telemetry') as socket:
+            streamed=socket.receive_json()['data']['1']
+    for value in (row,streamed):
+        assert value['heartbeat_last_seen']==1700000001234
+        assert value['heartbeat_network_info']['wifi']['ssid']=='New'
+        assert value['telemetry_available'] is False and value['update_time']==1000
+    assert 'heartbeat_network_info' not in deps.telemetry_data_all_drones['1']
+
+
 def test_core_router_action_readiness_is_target_scoped_and_fresh():
     deps = _make_deps()
     now = time.time()

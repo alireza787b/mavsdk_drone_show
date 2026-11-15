@@ -31,10 +31,13 @@ export function getFleetNetworkStatus(info, fresh = false) {
     } else if (links.size > 1) type = 'multiple';
   }
   const known = type !== 'unknown';
+  const wifi = type === 'wifi' && (!device || !text(report.wifi?.interface) || device === text(report.wifi.interface))
+    ? report.wifi : null;
   const percent = fresh && type === 'wifi'
-    ? validSignal(primary?.signal_strength_percent ?? report.wifi?.signal_strength_percent) : null;
+    ? validSignal(primary?.signal_strength_percent ?? wifi?.signal_strength_percent) : null;
   return { type, label: LABELS[type] || (type === 'multiple' ? 'Multiple links' : 'Unknown'),
-    interface: device, percent, current: fresh && known, stale: !fresh && known };
+    interface: device, percent, ssid: type === 'wifi' ? text(primary?.ssid) || text(wifi?.ssid) : '',
+    current: fresh && known, stale: !fresh && known };
 }
 
 function validSignal(value) {

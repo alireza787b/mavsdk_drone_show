@@ -179,7 +179,7 @@ def get_all_heartbeats():
     """
     with last_heartbeats_lock:
         # Return a copy to ensure thread safety
-        return dict(last_heartbeats)
+        return {key: dict(row) for key, row in last_heartbeats.items()}
 
 def get_network_info_from_heartbeats():
     """

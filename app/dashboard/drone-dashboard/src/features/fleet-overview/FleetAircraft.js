@@ -1,8 +1,9 @@
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
+import { BatteryGauge, WifiStrength } from './FleetStatusInstruments';
 
 export function AircraftSymbol({ item }) {
   const state = ({ Grounded: 'grounded', Airborne: 'airborne', 'Taking off': 'taking-off', Landing: 'landing' })[item?.flightState] || 'unknown';
@@ -29,9 +30,9 @@ function AircraftPortrait({ item }) {
     : !item.current && item.boot.active
       ? { key: 'initializing', Icon: FaHourglassHalf, label: 'Initializing', tone: 'warning' }
     : item.availability.stale
-      ? { key: 'stale', Icon: FaRegClock, label: 'Heartbeat stale', tone: 'warning' }
+      ? { key: 'stale', Icon: FaRegClock, label: 'Heartbeat stale', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
       : !item.current && item.availability.available
-          ? { key: 'delayed', Icon: FaRegClock, label: 'Flight telemetry unavailable', tone: 'warning' }
+          ? { key: 'delayed', Icon: FaRegClock, label: 'Flight telemetry unavailable', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
           : item.current && item.flightState === 'Grounded' && item.readiness.status === 'ready'
             ? { key: 'ready', Icon: FaCheck, label: 'Preflight ready', tone: 'good' } : null;
   const StatusIcon = status?.Icon;
@@ -58,12 +59,12 @@ function AircraftPortrait({ item }) {
 
 const METRIC_ICONS = { battery: FaBatteryHalf, altitude: FaArrowsAltV, gnss: FaSatellite, link: FaBroadcastTower, mission: FaRoute };
 const NETWORK_ICONS = { wifi: FaWifi, ethernet: FaEthernet, usb_modem: FaUsb };
-function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon }) {
+function Metric({ kind, label, value, displayValue = value, stale = false, tone = '', icon, children, help }) {
   const Icon = icon || METRIC_ICONS[kind];
   const presentation = displayValue === 'Unknown' ? '—' : displayValue;
   return <span className={`fleet-aircraft__metric fleet-aircraft__metric--${kind}${tone ? ` tone-${tone}` : ''}`}
-    title={`${kind === 'link' ? 'Heartbeat age / reported signal' : label}: ${value}${stale ? ' · Last known' : ''}`} aria-label={`${label}: ${value}${stale ? ', Last known' : ''}`}>
-    <span>{Icon && <Icon aria-hidden="true" />}<span>{presentation}</span></span>{stale && <em>Last known</em>}
+    title={help || `${kind === 'link' ? 'Heartbeat age / reported signal' : label}: ${value}${stale ? ' · Last known' : ''}`} aria-label={`${label}: ${value}${stale ? ', Last known' : ''}`}>
+    <span>{children || <>{Icon && <Icon aria-hidden="true" />}<span>{presentation}</span></>}</span>{stale && <em>Last known</em>}
   </span>;
 }
 
@@ -82,28 +83,37 @@ function heartbeatText(availability) {
 }
 
 export const AircraftTile = memo(function AircraftTile({ item, selected, inspected, onInspect, onToggle, selectionDisabled = false, list = false }) {
+  const hintId = useId();
+  const [hintDismissed, setHintDismissed] = useState(false);
   const issue = item.issues[0];
+  const networkDetails = item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : item.network.type === 'wifi' ? ' · signal unavailable' : ''}` : '';
+  const linkText = `${heartbeatText(item.availability)}${networkDetails}`;
+  const networkHelp = `${item.availability.label} heartbeat${networkDetails}${item.network.ssid ? ` · SSID ${item.network.ssid}${item.network.stale ? ' (last known)' : ''}` : ''}${item.network.interface ? ` · ${item.network.interface}` : ''}`;
+  const batteryHelp = `${item.battery.text}${item.battery.stale ? ' · Last known' : ''} · ${item.battery.label || ''}`;
   return <article className={`fleet-aircraft ${list ? 'fleet-aircraft--row' : ''} ${selected ? 'is-selected' : ''} ${inspected ? 'is-inspected' : ''} ${item.availability.stale || item.availability.label === 'Offline' ? 'is-stale' : ''}`}
-    data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()}>
+    data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()} data-link-attention={item.linkAttention}>
     <label className="fleet-aircraft__recipient" title={`${selected ? 'Remove from' : 'Add to'} command recipients`}>
       <input type="checkbox" checked={selected} disabled={selectionDisabled}
         aria-label={`Include ${item.label} (H${item.id})`} onChange={() => onToggle(item.id)} />
       {selected && <span className="fleet-visually-hidden" aria-label={`Command recipient: ${item.label} · H${item.id}`}>Included</span>}
     </label>
-    <button type="button" className="fleet-aircraft__inspect" onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}>
+    <button type="button" className="fleet-aircraft__inspect" onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}
+      aria-describedby={hintId} data-hint-dismissed={hintDismissed} onFocus={() => setHintDismissed(false)}
+      onKeyDown={event => { if (event.key === 'Escape') setHintDismissed(true); }}>
       <span className="fleet-aircraft__identity"><span><strong>{item.label}</strong><small>H{item.id}{item.identity.posId ? ` · P${item.identity.posId}` : ''}</small></span>
         <FaInfoCircle className="fleet-aircraft__info" aria-hidden="true" /></span>
       <span className="fleet-aircraft__instruments">
         <Metric kind="battery" label="Battery" value={item.battery.text}
-          displayValue={item.battery.remaining !== null ? `${Math.round(item.battery.remaining)}%` : item.battery.text} stale={item.battery.stale} tone={item.battery.current ? item.battery.tone : 'muted'} />
+          stale={item.battery.stale} tone={item.battery.current ? item.battery.tone : 'muted'} help={batteryHelp}><BatteryGauge battery={item.battery} /></Metric>
         <AircraftPortrait item={item} />
         <Metric kind="gnss" label="GNSS" value={`${item.gps.label} · ${item.gps.satellites ?? '—'} sats`}
           displayValue={item.gps.label} stale={item.gps.stale} />
         <Metric kind="altitude" label="Altitude" value={altitudeText(item.altitude)} displayValue={compactAltitude(item.altitude)} stale={item.altitude.stale} />
-        <Metric kind="link" label="Link" value={`${heartbeatText(item.availability)}${item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : ''}` : ''}`}
-          displayValue={item.network.percent !== null ? `${Math.round(item.network.percent)}%` : null}
+        <Metric kind="link" label="Link" value={linkText} displayValue={null} help={networkHelp}
           icon={item.availability.label === 'Fresh' ? NETWORK_ICONS[item.network.type] || FaBroadcastTower : item.availability.stale ? FaRegClock : item.availability.label === 'Offline' ? FaUnlink : FaQuestionCircle}
-          tone={item.availability.tone} />
+          tone={item.linkAttention === 'pending' ? 'muted' : item.availability.label === 'Fresh' ? '' : item.availability.tone}>
+          {item.network.type === 'wifi' && item.network.current && <WifiStrength percent={item.network.percent} />}
+        </Metric>
       </span>
       <span className="fleet-aircraft__state">
         {item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}
@@ -115,6 +125,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       <span className={`fleet-aircraft__issue tone-${issue?.tone || 'neutral'}`}>
         {issue && <><FaExclamationTriangle aria-hidden="true" /><span>{issue.label}</span>{item.issues.length > 1 && <small>+{item.issues.length - 1}</small>}</>}
       </span>
+      <span id={hintId} className="fleet-aircraft__focus-help">Battery: {batteryHelp}<br />Link: {networkHelp}</span>
     </button>
   </article>;
 });
@@ -134,6 +145,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
     return () => { element.close?.(); if (previous?.isConnected) previous.focus(); };
   }, []);
   const mission = item.mission.value;
+  const detailedIssues = Array.from(new Map([...(item.rawIssues || []), ...item.issues].map(issue => [issue.key, issue])).values());
   return <dialog ref={dialog} className="fleet-inspector" aria-labelledby="fleet-inspector-title"
     onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="fleet-inspector__body">
@@ -142,8 +154,8 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       <div className="fleet-inspector__state"><AircraftSymbol item={item} /><div><strong>{item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}</strong>
         <p>{item.current ? 'Live telemetry' : `${item.runtime.label} · current flight state unavailable`}</p></div></div>
       {item.lastKnown && <p className="fleet-inline-warning">Measurements below are last known, not current.</p>}
-      {!!item.issues.length && <section aria-label="Aircraft alerts"><h3 className="fleet-inspector__alert-title">Aircraft alerts <small>{item.issues.length}</small></h3>
-        <ul className="fleet-inspector__issues">{item.issues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul></section>}
+      {!!detailedIssues.length && <section aria-label="Aircraft alerts"><h3 className="fleet-inspector__alert-title">Aircraft alerts <small>{detailedIssues.length}</small></h3>
+        <ul className="fleet-inspector__issues">{detailedIssues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul></section>}
       <dl className="fleet-inspector__facts">
         <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
@@ -156,6 +168,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Mission</dt><dd>{item.mission.label}{item.mission.stale ? ' · last known' : ''}</dd>
         <dt>Readiness</dt><dd>{item.readiness.label}</dd>
         <dt>Network</dt><dd title={item.network.interface || undefined}><NetworkIcon aria-hidden="true" />{' '}{item.network.label}{item.network.percent !== null ? ` · ${Math.round(item.network.percent)}%` : ''}{item.network.stale ? ' · last known' : ''}</dd>
+        {item.network.ssid && <><dt>SSID</dt><dd>{item.network.ssid}{item.network.stale ? ' · last known' : ''}</dd></>}
       </dl>
       {MISSION_ROUTES[mission] && <Link className="fleet-workspace-link" to={MISSION_ROUTES[mission]} onClick={onClose}>{item.mission.label} workspace →</Link>}
       <section className="fleet-inspector__actions" aria-label={`Actions for ${item.label} · H${item.id}`}>

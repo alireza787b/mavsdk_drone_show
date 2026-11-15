@@ -124,6 +124,21 @@ Persistent issues belong in `OperatorNotice` or the page state card.
 
 ## Visual Standard
 
+Overview instruments are small SVG/CSS gauges, not additional controls: measured
+Wi-Fi arcs, real transport icons and a state-of-charge battery with its percentage
+inside. Zero, unknown and stale evidence must be visually distinct. Never derive
+charge from voltage or show a secondary Wi-Fi radio as the primary Ethernet link.
+Native hover hints, one dismissible keyboard-focus summary and the existing
+touch inspector expose details without adding tab stops per instrument. Keep
+the hint text stable; ticking ages belong in diagnostics, not hover labels.
+
+Routine link warning promotion/recovery is presentation-only (3 s / 2 s), driven
+by the existing fleet clock, not one timer per card. Unknown flight state and
+sample ages remain immediate; urgent conditions bypass settling. Do not conflate
+configuration refresh failure with loss of the telemetry source. Follow the
+[W3C hover/focus guidance](https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html)
+and [status message guidance](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html).
+
 - Use `DesignTokens.css` for colors, spacing, shadows, z-index, and typography.
 - Do not add hardcoded colors or numeric z-indexes in component CSS.
 - Prefer icon + compact label over long inline text.

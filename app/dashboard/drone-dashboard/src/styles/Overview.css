@@ -114,6 +114,20 @@
 .fleet-aircraft__metric small { color:var(--color-text-secondary); font-size:.64rem; display:flex; align-items:center; gap:.3rem; }
 .fleet-aircraft__metric > span { display:flex; align-items:center; gap:.3rem; min-width:0; overflow-wrap:anywhere; }
 .fleet-aircraft__metric svg { flex-shrink:0; width:.85rem; height:.85rem; }
+.fleet-aircraft__metric .fleet-wifi-gauge { width:28px; height:24px; overflow:visible; }
+.fleet-wifi-gauge path { fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; opacity:.18; }
+.fleet-wifi-gauge path[data-active=true] { opacity:1; }
+.fleet-wifi-gauge circle { fill:currentColor; }
+.fleet-wifi-gauge text { fill:currentColor; font-size:13px; font-weight:700; }
+.fleet-aircraft__metric .fleet-battery-gauge { width:54px; height:26px; overflow:visible; }
+.fleet-battery-instrument { display:inline-flex; align-items:center; gap:3px; }
+.fleet-battery-gauge__outline { fill:none; stroke:currentColor; stroke-width:1.5; }
+.fleet-battery-gauge__terminal { stroke:currentColor; stroke-width:3; stroke-linecap:round; }
+.fleet-battery-gauge__fill { fill:currentColor; opacity:.23; transition:width .15s linear; }
+.fleet-battery-gauge text { fill:currentColor; font:600 11px var(--font-family-mono); }
+.fleet-aircraft__metric .fleet-battery-instrument__charging { width:9px; height:12px; }
+.fleet-aircraft__focus-help { position:absolute; inset-inline:.7rem; bottom:.5rem; z-index:3; padding:.6rem; font-size:.72rem; line-height:1.5; color:var(--color-text-primary); background:var(--color-bg-primary); border:1px solid var(--color-border-secondary); opacity:0; pointer-events:none; text-align:left; overflow-wrap:anywhere; }
+.fleet-aircraft__inspect:focus-visible:not([data-hint-dismissed=true]) .fleet-aircraft__focus-help { opacity:1; }
 .fleet-aircraft__metric > span > span { min-width:0; }
 .fleet-aircraft__metric em { font-style:normal; font-size:.63rem; color:var(--color-text-secondary); }
 .fleet-aircraft__metric--mission { align-self:center; font-size:.7rem; color:var(--color-text-secondary); }

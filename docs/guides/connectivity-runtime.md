@@ -166,6 +166,40 @@ reported as unknown, not a lost link.
 - dashboard links are optional diagnostics; the compliance summary in Fleet Ops
   is the primary operator signal.
 
+## Link evidence and display continuity
+
+Companion heartbeats, FC telemetry freshness, Internet reachability and command
+acceptance are different observations. A Wi-Fi strength gauge is not an
+end-to-end latency measurement. Fleet telemetry REST/WS responses join accepted
+heartbeat metadata at read time, independently of FC telemetry-poll backoff;
+they do not refresh the FC sample or grant command readiness.
+
+Overview keeps raw ages and unknown flight state immediate, while routine link
+attention settles for 3 seconds and clears after 2 seconds of stable recovery.
+Missing initial data and already-offline/urgent conditions are not hidden. A
+configuration refresh error is reported separately from a telemetry outage.
+The existing 10-second stale/60-second Available display windows are unchanged.
+
+### Communications roadmap — proposed, not implemented
+
+1. Measure each hop separately: FC sample time, companion receipt, GCS accepted
+   receipt, browser receipt, failure streak and next retry. Use transition logs
+   and bounded metrics, not high-rate payload dumps. Source age is not one-way
+   Wi-Fi/4G latency without an aligned-clock measurement.
+2. Evolve one identity-scoped fleet evidence snapshot for REST, existing WS and
+   optional MCP readers. Retain separate presence, FC freshness and authoritative
+   action readiness; avoid a second meaning of “online” in each consumer.
+3. Migrate remaining overlapping/clear-on-error browser polling incrementally
+   to shared sequential ownership. Preserve receipt clocks across retries,
+   pause hidden pages and never treat reconnect as new aircraft evidence.
+4. Add sequence/snapshot identity, bounded coalescing and gap-resync to the
+   existing telemetry WS before considering aircraft-push transport. Commands
+   remain separately tracked/idempotent; reconnect must never replay actuation.
+
+These are future engineering choices, not capabilities delivered by the gauge
+or warning-presentation update. Measure bandwidth/jitter and missing-data episodes
+before choosing rates, queues or a different transport.
+
 Related guides:
 
 - [Fleet Ops](fleet-ops.md)

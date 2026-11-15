@@ -9,6 +9,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Quiet fleet instruments and truthful link attention
+
+- Overview Board/List use measured Wi-Fi arcs and a filled battery gauge with
+  its percentage inside. Hover, keyboard focus and the existing touch inspector
+  retain voltage, SSID and signal details; unknown/stale readings and Ethernet
+  remain distinct. No new UI dependency or percentage-based battery policy.
+- Routine link warnings settle for 3 s and clear after 2 s of stable recovery.
+  Raw ages/unknown flight states and urgent PX4/battery conditions remain
+  immediate; native readiness, command recipients and flight safeguards do not
+  change. Configuration refresh failure is no longer a telemetry-outage alarm.
+- Fleet telemetry REST/WS join current accepted heartbeat metadata on read, so
+  FC polling backoff cannot freeze the companion receipt or Wi-Fi report.
+  Snapshots do not mutate the cached sample or invent a newer FC timestamp.
+
 ### Consistent mission recipients and actionable return status
 
 - Smart Swarm shares one **To** choice across Takeoff, Start and Managed Return.

@@ -32,6 +32,7 @@ async function run() {
       const page = await context.newPage();
       const errors = [], writes = [], reads = {};
       let stale = false;
+      let telemetryFailure = false, fcUnavailable = false;
       const fleet = Array.from({ length: count }, (_, i) => ({ hw_id: String(i + 1), pos_id: i + 1, callsign: `AIRCRAFT-${String(i + 1).padStart(2, '0')}${nameSuffix}` }));
       const assignments = fleet.map((d, i) => ({ hw_id: d.hw_id, follow: i ? '1' : '0', offset_x: i ? -5 : 0, offset_y: i * 3, offset_z: 0, frame: 'ned' }));
       page.on('pageerror', error => errors.push(error.message));
@@ -44,6 +45,8 @@ async function run() {
         }
         if (url.port !== '5030' && !url.pathname.startsWith('/api/')) return route.continue();
         reads[url.pathname] = (reads[url.pathname] || 0) + 1;
+        if(url.pathname === '/api/v1/fleet/telemetry' && telemetryFailure)
+          return route.fulfill({status:503,json:{detail:'Temporary fixture outage'},headers:{'access-control-allow-origin':new URL(base).origin,'access-control-allow-credentials':'true'}});
         let json;
         if (url.pathname.includes('/auth')) json = { dashboard_auth_enabled: false, api_auth_enabled: false, authenticated: true };
         else if (url.pathname === '/api/v1/config/fleet') json = fleet;
@@ -51,13 +54,17 @@ async function run() {
         else if (url.pathname === '/api/v1/system/runtime-status') json = { mode: 'real', configured_mode: 'real', restart_required: false };
         else if (url.pathname === '/api/v1/fleet/node-boot-status') json = { nodes: {} };
         else if (url.pathname === '/api/v1/fleet/telemetry') json = Object.fromEntries(fleet.map((d, i) => [d.hw_id, {
-          ...d, update_time: Date.now() / 1000 - (stale || !allLive && i === count - 1 && count > 1 ? 80 : 0), telemetry_available: true,
+          ...d, update_time: Date.now() / 1000 - (stale || !allLive && i === count - 1 && count > 1 ? 80 : 0), telemetry_available: !(fcUnavailable && i===0),
           // Presence requires a heartbeat receipt, never a telemetry timestamp.
           presence: { heartbeat_received_at_gcs_ms: Date.now() - (stale || !allLive && i === count - 1 && count > 1 ? 80000 : 1000) },
           is_armed: false, landed_state: 1, gps_fix_type: 4, satellites_visible: 17, global_position_valid: true,
           flight_mode: 50593792, readiness_status: 'ready', is_ready_to_arm: true, preflight_blockers: [],
           position_lat: 35.7 + i * .00003, position_long: 51.4 + i * .00002, position_alt: 1200,
-          battery_remaining_percent: i === count - 1 ? 26 : 83, battery_voltage: 15.8,
+          battery_remaining_percent: i===3?0:i===4?100:i===5?null:i === count - 1 ? 26 : 83, battery_voltage: 15.8,
+          battery_charge_state: i===3?3:i===4?7:i === count - 1 && count > 1 ? 2 : 1,
+          heartbeat_network_info: i % 3 === 1
+            ? { primary_link: { type: 'ethernet', interface: 'eth0' }, wifi: { ssid: 'Secondary', signal_strength_percent: 99 } }
+            : { primary_link: { type: 'wifi', interface: 'wlan0', ssid: 'Demo field', signal_strength_percent: i===3?0:i===5?null:i % 3 === 0 ? 72 : 25 } },
         }]));
         else if (url.pathname.includes('/commands/active') || url.pathname.includes('/commands/recent')) json = { commands: [] };
         else if (url.pathname.includes('git')) json = { gcs_status: { commit: '1234567890', status: 'clean' }, git_status: {} };
@@ -137,6 +144,28 @@ async function run() {
       await quickToggle.check();
       await commandCount(initialCount);
       await assertRecipients(fleet.slice(0, initialCount).map(item => item.hw_id));
+      if(count===3 && width===1440 && theme==='dark' && !allLive) {
+        const card=page.locator('.fleet-aircraft[data-aircraft-id="1"]');
+        fcUnavailable=true;
+        await page.waitForFunction(()=>document.querySelector('[data-aircraft-id="1"]')?.dataset.current==='false');
+        assert.equal(await card.getAttribute('data-link-attention'),'pending');
+        assert.equal(await card.locator('.fleet-aircraft__alert-badge').count(),0,'Single FC pull failure has no promoted caution');
+        fcUnavailable=false;
+        await page.waitForFunction(()=>document.querySelector('[data-aircraft-id="1"]')?.dataset.current==='true');
+        const gcsWarning=page.getByRole('alert').filter({hasText:/GCS telemetry unavailable|GCS link recovering/});
+        telemetryFailure=true;
+        await page.waitForTimeout(1600);
+        assert.equal(await gcsWarning.count(),0,'Short HTTP outage has no large warning');
+        telemetryFailure=false;
+        await page.waitForTimeout(1400);
+        assert.equal(await gcsWarning.count(),0);
+        telemetryFailure=true;
+        await gcsWarning.waitFor({timeout:9000});
+        telemetryFailure=false;
+        await page.getByRole('alert').filter({hasText:'GCS link recovering'}).waitFor({timeout:4000});
+        await gcsWarning.waitFor({state:'hidden',timeout:5000});
+        await commandCount(initialCount);
+      }
       const available = await openPicker();
       // Native keyboard traversal wraps inside the modal in both directions.
       const firstFocus = available.getByRole('button', { name: 'Close confirmation dialog', exact: true });
@@ -172,6 +201,19 @@ async function run() {
         await page.getByRole('button', { name: 'Close navigation menu' }).click();
       }
       const first = page.getByRole('button', { name: /^Inspect AIRCRAFT-01/ });
+      const firstCard = page.locator('.fleet-aircraft').first();
+      if (!stale) {
+        assert.equal(await firstCard.locator('.fleet-wifi-gauge').getAttribute('data-level'),'3');
+        assert.equal(await firstCard.locator('.fleet-battery-gauge').getAttribute('data-charge'),count===1?'26':'83');
+        assert((await firstCard.locator('.fleet-aircraft__metric--link').getAttribute('title')).includes('SSID Demo field'));
+        assert(!(await firstCard.locator('.fleet-aircraft__metric--link').innerText()).includes('%'),'Wi-Fi percentage is not permanent card copy');
+        assert.equal(await first.locator('button,input,[tabindex]').count(),0,'Status instruments are not nested controls');
+        await first.focus();
+        const hint=first.locator('.fleet-aircraft__focus-help');
+        assert.equal(await hint.evaluate(node=>getComputedStyle(node).opacity),'1','Keyboard focus reveals the same detail');
+        await page.keyboard.press('Escape');
+        assert.equal(await hint.evaluate(node=>getComputedStyle(node).opacity),'0','Escape dismisses focus help');
+      }
       await first.click();
       await page.getByRole('dialog', { name: fleet[0].callsign, exact: true }).waitFor();
       await commandCount(count);

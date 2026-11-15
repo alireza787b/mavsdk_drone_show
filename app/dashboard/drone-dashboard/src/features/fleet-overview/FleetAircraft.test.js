@@ -19,6 +19,19 @@ function tile(item = aircraft()) {
   return { ...render(<AircraftTile {...props} />), props };
 }
 
+test('hover details and keyboard description share current SSID/voltage without adding nested controls',()=>{
+  const model=aircraft({heartbeat_network_info:{primary_link:{type:'wifi',interface:'wlan0',ssid:'Demo network',signal_strength_percent:34}}});
+  const {container,props}=tile(model);
+  const button=screen.getByRole('button',{name:'Inspect Scout · H7'});
+  expect(container.querySelector('.fleet-wifi-gauge')).toHaveAttribute('data-level','2');
+  expect(container.querySelector('.fleet-aircraft__metric--link').title).toContain('SSID Demo network');
+  expect(document.getElementById(button.getAttribute('aria-describedby'))).toHaveTextContent('16.1V');
+  expect(button.querySelectorAll('button,input,[tabindex]')).toHaveLength(0);
+  fireEvent.focus(button);fireEvent.keyDown(button,{key:'Escape'});
+  expect(button).toHaveAttribute('data-hint-dismissed','true');
+  expect(props.onInspect).not.toHaveBeenCalled();expect(props.onToggle).not.toHaveBeenCalled();
+});
+
 test('tile exposes compact identity and inspection without editing command recipients', () => {
   const { props, container } = tile();
   expect(screen.getByText('H7 · P3')).toBeInTheDocument();
@@ -32,7 +45,8 @@ test('tile exposes compact identity and inspection without editing command recip
   expect(container.querySelector('.fleet-aircraft__schematic')).toBeInTheDocument();
   expect(container.querySelector('.fleet-aircraft__instruments')).toBeInTheDocument();
   expect(screen.queryByText('Details')).not.toBeInTheDocument();
-  expect(screen.queryByText(/16\.1\s*V/)).not.toBeInTheDocument();
+  expect(container.querySelector('.fleet-aircraft__metric--battery')).toHaveAttribute('title',expect.stringContaining('16.1V'));
+  expect(container.querySelector('.fleet-battery-gauge')).toHaveAttribute('data-charge','80');
   expect(screen.getByRole('checkbox', { name: 'Include Scout (H7)' })).not.toBeChecked();
   expect(props.onInspect).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout · H7' }));
@@ -48,7 +62,7 @@ test('normal idle cards omit routine mission prose but retain all details in ins
   expect(screen.queryByLabelText(/Mission:/)).not.toBeInTheDocument();
   expect(screen.getByText('80%')).toBeInTheDocument();
   expect(screen.queryByText('Fresh')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('72%');
+  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('');
   expect(screen.getByText('RTK fixed')).toBeInTheDocument();
 });
 
@@ -67,7 +81,7 @@ test('fresh cards do not display ticking second counters; inspection shows the c
   const model = aircraft({ ip: '192.0.2.7' });
   const view = tile(model);
   expect(screen.queryByText(/\d+s ago/)).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('72%');
+  expect(screen.getByLabelText('Link: Fresh · 0s · Wi-Fi 72%')).toHaveTextContent('');
   view.unmount();
   render(<MemoryRouter><AircraftInspector item={model} onClose={jest.fn()} onAction={jest.fn()} onMove={jest.fn()} /></MemoryRouter>);
   expect(screen.getByText('192.0.2.7')).toBeInTheDocument();

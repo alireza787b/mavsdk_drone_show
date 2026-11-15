@@ -7,7 +7,7 @@ const LINK_CONDITIONS = new Set(['telemetry', 'boot']);
 const FleetAlertsContext = createContext(null);
 
 export function createFleetAlertsState() {
-  return { active: [], recent: [], monitoring: false, sourceError: false,
+  return { active: [], recent: [], monitoring: false, sourceError: false, sourceRecovering: false,
     observedAtMs: null, nextEpisode: 1, omittedAircraft: 0, omittedConditions: 0 };
 }
 
@@ -18,7 +18,7 @@ export function fleetAlertsReducer(state, action) {
     episode.id === action.id ? { ...episode, seen: true } : episode
   )) };
   if (action.type !== 'snapshot' || !Number.isFinite(action.snapshot?.observedAtMs)) return state;
-  const { aircraft = [], sourceError, observedAtMs } = action.snapshot;
+  const { aircraft = [], sourceError, sourceRecovering, observedAtMs } = action.snapshot;
   if (state.observedAtMs !== null && observedAtMs < state.observedAtMs) return state;
   let nextEpisode = state.nextEpisode;
   const previous = new Map(state.active.map((episode) => [episode.condition, episode]));
@@ -30,10 +30,10 @@ export function fleetAlertsReducer(state, action) {
       lastObservedAtMs: observedAtMs, clearedAtMs: null,
       seen: existing?.seen || false, observed: true };
   };
-  if (sourceError) {
+  if (sourceError && !sourceRecovering) {
     const outage = observe(GCS_CONDITION, { aircraftId: null, aircraftLabel: 'GCS',
       issueKey: 'outage', tone: 'danger', reason: 'Telemetry source unavailable' });
-    return { ...state, monitoring: true, sourceError: true, observedAtMs, nextEpisode,
+    return { ...state, monitoring: true, sourceError: true, sourceRecovering: false, observedAtMs, nextEpisode,
       active: [outage, ...state.active.filter((entry) => entry.condition !== GCS_CONDITION)
         .map((entry) => ({ ...entry, observed: false }))].slice(0, MAX_ACTIVE) };
   }
@@ -44,6 +44,9 @@ export function fleetAlertsReducer(state, action) {
   });
   const roster = new Map(Array.from(uniqueAircraft).slice(0, FLEET_ALERT_LIMITS.aircraft));
   const incoming = new Map();
+  if (sourceError && sourceRecovering) incoming.set(GCS_CONDITION, observe(GCS_CONDITION, {
+    aircraftId: null, aircraftLabel: 'GCS', issueKey: 'outage', tone: 'warning', reason: 'Telemetry source recovering',
+  }));
   const truncated = new Set();
   let omittedConditions = 0;
   roster.forEach((item, id) => {
@@ -87,7 +90,7 @@ export function fleetAlertsReducer(state, action) {
   });
   return { active: active.slice(0, MAX_ACTIVE),
     recent: [...cleared.reverse(), ...state.recent].slice(0, FLEET_ALERT_LIMITS.recent),
-    monitoring: true, sourceError: false, observedAtMs, nextEpisode,
+    monitoring: true, sourceError: Boolean(sourceError), sourceRecovering: Boolean(sourceError && sourceRecovering), observedAtMs, nextEpisode,
     omittedAircraft: Math.max(0, uniqueAircraft.size - FLEET_ALERT_LIMITS.aircraft) + omittedIds.size,
     omittedConditions: omittedConditions + Math.max(0, active.length - MAX_ACTIVE) };
 }

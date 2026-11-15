@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from auth_runtime import authorize_websocket
 from node_boot_status import get_all_node_boot_statuses, handle_node_boot_status_post
 from presence import build_presence_snapshot, resolve_presence_thresholds
+from fleet_telemetry_snapshot import fleet_telemetry_snapshot
 from schemas import (
     HealthCheckResponse,
     FleetActionReadinessResponse,
@@ -42,7 +43,7 @@ def _build_health_check_response(deps: Any) -> HealthCheckResponse:
 def _build_typed_telemetry_response(deps: Any, response: Response | None = None) -> TelemetryResponse:
     from overview_display_policy import resolve_overview_display_policy
 
-    telemetry_data = deps.telemetry_data_all_drones
+    telemetry_data = fleet_telemetry_snapshot(deps)
     online_count = len([
         drone for drone in telemetry_data.values()
         if drone and drone.get("telemetry_available", True)
@@ -407,10 +408,11 @@ def create_core_router(deps: Any) -> APIRouter:
 
         try:
             while True:
+                snapshot = fleet_telemetry_snapshot(deps)
                 message = TelemetryStreamMessage(
                     type="telemetry",
                     timestamp=int(time.time() * 1000),
-                    data=deps.telemetry_data_all_drones,
+                    data=snapshot,
                 )
                 await websocket.send_json(message.model_dump())
                 await asyncio.sleep(stream_interval_sec)

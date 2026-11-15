@@ -91,3 +91,14 @@ test('older or invalid source observations cannot overwrite newer evidence', () 
   expect(publish(state, [], NOW)).toBe(state);
   expect(publish(state, [], NaN)).toBe(state);
 });
+
+test('a recovering source retains its episode while fresh urgent aircraft evidence remains immediate',()=>{
+  const outage=publish(createFleetAlertsState(),[],NOW,true);
+  const recovering=fleetAlertsReducer(outage,{type:'snapshot',snapshot:{aircraft:[item('1',[{key:'battery',tone:'danger',label:'Critical battery'}])],
+    sourceError:true,sourceRecovering:true,observedAtMs:NOW+3000}});
+  expect(recovering.active.find(row=>row.aircraftId===null)).toMatchObject({id:outage.active[0].id,reason:'Telemetry source recovering'});
+  expect(recovering.active.find(row=>row.aircraftId==='1')).toMatchObject({observed:true,tone:'danger'});
+  const flap=publish(recovering,[],NOW+4000,true);
+  expect(flap.active.find(row=>row.aircraftId===null).id).toBe(outage.active[0].id);
+  expect(flap.recent).toHaveLength(0);
+});

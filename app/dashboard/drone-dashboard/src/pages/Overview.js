@@ -12,6 +12,7 @@ import FleetMoveControl from '../features/fleet-overview/FleetMoveControl';
 import { AircraftInspector, AircraftTile } from '../features/fleet-overview/FleetAircraft';
 import ActionReview, { buildActionStorageKey, readPendingAction, readPendingActions } from '../features/fleet-overview/ActionReview';
 import useFleetResources from '../features/fleet-overview/useFleetResources';
+import useFleetAttention from '../features/fleet-overview/useFleetAttention';
 import { buildFleetViewModel } from '../features/fleet-overview/fleetViewModel';
 import { filterFleetAircraft, groupFleetAircraft, renderedFleetAircraft } from '../features/fleet-overview/fleetDisplay';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
@@ -36,12 +37,15 @@ export default function Overview({ runtimeMode = 'unknown', operatorId = '' }) {
 function FleetOverview({ runtimeMode, operatorId }) {
   const resources = useFleetResources(runtimeMode);
   const orderRef = useRef([]);
-  const model = useMemo(() => buildFleetViewModel(resources.drones, { nowMs: resources.nowMs, previousOrder: orderRef.current,
+  const rawModel = useMemo(() => buildFleetViewModel(resources.drones, { nowMs: resources.nowMs, previousOrder: orderRef.current,
     displayPolicy: resources.displayPolicy }), [resources.drones, resources.nowMs, resources.displayPolicy]);
+  const attention = useFleetAttention(rawModel, resources);
+  const model = attention.model;
   const { publishSnapshot, sourceUnavailable } = useFleetAlerts();
   useEffect(() => {
-    publishSnapshot({ aircraft: model.aircraft, sourceError: Boolean(resources.telemetry.error || resources.config.error), observedAtMs: resources.nowMs });
-  }, [model.aircraft, resources.telemetry.error, resources.config.error, resources.nowMs, publishSnapshot]);
+    publishSnapshot({ aircraft: model.aircraft, sourceError: attention.telemetry.active,
+      sourceRecovering: attention.telemetry.phase === 'recovering', observedAtMs: resources.nowMs });
+  }, [model.aircraft, attention.telemetry.active, attention.telemetry.phase, resources.nowMs, publishSnapshot]);
   useEffect(() => () => sourceUnavailable(), [sourceUnavailable]);
   useEffect(() => { orderRef.current = model.order; }, [model.order]);
   const [selection, dispatch] = useReducer(targetSelectionReducer, undefined, createTargetSelectionState);
@@ -143,8 +147,10 @@ function FleetOverview({ runtimeMode, operatorId }) {
           onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')} aria-pressed={filter === 'attention'}>
           <FaExclamationTriangle aria-hidden="true" /> {model.summary.attention}</button>}</div>
     </header>
-    {resources.telemetry.error && <div role="alert" className="fleet-inline-warning">GCS telemetry unavailable · displayed measurements are aging. Reconnecting.</div>}
-    {resources.config.error && <div role="alert" className="fleet-inline-warning">Aircraft configuration could not refresh. Review targets before sending.</div>}
+    {attention.telemetry.active && <div role="alert" className="fleet-inline-warning">{attention.telemetry.phase === 'recovering'
+      ? 'GCS link recovering' : 'GCS telemetry unavailable · displayed measurements are aging. Reconnecting.'}</div>}
+    {attention.config.active && <div role="alert" className="fleet-inline-warning">{attention.config.phase === 'recovering'
+      ? 'Configuration link recovering' : 'Aircraft configuration could not refresh. Review targets before sending.'}</div>}
     {storageWarning && <div role="status" className="fleet-inline-warning">{storageWarning}</div>}
     {pending.length > 0 && <div role="alert" className="fleet-inline-warning"><details><summary>{pending.length} unconfirmed action{pending.length === 1 ? '' : 's'}</summary>
       {pending.map((entry) => <button type="button" key={entry.storageKey} onClick={() => setIntent({ storageKey: entry.storageKey, command: { ...entry.command, recover: true } })}>

@@ -39,6 +39,9 @@ Do not assume the environment. Detect it first.
   Preserve normal full-cluster wire compatibility.
 - Treat unknown telemetry as unknown, not fabricated GPS/health or evidence of
   disarm/landing. Inspect aircraft by identity against the current shared model.
+  Settle routine presentation attention, not raw sample ages or flight admission.
+  Keep companion presence, FC telemetry and browser/config fetch failures distinct;
+  join accepted heartbeat metadata without refreshing FC clocks or nesting locks.
 - Shared-shell responsive behavior has one viewport owner. CSS should consume
   its desktop/mobile state rather than independently deciding whether navigation
   exists; browser validation must include the intermediate tablet widths.

@@ -3,8 +3,15 @@ import { getFleetNetworkStatus as status } from './fleetNetworkStatus';
 test('primary Ethernet wins over a connected Wi-Fi radio without displaying its signal', () => {
   expect(status({ primary_link: { type: 'ethernet', interface: 'eth0' },
     wifi: { signal_strength_percent: 83 } }, true)).toEqual({
-    type: 'ethernet', label: 'Ethernet', interface: 'eth0', percent: null, current: true, stale: false,
+    type: 'ethernet', label: 'Ethernet', interface: 'eth0', percent: null, ssid: '', current: true, stale: false,
   });
+});
+
+test('primary Wi-Fi never borrows another interface signal or SSID',()=>{
+  expect(status({primary_link:{type:'wifi',interface:'wlan1'},wifi:{interface:'wlan0',ssid:'Other',signal_strength_percent:90}},true))
+    .toMatchObject({type:'wifi',percent:null,ssid:''});
+  expect(status({primary_link:{type:'wifi',interface:'wlan1',ssid:'Primary',signal_strength_percent:34},wifi:{interface:'wlan0',ssid:'Other',signal_strength_percent:90}},true))
+    .toMatchObject({percent:34,ssid:'Primary'});
 });
 
 test.each(['wifi', 'ethernet', 'cellular', 'usb_modem', 'vpn'])('uses the reported %s transport, not the interface name', type => {
