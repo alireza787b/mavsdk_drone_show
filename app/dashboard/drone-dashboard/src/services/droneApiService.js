@@ -165,18 +165,18 @@ export const getCommandStatus = async (commandId) => {
   }
 };
 
-export const getRecentCommands = async ({ limit = 8, status = null, missionType = null } = {}) => {
+export const getRecentCommands = async ({ limit = 8, status = null, missionType = null } = {}, config = {}) => {
   try {
-    const response = await getRecentCommandsResponse({ limit, status, missionType });
+    const response = await getRecentCommandsResponse({ limit, status, missionType }, config);
     return response.data;
   } catch (error) {
     throw error;
   }
 };
 
-export const getActiveCommands = async () => {
+export const getActiveCommands = async (config = {}) => {
   try {
-    const response = await getActiveCommandsResponse();
+    const response = await getActiveCommandsResponse(config);
     return response.data;
   } catch (error) {
     throw error;

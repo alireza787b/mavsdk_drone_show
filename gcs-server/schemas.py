@@ -611,6 +611,16 @@ class OverviewDisplayPolicy(BaseModel):
         return cls(**resolve_overview_display_policy())
 
 
+class ObservationSnapshotMetadata(BaseModel):
+    """GCS publication identity, never aircraft freshness or execution evidence."""
+
+    protocol_version: Literal[1]
+    stream_id: str = Field(min_length=1, description="Publisher epoch; sequence restarts only in a new epoch")
+    sequence: int = Field(ge=1, description="Publication sequence; latest-only delivery may skip generations")
+    published_at_ms: int = Field(ge=0, description="GCS wall-clock publication time, not an FC sample time")
+    delivery: Literal["latest_snapshot"]
+
+
 class TelemetryResponse(BaseModel):
     """Response for GET /telemetry"""
     telemetry: Dict[str, DroneTelemetry] = Field(..., description="Telemetry by pos_id")
@@ -629,6 +639,10 @@ class TelemetryResponse(BaseModel):
         if isinstance(value, dict):
             return {str(key): payload for key, payload in value.items()}
         return value
+
+
+class TelemetrySnapshotResponse(TelemetryResponse, ObservationSnapshotMetadata):
+    """Opt-in versioned HTTP view of the shared telemetry publication."""
 
 
 class FleetActionReadinessTarget(BaseModel):
@@ -680,6 +694,10 @@ class HeartbeatResponse(BaseModel):
     online_count: int = Field(..., ge=0, description="Online drones")
     state_counts: Dict[str, int] = Field(default_factory=dict, description="Heartbeat rows counted by canonical presence_state")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+
+
+class HeartbeatSnapshotResponse(HeartbeatResponse, ObservationSnapshotMetadata):
+    """Opt-in versioned HTTP view of the shared heartbeat publication."""
 
 
 class HeartbeatRequest(BaseModel):
@@ -738,6 +756,7 @@ class HeartbeatRequest(BaseModel):
 class HeartbeatPostResponse(BaseModel):
     """Response for POST /api/v1/fleet/heartbeats"""
     success: bool = Field(..., description="Heartbeat received status")
+    accepted: bool = Field(True, description="Whether native heartbeat policy accepted this observation")
     message: str = Field(..., description="Status message")
     server_time: int = Field(..., description="Server timestamp (Unix ms)")
 
@@ -985,6 +1004,10 @@ class GitStatusResponse(BaseModel):
     gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
     sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+
+
+class GitStatusSnapshotResponse(GitStatusResponse, ObservationSnapshotMetadata):
+    """Opt-in versioned HTTP view of the shared software publication."""
 
 
 class FleetGitSyncApplyResponse(BaseModel):
@@ -2195,6 +2218,10 @@ class TelemetryStreamMessage(WebSocketMessage):
         return value
 
 
+class TelemetrySnapshotStreamMessage(TelemetryStreamMessage, ObservationSnapshotMetadata):
+    display_policy: OverviewDisplayPolicy
+
+
 class GitStatusStreamMessage(WebSocketMessage):
     """WebSocket git status stream message"""
     type: str = Field(default="git_status", description="Message type")
@@ -2206,6 +2233,14 @@ class HeartbeatStreamMessage(WebSocketMessage):
     """WebSocket heartbeat stream message"""
     type: str = Field(default="heartbeat", description="Message type")
     data: List[HeartbeatData] = Field(..., description="Heartbeat data for all drones")
+
+
+class GitStatusSnapshotStreamMessage(GitStatusStreamMessage, ObservationSnapshotMetadata):
+    pass
+
+
+class HeartbeatSnapshotStreamMessage(HeartbeatStreamMessage, ObservationSnapshotMetadata):
+    pass
 
 
 # ============================================================================

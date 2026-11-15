@@ -1,15 +1,15 @@
 import { act, renderHook } from '@testing-library/react';
 import useSwarmCaptureLiveView from './useSwarmCaptureLiveView';
-import useGcsResourcePolling from './useGcsResourcePolling';
+import { useObservationResource } from '../contexts/ObservationContext';
 import { captureLivePositions } from '../utilities/swarmCaptureLiveView';
-jest.mock('./useGcsResourcePolling', () => jest.fn());
+jest.mock('../contexts/ObservationContext', () => ({ useObservationResource: jest.fn() }));
 jest.mock('../utilities/swarmCaptureLiveView', () => ({ captureLivePositions: jest.fn(() => []), captureViewReference: () => null }));
 beforeEach(() => { jest.useFakeTimers(); jest.clearAllMocks(); captureLivePositions.mockReturnValue([]); });
 afterEach(() => jest.useRealTimers());
 const row = { hw_id: '1', global_position_timestamp_ms: 1000, position_lat: 35, position_long: 51, position_alt: 120 };
 test('frozen telemetry ages despite successful HTTP, advancing samples reset, and unmount clears the clock', () => {
   let response = { data: { telemetry: { 1: row } }, requestedAt: performance.now(), error: null };
-  useGcsResourcePolling.mockImplementation(() => response);
+  useObservationResource.mockImplementation(() => ({ ...response, response: response.data ? { data: response.data } : null }));
   const { rerender, unmount } = renderHook(() => useSwarmCaptureLiveView(['1'], null, '1'));
   act(() => jest.advanceTimersByTime(6000));
   expect(captureLivePositions.mock.calls.at(-1)[3]['1']).toBeGreaterThanOrEqual(6000);
@@ -23,7 +23,7 @@ test('frozen telemetry ages despite successful HTTP, advancing samples reset, an
 });
 test('an initially missing sample does not latch the age clock permanently', () => {
   let response = { data: { telemetry: {} }, requestedAt: performance.now() };
-  useGcsResourcePolling.mockImplementation(() => response);
+  useObservationResource.mockImplementation(() => ({ ...response, response: response.data ? { data: response.data } : null }));
   const { rerender } = renderHook(() => useSwarmCaptureLiveView(['1'], null, '1'));
   act(() => jest.advanceTimersByTime(10000));
   response = { data: { telemetry: { 1: row } }, requestedAt: performance.now() }; rerender();

@@ -2619,9 +2619,74 @@ ws.onmessage = (event) => {
 ```
 
 **Benefits:**
-- 95% less overhead vs HTTP polling
-- Real-time updates (1 Hz)
-- Automatic reconnection support
+- Periodic observations without one HTTP request per browser refresh.
+- Shared server-side publication and bounded latest-only delivery.
+- Reconnect starts with a complete current snapshot, not an event replay.
+
+#### Versioned shared observation snapshots
+
+Telemetry, heartbeat and Git sockets accept `protocol_version=1`. Their legacy
+`type`, `timestamp` and `data` shapes remain unchanged; telemetry additionally
+includes the canonical HTTP `display_policy`. The following fields are additive:
+
+```json
+{
+  "protocol_version": 1,
+  "stream_id": "publisher-epoch-uuid",
+  "sequence": 42,
+  "published_at_ms": 1700000000000,
+  "delivery": "latest_snapshot"
+}
+```
+
+`stream_id` identifies one publisher epoch, not an aircraft boot, mission or
+command. Sequence increases within that epoch; skipped numbers are expected
+when intermediate snapshots are coalesced. Consumers replace the complete
+topic snapshot, including aircraft removals, and reset sequence comparison on a
+new epoch. Unsupported protocol versions close with `1002`; these streams are
+read-only and reject application messages from clients. They are not a durable
+event history or a command-delivery/acknowledgement channel.
+
+Canonical HTTP reads remain available at `/api/v1/fleet/telemetry`,
+`/api/v1/fleet/heartbeats` and `/api/v1/git/status`. Adding
+`?protocol_version=1` returns the same metadata and shared generation for its
+topic. The existing HTTP domain body is unchanged (`telemetry`, `heartbeats`,
+or `git_status`, respectively). Unversioned HTTP remains a fresh direct read
+for compatibility. Shared publication intervals are 500 ms for telemetry,
+2 s for heartbeats and 5 s for Git; telemetry `interval_ms` still limits each
+client's outbound cadence to 500–6000 ms (default 1000 ms).
+
+Publication time and the HTTP `X-MDS-Server-Time` header are GCS observations,
+never FC freshness. A new frame can contain the same old or unavailable native
+sample. Native sample timestamps, unknown flight states, heartbeat-specific
+receipts and configuration/readiness authority are preserved. No cross-host
+clock subtraction or snapshot sequence grants flight admission.
+
+Each topic validates and serializes one generation for all socket consumers,
+with one pending latest snapshot per client. Limits are 128 subscribers/topic,
+8 MiB per encoded snapshot, a 5 s send deadline and a 15 s publication-idle
+deadline. Capacity/slow-consumer/idle failures close `1013`; a snapshot build
+failure closes `1011` (`observation_unavailable`) instead of fabricating an
+empty healthy fleet. Peer disconnects retire their subscriptions; the publisher
+stops when the last socket leaves. These are bounded implementation limits,
+not measured fleet-scale or network-throughput guarantees. Full snapshots still
+carry full fleet payloads; shared encoding does not itself compress bandwidth.
+
+When auth is enabled, sockets apply the canonical HTTP read-role restrictions
+and check current token revocation/expiry and user/session validity every 5 s
+(a send in progress is separately bounded to 5 s). Authentication/authorization
+failures close `1008`; versioned clients receive a reason of
+`authentication_required`, `permission_denied` or `origin_not_allowed`.
+Credential-store validation failures close `1011` (`authentication_unavailable`).
+Browser Origins must match the API host and its port or the standard dashboard/
+API ports, or an explicit existing `MDS_CORS_ALLOW_ORIGIN_REGEX` override.
+Native clients can omit Origin. Versioned clients use the normal session cookie
+or Authorization bearer header, never a token in the URL; legacy query-token
+compatibility is not extended to this protocol. The existing trusted-network
+auth-disabled lab posture and dashboard-only machine config access are unchanged.
+Logout alone does not revoke previously issued stateless session cookies;
+disable the user or let the session expire when immediate existing-session
+invalidation is required. No new authentication mode is introduced.
 
 ### `WS /ws/git-status`
 Real-time git status streaming (0.2 Hz).
@@ -2914,7 +2979,7 @@ The FastAPI implementation replaced the earlier Flask server, but the public con
 4. Check [api-modernization-blueprint.md](./api-modernization-blueprint.md) before assuming an older route is still supported
 
 ### Advantages of FastAPI
-- **3-5x faster** response times
+- Async HTTP and streaming primitives
 - **Automatic OpenAPI docs** at `/docs` and `/redoc`
 - **Type safety** with Pydantic validation
 - **WebSocket support** for real-time streaming
@@ -2923,17 +2988,13 @@ The FastAPI implementation replaced the earlier Flask server, but the public con
 
 ---
 
-## Performance Metrics
+## Performance evidence
 
-### HTTP Endpoints
-- Average response time: **10-50ms** (vs 30-150ms Flask)
-- Throughput: **1000-2000 req/s** (vs 300-500 req/s Flask)
-- Memory usage: Similar to Flask
-
-### WebSocket Endpoints
-- Connection overhead: **<1ms**
-- Message latency: **<5ms**
-- Concurrent connections: **1000+**
+Capacity and latency require a reproducible deployment/network benchmark. The
+shared observation publisher bounds subscribers, frame bytes, pending state and
+send time; these implementation limits are not a validated fleet-flight capacity.
+Measure source age, retries, bytes, queue wait, CPU/memory and healthy-consumer
+isolation. HTTP, stream and command acceptance tests establish different scopes.
 
 ---
 

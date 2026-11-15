@@ -1,70 +1,24 @@
-// src/hooks/useFetch.js
-
-import { useState, useEffect } from 'react';
+import { useCallback, useMemo } from 'react';
 import { extractServerNowMs } from '../constants/fieldMappings';
-import { fetchGcsResource } from '../services/gcsApiService';
+import { fetchGcsResource, GCS_ROUTE_KEYS, resolveGcsRouteKey } from '../services/gcsApiService';
+import { useObservationResource } from '../contexts/ObservationContext';
+import usePollingResource from './usePollingResource';
 
-/**
- * Custom hook for fetching data from a given endpoint.
- * @param {string} endpoint - The API endpoint to fetch data from.
- * @param {number|null} interval - Polling interval in milliseconds (optional).
- * @returns {object} - { data, error, loading }
- */
-const useFetch = (endpoint, interval = null) => {
-  const [data, setData] = useState(null);
-  const [meta, setMeta] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!endpoint) {
-      setData(null);
-      setMeta(null);
-      setError(null);
-      setLoading(false);
-      return undefined;
-    }
-
-    let isMounted = true; // To prevent state updates after unmount
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const response = await fetchGcsResource(endpoint);
-        if (isMounted) {
-          const receivedAtMs = Date.now();
-          setData(response.data);
-          setMeta({
-            receivedAtMs,
-            serverNowMs: extractServerNowMs(response.headers),
-          });
-          setError(null);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err);
-          setData(null);
-          setMeta(null);
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-
-    let timer;
-    if (interval) {
-      timer = setInterval(fetchData, interval);
-    }
-
-    return () => {
-      isMounted = false;
-      if (timer) clearInterval(timer);
-    };
-  }, [endpoint, interval]);
-
-  return { data, meta, error, loading };
+const sharedResources = {
+  [GCS_ROUTE_KEYS.fleetConfig]: 'config', [GCS_ROUTE_KEYS.fleetTelemetry]: 'telemetry',
+  [GCS_ROUTE_KEYS.swarmConfig]: 'swarm', [GCS_ROUTE_KEYS.fleetHeartbeats]: 'heartbeats',
+  [GCS_ROUTE_KEYS.systemRuntimeStatus]: 'runtime', [GCS_ROUTE_KEYS.gitStatus]: 'git',
 };
 
-export default useFetch;
+/** Canonical fleet readers share ownership; domain reads stay sequential. */
+export default function useFetch(endpoint, interval = null) {
+  const name = typeof endpoint === 'string' && !endpoint.includes('?') ? sharedResources[resolveGcsRouteKey(endpoint)] : null;
+  const shared = useObservationResource(name, endpoint);
+  const load = useCallback(options => fetchGcsResource(endpoint, options), [endpoint]);
+  const own = usePollingResource(load, interval, endpoint, Boolean(endpoint && !name));
+  const resource = name ? shared : own;
+  return useMemo(() => ({ data: endpoint ? resource.response?.data ?? null : null,
+    meta: resource.response ? { receivedAtMs: resource.receivedAtMs, serverNowMs: extractServerNowMs(resource.response.headers || {}) } : null,
+    error: endpoint ? resource.error : null, loading: Boolean(endpoint && resource.loading), refresh: resource.refresh,
+  }), [endpoint, resource]);
+}

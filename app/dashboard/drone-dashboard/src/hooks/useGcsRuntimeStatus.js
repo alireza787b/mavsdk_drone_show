@@ -1,8 +1,6 @@
-import useFetch from './useFetch';
-import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
+import { useObservationResource } from '../contexts/ObservationContext';
 import { useEffect, useState } from 'react';
 
-const DEFAULT_POLL_INTERVAL_MS = 15000;
 const RUNTIME_MODE_CACHE_KEY = 'mds:gcs-runtime-mode';
 
 function normalizeModeLabel(mode) {
@@ -16,8 +14,9 @@ function normalizeModeLabel(mode) {
   return 'UNKNOWN';
 }
 
-export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERVAL_MS) {
-  const { data, error, loading } = useFetch(GCS_ROUTE_KEYS.systemRuntimeStatus, pollIntervalMs);
+export default function useGcsRuntimeStatus() {
+  const { response, error, loading } = useObservationResource('runtime');
+  const data = response?.data;
   const [cachedMode, setCachedMode] = useState(() => {
     if (typeof window === 'undefined') {
       return '';

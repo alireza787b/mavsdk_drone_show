@@ -1,16 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DRONE_RUNTIME_CLOCK_PROP, FIELD_NAMES, attachDroneRuntimeClock, normalizeTelemetryResponse } from '../../constants/fieldMappings';
 import { normalizeComparableId } from '../../utilities/missionIdentityUtils';
-import { fetchGcsResource, getFleetConfigResponse, getFleetTelemetryResponse, GCS_ROUTE_KEYS, unwrapFleetTelemetryPayload, unwrapSwarmConfigPayload } from '../../services/gcsApiService';
+import { getFleetConfigResponse, getFleetTelemetryResponse, getSwarmConfigResponse,
+  unwrapFleetTelemetryPayload, unwrapSwarmConfigPayload } from '../../services/gcsApiService';
 import { DEFAULT_FLEET_AVAILABILITY_POLICY } from './fleetAvailability';
 import usePollingResource from '../../hooks/usePollingResource';
-
-const loadBoot = (options) => fetchGcsResource(GCS_ROUTE_KEYS.fleetNodeBootStatus, options);
-const loadSwarm = (options) => fetchGcsResource(GCS_ROUTE_KEYS.swarmConfig, options);
+import { useObservationResource } from '../../contexts/ObservationContext';
+import useObservationClock from '../../hooks/useObservationClock';
 
 // Each resource has one sequential owner. Failed refreshes retain explicitly
 // aging evidence; a response from an obsolete route/mode cannot install itself.
-export const useFleetResource = usePollingResource;
+export function useFleetResource(load, intervalMs, contextKey) {
+  const name = load === getFleetConfigResponse ? 'config' : load === getFleetTelemetryResponse ? 'telemetry'
+    : load === getSwarmConfigResponse ? 'swarm' : null;
+  const shared = useObservationResource(name, contextKey);
+  const owned = usePollingResource(load, intervalMs, contextKey, !name);
+  return name ? shared : owned;
+}
 
 export function mergeFleetResources(config = [], telemetry = {}, boot = {}, clock = {}) {
   const configured = new Map((Array.isArray(config) ? config : []).map((row) => [normalizeComparableId(row.hw_id), row]).filter(([id]) => id));
@@ -28,17 +34,11 @@ export function mergeFleetResources(config = [], telemetry = {}, boot = {}, cloc
 }
 
 export default function useFleetResources(contextKey) {
-  const config = useFleetResource(getFleetConfigResponse, 30000, contextKey);
-  const telemetry = useFleetResource(getFleetTelemetryResponse, 1000, contextKey);
-  const boot = useFleetResource(loadBoot, 5000, contextKey);
-  const swarm = useFleetResource(loadSwarm, 30000, contextKey);
-  const [nowMs, setNowMs] = useState(Date.now);
-  useEffect(() => {
-    const tick = () => setNowMs(Date.now());
-    const timer = setInterval(tick, 1000);
-    window.addEventListener('focus', tick);
-    return () => { clearInterval(timer); window.removeEventListener('focus', tick); };
-  }, []);
+  const config = useObservationResource('config', contextKey);
+  const telemetry = useObservationResource('telemetry', contextKey);
+  const boot = useObservationResource('boot', contextKey);
+  const swarm = useObservationResource('swarm', contextKey);
+  const nowMs = useObservationClock();
   const drones = useMemo(() => {
     const clock = { receivedAtMs: telemetry.receivedAtMs,
       serverNowMs: telemetry.response?.headers?.['x-mds-server-time'] ?? telemetry.response?.headers?.date ?? null };

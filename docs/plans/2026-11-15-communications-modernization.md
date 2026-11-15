@@ -5,9 +5,10 @@
 Modernize communication ownership, state delivery and recovery without changing
 mission intent, native PX4 admission, control gains or reviewed command targets.
 Keep HTTP resources supported for scripts, third-party applications, diagnostics
-and fallback. Implementation follows resolution of the current aircraft incident
-and confirmation that the affected aircraft is operational. This plan changes no
-runtime behavior.
+and fallback. The user subsequently authorized isolated implementation while the
+aircraft incident remains under investigation. Hardware updates and flight
+clearance remain separate from source/SITL validation. This plan is the design
+baseline; accepted implementation evidence is recorded separately.
 
 The first deployment remains a two/three-aircraft workflow. The user-confirmed
 supervisory capacity target is 100 aircraft with five simultaneous dashboards,

@@ -9,7 +9,6 @@ import {
 } from '../services/gcsApiService';
 import {
   buildGlobeDroneViewModels,
-  calculateGlobeTelemetryIntervalMs,
 } from '../utilities/globeTelemetryViewModel';
 
 jest.mock('../components/Globe', () => ({
@@ -40,7 +39,6 @@ jest.mock('../services/gcsApiService', () => {
 
 jest.mock('../utilities/globeTelemetryViewModel', () => ({
   buildGlobeDroneViewModels: jest.fn(),
-  calculateGlobeTelemetryIntervalMs: jest.fn(() => 1000),
 }));
 
 describe('GlobeView', () => {
@@ -49,7 +47,6 @@ describe('GlobeView', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.WebSocket = undefined;
-    calculateGlobeTelemetryIntervalMs.mockReturnValue(1000);
     getFleetConfigResponse.mockResolvedValue({ data: [] });
     getFleetTelemetryResponse.mockResolvedValue({ data: { drones: [] } });
     unwrapFleetTelemetryPayload.mockImplementation((payload) => payload);
@@ -93,6 +90,6 @@ describe('GlobeView', () => {
 
     expect(await screen.findByTestId('globe-scene')).toHaveTextContent('1 drones in 3D scene');
     expect(screen.getByRole('button', { name: /select.*h1/i })).toBeInTheDocument();
-    expect(screen.getByText('HTTP · 1.0s')).toBeInTheDocument();
+    expect(screen.getByText('1 aircraft')).toBeInTheDocument();
   });
 });

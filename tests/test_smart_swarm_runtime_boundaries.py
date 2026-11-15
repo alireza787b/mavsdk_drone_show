@@ -284,6 +284,59 @@ def test_apply_leader_state_sample_rejects_frozen_motion_timestamp_on_fresh_pack
     assert swarm_runtime.LEADER_STATE["pos_n"] == pytest.approx(0.0, abs=1e-6)
 
 
+@pytest.mark.asyncio
+async def test_pending_http_reply_cannot_undo_newer_stream_motion_during_handover(
+    swarm_runtime, monkeypatch,
+):
+    from smart_swarm_src.leader_transport import LeaderStateSupervisor, LeaderTransportPolicy
+
+    now_ms = 1_800_000_000_200
+    monkeypatch.setattr(swarm_runtime, "time", types.SimpleNamespace(
+        time=lambda: now_ms / 1000.0, monotonic=lambda: 42.2))
+    started, release, offered = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    old_http = _valid_global_sample(now_ms - 200)
+    newer_ws = _valid_global_sample(now_ms)
+    newer_ws.update(stream_seq=8, position_lat=47.397752)
+    accepted = []
+
+    class Client:
+        @asynccontextmanager
+        async def get(self, *_args, **_kwargs):
+            async def json():
+                started.set()
+                await release.wait()
+                return old_http
+            yield types.SimpleNamespace(raise_for_status=lambda: None, json=json)
+
+    def apply(sample, source):
+        result = swarm_runtime.apply_leader_state_sample(sample, source)
+        accepted.append((source, result))
+        if source == "http-fallback":
+            offered.set()
+        return result
+
+    target = (1, "1", "leader")
+    policy = LeaderTransportPolicy(port=7070, poll_interval=100, request_timeout=1,
+        connect_timeout=1, sample_idle_timeout=0.75, backoff_initial=0.25, backoff_max=2)
+    supervisor = LeaderStateSupervisor(lambda: target, asyncio.Event(), apply, policy, client=Client())
+    fallback_needed = asyncio.Event()
+    fallback_needed.set()
+    pending = asyncio.create_task(supervisor._http(target, fallback_needed))
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        assert supervisor._offer(target, newer_ws, "ws")
+        fallback_needed.clear()  # stream became healthy while HTTP was in flight
+        latest = dict(swarm_runtime.LEADER_STATE)
+        release.set()
+        await asyncio.wait_for(offered.wait(), 1)
+        assert accepted == [("ws", True), ("http-fallback", False)]
+        assert swarm_runtime.LEADER_STATE == latest
+        assert swarm_runtime.LEADER_STATE["stream_seq"] == 8
+    finally:
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+
+
 def test_new_source_motion_replaces_sample_after_intervening_prediction(
     swarm_runtime,
     monkeypatch,

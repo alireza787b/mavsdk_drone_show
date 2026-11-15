@@ -180,17 +180,52 @@ Missing initial data and already-offline/urgent conditions are not hidden. A
 configuration refresh error is reported separately from a telemetry outage.
 The existing 10-second stale/60-second Available display windows are unchanged.
 
-### Communications roadmap — proposed, not implemented
+### Shared observations and transport recovery
 
 The [communications modernization plan](../plans/2026-11-15-communications-modernization.md)
-defines the proposed shared snapshot/subscription ownership, HTTP compatibility,
-bounded delivery, identity/clock contracts, migration slices and validation gates.
-It is not a deployed transport upgrade. Measure each hop before selecting rates,
-queues or encoding; source age is not pure network latency.
+defines shared snapshot/subscription ownership, HTTP compatibility, bounded
+delivery, identity/clock contracts, migration slices and validation gates.
+Current-source behavior is described below; release/image and hardware acceptance
+must cite the matching validation record. Source age is not pure network latency.
 
-The plan consolidates supervisory observations, not commands, bulk transfers and
-flight-control traffic into one queue. It preserves existing native admission,
-exact command recipients and the optional MCP boundary.
+The GCS owns one per-aircraft supervisory acquisition task: node-state WebSocket
+after a valid identity-matching sample, with independent sequential pooled HTTP
+fallback while connecting, unsupported, silent or disconnected. Handshake probes
+have separate capacity from HTTP acquisition. An old endpoint/HTTP response cannot
+overwrite a newer stream generation. Native measurement clocks are unchanged.
+
+Overview, Globe and canonical fleet readers share an authenticated browser
+observation owner. Shell monitoring continues across navigation. One resource
+owner manages valid-data idle detection, bounded reconnect and HTTP fallback;
+opening a socket is not application freshness. Configuration, software and
+runtime reads are shared rather than polled separately by shell and page.
+Late callbacks from a previous user/runtime/connection are fenced. A new receipt
+of a cached sample never changes its native measurement timestamp.
+
+GCS telemetry, heartbeat and Git WebSockets publish bounded latest-state
+generations shared by subscribers. Optional `protocol_version=1` adds producer
+epoch/sequence and complete-snapshot semantics, also available on HTTP snapshots.
+Sequence gaps are permitted for coalesced state; reconnect obtains a complete
+snapshot. There is no replay queue of flight commands in this transport.
+Legacy HTTP and WS payload contracts remain available over the same services.
+
+Commands, bulk transfers and direct flight-control traffic retain distinct
+ownership and capacity. Native preparation/capture, exact recipients and the
+optional MCP boundary are unchanged. Logs retain their selected-source event
+stream and coverage contract; parameters retain explicit reviewed transactions.
+
+The local MAVLink receiver binds state to a classified flight-controller
+heartbeat source, independently of MDS hardware/position IDs. Estimator/health
+messages require that FC component; raw GPS/battery peripherals may use another
+component in the bound system. A second FC cannot silently replace the owner.
+An explicit configured `mav_sys_id`, when supplied, constrains discovery; no
+firmware parameter is changed. This prevents accidental source mixing, not
+spoofing of the same source header. Fix routing/configuration and restart the
+receiver after an identity collision; a network timeout never reassigns ownership.
+
+Further payload deltas, compression, brokers and new transports remain conditional
+on measured benefit. No fixed percentage bandwidth saving or cellular flight
+performance is promised.
 
 Smart Swarm's aircraft-to-aircraft leader-state WS stream and HTTP fallback are
 already separate from dashboard monitoring. Evaluate their existing source-age,

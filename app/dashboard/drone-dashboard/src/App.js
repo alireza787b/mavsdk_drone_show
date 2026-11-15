@@ -19,6 +19,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { CommandActivityProvider } from './contexts/CommandActivityContext';
 import { MapProvider } from './contexts/MapContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ObservationProvider } from './contexts/ObservationContext';
+import FleetObservationMonitor from './features/fleet-overview/FleetObservationMonitor';
 
 // Import design tokens first
 import './styles/DesignTokens.css';
@@ -181,6 +183,8 @@ const AppShell = () => {
   }`;
 
   return (
+    <ObservationProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`}>
+    <CommandActivityProvider>
     <Router
       future={{
         v7_startTransition: true,
@@ -188,6 +192,7 @@ const AppShell = () => {
       }}
     >
       <FleetAlertsProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}`}>
+              <FleetObservationMonitor />
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
                   <>
@@ -284,21 +289,26 @@ const AppShell = () => {
               />
       </FleetAlertsProvider>
     </Router>
+    </CommandActivityProvider>
+    </ObservationProvider>
   );
+};
+
+const AuthenticatedWorkspace = () => {
+  const auth = useAuth();
+  return <ObservationProvider key={`${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`}><AppShell /></ObservationProvider>;
 };
 
 const App = () => (
   <ThemeProvider>
     <ErrorBoundary>
-      <CommandActivityProvider>
         <MapProvider>
           <AuthProvider>
             <AuthGate>
-              <AppShell />
+              <AuthenticatedWorkspace />
             </AuthGate>
           </AuthProvider>
         </MapProvider>
-      </CommandActivityProvider>
     </ErrorBoundary>
   </ThemeProvider>
 );

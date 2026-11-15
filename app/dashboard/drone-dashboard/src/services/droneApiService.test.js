@@ -204,7 +204,7 @@ describe('droneApiService', () => {
       limit: 5,
       status: 'running',
       missionType: 7,
-    });
+    }, {});
   });
 
   it('uses centralized route building for swarm trajectory uploads', async () => {

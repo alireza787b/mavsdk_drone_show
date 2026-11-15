@@ -49,7 +49,7 @@ current node contract.
 ### Key Features
 
 - ✅ **HTTP REST API** - 10 endpoints for standard operations
-- ✅ **WebSocket Streaming** - Real-time telemetry push (95% less overhead)
+- ✅ **WebSocket Streaming** - Shared real-time observation delivery
 - ✅ **Auto-Generated Docs** - Interactive API documentation at `/docs`
 - ✅ **Type Validation** - Pydantic models ensure data integrity
 - ✅ **Async/Await** - Non-blocking I/O for better performance
@@ -678,12 +678,17 @@ missing fields on an older node.
 
 **Description:** Real-time drone state streaming (recommended for GCS)
 
-**Advantages over HTTP polling:**
-- ✅ **95% less network overhead** (no HTTP headers)
-- ✅ **Real-time push** (no polling delay)
-- ✅ **One-way monitoring stream** (commands stay on `POST /api/v1/drone/commands`)
-- ✅ **More efficient** for GCS monitoring multiple drones
-- ✅ **Lower latency** (~5ms vs 20ms with HTTP)
+The GCS prefers this stream only after a valid identity-matching state sample.
+HTTP acquisition continues during connection attempts and resumes when useful
+state is absent; an open socket alone is not live telemetry. Both paths preserve
+native sample timestamps. HTTP remains a supported resource for other clients.
+
+The node produces and encodes one state generation for all subscribers at the
+configured cadence, with one pending latest frame per client, a subscriber cap
+and a bounded send deadline. Intermediate observations can coalesce; this is not
+an event archive or command channel. It does not establish simultaneous native
+sensor sampling. Bandwidth/latency savings depend on payload, link and consumers,
+not a universal percentage or millisecond guarantee.
 
 ### Connection URL
 
@@ -695,10 +700,9 @@ ws://drone-ip:7070/ws/drone-state
 
 **Default:** 1 Hz (1 message per second)
 
-**Configurable rates:**
-- High frequency: 10 Hz (0.1s interval) - For precise monitoring
-- Medium frequency: 1 Hz (1s interval) - Recommended default
-- Low frequency: 0.5 Hz (2s interval) - For bandwidth-constrained networks
+The general state stream remains 1 Hz. Smart Swarm motion uses its separate
+configured `/ws/swarm-state` cadence and direct follower-to-leader path, not this
+supervisory stream. Changing a browser rate does not change flight-control rates.
 
 ### Current Contract
 
@@ -709,7 +713,8 @@ ws://drone-ip:7070/ws/drone-state
 - This endpoint is currently a one-way monitoring stream. Command submission
   remains the HTTP route `POST /api/v1/drone/commands`.
 
-To change frequency, modify `asyncio.sleep()` value in endpoint code.
+Connection admission, snapshot size and send deadlines are bounded. A slow or
+disconnected viewer cannot create an unlimited historical telemetry backlog.
 
 ### Data Format
 

@@ -614,25 +614,18 @@ class AuthStore:
         self.save_tokens(payload)
         return self.sanitize_token(target)
 
-    def verify_token(self, token_plaintext: str, source_ip: str | None = None) -> dict[str, Any] | None:
+    def verify_token(self, token_plaintext: str, source_ip: str | None = None, *, record_usage: bool = True) -> dict[str, Any] | None:
         payload = self.load_tokens()
         now = time.time()
         changed = False
         for token in payload.get("tokens", []):
-            if not isinstance(token, dict) or token.get("revoked"):
+            if not isinstance(token, dict) or not _token_record_is_active(token, now_epoch=int(now)):
                 continue
-            expires_at = token.get("expires_at")
-            if expires_at:
-                try:
-                    expires_epoch = time.mktime(time.strptime(str(expires_at), "%Y-%m-%dT%H:%M:%SZ"))
-                    if now >= expires_epoch:
-                        continue
-                except ValueError:
-                    continue
             if verify_api_token(token_plaintext, str(token.get("token_hash", ""))):
-                token["last_used_at"] = utc_now_iso()
-                token["last_used_ip"] = source_ip
-                changed = True
+                if record_usage:
+                    token["last_used_at"] = utc_now_iso()
+                    token["last_used_ip"] = source_ip
+                    changed = True
                 if changed:
                     self.save_tokens(payload)
                 return self.sanitize_token(token)
@@ -901,10 +894,10 @@ class AuthService:
             return None
         return self._get_csrf_serializer().dumps({"sid": sid, "csrf": csrf})
 
-    def authenticate_bearer(self, bearer_token: str | None, source_ip: str | None = None) -> dict[str, Any] | None:
+    def authenticate_bearer(self, bearer_token: str | None, source_ip: str | None = None, *, record_usage: bool = True) -> dict[str, Any] | None:
         if not bearer_token:
             return None
-        token_record = self.store.verify_token(bearer_token, source_ip=source_ip)
+        token_record = self.store.verify_token(bearer_token, source_ip=source_ip, record_usage=record_usage)
         if token_record is None:
             return None
         role = "viewer"

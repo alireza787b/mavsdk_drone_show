@@ -1,15 +1,11 @@
-import { FIELD_NAMES, normalizeDroneData } from '../constants/fieldMappings';
+import { DRONE_RUNTIME_CLOCK_PROP, FIELD_NAMES, normalizeDroneData } from '../constants/fieldMappings';
+import { buildAircraftViewModel } from '../features/fleet-overview/fleetViewModel';
 import { getDroneShowStateName } from '../constants/droneStates';
 import { getPromotedMissionConfigField } from './missionConfigFields';
 import { normalizeDroneConfigData } from './missionIdentityUtils';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
 import { resolveMslAltitude } from './telemetryAltitude';
 
-const LOW_LATENCY_INTERVAL_MS = 1000;
-const MEDIUM_FLEET_INTERVAL_MS = 1500;
-const LARGE_FLEET_INTERVAL_MS = 2500;
-const BACKGROUND_INTERVAL_MS = 6000;
-const CONSTRAINED_NETWORK_INTERVAL_MS = 3000;
 
 function toFiniteNumber(value, fallback = null) {
   if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') return fallback;
@@ -23,41 +19,6 @@ function hasNonZeroCoordinate(lat, lon) {
     && (Math.abs(lat) > 0.000001 || Math.abs(lon) > 0.000001);
 }
 
-function getConnectionProfile() {
-  if (typeof navigator === 'undefined') {
-    return {};
-  }
-
-  return navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
-}
-
-export function calculateGlobeTelemetryIntervalMs(droneCount = 0, options = {}) {
-  const hidden = options.hidden ?? (typeof document !== 'undefined' ? document.hidden : false);
-  if (hidden) {
-    return BACKGROUND_INTERVAL_MS;
-  }
-
-  const connection = options.connection || getConnectionProfile();
-  const effectiveType = String(connection.effectiveType || '').toLowerCase();
-  if (connection.saveData || effectiveType.includes('2g')) {
-    return CONSTRAINED_NETWORK_INTERVAL_MS;
-  }
-
-  if (effectiveType.includes('3g')) {
-    return Math.max(MEDIUM_FLEET_INTERVAL_MS, CONSTRAINED_NETWORK_INTERVAL_MS - 1000);
-  }
-
-  if (droneCount > 80) {
-    return LARGE_FLEET_INTERVAL_MS;
-  }
-
-  if (droneCount > 30) {
-    return MEDIUM_FLEET_INTERVAL_MS;
-  }
-
-  return LOW_LATENCY_INTERVAL_MS;
-}
-
 export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload = [], nowMs = Date.now()) {
   const configRows = normalizeDroneConfigData(configPayload);
   const configMap = new Map(configRows.map((row) => [String(row.hw_id), row]));
@@ -66,6 +27,8 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
     .filter(([, drone]) => drone && typeof drone === 'object' && Object.keys(drone).length > 0)
     .map(([id, rawDrone]) => {
       const drone = normalizeDroneData(rawDrone) || {};
+      if (rawDrone[DRONE_RUNTIME_CLOCK_PROP]) Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP,
+        { value: rawDrone[DRONE_RUNTIME_CLOCK_PROP], configurable: true });
       const config = configMap.get(String(id)) || {};
       const stateValue = drone[FIELD_NAMES.STATE] ?? null;
       const velocityNorth = toFiniteNumber(drone[FIELD_NAMES.VELOCITY_NORTH]);
@@ -87,8 +50,10 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
       const globalPositionValid = drone[FIELD_NAMES.GLOBAL_POSITION_VALID] === undefined
         ? hasNonZeroCoordinate(latitude, longitude)
         : Boolean(drone[FIELD_NAMES.GLOBAL_POSITION_VALID]) && hasNonZeroCoordinate(latitude, longitude);
+      drone.hw_id = drone[FIELD_NAMES.HW_ID] ?? id;
+      const trusted = buildAircraftViewModel(drone, nowMs);
 
-      return {
+      const result = {
         ...drone,
         hw_id: String(drone[FIELD_NAMES.HW_ID] ?? id),
         pos_id: config.pos_id ?? drone[FIELD_NAMES.POS_ID] ?? id,
@@ -96,7 +61,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         operator_alias: operatorAlias,
         operator_alias_label: promotedField?.label || null,
         position: [latitude, longitude, altitude],
-        noMapFix: !globalPositionValid,
+        noMapFix: !globalPositionValid || !trusted?.position.current,
         global_position_valid: globalPositionValid,
         global_position_age_ms: toFiniteNumber(drone[FIELD_NAMES.GLOBAL_POSITION_AGE_MS]),
         position_source: drone[FIELD_NAMES.POSITION_SOURCE] || 'unavailable',
@@ -129,6 +94,9 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         runtime_indicator_class: runtimeStatus.indicatorClass,
         runtime_label: runtimeStatus.label,
       };
+      if (drone[DRONE_RUNTIME_CLOCK_PROP]) Object.defineProperty(result, DRONE_RUNTIME_CLOCK_PROP,
+        { value: drone[DRONE_RUNTIME_CLOCK_PROP], configurable: true });
+      return result;
     })
     .sort((left, right) => String(left.pos_id).localeCompare(String(right.pos_id), undefined, { numeric: true }));
 }

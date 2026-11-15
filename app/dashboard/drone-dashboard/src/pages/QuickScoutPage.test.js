@@ -60,6 +60,8 @@ jest.mock('../services/sarApiService', () => ({
 }));
 
 jest.mock('../services/gcsApiService', () => ({
+  ...jest.requireActual('../services/gcsApiService'),
+  fetchGcsResource: jest.fn(() => Promise.resolve({ data: {} })),
   getFleetConfigResponse: jest.fn(),
   getFleetTelemetryResponse: jest.fn(),
   getOriginResponse: jest.fn(),

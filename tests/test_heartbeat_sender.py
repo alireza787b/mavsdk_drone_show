@@ -14,6 +14,13 @@ from unittest.mock import Mock, MagicMock, patch
 from src.heartbeat_sender import HeartbeatSender
 
 
+@pytest.fixture(autouse=True)
+def reset_gcs_heartbeat_diagnostics(monkeypatch):
+    monkeypatch.setattr(HeartbeatSender, '_gcs_connected', False)
+    monkeypatch.setattr(HeartbeatSender, '_gcs_connection_error_logged', False)
+    monkeypatch.setattr(HeartbeatSender, '_gcs_rejection_reason', None)
+
+
 class TestHeartbeatSenderInit:
     """Test HeartbeatSender initialization"""
 
@@ -155,6 +162,7 @@ class TestHeartbeatSending:
                     with patch('requests.post') as mock_post:
                         mock_response = Mock()
                         mock_response.status_code = 200
+                        mock_response.json.return_value = {'success': True}
                         mock_post.return_value = mock_response
 
                         sender.send_heartbeat()
@@ -165,6 +173,46 @@ class TestHeartbeatSending:
                         assert call_args[1]['json']['hw_id'] == '1'
                         assert call_args[1]['json']['pos_id'] == 1
                         assert call_args[1]['json']['ip'] == '192.0.2.1'
+                        assert HeartbeatSender._gcs_connected is True
+
+    @pytest.mark.parametrize('receipt', [
+        {'success': True, 'accepted': False, 'message': 'Heartbeat runtime mode REAL does not match SITL'},
+        {'success': False, 'message': 'Presence update refused'},
+        {'success': True, 'accepted': 'false', 'message': 'Invalid acceptance value'},
+    ])
+    def test_http_200_rejection_is_not_connected_and_repeated_reason_is_quiet(self, receipt):
+        config = Mock(hw_id=1, pos_id=1, detected_pos_id=0, config={'ip': '10.0.0.1'})
+        sender = HeartbeatSender(config)
+        HeartbeatSender._gcs_connected = True
+        response = Mock(status_code=200)
+        response.json.return_value = receipt
+        with patch.object(sender, '_get_netbird_ip', return_value=None), \
+             patch.object(sender, '_get_network_info', return_value={}), \
+             patch('src.heartbeat_sender.requests.post', return_value=response), \
+             patch('src.heartbeat_sender.logger') as logs:
+            sender.send_heartbeat()
+            sender.send_heartbeat()
+            assert HeartbeatSender._gcs_connected is False
+            assert logs.warning.call_count == 1
+            assert receipt['message'] in logs.warning.call_args.args[0]
+            logs.info.assert_not_called()
+            response.json.return_value = {'success': True, 'accepted': True}
+            sender.send_heartbeat()
+            assert HeartbeatSender._gcs_connected is True
+            assert HeartbeatSender._gcs_rejection_reason is None
+            assert logs.info.call_count == 1
+
+    @pytest.mark.parametrize('receipt', [None, [], 'OK'])
+    def test_non_object_http_200_is_not_an_acceptance(self, receipt):
+        config = Mock(hw_id=1, pos_id=1, detected_pos_id=0, config={'ip': '10.0.0.1'})
+        sender = HeartbeatSender(config)
+        response = Mock(status_code=200)
+        response.json.return_value = receipt
+        with patch.object(sender, '_get_netbird_ip', return_value=None), \
+             patch.object(sender, '_get_network_info', return_value={}), \
+             patch('src.heartbeat_sender.requests.post', return_value=response):
+            sender.send_heartbeat()
+        assert HeartbeatSender._gcs_connected is False
 
     def test_send_heartbeat_failure(self):
         """Test heartbeat POST request failure"""
@@ -216,6 +264,7 @@ class TestHeartbeatSending:
                     with patch('requests.post') as mock_post:
                         mock_response = Mock()
                         mock_response.status_code = 200
+                        mock_response.json.return_value = {'success': True}
                         mock_post.return_value = mock_response
 
                         sender.send_heartbeat()

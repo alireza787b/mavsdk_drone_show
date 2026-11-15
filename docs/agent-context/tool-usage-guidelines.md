@@ -19,6 +19,12 @@ Tool registry entries must define:
 
 Interpretation rules:
 
+- Fleet HTTP and WebSocket readers observe shared domain evidence; neither a
+  socket connection nor its snapshot sequence proves fresh FC measurements,
+  native action readiness or aircraft installation of a saved formation.
+  Simurgh/MCP stays optional and does not create its own aircraft acquisition
+  service or enter the direct leader/follower control loop. Reconnect never
+  authorizes action replay or changes exact reviewed recipients.
 - `allow` means the tool can run after policy checks pass.
 - `guarded` means policy must require explicit approval before execution.
 - `exclude` means the tool is documented as intentionally unavailable.

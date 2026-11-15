@@ -1,16 +1,16 @@
 """Core GCS FastAPI routes for health, telemetry, and heartbeats."""
 
-import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket
 from fastapi.responses import JSONResponse
 
 from auth_runtime import authorize_websocket
 from node_boot_status import get_all_node_boot_statuses, handle_node_boot_status_post
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from fleet_telemetry_snapshot import fleet_telemetry_snapshot
+from observation_stream import LatestObservationPublisher, serve_observations
 from schemas import (
     HealthCheckResponse,
     FleetActionReadinessResponse,
@@ -19,13 +19,13 @@ from schemas import (
     HeartbeatPostResponse,
     HeartbeatRequest,
     HeartbeatResponse,
-    HeartbeatStreamMessage,
+    HeartbeatSnapshotResponse,
     NetworkStatusResponse,
     NodeBootStatusPostResponse,
     NodeBootStatusReport,
     NodeBootStatusResponse,
     TelemetryResponse,
-    TelemetryStreamMessage,
+    TelemetrySnapshotResponse,
 )
 
 _PROCESS_START_MONOTONIC = time.monotonic()
@@ -366,6 +366,7 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
 
     return HeartbeatPostResponse(
         success=True,
+        accepted=heartbeat_result.get("accepted", True),
         message=heartbeat_result.get("message", "Heartbeat received"),
         server_time=int(time.time() * 1000),
     )
@@ -373,6 +374,17 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
 
 def create_core_router(deps: Any) -> APIRouter:
     router = APIRouter()
+    telemetry_publisher = LatestObservationPublisher(
+        lambda: _build_typed_telemetry_response(deps).model_dump(mode="json"),
+        lambda body: {"type": "telemetry", "timestamp": body["timestamp"], "data": body["telemetry"]},
+        interval=0.5,
+        modern_fields=lambda body: {"display_policy": body["display_policy"]},
+    )
+    heartbeat_publisher = LatestObservationPublisher(
+        lambda: _build_heartbeat_response(deps).model_dump(mode="json"),
+        lambda body: {"type": "heartbeat", "timestamp": body["timestamp"], "data": body["heartbeats"]},
+        interval=2.0,
+    )
 
     @router.get("/api/v1/system/health", response_model=HealthCheckResponse, tags=["System"])
     @router.get("/ping", response_model=HealthCheckResponse, tags=["System"])
@@ -380,8 +392,13 @@ def create_core_router(deps: Any) -> APIRouter:
     async def health_check():
         return _build_health_check_response(deps)
 
-    @router.get("/api/v1/fleet/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
-    async def get_telemetry_typed(response: Response):
+    @router.get("/api/v1/fleet/telemetry", response_model=TelemetrySnapshotResponse | TelemetryResponse, tags=["Telemetry"])
+    async def get_telemetry_typed(response: Response, protocol_version: int = Query(0, ge=0, le=1)):
+        if protocol_version == 1:
+            return JSONResponse(
+                telemetry_publisher.current().http_body(),
+                headers={"X-MDS-Server-Time": str(int(time.time() * 1000))},
+            )
         return _build_typed_telemetry_response(deps, response=response)
 
     @router.get(
@@ -396,7 +413,8 @@ def create_core_router(deps: Any) -> APIRouter:
 
     @router.websocket("/ws/telemetry")
     async def websocket_telemetry(websocket: WebSocket):
-        if await authorize_websocket(websocket) is None:
+        auth_context = await authorize_websocket(websocket)
+        if auth_context is None:
             return
         await websocket.accept()
         deps.log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
@@ -407,19 +425,11 @@ def create_core_router(deps: Any) -> APIRouter:
         stream_interval_sec = max(0.5, min(requested_interval_ms / 1000.0, 6.0))
 
         try:
-            while True:
-                snapshot = fleet_telemetry_snapshot(deps)
-                message = TelemetryStreamMessage(
-                    type="telemetry",
-                    timestamp=int(time.time() * 1000),
-                    data=snapshot,
-                )
-                await websocket.send_json(message.model_dump())
-                await asyncio.sleep(stream_interval_sec)
-        except WebSocketDisconnect:
+            await serve_observations(
+                websocket, telemetry_publisher, interval=stream_interval_sec, auth_context=auth_context,
+            )
+        finally:
             deps.log_system_event("Telemetry WebSocket client disconnected", "INFO", "websocket")
-        except Exception as exc:
-            deps.log_system_error(f"Telemetry WebSocket error: {exc}", "websocket")
 
     @router.post("/api/v1/fleet/heartbeats", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
     async def post_heartbeat(heartbeat: HeartbeatRequest, request: Request):
@@ -439,8 +449,10 @@ def create_core_router(deps: Any) -> APIRouter:
     async def get_node_boot_status():
         return _build_node_boot_status_response()
 
-    @router.get("/api/v1/fleet/heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
-    async def get_heartbeats():
+    @router.get("/api/v1/fleet/heartbeats", response_model=HeartbeatSnapshotResponse | HeartbeatResponse, tags=["Heartbeat"])
+    async def get_heartbeats(protocol_version: int = Query(0, ge=0, le=1)):
+        if protocol_version == 1:
+            return JSONResponse(heartbeat_publisher.current().http_body())
         return _build_heartbeat_response(deps)
 
     @router.get("/api/v1/fleet/network-status", response_model=NetworkStatusResponse, tags=["Heartbeat"])
@@ -449,24 +461,15 @@ def create_core_router(deps: Any) -> APIRouter:
 
     @router.websocket("/ws/heartbeats")
     async def websocket_heartbeats(websocket: WebSocket):
-        if await authorize_websocket(websocket) is None:
+        auth_context = await authorize_websocket(websocket)
+        if auth_context is None:
             return
         await websocket.accept()
         deps.log_system_event("Heartbeat WebSocket client connected", "INFO", "websocket")
 
         try:
-            while True:
-                heartbeat_snapshot = _build_heartbeat_response(deps)
-                message = HeartbeatStreamMessage(
-                    type="heartbeat",
-                    timestamp=int(time.time() * 1000),
-                    data=heartbeat_snapshot.heartbeats,
-                )
-                await websocket.send_json(message.model_dump())
-                await asyncio.sleep(2.0)
-        except WebSocketDisconnect:
+            await serve_observations(websocket, heartbeat_publisher, auth_context=auth_context)
+        finally:
             deps.log_system_event("Heartbeat WebSocket client disconnected", "INFO", "websocket")
-        except Exception as exc:
-            deps.log_system_error(f"Heartbeat WebSocket error: {exc}", "websocket")
 
     return router

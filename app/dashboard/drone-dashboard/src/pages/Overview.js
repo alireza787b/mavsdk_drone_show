@@ -17,7 +17,6 @@ import { buildFleetViewModel } from '../features/fleet-overview/fleetViewModel';
 import { filterFleetAircraft, groupFleetAircraft, renderedFleetAircraft } from '../features/fleet-overview/fleetDisplay';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
 import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
-import { useFleetAlerts } from '../features/fleet-overview/FleetAlertsContext';
 import { createTargetSelectionState, getTargetSelectionReview, getTargetSelectionStorageScope, parseTargetSelection, serializeTargetSelection, targetSelectionReducer } from '../features/fleet-overview/targetSelection';
 import '../styles/Overview.css';
 
@@ -41,12 +40,6 @@ function FleetOverview({ runtimeMode, operatorId }) {
     displayPolicy: resources.displayPolicy }), [resources.drones, resources.nowMs, resources.displayPolicy]);
   const attention = useFleetAttention(rawModel, resources);
   const model = attention.model;
-  const { publishSnapshot, sourceUnavailable } = useFleetAlerts();
-  useEffect(() => {
-    publishSnapshot({ aircraft: model.aircraft, sourceError: attention.telemetry.active,
-      sourceRecovering: attention.telemetry.phase === 'recovering', observedAtMs: resources.nowMs });
-  }, [model.aircraft, attention.telemetry.active, attention.telemetry.phase, resources.nowMs, publishSnapshot]);
-  useEffect(() => () => sourceUnavailable(), [sourceUnavailable]);
   useEffect(() => { orderRef.current = model.order; }, [model.order]);
   const [selection, dispatch] = useReducer(targetSelectionReducer, undefined, createTargetSelectionState);
   const [storageWarning, setStorageWarning] = useState('');

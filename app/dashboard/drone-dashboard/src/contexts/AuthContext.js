@@ -39,6 +39,15 @@ export function AuthProvider({ children }) {
     });
   }, [refresh]);
 
+  useEffect(() => {
+    const expired = () => {
+      setGcsCsrfToken(null);
+      setStatus(previous => ({ ...(previous || {}), dashboard_auth_enabled: true, authenticated: false }));
+    };
+    window.addEventListener('mds:auth-required', expired);
+    return () => window.removeEventListener('mds:auth-required', expired);
+  }, []);
+
   const login = useCallback(async ({ username, password }) => {
     setError(null);
     const response = await loginResponse({ username, password });

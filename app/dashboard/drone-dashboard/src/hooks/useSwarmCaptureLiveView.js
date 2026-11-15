@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import useGcsResourcePolling from './useGcsResourcePolling';
+import { useObservationResource } from '../contexts/ObservationContext';
 import { captureLivePositions, captureViewReference } from '../utilities/swarmCaptureLiveView';
 
 /** One modal-only cached fleet read, not a second set of aircraft RPC pollers. */
 export default function useSwarmCaptureLiveView(hwIds, reference, rootId) {
-  const response = useGcsResourcePolling('/api/v1/fleet/telemetry', 1000);
+  const resource = useObservationResource('telemetry');
+  const response = { ...resource, data: resource.response?.data };
   const cached = useRef(null);
   const observed = useRef({});
   const [now, setNow] = useState(() => performance.now());
@@ -19,7 +20,7 @@ export default function useSwarmCaptureLiveView(hwIds, reference, rootId) {
     const timestamp = rows[id]?.global_position_timestamp_ms;
     const previous = observed.current[id];
     if (!previous || (Number.isFinite(timestamp) && (!Number.isFinite(previous.timestamp) || timestamp > previous.timestamp))) {
-      observed.current[id] = { timestamp, at: response.requestedAt ?? now };
+      observed.current[id] = { timestamp, at: resource.receivedAtMonotonicMs ?? response.requestedAt ?? now };
     }
     ages[id] = Math.max(0, now - observed.current[id].at, performance.now() - observed.current[id].at);
   });

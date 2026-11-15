@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
 /** Sequential, cancellable refreshes; retain aging evidence across outages. */
-export default function usePollingResource(load, intervalMs, contextKey) {
+export default function usePollingResource(load, intervalMs, contextKey, enabled = true) {
   const [snapshot, setSnapshot] = useState({ response: null, error: null, loading: true, consecutiveFailures: 0 });
   useEffect(() => {
+    if (!enabled) return undefined;
     let live = true, timer, controller;
     let inFlight = false;
     setSnapshot({ response: null, error: null, loading: true, consecutiveFailures: 0 });
@@ -19,7 +20,7 @@ export default function usePollingResource(load, intervalMs, contextKey) {
           consecutiveFailures: Math.min((previous.consecutiveFailures || 0) + 1, 1000000) }));
       } finally {
         inFlight = false;
-        if (live && !document.hidden) timer = setTimeout(poll, intervalMs);
+        if (live && !document.hidden && intervalMs !== null) timer = setTimeout(poll, intervalMs);
       }
     };
     const resume = () => { clearTimeout(timer); if (!document.hidden) poll(); };
@@ -33,6 +34,6 @@ export default function usePollingResource(load, intervalMs, contextKey) {
       document.removeEventListener('visibilitychange', resume);
       window.removeEventListener('focus', resume);
     };
-  }, [load, intervalMs, contextKey]);
+  }, [load, intervalMs, contextKey, enabled]);
   return snapshot;
 }

@@ -102,6 +102,8 @@ export const CommandActivityProvider = ({ children }) => {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    let activePending = null, recentPending = null;
 
     const statusListToSnapshots = (commands = []) => {
       const seen = new Set();
@@ -118,14 +120,18 @@ export const CommandActivityProvider = ({ children }) => {
         .filter(Boolean);
     };
 
-    const fetchActiveSnapshots = async () => {
-      const activeResponse = await getActiveCommands();
-      return statusListToSnapshots(activeResponse?.commands || []);
+    const fetchActiveSnapshots = () => {
+      if (!activePending) activePending = getActiveCommands({ signal: controller.signal, timeout: 10000 })
+        .then(response => statusListToSnapshots(response?.commands || []))
+        .finally(() => { activePending = null; });
+      return activePending;
     };
 
-    const fetchRecentSnapshots = async () => {
-      const recentResponse = await getRecentCommands({ limit: MAX_COMMAND_MONITORS });
-      return statusListToSnapshots(recentResponse?.commands || []);
+    const fetchRecentSnapshots = () => {
+      if (!recentPending) recentPending = getRecentCommands({ limit: MAX_COMMAND_MONITORS }, { signal: controller.signal, timeout: 10000 })
+        .then(response => statusListToSnapshots(response?.commands || []))
+        .finally(() => { recentPending = null; });
+      return recentPending;
     };
 
     const mergeIfLive = (snapshots) => {
@@ -183,14 +189,15 @@ export const CommandActivityProvider = ({ children }) => {
 
     hydrateCommandMonitors();
     const activeInterval = setInterval(() => {
-      void refreshActiveCommandMonitors();
+      if (!activePending && !document.hidden) void refreshActiveCommandMonitors();
     }, ACTIVE_COMMAND_REFRESH_MS);
     const recentInterval = setInterval(() => {
-      void refreshRecentCommandMonitors();
+      if (!recentPending && !document.hidden) void refreshRecentCommandMonitors();
     }, RECENT_COMMAND_REFRESH_MS);
 
     return () => {
       cancelled = true;
+      controller.abort();
       clearInterval(activeInterval);
       clearInterval(recentInterval);
     };

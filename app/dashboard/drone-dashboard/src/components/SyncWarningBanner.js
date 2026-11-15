@@ -2,18 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaCodeBranch, FaQuestionCircle, FaArrowRight, FaTimes } from 'react-icons/fa';
 import '../styles/SyncWarningBanner.css';
-import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
-import usePollingResource from '../hooks/usePollingResource';
-
-async function loadSoftwareRevisions(options) {
-  const response = await getUnifiedGitStatusResponse(options);
-  const data = response?.data;
-  if (!data || !Number.isInteger(data.needs_sync_count) || data.needs_sync_count < 0
-      || !Number.isInteger(data.unknown_count ?? 0) || (data.unknown_count ?? 0) < 0) {
-    throw new Error('Software revision status unavailable');
-  }
-  return response;
-}
+import { useObservationResource } from '../contexts/ObservationContext';
 
 /**
  * SyncWarningBanner
@@ -22,7 +11,7 @@ async function loadSoftwareRevisions(options) {
  * Inspecting never dispatches sync. Refresh failures retain the last evidence.
  */
 const SyncWarningBanner = () => {
-  const snapshot = usePollingResource(loadSoftwareRevisions, 10000, 'software-revisions');
+  const snapshot = useObservationResource('git');
   const syncData = snapshot.response?.data;
   const [dismissedSignature, setDismissedSignature] = useState(null);
   const [nowMs, setNowMs] = useState(Date.now);

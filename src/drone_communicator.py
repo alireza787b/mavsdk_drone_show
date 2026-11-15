@@ -29,6 +29,7 @@ from src.telemetry_display import build_altitude_report, build_gps_report
 from src.drone_config import DroneConfig
 from src.params import Params
 from src.swarm_runtime_state import read_runtime_swarm_assignment
+from src.swarm_state_cache import SwarmAssignmentCache
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
 
 
@@ -70,39 +71,77 @@ class DroneCommunicator:
         # Initialize api_server as None; it will be injected later
         self.api_server = None
         self._command_install_lock = threading.RLock()
+        self._swarm_assignment_cache = SwarmAssignmentCache(getattr(drone_config, "swarm", {}))
+        self._assignment_threads = []
+        # Bootstrap local state before serving. Optional online acquisition is
+        # bounded and worker-owned, never performed in HTTP/WS serializers.
+        self._refresh_saved_swarm_assignment(allow_network=False)
+        self._refresh_runtime_swarm_assignment()
 
     def set_api_server(self, api_server):
         """Setter for injecting DroneAPIServer dependency after initialization."""
         self.api_server = api_server
 
     def _get_live_swarm_assignment(self) -> Dict[str, Any]:
-        """Return the freshest known swarm assignment for this drone."""
-        current_swarm = getattr(self.drone_config, "swarm", {}) or {}
-        if not isinstance(current_swarm, dict):
-            current_swarm = {}
-        runtime_swarm = read_runtime_swarm_assignment(active_only=True)
+        """Read an installed revision without disk, network or process probes."""
+        return self._swarm_assignment_cache.snapshot()
 
-        if (
-            isinstance(runtime_swarm, dict)
-            and runtime_swarm
-            and safe_int(runtime_swarm.get("hw_id")) == safe_int(self.drone_config.hw_id)
-        ):
-            return runtime_swarm
-
+    def _refresh_runtime_swarm_assignment(self):
         try:
-            latest_swarm = self.drone_config.read_swarm()
+            runtime = read_runtime_swarm_assignment(active_only=True)
+            if not isinstance(runtime, dict) or safe_int(runtime.get("hw_id")) != safe_int(self.drone_config.hw_id):
+                runtime = None
+            self._swarm_assignment_cache.install_runtime(runtime)
         except Exception as exc:
-            logger.debug(
-                "Falling back to cached swarm assignment for hw_id=%s: %s",
-                safe_int(self.drone_config.hw_id),
-                exc,
-            )
-            latest_swarm = None
+            logger.debug("Runtime swarm assignment refresh unavailable: %s", exc)
 
-        if isinstance(latest_swarm, dict) and latest_swarm:
-            return latest_swarm
+    def _refresh_saved_swarm_assignment(self, *, allow_network=True, session=None):
+        try:
+            offline = getattr(self.params, 'offline_swarm', Params.offline_swarm)
+            url = getattr(self.params, 'swarm_url', Params.swarm_url)
+            if not offline and url:
+                if not allow_network:
+                    return
+                import requests
+                client = session if session is not None else requests
+                response = client.get(url, timeout=(0.5, 1.5))
+                response.raise_for_status()
+                resource = response.json()
+                entries = resource.get('assignments', resource) if isinstance(resource, dict) else resource
+                latest = next((entry for entry in entries if isinstance(entry, dict)
+                               and safe_int(entry.get('hw_id')) == safe_int(self.drone_config.hw_id)), None)
+            else:
+                latest = self.drone_config.read_swarm()
+            if isinstance(latest, dict) and latest:
+                self._swarm_assignment_cache.install_saved(latest)
+        except Exception as exc:
+            logger.debug("Retaining installed saved swarm assignment: %s", exc)
 
-        return current_swarm
+    def _start_assignment_refresh(self):
+        if self._assignment_threads:
+            return
+
+        def runtime_loop():
+            while not self.stop_flag.is_set():
+                self._refresh_runtime_swarm_assignment()
+                self.stop_flag.wait(0.25)
+
+        def saved_loop():
+            import requests
+            with requests.Session() as session:
+                while not self.stop_flag.is_set():
+                    self._refresh_saved_swarm_assignment(session=session)
+                    # Bound local edit latency independently of HTTP clients;
+                    # online desired-state reconciliation remains low rate.
+                    offline = getattr(self.params, 'offline_swarm', Params.offline_swarm)
+                    self.stop_flag.wait(0.25 if offline else 2.0)
+
+        self._assignment_threads = [
+            threading.Thread(target=runtime_loop, name="swarm-runtime-cache", daemon=True),
+            threading.Thread(target=saved_loop, name="swarm-saved-cache", daemon=True),
+        ]
+        for thread in self._assignment_threads:
+            thread.start()
 
     def _resolve_telemetry_timestamp_ms(self) -> int:
         telemetry_timestamp_ms = safe_int(getattr(self.drone_config, "telemetry_timestamp_ms", 0))
@@ -1051,6 +1090,7 @@ class DroneCommunicator:
 
     def start_communication(self) -> None:
         """Start communication threads for telemetry and command processing."""
+        self._start_assignment_refresh()
         if Params.enable_udp_telemetry:
             self.telemetry_thread = threading.Thread(target=self.send_drone_state)
             self.command_thread = threading.Thread(target=self.read_packets)
@@ -1063,6 +1103,9 @@ class DroneCommunicator:
     def stop_communication(self) -> None:
         """Stop all communication threads and clean up resources."""
         self.stop_flag.set()
+        for thread in self._assignment_threads:
+            thread.join(timeout=2.5)
+        self._assignment_threads = []
         if Params.enable_udp_telemetry:
             self.telemetry_thread.join()
             self.command_thread.join()

@@ -57,6 +57,7 @@ from smart_swarm_src.control_authority import ControlAuthority
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 from smart_swarm_src.formation_acknowledgement import effective_revision
 from smart_swarm_src.config_transport import FormationSubscription
+from smart_swarm_src.leader_transport import LeaderStateSupervisor, LeaderTransportPolicy
 import aiohttp 
 
 from smart_swarm_src.leader_motion import (
@@ -139,6 +140,7 @@ LAST_LEADER_SAMPLE_REJECTION_CODE = None
 last_election_time = 0.0
 FORMATION_CONFIG_VERSION = 0
 LEADER_STREAM_TARGET_VERSION = 0
+LEADER_STREAM_TARGET_CHANGED = asyncio.Event()
 
 
 # ----------------------------- #
@@ -441,6 +443,7 @@ def assign_leader_target(new_leader_hw_id):
         if target_changed:
             LEADER_STREAM_TARGET_VERSION += 1
             reset_leader_tracking()
+            LEADER_STREAM_TARGET_CHANGED.set()
         return None
 
     leader_cfg = get_drone_config_for_hw_id(normalized)
@@ -454,6 +457,7 @@ def assign_leader_target(new_leader_hw_id):
     if target_changed:
         LEADER_STREAM_TARGET_VERSION += 1
         reset_leader_tracking()
+        LEADER_STREAM_TARGET_CHANGED.set()
     return leader_cfg
 
 
@@ -1134,127 +1138,24 @@ async def update_swarm_config_periodically(drone):
 # ----------------------------- #
 
 async def update_leader_state():
-    """
-    Maintain leader state using the dedicated Smart Swarm stream with HTTP fallback.
-    """
-    logger = logging.getLogger(__name__)
-    global leader_unreachable_count, max_unreachable_attempts
-
-    def state_url(target_ip: str) -> str:
-        return f"http://{target_ip}:{Params.drone_api_port}{DRONE_SWARM_STATE_ROUTE}"
-
-    def ws_url(target_ip: str) -> str:
-        return f"http://{target_ip}:{Params.drone_api_port}{DRONE_WS_SWARM_STATE_ROUTE}".replace("http://", "ws://", 1)
-
-    async def consume_http_fallback(window_sec: float, target_version: int, target_hw_id: str | None, target_ip: str) -> None:
-        global leader_unreachable_count
-        poll_interval = 1.0 / max(1.0, float(Params.SMART_SWARM_HTTP_FALLBACK_RATE_HZ))
-        end_time = time.monotonic() + max(window_sec, poll_interval)
-        timeout = aiohttp.ClientTimeout(
-            total=float(Params.SMART_SWARM_LEADER_STATE_TIMEOUT_SEC)
-        )
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            while time.monotonic() < end_time:
-                if leader_stream_target_changed(target_version, target_hw_id, target_ip):
-                    logger.info(
-                        "Leader fallback target changed from %s@%s to %s@%s; reconnecting.",
-                        target_hw_id,
-                        target_ip,
-                        LEADER_HW_ID,
-                        LEADER_IP,
-                    )
-                    return
-                try:
-                    async with session.get(state_url(target_ip)) as response:
-                        if response.status != 200:
-                            raise aiohttp.ClientResponseError(
-                                response.request_info,
-                                response.history,
-                                status=response.status,
-                                message=f"Leader swarm-state fetch failed with HTTP {response.status}",
-                                headers=response.headers,
-                            )
-                        data = await response.json()
-                    applied = apply_leader_state_sample(data, "http-fallback")
-                    if not applied:
-                        leader_unreachable_count += 1
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    leader_unreachable_count += 1
-                    logger.debug(
-                        "Leader fallback fetch failed (%s/%s): %s",
-                        leader_unreachable_count,
-                        max_unreachable_attempts,
-                        exc,
-                    )
-                if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
-                    logger.warning(
-                        "Leader fallback path degraded for %s attempts; the control loop will hold zero and own failover timing.",
-                        leader_unreachable_count,
-                    )
-                await asyncio.sleep(poll_interval)
-
-    use_stream = bool(getattr(Params, "SMART_SWARM_USE_REALTIME_STREAM", True))
-    use_http_fallback = bool(getattr(Params, "SMART_SWARM_ENABLE_HTTP_FALLBACK", True))
-    connect_timeout = float(getattr(Params, "SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC", 3.0))
-    backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))
-    max_backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_MAX_SEC", 2.0))
-
-    while True:
-        target_version, target_hw_id, target_ip = current_leader_stream_target()
-        if not target_ip:
-            await asyncio.sleep(backoff)
-            continue
-        if use_stream:
-            try:
-                timeout = aiohttp.ClientTimeout(total=None, sock_connect=connect_timeout, sock_read=None)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.ws_connect(ws_url(target_ip), heartbeat=15) as websocket:
-                        logger.info("Connected to leader Smart Swarm stream at %s", ws_url(target_ip))
-                        leader_unreachable_count = 0
-                        backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))
-
-                        async for message in websocket:
-                            if leader_stream_target_changed(target_version, target_hw_id, target_ip):
-                                logger.info(
-                                    "Leader stream target changed from %s@%s to %s@%s; reconnecting.",
-                                    target_hw_id,
-                                    target_ip,
-                                    LEADER_HW_ID,
-                                    LEADER_IP,
-                                )
-                                break
-                            if message.type == aiohttp.WSMsgType.TEXT:
-                                data = message.json()
-                                if isinstance(data, dict) and data.get("error"):
-                                    logger.debug("Leader stream returned error payload: %s", data)
-                                    continue
-                                apply_leader_state_sample(data, "ws")
-                            elif message.type == aiohttp.WSMsgType.ERROR:
-                                raise websocket.exception() or RuntimeError("leader websocket closed with error")
-                            elif message.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
-                                raise RuntimeError("leader websocket closed")
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                leader_unreachable_count += 1
-                logger.warning(
-                    "Leader Smart Swarm stream unavailable (%s/%s): %s",
-                    leader_unreachable_count,
-                    max_unreachable_attempts,
-                    exc,
-                )
-        if use_http_fallback:
-            await consume_http_fallback(backoff, target_version, target_hw_id, target_ip)
-        elif leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
-            logger.warning(
-                "Leader stream unavailable for %s attempts with no HTTP fallback; the control loop will own failover timing.",
-                leader_unreachable_count,
-            )
-
-        await asyncio.sleep(backoff)
-        backoff = min(max_backoff, max(backoff * 2.0, float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))))
+    """Acquire motion independently of the control loop's unchanged safety policy."""
+    supervisor = LeaderStateSupervisor(
+        current_leader_stream_target,
+        LEADER_STREAM_TARGET_CHANGED,
+        apply_leader_state_sample,
+        LeaderTransportPolicy(
+            port=Params.drone_api_port,
+            poll_interval=1.0 / max(1.0, float(Params.SMART_SWARM_HTTP_FALLBACK_RATE_HZ)),
+            request_timeout=float(Params.SMART_SWARM_LEADER_STATE_TIMEOUT_SEC),
+            connect_timeout=float(Params.SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC),
+            sample_idle_timeout=float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC),
+            backoff_initial=float(Params.SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC),
+            backoff_max=float(Params.SMART_SWARM_STREAM_BACKOFF_MAX_SEC),
+            stream_enabled=bool(Params.SMART_SWARM_USE_REALTIME_STREAM),
+            http_enabled=bool(Params.SMART_SWARM_ENABLE_HTTP_FALLBACK),
+        ),
+    )
+    await supervisor.run()
 
         
 async def elect_new_leader():

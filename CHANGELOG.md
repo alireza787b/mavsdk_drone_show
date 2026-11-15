@@ -9,6 +9,24 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Shared observations and recoverable communications
+
+- Shared authenticated browser resource ownership replaces independent fleet
+  readers in Overview, Globe and canonical workspace hooks; shell fleet alerts
+  continue across navigation. Retained observations age through silence and
+  late callbacks cannot cross operator/runtime contexts.
+- GCS/node WebSocket publishers sample/encode bounded latest-state generations
+  once for subscribers. Optional v1 GCS metadata provides epoch/sequence/full
+  snapshot identity while retaining manual/third-party HTTP and legacy WS.
+- Aircraft supervisory and direct follower motion acquisition keep HTTP fallback
+  effective during bounded WS probes, validate useful state and fence stale
+  responses. Motion gains, native admission/recovery and exact command targets
+  are unchanged; commands/logs/files are not placed in a lossy telemetry queue.
+- Heartbeat diagnostics distinguish HTTP success from semantic acceptance.
+  Local MAVLink ingress binds FC/sensor source identities without assuming
+  hardware ID equals MAVLink system ID. WS authorization validates browser
+  origins/read roles and periodically rechecks existing credential authority.
+
 ### Quiet fleet instruments and truthful link attention
 
 - Overview Board/List use measured Wi-Fi arcs and a filled battery gauge with

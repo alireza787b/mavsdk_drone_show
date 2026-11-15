@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+import os
+import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException, WebSocket
 from fastapi.responses import JSONResponse
@@ -15,6 +19,7 @@ from agent_runtime.mcp_metadata import MCP_ENDPOINT_PATH, mcp_bearer_challenge
 from simurgh_internal_auth import INTERNAL_TOOL_CALL_HEADER, INTERNAL_TOOL_CALL_VALUE, INTERNAL_TOOL_CLIENT_HOST
 
 
+logger = logging.getLogger(__name__)
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 PUBLIC_PATHS = {
     "/ping",
@@ -252,7 +257,56 @@ class MDSAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-async def authorize_websocket(websocket: WebSocket, *, machine_endpoint: bool = False) -> dict[str, Any] | None:
+_WEBSOCKET_READ_ROUTES = {
+    "/ws/telemetry": "/api/v1/fleet/telemetry",
+    "/ws/heartbeats": "/api/v1/fleet/heartbeats",
+    "/ws/git-status": "/api/v1/git/status",
+    "/ws/swarm-config": "/api/v1/config/swarm",
+}
+
+
+def _websocket_origin_allowed(websocket: WebSocket) -> bool:
+    """Cookie sockets trust the target host, not the permissive demo CORS default.
+
+    Native clients omit Origin. Browser origins must be the same host (including
+    the documented dashboard/API ports), or explicitly allowed by the existing
+    deployment CORS override. No additional security-mode switch is introduced.
+    """
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return True
+    try:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            return False
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return False
+        target = websocket.url
+        expected_scheme = "https" if target.scheme == "wss" else "http"
+        loopbacks = {"localhost", "127.0.0.1", "::1"}
+        same_host = parsed.hostname == target.hostname or (
+            parsed.hostname in loopbacks and target.hostname in loopbacks
+        )
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        target_port = target.port or (443 if expected_scheme == "https" else 80)
+        if same_host and parsed.scheme == expected_scheme and origin_port in {target_port, 3030, 5030}:
+            return True
+        configured = os.environ.get("MDS_CORS_ALLOW_ORIGIN_REGEX")
+        return bool(configured and re.fullmatch(configured, origin))
+    except (AttributeError, ValueError, re.error):
+        return False
+
+
+async def _deny_websocket(websocket: WebSocket, reason: str) -> None:
+    if websocket.query_params.get("protocol_version") == "1":
+        await websocket.close(code=1008, reason=reason)
+    else:
+        await websocket.close(code=1008)
+
+
+async def authorize_websocket(
+    websocket: WebSocket, *, machine_endpoint: bool = False, record_usage: bool = True,
+) -> dict[str, Any] | None:
     """Authorize a WebSocket connection when optional auth is enabled."""
     service = build_auth_service()
     settings = service.settings
@@ -264,19 +318,57 @@ async def authorize_websocket(websocket: WebSocket, *, machine_endpoint: bool = 
         # API auth still requires a valid bearer/session below.
         return {"kind": "machine", "role": "viewer", "username": "node-config-watch"}
 
+    if not _websocket_origin_allowed(websocket):
+        await _deny_websocket(websocket, "origin_not_allowed")
+        return None
+
     bearer_token = _extract_bearer_token(websocket.headers.get("Authorization"))
     if bearer_token is None:
-        bearer_token = websocket.query_params.get("access_token")
+        # Legacy clients retain their compatibility path. New protocol clients
+        # use the normal session cookie or Authorization header, never URL secrets.
+        if websocket.query_params.get("protocol_version") != "1":
+            bearer_token = websocket.query_params.get("access_token")
 
     auth_context = service.authenticate_bearer(
         bearer_token,
         source_ip=websocket.client.host if websocket.client else None,
+        record_usage=record_usage,
     )
     if auth_context is None:
         auth_context = service.verify_session(websocket.cookies.get(SESSION_COOKIE_NAME))
 
     if auth_context is None:
-        await websocket.close(code=1008)
+        await _deny_websocket(websocket, "authentication_required")
+        return None
+
+    path = getattr(getattr(websocket, "url", None), "path", "")
+    route = _WEBSOCKET_READ_ROUTES.get(path, path)
+    allowed, _ = _role_allows_request(str(auth_context.get("role", "viewer")), "GET", route)
+    if not allowed:
+        await _deny_websocket(websocket, "permission_denied")
         return None
 
     return auth_context
+
+
+async def revalidate_websocket(websocket: WebSocket, context: Any) -> bool:
+    """Re-read expiry/revocation/current roles without writing token usage data."""
+    machine_endpoint = isinstance(context, dict) and context.get("kind") == "machine"
+    try:
+        current = await authorize_websocket(websocket, machine_endpoint=machine_endpoint, record_usage=False)
+        if current is None:
+            return False
+        if isinstance(context, dict) and context.get("kind") in {"bearer", "session"}:
+            kind = context["kind"]
+            previous_id = (context.get("token") or {}).get("id") if kind == "bearer" else context.get("sid")
+            current_id = (current.get("token") or {}).get("id") if kind == "bearer" else current.get("sid")
+            if current.get("kind") != kind or current.get("username") != context.get("username") or current_id != previous_id:
+                # A revoked bearer must not silently switch this established
+                # connection to an accompanying browser cookie (or vice versa).
+                await _deny_websocket(websocket, "authentication_required")
+                return False
+        return True
+    except (OSError, ValueError):
+        logger.warning("WebSocket authentication state could not be revalidated", exc_info=True)
+        await websocket.close(code=1011, reason="authentication_unavailable")
+        return False

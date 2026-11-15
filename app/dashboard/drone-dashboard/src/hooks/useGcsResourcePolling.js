@@ -16,7 +16,7 @@ export default function useGcsResourcePolling(route, intervalMs, revision = 0) {
       controller = new AbortController();
       const requestedAt = performance.now();
       try {
-        const response = await fetchGcsResource(route, { signal: controller.signal });
+        const response = await fetchGcsResource(route, { signal: controller.signal, timeout: 10000 });
         if (!stopped) setSnapshot({ data: response.data, loading: false, error: null, requestedAt, receivedAt: performance.now() });
       } catch (error) {
         if (!stopped && !controller.signal.aborted) setSnapshot({ data: null, loading: false, error });

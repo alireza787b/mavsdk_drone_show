@@ -2040,7 +2040,17 @@ candidates:
     - manual_review_required_before_registry_promotion
   has_request_body: false
   id: candidate.gcs.get.api.v1.fleet.heartbeats
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: protocol_version
+    required: false
+    schema:
+      default: 0
+      maximum: 1
+      minimum: 0
+      title: Protocol Version
+      type: integer
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -2052,7 +2062,10 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/HeartbeatResponse'
+    anyOf:
+    - $ref: '#/components/schemas/HeartbeatSnapshotResponse'
+    - $ref: '#/components/schemas/HeartbeatResponse'
+    title: Response Get Heartbeats Api V1 Fleet Heartbeats Get
   review_status: needs_review
   source:
     method: GET
@@ -2413,7 +2426,17 @@ candidates:
     - manual_review_required_before_registry_promotion
   has_request_body: false
   id: candidate.gcs.get.api.v1.fleet.telemetry
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: protocol_version
+    required: false
+    schema:
+      default: 0
+      maximum: 1
+      minimum: 0
+      title: Protocol Version
+      type: integer
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -2425,7 +2448,10 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/TelemetryResponse'
+    anyOf:
+    - $ref: '#/components/schemas/TelemetrySnapshotResponse'
+    - $ref: '#/components/schemas/TelemetryResponse'
+    title: Response Get Telemetry Typed Api V1 Fleet Telemetry Get
   review_status: needs_review
   source:
     method: GET
@@ -2446,7 +2472,17 @@ candidates:
     - manual_review_required_before_registry_promotion
   has_request_body: false
   id: candidate.gcs.get.api.v1.git.status
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: protocol_version
+    required: false
+    schema:
+      default: 0
+      maximum: 1
+      minimum: 0
+      title: Protocol Version
+      type: integer
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -2458,7 +2494,10 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/GitStatusResponse'
+    anyOf:
+    - $ref: '#/components/schemas/GitStatusSnapshotResponse'
+    - $ref: '#/components/schemas/GitStatusResponse'
+    title: Response Get Git Status Api V1 Git Status Get
   review_status: needs_review
   source:
     method: GET
@@ -9128,7 +9167,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 7d5abbbcd41e5b7bba21f7af9bf78c345ee45a97c0734ccd6072e6b5e0ec3c12
+  openapi_sha256: f355548e8b39a6e986b7ea47450e220cf2941df5e4d68e34e2e6b487065de0ba
   title: GCS Server API
   version: '5.5'
 summary:

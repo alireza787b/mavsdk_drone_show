@@ -24,6 +24,7 @@ class HeartbeatSender:
     _netbird_error_logged = False
     _gcs_connection_error_logged = False
     _gcs_connected = False
+    _gcs_rejection_reason = None
 
     def __init__(self, drone_config: DroneConfig):
         self.drone_config = drone_config
@@ -110,21 +111,46 @@ class HeartbeatSender:
         try:
             resp = requests.post(url, json=data, headers=gcs_auth_headers(), timeout=3)
             if resp.status_code == 200:
+                try:
+                    receipt = resp.json()
+                except ValueError:
+                    receipt = None
+                # A received request is not necessarily an accepted presence
+                # update (for example a runtime-mode rejection). Older GCS
+                # receipts omit accepted; preserve that compatibility only for
+                # a valid acknowledgement object.
+                if not isinstance(receipt, dict):
+                    self._heartbeat_rejected(hw_id, 'Invalid heartbeat acknowledgement')
+                    return
+                if receipt.get('accepted', True) is not True or receipt.get('success', True) is not True:
+                    self._heartbeat_rejected(hw_id, str(receipt.get('message') or 'Heartbeat was not accepted'))
+                    return
                 if not HeartbeatSender._gcs_connected:
                     HeartbeatSender._gcs_connected = True
                     HeartbeatSender._gcs_connection_error_logged = False
+                    HeartbeatSender._gcs_rejection_reason = None
                     logger.info(f"Heartbeat connected to GCS: hw_id={hw_id}, ip={netbird_ip}")
                 else:
                     logger.debug(f"Heartbeat OK: hw_id={hw_id}, ip={netbird_ip}")
             else:
-                logger.warning(f"Heartbeat failed with status {resp.status_code}: {resp.text}")
+                self._heartbeat_rejected(hw_id, f'HTTP {resp.status_code}: {resp.text}')
         except requests.RequestException as e:
             HeartbeatSender._gcs_connected = False
+            HeartbeatSender._gcs_rejection_reason = None
             if not HeartbeatSender._gcs_connection_error_logged:
                 HeartbeatSender._gcs_connection_error_logged = True
                 logger.warning(f"GCS unreachable (will retry silently): {e}")
             else:
                 logger.debug(f"Heartbeat request exception: {e}")
+
+    def _heartbeat_rejected(self, hw_id, reason):
+        HeartbeatSender._gcs_connected = False
+        reason = reason[:400]
+        if reason != HeartbeatSender._gcs_rejection_reason:
+            logger.warning(f'Heartbeat not accepted by GCS: hw_id={hw_id}, reason={reason}')
+            HeartbeatSender._gcs_rejection_reason = reason
+        else:
+            logger.debug(f'Heartbeat still not accepted by GCS: hw_id={hw_id}, reason={reason}')
 
     def _get_netbird_ip(self):
         """

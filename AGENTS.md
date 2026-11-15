@@ -42,6 +42,11 @@ Do not assume the environment. Detect it first.
   Settle routine presentation attention, not raw sample ages or flight admission.
   Keep companion presence, FC telemetry and browser/config fetch failures distinct;
   join accepted heartbeat metadata without refreshing FC clocks or nesting locks.
+- Reuse the shared observation owner before adding a page poller or socket.
+  Connection health requires useful application data, not an open socket/Pong.
+  Latest-state queues may coalesce; command journals and log coverage may not.
+  Keep native motion/recovery and bulk traffic isolated. Fallback acquisition
+  must continue during reconnect probes, with identity/epoch/generation fences.
 - Shared-shell responsive behavior has one viewport owner. CSS should consume
   its desktop/mobile state rather than independently deciding whether navigation
   exists; browser validation must include the intermediate tablet widths.

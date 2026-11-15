@@ -10,13 +10,11 @@ import { toast } from 'react-toastify';
 import { FaFlag, FaSearchLocation } from 'react-icons/fa';
 import * as sarApi from '../services/sarApiService';
 import {
-  getFleetConfigResponse,
-  getFleetTelemetryResponse,
   getOriginResponse,
-  unwrapFleetTelemetryPayload,
 } from '../services/gcsApiService';
-import { extractServerNowMs, normalizeTelemetryResponse } from '../constants/fieldMappings';
-import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
+import { DRONE_RUNTIME_CLOCK_PROP } from '../constants/fieldMappings';
+import { getDroneRuntimeStatus, getDroneReferenceNowMs } from '../utilities/droneRuntimeStatus';
+import useFleetResources from '../features/fleet-overview/useFleetResources';
 
 // SAR components
 import PlanMonitorToggle from '../components/sar/PlanMonitorToggle';
@@ -205,9 +203,13 @@ const hasDronePosition = (drone) => (
   && (Math.abs(Number(drone.position_lat)) > 0.000001 || Math.abs(Number(drone.position_long)) > 0.000001)
 );
 
-const getGlobalPositionAgeMs = (drone) => {
+const getGlobalPositionAgeMs = (drone, nowMs = Date.now()) => {
   const ageMs = Number(drone?.global_position_age_ms);
-  return Number.isFinite(ageMs) && ageMs >= 0 ? ageMs : null;
+  const receipt = drone?.[DRONE_RUNTIME_CLOCK_PROP]?.receivedAtMs;
+  const elapsed = Number.isFinite(receipt) ? Math.max(0, nowMs - receipt) : 0;
+  const timestamp = Number(drone?.global_position_timestamp_ms);
+  const fromTimestamp = timestamp > 0 ? Math.max(0, getDroneReferenceNowMs(drone, nowMs) - timestamp) : null;
+  return Number.isFinite(ageMs) && ageMs >= 0 ? Math.max(ageMs + elapsed, fromTimestamp ?? 0) : fromTimestamp;
 };
 
 const hasFreshDronePosition = (drone) => {
@@ -232,7 +234,7 @@ const buildQuickScoutDroneStatus = (drone, nowMs = Date.now()) => {
 
   const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
   const linkReady = runtimeStatus.level === 'online' || runtimeStatus.level === 'degraded';
-  const ageMs = getGlobalPositionAgeMs(drone);
+  const ageMs = getGlobalPositionAgeMs(drone, nowMs);
   const hasPosition = hasDronePosition(drone);
 
   if (!linkReady) {
@@ -346,10 +348,11 @@ const QuickScoutPage = () => {
   const [loadingMissionHandoff, setLoadingMissionHandoff] = useState(false);
 
   // Telemetry
-  const [drones, setDrones] = useState([]);
+  const fleet = useFleetResources();
+  const drones = fleet.drones;
 
   // Config drones (from config.json)
-  const [configDrones, setConfigDrones] = useState([]);
+  const configDrones = useMemo(() => fleet.config.response?.data || [], [fleet.config.response]);
 
   // Map
   const [viewport, setViewport] = useState({
@@ -586,31 +589,6 @@ const QuickScoutPage = () => {
     }
   }, [applyWorkspace, refreshMissionCatalog]);
 
-  // Telemetry polling
-  useEffect(() => {
-    const fetchTelemetry = async () => {
-      try {
-        const response = await getFleetTelemetryResponse();
-        const telemetry = normalizeTelemetryResponse(
-          unwrapFleetTelemetryPayload(response.data),
-          {
-            receivedAtMs: Date.now(),
-            serverNowMs: extractServerNowMs(response.headers || {}),
-          }
-        );
-        const dronesArray = Object.keys(telemetry).map((hw_ID) => ({
-          hw_ID, ...telemetry[hw_ID],
-        }));
-        setDrones(dronesArray);
-      } catch (e) {
-        // Silent failure
-      }
-    };
-    fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Configured origin polling for staged/offline planning guidance
   useEffect(() => {
     let active = true;
@@ -689,28 +667,13 @@ const QuickScoutPage = () => {
     };
   }, [handleRecoverMission, missionId, refreshMissionCatalog]);
 
-  // Fetch config drones on mount
-  useEffect(() => {
-    const fetchConfigDrones = async () => {
-      try {
-        const response = await getFleetConfigResponse();
-        if (Array.isArray(response.data)) {
-          setConfigDrones(response.data);
-        }
-      } catch (e) {
-        // Config not available — not critical
-      }
-    };
-    fetchConfigDrones();
-  }, []);
-
   // Merge config drones with live telemetry
   const mergedDrones = useMemo(() => {
     // Start with config entries
     const merged = configDrones.map((cfg) => {
       const hwId = String(cfg.hw_id);
       const telemetry = drones.find((d) => String(d.hw_ID) === hwId);
-      const quickScoutStatus = buildQuickScoutDroneStatus(telemetry || null);
+      const quickScoutStatus = buildQuickScoutDroneStatus(telemetry || null, fleet.nowMs);
       return {
         hw_ID: hwId,
         hw_id: hwId,
@@ -728,7 +691,7 @@ const QuickScoutPage = () => {
     for (const d of drones) {
       const inConfig = configDrones.some((c) => String(c.hw_id) === String(d.hw_ID));
       if (!inConfig) {
-        const quickScoutStatus = buildQuickScoutDroneStatus(d);
+        const quickScoutStatus = buildQuickScoutDroneStatus(d, fleet.nowMs);
         merged.push({
           ...d,
           online: quickScoutStatus.gpsReady,
@@ -739,7 +702,7 @@ const QuickScoutPage = () => {
       }
     }
     return merged;
-  }, [configDrones, drones]);
+  }, [configDrones, drones, fleet.nowMs]);
 
   // Mission status polling
   useEffect(() => {

@@ -22,6 +22,9 @@ from src.px4_flight_modes import (
 STATUS_TEXT_RETENTION_MS = 120000
 STATUS_TEXT_MAX_MESSAGES = 8
 STATUS_TEXT_BUFFER_RETENTION_S = 5
+# Raw sensors can legitimately be separate components of the bound vehicle.
+# Estimator outputs, health, mode, home and land state remain FC-component-owned.
+SYSTEM_SENSOR_MESSAGES = frozenset({'GPS_RAW_INT', 'BATTERY_STATUS', 'SCALED_PRESSURE'})
 
 class LocalMavlinkController:
     """
@@ -40,6 +43,11 @@ class LocalMavlinkController:
         """
         self.latest_messages = {}
         self.debug_enabled = debug_enabled
+        self.drone_config = drone_config
+        self._initialize_source_binding()
+        self.home_position_logged = False
+        self._status_text_buffers: Dict[int, Dict[str, Any]] = {}
+        self._status_messages: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         # Define which message types to listen for
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
@@ -54,7 +62,6 @@ class LocalMavlinkController:
             int(getattr(params, 'LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS', 3)),
         )
         self.mav = self._open_mavlink_connection()
-        self.drone_config = drone_config
         self.local_mavlink_refresh_interval = params.local_mavlink_refresh_interval
         self.require_global_position = bool(getattr(params, 'REQUIRE_GLOBAL_POSITION', False))
         self.run_telemetry_thread = threading.Event()
@@ -63,9 +70,80 @@ class LocalMavlinkController:
         # Start the telemetry monitoring thread
         self.telemetry_thread = threading.Thread(target=self.mavlink_monitor)
         self.telemetry_thread.start()
-        self.home_position_logged = False
-        self._status_text_buffers: Dict[int, Dict[str, Any]] = {}
-        self._status_messages: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+    def _initialize_source_binding(self) -> None:
+        """Discover one FC independently of node HW_ID and retain it for life."""
+        self._autopilot_source = None
+        self._foreign_fc_components = set()
+        self._source_issues_reported = set()
+        config = getattr(self.drone_config, 'config', None)
+        expected = config.get('mav_sys_id') if isinstance(config, dict) else None
+        self._expected_system_id = None
+        if isinstance(config, dict) and 'mav_sys_id' in config:
+            # Zero is an invalid source sentinel: a malformed explicit identity
+            # fails closed instead of silently reverting to discovery.
+            self._expected_system_id = self._source_id(expected) or 0
+            if not self._expected_system_id:
+                logging.error('Invalid configured mav_sys_id; local MAVLink telemetry remains unbound.')
+
+    @staticmethod
+    def _source_id(value) -> Optional[int]:
+        if isinstance(value, bool) or not isinstance(value, (int, str)):
+            return None
+        try:
+            value = int(value)
+        except ValueError:
+            return None
+        return value if 1 <= value <= 255 else None
+
+    @classmethod
+    def _message_source(cls, msg):
+        values = []
+        for name in ('get_srcSystem', 'get_srcComponent'):
+            accessor = getattr(msg, name, None)
+            if not callable(accessor):
+                return None
+            try:
+                value = cls._source_id(accessor())
+            except (TypeError, ValueError, AttributeError):
+                return None
+            if value is None:
+                return None
+            values.append(value)
+        return tuple(values)
+
+    def _bind_heartbeat_source(self, msg) -> bool:
+        source = self._message_source(msg)
+        if source is None:
+            return False
+        if self._autopilot_source is not None and source != self._autopilot_source:
+            if source[0] == self._autopilot_source[0]:
+                self._foreign_fc_components.add(source[1])
+            if 'collision' not in self._source_issues_reported:
+                logging.error('Multiple FC MAVLink sources on local listener: bound system=%s component=%s; '
+                              'ignoring system=%s component=%s. Repair routing; listener reconnect does not rebind.',
+                              *self._autopilot_source, *source)
+                self._source_issues_reported.add('collision')
+            return False
+        expected = self._expected_system_id
+        if expected is not None and source[0] != expected:
+            if 'expected-system' not in self._source_issues_reported:
+                logging.error('Ignoring FC MAVLink source system=%s component=%s: configured mav_sys_id=%s.',
+                              *source, expected)
+                self._source_issues_reported.add('expected-system')
+            return False
+        if self._autopilot_source is None:
+            self._autopilot_source = source
+            logging.info('Bound local MAVLink FC source system=%s component=%s (independent of HW_ID).', *source)
+        return True
+
+    def _accept_bound_source(self, msg, msg_type) -> bool:
+        source = self._message_source(msg)
+        owner = self._autopilot_source
+        if source is None or owner is None or source[0] != owner[0]:
+            return False
+        return source == owner or (msg_type in SYSTEM_SENSOR_MESSAGES
+                                   and source[1] not in self._foreign_fc_components)
 
     def _open_mavlink_connection(self):
         """Open a fresh UDP listener for the locally routed MAVLink stream."""
@@ -74,7 +152,12 @@ class LocalMavlinkController:
         return mavutil.mavlink_connection(connection_string)
 
     def _reset_mavlink_connection(self, reason: str) -> None:
-        """Close and reopen the local MAVLink listener after repeated silence/errors."""
+        """Reopen the listener, never its FC identity binding, after silence/errors.
+
+        An FC reboot with the same identity can resume naturally. A replacement
+        identity requires routing/config review and a new controller instance;
+        silence is not authority to select a different aircraft.
+        """
         try:
             self.mav.close()
         except Exception:
@@ -122,13 +205,13 @@ class LocalMavlinkController:
                 continue
 
             if msg is not None:
-                if consecutive_timeouts > 0:
+                accepted = self.process_message(msg)
+                if accepted and consecutive_timeouts > 0:
                     logging.info(
                         "Local MAVLink telemetry restored after %s timeout(s).",
                         consecutive_timeouts,
                     )
                     consecutive_timeouts = 0
-                self.process_message(msg)
                 continue
 
             consecutive_timeouts += 1
@@ -153,7 +236,13 @@ class LocalMavlinkController:
         if msg_type == 'HEARTBEAT':
             if self.process_heartbeat(msg):
                 self.latest_messages[msg_type] = msg
-            return
+                return True
+            return False
+
+        # No arbitrary first packet may establish an aircraft, or refresh any
+        # cached state/freshness before a validated FC heartbeat establishes it.
+        if not self._accept_bound_source(msg, msg_type):
+            return False
 
         self.latest_messages[msg_type] = msg
 
@@ -181,6 +270,8 @@ class LocalMavlinkController:
             self.process_extended_sys_state(msg)
         else:
             self.log_debug(f"Received unhandled message type: {msg.get_type()}")
+            return False
+        return True
 
     @staticmethod
     def _now_ms() -> int:
@@ -188,14 +279,8 @@ class LocalMavlinkController:
 
     def process_extended_sys_state(self, msg) -> None:
         """Cache native land detection from the same autopilot as the heartbeat."""
-        heartbeat = self.latest_messages.get('HEARTBEAT')
-        if heartbeat is None:
+        if not self._accept_bound_source(msg, 'EXTENDED_SYS_STATE'):
             return
-        for accessor_name in ('get_srcSystem', 'get_srcComponent'):
-            source = getattr(msg, accessor_name, None)
-            owner = getattr(heartbeat, accessor_name, None)
-            if callable(source) and callable(owner) and source() != owner():
-                return
         state = self._optional_mavlink_int(getattr(msg, 'landed_state', None))
         self.drone_config.landed_state = state if state in {0, 1, 2, 3, 4} else None
         now_ms = self._now_ms()
@@ -405,30 +490,26 @@ class LocalMavlinkController:
         component classification. Component ids are addressing information and
         must not be used as the primary component-type test.
 
-        Header-less synthetic messages are accepted for compatibility with
-        direct unit/in-process callers. Real pymavlink HEARTBEAT messages always
-        carry both classification fields and therefore take the strict path.
+        Classification and source headers are required even for direct callers;
+        a component id alone is not evidence that a packet came from an FC.
         """
         component_type = cls._optional_mavlink_int(getattr(msg, 'type', None))
         autopilot_type = cls._optional_mavlink_int(getattr(msg, 'autopilot', None))
 
-        if component_type == mavutil.mavlink.MAV_TYPE_GCS:
+        if isinstance(getattr(msg, 'type', None), bool) or isinstance(getattr(msg, 'autopilot', None), bool):
+            return False
+        if component_type in (mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER):
             return False
         if autopilot_type == mavutil.mavlink.MAV_AUTOPILOT_INVALID:
             return False
+        if component_type == getattr(mavutil.mavlink, 'MAV_TYPE_ENUM_END', None):
+            return False
+        if autopilot_type == getattr(mavutil.mavlink, 'MAV_AUTOPILOT_ENUM_END', None):
+            return False
 
-        if component_type is not None and autopilot_type is not None:
-            return True
-
-        # Compatibility fallback for decoded/synthetic messages that lost the
-        # HEARTBEAT classification fields but retained their source header.
-        get_source_component = getattr(msg, 'get_srcComponent', None)
-        if callable(get_source_component):
-            source_component = cls._optional_mavlink_int(get_source_component())
-            if source_component is not None:
-                return source_component == mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1
-
-        return component_type is None and autopilot_type is None
+        return (component_type in mavutil.mavlink.enums['MAV_TYPE']
+                and autopilot_type in mavutil.mavlink.enums['MAV_AUTOPILOT']
+                and cls._message_source(msg) is not None)
 
     @staticmethod
     def _mavlink_message_source(msg) -> str:
@@ -461,6 +542,8 @@ class LocalMavlinkController:
                 f"type={getattr(msg, 'type', None)}, "
                 f"autopilot={getattr(msg, 'autopilot', None)})"
             )
+            return False
+        if not self._bind_heartbeat_source(msg):
             return False
 
         # Store previous values for change detection

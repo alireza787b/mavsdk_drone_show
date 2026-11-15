@@ -9,10 +9,12 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from auth_runtime import authorize_websocket
+from observation_stream import LatestObservationPublisher, serve_observations
 from command_execution_policy import CommandSubmissionAuthority
 from command_submission import submit_tracked_command
 from command_tracker import CommandCompletionAuthority
@@ -27,7 +29,7 @@ from schemas import (
     DroneMavlinkRuntimeStatus,
     GitStatus,
     GitStatusResponse,
-    GitStatusStreamMessage,
+    GitStatusSnapshotResponse,
     FleetGitSyncApplyResponse,
     SubmitCommandRequest,
 )
@@ -565,10 +567,20 @@ async def _wait_for_tracked_dispatch(deps: Any, command_id: str) -> dict[str, An
 
 def create_git_router(deps: Any) -> APIRouter:
     router = APIRouter()
+    publisher = LatestObservationPublisher(
+        lambda: _build_git_status_response(deps).model_dump(mode="json"),
+        lambda body: {
+            "type": "git_status", "timestamp": body["timestamp"], "data": body,
+            "sync_in_progress": body["sync_in_progress"],
+        },
+        interval=5.0,
+    )
 
-    @router.get("/api/v1/git/status", response_model=GitStatusResponse, tags=["Git"])
-    async def get_git_status():
+    @router.get("/api/v1/git/status", response_model=GitStatusSnapshotResponse | GitStatusResponse, tags=["Git"])
+    async def get_git_status(protocol_version: int = Query(0, ge=0, le=1)):
         """Get git status from all drones."""
+        if protocol_version == 1:
+            return JSONResponse(publisher.current().http_body())
         return _build_git_status_response(deps)
 
     @router.get("/api/v1/fleet/git-sync", tags=["Git"])
@@ -729,36 +741,15 @@ def create_git_router(deps: Any) -> APIRouter:
     @router.websocket("/ws/git-status")
     async def websocket_git_status(websocket: WebSocket):
         """Stream the same git-status payload shape exposed by GET /api/v1/git/status."""
-        if await authorize_websocket(websocket) is None:
+        auth_context = await authorize_websocket(websocket)
+        if auth_context is None:
             return
         await websocket.accept()
         deps.log_system_event("Git status WebSocket client connected", "INFO", "websocket")
 
         try:
-            while True:
-                try:
-                    data = _build_git_status_response(deps).model_dump()
-                except Exception:
-                    data = {
-                        "git_status": {},
-                        "total_drones": 0,
-                        "synced_count": 0,
-                        "needs_sync_count": 0,
-                        "gcs_status": None,
-                        "sync_in_progress": False,
-                    }
-
-                message = GitStatusStreamMessage(
-                    type="git_status",
-                    timestamp=int(time.time() * 1000),
-                    data=data,
-                    sync_in_progress=data.get("sync_in_progress", False),
-                )
-                await websocket.send_json(message.model_dump())
-                await asyncio.sleep(5.0)
-        except WebSocketDisconnect:
+            await serve_observations(websocket, publisher, auth_context=auth_context)
+        finally:
             deps.log_system_event("Git status WebSocket client disconnected", "INFO", "websocket")
-        except Exception as exc:
-            deps.log_system_error(f"Git status WebSocket error: {exc}", "websocket")
 
     return router

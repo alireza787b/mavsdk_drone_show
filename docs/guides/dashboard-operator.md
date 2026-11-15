@@ -194,9 +194,11 @@ flight/recovery controls on Overview or the owning mission page.
 
 **Alerts** keeps aircraft-condition episodes separate from command activity.
 **Seen** acknowledges an alert; it does not clear the aircraft's condition.
-When Overview is not providing current evidence, the panel says **Last
-observed** with its age. It does not claim those conditions are current or
-resolved. A GCS outage is one aggregate alert, not a repeating aircraft toast.
+Fleet observation continues while another workspace is open. When the shared
+source cannot provide current evidence, the panel shows the last observation
+and its age; it does not claim those conditions are current or resolved.
+A GCS outage is one aggregate alert, not a repeating aircraft toast. Connection
+recovery requires no transport selection and never replays a flight command.
 
 ## Understand unavailable data
 

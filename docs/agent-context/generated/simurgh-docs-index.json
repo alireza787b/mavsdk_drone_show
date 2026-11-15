@@ -1,5 +1,5 @@
 {
-  "chunk_count": 889,
+  "chunk_count": 890,
   "chunks": [
     {
       "audience": "developer",
@@ -434,7 +434,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "561acdb43c45f6a276f532ce3822ed69127bcd087c7259fd8a87d344d4a95756",
+      "content_hash": "2db92996a99075c013ce8f7bda6928ca956177e49d36c517f3d3c35a6ff5ff67",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-01-simurgh-tool-usage-guidelines",
       "links": [],
@@ -448,7 +448,27 @@
         "tools",
         "mcp"
       ],
-      "text": "# Simurgh Tool Usage Guidelines\n\nEvery tool exposed to a model or MCP client must have an entry in\n`config/agent_tools.yaml`.\n\nTool registry entries must define:\n\n- stable `id`\n- title and description\n- exposure: `allow`, `guarded`, or `exclude`\n- risk class\n- GCS/drone/external boundary\n- route method and path when route-backed\n- input schema for every callable argument, including path/query parameters\n- role expectation\n- side effects\n- sensitivity labels\n- docs and safety notes\n\nInterpretation rules:\n\n- `allow` means the tool can run after policy checks pass.\n- `guarded` means policy must require explicit approval before execution.\n- `exclude` means the tool is documented as intentionally unavailable.\n- `read_only=true` does not automatically make a tool safe; telemetry, logs, and\n repo state can still be sensitive.\n- `read_only=false` tools are denied in `read_only` mode, even when the risk\n class is otherwise allowed by that mode.\n- `runtime_modes` is binding; a tool cannot be used outside the modes declared\n in its registry entry.\n- A model must not infer permission from a raw API route that is not in the\n registry.\n- A model must not translate a blocked request into a lower-level route call.\n- OpenAPI discovery output is a candidate menu, not an authorization decision.\n Generated candidates are not callable until promoted into\n `config/agent_tools.yaml`, reviewed against `config/agent_policy.yaml`, tested,\n documented, and approved.\n- A route-backed tool without `input_schema` accepts no arguments. Any path or\n query parameter support must be explicit, bounded, and validated before the\n internal ASGI request is built.\n- MCP authentication is not tool authorization. Metadata-only MCP access\n requires bearer auth by default, and every future tool call must still pass\n registry and policy checks.\n\nAdapters should return structured errors for denied or approval-required tools\nso operators can see the exact policy reason.\n\nCurrent callable argument scope:",
+      "text": "# Simurgh Tool Usage Guidelines\n\nEvery tool exposed to a model or MCP client must have an entry in\n`config/agent_tools.yaml`.\n\nTool registry entries must define:\n\n- stable `id`\n- title and description\n- exposure: `allow`, `guarded`, or `exclude`\n- risk class\n- GCS/drone/external boundary\n- route method and path when route-backed\n- input schema for every callable argument, including path/query parameters\n- role expectation\n- side effects\n- sensitivity labels\n- docs and safety notes\n\nInterpretation rules:",
+      "title": "Simurgh tool usage guidelines"
+    },
+    {
+      "audience": "agent",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
+      "content_hash": "2a8a121c1dc022058afa21920326be412d511635cef90c59f07f5566aaa1e8ec",
+      "heading": "Simurgh Tool Usage Guidelines",
+      "id": "simurgh.tool_usage:001-02-simurgh-tool-usage-guidelines",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/agent-context/tool-usage-guidelines.md",
+      "resource_id": "simurgh.tool_usage",
+      "route_hint": null,
+      "summary": "Tool registry semantics and adapter expectations.",
+      "tags": [
+        "simurgh",
+        "tools",
+        "mcp"
+      ],
+      "text": "- Fleet HTTP and WebSocket readers observe shared domain evidence; neither a\n socket connection nor its snapshot sequence proves fresh FC measurements,\n native action readiness or aircraft installation of a saved formation.\n Simurgh/MCP stays optional and does not create its own aircraft acquisition\n service or enter the direct leader/follower control loop. Reconnect never\n authorizes action replay or changes exact reviewed recipients.\n- `allow` means the tool can run after policy checks pass.\n- `guarded` means policy must require explicit approval before execution.\n- `exclude` means the tool is documented as intentionally unavailable.\n- `read_only=true` does not automatically make a tool safe; telemetry, logs, and\n repo state can still be sensitive.\n- `read_only=false` tools are denied in `read_only` mode, even when the risk\n class is otherwise allowed by that mode.\n- `runtime_modes` is binding; a tool cannot be used outside the modes declared\n in its registry entry.\n- A model must not infer permission from a raw API route that is not in the\n registry.\n- A model must not translate a blocked request into a lower-level route call.\n- OpenAPI discovery output is a candidate menu, not an authorization decision.\n Generated candidates are not callable until promoted into\n `config/agent_tools.yaml`, reviewed against `config/agent_policy.yaml`, tested,\n documented, and approved.\n- A route-backed tool without `input_schema` accepts no arguments. Any path or\n query parameter support must be explicit, bounded, and validated before the\n internal ASGI request is built.\n- MCP authentication is not tool authorization. Metadata-only MCP access\n requires bearer auth by default, and every future tool call must still pass\n registry and policy checks.\n\nAdapters should return structured errors for denied or approval-required tools\nso operators can see the exact policy reason.\n\nCurrent callable argument scope:",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -456,7 +476,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "content_hash": "dbc5f396bf8e9e3c180f6f47314388e42be2448e43c4eac09ce0ea2578b2024f",
       "heading": "Simurgh Tool Usage Guidelines",
-      "id": "simurgh.tool_usage:001-02-simurgh-tool-usage-guidelines",
+      "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -476,7 +496,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "content_hash": "41f12c844053115a4f9a9f3a4dab4113c4665c34a177f080e7bccb38dfe76f31",
       "heading": "Simurgh Tool Usage Guidelines",
-      "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
+      "id": "simurgh.tool_usage:001-04-simurgh-tool-usage-guidelines",
       "links": [
         "docs/agent-context/generated/simurgh-docs-index.json",
         "docs/context",
@@ -500,7 +520,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "content_hash": "29c3f6836098381bbc2590649f114e6a1a0d02a97dd7714a780be3e9b629a7f0",
       "heading": "Simurgh Tool Usage Guidelines",
-      "id": "simurgh.tool_usage:001-04-simurgh-tool-usage-guidelines",
+      "id": "simurgh.tool_usage:001-05-simurgh-tool-usage-guidelines",
       "links": [
         "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
       ],
@@ -6755,7 +6775,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "8c7d4b14da3bfafb4244082e98ef48eb369ce65f9471a9972aa3ccb4dfdfd9b7",
+      "content_hash": "8b30a082530aaf960791030bc5aaeec13fd4a5f3c41f9c06802e55531cb74a43",
       "heading": "Read command progress",
       "id": "mds.dashboard_operator:005-01-read-command-progress",
       "links": [],
@@ -6769,7 +6789,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Read command progress\n\nOpen **Activity** to see recent commands, affected aircraft, execution progress\nand rejection reasons. Activity remains available when you change pages and\nrehydrates from GCS command history after a refresh.\n\nRequest acceptance is not completion. Check partial, rejected or unconfirmed\noutcomes before retrying. An unconfirmed submission retains its request identity;\nits **Check** control looks up the receipt without sending it again. An\nunconfirmed request does not disable unrelated Hold, Land or Return actions;\ntheir own target-bound reviews remain separate. Nothing automatically replays\nwhen the connection returns.\n\nClosing a review or monitor is not a command to stop an aircraft. Use the named\nflight/recovery controls on Overview or the owning mission page.\n\n**Alerts** keeps aircraft-condition episodes separate from command activity.\n**Seen** acknowledges an alert; it does not clear the aircraft's condition.\nWhen Overview is not providing current evidence, the panel says **Last\nobserved** with its age. It does not claim those conditions are current or\nresolved. A GCS outage is one aggregate alert, not a repeating aircraft toast.",
+      "text": "## Read command progress\n\nOpen **Activity** to see recent commands, affected aircraft, execution progress\nand rejection reasons. Activity remains available when you change pages and\nrehydrates from GCS command history after a refresh.\n\nRequest acceptance is not completion. Check partial, rejected or unconfirmed\noutcomes before retrying. An unconfirmed submission retains its request identity;\nits **Check** control looks up the receipt without sending it again. An\nunconfirmed request does not disable unrelated Hold, Land or Return actions;\ntheir own target-bound reviews remain separate. Nothing automatically replays\nwhen the connection returns.\n\nClosing a review or monitor is not a command to stop an aircraft. Use the named\nflight/recovery controls on Overview or the owning mission page.\n\n**Alerts** keeps aircraft-condition episodes separate from command activity.\n**Seen** acknowledges an alert; it does not clear the aircraft's condition.\nFleet observation continues while another workspace is open. When the shared\nsource cannot provide current evidence, the panel shows the last observation\nand its age; it does not claim those conditions are current or resolved.\nA GCS outage is one aggregate alert, not a repeating aircraft toast. Connection\nrecovery requires no transport selection and never replays a flight command.",
       "title": "Overview operator guide"
     },
     {
@@ -9686,7 +9706,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "03f606b595ccd2f7900d143f82ba524c89c4fa17d72dc5ea7f99464eb4f4f78a",
+      "content_hash": "7eee602236d40975c73dcfae98a28b97957030e2080839edf84938d02df378c8",
       "heading": "`WS /ws/telemetry`",
       "id": "mds.gcs_api:136-01-ws-ws-telemetry",
       "links": [],
@@ -9699,7 +9719,45 @@
         "api",
         "gcs"
       ],
-      "text": "### `WS /ws/telemetry`\nReal-time telemetry streaming. The default cadence is 1 Hz.\n\nOptional query:\n- `interval_ms`: requested stream interval in milliseconds. The server bounds this between 500 ms and 6000 ms so tactical map clients can reduce bandwidth on constrained links without opening a new API surface.\n\n**Connection:**\n```javascript\nconst ws = new WebSocket('ws://localhost:5030/ws/telemetry?interval_ms=1000');\n\nws.onmessage = (event) => {\n const data = JSON.parse(event.data);\n console.log('Telemetry:', data);\n};\n```\n\n**Message Format:**\n```json\n{\n \"type\": \"telemetry\",\n \"timestamp\": 1700000000000,\n \"data\": {\n \"1\": {\n \"pos_id\": 0,\n \"hw_id\": 1,\n \"battery_voltage\": 12.6,\n \"position_lat\": 35.123456\n }\n }\n}\n```\n\n**Benefits:**\n- 95% less overhead vs HTTP polling\n- Real-time updates (1 Hz)\n- Automatic reconnection support",
+      "text": "### `WS /ws/telemetry`\nReal-time telemetry streaming. The default cadence is 1 Hz.\n\nOptional query:\n- `interval_ms`: requested stream interval in milliseconds. The server bounds this between 500 ms and 6000 ms so tactical map clients can reduce bandwidth on constrained links without opening a new API surface.\n\n**Connection:**\n```javascript\nconst ws = new WebSocket('ws://localhost:5030/ws/telemetry?interval_ms=1000');\n\nws.onmessage = (event) => {\n const data = JSON.parse(event.data);\n console.log('Telemetry:', data);\n};\n```\n\n**Message Format:**\n```json\n{\n \"type\": \"telemetry\",\n \"timestamp\": 1700000000000,\n \"data\": {\n \"1\": {\n \"pos_id\": 0,\n \"hw_id\": 1,\n \"battery_voltage\": 12.6,\n \"position_lat\": 35.123456\n }\n }\n}\n```\n\n**Benefits:**\n- Periodic observations without one HTTP request per browser refresh.\n- Shared server-side publication and bounded latest-only delivery.\n- Reconnect starts with a complete current snapshot, not an event replay.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "08248727d024435c1499596762ae363e2ccc8f768ff7cb1a39901382e4f52a37",
+      "heading": "Versioned shared observation snapshots",
+      "id": "mds.gcs_api:137-01-versioned-shared-observation-snapshots",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "#### Versioned shared observation snapshots\n\nTelemetry, heartbeat and Git sockets accept `protocol_version=1`. Their legacy\n`type`, `timestamp` and `data` shapes remain unchanged; telemetry additionally\nincludes the canonical HTTP `display_policy`. The following fields are additive:\n\n```json\n{\n \"protocol_version\": 1,\n \"stream_id\": \"publisher-epoch-uuid\",\n \"sequence\": 42,\n \"published_at_ms\": 1700000000000,\n \"delivery\": \"latest_snapshot\"\n}\n```\n\n`stream_id` identifies one publisher epoch, not an aircraft boot, mission or\ncommand. Sequence increases within that epoch; skipped numbers are expected\nwhen intermediate snapshots are coalesced. Consumers replace the complete\ntopic snapshot, including aircraft removals, and reset sequence comparison on a\nnew epoch. Unsupported protocol versions close with `1002`; these streams are\nread-only and reject application messages from clients. They are not a durable\nevent history or a command-delivery/acknowledgement channel.\n\nCanonical HTTP reads remain available at `/api/v1/fleet/telemetry`,\n`/api/v1/fleet/heartbeats` and `/api/v1/git/status`. Adding\n`?protocol_version=1` returns the same metadata and shared generation for its\ntopic. The existing HTTP domain body is unchanged (`telemetry`, `heartbeats`,\nor `git_status`, respectively). Unversioned HTTP remains a fresh direct read\nfor compatibility. Shared publication intervals are 500 ms for telemetry,\n2 s for heartbeats and 5 s for Git; telemetry `interval_ms` still limits each\nclient's outbound cadence to 500–6000 ms (default 1000 ms).\n\nPublication time and the HTTP `X-MDS-Server-Time` header are GCS observations,\nnever FC freshness. A new frame can contain the same old or unavailable native\nsample. Native sample timestamps, unknown flight states, heartbeat-specific\nreceipts and configuration/readiness authority are preserved. No cross-host\nclock subtraction or snapshot sequence grants flight admission.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "a27233613a9dff4a6187f4f507c6e491fdd48b87c1bd3ec5624ed3115b150a75",
+      "heading": "Versioned shared observation snapshots",
+      "id": "mds.gcs_api:137-02-versioned-shared-observation-snapshots",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "Each topic validates and serializes one generation for all socket consumers,\nwith one pending latest snapshot per client. Limits are 128 subscribers/topic,\n8 MiB per encoded snapshot, a 5 s send deadline and a 15 s publication-idle\ndeadline. Capacity/slow-consumer/idle failures close `1013`; a snapshot build\nfailure closes `1011` (`observation_unavailable`) instead of fabricating an\nempty healthy fleet. Peer disconnects retire their subscriptions; the publisher\nstops when the last socket leaves. These are bounded implementation limits,\nnot measured fleet-scale or network-throughput guarantees. Full snapshots still\ncarry full fleet payloads; shared encoding does not itself compress bandwidth.\n\nWhen auth is enabled, sockets apply the canonical HTTP read-role restrictions\nand check current token revocation/expiry and user/session validity every 5 s\n(a send in progress is separately bounded to 5 s). Authentication/authorization\nfailures close `1008`; versioned clients receive a reason of\n`authentication_required`, `permission_denied` or `origin_not_allowed`.\nCredential-store validation failures close `1011` (`authentication_unavailable`).\nBrowser Origins must match the API host and its port or the standard dashboard/\nAPI ports, or an explicit existing `MDS_CORS_ALLOW_ORIGIN_REGEX` override.\nNative clients can omit Origin. Versioned clients use the normal session cookie\nor Authorization bearer header, never a token in the URL; legacy query-token\ncompatibility is not extended to this protocol. The existing trusted-network\nauth-disabled lab posture and dashboard-only machine config access are unchanged.\nLogout alone does not revoke previously issued stateless session cookies;\ndisable the user or let the session expire when immediate existing-session\ninvalidation is required. No new authentication mode is introduced.",
       "title": "GCS API server guide"
     },
     {
@@ -9707,7 +9765,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "cc408ee9f6d64e0a978909c9ca89e837af8b97360cbed8578b31cab2b4e561be",
       "heading": "`WS /ws/git-status`",
-      "id": "mds.gcs_api:137-01-ws-ws-git-status",
+      "id": "mds.gcs_api:138-01-ws-ws-git-status",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9726,7 +9784,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "3b3512a212a0b25ecfc2dc139fc00e7262cdf428cc45666f85d8606a905ad6f6",
       "heading": "`WS /ws/heartbeats`",
-      "id": "mds.gcs_api:138-01-ws-ws-heartbeats",
+      "id": "mds.gcs_api:139-01-ws-ws-heartbeats",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9745,7 +9803,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "f129c79bf9770719c201b64d509ec37a69c5b3a654a7a7ae44bf2839f9bb0c80",
       "heading": "Authentication",
-      "id": "mds.gcs_api:139-01-authentication",
+      "id": "mds.gcs_api:140-01-authentication",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9764,7 +9822,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "3344095c7aca16f351fea473bbfd8e7d8b6ef3ef5228ef3adf8deaafad77d7b6",
       "heading": "Fleet Enrollment Runtime Domains",
-      "id": "mds.gcs_api:140-01-fleet-enrollment-runtime-domains",
+      "id": "mds.gcs_api:141-01-fleet-enrollment-runtime-domains",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9783,7 +9841,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c1c68831fd40145dea91ab09971b64e87a9a6726a42a9155ada55f7f5140fcbf",
       "heading": "Environment Control Plane",
-      "id": "mds.gcs_api:141-01-environment-control-plane",
+      "id": "mds.gcs_api:142-01-environment-control-plane",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9802,7 +9860,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "09ff1d154ccc17bbc62215b46f004ab443083e5414ec3c90906757002b0086c4",
       "heading": "Simurgh Operator MCP Review",
-      "id": "mds.gcs_api:142-01-simurgh-operator-mcp-review",
+      "id": "mds.gcs_api:143-01-simurgh-operator-mcp-review",
       "links": [
         "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
       ],
@@ -9823,7 +9881,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "63e66e207692fe92c3b486e83d235b6e864ca95c59092d27f56c90b9f85263b7",
       "heading": "Simurgh Operator MCP Review",
-      "id": "mds.gcs_api:142-02-simurgh-operator-mcp-review",
+      "id": "mds.gcs_api:143-02-simurgh-operator-mcp-review",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9842,7 +9900,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "48bf038a6a01d2a3aa3c0851960c0c93026ed543a953472108ec5e5f4569bd9a",
       "heading": "Error Handling",
-      "id": "mds.gcs_api:143-01-error-handling",
+      "id": "mds.gcs_api:144-01-error-handling",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9861,7 +9919,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "83b4b75e97518491cc424bc1e898a26cc2fd8fab80a6980dae71d36cb564d0c1",
       "heading": "Migration from Flask",
-      "id": "mds.gcs_api:144-01-migration-from-flask",
+      "id": "mds.gcs_api:145-01-migration-from-flask",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9880,7 +9938,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "22cc7bff87457a7036c5c646f89a0ecfa06f3e88392faf69da1b32795018f513",
       "heading": "Current Contract Policy",
-      "id": "mds.gcs_api:145-01-current-contract-policy",
+      "id": "mds.gcs_api:146-01-current-contract-policy",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9899,7 +9957,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "c9a3dfe58a038a01ca50a71a2fabfd3ea5b533995a931a540757b6cbd071a02f",
       "heading": "Migration Steps",
-      "id": "mds.gcs_api:146-01-migration-steps",
+      "id": "mds.gcs_api:147-01-migration-steps",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9916,9 +9974,9 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "714c20b1ad05c0a67943dc4199444a2e739a397d487cd317862c155d44096292",
+      "content_hash": "e1918bd1006afff7890c20812688f658c7ec7d2cd5096995e1d4e4c71e605963",
       "heading": "Advantages of FastAPI",
-      "id": "mds.gcs_api:147-01-advantages-of-fastapi",
+      "id": "mds.gcs_api:148-01-advantages-of-fastapi",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9929,15 +9987,15 @@
         "api",
         "gcs"
       ],
-      "text": "### Advantages of FastAPI\n- **3-5x faster** response times\n- **Automatic OpenAPI docs** at `/docs` and `/redoc`\n- **Type safety** with Pydantic validation\n- **WebSocket support** for real-time streaming\n- **Async/await** for better concurrency\n- **Better error messages** with detailed validation errors\n\n---",
+      "text": "### Advantages of FastAPI\n- Async HTTP and streaming primitives\n- **Automatic OpenAPI docs** at `/docs` and `/redoc`\n- **Type safety** with Pydantic validation\n- **WebSocket support** for real-time streaming\n- **Async/await** for better concurrency\n- **Better error messages** with detailed validation errors\n\n---",
       "title": "GCS API server guide"
     },
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "c71954ab8c8a88becb650c46d52bf934e59258c5b3ad552c79f46eb7d0dda1d7",
-      "heading": "Performance Metrics",
-      "id": "mds.gcs_api:148-01-performance-metrics",
+      "content_hash": "f11b7c19de36c9d6794f0f7055e8daf0477bc084ca4abd1f3872180b2fe53875",
+      "heading": "Performance evidence",
+      "id": "mds.gcs_api:149-01-performance-evidence",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -9948,45 +10006,7 @@
         "api",
         "gcs"
       ],
-      "text": "## Performance Metrics",
-      "title": "GCS API server guide"
-    },
-    {
-      "audience": "developer",
-      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "2f831f77a03a3917923dcdfe61983cf1a8048cdd43fd92ef11b6c1ee1442af03",
-      "heading": "HTTP Endpoints",
-      "id": "mds.gcs_api:149-01-http-endpoints",
-      "links": [],
-      "mime_type": "text/markdown",
-      "path": "docs/apis/gcs-api-server.md",
-      "resource_id": "mds.gcs_api",
-      "route_hint": null,
-      "summary": "GCS API surface and integration guide.",
-      "tags": [
-        "api",
-        "gcs"
-      ],
-      "text": "### HTTP Endpoints\n- Average response time: **10-50ms** (vs 30-150ms Flask)\n- Throughput: **1000-2000 req/s** (vs 300-500 req/s Flask)\n- Memory usage: Similar to Flask",
-      "title": "GCS API server guide"
-    },
-    {
-      "audience": "developer",
-      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "6cdf2af41f3d8b6fffaaaf3ae8446fee461245b812d02a8c7be2b8c221ddc756",
-      "heading": "WebSocket Endpoints",
-      "id": "mds.gcs_api:150-01-websocket-endpoints",
-      "links": [],
-      "mime_type": "text/markdown",
-      "path": "docs/apis/gcs-api-server.md",
-      "resource_id": "mds.gcs_api",
-      "route_hint": null,
-      "summary": "GCS API surface and integration guide.",
-      "tags": [
-        "api",
-        "gcs"
-      ],
-      "text": "### WebSocket Endpoints\n- Connection overhead: **<1ms**\n- Message latency: **<5ms**\n- Concurrent connections: **1000+**\n\n---",
+      "text": "## Performance evidence\n\nCapacity and latency require a reproducible deployment/network benchmark. The\nshared observation publisher bounds subscribers, frame bytes, pending state and\nsend time; these implementation limits are not a validated fleet-flight capacity.\nMeasure source age, retries, bytes, queue wait, CPU/memory and healthy-consumer\nisolation. HTTP, stream and command acceptance tests establish different scopes.\n\n---",
       "title": "GCS API server guide"
     },
     {
@@ -9994,7 +10014,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "content_hash": "ddc33972dde0d2d90ea41993d34ebddd992dc9a96a0b8cba7d13f17981dd18cd",
       "heading": "Support",
-      "id": "mds.gcs_api:151-01-support",
+      "id": "mds.gcs_api:150-01-support",
       "links": [
         "https://github.com/alireza787b/mavsdk_drone_show/issues"
       ],
@@ -17528,8 +17548,8 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "chunk_count": 9,
-      "content_hash": "6f41e71b216c556902b340f89d29836acd28af0544406e33da4a7fb2d4273a05",
+      "chunk_count": 10,
+      "content_hash": "0ada80b7f721be057adb50b14e9524472d72ef646507d53a2441d6be436b0b02",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -17681,7 +17701,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 14,
-      "content_hash": "afd3b3efdc59da619b26c6dc3d269558e057b876b3bdea6d182159e9a3c7363f",
+      "content_hash": "4c5b9285a4a8241ab267b997242c69a6d6cd988768073bf75f3096edea643273",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17698,7 +17718,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 166,
-      "content_hash": "3911b400724b71b727557ae44a427579820d3cd9b7f29befd9018a094454343f",
+      "content_hash": "135b9fdd638123324575f3c210b9f713ad0512e9b642acca8b5387c28cf6b133",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",

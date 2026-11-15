@@ -15,6 +15,7 @@ def build_controller(mock_drone_config):
     controller.latest_messages = {}
     controller.debug_enabled = False
     controller.drone_config = mock_drone_config
+    controller._initialize_source_binding()
     controller.home_position_logged = False
     controller._status_text_buffers = {}
     controller._status_messages = OrderedDict()
@@ -85,10 +86,25 @@ def heartbeat_message(
     )
 
 
+def vehicle_heartbeat(**overrides):
+    values = dict(component_type=mavutil.mavlink.MAV_TYPE_QUADROTOR,
+                  autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_PX4,
+                  base_mode=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                  custom_mode=(4 << 16) | (3 << 24),
+                  system_status=mavutil.mavlink.MAV_STATE_STANDBY)
+    values.update(overrides)
+    return heartbeat_message(**values)
+
+
+def state_message(kind, *, system=1, component=1, **fields):
+    return SimpleNamespace(get_type=lambda: kind, get_srcSystem=lambda: system,
+                           get_srcComponent=lambda: component, **fields)
+
+
 def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, monkeypatch):
     controller = build_controller(mock_drone_config)
     monkeypatch.setattr(controller, "_now_ms", lambda: 1_765_000_000_123)
-    msg = SimpleNamespace(
+    msg = vehicle_heartbeat(
         base_mode=128,
         custom_mode=(4 << 16) | (3 << 24),
         system_status=4,
@@ -104,8 +120,8 @@ def test_process_heartbeat_timestamps_the_exact_armed_sample(mock_drone_config, 
 
 def test_extended_sys_state_is_native_timestamped_and_source_bound(mock_drone_config, monkeypatch):
     controller = build_controller(mock_drone_config)
-    controller.latest_messages['HEARTBEAT'] = SimpleNamespace(get_srcSystem=lambda: 1, get_srcComponent=lambda: 1)
     monkeypatch.setattr(controller, '_now_ms', lambda: 12345)
+    controller.process_message(vehicle_heartbeat())
     msg = SimpleNamespace(landed_state=2, get_type=lambda: 'EXTENDED_SYS_STATE',
                           get_srcSystem=lambda: 1, get_srcComponent=lambda: 1)
     controller.process_message(msg)
@@ -204,6 +220,130 @@ def test_process_message_rejects_companion_heartbeat_with_invalid_autopilot(
 
     assert mock_drone_config.custom_mode == original_mode
     assert "HEARTBEAT" not in controller.latest_messages
+
+
+@pytest.mark.parametrize('kind,handler', [
+    ('GLOBAL_POSITION_INT', 'process_global_position_int'),
+    ('HOME_POSITION', 'set_home_position'),
+    ('BATTERY_STATUS', 'process_battery_status'),
+    ('GPS_GLOBAL_ORIGIN', 'process_gps_global_origin'),
+    ('ATTITUDE', 'process_attitude'),
+    ('GPS_RAW_INT', 'process_gps_raw_int'),
+    ('SYS_STATUS', 'process_sys_status'),
+    ('LOCAL_POSITION_NED', 'process_local_position_ned'),
+    ('SCALED_PRESSURE', 'process_scaled_pressure'),
+    ('STATUSTEXT', 'process_status_text'),
+    ('EXTENDED_SYS_STATE', 'process_extended_sys_state'),
+])
+def test_process_message_never_accepts_unbound_or_foreign_system_state(mock_drone_config, monkeypatch, kind, handler):
+    controller = build_controller(mock_drone_config)
+    accept = Mock()
+    monkeypatch.setattr(controller, handler, accept)
+    assert controller.process_message(state_message(kind)) is False
+    assert kind not in controller.latest_messages
+    assert controller.process_message(vehicle_heartbeat()) is True
+    before = (mock_drone_config.telemetry_timestamp_ms, mock_drone_config.telemetry_sequence)
+    assert controller.process_message(state_message(kind, system=2)) is False
+    accept.assert_not_called()
+    assert kind not in controller.latest_messages
+    assert (mock_drone_config.telemetry_timestamp_ms, mock_drone_config.telemetry_sequence) == before
+    assert controller.process_message(state_message(kind)) is True
+    accept.assert_called_once()
+
+
+def test_gps_sensor_component_of_bound_system_is_preserved(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    monkeypatch.setattr(controller, '_now_ms', lambda: 1000)
+    assert controller.process_message(vehicle_heartbeat(source_system=42, source_component=17)) is True
+    sensor = state_message('GPS_RAW_INT', system=42, component=220, eph=80, epv=120,
+                           fix_type=6, satellites_visible=17, alt=1280400)
+    monkeypatch.setattr(controller, '_now_ms', lambda: 2000)
+    assert controller.process_message(sensor) is True
+    assert mock_drone_config.gps_fix_type == 6
+    assert mock_drone_config.gps_raw_timestamp_ms == 2000
+    assert mock_drone_config.gps_raw_altitude_m == 1280.4
+    # A GPS sensor is not permitted to become the estimator/home/arming source.
+    assert controller.process_message(state_message('HOME_POSITION', system=42, component=220)) is False
+    assert controller.process_message(state_message('GLOBAL_POSITION_INT', system=42, component=220)) is False
+    assert controller._autopilot_source == (42, 17)
+    assert mock_drone_config.heartbeat_timestamp_ms == 1000
+
+
+@pytest.mark.parametrize('kind', ['GPS_RAW_INT', 'BATTERY_STATUS', 'SCALED_PRESSURE'])
+def test_sensor_component_allowance_never_accepts_another_classified_fc(mock_drone_config, kind):
+    controller = build_controller(mock_drone_config)
+    controller.process_message(vehicle_heartbeat())
+    assert controller.process_message(vehicle_heartbeat(source_component=42)) is False
+    assert controller.process_message(state_message(kind, component=42)) is False
+    assert controller._autopilot_source == (1, 1)
+
+
+@pytest.mark.parametrize('system,component', [(2, 1), (1, 42)])
+def test_second_fc_collision_is_explicit_and_never_switches_on_silence(mock_drone_config, monkeypatch, caplog, system, component):
+    controller = build_controller(mock_drone_config)
+    monkeypatch.setattr(controller, '_now_ms', lambda: 1000)
+    accepted = vehicle_heartbeat()
+    controller.process_message(accepted)
+    before = (mock_drone_config.is_armed, mock_drone_config.heartbeat_timestamp_ms,
+              mock_drone_config.telemetry_sequence)
+    monkeypatch.setattr(controller, '_now_ms', lambda: 1_000_000)
+    other = vehicle_heartbeat(source_system=system, source_component=component,
+                              base_mode=mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+    assert controller.process_message(other) is False
+    assert controller.process_message(other) is False
+    assert (mock_drone_config.is_armed, mock_drone_config.heartbeat_timestamp_ms,
+            mock_drone_config.telemetry_sequence) == before
+    assert controller.latest_messages['HEARTBEAT'] is accepted
+    assert controller._autopilot_source == (1, 1)
+    assert sum('Multiple FC MAVLink sources' in record.message for record in caplog.records) == 1
+
+
+def test_explicit_mav_sys_id_is_independent_of_node_hw_id(mock_drone_config, caplog):
+    mock_drone_config.hw_id = '7'
+    mock_drone_config.config['mav_sys_id'] = '42'
+    controller = build_controller(mock_drone_config)
+    assert controller.process_message(vehicle_heartbeat(source_system=7)) is False
+    assert controller._autopilot_source is None
+    assert controller.process_message(vehicle_heartbeat(source_system=42)) is True
+    assert controller._autopilot_source == (42, 1)
+    assert 'configured mav_sys_id=42' in caplog.text
+
+
+def test_first_ground_station_packet_cannot_select_vehicle_source(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    gcs = vehicle_heartbeat(component_type=mavutil.mavlink.MAV_TYPE_GCS,
+                            autopilot_type=mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                            source_system=255, source_component=190)
+    assert controller.process_message(gcs) is False
+    assert controller._autopilot_source is None
+    assert controller.process_message(vehicle_heartbeat(source_system=42, source_component=17)) is True
+    assert controller._autopilot_source == (42, 17)
+
+
+@pytest.mark.parametrize('expected', [None, '', 0, 256, True, '1.5'])
+def test_invalid_explicit_mav_sys_id_fails_closed(mock_drone_config, expected, caplog):
+    mock_drone_config.config['mav_sys_id'] = expected
+    controller = build_controller(mock_drone_config)
+    assert controller.process_message(vehicle_heartbeat()) is False
+    assert controller._autopilot_source is None
+    assert 'Invalid configured mav_sys_id' in caplog.text
+
+
+@pytest.mark.parametrize('msg', [
+    SimpleNamespace(get_type=lambda: 'HEARTBEAT', base_mode=128, custom_mode=1, system_status=4),
+    state_message('HEARTBEAT'),
+    vehicle_heartbeat(source_system=0),
+    vehicle_heartbeat(source_component=0),
+    vehicle_heartbeat(source_system=True),
+    vehicle_heartbeat(autopilot_type=255),
+    vehicle_heartbeat(component_type=255),
+])
+def test_incomplete_heartbeat_or_invalid_header_never_binds(mock_drone_config, msg):
+    controller = build_controller(mock_drone_config)
+    assert controller.process_message(msg) is False
+    assert controller._autopilot_source is None
+    assert mock_drone_config.heartbeat_timestamp_ms == 0
+    assert 'HEARTBEAT' not in controller.latest_messages
 
 
 def test_get_flight_mode_name_decodes_px4_wire_layout(mock_drone_config):
@@ -373,6 +513,27 @@ def test_reset_mavlink_connection_reopens_listener(mock_drone_config, monkeypatc
 
     assert closed["called"] is True
     assert controller.mav is new_connection
+
+
+def test_listener_reconnect_keeps_original_fc_and_collision_exclusions(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    controller.local_mavlink_port = 12550
+    controller.mav = Mock()
+    controller.process_message(vehicle_heartbeat(source_system=42, source_component=17))
+    controller.process_message(vehicle_heartbeat(source_system=42, source_component=220))
+    original = controller.latest_messages['HEARTBEAT']
+    timestamp = mock_drone_config.heartbeat_timestamp_ms
+    monkeypatch.setattr(controller, '_open_mavlink_connection', lambda: Mock())
+    controller._reset_mavlink_connection('original FC silent')
+    assert controller._autopilot_source == (42, 17)
+    assert controller._foreign_fc_components == {220}
+    assert controller.process_message(vehicle_heartbeat(source_system=99)) is False
+    assert controller.process_message(state_message('GPS_RAW_INT', system=42, component=220)) is False
+    assert controller.latest_messages['HEARTBEAT'] is original
+    assert mock_drone_config.heartbeat_timestamp_ms == timestamp
+    monkeypatch.setattr(controller, '_now_ms', lambda: timestamp + 10000)
+    assert controller.process_message(vehicle_heartbeat(source_system=42, source_component=17)) is True
+    assert mock_drone_config.heartbeat_timestamp_ms == timestamp + 10000
 
 
 def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_drone_config):

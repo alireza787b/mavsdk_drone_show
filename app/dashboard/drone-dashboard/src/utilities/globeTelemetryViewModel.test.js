@@ -1,7 +1,7 @@
 import {
   buildGlobeDroneViewModels,
-  calculateGlobeTelemetryIntervalMs,
 } from './globeTelemetryViewModel';
+import { attachDroneRuntimeClock } from '../constants/fieldMappings';
 
 describe('globeTelemetryViewModel', () => {
   it('keeps configured address without filling missing velocity or follow role with zero', () => {
@@ -111,11 +111,13 @@ describe('globeTelemetryViewModel', () => {
     });
   });
 
-  it('backs off the tactical telemetry interval for hidden tabs, constrained links, and large fleets', () => {
-    expect(calculateGlobeTelemetryIntervalMs(4, { hidden: false, connection: {} })).toBe(1000);
-    expect(calculateGlobeTelemetryIntervalMs(40, { hidden: false, connection: {} })).toBe(1500);
-    expect(calculateGlobeTelemetryIntervalMs(100, { hidden: false, connection: {} })).toBe(2500);
-    expect(calculateGlobeTelemetryIntervalMs(4, { hidden: true, connection: {} })).toBe(6000);
-    expect(calculateGlobeTelemetryIntervalMs(4, { hidden: false, connection: { saveData: true } })).toBe(3000);
+  it('uses the same receipt clock and current-position aging as Overview during silence', () => {
+    const server = 1800000000000, browser = server + 3600000;
+    const row = attachDroneRuntimeClock({ hw_id: '1', update_time: server / 1000,
+      position_lat: 35, position_long: 51, global_position_valid: true,
+      global_position_age_ms: 0, global_position_timestamp_ms: server },
+    { receivedAtMs: browser, serverNowMs: server });
+    expect(buildGlobeDroneViewModels({ 1: row }, [], browser)[0].noMapFix).toBe(false);
+    expect(buildGlobeDroneViewModels({ 1: row }, [], browser + 11000)[0].noMapFix).toBe(true);
   });
 });

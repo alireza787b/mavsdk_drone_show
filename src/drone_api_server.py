@@ -65,6 +65,7 @@ from mds_logging.api_schemas import (
 )
 from src.live_armability_contract import LiveArmabilityTrustEnvelope
 from src.async_stream_utils import managed_async_stream
+from src.latest_state_publisher import LatestStatePublisher, SubscriberLimitExceeded
 from src.px4_flight_modes import decode_px4_custom_mode, PX4_MAIN_MODE_AUTO
 from src.command_execution_contract import (
     DroneExecutionOutcome,
@@ -1079,6 +1080,15 @@ class DroneAPIServer:
 
         # WebSocket connection management
         self.active_websockets: List[WebSocket] = []
+        self._drone_state_publisher = LatestStatePublisher(
+            self._drone_stream_sample, interval=1.0,
+            error_payload=lambda: {"error": "Drone state not available", "timestamp": int(time.time() * 1000)},
+        )
+        stream_rate = max(1.0, safe_float(getattr(params, "SMART_SWARM_STATE_STREAM_RATE_HZ", 15), 15.0))
+        self._swarm_state_publisher = LatestStatePublisher(
+            self._swarm_stream_sample, interval=1.0 / stream_rate,
+            error_payload=lambda: {"error": "Swarm state not available", "emitted_at_ms": int(time.time() * 1000)},
+        )
         self.last_state_hash = None  # Track state changes
         self._live_probe_lock = asyncio.Lock()
         self._px4_param_lock = asyncio.Lock()
@@ -1146,6 +1156,8 @@ class DroneAPIServer:
         try:
             yield
         finally:
+            await self._drone_state_publisher.close()
+            await self._swarm_state_publisher.close()
             await self._shutdown_ulog_download_tasks()
             await self._shutdown_command_followup_tasks()
 
@@ -2236,6 +2248,18 @@ class DroneAPIServer:
             now_ms=server_time_ms, reference=True,
         ).model_dump()
         return DroneStateResponse.model_validate(payload).model_dump()
+
+    def _drone_stream_sample(self):
+        state = self.drone_communicator.get_drone_state()
+        if not state:
+            return {"error": "Drone state not available", "timestamp": int(time.time() * 1000)}
+        return self._serialize_drone_state_payload(state)
+
+    def _swarm_stream_sample(self):
+        state = self.drone_communicator.get_swarm_state()
+        if not state:
+            return {"error": "Swarm state not available", "emitted_at_ms": int(time.time() * 1000)}
+        return self._serialize_swarm_state_payload(state)
 
     def _effective_control_command_id(self) -> Optional[str]:
         """Queued command authority takes precedence over an older subprocess."""
@@ -3787,34 +3811,17 @@ class DroneAPIServer:
 
             The endpoint sends state updates at 1 Hz (configurable).
             """
-            await websocket.accept()
-            self.active_websockets.append(websocket)
-
-            logger.info(f"WebSocket client connected from {websocket.client.host}")
-            logger.info(f"Active WebSocket connections: {len(self.active_websockets)}")
-
             try:
-                while True:
-                    # Get current drone state
-                    drone_state = self.drone_communicator.get_drone_state()
-
-                    if drone_state:
-                        # Send state to client
-                        await websocket.send_json(self._serialize_drone_state_payload(drone_state))
-                    else:
-                        # Send error message if state not available
-                        await websocket.send_json({
-                            "error": "Drone state not available",
-                            "timestamp": int(time.time() * 1000)
-                        })
-
-                    # Update interval: 1 Hz (can be adjusted based on requirements)
-                    # For higher frequency: 0.1 (10 Hz) or 0.05 (20 Hz)
-                    # For lower frequency: 2 (0.5 Hz) or 5 (0.2 Hz)
-                    await asyncio.sleep(1.0)
-
+                async with self._drone_state_publisher.subscribe() as updates:
+                    await websocket.accept()
+                    self.active_websockets.append(websocket)
+                    await self._drone_state_publisher.send(updates, websocket, timeout=3.0)
+            except SubscriberLimitExceeded:
+                await websocket.close(code=1013)
             except WebSocketDisconnect:
                 logger.info(f"WebSocket client disconnected from {websocket.client.host}")
+            except asyncio.TimeoutError:
+                await websocket.close(code=1013)
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
             finally:
@@ -3826,23 +3833,16 @@ class DroneAPIServer:
         @self.app.websocket(DRONE_WS_SWARM_STATE_ROUTE)
         async def websocket_swarm_state(websocket: WebSocket):
             """Dedicated Smart Swarm leader-state stream for follower control."""
-            await websocket.accept()
-            rate_hz = max(1.0, safe_float(getattr(self.params, "SMART_SWARM_STATE_STREAM_RATE_HZ", 15), 15.0))
-            interval = 1.0 / rate_hz
-
             try:
-                while True:
-                    swarm_state = self.drone_communicator.get_swarm_state()
-                    if swarm_state:
-                        await websocket.send_json(self._serialize_swarm_state_payload(swarm_state))
-                    else:
-                        await websocket.send_json({
-                            "error": "Swarm state not available",
-                            "emitted_at_ms": int(time.time() * 1000),
-                        })
-                    await asyncio.sleep(interval)
+                async with self._swarm_state_publisher.subscribe() as updates:
+                    await websocket.accept()
+                    await self._swarm_state_publisher.send(updates, websocket, timeout=0.75)
+            except SubscriberLimitExceeded:
+                await websocket.close(code=1013)
             except WebSocketDisconnect:
                 logger.info("Smart Swarm WebSocket client disconnected")
+            except asyncio.TimeoutError:
+                await websocket.close(code=1013)
             except Exception as exc:
                 logger.error(f"Smart Swarm WebSocket error: {exc}")
 

@@ -673,6 +673,11 @@ Current runtime contract:
 
 - follower-to-leader state is websocket-primary with bounded reconnect/backoff
 - follower-to-leader HTTP fallback is still available and intentionally kept
+- fallback acquisition continues while bounded WS probes run; a valid advancing
+  motion sample, not TCP/Pong/error traffic, renews stream health. An assignment
+  change cancels the old target even during message silence. Both paths feed the
+  existing native identity/freshness/order validator, so a late fallback response
+  cannot undo newer motion.
 - all active roles subscribe to the authenticated GCS formation watch; HTTP
   reconciliation runs every 30 seconds while connected, or every 2 seconds
   while disconnected (plus request duration)
@@ -688,7 +693,9 @@ Why this is the correct current design:
 
 Why it is still not the final large-scale architecture:
 
-- GCS-side live telemetry views are still a mix of polling and streams
+- General GCS observations use shared WS/HTTP acquisition and browser ownership;
+  native mission/admission, configuration, event logs and file transactions keep
+  their distinct authority and semantics.
 - GCS telemetry polls now run independently per aircraft with bounded async
   connections and backoff for unreachable peers, so offline fleet entries do
   not serially delay healthy aircraft. Native timestamps and stale thresholds
@@ -699,7 +706,7 @@ Why it is still not the final large-scale architecture:
 
 Recommended next industrial path:
 
-1. keep the websocket + HTTP dual path
+1. keep the websocket + HTTP recovery path, without two continuous normal readers
 2. validate degraded-network behavior under induced delay/loss/partitions
 3. add richer operator-visible leader-state confidence and transport metrics
 4. only then consider payload compression or more aggressive transport optimization
