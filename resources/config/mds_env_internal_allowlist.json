@@ -77,6 +77,12 @@
       "reason": "Artifact directory for isolated Overview browser acceptance screenshots and summaries."
     },
     {
+      "name": "MDS_OVERVIEW_NAME_SUFFIX",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Optional label suffix for synthetic Overview browser fixtures."
+    },
+    {
       "name": "MDS_OVERVIEW_COUNTS",
       "domain": "frontend",
       "scope": "test",
