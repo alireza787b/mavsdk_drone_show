@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Display PX4's native, mode-specific arming permission on Overview and in
+  mission reviews. The companion reuses its local MAVLink listener and the
+  GCS shares a compact, expiring verdict. Details opens the cached PX4 reasons.
+
 - Use compact red/amber alert counters in Overview, Smart Swarm, and Takeoff.
   Show source and last-reported evidence on demand without changing command or
   coordination behavior.

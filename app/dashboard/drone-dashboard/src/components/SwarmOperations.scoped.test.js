@@ -3,6 +3,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import SwarmOperations from './SwarmOperations';
 import { fetchGcsResource } from '../services/gcsApiService';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+let mockAirspace = {};
+jest.mock('./ui/Px4ArmingStatus', () => ({
+  ...jest.requireActual('./ui/Px4ArmingStatus'),
+  usePx4Fleet: () => ({ rows: Object.fromEntries(['1','2','3'].map(id => [id, {
+    telemetry_available: true, is_armed: false, landed_state: 1, heartbeat_age_ms: 0, landed_state_age_ms: 0,
+    ...mockAirspace[id],
+  }])), now: Date.now(), refresh: () => {} }),
+}));
 jest.mock('../services/gcsApiService',()=>({fetchGcsResource:jest.fn()}));
 jest.mock('../contexts/AuthContext',()=>({useAuth:()=>({loading:false,user:{username:'operator'}})}));
 jest.mock('../utilities/commandLifecycleFeedback',()=>({submitCommandWithLifecycleFeedback:jest.fn(),trackCommandReceipt:jest.fn()}));
@@ -13,6 +21,7 @@ const members=['1','2','3'].map(hw_id=>({hw_id,follow:hw_id==='1'?'0':'1',availa
 const ready=id=>({hw_id:id,status:'ready',valid_for_ms:10000,scoped_start_supported:true});
 let referenceBlocked;
 beforeEach(()=>{
+  mockAirspace = {};
   jest.clearAllMocks();sessionStorage.clear();mockMonitors.length=0;referenceBlocked=false;
   submitCommandWithLifecycleFeedback.mockResolvedValue({command_id:'retry'});
   fetchGcsResource.mockImplementation((_path,options)=>{

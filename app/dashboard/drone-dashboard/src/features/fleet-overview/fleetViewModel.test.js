@@ -17,13 +17,14 @@ describe('fleet presentation truth', () => {
   test('only a current, same-mode PX4 report gives a ground preflight verdict', () => {
     const mode = 50593792;
     const report = { source: 'px4_events', mode: 'Hold', custom_mode: mode, can_arm: false,
-      expires_at_gcs_ms: NOW + 1000, mode_problems: [{ severity: 'ERROR', message: 'No valid position estimate' }] };
+      expires_at_gcs_ms: NOW + 1000, revision: 'a'.repeat(24), mode_problems: [{ severity: 'ERROR', message: 'No valid position estimate' }] };
     const drone = live('1', { flight_mode: mode, px4_arming_report: report });
-    expect(build(drone).preflight).toMatchObject({ status: 'blocked', mode: 'Hold', problems: report.mode_problems });
-    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true, mode_problems: [] } }).preflight.status).toBe('ready');
-    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true } }).preflight.status).toBe('caution');
+    expect(build(drone).preflight).toMatchObject({ can_arm: false, mode: 'Hold', label: 'PX4 cannot arm' });
+    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true, mode_problems: [] } }).preflight.label).toBe('PX4 can arm');
+    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true } }).preflight.label).toBe('PX4 can arm');
+    expect(build({ ...drone, telemetry_available: false }).preflight).not.toBeNull();
     expect(build(drone, NOW + 1000).preflight).toBeNull();
-    for (const override of [{ is_armed: true }, { landed_state: 2 }, { flight_mode: 131072 }, { telemetry_available: false }]) {
+    for (const override of [{ is_armed: true }, { landed_state: 2 }, { flight_mode: 131072 }]) {
       expect(build({ ...drone, ...override }).preflight).toBeNull();
     }
   });

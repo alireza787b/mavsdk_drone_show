@@ -9,24 +9,33 @@ jest.mock('../utilities/commandLifecycleFeedback', () => ({ submitCommandWithLif
 const mockCallbacks = { onStatusUpdate: jest.fn() };
 jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () => ({ commandLifecycleCallbacks: mockCallbacks }) }));
 const command = { mission_type: 10, trigger_time: 0, target_drone_ids: ['1', '2'], takeoff_altitude: 10 };
-const native = { valid_for_ms: 5000, targets: ['1', '2'].map((hw_id) => ({ hw_id, status: 'ready', coordinated_takeoff_supported: true })) };
+const mockRefresh = jest.fn();
+const mode = (2 << 24) | (4 << 16);
+let mockRows, mockReceivedAt;
+const ground = { telemetry_available: true, is_armed: false, landed_state: 1, heartbeat_age_ms: 0,
+  landed_state_age_ms: 0, coordinated_takeoff_supported: true };
+const report = (can_arm, custom_mode = mode) => ({ source: 'px4_events', custom_mode, mode: custom_mode === mode ? 'Takeoff' : 'Hold',
+  can_arm, revision: 'a'.repeat(24), expires_at_gcs_ms: Date.now() + 5000 });
+jest.mock('./ui/Px4ArmingStatus', () => {
+  const actual = jest.requireActual('./ui/Px4ArmingStatus');
+  const { default: useClock } = jest.requireActual('../hooks/useObservationClock');
+  return { ...actual, usePx4Fleet: () => ({ rows: mockRows, now: useClock(), receivedAt: mockReceivedAt, refresh: mockRefresh }) };
+});
 const aircraft = [{ hw_id: '1', callsign: 'Scout' }, { hw_id: '2', callsign: 'Wing' }];
 
 test.each([true, false])('only an applicable native PX4 report colors Takeoff (Position verdict %s)', async (positionVerdict) => {
-  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
-    { ...native.targets[0], px4_arming_report: { source: 'px4', mode: 'Takeoff', can_arm_or_run: true } },
-    { ...native.targets[1], px4_arming_report: { source: 'px4', mode: 'Position', can_arm_or_run: positionVerdict } },
-  ] } });
+  mockRows['1'].px4_takeoff_arming_report = report(true);
+  mockRows['2'].px4_takeoff_arming_report = report(positionVerdict, 50593792);
   await ready();
-  expect(screen.getByText('PX4 ready for Takeoff').closest('li')).toHaveAttribute('data-native-preflight', 'ready');
-  expect(screen.getByText('Reviewed').closest('li')).not.toHaveAttribute('data-native-preflight');
-  expect(screen.queryByText('PX4 restricted')).not.toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'PX4 can arm · Takeoff' })).toBeInTheDocument();
+  expect(screen.queryByRole('img', { name: /Hold/ })).not.toBeInTheDocument();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 beforeEach(() => {
   jest.clearAllMocks();
   sessionStorage.clear();
-  fetchGcsResource.mockResolvedValue({ data: native });
+  mockReceivedAt = Date.now();
+  mockRows = { 1: { ...ground }, 2: { ...ground } };
   submitCommandWithLifecycleFeedback.mockResolvedValue({ command_id: 'launch-1', accepted_for_tracking: true });
   trackCommandReceipt.mockImplementation((_command, response) => response);
 });
@@ -71,34 +80,30 @@ test('review is read-only and multi-aircraft defaults to the armed barrier', asy
 });
 
 test('blocked aircraft remains visible and prevents group confirmation', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { valid_for_ms: 5000, targets: [native.targets[0], { hw_id: '2', status: 'blocked', reason: 'Heading estimate unstable' }] } });
+  mockRows['2'].landed_state = 2;
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
-  await screen.findByText('Heading estimate unstable');
+  await screen.findByText('Aircraft must be disarmed and on the ground');
   expect(screen.getByText('Wing')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 
 test('unavailable evidence never becomes green or actionable', async () => {
-  fetchGcsResource.mockRejectedValue(new Error('Offline'));
+  mockRows = {};
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
-  await waitFor(() => expect(fetchGcsResource).toHaveBeenCalled());
+  expect(fetchGcsResource).not.toHaveBeenCalled();
   expect(screen.getAllByText('Checking')).toHaveLength(2);
   expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
 });
 
-test('native probe processing is not subtracted twice from the returned freshness lease', async () => {
-  const clock = jest.spyOn(Date, 'now');
-  let current = 10000;
-  clock.mockImplementation(() => current);
-  fetchGcsResource.mockImplementation(async () => {
-    current += 2000;
-    return { data: { ...native, valid_for_ms: 900, server_processing_ms: 1990 } };
-  });
-  try {
-    await ready();
-    expect(screen.getAllByText('Reviewed')).toHaveLength(2);
-  } finally { clock.mockRestore(); }
+test('Recheck reads shared telemetry and preserves the selected aircraft and height', async () => {
+  await ready();
+  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '17' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Recheck' }));
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeChecked();
+  expect(screen.getByRole('spinbutton')).toHaveValue(17);
+  expect(fetchGcsResource).not.toHaveBeenCalled();
 });
 
 test('independent mode is explicit and does not hide a member', async () => {
@@ -110,7 +115,7 @@ test('independent mode is explicit and does not hide a member', async () => {
 });
 
 test('older software cannot silently fall back to independent launch', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { valid_for_ms: 5000, targets: native.targets.map((row) => ({ ...row, coordinated_takeoff_supported: false })) } });
+  Object.values(mockRows).forEach(row => { row.coordinated_takeoff_supported = false; });
   render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
   await screen.findAllByText('Software update required for coordinated takeoff');
   expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
@@ -203,8 +208,7 @@ test('cancelled cleanup is shown confirmed only from terminal aircraft evidence'
 test('short native lease does not flicker review; stalled preview still expires', async () => {
   jest.useFakeTimers();
   try {
-    fetchGcsResource.mockResolvedValueOnce({ data: { ...native, valid_for_ms: 30 } })
-      .mockImplementation(() => new Promise(() => {}));
+    mockReceivedAt = Date.now();
     render(<TakeoffDialog open command={command} aircraft={aircraft} onClose={jest.fn()} />);
     await act(async () => {});
     expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeEnabled();
@@ -254,12 +258,9 @@ test('incoming scope is selected by default, without adding aircraft outside tha
 });
 
 test('zero group lease preserves the blocked reason; explicit exclusion changes only Takeoff targets', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { valid_for_ms: 0, targets: [
-    { ...native.targets[0], valid_for_ms: 5000 },
-    { hw_id: '2', status: 'blocked', valid_for_ms: 0, reason: 'Heading estimate unstable' },
-  ] } });
+  mockRows['2'].landed_state = 2;
   render(<TakeoffDialog open command={{ ...command, takeoff_mode: 'coordinated', uiMeta: { targetLabel: 'Cluster 1' } }} aircraft={aircraft} onClose={jest.fn()} />);
-  await screen.findByText('Heading estimate unstable');
+  await screen.findByText('Aircraft must be disarmed and on the ground');
   expect(screen.getByRole('checkbox', { name: 'Include Wing (H2)' })).toBeChecked();
   expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Include Wing (H2)' }));
@@ -267,7 +268,7 @@ test('zero group lease preserves the blocked reason; explicit exclusion changes 
   expect(screen.getByText('Wing').closest('li')).toHaveClass('takeoff-review__aircraft--excluded');
   expect(screen.getByText('Not included')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Select all' })).toBeEnabled();
-  expect(fetchGcsResource).toHaveBeenLastCalledWith('/api/v1/commands/takeoff-readiness?target_drone_ids=1');
+  expect(fetchGcsResource).not.toHaveBeenCalled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(1));
@@ -346,55 +347,32 @@ test('after a definite rejection an edited selection gets a new identity and amb
   expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2);
 });
 
-test('one aggregated caution separates missing PX4 reports from unavailable aircraft', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
-    ...native.targets,
-    { hw_id: '3', status: 'unavailable', reason: 'Checking aircraft' },
-  ] } });
-  render(<TakeoffDialog open command={{ ...command, target_drone_ids: ['1', '2', '3'] }} aircraft={aircraft} onClose={jest.fn()} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Caution: 2' }));
-  const alerts = screen.getByRole('list', { name: 'Current alerts' });
-  expect(within(alerts).getByText(/PX4 Takeoff report unavailable/)).toHaveTextContent('2 aircraft');
-  expect(within(alerts).getByText(/Aircraft status unavailable/)).toHaveTextContent('1 aircraft');
-  expect(screen.queryByText('PX4 ready for Takeoff')).not.toBeInTheDocument();
-  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
-});
-
-test('the native PX4 report is displayed independently of MDS readiness', async () => {
-  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
-    { ...native.targets[0], px4_arming_report: {
-      source: 'px4', mode: 'Takeoff', can_arm_or_run: false,
-      mode_problems: [{ message: 'Position estimate unavailable', description: 'Wait for estimate', severity: 'Error' }],
-    } }, native.targets[1],
-  ] } });
+test('a missing native report stays in Details without a caution badge', async () => {
   await ready();
-  expect(screen.getByText('PX4 restricted')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Warning: 1' }));
-  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText(/PX4 reports Takeoff not ready/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Caution: 2' }));
-  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText('Takeoff · Wait for estimate')).toBeInTheDocument();
-  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
-  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+  const details = screen.getAllByLabelText('PX4 arming report')[0].parentElement;
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+  expect(await screen.findByText('PX4 report unavailable')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Caution/ })).not.toBeInTheDocument();
 });
 
-test('a lost native report removes the red count without erasing the last reported restriction', async () => {
+test('an explicit native red verdict is shown independently of aircraft admission', async () => {
+  mockRows['1'].px4_takeoff_arming_report = report(false);
+  await ready();
+  expect(screen.getByRole('img', { name: 'PX4 cannot arm · Takeoff' })).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
+});
+
+test('the native badge survives missed updates and disappears on its original deadline', async () => {
   jest.useFakeTimers();
   try {
-    fetchGcsResource.mockResolvedValueOnce({ data: { ...native, targets: [
-      { ...native.targets[0], px4_arming_report: {
-        source: 'px4', mode: 'Takeoff', can_arm_or_run: false, mode_problems: [{ message: 'Heading unstable' }],
-      } }, native.targets[1],
-    ] } }).mockRejectedValue(new Error('Offline'));
+    mockReceivedAt = Date.now();
+    mockRows['1'].px4_takeoff_arming_report = report(false);
     await ready();
-    expect(screen.getByRole('button', { name: 'Warning: 1' })).toBeInTheDocument();
-    await act(async () => { jest.advanceTimersByTime(1500); });
-    expect(screen.queryByRole('button', { name: 'Warning: 1' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
-    fireEvent.click(screen.getByText('Last reported'));
-    expect(screen.getByRole('list', { name: 'Last reported alerts' })).toHaveTextContent('Heading unstable');
-    expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
-    expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
-  } finally {
-    jest.useRealTimers();
-  }
+    expect(screen.getByRole('img', { name: 'PX4 cannot arm · Takeoff' })).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(4200); });
+    expect(screen.getByRole('img', { name: 'PX4 cannot arm · Takeoff' })).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(screen.queryByRole('img', { name: 'PX4 cannot arm · Takeoff' })).not.toBeInTheDocument();
+  } finally { jest.useRealTimers(); }
 });

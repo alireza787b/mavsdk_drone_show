@@ -179,7 +179,7 @@ function FleetOverview({ runtimeMode, operatorId }) {
     </footer>
     {choosingRecipients && <CommandAircraftPicker selectedIds={selection.ids} configuredIds={resources.configuredIds} aircraft={model.aircraft} groups={groups}
       onClose={() => setChoosingRecipients(false)} onApply={ids => { dispatch({ type: 'group', ids }); setChoosingRecipients(false); }} />}
-    {inspected && !more && !intent && !takeoff && !moveTargets && <AircraftInspector item={inspected} onClose={() => inspect(null)} onAction={action} onMove={openMove} onMore={openMore} />}
+    {inspected && !more && !intent && !takeoff && !moveTargets && <AircraftInspector item={inspected} refreshTelemetry={resources.telemetry.refresh} onClose={() => inspect(null)} onAction={action} onMove={openMove} onMore={openMore} />}
     {intent && <ActionReview key={`${intent.storageKey}:${intent.command.idempotency_key || 'review'}`} intent={intent.command} storageKey={intent.storageKey} runtimeMode={runtimeMode} aircraft={model.aircraft}
       onClose={closeReview} onResolved={() => setPending(readPendingActions(pendingKey))} onRemoveUnavailable={removeUnavailable} />}
     <TakeoffDialog open={Boolean(takeoff)} command={takeoff} aircraft={resources.drones} onClose={() => setTakeoff(null)} />

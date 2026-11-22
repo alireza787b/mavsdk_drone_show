@@ -15,6 +15,7 @@ import aiohttp
 import httpx
 
 from mds_logging import get_logger
+from px4_preflight_relay import Px4PreflightRelay, monotonic_ms
 from src.drone_api_routes import DRONE_STATE_ROUTE, DRONE_WS_STATE_ROUTE
 
 
@@ -58,6 +59,7 @@ def _valid_sample(data, expected_hw_id, *, stream):
 
 @dataclass
 class _PeerState:
+    px4: Px4PreflightRelay = field(default_factory=Px4PreflightRelay)
     stream_valid: bool = False
     stream_revision: int = 0
     changed: asyncio.Event = field(default_factory=asyncio.Event)
@@ -113,10 +115,17 @@ class FleetTelemetryPoller:
             revision = state.stream_revision
             try:
                 async with self.slots:
+                    if state.stream_valid or revision != state.stream_revision:
+                        continue
+                    started_ms = monotonic_ms()
+                    known_revisions = {item[0] for item in state.px4.details.values()}
+                    request_options = ({
+                        "headers": {"X-MDS-PX4-Revisions": ",".join(sorted(known_revisions))},
+                    } if known_revisions else {})
                     async with asyncio.timeout(self.request_timeout):
                         response = await self.client.get(
                             f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_STATE_ROUTE}",
-                            timeout=self.request_timeout,
+                            timeout=self.request_timeout, **request_options,
                         )
                     response.raise_for_status()
                     data = _valid_sample(response.json(), key[0], stream=False)
@@ -129,7 +138,12 @@ class FleetTelemetryPoller:
             if state.stream_valid or revision != state.stream_revision:
                 failures = 0
                 continue
-            self._publish(key, data if error is None else None, error)
+            if data is not None:
+                state.px4.update(data, earliest_send_ms=started_ms, received_ms=monotonic_ms())
+                cache = state.px4.snapshot()
+                if cache:
+                    data['_px4_preflight_cache'] = cache
+            self._publish(key, data, error)
             await self._wait_for_change(state, self.interval if not failures else self._retry_delay(failures))
 
     async def _stream_worker(self, key, drone, state):
@@ -141,11 +155,13 @@ class FleetTelemetryPoller:
             retry_delay = None
             try:
                 async with self.probes:
+                    connection_started = monotonic_ms()
                     socket = await asyncio.wait_for(self.ws_connect(
-                        f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_WS_STATE_ROUTE}",
+                        f"http://{drone['ip']}:{self.params.drone_api_port}{DRONE_WS_STATE_ROUTE}?px4_reports=1",
                         max_msg_size=1024 * 1024,
                     ), timeout=self.connect_timeout)
                 deadline = loop.time() + self.idle_timeout
+                clock_sample = None
                 while key in self.current():
                     remaining = deadline - loop.time()
                     if remaining <= 0:
@@ -158,7 +174,25 @@ class FleetTelemetryPoller:
                         continue
                     except TypeError as exc:
                         raise _InvalidTelemetry('Drone state stream closed without a state sample') from exc
+                    received = monotonic_ms()
+                    if isinstance(payload, dict) and payload.get('type') == 'px4_clock':
+                        node_ms = payload.get('monotonic_ms')
+                        if clock_sample is None and type(node_ms) is int and received - connection_started <= 2000:
+                            clock_sample = node_ms
+                        continue
                     data = _valid_sample(payload, key[0], stream=True)
+                    sent_ms = data.get('px4_node_monotonic_ms')
+                    lower_bound = None
+                    if clock_sample is not None and type(sent_ms) is int and sent_ms >= clock_sample:
+                        elapsed = sent_ms - clock_sample
+                        # Allow 1000 ppm drift between the two monotonic clocks.
+                        lower_bound = connection_started + elapsed - (elapsed // 1000 + 2)
+                        if lower_bound > received:
+                            lower_bound = None
+                    state.px4.update(data, earliest_send_ms=lower_bound, received_ms=received)
+                    cache = state.px4.snapshot()
+                    if cache:
+                        data['_px4_preflight_cache'] = cache
                     deadline = loop.time() + self.idle_timeout
                     failures = 0
                     last_issue = None
@@ -166,6 +200,9 @@ class FleetTelemetryPoller:
                     state.stream_valid = True
                     state.changed.set()
                     self._publish(key, data)
+                    if clock_sample is not None and received - connection_started >= 240_000:
+                        retry_delay = 0
+                        break
             except (aiohttp.ClientError, OSError, TimeoutError, _InvalidTelemetry) as exc:
                 failures += 1
                 # HTTP-only old companions need bounded capability probes, not

@@ -1,6 +1,7 @@
 """Core GCS FastAPI routes for health, telemetry, and heartbeats."""
 
 import time
+from contextlib import nullcontext
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket
@@ -10,6 +11,7 @@ from auth_runtime import authorize_websocket
 from node_boot_status import get_all_node_boot_statuses, handle_node_boot_status_post
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from fleet_telemetry_snapshot import fleet_telemetry_snapshot
+from px4_preflight_relay import monotonic_ms
 from observation_stream import LatestObservationPublisher, serve_observations
 from schemas import (
     HealthCheckResponse,
@@ -397,9 +399,20 @@ def create_core_router(deps: Any) -> APIRouter:
         if protocol_version == 1:
             return JSONResponse(
                 telemetry_publisher.current().http_body(),
-                headers={"X-MDS-Server-Time": str(int(time.time() * 1000))},
+                headers={"X-MDS-Server-Time": str(int(time.time() * 1000)),
+                         "X-MDS-Server-Monotonic": str(monotonic_ms())},
             )
         return _build_typed_telemetry_response(deps, response=response)
+
+    @router.get("/api/v1/fleet/aircraft/{hw_id}/px4-arming-report", tags=["Telemetry"])
+    async def get_px4_report_details(hw_id: str, revision: str = Query(..., min_length=24, max_length=24)):
+        lock = getattr(deps, 'telemetry_lock', None) or getattr(deps, 'data_lock', None)
+        with lock if lock is not None else nullcontext():
+            cache = (deps.telemetry_data_all_drones.get(hw_id) or {}).get('_px4_preflight_cache', {})
+            for deadline, verdict, reasons in cache.values():
+                if deadline > monotonic_ms() and revision == verdict['revision'] and reasons is not None:
+                    return {"revision": revision, "mode_problems": reasons}
+        return {"revision": revision, "mode_problems": None}
 
     @router.get(
         "/api/v1/fleet/action-readiness",
@@ -418,6 +431,8 @@ def create_core_router(deps: Any) -> APIRouter:
             return
         await websocket.accept()
         deps.log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
+        if websocket.query_params.get('px4_reports') == '1':
+            await websocket.send_json({'type': 'px4_clock', 'monotonic_ms': monotonic_ms()})
         try:
             requested_interval_ms = int(websocket.query_params.get("interval_ms", "1000"))
         except (TypeError, ValueError):

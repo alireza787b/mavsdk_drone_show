@@ -1,8 +1,12 @@
-"""Read-only PX4 Events report on the shared telemetry path, never admission."""
+"""Typed PX4 Events observations shared by the companion and GCS."""
 
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationError
+
+from src.px4_flight_modes import PX4_TAKEOFF_CUSTOM_MODE
+
+REPORT_KEYS = ('px4_arming_report', 'px4_takeoff_arming_report')
 
 
 class Px4PreflightProblem(BaseModel):
@@ -11,41 +15,34 @@ class Px4PreflightProblem(BaseModel):
     description: str = Field(default='', max_length=4096)
 
 
-class Px4PreflightReport(BaseModel):
+class Px4Verdict(BaseModel):
     source: Literal['px4_events']
     mode: str = Field(min_length=1, max_length=96)
     custom_mode: int = Field(strict=True, gt=0, le=0xFFFFFFFF)
     can_arm: bool = Field(strict=True)
-    mode_problems: Annotated[list[Px4PreflightProblem], Field(max_length=128)]
+    revision: str = Field(pattern=r'^[0-9a-f]{24}$')
+
+
+class Px4PreflightReport(Px4Verdict):
+    mode_problems: Annotated[list[Px4PreflightProblem], Field(max_length=24)] | None = None
     remaining_valid_ms: int = Field(strict=True, gt=0, le=5000)
+    sample: int = Field(strict=True, gt=0)
 
 
-class FleetPx4PreflightReport(Px4PreflightReport):
+class FleetPx4PreflightReport(Px4Verdict):
     expires_at_gcs_ms: int = Field(strict=True, gt=0)
+    expires_at_gcs_monotonic_ms: int = Field(strict=True, gt=0)
 
 
-def current_preflight_report(state: dict) -> Px4PreflightReport | None:
-    """Validate the producer's observation without certifying transport freshness."""
+def current_preflight_report(state, key='px4_arming_report'):
+    """Validate a disarmed observation and its exact requested mode."""
     if state.get('telemetry_available') is not True or state.get('is_armed') is not False:
         return None
     if type(state.get('landed_state')) is not int or state['landed_state'] != 1:
         return None
+    expected = state.get('flight_mode') if key == REPORT_KEYS[0] else PX4_TAKEOFF_CUSTOM_MODE
     try:
-        report = Px4PreflightReport.model_validate(state.get('px4_arming_report'))
+        report = Px4PreflightReport.model_validate(state.get(key))
     except ValidationError:
         return None
-    if type(state.get('flight_mode')) is not int or state['flight_mode'] != report.custom_mode:
-        return None
-    return report
-
-
-def relay_preflight_report(state: dict, *, node_sent_at_ms: int | None,
-                           received_at_ms: int) -> FleetPx4PreflightReport | None:
-    """Convert a node lease once; refuse unsynchronized or expired evidence."""
-    report = current_preflight_report(state)
-    if report is None or node_sent_at_ms is None or node_sent_at_ms > received_at_ms:
-        return None
-    expires_at = node_sent_at_ms + report.remaining_valid_ms
-    if expires_at <= received_at_ms:
-        return None
-    return FleetPx4PreflightReport(**report.model_dump(), expires_at_gcs_ms=expires_at)
+    return report if type(expected) is int and report.custom_mode == expected else None

@@ -432,3 +432,63 @@ async def test_stream_publication_programming_failure_is_not_hidden_as_transport
         with pytest.raises(ValueError, match='injected publication failure'):
             await asyncio.wait_for(owner.run(), timeout=1)
         assert socket.closed
+
+
+@pytest.mark.asyncio
+async def test_five_dashboards_share_one_observer_per_aircraft_and_compact_verdicts():
+    from contextlib import AsyncExitStack
+    from collections import Counter
+    from urllib.parse import urlsplit
+    from observation_stream import LatestObservationPublisher
+    from px4_preflight_relay import monotonic_ms
+
+    targets = [{'hw_id': str(i), 'ip': f'node-{i}'} for i in range(1, 101)]
+    streams = {}
+    stream_opens = Counter()
+    views = {}
+    http_reads = Counter()
+
+    async def connect(url, **_):
+        ident = urlsplit(url).hostname.removeprefix('node-')
+        stream_opens[ident] += 1
+        sock = streams[ident] = StateSocket()
+        now = monotonic_ms()
+        sock.messages.put_nowait({'type': 'px4_clock', 'monotonic_ms': now})
+        sock.messages.put_nowait({
+            'hw_id': ident, 'update_time': 123, 'telemetry_available': True,
+            'flight_mode': 50593792, 'is_armed': False, 'landed_state': 1,
+            'px4_report_epoch': f'{ident}:1', 'px4_node_monotonic_ms': now,
+            'px4_arming_report': {'source': 'px4_events', 'mode': 'Hold',
+                'custom_mode': 50593792, 'can_arm': True, 'revision': 'b' * 24,
+                'remaining_valid_ms': 4000, 'sample': 1,
+                'mode_problems': [{'message': 'Example native advice', 'severity': 'INFO'}]},
+        })
+        await asyncio.sleep(.025)
+        return sock
+
+    async def request(req):
+        http_reads[req.url.host] += 1
+        await asyncio.sleep(.015)
+        return httpx.Response(200, json={'update_time': 123})
+
+    def publish(drone, data, _):
+        if data and '_px4_preflight_cache' in data:
+            views[drone['hw_id']] = data['_px4_preflight_cache']['px4_arming_report'][1]
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(request)) as client:
+        fleet = FleetTelemetryPoller(params(limit=25), lambda: targets, publish, client=client, ws_connect=connect)
+        worker = asyncio.create_task(fleet.run())
+        try:
+            await until(lambda: len(views) == 100, timeout=3)
+            original_reads = http_reads.copy()
+            publisher = LatestObservationPublisher(lambda: {'rows': views.copy()}, lambda body: body, interval=.02)
+            async with AsyncExitStack() as dashboards:
+                queues = [await dashboards.enter_async_context(publisher.subscribe()) for _ in range(5)]
+                await asyncio.sleep(.09)
+                frames = [await queue.get() for queue in queues]
+                assert all(len(frame.body['rows']) == 100 for frame in frames)
+                assert all('Example native advice' not in frame.versioned_json for frame in frames)
+                assert dict(stream_opens) == {row['hw_id']: 1 for row in targets}
+                assert http_reads == original_reads
+        finally:
+            await stop(worker)

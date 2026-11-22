@@ -1,3 +1,4 @@
+import { Px4MissionIndicators } from './ui/Px4ArmingStatus';
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
@@ -169,11 +170,11 @@ const CommandPreflightSummary = ({
     },
     {
       key: 'readiness',
-      label: 'Readiness',
+      label: 'MDS observations',
       value: `${summary.counts.ready}/${summary.counts.configured}`,
       detail: `${summary.counts.review} review · ${summary.counts.blocked} blocked`,
       state: !summary.counts.configured ? 'neutral' : summary.counts.blocked > 0 ? 'danger' : summary.exceptions.some((exception) => exception.group === 'readiness' && exception.state === 'warning') ? 'warning' : 'good',
-      tooltip: `${summary.counts.ready} targets are ready, ${summary.counts.review} need review, and ${summary.counts.blocked} are blocked for launch or dispatch. Advisory warnings do not block an armable target.`,
+      tooltip: `${summary.counts.ready} targets have favorable observations, ${summary.counts.review} need review, and ${summary.counts.blocked} have unfavorable or unavailable observations.`,
       exceptionCount: metricExceptionCounts.readiness || 0,
     },
     {
@@ -208,10 +209,10 @@ const CommandPreflightSummary = ({
   );
   const overallState = !hasTargets ? 'neutral' : hasReadinessBlocker ? 'danger' : hasReadinessCaution ? 'warning' : 'good';
   const overallLabel = !hasTargets ? 'NO TARGETS' : hasReadinessBlocker
-    ? 'NOT READY'
+    ? 'CHECK AIRCRAFT'
     : hasReadinessCaution
-      ? 'READY · CAUTION'
-      : 'READY';
+      ? 'REVIEW OBSERVATIONS'
+      : 'OBSERVATIONS CLEAR';
 
   const handleMetricClick = (metric) => {
     if (!metric.exceptionCount) {
@@ -225,7 +226,7 @@ const CommandPreflightSummary = ({
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div className="command-preflight__header-copy">
-          <h3>Flight readiness</h3>
+          <h3>Launch observations</h3>
           <div className="command-preflight__header-meta">
             <span className={`command-preflight__state command-preflight__state--${overallState}`}>
               <span className="command-preflight__state-dot" aria-hidden="true" />
@@ -238,7 +239,8 @@ const CommandPreflightSummary = ({
           </div>
         </div>
       </div>
-
+      <Px4MissionIndicators ids={targetMode === 'all' ? drones.map(drone => normalizeId(drone?.[FIELD_NAMES.HW_ID])) : targetDroneIds}
+        rows={Object.fromEntries(drones.map(drone => [normalizeId(drone?.[FIELD_NAMES.HW_ID]), drone]))} now={referenceNowMs} />
       <div className="command-preflight__grid">
         {metrics.map((metric) => (
           <button

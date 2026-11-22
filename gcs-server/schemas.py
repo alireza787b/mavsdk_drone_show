@@ -568,6 +568,8 @@ class DroneTelemetry(BaseModel):
 
     readiness_status: str = Field("unknown", description="Operator-facing readiness state")
     px4_arming_report: Optional[FleetPx4PreflightReport] = None
+    px4_takeoff_arming_report: Optional[FleetPx4PreflightReport] = None
+    coordinated_takeoff_supported: Optional[bool] = None
     readiness_summary: str = Field("Readiness unavailable", description="High-level readiness summary")
     readiness_checks: List[TelemetryReadinessCheck] = Field(default_factory=list, description="Structured readiness check results")
     preflight_blockers: List[TelemetryReadinessMessage] = Field(default_factory=list, description="Active readiness blockers")

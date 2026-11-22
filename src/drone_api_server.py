@@ -54,7 +54,7 @@ import asyncio
 import json
 from src.mavsdk_runtime import udp_listen_url
 from mavsdk_grpc.system import System
-from src.px4_preflight_telemetry import Px4PreflightReport, current_preflight_report
+from src.px4_preflight_telemetry import Px4PreflightReport, REPORT_KEYS, current_preflight_report
 
 from mds_logging import get_logger
 from mds_logging.api_schemas import (
@@ -67,7 +67,7 @@ from mds_logging.api_schemas import (
 from src.live_armability_contract import LiveArmabilityTrustEnvelope
 from src.async_stream_utils import managed_async_stream
 from src.latest_state_publisher import LatestStatePublisher, SubscriberLimitExceeded
-from src.px4_flight_modes import decode_px4_custom_mode, PX4_MAIN_MODE_AUTO
+from src.px4_flight_modes import decode_px4_custom_mode, PX4_MAIN_MODE_AUTO, PX4_TAKEOFF_CUSTOM_MODE
 from src.command_execution_contract import (
     DroneExecutionOutcome,
     format_pending_superseded_execution_error,
@@ -322,6 +322,10 @@ class DroneStateResponse(BaseModel):
     position_unavailable_reason: Optional[str] = None
     readiness_status: str = "unknown"
     px4_arming_report: Optional[Px4PreflightReport] = None
+    px4_takeoff_arming_report: Optional[Px4PreflightReport] = None
+    px4_report_epoch: Optional[str] = None
+    coordinated_takeoff_supported: bool = True
+    px4_node_monotonic_ms: Optional[int] = None
     readiness_summary: str = "Readiness unavailable"
     readiness_checks: List[ReadinessCheckResponse] = Field(default_factory=list)
     preflight_blockers: List[ReadinessMessageResponse] = Field(default_factory=list)
@@ -2246,7 +2250,17 @@ class DroneAPIServer:
             payload['timestamp'] = 0
 
         payload['server_time'] = server_time_ms
-        payload['px4_arming_report'] = current_preflight_report(payload)
+        now = time.monotonic()
+        payload['px4_node_monotonic_ms'] = int(now * 1000)
+        observer = getattr(self.drone_config, 'px4_arming_observer', None)
+        if observer is not None:
+            epoch, reports = observer.snapshot(payload['flight_mode'], now=now)
+            payload['px4_report_epoch'] = epoch
+            by_mode = {report['custom_mode']: report for report in reports}
+            payload[REPORT_KEYS[0]] = by_mode.get(payload['flight_mode'])
+            payload[REPORT_KEYS[1]] = by_mode.get(PX4_TAKEOFF_CUSTOM_MODE)
+        for key in REPORT_KEYS:
+            payload[key] = current_preflight_report(payload, key)
         payload['trajectory_execution'] = read_trajectory_runtime(
             command_id=getattr(self.drone_config, 'current_command_id', None) or '')
         payload['smart_swarm_start_admission'] = evaluate_smart_swarm_start_admission(
@@ -2310,12 +2324,18 @@ class DroneAPIServer:
         """Define all API routes (same as Flask version)"""
 
         @self.app.get(DRONE_STATE_ROUTE, response_model=DroneStateResponse)
-        async def get_drone_state():
+        async def get_drone_state(request: Request):
             """Endpoint to retrieve the current state of the drone."""
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
-                    return self._serialize_drone_state_payload(drone_state)
+                    payload = self._serialize_drone_state_payload(drone_state)
+                    known = request.headers.get('X-MDS-PX4-Revisions', '').split(',')
+                    for key in REPORT_KEYS:
+                        report = payload[key]
+                        if report and report['revision'] in known:
+                            report['mode_problems'] = None
+                    return payload
                 else:
                     raise HTTPException(status_code=404, detail="Drone State not found")
             except HTTPException:
@@ -3826,7 +3846,26 @@ class DroneAPIServer:
                 async with self._drone_state_publisher.subscribe() as updates:
                     await websocket.accept()
                     self.active_websockets.append(websocket)
-                    await self._drone_state_publisher.send(updates, websocket, timeout=3.0)
+                    if websocket.query_params.get('px4_reports') == '1':
+                        await asyncio.wait_for(websocket.send_json({
+                            'type': 'px4_clock', 'monotonic_ms': time.monotonic_ns() // 1_000_000,
+                        }), timeout=3.0)
+                        revisions = {}
+                        def compact(frame):
+                            payload = json.loads(frame)
+                            for key in REPORT_KEYS:
+                                report = payload.get(key)
+                                if report is not None:
+                                    revision = (payload['px4_report_epoch'], report['revision'])
+                                    if revisions.get(key) == revision:
+                                        report['mode_problems'] = None
+                                    revisions[key] = revision
+                                else:
+                                    revisions.pop(key, None)
+                            return json.dumps(payload, separators=(',', ':'))
+                        await self._drone_state_publisher.send(updates, websocket, timeout=3.0, transform=compact)
+                    else:
+                        await self._drone_state_publisher.send(updates, websocket, timeout=3.0)
             except SubscriberLimitExceeded:
                 await websocket.close(code=1013)
             except WebSocketDisconnect:

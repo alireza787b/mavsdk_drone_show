@@ -485,7 +485,8 @@ def test_open_mavlink_connection_uses_explicit_udpin(mock_drone_config, monkeypa
 
     captured = {}
 
-    def fake_connection(connection_string):
+    def fake_connection(connection_string, **identity):
+        assert identity == {"source_system": 244, "source_component": 190}
         captured["connection_string"] = connection_string
         return object()
 

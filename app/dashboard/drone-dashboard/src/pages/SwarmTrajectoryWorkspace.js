@@ -6,6 +6,7 @@ import TrajectoryRouteReview from '../components/trajectory/TrajectoryRouteRevie
 import TrajectoryFormationPanel from '../components/trajectory/TrajectoryFormationPanel';
 import SequentialReturnControl from '../components/SequentialReturnControl';
 import { ConfirmDialog, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
+import { Px4MissionIndicators, usePx4Fleet } from '../components/ui/Px4ArmingStatus';
 import useGcsResourcePolling from '../hooks/useGcsResourcePolling';
 import { sendDroneCommand, createCommandIdempotencyKey } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
@@ -32,6 +33,7 @@ export default function SwarmTrajectoryWorkspace() {
   const [clusterId, setClusterId] = useState(null);
   const [delay, setDelay] = useState(15);
   const [review, setReview] = useState(null);
+  const px4 = usePx4Fleet(review?.action === 'start' && !review.recovering);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -164,6 +166,7 @@ export default function SwarmTrajectoryWorkspace() {
     <ConfirmDialog appearance="console" open={Boolean(review)} title={review?.recovering
       ? `Recover ${LABELS[review.action]} receipt` : LABELS[review?.action] || 'Review mission'}
       message={review ? <div><p>{names(review.ids).join(' · ')}</p>
+        {review.action === 'start' && !review.recovering && <Px4MissionIndicators ids={review.ids} rows={px4.rows} now={px4.now} refresh={px4.refresh} />}
         <p>{review.recovering ? 'Retry the original unconfirmed request for these aircraft.'
           : review.action === 'start' ? `Launch from the ground in ${delay}s and execute the planned routes.`
           : review.action === 'hold' ? 'Hold all mission aircraft. This ends the current route; coordinated resume is not enabled yet.'

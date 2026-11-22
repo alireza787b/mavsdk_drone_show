@@ -1,6 +1,23 @@
 /** One cancellable observation owner. Never submits or replays commands. */
 const EMPTY = Object.freeze({ response: null, error: null, loading: true, consecutiveFailures: 0, receivedAtMs: null, transport: 'connecting' });
 
+function calibratePx4(telemetry, gcsAnchor, browserAnchor) {
+  if (!telemetry || typeof telemetry !== 'object') return;
+  for (const aircraft of Object.values(telemetry)) {
+    if (!aircraft) continue;
+    for (const key of ['px4_arming_report', 'px4_takeoff_arming_report']) {
+      const report = aircraft[key];
+      if (!Number.isSafeInteger(report?.expires_at_gcs_monotonic_ms)) continue;
+      if (!Number.isFinite(gcsAnchor)) {
+        aircraft[key] = null;
+        continue;
+      }
+      const elapsed = report.expires_at_gcs_monotonic_ms - gcsAnchor;
+      report.local_deadline_ms = browserAnchor + elapsed - (Math.abs(elapsed) / 1000 + 2);
+    }
+  }
+}
+
 export default class ObservationResource {
   constructor(load, { intervalMs = 1000, streamUrl = null, socketFactory = url => new WebSocket(url), idleMs = 5000 } = {}) {
     Object.assign(this, { load, intervalMs, streamUrl, socketFactory, idleMs });
@@ -11,7 +28,7 @@ export default class ObservationResource {
     this.cursor = null;
     this.wsRevision = 0;
     this.retiredEpochs = new Set();
-    this.refresh = () => { if (this.running) this.poll(); };
+    this.refresh = () => { if (this.running) this.poll(true); };
   }
 
   getSnapshot = () => this.snapshot;
@@ -59,9 +76,9 @@ export default class ObservationResource {
     clearTimeout(this.pollTimer);
     if (this.running) this.pollTimer = setTimeout(() => this.poll(), document.hidden ? Math.max(5000, this.intervalMs) : this.intervalMs);
   }
-  async poll() {
+  async poll(explicit = false) {
     if (!this.running || this.inFlight) return;
-    if (this.wsHealthy) { this.schedulePoll(); return; }
+    if (this.wsHealthy && !explicit) { this.schedulePoll(); return; }
     this.inFlight = true;
     const generation = this.generation;
     const wsRevision = this.wsRevision;
@@ -69,8 +86,12 @@ export default class ObservationResource {
     this.controller = controller;
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
+      const started = performance.now();
       const response = await this.load({ signal: controller.signal, timeout: 10000 });
-      if (this.running && this.generation === generation && !this.wsHealthy && this.wsRevision === wsRevision) this.install(response, 'http');
+      if (this.running && this.generation === generation && this.wsRevision === wsRevision) {
+        calibratePx4(response?.data?.telemetry, Number(response?.headers?.['x-mds-server-monotonic']), started);
+        this.install(response, this.wsHealthy ? 'ws' : 'http');
+      }
     } catch (error) {
       if (this.running && this.generation === generation && !this.wsHealthy && this.wsRevision === wsRevision) {
         if (error?.response?.status === 401) window.dispatchEvent(new Event('mds:auth-required'));
@@ -132,6 +153,8 @@ export default class ObservationResource {
     };
     const armIdle = () => { clearTimeout(this.idleTimer); this.idleTimer = setTimeout(failed, this.idleMs); };
     try {
+      const started = performance.now();
+      let gcsAnchor;
       socket = this.socketFactory(this.streamUrl());
       this.socket = socket;
       // Opening a TCP socket is not evidence of valid application data.
@@ -142,7 +165,13 @@ export default class ObservationResource {
         try {
           if (typeof event.data !== 'string' || event.data.length > 8 * 1024 * 1024) throw new Error('Oversized fleet stream');
           const message = JSON.parse(event.data);
+          if (message.type === 'px4_clock') {
+            if (gcsAnchor === undefined && Number.isSafeInteger(message.monotonic_ms)
+                && performance.now() - started <= 2000) gcsAnchor = message.monotonic_ms;
+            return;
+          }
           if (message.type !== 'telemetry' || !message.data || typeof message.data !== 'object' || Array.isArray(message.data)) throw new Error('Invalid fleet stream');
+          calibratePx4(message.data, gcsAnchor, started);
           const response = { data: { ...message, telemetry: message.data },
             headers: { 'x-mds-server-time': message.timestamp } };
           if (this.install(response, 'ws')) {
@@ -150,6 +179,10 @@ export default class ObservationResource {
             this.wsHealthy = true;
             this.backoff = 1000;
             armIdle();
+            if (gcsAnchor !== undefined && performance.now() - started >= 240000) {
+              this.closeSocket();
+              this.connect();
+            }
           }
         } catch (_) { /* Invalid frames do not renew application liveness. */ }
       };

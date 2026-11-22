@@ -1,3 +1,4 @@
+import { Px4MissionIndicators, usePx4Fleet } from '../components/ui/Px4ArmingStatus';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MdFlightTakeoff, MdHome, MdPauseCircleOutline, MdStop } from 'react-icons/md';
@@ -47,6 +48,7 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
   const [mode, setMode] = useState('global-auto');
   const [schedule, setSchedule] = useState({ scheduleMode: 'now', timeDelay: 10, selectedDateTime: '' });
   const [review, setReview] = useState(null);
+  const px4 = usePx4Fleet(review?.action === 'launch');
   const dispatch = useCommandDispatch('show', runtimeMode);
   const { busy } = dispatch;
   const [error, setError] = useState('');
@@ -175,9 +177,9 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
             </details>
           </OperatorCard>
           <OperatorCard className="drone-show-workspace__readiness">
-            <h2>Preflight</h2>
+            <h2>Show setup</h2>
             <ReadinessRow label="Package & aircraft slots" ready={readiness.packageReady && readiness.mappingReady} detail={!readiness.mappingReady ? 'Review package and hardware assignments.' : null} action={!readiness.mappingReady ? <Link to="/mission-config">Open Mission Config</Link> : null} />
-            <ReadinessRow label="PX4 readiness" ready={readiness.fleetReady} detail={!readiness.fleetReady ? `${unreadyFleet.slice(0, 3).map(d => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ')}${unreadyFleet.length > 3 ? ` · +${unreadyFleet.length - 3} more; see aircraft list` : ''}` : 'Aircraft connected and disarmed'} />
+            <ReadinessRow label="Aircraft observations" ready={readiness.fleetReady} detail={!readiness.fleetReady ? `${unreadyFleet.slice(0, 3).map(d => `${d.name}: ${!d.telemetry_fresh ? 'No live telemetry' : d.readiness_summary}`).join(' · ')}${unreadyFleet.length > 3 ? ` · +${unreadyFleet.length - 3} more; see aircraft list` : ''}` : 'Aircraft connected and disarmed'} />
             <ReadinessRow label="Home / origin" ready={readiness.originReady} detail={readiness.originReady ? 'Shared launch reference set.' : 'Set the shared origin before global auto-correction.'} action={!readiness.originReady ? <Link to="/mission-config">Set origin</Link> : null} />
             <ReadinessRow label="Launch geometry" ready={readiness.geometryReady} caution={readiness.geometryState === 'review' || mode !== 'global-auto'} detail={mode !== 'global-auto' ? 'Manual placement mode.' : readiness.geometrySummary.worst_deviation != null ? `Worst ${Number(readiness.geometrySummary.worst_deviation).toFixed(1)} m · ${readiness.geometrySummary.warnings || 0} warning(s)` : 'Live positions are being checked.'} action={<a href="#launch-geometry" onClick={e => revealEvidence(e, 'launch-geometry')}>Review layout</a>} />
             <ReadinessRow label="Trajectory analysis" ready={readiness.analysisReady} caution={readiness.analysisStatus === 'WARNING'} status={readiness.analysisStatus === 'FAIL' ? 'Blocked' : readiness.analysisStatus === 'WARNING' ? 'Review' : null} detail={readiness.analysisStatus === 'UNKNOWN' ? 'Analysis not available.' : workspace?.validation?.findings?.[0]?.title || workspace?.validation?.issues?.[0]} action={<a href="#trajectory-analysis" onClick={e => revealEvidence(e, 'trajectory-analysis')}>View findings</a>} />
@@ -236,7 +238,7 @@ export default function DroneShowWorkspace({ runtimeMode = 'unknown' }) {
       confirmLabel={ACTIONS[review?.action] || 'Confirm'} busy={busy} onCancel={() => setReview(null)} onConfirm={execute}
       confirmDisabled={!review || review.scopeKey !== scopeKey || Boolean(dispatch.pending[review?.action]) || !dispatch.enabled || (review.action === 'launch' && !ready)}
       message={review ? <div className="swarm-confirm-summary"><p>{review.ids.map((id) => fleet.find((d) => d.hw_id === id)?.name || `HW ${id}`).join(' · ')}</p>
-        {review.action === 'launch' ? <><p>{selectedMode.label} · {formatShowStart(review.command.trigger_time)}</p>
+        {review.action === 'launch' ? <><Px4MissionIndicators ids={review.ids} rows={px4.rows} now={px4.now} refresh={px4.refresh} /><p>{selectedMode.label} · {formatShowStart(review.command.trigger_time)}</p>
           <p>{getMissionExecutionPolicy(1, { isImmediate: review.command.trigger_time === 0 })}</p></>
           : <p>{review.action === 'hold' ? 'Ends the show and holds current positions. This is not a resumable pause.'
             : review.action === 'rtl' ? 'Returns all selected aircraft immediately using PX4 home and return height. Paths may overlap.'

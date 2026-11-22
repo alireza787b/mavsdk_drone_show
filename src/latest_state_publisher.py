@@ -77,11 +77,13 @@ class LatestStatePublisher:
             if not self._queues:
                 await self.close()
 
-    async def send(self, queue, websocket, *, timeout):
+    async def send(self, queue, websocket, *, timeout, transform=None):
         """Bound each send and the client's rate, dropping superseded state."""
         loop = asyncio.get_running_loop()
         while True:
             frame = await queue.get()
+            if transform is not None:
+                frame = transform(frame)
             started = loop.time()
             await asyncio.wait_for(websocket.send_text(frame), timeout=timeout)
             await asyncio.sleep(max(0.0, self.interval - (loop.time() - started)))

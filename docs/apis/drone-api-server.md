@@ -29,11 +29,19 @@ commit-time installation; replaying the same recovery does not create a new
 flight intent. State telemetry exposes PX4 `landed_state`, its timestamp and
 age; home-relative altitude is not a substitute for landed state.
 
-The optional `px4_arming_report` in aircraft state is display evidence, not
-command admission. It accepts a native Events producer observation only
-while telemetry is current, the aircraft is disarmed and on the ground, and
-the report's mode matches the state packet. A node without a verified native
-report producer returns `null`. An MDS readiness flag is not a substitute.
+Aircraft state can carry `px4_arming_report` for the displayed mode and
+`px4_takeoff_arming_report` for PX4 Takeoff. The companion's existing local
+MAVLink listener reads the firmware's Events definitions and receives native
+check summaries. A completed report provides the mode, arm permission, and
+reasons. Its validity is capped at five seconds. Disconnects, reboot, Events
+synchronization loss, and inapplicable mode or armed state clear the observation.
+
+On the shared GCS fleet feed, reports carry a compact verdict and reasons
+revision. Details reads the corresponding cached reasons from
+`GET /api/v1/fleet/aircraft/{hw_id}/px4-arming-report?revision=…`.
+The local observer uses MAVLink sender identity 244/190 for report and
+read-only metadata requests. The managed MAVLink route must carry MAVLink 2
+and allow reply traffic from the bound PX4 component.
 
 The Drone API Server is a high-performance FastAPI-based server that runs on each drone, providing both HTTP REST endpoints and WebSocket streaming for real-time telemetry. It handles communication with the Ground Control Station (GCS) and serves drone state information, commands, and configuration data.
 

@@ -12,6 +12,8 @@ import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
 import SwarmFormationSource from './SwarmFormationSource';
 import TakeoffDialog from './TakeoffDialog';
+import { Px4ArmingBadge, Px4ArmingDisclosure, Px4MissionIndicators, usePx4Fleet } from './ui/Px4ArmingStatus';
+import { px4ArmingVerdict } from '../utilities/px4Arming';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
 import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
 import { alertCondition, InlineAlerts } from '../features/fleet-overview/AlertAnnunciators';
@@ -332,10 +334,12 @@ export default function SwarmOperations() {
   const contextKey = `${selection.id}:${preview?.revision}`;
   const startReadiness = startCheck?.error ? { ready: false, label: startCheck.error }
     : swarmStartReadiness([...(confirmation?.targets || []), ...(confirmation?.references || [])], startCheck?.decisions, startCheck?.until || 0);
+  const px4 = usePx4Fleet(Boolean(inspectedId) || confirmation?.action === 'start');
+  const inspectedVerdict = px4ArmingVerdict(px4.rows[inspectedId], px4.now);
   const clusterAlerts = useScopedFleetAlerts(members.map((member) => String(member.hw_id)));
   const clusterFindings = members.filter((member) => member.available
     && ['warning', 'blocked'].includes(member.readiness_status) && member.readiness_summary)
-    .map((member) => alertCondition(String(member.hw_id), memberLabel(member), member.readiness_summary));
+    .map((member) => alertCondition(String(member.hw_id), memberLabel(member), member.readiness_summary, { source: 'MDS' }));
   const startIds = new Set([...(confirmation?.targets || []), ...(confirmation?.references || [])].map(String));
   const startAlerts = (startCheck?.until > Date.now() ? Object.values(startCheck.decisions || {}) : [])
     .filter((decision) => startIds.has(String(decision.hw_id)) && decision.status !== 'ready')
@@ -393,6 +397,7 @@ export default function SwarmOperations() {
         }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
+        <Px4ArmingBadge verdict={inspectedVerdict} /><Px4ArmingDisclosure hwId={inspectedId} verdict={inspectedVerdict} />
         <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
       </div>}
       {advanced && <div className="swarm-ops__advanced">
@@ -423,6 +428,7 @@ export default function SwarmOperations() {
         }} onConfirm={send}
         message={confirmation ? <div className="swarm-ops__confirmation">
           <strong title={`${confirmation.targets.length} aircraft`}>{swarmNamesSummary(confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })))}</strong>
+          {confirmation.action === 'start' && <Px4MissionIndicators ids={confirmation.targets} rows={px4.rows} now={px4.now} refresh={px4.refresh} />}
           <small title={`Not commanded: ${swarmNamesSummary(members.filter(m => !confirmation.targets.includes(m.hw_id)).map(memberLabel)) || 'None'}`}>
             {confirmation.targets.length}/{members.length} aircraft</small>
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>

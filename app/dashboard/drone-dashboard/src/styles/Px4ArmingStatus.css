@@ -1,0 +1,10 @@
+.px4-arming-slot { display: inline-grid; place-items: center; inline-size: 1.5rem; flex-shrink: 0; }
+.px4-arming-badge { display: inline-flex; font-size: 1rem; }
+.px4-arming-badge.is-allowed { color: var(--color-success-text); }
+.px4-arming-badge.is-blocked { color: var(--color-danger-text); }
+.px4-arming-details p { margin: .25rem 0; }
+.px4-arming-disclosure { color: var(--color-text-secondary); }
+.px4-arming-disclosure > summary { list-style: none; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.px4-arming-disclosure > summary::-webkit-details-marker { display: none; }
+.px4-mission-indicator { display: inline-flex; align-items: baseline; gap: .25rem; margin-inline-end: .5rem; }
+.px4-arming-recheck { min-width: 44px; min-height: 44px; padding: 0; margin-inline-start: .25rem; }

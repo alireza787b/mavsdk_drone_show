@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from pymavlink import mavutil
 
+from src.px4_arming_report import Px4ArmingObserver
 from src.attitude_math import body_rates_to_heading_rate_deg_s
 from src.px4_flight_modes import (
     PX4_MAIN_MODE_AUTO,
@@ -45,6 +46,8 @@ class LocalMavlinkController:
         self.debug_enabled = debug_enabled
         self.drone_config = drone_config
         self._initialize_source_binding()
+        self.arming_observer = Px4ArmingObserver(drone_config.hw_id)
+        drone_config.px4_arming_observer = self.arming_observer
         self.home_position_logged = False
         self._status_text_buffers: Dict[int, Dict[str, Any]] = {}
         self._status_messages: OrderedDict[str, Dict[str, Any]] = OrderedDict()
@@ -52,7 +55,9 @@ class LocalMavlinkController:
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
             'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS', 'LOCAL_POSITION_NED',
-            'STATUSTEXT', 'EXTENDED_SYS_STATE'
+            'STATUSTEXT', 'EXTENDED_SYS_STATE', 'FILE_TRANSFER_PROTOCOL',
+            'UNKNOWN_397', 'UNKNOWN_410', 'UNKNOWN_411', 'UNKNOWN_413',
+            'COMPONENT_METADATA', 'EVENT', 'CURRENT_EVENT_SEQUENCE', 'RESPONSE_EVENT_ERROR'
         ]
         
         self.local_mavlink_port = int(getattr(params, 'local_mavlink_port', 12550))
@@ -149,7 +154,7 @@ class LocalMavlinkController:
         """Open a fresh UDP listener for the locally routed MAVLink stream."""
         connection_string = f"udpin:127.0.0.1:{self.local_mavlink_port}"
         self.log_debug(f"Opening LocalMavlinkController on {connection_string}")
-        return mavutil.mavlink_connection(connection_string)
+        return mavutil.mavlink_connection(connection_string, source_system=244, source_component=190)
 
     def _reset_mavlink_connection(self, reason: str) -> None:
         """Reopen the listener, never its FC identity binding, after silence/errors.
@@ -163,6 +168,9 @@ class LocalMavlinkController:
         except Exception:
             pass
 
+        observer = getattr(self, "arming_observer", None)
+        if observer is not None:
+            observer.invalidate(disconnected=True)
         self.mav = self._open_mavlink_connection()
         logging.warning(
             "Reinitialized local MAVLink listener on port %s after %s.",
@@ -204,6 +212,12 @@ class LocalMavlinkController:
                 self._reset_mavlink_connection(f"receive error ({type(exc).__name__})")
                 continue
 
+            if self._autopilot_source is not None:
+                try:
+                    self.arming_observer.tick(self.mav, self._autopilot_source)
+                except OSError as exc:
+                    logging.debug("PX4 Events request unavailable: %s", exc)
+
             if msg is not None:
                 accepted = self.process_message(msg)
                 if accepted and consecutive_timeouts > 0:
@@ -236,7 +250,19 @@ class LocalMavlinkController:
         if msg_type == 'HEARTBEAT':
             if self.process_heartbeat(msg):
                 self.latest_messages[msg_type] = msg
+                observer = getattr(self, 'arming_observer', None)
+                if observer is not None:
+                    observer.heartbeat(self.drone_config.custom_mode, self.drone_config.is_armed)
                 return True
+            return False
+
+        observer = getattr(self, 'arming_observer', None)
+        if msg_type.startswith('UNKNOWN_') or msg_type in (
+            'FILE_TRANSFER_PROTOCOL', 'COMPONENT_METADATA', 'EVENT', 'CURRENT_EVENT_SEQUENCE', 'RESPONSE_EVENT_ERROR',
+        ):
+            if observer is not None and self._autopilot_source is not None:
+                if msg_type != 'FILE_TRANSFER_PROTOCOL' or self._accept_bound_source(msg, msg_type):
+                    observer.observe(msg, self._autopilot_source, self.mav)
             return False
 
         # No arbitrary first packet may establish an aircraft, or refresh any
@@ -247,6 +273,8 @@ class LocalMavlinkController:
         self.latest_messages[msg_type] = msg
 
         if msg_type == 'GLOBAL_POSITION_INT':
+            if observer is not None:
+                observer.observe_boot_time(getattr(msg, 'time_boot_ms', None))
             self.process_global_position_int(msg)
         elif msg_type == 'HOME_POSITION':
             self.set_home_position(msg)
@@ -268,6 +296,8 @@ class LocalMavlinkController:
             self.process_status_text(msg)
         elif msg_type == 'EXTENDED_SYS_STATE':
             self.process_extended_sys_state(msg)
+            if observer is not None:
+                observer.landed(self.drone_config.landed_state == 1)
         else:
             self.log_debug(f"Received unhandled message type: {msg.get_type()}")
             return False

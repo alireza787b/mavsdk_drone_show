@@ -33,6 +33,7 @@ export function createObservationRegistry(seed = {}) {
           streamUrl: name === 'telemetry' && typeof WebSocket !== 'undefined' ? () => {
             const url = new URL(buildTelemetryWebSocketUrl());
             url.searchParams.set('protocol_version', '1');
+            url.searchParams.set('px4_reports', '1');
             return url.toString();
           } : null }));
       }
@@ -51,12 +52,12 @@ export function ObservationProvider({ children }) {
   return <Context.Provider value={registry}>{children}</Context.Provider>;
 }
 
-export function useObservationResource(name, contextKey = '') {
+export function useObservationResource(name, contextKey = '', sharedOnly = false) {
   const shared = useContext(Context);
   // Standalone workspaces/tests retain a scoped owner, never a module-global
   // cache that could cross authenticated contexts.
   const local = useMemo(createObservationRegistry, [contextKey]);
-  const resource = (shared || local).get(name);
+  const resource = (shared || local).get(sharedOnly && !shared ? null : name);
   const snapshot = useSyncExternalStore(resource.subscribe, resource.getSnapshot, resource.getSnapshot);
   return useMemo(() => ({ ...snapshot, refresh: resource.refresh }), [resource, snapshot]);
 }

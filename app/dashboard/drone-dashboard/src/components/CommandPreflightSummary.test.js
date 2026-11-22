@@ -32,8 +32,8 @@ test('an empty target set is neutral and never Ready', () => {
 
   expect(screen.getByText('NO TARGETS')).toBeInTheDocument();
   expect(screen.queryByText(/^READY/)).not.toBeInTheDocument();
-  expect(metric('Readiness')).toHaveClass('command-preflight__metric--neutral');
-  expect(within(metric('Readiness')).getByText('0/0')).toBeInTheDocument();
+  expect(metric('MDS observations')).toHaveClass('command-preflight__metric--neutral');
+  expect(within(metric('MDS observations')).getByText('0/0')).toBeInTheDocument();
 });
 
 test('cached ready and armed values cannot count as fresh evidence', () => {
@@ -42,11 +42,11 @@ test('cached ready and armed values cannot count as fresh evidence', () => {
     aircraft('2', { update_time: NOW - 61_000, is_armed: false }),
   ]} referenceNowMs={NOW} />);
 
-  expect(screen.getByText('NOT READY')).toBeInTheDocument();
-  expect(within(metric('Readiness')).getByText('0/2')).toBeInTheDocument();
+  expect(screen.getByText('CHECK AIRCRAFT')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('0/2')).toBeInTheDocument();
   expect(within(metric('Armed')).getByText('0')).toBeInTheDocument();
   expect(within(metric('Armed')).getByText('0 disarmed · 2 unknown')).toBeInTheDocument();
-  fireEvent.click(metric('Readiness'));
+  fireEvent.click(metric('MDS observations'));
   expect(screen.getAllByText('Live readiness unavailable')).toHaveLength(2);
 });
 
@@ -64,9 +64,9 @@ test('missing selected aircraft stay in every denominator and do not become disa
   render(<CommandPreflightSummary drones={[aircraft('1')]} targetMode="selected"
     targetDroneIds={['1', 'missing', '1']} referenceNowMs={NOW} />);
 
-  expect(screen.getByText('NOT READY')).toBeInTheDocument();
+  expect(screen.getByText('CHECK AIRCRAFT')).toBeInTheDocument();
   expect(within(metric('Live Link')).getByText('1/2')).toBeInTheDocument();
-  expect(within(metric('Readiness')).getByText('1/2')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('1/2')).toBeInTheDocument();
   expect(within(metric('Armed')).getByText('1 disarmed · 1 unknown')).toBeInTheDocument();
   fireEvent.click(metric('Live Link'));
   expect(screen.getByText('Selected aircraft unavailable')).toBeInTheDocument();
@@ -75,8 +75,8 @@ test('missing selected aircraft stay in every denominator and do not become disa
 test('unavailable telemetry cannot count as ready even with a recent timestamp', () => {
   render(<CommandPreflightSummary drones={[aircraft('1', { telemetry_available: false })]} referenceNowMs={NOW} />);
 
-  expect(screen.getByText('NOT READY')).toBeInTheDocument();
-  expect(within(metric('Readiness')).getByText('0/1')).toBeInTheDocument();
+  expect(screen.getByText('CHECK AIRCRAFT')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('0/1')).toBeInTheDocument();
   expect(within(metric('Armed')).getByText('0 disarmed · 1 unknown')).toBeInTheDocument();
 });
 
@@ -86,23 +86,23 @@ test('fresh armable aircraft with advisory warnings remain ready with caution', 
     preflight_warnings: [{ source: 'px4', severity: 'warning', message: 'Review heading', timestamp: NOW }],
   })]} referenceNowMs={NOW} />);
 
-  expect(screen.getByText('READY · CAUTION')).toBeInTheDocument();
-  expect(within(metric('Readiness')).getByText('1/1')).toBeInTheDocument();
+  expect(screen.getByText('REVIEW OBSERVATIONS')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('1/1')).toBeInTheDocument();
 });
 
 test('review-only unarmable aircraft cannot produce a Ready summary', () => {
   render(<CommandPreflightSummary drones={[aircraft('1', { readiness_status: 'warning', is_ready_to_arm: false })]} referenceNowMs={NOW} />);
 
-  expect(screen.getByText('NOT READY')).toBeInTheDocument();
-  expect(within(metric('Readiness')).getByText('0/1')).toBeInTheDocument();
+  expect(screen.getByText('CHECK AIRCRAFT')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('0/1')).toBeInTheDocument();
 });
 
 test('exception totals count the complete cohort while disclosure remains bounded', () => {
   const fleet = Array.from({ length: 20 }, (_, index) => aircraft(String(index + 1), { update_time: NOW - 120_000 }));
   render(<CommandPreflightSummary drones={fleet} referenceNowMs={NOW} />);
 
-  expect(within(metric('Readiness')).getByText('20')).toBeInTheDocument();
-  fireEvent.click(metric('Readiness'));
+  expect(within(metric('MDS observations')).getByText('20')).toBeInTheDocument();
+  fireEvent.click(metric('MDS observations'));
   expect(screen.getByText('(8/20)')).toBeInTheDocument();
   expect(screen.getAllByText('Live readiness unavailable')).toHaveLength(8);
   expect(screen.getByText('12 more entries. Select a metric to narrow the list.')).toBeInTheDocument();
@@ -111,5 +111,5 @@ test('exception totals count the complete cohort while disclosure remains bounde
 test('duplicate roster rows do not inflate fleet counts', () => {
   render(<CommandPreflightSummary drones={[aircraft('1'), aircraft('1')]} referenceNowMs={NOW} />);
 
-  expect(within(metric('Readiness')).getByText('1/1')).toBeInTheDocument();
+  expect(within(metric('MDS observations')).getByText('1/1')).toBeInTheDocument();
 });

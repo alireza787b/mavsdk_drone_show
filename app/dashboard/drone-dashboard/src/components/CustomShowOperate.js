@@ -1,3 +1,4 @@
+import { Px4ArmingBadge, Px4MissionIndicators, usePx4Fleet } from './ui/Px4ArmingStatus';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog, OperatorCard, OperatorNotice, StatusBadge } from './ui';
 import { MdFlightTakeoff, MdHome, MdPauseCircleOutline, MdStop } from 'react-icons/md';
@@ -9,6 +10,7 @@ import useShowAircraftSelection from '../hooks/useShowAircraftSelection';
 import useCommandDispatch from '../hooks/useCommandDispatch';
 import { buildShowCommand, formatShowOperationStart, formatShowStart, SHOW_OPERATION_PHASES } from '../utilities/droneShowWorkspace';
 import { getMissionExecutionPolicy } from '../utilities/commandExecutionPolicy';
+import { px4ArmingVerdict } from '../utilities/px4Arming';
 
 const LABELS = { launch: 'Launch Custom CSV', hold: 'Hold', land: 'Land here', rtl: 'Immediate RTL', cancel: 'Cancel mission' };
 
@@ -21,6 +23,7 @@ export default function CustomShowOperate({ infoState, runtimeMode, onSetup }) {
   const [query, setQuery] = useState('');
   const [schedule, setSchedule] = useState({ scheduleMode: 'now', timeDelay: 10, selectedDateTime: '' });
   const [review, setReview] = useState(null);
+  const px4 = usePx4Fleet();
   const [reviewError, setReviewError] = useState('');
   const dispatch = useCommandDispatch('custom', runtimeMode);
   const operation = operationState.data;
@@ -75,9 +78,9 @@ export default function CustomShowOperate({ infoState, runtimeMode, onSetup }) {
           {['land', 'cancel'].map(action => <button type="button" className="operator-button operator-button--ghost" key={action} disabled={recoveryDisabled(action)} onClick={() => openReview(action)}><MdStop aria-hidden="true" />{LABELS[action]}</button>)}
         </details>
       </OperatorCard>
-      <OperatorCard className="drone-show-workspace__readiness"><h2>Preflight</h2>
+      <OperatorCard className="drone-show-workspace__readiness"><h2>Show setup</h2>
         <div className="custom-show-operate__check"><span>CSV path</span><StatusBadge tone={metadataFresh && identity ? 'success' : 'warning'}>{metadataFresh && identity ? 'Loaded' : 'Check'}</StatusBadge></div>
-        <div className="custom-show-operate__check"><span>Selected aircraft</span><StatusBadge tone={fresh && selected.length > 0 && selected.every(d => d?.telemetry_fresh && (d.ready_to_arm || d.armed === true)) ? 'success' : 'warning'}>{fresh ? selected.filter(d => d?.telemetry_fresh && (d.ready_to_arm || d.armed === true)).length : 0}/{ids.length} ready</StatusBadge></div>
+        <div className="custom-show-operate__check"><span>Aircraft observations</span><StatusBadge tone={fresh && selected.length > 0 && selected.every(d => d?.telemetry_fresh && (d.ready_to_arm || d.armed === true)) ? 'success' : 'warning'}>{fresh ? selected.filter(d => d?.telemetry_fresh && (d.ready_to_arm || d.armed === true)).length : 0}/{ids.length} clear</StatusBadge></div>
         <p className="custom-show-page__frame-note">Same path from each aircraft’s launch point.</p>
         <details><summary>CSV identity</summary><code>{identity || 'Unavailable'}</code><p>GCS fingerprint, not proof of the file installed on each aircraft.</p></details>
       </OperatorCard>
@@ -93,8 +96,9 @@ export default function CustomShowOperate({ infoState, runtimeMode, onSetup }) {
       {visible.map(d => <label key={d.hw_id}><input type="checkbox" checked={ids.includes(String(d.hw_id))}
         onChange={() => setIds(previous => previous.includes(String(d.hw_id))
           ? previous.filter(id => id !== String(d.hw_id)) : [...previous, String(d.hw_id)])} />
-        <span><strong>{d.name || `Aircraft ${d.hw_id}`}</strong><small>H{d.hw_id} · P{d.pos_id ?? '—'}</small></span><StatusBadge tone={fresh && d.telemetry_fresh && (d.armed || d.ready_to_arm) ? 'success' : 'muted'}>{fresh && d.telemetry_fresh
-          ? d.armed === true ? 'Armed' : d.ready_to_arm ? 'Ready' : d.readiness_summary || 'Check' : 'Unavailable'}</StatusBadge>
+        <span><strong>{d.name || `Aircraft ${d.hw_id}`}</strong><small>H{d.hw_id} · P{d.pos_id ?? '—'}</small></span><StatusBadge tone="muted">{fresh && d.telemetry_fresh
+          ? d.armed === true ? 'Armed' : 'Live' : 'Link unavailable'}</StatusBadge>
+        <Px4ArmingBadge verdict={px4ArmingVerdict(px4.rows[d.hw_id], px4.now)} />
       </label>)}
     </div>
     </section>
@@ -102,7 +106,7 @@ export default function CustomShowOperate({ infoState, runtimeMode, onSetup }) {
     <ConfirmDialog appearance="console" open={Boolean(review)} title={LABELS[review?.action] || 'Review command'}
       confirmLabel={LABELS[review?.action] || 'Confirm'} busy={dispatch.busy} onCancel={() => setReview(null)} onConfirm={execute}
       confirmDisabled={!review || review.scopeKey !== scopeKey || Boolean(dispatch.pending[review?.action]) || !dispatch.enabled || (review.action === 'launch' && !ready)}
-      message={review && <div><p>{names(review.command.target_drone_ids)}</p>
+      message={review && <div>{review?.action === 'launch' && <Px4MissionIndicators ids={review.command.target_drone_ids} rows={px4.rows} now={px4.now} refresh={px4.refresh} />}<p>{names(review.command.target_drone_ids)}</p>
         {review.action === 'launch' ? <><p>Local frame · {formatShowStart(review.command.trigger_time)}</p>
           <p>{getMissionExecutionPolicy(3, { isImmediate: review.command.trigger_time === 0 })}</p></>
           : <p>{review.action === 'cancel' ? 'Cancels the mission; cancellation alone is not verified Hold or landing.'

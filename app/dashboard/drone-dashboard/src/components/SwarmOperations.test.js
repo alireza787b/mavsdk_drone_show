@@ -3,6 +3,14 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import SwarmOperations from './SwarmOperations';
 import { fetchGcsResource } from '../services/gcsApiService';
 import { submitCommandWithLifecycleFeedback, trackCommandReceipt } from '../utilities/commandLifecycleFeedback';
+let mockAirspace = {};
+jest.mock('./ui/Px4ArmingStatus', () => ({
+  ...jest.requireActual('./ui/Px4ArmingStatus'),
+  usePx4Fleet: () => ({ rows: Object.fromEntries(['1','2','3'].map(id => [id, {
+    telemetry_available: true, is_armed: false, landed_state: 1, heartbeat_age_ms: 0, landed_state_age_ms: 0,
+    ...mockAirspace[id],
+  }])), now: Date.now(), refresh: () => {} }),
+}));
 jest.mock('../services/gcsApiService', () => ({ fetchGcsResource: jest.fn() }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ loading: false, user: { username: 'operator' } }) }));
 jest.mock('../utilities/commandLifecycleFeedback', () => ({ submitCommandWithLifecycleFeedback: jest.fn(), trackCommandReceipt: jest.fn() }));
@@ -23,6 +31,7 @@ const preview = { runtime_mode: 'SITL', revision: 'revision', start_admissions: 
   { hw_id: '2', follow: '1', available: true, armed: false, frame: 'ned', offset_x: 6 },
 ], partial_exclusion_hw_ids: [] }] };
 beforeEach(() => {
+  mockAirspace = {};
   jest.clearAllMocks(); sessionStorage.clear();
   mockMonitors.length = 0;
   fetchGcsResource.mockImplementation((path) => Promise.resolve({ data: path.startsWith('/api/v1/commands/takeoff-readiness') ? takeoffReadiness : preview }));
@@ -178,6 +187,7 @@ test('disappeared explicit cluster does not silently become another cluster', as
   } finally { jest.useRealTimers(); }
 });
 test('takeoff never silently removes the airborne member of a reviewed cluster', async () => {
+  mockAirspace['2'] = { is_armed: true, landed_state: 2 };
   const mixedPreview = { ...preview, clusters: [{ ...preview.clusters[0], members: [
     preview.clusters[0].members[0], { ...preview.clusters[0].members[1], armed: true, landed_state: 2, relative_altitude_m: -5 },
   ] }] };
@@ -187,7 +197,7 @@ test('takeoff never silently removes the airborne member of a reviewed cluster',
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));
   expect(within(screen.getByRole('dialog')).getByText('Aircraft 1')).toBeInTheDocument();
   expect(within(screen.getByRole('dialog')).getByText('Aircraft 2')).toBeInTheDocument();
-  await screen.findByText('Aircraft already airborne');
+  await screen.findByText('Aircraft must be disarmed and on the ground');
   expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
