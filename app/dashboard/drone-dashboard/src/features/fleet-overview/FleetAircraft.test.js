@@ -76,7 +76,7 @@ test('state has one anchor and instruments keep one comparison order', () => {
   expect(container.querySelector('.fleet-aircraft__issue')).toBeNull();
   const inspect = screen.getByRole('button', { name: 'Inspect Scout · H7' });
   const description = document.getElementById(inspect.getAttribute('aria-describedby'));
-  expect(description).toHaveTextContent('Preflight: Ready');
+  expect(description).not.toHaveTextContent('Preflight: Ready');
   expect(description).toHaveClass('fleet-visually-hidden');
 });
 
@@ -137,9 +137,9 @@ test('stale network details clearly mark the cached transport without a cached s
   expect(screen.queryByText('72%')).not.toBeInTheDocument();
 });
 
-test('ground readiness and initialization use distinct truthful aircraft badges', () => {
+test('an MDS observation never gives the aircraft a PX4 arming badge', () => {
   const view = tile(aircraft({ readiness_status: 'ready' }));
-  expect(screen.getByLabelText('Preflight ready')).toHaveAttribute('data-status', 'ready');
+  expect(screen.queryByLabelText('Preflight ready')).not.toBeInTheDocument();
   view.rerender(<AircraftTile {...view.props} item={aircraft({
     node_boot_status: { phase: 'starting_mds', status: 'running', timestamp: NOW },
   }, NOW + 20000)} />);

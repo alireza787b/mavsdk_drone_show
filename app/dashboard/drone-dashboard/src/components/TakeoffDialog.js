@@ -15,6 +15,16 @@ const PHASES = { checking: 'Checking', arming: 'Arming', released: 'Taking off',
 // not make the operator race a flashing button over a field data link.
 const REVIEW_STATUS_MAX_AGE_MS = 5000;
 
+// MAVSDK's report describes PX4's intended mode, not the mode requested by
+// this dialog. Position (or any other mode) must never color a Takeoff row.
+function takeoffPx4Report(report) {
+  return report?.source === 'px4' && report.mode === 'Takeoff'
+    && typeof report.can_arm_or_run === 'boolean' ? report : null;
+}
+
+const applicablePx4Report = (row) => row?.displayFindingsCurrent && ['ready', 'blocked'].includes(row.status)
+  ? takeoffPx4Report(row.px4_arming_report) : null;
+
 function takeoffFindings(row) {
   const { id, name, px4Report: report, reason, source, status, findings } = row;
   const add = (message, options) => alertCondition(id, name, message, options);
@@ -27,13 +37,13 @@ function takeoffFindings(row) {
     const modeProblems = report.mode_problems || [];
     const modeMessages = new Set(modeProblems.map((problem) => problem.message));
     entries.push(...modeProblems.map((problem) => add(problem.message, {
-      tone: restricted ? 'danger' : 'warning', source: 'PX4',
+      tone: 'warning', source: 'PX4',
       detail: [report.mode, problem.description].filter(Boolean).join(' · '),
     })));
     entries.push(...(report.all_problems || []).filter((problem) => !modeMessages.has(problem.message))
       .map((problem) => add(problem.message, { source: 'PX4', detail: problem.description })));
-    if (restricted && !modeProblems.some((problem) => problem.message)) {
-      entries.push(add('PX4 mode restricted', { tone: 'danger', source: 'PX4', detail: report.mode }));
+    if (restricted) {
+      entries.push(add('PX4 reports Takeoff not ready', { tone: 'danger', source: 'PX4', detail: report.mode }));
     }
   }
   entries.push(...findings.map((finding) => add(finding.detail, { source: finding.source === 'px4' ? 'PX4' : 'MDS' })));
@@ -70,7 +80,8 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
   const previousPx4Reports = useRef(new Map());
   useEffect(() => {
     readiness?.targets?.forEach((target) => {
-      if (target.px4_arming_report) previousPx4Reports.current.set(String(target.hw_id), target.px4_arming_report);
+      const report = applicablePx4Report(target);
+      if (report) previousPx4Reports.current.set(String(target.hw_id), report);
     });
   }, [readiness]);
   const [submitted, setSubmitted] = useState(null);
@@ -101,7 +112,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
     return { id, name, selected, status: unsupported ? 'blocked' : native?.status || 'checking',
       reason: unsupported ? 'Software update required for coordinated takeoff' : native?.reason,
       source: unsupported ? 'coordination' : native?.source, findings: native?.findings || [],
-      px4Report: native?.displayFindingsCurrent ? native.px4_arming_report : null };
+      px4Report: applicablePx4Report(native) };
   });
   const ready = targets.length > 0 && rows.filter((row) => row.selected).every((row) => row.status === 'ready');
   const inProgress = Boolean(attemptStarted || submitted || uncertain);
@@ -148,7 +159,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
               : { ...row, remaining, displayFindingsCurrent: remaining > 0,
                 px4_arming_report: remaining > 0 ? row.px4_arming_report : null };
           });
-        const leases = reviewedRows.filter((row) => row.status === 'ready').map((row) => row.remaining);
+        const leases = reviewedRows.filter((row) => row.displayFindingsCurrent).map((row) => row.remaining);
         if (live) {
           clearTimeout(expiry);
           setReadiness({ targets: reviewedRows });
@@ -241,8 +252,8 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
     && (row.status === 'ready' || row.status === 'blocked'));
   const missingAircraft = rows.filter((row) => row.selected && row.status === 'unavailable');
   if (missingPx4.length) {
-    reviewAlerts.push(alertCondition(null, `${missingPx4.length} aircraft`, 'PX4 report unavailable',
-      { detail: missingPx4.map((row) => row.name).join(', ') }));
+    reviewAlerts.push(alertCondition(null, `${missingPx4.length} aircraft`, 'PX4 Takeoff report unavailable',
+      { source: 'PX4 report', detail: missingPx4.map((row) => row.name).join(', ') }));
   }
   if (missingAircraft.length) {
     reviewAlerts.push(alertCondition(null, `${missingAircraft.length} aircraft`, 'Aircraft status unavailable',
@@ -284,13 +295,13 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
           const reason = row.selected && (inProgress ? executionDetails[row.id]?.action_result?.operator_message || execution?.reason : row.reason);
           const nativeRestriction = !inProgress && row.selected && row.px4Report?.can_arm_or_run === false;
           const nativeReady = !inProgress && row.selected && status === 'ready' && row.px4Report?.can_arm_or_run === true;
-          const restriction = nativeRestriction && (row.px4Report.mode_problems?.find((problem) => problem.message)?.message || 'PX4 mode restricted');
+          const restriction = nativeRestriction && 'PX4 does not permit arming for Takeoff';
           return <li key={row.id} className={`takeoff-review__aircraft--${status}`}
             data-native-preflight={nativeRestriction ? 'restricted' : nativeReady ? 'ready' : undefined}>
             <AircraftChoiceRow id={row.id} name={row.name} detail={`H${row.id}`} checked={row.selected}
               className="takeoff-review__member" disabled={inProgress || busy}
               onChange={include => selectTargets(include ? [...targets, row.id] : targets.filter(id => id !== row.id))} />
-            <span><b>{nativeRestriction ? 'PX4 restricted' : nativeReady ? 'PX4 ready' : label}</b>
+            <span><b>{nativeRestriction ? 'PX4 restricted' : nativeReady ? 'PX4 ready for Takeoff' : label}</b>
               {(restriction || ((inProgress || status === 'blocked') && reason)) && <small>{restriction || reason}</small>}
             </span></li>;
         })}

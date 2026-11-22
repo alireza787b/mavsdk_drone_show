@@ -67,8 +67,8 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
   const decodedMode = getFlightModeName(drone.flight_mode);
   const modeKnown = hasTelemetry && !/^(?:Unknown|No Data|Invalid Mode|Auto\.\d+)/.test(decodedMode);
   const missionMetadata = hasTelemetry ? getCommandMetadata(drone.mission) : null;
-  const nativeBlockers = Array.isArray(drone.preflight_blockers) && drone.preflight_blockers.length > 0;
-  const readinessStatus = !current ? 'unknown' : nativeBlockers ? 'blocked'
+  const reportedBlockers = Array.isArray(drone.preflight_blockers) && drone.preflight_blockers.length > 0;
+  const readinessStatus = !current ? 'unknown' : reportedBlockers ? 'blocked'
     : ['ready', 'warning', 'blocked'].includes(drone.readiness_status) ? drone.readiness_status : 'unknown';
   const battery = getBatteryPresentation(drone);
   const batteryAvailable = battery.remaining !== null || (battery.voltage !== null && battery.voltage > 0);

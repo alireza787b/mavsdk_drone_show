@@ -12,14 +12,15 @@ const command = { mission_type: 10, trigger_time: 0, target_drone_ids: ['1', '2'
 const native = { valid_for_ms: 5000, targets: ['1', '2'].map((hw_id) => ({ hw_id, status: 'ready', coordinated_takeoff_supported: true })) };
 const aircraft = [{ hw_id: '1', callsign: 'Scout' }, { hw_id: '2', callsign: 'Wing' }];
 
-test('a positive PX4 report is distinct from MDS review completion', async () => {
+test.each([true, false])('only an applicable native PX4 report colors Takeoff (Position verdict %s)', async (positionVerdict) => {
   fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
-    { ...native.targets[0], px4_arming_report: { mode: 'Position', can_arm_or_run: true } },
-    native.targets[1],
+    { ...native.targets[0], px4_arming_report: { source: 'px4', mode: 'Takeoff', can_arm_or_run: true } },
+    { ...native.targets[1], px4_arming_report: { source: 'px4', mode: 'Position', can_arm_or_run: positionVerdict } },
   ] } });
   await ready();
-  expect(screen.getByText('PX4 ready').closest('li')).toHaveAttribute('data-native-preflight', 'ready');
+  expect(screen.getByText('PX4 ready for Takeoff').closest('li')).toHaveAttribute('data-native-preflight', 'ready');
   expect(screen.getByText('Reviewed').closest('li')).not.toHaveAttribute('data-native-preflight');
+  expect(screen.queryByText('PX4 restricted')).not.toBeInTheDocument();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 beforeEach(() => {
@@ -353,23 +354,25 @@ test('one aggregated caution separates missing PX4 reports from unavailable airc
   render(<TakeoffDialog open command={{ ...command, target_drone_ids: ['1', '2', '3'] }} aircraft={aircraft} onClose={jest.fn()} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Caution: 2' }));
   const alerts = screen.getByRole('list', { name: 'Current alerts' });
-  expect(within(alerts).getByText(/PX4 report unavailable/)).toHaveTextContent('2 aircraft');
+  expect(within(alerts).getByText(/PX4 Takeoff report unavailable/)).toHaveTextContent('2 aircraft');
   expect(within(alerts).getByText(/Aircraft status unavailable/)).toHaveTextContent('1 aircraft');
-  expect(screen.queryByText('PX4 ready')).not.toBeInTheDocument();
+  expect(screen.queryByText('PX4 ready for Takeoff')).not.toBeInTheDocument();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 
 test('the native PX4 report is displayed independently of MDS readiness', async () => {
   fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
     { ...native.targets[0], px4_arming_report: {
-      mode: 'Position', can_arm_or_run: false,
+      source: 'px4', mode: 'Takeoff', can_arm_or_run: false,
       mode_problems: [{ message: 'Position estimate unavailable', description: 'Wait for estimate', severity: 'Error' }],
     } }, native.targets[1],
   ] } });
   await ready();
-  expect(screen.getByText('Position estimate unavailable')).toBeInTheDocument();
+  expect(screen.getByText('PX4 restricted')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Warning: 1' }));
-  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText('Position · Wait for estimate')).toBeInTheDocument();
+  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText(/PX4 reports Takeoff not ready/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Caution: 2' }));
+  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText('Takeoff · Wait for estimate')).toBeInTheDocument();
   expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
@@ -379,7 +382,7 @@ test('a lost native report removes the red count without erasing the last report
   try {
     fetchGcsResource.mockResolvedValueOnce({ data: { ...native, targets: [
       { ...native.targets[0], px4_arming_report: {
-        mode: 'Position', can_arm_or_run: false, mode_problems: [{ message: 'Heading unstable' }],
+        source: 'px4', mode: 'Takeoff', can_arm_or_run: false, mode_problems: [{ message: 'Heading unstable' }],
       } }, native.targets[1],
     ] } }).mockRejectedValue(new Error('Offline'));
     await ready();

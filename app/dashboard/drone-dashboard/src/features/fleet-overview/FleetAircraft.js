@@ -35,8 +35,7 @@ function AircraftPortrait({ item }) {
       ? { key: 'stale', Icon: FaRegClock, label: 'Heartbeat stale', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
       : !item.current && item.availability.available
           ? { key: 'delayed', Icon: FaRegClock, label: 'Flight telemetry unavailable', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
-          : item.current && item.flightState === 'Grounded' && item.readiness.status === 'ready'
-            ? { key: 'ready', Icon: FaCheck, label: 'Preflight ready', tone: 'good' } : null;
+          : null;
   const StatusIcon = status?.Icon;
   return <span className="fleet-aircraft__portrait" data-state={item.flightState.toLowerCase()}>
     <svg className="fleet-aircraft__schematic" viewBox="0 0 96 80" aria-hidden="true">
@@ -121,7 +120,6 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       </span>
       <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
         {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
-        {item.flightState === 'Grounded' ? ` Preflight: ${item.readiness.label}.` : ''}
         {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
       </span>
     </button>
@@ -179,7 +177,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         {onMore && <button type="button" onClick={() => onMore(item)}>More</button>}
       </section>
       <details><summary>Diagnostics</summary><dl className="fleet-inspector__facts">
-        <dt>Telemetry checks</dt><dd>{item.readiness.label}</dd>
+        <dt>MDS observations</dt><dd>{item.readiness.label}</dd>
         <dt>Heartbeat age</dt><dd>{heartbeatText(item.availability)}</dd>
         <dt>Network interface</dt><dd>{item.network.interface || 'Unknown'}{item.network.stale ? ' · last known' : ''}</dd>
         <dt>Telemetry age</dt><dd>{item.runtime.telemetryAgeSec == null ? 'Never seen' : `${item.runtime.telemetryAgeSec}s ago`}</dd>
@@ -187,7 +185,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Link evidence</dt><dd>{item.runtime.tooltip}</dd>
         <dt>Battery source</dt><dd>{item.battery.help}</dd>
         <dt>Flight mode code</dt><dd>{item.raw.flight_mode == null ? 'Unknown' : String(item.raw.flight_mode)}</dd>
-        <dt>Readiness detail</dt><dd>{item.readiness.summary || 'Unknown'}</dd>
+        <dt>Observation detail</dt><dd>{item.readiness.summary || 'Unknown'}</dd>
         <dt>Companion</dt><dd><Link to="/fleet-ops" onClick={onClose}>Fleet operations →</Link></dd>
       </dl></details>
     </div>

@@ -20,6 +20,11 @@ confirmation obtains fresh command-bound native proof before arming. Execution
 leases and the all-armed barrier are unchanged. This separation avoids making
 an operator race a sub-second button over a field link.
 
+**Reviewed** is not a PX4 verdict. An Events report for another mode, such
+as Position, cannot establish Takeoff readiness. When the PX4 Takeoff report
+is unavailable, the review shows one grouped notice instead of coloring the
+aircraft green or red. See QGC's Arming Check Report for current-mode details.
+
 ## Operator steps
 
 1. Select the aircraft or complete swarm cluster and choose **Takeoff**. The

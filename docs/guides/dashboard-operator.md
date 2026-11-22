@@ -31,8 +31,9 @@ Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical
 aircraft even when names are duplicated. **P1**, **P2**, etc. identify position
 slots. Each card pairs an aircraft schematic with a small phase marker for
 grounded, airborne, taking off, landing or unknown. The illustration is not an
-airframe footprint, heading or proof that motors stopped. Phase, named flight
-mode and ground readiness sit together beside it. One fixed strip below shows
+airframe footprint, heading or proof that motors stopped. Phase and named flight
+mode sit beside it. MDS observations in the inspector are not a PX4 arming
+verdict. One fixed strip below shows
 GNSS fix, altitude/datum, transport and battery in that order, in Board and List.
 Battery percentage remains readable inside the smaller gauge. Exact
 heartbeat age and Fresh/Stale labels remain in the link hint and inspector
@@ -41,7 +42,7 @@ USB transport symbol. No percentage is permanently repeated beside Wi-Fi.
 The battery outline fills to PX4's reported percentage, shown inside; a bolt
 means current, fault-free charging evidence. Unknown charge is a dash, not an
 empty battery or a voltage-based estimate. Hover the instruments for voltage,
-SSID and reported signal. Keyboard focus announces phase, readiness, the first
+SSID and reported signal. Keyboard focus announces phase, the first
 issue, battery and link; Enter opens full details. Focus never puts a tooltip
 over aircraft warnings. Tap the card for details on touch devices. Cached
 measurements have a dotted underline and the shared stale/link marker; their
