@@ -29,6 +29,12 @@ commit-time installation; replaying the same recovery does not create a new
 flight intent. State telemetry exposes PX4 `landed_state`, its timestamp and
 age; home-relative altitude is not a substitute for landed state.
 
+The optional `px4_arming_report` in aircraft state is display evidence, not
+command admission. It accepts a native Events producer observation only
+while telemetry is current, the aircraft is disarmed and on the ground, and
+the report's mode matches the state packet. A node without a verified native
+report producer returns `null`. An MDS readiness flag is not a substitute.
+
 The Drone API Server is a high-performance FastAPI-based server that runs on each drone, providing both HTTP REST endpoints and WebSocket streaming for real-time telemetry. It handles communication with the Ground Control Station (GCS) and serves drone state information, commands, and configuration data.
 
 ## API Evolution Note

@@ -61,6 +61,7 @@ from command_execution_policy import (
 )
 from command_timeout_policy import estimate_command_tracking_timeout_ms
 from fleet_rpc import FleetRPCService
+from src.px4_preflight_telemetry import relay_preflight_report
 from config import (
     get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
@@ -806,6 +807,7 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
 
     record = {
         **data,
+        "px4_arming_report": None,
         "hw_id": str(data.get("hw_id", normalized_hw_id)),
         "ip": data.get("ip", ip),
         "telemetry_available": data.get("telemetry_available", True),
@@ -843,6 +845,16 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
             "preflight_last_update": now_ms,
         })
 
+    # Stamp once on receipt, not on each HTTP/WS publish of the cached row.
+    # The state clock is already used by this path for stale telemetry and
+    # lets an older packet shorten, never refresh, the report's lease.
+    native = relay_preflight_report(
+        {**record, 'px4_arming_report': data.get('px4_arming_report')},
+        node_sent_at_ms=_normalize_update_time_ms(data.get('server_time')),
+        received_at_ms=now_ms,
+    )
+    if native is not None:
+        record['px4_arming_report'] = native.model_dump()
     return record
 
 

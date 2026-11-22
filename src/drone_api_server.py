@@ -54,6 +54,7 @@ import asyncio
 import json
 from src.mavsdk_runtime import udp_listen_url
 from mavsdk_grpc.system import System
+from src.px4_preflight_telemetry import Px4PreflightReport, current_preflight_report
 
 from mds_logging import get_logger
 from mds_logging.api_schemas import (
@@ -320,6 +321,7 @@ class DroneStateResponse(BaseModel):
     position_source: str = "unavailable"
     position_unavailable_reason: Optional[str] = None
     readiness_status: str = "unknown"
+    px4_arming_report: Optional[Px4PreflightReport] = None
     readiness_summary: str = "Readiness unavailable"
     readiness_checks: List[ReadinessCheckResponse] = Field(default_factory=list)
     preflight_blockers: List[ReadinessMessageResponse] = Field(default_factory=list)
@@ -2244,6 +2246,7 @@ class DroneAPIServer:
             payload['timestamp'] = 0
 
         payload['server_time'] = server_time_ms
+        payload['px4_arming_report'] = current_preflight_report(payload)
         payload['trajectory_execution'] = read_trajectory_runtime(
             command_id=getattr(self.drone_config, 'current_command_id', None) or '')
         payload['smart_swarm_start_admission'] = evaluate_smart_swarm_start_admission(

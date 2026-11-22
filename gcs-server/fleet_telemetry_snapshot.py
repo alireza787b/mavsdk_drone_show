@@ -1,6 +1,7 @@
 """Copy-on-read heartbeat metadata, independent of FC telemetry pull backoff."""
 from contextlib import nullcontext
 from copy import deepcopy
+import time
 
 from presence import build_presence_snapshot, resolve_presence_thresholds
 
@@ -14,7 +15,12 @@ def fleet_telemetry_snapshot(deps):
     # Never nest the heartbeat lock inside the telemetry lock.
     getter = getattr(deps, 'get_all_heartbeats', None)
     heartbeats = getter() if callable(getter) else {}
+    now_ms = time.time_ns() // 1_000_000
     for key, row in rows.items():
+        report = row.get('px4_arming_report')
+        if report is not None and (not isinstance(report, dict)
+                or type(report.get('expires_at_gcs_ms')) is not int or report['expires_at_gcs_ms'] <= now_ms):
+            row['px4_arming_report'] = None
         hw_id = str(row.get('hw_id', key))
         heartbeat = heartbeats.get(hw_id)
         if not heartbeat:

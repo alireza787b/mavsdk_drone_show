@@ -14,6 +14,19 @@ const live = (id = '1', extra = {}) => ({
 const build = (drone, nowMs = NOW) => buildAircraftViewModel(drone, nowMs);
 
 describe('fleet presentation truth', () => {
+  test('only a current, same-mode PX4 report gives a ground preflight verdict', () => {
+    const mode = 50593792;
+    const report = { source: 'px4_events', mode: 'Hold', custom_mode: mode, can_arm: false,
+      expires_at_gcs_ms: NOW + 1000, mode_problems: [{ severity: 'ERROR', message: 'No valid position estimate' }] };
+    const drone = live('1', { flight_mode: mode, px4_arming_report: report });
+    expect(build(drone).preflight).toMatchObject({ status: 'blocked', mode: 'Hold', problems: report.mode_problems });
+    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true, mode_problems: [] } }).preflight.status).toBe('ready');
+    expect(build({ ...drone, px4_arming_report: { ...report, can_arm: true } }).preflight.status).toBe('caution');
+    expect(build(drone, NOW + 1000).preflight).toBeNull();
+    for (const override of [{ is_armed: true }, { landed_state: 2 }, { flight_mode: 131072 }, { telemetry_available: false }]) {
+      expect(build({ ...drone, ...override }).preflight).toBeNull();
+    }
+  });
   test.each([1, 3, 100])('keeps %s aircraft distinct and stable, without a 64-ID presentation limit', (count) => {
     const drones = Array.from({ length: count }, (_, i) => live(String(i + 1)));
     const first = buildFleetViewModel(drones, { nowMs: NOW });

@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.command_execution_contract import DroneExecutionOutcome
 from src.execution_evidence import ActionResultEvidence, normalize_execution_evidence
 from src.control_release_protocol import ControlReleaseResult
+from src.px4_preflight_telemetry import FleetPx4PreflightReport
 from src.enums import CommandOutcome, CommandPhase, CommandStatus
 from src.swarm_trajectory_contract import SwarmTrajectoryPackage
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
@@ -566,6 +567,7 @@ class DroneTelemetry(BaseModel):
     position_unavailable_reason: Optional[str] = Field(None, description="Reason no mappable global position is available")
 
     readiness_status: str = Field("unknown", description="Operator-facing readiness state")
+    px4_arming_report: Optional[FleetPx4PreflightReport] = None
     readiness_summary: str = Field("Readiness unavailable", description="High-level readiness summary")
     readiness_checks: List[TelemetryReadinessCheck] = Field(default_factory=list, description="Structured readiness check results")
     preflight_blockers: List[TelemetryReadinessMessage] = Field(default_factory=list, description="Active readiness blockers")

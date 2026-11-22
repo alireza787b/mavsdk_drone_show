@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
+import { FaCheck, FaExclamationCircle, FaExclamationTriangle, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 import { BatteryGauge, WifiStrength } from './FleetStatusInstruments';
@@ -25,6 +25,13 @@ export function AircraftSymbol({ item }) {
 function AircraftPortrait({ item }) {
   // Flight phase, runtime/link evidence and aircraft conditions occupy distinct
   // fixed slots. None changes command selection or acknowledges an alert.
+  const preflight = item.preflight;
+  const nativeBadge = preflight && {
+    key: preflight.status,
+    Icon: { blocked: FaExclamationCircle, caution: FaExclamationTriangle, ready: FaCheck }[preflight.status],
+    tone: { blocked: 'danger', caution: 'warning', ready: 'good' }[preflight.status],
+    label: `${preflight.label} · ${preflight.mode}`,
+  };
   const status = !item.current && item.runtime.indicatorClass === 'lost'
     ? { key: 'lost', Icon: FaUnlink, label: 'Link lost', tone: 'warning' }
     : item.availability.label === 'Offline'
@@ -35,7 +42,7 @@ function AircraftPortrait({ item }) {
       ? { key: 'stale', Icon: FaRegClock, label: 'Heartbeat stale', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
       : !item.current && item.availability.available
           ? { key: 'delayed', Icon: FaRegClock, label: 'Flight telemetry unavailable', tone: item.linkAttention === 'pending' ? 'muted' : 'warning' }
-          : null;
+          : nativeBadge;
   const StatusIcon = status?.Icon;
   return <span className="fleet-aircraft__portrait" data-state={item.flightState.toLowerCase()}>
     <svg className="fleet-aircraft__schematic" viewBox="0 0 96 80" aria-hidden="true">
@@ -120,6 +127,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       </span>
       <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
         {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
+        {item.preflight ? ` ${item.preflight.label} · ${item.preflight.mode}.` : ''}
         {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
       </span>
     </button>
@@ -157,6 +165,11 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       <dl className="fleet-inspector__facts">
         <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
+        {item.flightState === 'Grounded' && <><dt>PX4 arming report</dt><dd>
+          {item.preflight ? `${item.preflight.label} · ${item.preflight.mode}` : 'Unavailable'}
+          {item.preflight?.problems.length > 0 && <ul>{item.preflight.problems.map((problem, index) =>
+            <li key={`${index}:${problem.message}`} title={problem.description || undefined}>{problem.message}</li>)}</ul>}
+        </dd></>}
         <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>
         <dt>Altitude</dt><dd>{altitudeText(item.altitude)}{item.altitude.stale ? ' · last known' : ''}</dd>
         <dt>GPS</dt><dd>{item.gps.label}{item.gps.stale ? ' · last known' : ''}</dd>

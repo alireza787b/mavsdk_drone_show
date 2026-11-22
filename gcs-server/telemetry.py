@@ -54,6 +54,7 @@ def _build_telemetry_unavailable_record(drone_id: str, drone_ip: str, error_mess
         'telemetry_available': False,
         'telemetry_error': error_message,
         'is_ready_to_arm': False,
+        'px4_arming_report': None,
         'readiness_status': 'unknown',
         'readiness_summary': 'Telemetry link is stale or lost. Readiness is currently unavailable.',
         'readiness_checks': [],

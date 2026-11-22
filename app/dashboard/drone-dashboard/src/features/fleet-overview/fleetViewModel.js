@@ -15,6 +15,20 @@ import { getFleetNetworkStatus } from './fleetNetworkStatus';
 const SAMPLE_CURRENT_MS = 10000;
 const GPS_LABELS = ['No GPS', 'No fix', '2D fix', '3D fix', 'DGPS', 'RTK float', 'RTK fixed', 'Static', 'PPP'];
 const FLIGHT_LABELS = { ON_GROUND: 'Grounded', IN_AIR: 'Airborne', TAKING_OFF: 'Taking off', LANDING: 'Landing' };
+const PREFLIGHT_ALERT_LEVELS = new Set(['EMERGENCY', 'ALERT', 'CRITICAL', 'ERROR', 'WARNING']);
+
+function px4Preflight(drone, nowMs, { current, armed, flightState }) {
+  const report = drone.px4_arming_report;
+  if (!current || armed !== false || flightState !== 'Grounded' || report?.source !== 'px4_events'
+      || typeof report.can_arm !== 'boolean' || !Array.isArray(report.mode_problems)
+      || !Number.isInteger(report.custom_mode) || report.custom_mode !== drone.flight_mode
+      || typeof report.mode !== 'string' || !report.mode.trim()
+      || !(Number.isInteger(report.expires_at_gcs_ms) && report.expires_at_gcs_ms > getDroneReferenceNowMs(drone, nowMs))) return null;
+  const status = !report.can_arm ? 'blocked'
+    : report.mode_problems.some((problem) => PREFLIGHT_ALERT_LEVELS.has(problem?.severity)) ? 'caution' : 'ready';
+  const label = { blocked: 'PX4 not ready', caution: 'PX4 can arm with cautions', ready: 'PX4 ready' }[status];
+  return { status, label, mode: report.mode, problems: report.mode_problems };
+}
 
 function numberOrNull(value) {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
@@ -123,6 +137,7 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     id, raw: drone, identity,
     label: identity.alias?.value || `Aircraft ${id}`,
     runtime, availability, boot, current, armed, flightState,
+    preflight: px4Preflight(drone, nowMs, { current, armed, flightState }),
     flightMode: { label: modeKnown ? decodedMode : 'Unknown', known: modeKnown,
       current: current && modeKnown, stale: !current && hasTelemetry && modeKnown },
     mission: { label: missionMetadata ? getFriendlyMissionName(drone.mission) : 'Unknown', known: Boolean(missionMetadata),
