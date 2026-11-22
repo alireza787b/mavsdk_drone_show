@@ -47,6 +47,7 @@ GCS_EXPECTED_HTTP = {
         "/.well-known/oauth-protected-resource/{resource_path:path}",
         "/api/v1/system/health",
         "/api/v1/fleet/telemetry",
+        "/api/v1/fleet/aircraft/{hw_id}/px4-arming-report",
         "/api/v1/fleet/heartbeats",
         "/api/v1/fleet/action-readiness",
         "/api/v1/fleet/candidates",
