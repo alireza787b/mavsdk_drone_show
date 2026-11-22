@@ -41,8 +41,12 @@ test('acknowledgement stays Seen, not resolved, and aircraft links preserve exac
   const dialog = open();
   const conditions = within(dialog).getByRole('list', { name: 'Current alerts' });
   expect(within(conditions).getByRole('link', { name: 'Open aircraft H1' })).toHaveAttribute('href', '/?aircraft=1');
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Mark Scout Battery: Low as seen' }));
-  expect(within(conditions).getByText('Seen')).toBeInTheDocument();
+  const seen = within(dialog).getByRole('button', { name: 'Mark Scout Battery: Low as seen' });
+  seen.focus();
+  fireEvent.click(seen);
+  expect(seen).toHaveAttribute('aria-disabled', 'true');
+  expect(seen).toHaveAccessibleName('Seen: Scout Battery: Low');
+  expect(seen).toHaveFocus();
   expect(within(conditions).getByText(/Battery: Low/)).toBeInTheDocument();
   expect(within(dialog).queryByText(/Recently cleared/)).not.toBeInTheDocument();
 });
@@ -104,4 +108,60 @@ test('native dialog cancellation closes and restores trigger focus', () => {
   fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
+});
+
+test('the sheet switches severity in place and keeps history within that filter', () => {
+  const mixed = [{ id: '1', label: 'Scout', current: true, issues: [
+    { key: 'battery', label: 'Battery low', tone: 'warning' },
+    { key: 'link', label: 'Link lost', tone: 'danger' },
+  ] }];
+  const view = render(tree({ aircraft: mixed }));
+  const dialog = open('Warning: 1');
+  expect(within(dialog).getByText('Link lost')).toBeVisible();
+  expect(within(dialog).queryByText('Battery low')).not.toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cautions 1' }));
+  expect(screen.getByRole('dialog')).toBe(dialog);
+  expect(within(dialog).getByText('Battery low')).toBeVisible();
+  view.rerender(tree({ aircraft: [{ ...mixed[0], issues: [] }] }));
+  const history = within(dialog).getByText('Recently cleared').closest('details');
+  expect(history).not.toHaveAttribute('open');
+  history.open = true;
+  expect(within(dialog).getByRole('list', { name: 'Recently cleared alerts' })).toHaveTextContent('Battery low');
+  expect(within(dialog).queryByText('Link lost')).not.toBeInTheDocument();
+});
+
+test('the same condition on 100 aircraft is one row until the operator expands it', () => {
+  const aircraft = Array.from({ length: 100 }, (_, index) => ({
+    ...AIRCRAFT[0], id: String(index + 1), label: `Scout ${index + 1}`,
+  }));
+  render(tree({ aircraft }));
+  const dialog = open('Caution: 100');
+  const rows = within(dialog).getByRole('list', { name: 'Current alerts' });
+  expect(within(rows).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(rows).queryByRole('link')).not.toBeInTheDocument();
+  const group = within(rows).getByText('100 aircraft').closest('details');
+  group.open = true;
+  fireEvent(group, new Event('toggle'));
+  expect(within(rows).getByRole('link', { name: 'Open aircraft H100' })).toHaveAttribute('href', '/?aircraft=100');
+});
+
+test('an expiring trigger returns focus to the remaining alerts control on close', () => {
+  render(tree());
+  const dialog = open('Caution: 1');
+  act(() => jest.advanceTimersByTime(6000));
+  expect(screen.getByRole('button', { name: 'Caution: 0' })).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close fleet alerts' }));
+  expect(screen.getByRole('button', { name: 'Alerts' })).toHaveFocus();
+});
+
+test('repeated history for one aircraft is counted by report', () => {
+  const cleared = [{ ...AIRCRAFT[0], issues: [] }];
+  const view = render(tree());
+  view.rerender(tree({ aircraft: cleared }));
+  view.rerender(tree());
+  view.rerender(tree({ aircraft: cleared }));
+  const dialog = open('Alerts');
+  const history = within(dialog).getByText('Recently cleared').closest('details');
+  history.open = true;
+  expect(within(history).getByText('2 reports')).toBeVisible();
 });

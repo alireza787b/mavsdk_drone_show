@@ -6795,7 +6795,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "9e3f3a66ff817b0c451e8d0b68f053f1923481eaff7048495a00c4281b1e2724",
+      "content_hash": "95d344db6aad1825c2e215ef23573ac440e72b02f243bf448d04787554064994",
       "heading": "Alert indicators",
       "id": "mds.dashboard_operator:006-01-alert-indicators",
       "links": [],
@@ -6809,7 +6809,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Alert indicators\n\nRed **Warning** and amber **Caution** icons count current conditions. Open\neither icon by click, tap, or keyboard to see the aircraft, reason, and source.\nThe Overview strip covers the fleet; Smart Swarm covers the selected cluster,\nand Takeoff covers the reviewed aircraft.\n\nA current PX4 restriction stays visible beside the affected action. “PX4\nstatus unavailable” is a caution, not a PX4 denial. **Last reported** findings\ndo not count as live. A GCS outage is one fleet alert, not one per aircraft.\nOpening the panel does not clear or acknowledge anything; **Seen** is a separate\naction. Neither changes command behavior.\n\n[Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·\n[Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·\n[Phone Takeoff review](../assets/operator-alerts/dark-390-takeoff.png).\nThese views use simulated observations.",
+      "text": "## Alert indicators\n\nOpen the red **Warning** or amber **Caution** icon to review current fleet\nconditions. Switch severity inside the same sheet. When several aircraft\nreport the same condition, expand the row to see the aircraft. The arrow\nopens Aircraft Details. The check marks the alert as seen and keeps it in the\ncurrent list while the condition persists.\n\n**Last reported** shows observations the dashboard can no longer confirm.\n**Recently cleared** records conditions that later observations resolved. Both\nfollow the selected severity. A GCS outage appears as one fleet alert.\nOpening or closing the sheet leaves the command recipients as selected.\n\n[Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·\n[Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·\n[Phone Takeoff review](../assets/operator-alerts/dark-390-takeoff.png).\nThese views use simulated observations.",
       "title": "Overview operator guide"
     },
     {
@@ -17721,7 +17721,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 15,
-      "content_hash": "3bf43ee2fa43268018f8d275ac2eb5640afcfa62144bf36a3248b05be56d8f97",
+      "content_hash": "329b17dc643f9efa7fef87116c3536d11e58d6ff45e52a0cdd2a797951489570",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

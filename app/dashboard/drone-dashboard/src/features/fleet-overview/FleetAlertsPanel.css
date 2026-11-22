@@ -1,24 +1,50 @@
-.fleet-alerts,.alert-annunciators { display:inline-flex; align-items:center; }
-.alert-annunciators { gap:var(--spacing-xs); }
-.alert-annunciator { display:inline-flex; align-items:center; justify-content:center; gap:var(--spacing-xs); min-height:44px; min-width:44px; padding:var(--spacing-xs); background:transparent; border:0; color:var(--color-text-secondary); font:inherit; font-size:var(--font-size-sm); cursor:pointer; }
-.alert-annunciators > button.alert-annunciator.tone-danger,.alert-deck__row.tone-danger > svg { color:var(--color-danger); }
-.alert-annunciators > button.alert-annunciator.tone-warning,.alert-deck__row.tone-warning > svg { color:var(--color-warning); }
-.alert-annunciator > svg { color:inherit; }
+.fleet-alerts,.alert-annunciators { display:inline-flex; align-items:center; gap:var(--spacing-xs); }
+.alert-annunciator { display:inline-flex; align-items:center; justify-content:center; gap:.3rem; min-height:44px; min-width:44px; padding:.25rem .4rem; background:transparent; border:0; border-radius:var(--border-radius-sm); color:var(--color-text-secondary); font:inherit; font-size:var(--font-size-sm); cursor:pointer; }
+.alert-annunciators > button.alert-annunciator.tone-danger { color:var(--color-danger-text); }
+.alert-annunciators > button.alert-annunciator.tone-warning { color:var(--color-warning-text); }
+.alert-annunciator > svg { flex:none; color:inherit; }
 .alert-annunciator:hover,.alert-annunciator[aria-expanded=true] { background:var(--color-surface-inset); }
 .alert-annunciators > button.alert-annunciator.tone-danger[aria-expanded=true] { background:var(--color-danger-light); }
 .alert-annunciators > button.alert-annunciator.tone-warning[aria-expanded=true] { background:var(--color-warning-light); }
-.fleet-alerts__dialog { position:fixed; margin:0 0 0 auto; inset:0 0 0 auto; width:min(28rem,100vw); max-width:100vw; height:100dvh; max-height:100dvh; box-sizing:border-box; overflow:auto; border:0; border-inline-start:1px solid var(--color-border-primary); padding:var(--spacing-lg); background:var(--color-bg-primary); color:var(--color-text-primary); }
+
+.fleet-alerts__dialog { position:fixed; inset:1rem 1rem auto auto; width:min(27rem,calc(100vw - 2rem)); max-height:calc(100dvh - 2rem); box-sizing:border-box; overflow:hidden; padding:0; margin:0; border:1px solid var(--color-border-primary); border-radius:1rem; background:var(--color-bg-primary); color:var(--color-text-primary); box-shadow:var(--shadow-lg,0 16px 48px #0003); }
 .fleet-alerts__dialog::backdrop { background:var(--color-bg-overlay); }
-.fleet-alerts__dialog header,.alert-deck__sheet header { display:flex; justify-content:space-between; align-items:center; gap:var(--spacing-sm); }
-.fleet-alerts__dialog h2,.alert-deck__sheet h3 { margin:0; font-size:var(--font-size-base); }
-.fleet-alerts__dialog p,.alert-deck__sheet p,.alert-deck__row small { color:var(--color-text-secondary); font-size:var(--font-size-sm); }
-.fleet-alerts__dialog button,.fleet-alerts__dialog a,.alert-deck__sheet header button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:var(--spacing-xs); border:0; background:transparent; color:var(--color-text-primary); font:inherit; font-size:var(--font-size-sm); cursor:pointer; }
-.fleet-alerts__dialog header button,.alert-deck__sheet header button { min-width:44px; font-size:var(--font-size-lg); }
-.alert-deck__rows { padding:0; margin:0; list-style:none; }
-.alert-deck__rows .alert-deck__row { display:flex; align-items:flex-start; gap:var(--spacing-sm); padding:var(--spacing-sm) 0; border:0; border-block-start:1px solid var(--color-border-secondary); min-width:0; background:transparent; }
-.alert-deck__row > svg { flex:none; margin-top:var(--spacing-xs); }
-.alert-deck__row > div:first-of-type { display:grid; flex:1; min-width:0; overflow-wrap:anywhere; color:var(--color-text-primary); font-size:var(--font-size-sm); }
-.fleet-alerts__entry-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:var(--spacing-xs); }
-.fleet-alerts__dialog summary,.alert-deck__sheet summary { min-height:44px; align-content:center; cursor:pointer; }
-.alert-deck__sheet { border-inline-start:2px solid var(--color-border-primary); padding-inline:var(--spacing-sm); max-height:min(18rem,45dvh); overflow:auto; background:var(--color-bg-secondary); }
-.alert-deck :is(button,summary):focus-visible,.fleet-alerts button:focus-visible,.fleet-alerts__dialog :is(button,a,summary):focus-visible { outline:2px solid var(--color-primary); outline-offset:2px; }
+.fleet-alerts__frame { display:flex; flex-direction:column; max-height:calc(100dvh - 2rem); }
+.fleet-alerts__header { display:flex; align-items:center; justify-content:space-between; flex:none; gap:.5rem; padding:.65rem .75rem .25rem 1rem; }
+.fleet-alerts__header h2 { margin:0; font-size:1.15rem; font-weight:650; }
+.fleet-alerts__filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); flex:none; gap:.25rem; padding:.25rem; margin:0 1rem .75rem; border-radius:.65rem; background:var(--color-surface-inset); }
+.fleet-alerts__filters button { display:flex; align-items:center; justify-content:center; gap:.4rem; min-width:0; min-height:44px; padding:.3rem; border:1px solid transparent; border-radius:.5rem; background:transparent; color:var(--color-text-secondary); cursor:pointer; font:inherit; font-size:.83rem; white-space:nowrap; }
+.fleet-alerts__filters button[aria-pressed=true] { border-color:var(--color-border-primary); background:var(--color-bg-primary); color:var(--color-text-primary); font-weight:600; }
+.fleet-alerts__filters button span { font-variant-numeric:tabular-nums; }
+.fleet-alerts__filters .tone-danger svg,.fleet-alert-card__severity.tone-danger { color:var(--color-danger-text); }
+.fleet-alerts__filters .tone-warning svg,.fleet-alert-card__severity.tone-warning { color:var(--color-warning-text); }
+
+.fleet-alerts__body { min-height:0; overflow:auto; overscroll-behavior:contain; padding:0 1rem .85rem; }
+.fleet-alerts__empty { margin:.45rem 0 .7rem; color:var(--color-text-secondary); font-size:.85rem; }
+.fleet-alert-list,.fleet-alert-card__aircraft { list-style:none; padding:0; margin:0; }
+.fleet-alert-card { display:grid; grid-template-columns:1rem minmax(0,1fr) auto; align-items:center; gap:.55rem; min-height:54px; padding:.3rem .25rem; border-block-start:1px solid var(--color-border-secondary); overflow-wrap:anywhere; }
+.fleet-alert-card__severity { align-self:start; margin-block-start:.25rem; }
+.fleet-alert-card__copy { display:grid; min-width:0; gap:.15rem; line-height:1.25; }
+.fleet-alert-card__copy strong { color:var(--color-text-primary); font-size:.88rem; font-weight:600; }
+.fleet-alert-card small,.fleet-alert-history small { color:var(--color-text-secondary); font-size:.76rem; }
+.fleet-alert-card__actions { display:flex; align-items:center; }
+.fleet-alert-icon-button { display:inline-flex; align-items:center; justify-content:center; flex:none; width:44px; height:44px; padding:0; border:0; border-radius:.5rem; background:transparent; color:var(--color-text-secondary); font:inherit; font-size:.83rem; cursor:pointer; }
+.fleet-alert-icon-button:hover { background:var(--color-surface-inset); color:var(--color-text-primary); }
+.fleet-alert-icon-button[aria-disabled=true] { opacity:.6; cursor:default; }
+.fleet-alert-card--group { display:block; }
+.fleet-alert-card--group summary { display:grid; grid-template-columns:1rem minmax(0,1fr) 1rem; align-items:center; gap:.55rem; min-height:44px; cursor:pointer; }
+.fleet-alert-card__aircraft > li { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding-inline-start:1.55rem; min-height:44px; border-block-start:1px solid var(--color-border-secondary); }
+.fleet-alert-history { border-block-start:1px solid var(--color-border-secondary); }
+.fleet-alert-history > summary { display:flex; align-items:center; min-height:44px; gap:.45rem; cursor:pointer; color:var(--color-text-secondary); font-size:.83rem; }
+.fleet-alert-history > summary small { margin-inline-start:auto; }
+.fleet-alerts__dialog summary { list-style:none; }
+.fleet-alerts__dialog summary::-webkit-details-marker { display:none; }
+.fleet-alert-chevron { color:var(--color-text-secondary); font-size:.68rem; }
+.fleet-alerts__dialog details[open] > summary > .fleet-alert-chevron { transform:rotate(90deg); }
+.fleet-alerts button:focus-visible,.fleet-alerts__dialog :is(button,a,summary):focus-visible { outline:2px solid var(--color-primary); outline-offset:-2px; }
+
+@media (max-width:600px) {
+  .fleet-alerts__dialog { inset:auto 0 0; width:100%; max-width:none; max-height:85dvh; border-radius:1rem 1rem 0 0; }
+  .fleet-alerts__frame { max-height:85dvh; }
+  .fleet-alerts__body { padding-bottom:max(.85rem,env(safe-area-inset-bottom)); }
+}

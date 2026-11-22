@@ -200,16 +200,16 @@ flight/recovery controls on Overview or the owning mission page.
 
 ## Alert indicators
 
-Red **Warning** and amber **Caution** icons count current conditions. Open
-either icon by click, tap, or keyboard to see the aircraft, reason, and source.
-The Overview strip covers the fleet; Smart Swarm covers the selected cluster,
-and Takeoff covers the reviewed aircraft.
+Open the red **Warning** or amber **Caution** icon to review current fleet
+conditions. Switch severity inside the same sheet. When several aircraft
+report the same condition, expand the row to see the aircraft. The arrow
+opens Aircraft Details. The check marks the alert as seen and keeps it in the
+current list while the condition persists.
 
-A current PX4 restriction stays visible beside the affected action. “PX4
-status unavailable” is a caution, not a PX4 denial. **Last reported** findings
-do not count as live. A GCS outage is one fleet alert, not one per aircraft.
-Opening the panel does not clear or acknowledge anything; **Seen** is a separate
-action. Neither changes command behavior.
+**Last reported** shows observations the dashboard can no longer confirm.
+**Recently cleared** records conditions that later observations resolved. Both
+follow the selected severity. A GCS outage appears as one fleet alert.
+Opening or closing the sheet leaves the command recipients as selected.
 
 [Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·
 [Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·

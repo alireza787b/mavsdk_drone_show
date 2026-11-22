@@ -1,67 +1,43 @@
 import React, { useId, useRef, useState } from 'react';
 import { FaExclamationCircle, FaExclamationTriangle, FaRegBell } from 'react-icons/fa';
+import { ALERT_LEVELS, alertScope, distinctAlertConditions } from './fleetAlertPresentation';
 import './FleetAlertsPanel.css';
-
-const LEVELS = [
-  ['danger', 'Warning', FaExclamationCircle],
-  ['warning', 'Caution', FaExclamationTriangle],
-];
+import './AlertAnnunciators.css';
 
 export function alertCondition(aircraftId, aircraftLabel, reason, { tone = 'warning', source = 'MDS', detail } = {}) {
   return { aircraftId, aircraftLabel, reason, tone, source, detail };
 }
 
-export function distinctAlertConditions(entries) {
-  const distinct = new Map();
-  entries.forEach((entry) => {
-    const reason = typeof entry.reason === 'string' ? entry.reason.trim() : '';
-    if (!reason) return;
-    const key = JSON.stringify([entry.aircraftId, reason.replace(/\s+/g, ' ').toLowerCase()]);
-    const previous = distinct.get(key);
-    if (!previous || (entry.observed !== false && previous.observed === false)
-      || ((entry.observed === false) === (previous.observed === false)
-        && entry.tone === 'danger' && previous.tone !== 'danger')) {
-      distinct.set(key, { ...entry, reason, displayKey: key });
-    }
-  });
-  return [...distinct.values()].sort((a, b) => Number(b.tone === 'danger') - Number(a.tone === 'danger'));
-}
-
-export function AlertButtons({ current, onOpen, selected, hasHistory, popup, controls }) {
-  const counts = LEVELS.map(([tone]) => current.filter((entry) => entry.tone === tone).length);
+function AlertButtons({ current, onOpen, selected, hasHistory, controls }) {
+  const counts = ALERT_LEVELS.map(([tone]) => current.filter((entry) => entry.tone === tone).length);
   return <div className="alert-annunciators">
-    {LEVELS.map(([tone, label, Icon], index) => counts[index] > 0 && <button key={tone} type="button"
+    {ALERT_LEVELS.map(([tone, label, Icon], index) => counts[index] > 0 && <button key={tone} type="button"
       className={`alert-annunciator tone-${tone}`} aria-label={`${label}: ${counts[index]}`}
-      title={`${label}: ${counts[index]}`} aria-expanded={selected === tone} aria-haspopup={popup}
+      title={`${label}: ${counts[index]}`} aria-expanded={selected === tone}
       aria-controls={selected === tone ? controls : undefined} onClick={(event) => onOpen(tone, event.currentTarget)}>
       <Icon aria-hidden="true" /><span aria-hidden="true">{counts[index]}</span>
     </button>)}
     {!counts.some(Boolean) && hasHistory && <button type="button" className="alert-annunciator"
-      aria-label="Alerts" title="Alerts" aria-expanded={selected === 'all'} aria-haspopup={popup}
+      aria-label="Alerts" title="Alerts" aria-expanded={selected === 'all'}
       aria-controls={selected === 'all' ? controls : undefined} onClick={(event) => onOpen('all', event.currentTarget)}>
       <FaRegBell aria-hidden="true" />
     </button>}
   </div>;
 }
 
-export function AlertRows({ entries, label, renderActions, renderMeta }) {
+function AlertRows({ entries, label }) {
   return <ul className="alert-deck__rows" aria-label={label}>
     {distinctAlertConditions(entries).map((entry) => {
       const Icon = entry.tone === 'danger' ? FaExclamationCircle : FaExclamationTriangle;
       return <li className={`alert-deck__row tone-${entry.tone}`} key={entry.displayKey}>
         <Icon aria-hidden="true" />
         <div><span><strong>{entry.aircraftLabel}</strong> · {entry.reason}</span>
-          <small>{[entry.source, renderMeta?.(entry)].filter(Boolean).join(' · ')}</small>
+          {entry.source && <small>{entry.source}</small>}
           {entry.detail && entry.detail !== entry.reason && <small>{entry.detail}</small>}
         </div>
-        {renderActions?.(entry)}
       </li>;
     })}
   </ul>;
-}
-
-export function alertScope(entries, selected) {
-  return selected === 'all' ? entries : entries.filter((entry) => entry.tone === selected);
 }
 
 export function InlineAlerts({ entries, lastReported = [], label = 'Aircraft alerts' }) {
