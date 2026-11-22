@@ -3826,7 +3826,7 @@ tools:
         pattern: ^[A-Za-z0-9_.:-]+$
         description: QuickScout mission id.
 - id: mds.swarm_trajectories.workspace.read
-  title: Read trajectory mission workspace
+  title: Read Swarm Trajectory workspace
   description: Read mission-owned layout, route preview, package readiness and reviewed launch identity.
   exposure: allow
   risk_class: sensitive_observe

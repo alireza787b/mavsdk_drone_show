@@ -1904,14 +1904,14 @@ candidates:
 - callable: false
   classification:
     default_registry_exposure: exclude
-    eligible_read_only_mcp_candidate: true
+    eligible_read_only_mcp_candidate: false
     inferred_risk_class: sensitive_observe
     inferred_sensitivity:
     - fleet_identity
     - location
-    recommended_registry_exposure: candidate_allow_after_review
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
-    - manual_review_required_before_registry_promotion
+    - browser revision lookup for cached PX4 reasons; dashboard-only
   has_request_body: false
   id: candidate.gcs.get.api.v1.fleet.aircraft.by.hw.id.px4.arming.report
   parameters:
@@ -9221,14 +9221,10 @@ source:
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 86
+    eligible_read_only_candidate_count: 85
     promoted_eligible_candidate_count: 85
-    promoted_eligible_ratio: 0.9884
+    promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
     registry_route_count: 103
-    unpromoted_eligible_by_area:
-    - area: fleet
-      count: 1
-      routes:
-      - GET /api/v1/fleet/aircraft/{hw_id}/px4-arming-report
-    unpromoted_eligible_candidate_count: 1
+    unpromoted_eligible_by_area: []
+    unpromoted_eligible_candidate_count: 0
