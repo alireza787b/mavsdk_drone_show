@@ -11,6 +11,17 @@ jest.mock('../contexts/CommandActivityContext', () => ({ useCommandActivity: () 
 const command = { mission_type: 10, trigger_time: 0, target_drone_ids: ['1', '2'], takeoff_altitude: 10 };
 const native = { valid_for_ms: 5000, targets: ['1', '2'].map((hw_id) => ({ hw_id, status: 'ready', coordinated_takeoff_supported: true })) };
 const aircraft = [{ hw_id: '1', callsign: 'Scout' }, { hw_id: '2', callsign: 'Wing' }];
+
+test('a positive PX4 report is distinct from MDS review completion', async () => {
+  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
+    { ...native.targets[0], px4_arming_report: { mode: 'Position', can_arm_or_run: true } },
+    native.targets[1],
+  ] } });
+  await ready();
+  expect(screen.getByText('PX4 ready').closest('li')).toHaveAttribute('data-native-preflight', 'ready');
+  expect(screen.getByText('Reviewed').closest('li')).not.toHaveAttribute('data-native-preflight');
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   jest.clearAllMocks();
   sessionStorage.clear();
@@ -332,6 +343,20 @@ test('after a definite rejection an edited selection gets a new identity and amb
   }));
   expect(trackCommandReceipt).toHaveBeenCalledWith(second, expect.anything(), expect.anything());
   expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2);
+});
+
+test('one aggregated caution separates missing PX4 reports from unavailable aircraft', async () => {
+  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
+    ...native.targets,
+    { hw_id: '3', status: 'unavailable', reason: 'Checking aircraft' },
+  ] } });
+  render(<TakeoffDialog open command={{ ...command, target_drone_ids: ['1', '2', '3'] }} aircraft={aircraft} onClose={jest.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Caution: 2' }));
+  const alerts = screen.getByRole('list', { name: 'Current alerts' });
+  expect(within(alerts).getByText(/PX4 report unavailable/)).toHaveTextContent('2 aircraft');
+  expect(within(alerts).getByText(/Aircraft status unavailable/)).toHaveTextContent('1 aircraft');
+  expect(screen.queryByText('PX4 ready')).not.toBeInTheDocument();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
 });
 
 test('the native PX4 report is displayed independently of MDS readiness', async () => {

@@ -1,5 +1,9 @@
 # Takeoff with all aircraft ready
 
+The review groups aircraft with no PX4 report under one caution, separate
+from aircraft that did not return status at all. **Reviewed** is not PX4
+arming approval. **PX4 ready** refers only to the mode in the live report.
+
 Dashboard, Smart Swarm and aircraft-card Takeoff controls open the same review.
 
 Red and amber alert counters open details for only the selected aircraft.

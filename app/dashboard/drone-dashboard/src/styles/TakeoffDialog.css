@@ -23,8 +23,10 @@
 .takeoff-review__aircraft strong,.takeoff-review__aircraft li > span { display:flex; flex-direction:column; gap:.25rem; min-width:0; overflow-wrap:anywhere; }
 .takeoff-review__aircraft small { color:var(--color-text-secondary); font-size:.76rem; font-weight:400; }
 .takeoff-review__aircraft b { font-size:.85rem; font-weight:500; text-transform:capitalize; color:var(--color-warning-text); }
-.takeoff-review__aircraft--ready b,.takeoff-review__aircraft--airborne b { color:var(--color-success-text); }
+.takeoff-review__aircraft--ready b { color:var(--color-text-secondary); }
+.takeoff-review__aircraft li[data-native-preflight="ready"] b,.takeoff-review__aircraft--airborne b { color:var(--color-success-text); }
 .takeoff-review__aircraft--blocked b,.takeoff-review__aircraft--failed b { color:var(--color-danger-text); }
+.takeoff-review__aircraft li[data-native-preflight="restricted"] b { color:var(--color-danger-text); }
 .takeoff-review__aircraft--excluded { background:var(--color-bg-secondary); }
 .takeoff-review__aircraft--excluded .takeoff-review__member strong,.takeoff-review__aircraft--excluded b { color:var(--color-text-secondary); }
 .takeoff-review__member:has(input:disabled) { cursor:default; }
