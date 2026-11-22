@@ -14,6 +14,8 @@ import SwarmFormationSource from './SwarmFormationSource';
 import TakeoffDialog from './TakeoffDialog';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
 import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
+import { alertCondition, InlineAlerts } from '../features/fleet-overview/AlertAnnunciators';
+import { useScopedFleetAlerts } from '../features/fleet-overview/FleetAlertsPanel';
 import useSwarmCommandScope from '../features/fleet-overview/useSwarmCommandScope';
 import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence, swarmNamesSummary } from '../utilities/swarmCommandScope';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';
@@ -330,6 +332,16 @@ export default function SwarmOperations() {
   const contextKey = `${selection.id}:${preview?.revision}`;
   const startReadiness = startCheck?.error ? { ready: false, label: startCheck.error }
     : swarmStartReadiness([...(confirmation?.targets || []), ...(confirmation?.references || [])], startCheck?.decisions, startCheck?.until || 0);
+  const clusterAlerts = useScopedFleetAlerts(members.map((member) => String(member.hw_id)));
+  const clusterFindings = members.filter((member) => member.available
+    && ['warning', 'blocked'].includes(member.readiness_status) && member.readiness_summary)
+    .map((member) => alertCondition(String(member.hw_id), memberLabel(member), member.readiness_summary));
+  const startIds = new Set([...(confirmation?.targets || []), ...(confirmation?.references || [])].map(String));
+  const startAlerts = (startCheck?.until > Date.now() ? Object.values(startCheck.decisions || {}) : [])
+    .filter((decision) => startIds.has(String(decision.hw_id)) && decision.status !== 'ready')
+    .map((decision) => alertCondition(String(decision.hw_id),
+      memberLabel(members.find((member) => String(member.hw_id) === String(decision.hw_id)) || decision),
+      decision.message, { source: decision.source === 'coordination' ? 'Coordination' : 'MDS', detail: decision.detail }));
 
   return (
     <section className="swarm-ops operator-console" aria-label="Swarm operations">
@@ -346,6 +358,7 @@ export default function SwarmOperations() {
           aria-label="Other actions" title="Other actions" aria-expanded={advanced}
           onClick={() => setAdvanced(!advanced)}><FaEllipsisH aria-hidden="true" /></button>
       </header>
+      <InlineAlerts entries={[...clusterAlerts.current, ...clusterFindings]} lastReported={clusterAlerts.lastReported} label="Cluster alerts" />
       <SwarmFormationSource
         planHref={`/swarm-design?tab=formation${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
@@ -380,13 +393,8 @@ export default function SwarmOperations() {
         }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
-        {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
         <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
       </div>}
-      {members.some((m) => m.available && m.readiness_status === 'blocked') && <p className="swarm-ops__attention" role="status">
-        {members.filter((m) => m.available && m.readiness_status === 'blocked').slice(0, 2).map((m) => `${memberLabel(m)}: ${m.readiness_summary || 'Not ready'}`).join(' · ')}
-        {members.filter((m) => m.available && m.readiness_status === 'blocked').length > 2 && ' · More in aircraft details'}
-      </p>}
       {advanced && <div className="swarm-ops__advanced">
         <a href="/globe-view">Globe</a>
         {['hold', 'land', 'rtl'].map((action) => <button className="operator-button operator-button--ghost" type="button" key={action} disabled={busy || !canCommand} onClick={() => review(action)}>{LABELS[action]}</button>)}
@@ -419,6 +427,10 @@ export default function SwarmOperations() {
             {confirmation.targets.length}/{members.length} aircraft</small>
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
+            <InlineAlerts entries={[...(!startReadiness.ready && !startAlerts.length
+              ? [alertCondition(null, 'Start', 'Aircraft status unavailable')] : []), ...startAlerts,
+              ...clusterAlerts.current.filter((entry) => startIds.has(entry.aircraftId))]}
+              lastReported={clusterAlerts.lastReported.filter((entry) => startIds.has(entry.aircraftId))} label="Start alerts" />
             {(confirmation.references || []).length > 0 && <small className="swarm-ops__references" title="Read-only leader references. No command is sent to these aircraft."><FaLink aria-hidden="true" /> Leader reference: {swarmNamesSummary(confirmation.references.map(id => members.find(m => m.hw_id === id)?.callsign || `H${id}`))}</small>}
             <details><summary>Spacing</summary><ul>{members.filter((m) => confirmation.targets.includes(m.hw_id)).map((m) => <li key={m.hw_id}>Drone {m.hw_id}: {movementSummary(m)} · {formationReferenceLabel(m.frame)}</li>)}</ul></details></>}
           {confirmation.action === 'hold' && <p>Stop following and command Hold.</p>}

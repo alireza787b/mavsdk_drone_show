@@ -48,7 +48,7 @@ test('review is read-only and multi-aircraft defaults to the armed barrier', asy
   await ready();
   expect(screen.getByRole('radio', { name: 'All armed first' })).toBeChecked();
   expect(screen.getByRole('spinbutton', { name: 'Takeoff height' })).toHaveValue(10);
-  expect(screen.getAllByText('Ready')).toHaveLength(2);
+  expect(screen.getAllByText('Reviewed')).toHaveLength(2);
   expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
   fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '15' } });
   fireEvent.click(screen.getByRole('button', { name: /^Arm & take off/ }));
@@ -85,7 +85,7 @@ test('native probe processing is not subtracted twice from the returned freshnes
   });
   try {
     await ready();
-    expect(screen.getAllByText('Ready')).toHaveLength(2);
+    expect(screen.getAllByText('Reviewed')).toHaveLength(2);
   } finally { clock.mockRestore(); }
 });
 
@@ -332,4 +332,41 @@ test('after a definite rejection an edited selection gets a new identity and amb
   }));
   expect(trackCommandReceipt).toHaveBeenCalledWith(second, expect.anything(), expect.anything());
   expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledTimes(2);
+});
+
+test('the native PX4 report is displayed independently of MDS readiness', async () => {
+  fetchGcsResource.mockResolvedValue({ data: { ...native, targets: [
+    { ...native.targets[0], px4_arming_report: {
+      mode: 'Position', can_arm_or_run: false,
+      mode_problems: [{ message: 'Position estimate unavailable', description: 'Wait for estimate', severity: 'Error' }],
+    } }, native.targets[1],
+  ] } });
+  await ready();
+  expect(screen.getByText('Position estimate unavailable')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Warning: 1' }));
+  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText('Position · Wait for estimate')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Include Scout (H1)' })).toBeChecked();
+  expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+});
+
+test('a lost native report removes the red count without erasing the last reported restriction', async () => {
+  jest.useFakeTimers();
+  try {
+    fetchGcsResource.mockResolvedValueOnce({ data: { ...native, targets: [
+      { ...native.targets[0], px4_arming_report: {
+        mode: 'Position', can_arm_or_run: false, mode_problems: [{ message: 'Heading unstable' }],
+      } }, native.targets[1],
+    ] } }).mockRejectedValue(new Error('Offline'));
+    await ready();
+    expect(screen.getByRole('button', { name: 'Warning: 1' })).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(1500); });
+    expect(screen.queryByRole('button', { name: 'Warning: 1' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
+    fireEvent.click(screen.getByText('Last reported'));
+    expect(screen.getByRole('list', { name: 'Last reported alerts' })).toHaveTextContent('Heading unstable');
+    expect(screen.getByRole('button', { name: /^Arm & take off/ })).toBeDisabled();
+    expect(submitCommandWithLifecycleFeedback).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
 });

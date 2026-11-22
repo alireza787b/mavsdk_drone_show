@@ -95,7 +95,8 @@ test('formation setup links are visible, scoped and never dispatch a command', a
 test('stale or absent node evidence cannot enable Start', async () => {
   fetchGcsResource.mockResolvedValue({ data: { ...preview, start_admissions: {} } });
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Start Swarm' }));
-  await screen.findByText('Checking aircraft');
+  fireEvent.click(await screen.findByRole('button', { name: 'Caution: 1' }));
+  expect(screen.getByText(/Aircraft status unavailable/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Confirm Start Swarm' })).toBeDisabled();
 });
 
@@ -307,8 +308,8 @@ test('failed preview keeps formation but does not present cached flight or prefl
     fetchGcsResource.mockResolvedValue({ data: cached });
     await mounted();
     expect(screen.getAllByText(/Grounded/)).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Drone 1' }));
-    expect(screen.getAllByText(/Heading estimate unstable/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Caution: 2' }));
+    expect(screen.getAllByText(/Heading estimate unstable/)).toHaveLength(2);
     fetchGcsResource.mockRejectedValue(new Error('Telemetry request timed out'));
     await act(async () => { jest.advanceTimersByTime(2500); });
     expect(screen.getByText('Telemetry delayed')).toBeInTheDocument();

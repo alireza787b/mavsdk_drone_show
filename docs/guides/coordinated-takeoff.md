@@ -1,6 +1,11 @@
 # Takeoff with all aircraft ready
 
 Dashboard, Smart Swarm and aircraft-card Takeoff controls open the same review.
+
+Red and amber alert counters open details for only the selected aircraft.
+If the node forwards an explicit current PX4 mode restriction, the review shows
+its reason beside the affected aircraft. “PX4 status unavailable” is an amber
+observation, not a PX4 denial. Opening alerts does not dispatch anything.
 Takeoff does not start following; start Smart Swarm separately after both aircraft
 are airborne and settled.
 

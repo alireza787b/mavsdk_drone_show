@@ -62,7 +62,8 @@ export function fleetAlertsReducer(state, action) {
       const condition = JSON.stringify([id, issue.key]);
       incoming.set(condition, observe(condition, { aircraftId: id,
         aircraftLabel: typeof item.label === 'string' ? item.label : `Aircraft ${id}`,
-        issueKey: issue.key, reason: issue.label.slice(0, 400), tone: issue.tone === 'danger' ? 'danger' : 'warning' }));
+        issueKey: issue.key, reason: issue.label.slice(0, 400), source: issue.source,
+        tone: issue.tone === 'danger' ? 'danger' : 'warning' }));
     });
   });
 
@@ -109,4 +110,8 @@ export function useFleetAlerts() {
   const context = useContext(FleetAlertsContext);
   if (!context) throw new Error('useFleetAlerts requires FleetAlertsProvider');
   return context;
+}
+
+export function useOptionalFleetAlerts() {
+  return useContext(FleetAlertsContext);
 }

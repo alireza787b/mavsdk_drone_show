@@ -197,13 +197,23 @@ when the connection returns.
 Closing a review or monitor is not a command to stop an aircraft. Use the named
 flight/recovery controls on Overview or the owning mission page.
 
-**Alerts** keeps aircraft-condition episodes separate from command activity.
-**Seen** acknowledges an alert; it does not clear the aircraft's condition.
-Fleet observation continues while another workspace is open. When the shared
-source cannot provide current evidence, the panel shows the last observation
-and its age; it does not claim those conditions are current or resolved.
-A GCS outage is one aggregate alert, not a repeating aircraft toast. Connection
-recovery requires no transport selection and never replays a flight command.
+## Alert indicators
+
+Red **Warning** and amber **Caution** icons count current conditions. Open
+either icon by click, tap, or keyboard to see the aircraft, reason, and source.
+The Overview strip covers the fleet; Smart Swarm covers the selected cluster,
+and Takeoff covers the reviewed aircraft.
+
+A current PX4 restriction stays visible beside the affected action. “PX4
+status unavailable” is a caution, not a PX4 denial. **Last reported** findings
+do not count as live. A GCS outage is one fleet alert, not one per aircraft.
+Opening the panel does not clear or acknowledge anything; **Seen** is a separate
+action. Neither changes command behavior.
+
+[Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·
+[Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·
+[Phone Takeoff review](../assets/operator-alerts/dark-390-takeoff.png).
+These views use simulated observations.
 
 ## Understand unavailable data
 

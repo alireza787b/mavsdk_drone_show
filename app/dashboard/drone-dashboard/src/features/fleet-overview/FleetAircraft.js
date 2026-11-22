@@ -1,9 +1,14 @@
 import React, { memo, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FaExclamationTriangle, FaExclamationCircle, FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
+import { FaCheck, FaHourglassHalf, FaRegClock, FaUnlink, FaInfoCircle, FaTimes, FaBatteryHalf, FaArrowsAltV, FaSatellite, FaBroadcastTower, FaRoute, FaQuestionCircle, FaWifi, FaEthernet, FaUsb } from 'react-icons/fa';
 import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 import { BatteryGauge, WifiStrength } from './FleetStatusInstruments';
+import { alertCondition, InlineAlerts } from './AlertAnnunciators';
+import { useScopedFleetAlerts } from './FleetAlertsPanel';
+
+const aircraftAlertEntries = (item) => item.issues.map((issue) => alertCondition(item.id, item.label, issue.label,
+  { tone: issue.tone, source: issue.source }));
 
 export function AircraftSymbol({ item }) {
   const state = ({ Grounded: 'grounded', Airborne: 'airborne', 'Taking off': 'taking-off', Landing: 'landing' })[item?.flightState] || 'unknown';
@@ -18,9 +23,6 @@ export function AircraftSymbol({ item }) {
 
 /** Front-profile schematic: intentionally does not depict a rotor count or heading. */
 function AircraftPortrait({ item }) {
-  const conditions = item.issues.filter((issue) => ['danger', 'warning'].includes(issue.tone));
-  const warning = conditions.some((issue) => issue.tone === 'danger');
-  const AlertIcon = warning ? FaExclamationCircle : FaExclamationTriangle;
   // Flight phase, runtime/link evidence and aircraft conditions occupy distinct
   // fixed slots. None changes command selection or acknowledges an alert.
   const status = !item.current && item.runtime.indicatorClass === 'lost'
@@ -47,11 +49,6 @@ function AircraftPortrait({ item }) {
     </svg>
     {status && <span className={`fleet-aircraft__status-badge tone-${status.tone}`} data-status={status.key} title={status.label} aria-label={status.label}>
       <StatusIcon aria-hidden="true" />
-    </span>}
-    {conditions.length > 0 && <span className={`fleet-aircraft__alert-badge tone-${warning ? 'danger' : 'warning'}`}
-      title={`${conditions.length} aircraft conditions · ${warning ? 'warning' : 'caution'} · open aircraft details`}
-      aria-label={`${warning ? 'Warning' : 'Caution'}: ${conditions.length} aircraft conditions`}>
-      <AlertIcon aria-hidden="true" /><small>{conditions.length}</small>
     </span>}
     <span className="fleet-aircraft__phase-marker"><AircraftSymbol item={item} /></span>
   </span>;
@@ -107,8 +104,6 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
           <small className="fleet-aircraft__mode" data-stale={item.flightMode.stale}
             aria-label={`Flight mode: ${item.flightMode.label}${item.flightMode.stale ? ', Last known' : ''}`}>
             {item.flightMode.label}</small>
-          {item.flightState === 'Grounded' && <small className={`fleet-aircraft__readiness is-${item.readiness.status}`}>
-            {item.readiness.status === 'warning' ? 'Check' : item.readiness.label}</small>}
           {item.mission.known && item.mission.value !== DRONE_MISSION_TYPES.NONE && <Metric kind="mission" label="Mission" value={item.mission.label} stale={item.mission.stale} />}
         </span>
       </span>
@@ -124,15 +119,15 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
         <Metric kind="battery" label="Battery" value={item.battery.text}
           stale={item.battery.stale} tone={item.battery.current ? item.battery.tone : 'muted'} help={batteryHelp}><BatteryGauge battery={item.battery} /></Metric>
       </span>
-      {issue && <span className={`fleet-aircraft__issue tone-${issue.tone}`}>
-        <FaExclamationTriangle aria-hidden="true" /><span>{issue.label}</span>{item.issues.length > 1 && <small>+{item.issues.length - 1}</small>}
-      </span>}
       <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
         {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
         {item.flightState === 'Grounded' ? ` Preflight: ${item.readiness.label}.` : ''}
         {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
       </span>
     </button>
+    {!!item.issues.length && <div className="fleet-aircraft__alerts">
+      <InlineAlerts entries={aircraftAlertEntries(item)} label={`${item.label} alerts`} />
+    </div>}
   </article>;
 });
 
@@ -151,7 +146,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
     return () => { element.close?.(); if (previous?.isConnected) previous.focus(); };
   }, []);
   const mission = item.mission.value;
-  const detailedIssues = Array.from(new Map([...(item.rawIssues || []), ...item.issues].map(issue => [issue.key, issue])).values());
+  const alerts = useScopedFleetAlerts([item.id]);
   return <dialog ref={dialog} className="fleet-inspector" aria-labelledby="fleet-inspector-title"
     onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="fleet-inspector__body">
@@ -160,8 +155,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
       <div className="fleet-inspector__state"><AircraftSymbol item={item} /><div><strong>{item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}</strong>
         <p>{item.current ? 'Live telemetry' : `${item.runtime.label} · current flight state unavailable`}</p></div></div>
       {item.lastKnown && <p className="fleet-inline-warning">Measurements below are last known, not current.</p>}
-      {!!detailedIssues.length && <section aria-label="Aircraft alerts"><h3 className="fleet-inspector__alert-title">Aircraft alerts <small>{detailedIssues.length}</small></h3>
-        <ul className="fleet-inspector__issues">{detailedIssues.map((issue) => <li className={`tone-${issue.tone}`} key={issue.key}><FaExclamationTriangle aria-hidden="true" />{issue.label}</li>)}</ul></section>}
+      <InlineAlerts entries={aircraftAlertEntries(item)} lastReported={alerts.lastReported} label="Aircraft alerts" />
       <dl className="fleet-inspector__facts">
         <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
@@ -172,7 +166,6 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Position</dt><dd>{item.position.latitude == null ? 'Unavailable' : `${item.position.latitude.toFixed(6)}, ${item.position.longitude.toFixed(6)}${item.position.stale ? ' · last known' : ''}`}</dd>
         <dt>Flight mode</dt><dd>{item.flightMode.label}{item.flightMode.stale ? ' · last known' : ''}</dd>
         <dt>Mission</dt><dd>{item.mission.label}{item.mission.stale ? ' · last known' : ''}</dd>
-        <dt>Readiness</dt><dd>{item.readiness.label}</dd>
         <dt>Network</dt><dd title={item.network.interface || undefined}><NetworkIcon aria-hidden="true" />{' '}{item.network.label}{item.network.percent !== null ? ` · ${Math.round(item.network.percent)}%` : ''}{item.network.stale ? ' · last known' : ''}</dd>
         {item.network.ssid && <><dt>SSID</dt><dd>{item.network.ssid}{item.network.stale ? ' · last known' : ''}</dd></>}
       </dl>
@@ -186,6 +179,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         {onMore && <button type="button" onClick={() => onMore(item)}>More</button>}
       </section>
       <details><summary>Diagnostics</summary><dl className="fleet-inspector__facts">
+        <dt>Telemetry checks</dt><dd>{item.readiness.label}</dd>
         <dt>Heartbeat age</dt><dd>{heartbeatText(item.availability)}</dd>
         <dt>Network interface</dt><dd>{item.network.interface || 'Unknown'}{item.network.stale ? ' · last known' : ''}</dd>
         <dt>Telemetry age</dt><dd>{item.runtime.telemetryAgeSec == null ? 'Never seen' : `${item.runtime.telemetryAgeSec}s ago`}</dd>

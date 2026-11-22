@@ -1,6 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ConfirmDialog } from './ui';
 import AircraftChoiceRow from './ui/AircraftChoiceRow';
+import { alertCondition, InlineAlerts } from '../features/fleet-overview/AlertAnnunciators';
+import { useScopedFleetAlerts } from '../features/fleet-overview/FleetAlertsPanel';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { getBackendURL } from '../config/apiConfig';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';
@@ -12,6 +14,33 @@ const PHASES = { checking: 'Checking', arming: 'Arming', released: 'Taking off',
 // The node rechecks readiness before arming; a sub-second execution lease must
 // not make the operator race a flashing button over a field data link.
 const REVIEW_STATUS_MAX_AGE_MS = 5000;
+
+function takeoffFindings(row) {
+  const { id, name, px4Report: report, reason, source, status, findings } = row;
+  const add = (message, options) => alertCondition(id, name, message, options);
+  const entries = [];
+  if (status !== 'ready' && reason && reason !== 'Checking aircraft') {
+    entries.push(add(reason, { source: source === 'coordination' ? 'Coordination' : source === 'px4' ? 'PX4' : 'MDS' }));
+  }
+  if (report) {
+    const restricted = report.can_arm_or_run === false;
+    const modeProblems = report.mode_problems || [];
+    const modeMessages = new Set(modeProblems.map((problem) => problem.message));
+    entries.push(...modeProblems.map((problem) => add(problem.message, {
+      tone: restricted ? 'danger' : 'warning', source: 'PX4',
+      detail: [report.mode, problem.description].filter(Boolean).join(' · '),
+    })));
+    entries.push(...(report.all_problems || []).filter((problem) => !modeMessages.has(problem.message))
+      .map((problem) => add(problem.message, { source: 'PX4', detail: problem.description })));
+    if (restricted && !modeProblems.some((problem) => problem.message)) {
+      entries.push(add('PX4 mode restricted', { tone: 'danger', source: 'PX4', detail: report.mode }));
+    }
+  } else if (status !== 'checking') {
+    entries.push(add('PX4 status unavailable'));
+  }
+  entries.push(...findings.map((finding) => add(finding.detail, { source: finding.source === 'px4' ? 'PX4' : 'MDS' })));
+  return entries;
+}
 
 // One review and one owned command, shared by every standalone Takeoff entry.
 // Native readiness is advisory here; node admission is repeated at execution.
@@ -37,8 +66,15 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
     idempotency_key: command.idempotency_key || createCommandIdempotencyKey() }));
   const [height, setHeight] = useState(intent.takeoff_altitude ?? 10);
   const [targets, setTargets] = useState(() => intent.target_drone_ids.map(String));
+  const fleetAlerts = useScopedFleetAlerts(targets);
   const [waitForAll, setWaitForAll] = useState(intent.takeoff_mode !== 'independent');
   const [readiness, setReadiness] = useState(null);
+  const previousPx4Reports = useRef(new Map());
+  useEffect(() => {
+    readiness?.targets?.forEach((target) => {
+      if (target.px4_arming_report) previousPx4Reports.current.set(String(target.hw_id), target.px4_arming_report);
+    });
+  }, [readiness]);
   const [submitted, setSubmitted] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [coordination, setCoordination] = useState(null);
@@ -65,7 +101,9 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
     const name = member?.callsign || member?.name || `Aircraft ${id}`;
     const unsupported = native?.status === 'ready' && coordinated && native.coordinated_takeoff_supported !== true;
     return { id, name, selected, status: unsupported ? 'blocked' : native?.status || 'checking',
-      reason: unsupported ? 'Software update required for coordinated takeoff' : native?.reason };
+      reason: unsupported ? 'Software update required for coordinated takeoff' : native?.reason,
+      source: unsupported ? 'coordination' : native?.source, findings: native?.findings || [],
+      px4Report: native?.displayFindingsCurrent ? native.px4_arming_report : null };
   });
   const ready = targets.length > 0 && rows.filter((row) => row.selected).every((row) => row.status === 'ready');
   const inProgress = Boolean(attemptStarted || submitted || uncertain);
@@ -108,8 +146,9 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
           .map((row) => {
             const remaining = REVIEW_STATUS_MAX_AGE_MS - transport;
             return row.status === 'ready' && !(Number.isFinite(remaining) && remaining > 0)
-              ? { ...row, status: 'checking', reason: undefined }
-              : { ...row, remaining };
+              ? { ...row, status: 'checking', reason: undefined, px4_arming_report: null }
+              : { ...row, remaining, displayFindingsCurrent: remaining > 0,
+                px4_arming_report: remaining > 0 ? row.px4_arming_report : null };
           });
         const leases = reviewedRows.filter((row) => row.status === 'ready').map((row) => row.remaining);
         if (live) {
@@ -117,7 +156,8 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
           setReadiness({ targets: reviewedRows });
           if (leases.length) expiry = setTimeout(() => live && setReadiness((previous) => previous && ({
             targets: previous.targets.map((row) => row.status === 'ready'
-              ? { ...row, status: 'checking', reason: undefined } : row),
+              ? { ...row, status: 'checking', reason: undefined, displayFindingsCurrent: false, px4_arming_report: null }
+              : { ...row, displayFindingsCurrent: false, px4_arming_report: null }),
           })), Math.min(...leases));
         }
       } catch (_) { if (live) setReadiness(null); }
@@ -198,6 +238,10 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
     : terminal ? (snapshot?.outcome === 'completed' ? 'Airborne' : snapshot?.progress?.label || 'Check aircraft')
       : ['executing', 'finishing'].includes(snapshot?.progress?.stage) ? 'Taking off' : 'Checking');
   const progressCount = phase === 'arming' ? ` ${coordination.armed_count ?? 0}/${coordination.total ?? targets.length}` : '';
+  const reviewAlerts = rows.filter((row) => row.selected).flatMap(takeoffFindings);
+  const lastPx4 = rows.filter((row) => row.selected && !row.px4Report && previousPx4Reports.current.has(row.id))
+    .flatMap((row) => takeoffFindings({ ...row, status: 'ready', findings: [],
+      px4Report: previousPx4Reports.current.get(row.id) }));
 
   return <ConfirmDialog open appearance="console" title="Takeoff"
     confirmLabel={uncertain ? 'Check command' : !inProgress ? `Arm & take off · ${targets.length} aircraft` : terminal ? 'Done' : canCancel ? 'Cancel launch' : progress}
@@ -218,6 +262,8 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
           <button type="button" disabled={busy || !targets.length} onClick={() => selectTargets([])}>Clear</button>
         </div>}
       </div>
+      {!inProgress && <InlineAlerts entries={[...reviewAlerts, ...fleetAlerts.current]} lastReported={[...lastPx4, ...fleetAlerts.lastReported]}
+        label="Takeoff alerts" />}
       <ul className="takeoff-review__aircraft" aria-label="Takeoff aircraft">
         {rows.map((row) => {
           const execution = coordination?.targets?.[row.id];
@@ -225,13 +271,17 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
           const recoveryState = final?.armed === false ? 'disarmed'
             : final?.outcome === 'held' ? 'hold_confirmed' : terminal ? 'recovery_unconfirmed' : 'checking_aircraft';
           const status = !row.selected ? 'excluded' : inProgress ? (phase === 'aborted' ? recoveryState : execution?.state || 'checking') : row.status;
-          const label = !row.selected ? 'Not included' : inProgress ? (status.replaceAll('_', ' ')) : { ready: 'Ready', blocked: 'Blocked', checking: 'Checking', unavailable: 'Unavailable' }[status] || 'Checking';
-          const reason = row.selected && (inProgress ? execution?.reason : row.reason);
+          const label = !row.selected ? 'Not included' : inProgress ? (status.replaceAll('_', ' ')) : { ready: 'Reviewed', blocked: 'Blocked', checking: 'Checking', unavailable: 'Unavailable' }[status] || 'Checking';
+          const reason = row.selected && (inProgress ? executionDetails[row.id]?.action_result?.operator_message || execution?.reason : row.reason);
+          const nativeRestriction = !inProgress && row.selected && row.px4Report?.can_arm_or_run === false;
+          const restriction = nativeRestriction && (row.px4Report.mode_problems?.find((problem) => problem.message)?.message || 'PX4 mode restricted');
           return <li key={row.id} className={`takeoff-review__aircraft--${status}`}>
             <AircraftChoiceRow id={row.id} name={row.name} detail={`H${row.id}`} checked={row.selected}
               className="takeoff-review__member" disabled={inProgress || busy}
               onChange={include => selectTargets(include ? [...targets, row.id] : targets.filter(id => id !== row.id))} />
-            <span><b>{label}</b>{reason && status !== 'ready' && <small>{reason}</small>}</span></li>;
+            <span><b>{nativeRestriction ? 'PX4 restricted' : label}</b>
+              {(restriction || ((inProgress || status === 'blocked') && reason)) && <small>{restriction || reason}</small>}
+            </span></li>;
         })}
       </ul>
       {!inProgress && <fieldset className="takeoff-review__launch" aria-describedby={`${launchModeId}-help`}>

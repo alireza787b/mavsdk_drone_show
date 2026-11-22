@@ -148,24 +148,25 @@ test('ground readiness and initialization use distinct truthful aircraft badges'
   expect(screen.getByText('Flight state unknown')).toBeInTheDocument();
 });
 
-test('stale-link and prioritized alert badges open inspection without changing targets', () => {
+test('stale-link and prioritized alert badges disclose details without changing targets', () => {
   const item = aircraft({
     heartbeat_last_seen: (NOW - 20000) / 1000,
-    preflight_blockers: [{ message: 'Heading estimate not stable' }],
+    preflight_blockers: [{ source: 'px4', message: 'Heading estimate not stable' }],
     preflight_warnings: [{ message: 'Battery check required' }],
   });
   const { props } = tile(item);
   expect(screen.getByLabelText('Heartbeat stale')).toHaveAttribute('data-status', 'stale');
-  const alert = screen.getByLabelText('Warning: 2 aircraft conditions');
+  const alert = screen.getByRole('button', { name: 'Warning: 1' });
   expect(alert).toHaveClass('tone-danger');
   fireEvent.click(alert);
-  expect(props.onInspect).toHaveBeenCalledWith('7');
-  expect(screen.getByText('Heading estimate not stable')).toBeInTheDocument();
+  expect(props.onInspect).not.toHaveBeenCalled();
+  expect(props.onToggle).not.toHaveBeenCalled();
+  expect(within(screen.getByRole('list', { name: 'Current alerts' })).getByText(/Heading estimate not stable/)).toBeInTheDocument();
 });
 
 test('caution is distinguished by shape/label, and an airborne vehicle never gains a ground-ready badge', () => {
   tile(aircraft({ landed_state: 2, readiness_status: 'ready', preflight_warnings: [{ message: 'Check link' }] }));
-  expect(screen.getByLabelText('Caution: 1 aircraft conditions')).toHaveClass('tone-warning');
+  expect(screen.getByRole('button', { name: 'Caution: 1' })).toHaveClass('tone-warning');
   expect(screen.queryByLabelText('Preflight ready')).not.toBeInTheDocument();
   expect(screen.getByText('Airborne')).toBeInTheDocument();
 });

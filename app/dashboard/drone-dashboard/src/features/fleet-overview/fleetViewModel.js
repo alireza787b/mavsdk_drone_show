@@ -106,7 +106,9 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     [['preflight_blockers', 'danger'], ['preflight_warnings', 'warning']].forEach(([field, tone]) => {
       (Array.isArray(drone[field]) ? drone[field] : []).forEach((issue) => {
         if (typeof issue?.message === 'string' && issue.message.trim()) {
-          issues.push({ key: `${field}:${issue.message}`, tone, label: issue.message });
+          const isPx4 = issue.source === 'px4';
+          issues.push({ key: `${field}:${issue.message}`, tone: isPx4 ? tone : 'warning',
+            source: isPx4 ? 'PX4' : 'MDS', label: issue.message });
         }
       });
     });

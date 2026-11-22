@@ -21,7 +21,10 @@ function tree({ scope = 'sitl:operator-a', aircraft = AIRCRAFT, sourceError = fa
     </FleetAlertsProvider>
   </MemoryRouter>;
 }
-const open = () => { fireEvent.click(screen.getByRole('button', { name: /^Alerts/ })); return screen.getByRole('dialog', { name: 'Fleet alerts' }); };
+const open = (name = /^(Caution:|Alerts$)/) => {
+  fireEvent.click(screen.getByRole('button', { name }));
+  return screen.getByRole('dialog');
+};
 
 beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(NOW); });
 afterEach(() => { cleanup(); jest.useRealTimers(); });
@@ -36,12 +39,11 @@ test('normal view is only a compact affordance, with no verbose health box', () 
 test('acknowledgement stays Seen, not resolved, and aircraft links preserve exact ID', () => {
   render(tree());
   const dialog = open();
-  expect(within(dialog).getByText(/Seen does not clear a condition/)).toBeInTheDocument();
-  const conditions = within(dialog).getByRole('list', { name: 'Observed conditions' });
+  const conditions = within(dialog).getByRole('list', { name: 'Current alerts' });
   expect(within(conditions).getByRole('link', { name: 'Open aircraft H1' })).toHaveAttribute('href', '/?aircraft=1');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Mark Scout Battery: Low as seen' }));
   expect(within(conditions).getByText('Seen')).toBeInTheDocument();
-  expect(within(conditions).getByText('Battery: Low')).toBeInTheDocument();
+  expect(within(conditions).getByText(/Battery: Low/)).toBeInTheDocument();
   expect(within(dialog).queryByText(/Recently cleared/)).not.toBeInTheDocument();
 });
 
@@ -51,37 +53,35 @@ test('condition history survives navigation but is explicitly last observed unti
   expect(screen.getByRole('heading', { name: 'Mission workspace' })).toBeInTheDocument();
   act(() => jest.advanceTimersByTime(12000));
   const dialog = open();
-  expect(within(dialog).getByText(/Last observed 12s ago · not live/)).toBeInTheDocument();
-  expect(within(dialog).queryByRole('list', { name: 'Observed conditions' })).not.toBeInTheDocument();
-  expect(within(dialog).getByRole('list', { name: 'Last-observed conditions' })).toHaveTextContent('Last observed 12s ago');
-  fireEvent.click(within(dialog).getByRole('link', { name: 'Open aircraft H1' }));
+  expect(within(dialog).queryByRole('list', { name: 'Current alerts' })).not.toBeInTheDocument();
+  expect(within(dialog).getByRole('list', { name: 'Last reported alerts' })).toHaveTextContent('Battery: Low');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close fleet alerts' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  expect(within(open()).getByRole('list', { name: 'Observed conditions' })).toHaveTextContent('Battery: Low');
+  expect(screen.queryByRole('button', { name: 'Caution: 1' })).not.toBeInTheDocument();
 });
 
 test('without newer events, age alone removes the current-observation presentation', () => {
   render(tree());
   const dialog = open();
-  expect(within(dialog).getByRole('list', { name: 'Observed conditions' })).toBeInTheDocument();
+  expect(within(dialog).getByRole('list', { name: 'Current alerts' })).toBeInTheDocument();
   act(() => jest.advanceTimersByTime(6000));
-  expect(within(dialog).queryByRole('list', { name: 'Observed conditions' })).not.toBeInTheDocument();
-  expect(within(dialog).getByText(/Last observed 6s ago · not live/)).toBeInTheDocument();
-  expect(within(dialog).getByRole('list', { name: 'Last-observed conditions' })).toHaveTextContent('6s ago');
+  expect(within(dialog).queryByRole('list', { name: 'Current alerts' })).not.toBeInTheDocument();
+  expect(within(dialog).getByRole('list', { name: 'Last reported alerts' })).toHaveTextContent('Battery: Low');
 });
 
 test('100 unavailable aircraft during a GCS outage create one aggregate alert', () => {
   const aircraft = Array.from({ length: 100 }, (_, index) => ({ id: String(index + 1), current: false, issues: [{ key: 'telemetry', label: 'Offline' }] }));
   render(tree({ aircraft, sourceError: true }));
-  expect(screen.getByRole('button', { name: 'Alerts 1' })).toBeInTheDocument();
-  const dialog = open();
+  expect(screen.getByRole('button', { name: 'Warning: 1' })).toBeInTheDocument();
+  const dialog = open('Warning: 1');
   expect(within(dialog).getAllByRole('listitem')).toHaveLength(1);
-  expect(within(dialog).getByText('Telemetry source unavailable')).toBeInTheDocument();
+  expect(within(dialog).getByText(/Telemetry source unavailable/)).toBeInTheDocument();
   expect(within(dialog).queryByRole('link', { name: /Open aircraft/ })).not.toBeInTheDocument();
 });
 
 test('runtime/operator provider remount clears local history', () => {
   const view = render(tree());
-  expect(screen.getByRole('button', { name: 'Alerts 1' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Caution: 1' })).toBeInTheDocument();
   view.rerender(tree({ scope: 'real:operator-b', aircraft: [] }));
   expect(screen.getByRole('button', { name: 'Alerts' })).toBeInTheDocument();
   expect(within(open()).queryByText('Battery: Low')).not.toBeInTheDocument();
@@ -91,13 +91,13 @@ test('a remembered GCS outage is not presented as current connectivity after nav
   render(tree({ sourceError: true }));
   fireEvent.click(screen.getByRole('link', { name: 'Open workspace' }));
   const dialog = open();
-  expect(within(dialog).getByText('Last observed: telemetry source unavailable.')).toBeInTheDocument();
-  expect(within(dialog).queryByRole('list', { name: 'Observed conditions' })).not.toBeInTheDocument();
+  expect(within(dialog).getByRole('list', { name: 'Last reported alerts' })).toHaveTextContent('Telemetry source unavailable');
+  expect(within(dialog).queryByRole('list', { name: 'Current alerts' })).not.toBeInTheDocument();
 });
 
 test('native dialog cancellation closes and restores trigger focus', () => {
   render(tree());
-  const trigger = screen.getByRole('button', { name: /^Alerts/ });
+  const trigger = screen.getByRole('button', { name: 'Caution: 1' });
   trigger.focus();
   const dialog = open();
   expect(dialog.closest('.fleet-alerts')).toBeNull();

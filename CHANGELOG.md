@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Use compact red/amber alert counters in Overview, Smart Swarm, and Takeoff.
+  Show source and last-reported evidence on demand without changing command or
+  coordination behavior.
+
 - Overview aircraft cards use one aligned GNSS/altitude/link/battery strip,
   a compact percentage gauge and a single aircraft/state anchor. Cached values
   retain provenance without repeated labels; keyboard descriptions no longer
