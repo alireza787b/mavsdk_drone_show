@@ -33,7 +33,7 @@ Aircraft state can carry `px4_arming_report` for the displayed mode and
 `px4_takeoff_arming_report` for PX4 Takeoff. The companion's existing local
 MAVLink listener reads the firmware's Events definitions and receives native
 check summaries. A completed report provides the mode, arm permission, and
-reasons. Its validity is capped at five seconds. Disconnects, reboot, Events
+reasons. Its validity is capped at eight seconds, allowing one missed refresh. Disconnects, reboot, Events
 synchronization loss, and inapplicable mode or armed state clear the observation.
 
 On the shared GCS fleet feed, reports carry a compact verdict and reasons
@@ -42,6 +42,11 @@ revision. Details reads the corresponding cached reasons from
 The local observer uses MAVLink sender identity 244/190 for report and
 read-only metadata requests. The managed MAVLink route must carry MAVLink 2
 and allow reply traffic from the bound PX4 component.
+
+On Overview the card border is green when PX4 permits arming in the displayed
+mode. A red border means arming permission is unconfirmed. Details shows the
+native denial and reasons if known, or “PX4 report unavailable” if missing or
+inapplicable. Green applies only to arming in that mode.
 
 The Drone API Server is a high-performance FastAPI-based server that runs on each drone, providing both HTTP REST endpoints and WebSocket streaming for real-time telemetry. It handles communication with the Ground Control Station (GCS) and serves drone state information, commands, and configuration data.
 

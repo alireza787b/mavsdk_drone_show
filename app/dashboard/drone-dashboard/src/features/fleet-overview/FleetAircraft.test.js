@@ -216,3 +216,26 @@ test('inspector uses current model identity for every action and retains decoded
   fireEvent.click(inspector.getByRole('button', { name: 'More' }));
   expect(props.onMore).toHaveBeenLastCalledWith(updated);
 });
+
+test.each([
+  [true, NOW + 5000, 0x03040000, 'allowed', 'PX4 can arm · Hold'],
+  [false, NOW + 5000, 0x03040000, 'unconfirmed', 'PX4 cannot arm · Hold'],
+  [true, NOW, 0x03040000, 'unconfirmed', 'PX4 report unavailable'],
+  [true, NOW + 5000, 0x02040000, 'unconfirmed', 'PX4 report unavailable'],
+])('the Overview border represents the applicable PX4 permission (%s, %s, %s)',
+  (canArm, expiresAt, mode, border, label) => {
+    const { container } = tile(aircraft({
+      readiness_status: 'ready',
+      px4_arming_report: { source: 'px4_events', mode: 'Hold', custom_mode: mode,
+        can_arm: canArm, revision: 'a'.repeat(24), expires_at_gcs_ms: expiresAt },
+    }));
+    expect(container.querySelector('article')).toHaveAttribute('data-px4-arming', border);
+    expect(screen.getByRole('button', { name: 'Inspect Scout · H7' })).toHaveAttribute('title', label);
+    expect(container.querySelector('.px4-arming-badge')).not.toBeInTheDocument();
+  });
+
+test('the Overview border is red when there is no PX4 report', () => {
+  const { container } = tile(aircraft({ readiness_status: 'ready' }));
+  expect(container.querySelector('article')).toHaveAttribute('data-px4-arming', 'unconfirmed');
+  expect(screen.getByRole('button', { name: 'Inspect Scout · H7' })).toHaveAttribute('title', 'PX4 report unavailable');
+});

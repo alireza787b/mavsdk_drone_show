@@ -162,7 +162,8 @@ jobs:
         id: predict_version
         run: |
           CURRENT_VERSION=$(cat VERSION)
-          PREDICTED_VERSION=$(python3 tools/bump_version.py --dry-run --type auto)
+          set -o pipefail
+          PREDICTED_VERSION=$(python3 tools/bump_version.py --dry-run --type auto | tail -n 1)
           {
             echo "current=$CURRENT_VERSION"
             echo "predicted=$PREDICTED_VERSION"

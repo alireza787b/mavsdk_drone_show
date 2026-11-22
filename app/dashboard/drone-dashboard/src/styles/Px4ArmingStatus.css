@@ -2,7 +2,17 @@
 .px4-arming-badge { display: inline-flex; font-size: 1rem; }
 .px4-arming-badge.is-allowed { color: var(--color-success-text); }
 .px4-arming-badge.is-blocked { color: var(--color-danger-text); }
-.px4-arming-details p { margin: .25rem 0; }
+.px4-arming-details { font-size: .85rem; line-height: 1.35; }
+.px4-arming-details__header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.px4-arming-reasons { list-style: none; padding: 0; margin: .25rem 0 0; border-block: 1px solid var(--color-border-primary); }
+.px4-arming-reason + .px4-arming-reason { border-top: 1px solid var(--color-border-primary); }
+.px4-arming-details .px4-arming-reason summary,
+.px4-arming-reason > span { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 30px; padding: .25rem .4rem; font: inherit; color: var(--color-text-primary); }
+.px4-arming-reason summary { list-style: none; cursor: pointer; }
+.px4-arming-reason summary::-webkit-details-marker { display: none; }
+.px4-arming-reason summary svg { flex-shrink: 0; font-size: .6rem; color: var(--color-text-secondary); }
+.px4-arming-reason details[open] summary svg { transform: rotate(90deg); }
+.px4-arming-reason p { margin: 0; padding: .15rem .4rem .45rem; white-space: pre-line; color: var(--color-text-secondary); }
 .px4-arming-disclosure { color: var(--color-text-secondary); }
 .px4-arming-disclosure > summary { list-style: none; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; cursor: pointer; }
 .px4-arming-disclosure > summary::-webkit-details-marker { display: none; }

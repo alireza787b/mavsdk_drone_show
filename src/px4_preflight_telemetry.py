@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from src.px4_flight_modes import PX4_TAKEOFF_CUSTOM_MODE
 
+PX4_REPORT_VALIDITY_MS = 8000
 REPORT_KEYS = ('px4_arming_report', 'px4_takeoff_arming_report')
 
 
@@ -25,7 +26,7 @@ class Px4Verdict(BaseModel):
 
 class Px4PreflightReport(Px4Verdict):
     mode_problems: Annotated[list[Px4PreflightProblem], Field(max_length=24)] | None = None
-    remaining_valid_ms: int = Field(strict=True, gt=0, le=5000)
+    remaining_valid_ms: int = Field(strict=True, gt=0, le=PX4_REPORT_VALIDITY_MS)
     sample: int = Field(strict=True, gt=0)
 
 

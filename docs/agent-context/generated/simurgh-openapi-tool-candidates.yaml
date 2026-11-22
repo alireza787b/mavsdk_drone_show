@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 232
+candidate_count: 233
 candidates:
 - callable: false
   classification:
@@ -1899,6 +1899,55 @@ candidates:
     operation_id: get_fleet_action_readiness_api_v1_fleet_action_readiness_get
     path: /api/v1/fleet/action-readiness
     summary: Get Fleet Action Readiness
+    tags:
+    - Telemetry
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: true
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - fleet_identity
+    - location
+    recommended_registry_exposure: candidate_allow_after_review
+    review_reasons:
+    - manual_review_required_before_registry_promotion
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.fleet.aircraft.by.hw.id.px4.arming.report
+  parameters:
+  - description: ''
+    in: path
+    name: hw_id
+    required: true
+    schema:
+      title: Hw Id
+      type: string
+  - description: ''
+    in: query
+    name: revision
+    required: true
+    schema:
+      maxLength: 24
+      minLength: 24
+      title: Revision
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: get_px4_report_details_api_v1_fleet_aircraft__hw_id__px4_arming_report_get
+    path: /api/v1/fleet/aircraft/{hw_id}/px4-arming-report
+    summary: Get Px4 Report Details
     tags:
     - Telemetry
 - callable: false
@@ -9167,15 +9216,19 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: f355548e8b39a6e986b7ea47450e220cf2941df5e4d68e34e2e6b487065de0ba
+  openapi_sha256: 32be01c4e7f4928febfb4cbbfa190344df92d07f4726069ff41ad42642caa589
   title: GCS Server API
   version: '5.5'
 summary:
   registry_coverage:
-    eligible_read_only_candidate_count: 85
+    eligible_read_only_candidate_count: 86
     promoted_eligible_candidate_count: 85
-    promoted_eligible_ratio: 1.0
+    promoted_eligible_ratio: 0.9884
     registry_path: config/agent_tools.yaml
     registry_route_count: 103
-    unpromoted_eligible_by_area: []
-    unpromoted_eligible_candidate_count: 0
+    unpromoted_eligible_by_area:
+    - area: fleet
+      count: 1
+      routes:
+      - GET /api/v1/fleet/aircraft/{hw_id}/px4-arming-report
+    unpromoted_eligible_candidate_count: 1

@@ -9,6 +9,11 @@ const STATUS_LABELS = {
 };
 const READINESS_SNAPSHOT_GRACE_THRESHOLD_MS = 90_000;
 
+export function describeMdsObservation(message) {
+  const legacyUnknownState = /^(?:MAVLink system state|PX4 system state:|Vehicle system state (?:is|reports)) UNINIT\b/;
+  return typeof message === 'string' && legacyUnknownState.test(message) ? 'Flight controller status unknown' : message;
+}
+
 function normalizeMessages(messages) {
   if (!Array.isArray(messages)) {
     return [];
@@ -19,7 +24,7 @@ function normalizeMessages(messages) {
     .map((message) => ({
       source: message.source || 'telemetry',
       severity: message.severity || 'warning',
-      message: message.message || 'Unknown status message',
+      message: (message.source === 'px4' ? message.message : describeMdsObservation(message.message)) || 'Unknown status message',
       timestamp: Number(message.timestamp) || 0,
     }));
 }
@@ -35,7 +40,7 @@ function normalizeChecks(checks) {
       id: check.id || 'check',
       label: check.label || 'Check',
       ready: Boolean(check.ready),
-      detail: check.detail || '',
+      detail: (check.id === 'system' ? describeMdsObservation(check.detail) : check.detail) || '',
     }));
 }
 
@@ -110,7 +115,7 @@ export function getDroneReadinessModel(drone, runtimeStatus = null) {
   let status = drone?.[FIELD_NAMES.READINESS_STATUS] || (
     drone?.[FIELD_NAMES.IS_READY_TO_ARM] ? 'ready' : 'blocked'
   );
-  let summary = drone?.[FIELD_NAMES.READINESS_SUMMARY]
+  let summary = describeMdsObservation(drone?.[FIELD_NAMES.READINESS_SUMMARY])
     || (status === 'ready' ? 'Ready to fly' : 'Preflight checks are not complete.');
   let visibleBlockers = blockers;
   let visibleWarnings = warnings;

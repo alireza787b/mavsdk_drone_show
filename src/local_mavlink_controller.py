@@ -717,11 +717,15 @@ class LocalMavlinkController:
             getattr(self.drone_config, 'gps_fix_type', 0) >= 3,
         ])
         system_state_name = self._get_system_status_name(self.drone_config.system_status)
+        system_state_unknown = self.drone_config.system_status == mavutil.mavlink.MAV_STATE_UNINIT
+        system_state_detail = (
+            "Flight controller status unknown" if system_state_unknown else f"Flight controller state: {system_state_name}"
+        )
         system_state_advisory = None
         system_ready_effective = system_ready
         if (
             not system_ready
-            and self.drone_config.system_status == mavutil.mavlink.MAV_STATE_UNINIT
+            and system_state_unknown
             and has_strong_live_signal
             and len(px4_blockers) == 0
         ):
@@ -729,10 +733,7 @@ class LocalMavlinkController:
             system_state_advisory = self._build_message(
                 'telemetry',
                 'warning',
-                (
-                    f"Vehicle system state reports {system_state_name}, but PX4 preflight is healthy and "
-                    "live telemetry is present. Treating the MAVLink system-state field as advisory."
-                ),
+                system_state_detail,
                 now_ms,
             )
 
@@ -741,7 +742,7 @@ class LocalMavlinkController:
             heuristic_blockers.append(self._build_message(
                 'telemetry',
                 'error',
-                f"Vehicle system state is {system_state_name}; not yet ready for arming.",
+                system_state_detail,
                 now_ms,
             ))
         if not imu_sensors_ready:
@@ -791,12 +792,7 @@ class LocalMavlinkController:
                 'id': 'system',
                 'label': 'Vehicle status',
                 'ready': system_ready_effective,
-                'detail': (
-                    f"PX4 system state: {system_state_name} "
-                    "(treated as advisory because live PX4 preflight is healthy)"
-                    if system_state_advisory else
-                    f"PX4 system state: {system_state_name}"
-                ),
+                'detail': system_state_detail,
             },
             {
                 'id': 'imu',

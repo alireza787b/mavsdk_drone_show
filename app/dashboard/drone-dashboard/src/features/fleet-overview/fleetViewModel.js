@@ -10,6 +10,7 @@ import { getCommandMetadata } from '../../constants/missionCatalog';
 import { getFriendlyMissionName } from '../../utilities/missionUtils';
 import { getAircraftAvailability } from './fleetAvailability';
 import { uniqueTargetIds } from './targetSelection';
+import { describeMdsObservation } from '../../utilities/droneReadiness';
 import { px4ArmingVerdict } from '../../utilities/px4Arming';
 import { getFleetNetworkStatus } from './fleetNetworkStatus';
 
@@ -108,12 +109,12 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
         if (typeof issue?.message === 'string' && issue.message.trim()) {
           const isPx4 = issue.source === 'px4';
           issues.push({ key: `${field}:${issue.message}`, tone: isPx4 ? tone : 'warning',
-            source: isPx4 ? 'PX4' : 'MDS', label: issue.message });
+            source: isPx4 ? 'PX4' : 'MDS', label: isPx4 ? issue.message : describeMdsObservation(issue.message) });
         }
       });
     });
     if (drone.readiness_status === 'blocked' && !issues.some((issue) => issue.key.startsWith('preflight_blockers:'))) {
-      issues.push({ key: 'readiness', tone: 'warning', label: drone.readiness_summary || 'MDS observation' });
+      issues.push({ key: 'readiness', tone: 'warning', label: describeMdsObservation(drone.readiness_summary) || 'MDS observation' });
     }
   }
   const distinctIssues = Array.from(new Map(issues.map((issue) => [issue.key, issue])).values())

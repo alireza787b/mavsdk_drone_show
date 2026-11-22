@@ -166,8 +166,7 @@ export default class ObservationResource {
           if (typeof event.data !== 'string' || event.data.length > 8 * 1024 * 1024) throw new Error('Oversized fleet stream');
           const message = JSON.parse(event.data);
           if (message.type === 'px4_clock') {
-            if (gcsAnchor === undefined && Number.isSafeInteger(message.monotonic_ms)
-                && performance.now() - started <= 2000) gcsAnchor = message.monotonic_ms;
+            if (gcsAnchor === undefined && Number.isSafeInteger(message.monotonic_ms)) gcsAnchor = message.monotonic_ms;
             return;
           }
           if (message.type !== 'telemetry' || !message.data || typeof message.data !== 'object' || Array.isArray(message.data)) throw new Error('Invalid fleet stream');

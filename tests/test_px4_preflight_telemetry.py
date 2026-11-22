@@ -52,8 +52,9 @@ def test_hold_reason_and_takeoff_verdict_are_independent(monkeypatch):
     now[0] += 4.5
     observer.heartbeat(HOLD, False)
     observer.landed(True)
-    assert observer.snapshot(HOLD)[1][0]['remaining_valid_ms'] == 500
-    now[0] += .5
+    now[0] += 2.0  # One complete refresh was missed; the last report still applies.
+    assert observer.snapshot(HOLD)[1][0]['remaining_valid_ms'] == 1500
+    now[0] += 1.5
     assert observer.snapshot(HOLD)[1] == []
     observer.heartbeat(TAKEOFF_MODE, False)
     assert observer.snapshot(TAKEOFF_MODE)[1] == []

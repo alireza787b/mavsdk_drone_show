@@ -177,7 +177,7 @@ class FleetTelemetryPoller:
                     received = monotonic_ms()
                     if isinstance(payload, dict) and payload.get('type') == 'px4_clock':
                         node_ms = payload.get('monotonic_ms')
-                        if clock_sample is None and type(node_ms) is int and received - connection_started <= 2000:
+                        if clock_sample is None and type(node_ms) is int:
                             clock_sample = node_ms
                         continue
                     data = _valid_sample(payload, key[0], stream=True)

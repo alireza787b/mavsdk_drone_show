@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FaCheckCircle, FaInfoCircle, FaRedo, FaStopCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaChevronRight, FaInfoCircle, FaRedo, FaStopCircle } from 'react-icons/fa';
 import { useObservationResource } from '../../contexts/ObservationContext';
 import { normalizeTelemetryResponse } from '../../constants/fieldMappings';
 import { unwrapFleetTelemetryPayload, fetchGcsResource } from '../../services/gcsApiService';
@@ -17,7 +17,7 @@ export function usePx4Fleet(enabled = true) {
   return { rows, now, receivedAt: resource.receivedAtMs, refresh: resource.refresh };
 }
 
-function useCurrentVerdict(verdict) {
+export function useCurrentPx4Verdict(verdict) {
   const [, expire] = useState(0);
   const deadline = verdict?.local_deadline_ms;
   useEffect(() => {
@@ -29,7 +29,7 @@ function useCurrentVerdict(verdict) {
 }
 
 export function Px4ArmingBadge({ verdict: report }) {
-  const verdict = useCurrentVerdict(report);
+  const verdict = useCurrentPx4Verdict(report);
   const Icon = verdict?.can_arm ? FaCheckCircle : FaStopCircle;
   const label = verdict && `${verdict.label} · ${verdict.mode}`;
   return <span className="px4-arming-slot">
@@ -46,7 +46,7 @@ function RecheckPx4({ refresh }) {
 }
 
 export function Px4ArmingDetails({ hwId, verdict: report, refresh }) {
-  const verdict = useCurrentVerdict(report);
+  const verdict = useCurrentPx4Verdict(report);
   const [details, setDetails] = useState(null);
   const revision = verdict?.revision;
   useEffect(() => {
@@ -59,14 +59,19 @@ export function Px4ArmingDetails({ hwId, verdict: report, refresh }) {
     }).catch(() => {});
     return () => { active = false; controller.abort(); };
   }, [hwId, revision]);
-  if (!verdict) return <span>PX4 report unavailable{refresh && <RecheckPx4 refresh={refresh} />}</span>;
   const reasons = details?.hwId === hwId && details.revision === revision ? details.mode_problems : null;
   return <div className="px4-arming-details">
-    <p><Px4ArmingBadge verdict={verdict} />{verdict.label} · {verdict.mode}{refresh && <RecheckPx4 refresh={refresh} />}</p>
-    {reasons?.length > 0 && <ul>{reasons.map((reason, index) => <li key={index}>
-      {reason.description ? <details><summary>{reason.message}</summary><p>{reason.description}</p></details> : reason.message}
-    </li>)}</ul>}
-    {verdict.can_arm && <small>Arming permission for this mode.</small>}
+    <div className="px4-arming-details__header">
+      <strong>{verdict ? `${verdict.label} · ${verdict.mode}` : 'PX4 report unavailable'}</strong>
+      {refresh && <RecheckPx4 refresh={refresh} />}
+    </div>
+    {reasons?.length > 0 && <ul className="px4-arming-reasons" aria-label="PX4 reasons">{reasons.map((reason, index) =>
+      <li className="px4-arming-reason" key={index}>
+        {reason.description ? <details>
+          <summary>{reason.message}<FaChevronRight aria-hidden="true" /></summary>
+          <p>{reason.description}</p>
+        </details> : <span>{reason.message}</span>}
+      </li>)}</ul>}
   </div>;
 }
 

@@ -428,12 +428,12 @@ def test_update_pre_arm_status_treats_uninit_system_state_as_advisory_when_px4_h
     assert "telemetry advisory" in mock_drone_config.readiness_summary.lower()
     assert mock_drone_config.preflight_blockers == []
     assert any(
-        "system state reports uninit" in warning["message"].lower()
+        warning["message"] == "Flight controller status unknown"
         for warning in mock_drone_config.preflight_warnings
     )
     system_check = next(check for check in mock_drone_config.readiness_checks if check["id"] == "system")
     assert system_check["ready"] is True
-    assert "treated as advisory" in system_check["detail"].lower()
+    assert system_check["detail"] == "Flight controller status unknown"
 
 
 def test_process_status_text_surfaces_px4_blocker(mock_drone_config):

@@ -5,7 +5,7 @@ import { DRONE_MISSION_TYPES } from '../../constants/droneConstants';
 import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 import { BatteryGauge, WifiStrength } from './FleetStatusInstruments';
 import { alertCondition, InlineAlerts } from './AlertAnnunciators';
-import { Px4ArmingBadge, Px4ArmingDetails } from '../../components/ui/Px4ArmingStatus';
+import { Px4ArmingDetails, useCurrentPx4Verdict } from '../../components/ui/Px4ArmingStatus';
 import { useScopedFleetAlerts } from './FleetAlertsPanel';
 
 const aircraftAlertEntries = (item) => item.issues.map((issue) => alertCondition(item.id, item.label, issue.label,
@@ -81,19 +81,22 @@ function heartbeatText(availability) {
 
 export const AircraftTile = memo(function AircraftTile({ item, selected, inspected, onInspect, onToggle, selectionDisabled = false, list = false }) {
   const hintId = useId();
+  const verdict = useCurrentPx4Verdict(item.preflight);
+  const armingLabel = verdict ? `${verdict.label} · ${verdict.mode}` : 'PX4 report unavailable';
   const issue = item.issues[0];
   const networkDetails = item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : item.network.type === 'wifi' ? ' · signal unavailable' : ''}` : '';
   const linkText = `${heartbeatText(item.availability)}${networkDetails}`;
   const networkHelp = `${item.availability.label} heartbeat${networkDetails}${item.network.ssid ? ` · SSID ${item.network.ssid}${item.network.stale ? ' (last known)' : ''}` : ''}${item.network.interface ? ` · ${item.network.interface}` : ''}`;
   const batteryHelp = `${item.battery.text}${item.battery.stale ? ' · Last known' : ''} · ${item.battery.label || ''}`;
   return <article className={`fleet-aircraft ${list ? 'fleet-aircraft--row' : ''} ${selected ? 'is-selected' : ''} ${inspected ? 'is-inspected' : ''} ${item.availability.stale || item.availability.label === 'Offline' ? 'is-stale' : ''}`}
-    data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()} data-link-attention={item.linkAttention}>
+    data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()} data-link-attention={item.linkAttention}
+    data-px4-arming={verdict?.can_arm ? 'allowed' : 'unconfirmed'}>
     <label className="fleet-aircraft__recipient" title={`${selected ? 'Remove from' : 'Add to'} command recipients`}>
       <input type="checkbox" checked={selected} disabled={selectionDisabled}
         aria-label={`Include ${item.label} (H${item.id})`} onChange={() => onToggle(item.id)} />
       {selected && <span className="fleet-visually-hidden" aria-label={`Command recipient: ${item.label} · H${item.id}`}>Included</span>}
     </label>
-    <button type="button" className="fleet-aircraft__inspect" onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}
+    <button type="button" className="fleet-aircraft__inspect" title={armingLabel} onClick={() => onInspect(item.id)} aria-label={`Inspect ${item.label} · H${item.id}`}
       aria-describedby={hintId}>
       <span className="fleet-aircraft__identity"><span><strong title={item.label}>{item.label}</strong><small>H{item.id}{item.identity.posId ? ` · P${item.identity.posId}` : ''}</small></span>
         <FaInfoCircle className="fleet-aircraft__info" aria-hidden="true" /></span>
@@ -103,7 +106,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
           <strong>{item.flightState === 'Unknown' ? 'Flight state unknown' : item.flightState}</strong>
           <small className="fleet-aircraft__mode" data-stale={item.flightMode.stale}
             aria-label={`Flight mode: ${item.flightMode.label}${item.flightMode.stale ? ', Last known' : ''}`}>
-            {item.flightMode.label} <Px4ArmingBadge verdict={item.preflight} /></small>
+            {item.flightMode.label}</small>
           {item.mission.known && item.mission.value !== DRONE_MISSION_TYPES.NONE && <Metric kind="mission" label="Mission" value={item.mission.label} stale={item.mission.stale} />}
         </span>
       </span>
@@ -121,7 +124,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       </span>
       <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
         {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
-        {item.preflight ? ` ${item.preflight.label} · ${item.preflight.mode}.` : ''}
+        {` ${armingLabel}.`}
         {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
       </span>
     </button>
@@ -156,10 +159,12 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore, ref
         <p>{item.current ? 'Live telemetry' : `${item.runtime.label} · current flight state unavailable`}</p></div></div>
       {item.lastKnown && <p className="fleet-inline-warning">Measurements below are last known, not current.</p>}
       <InlineAlerts entries={aircraftAlertEntries(item)} lastReported={alerts.lastReported} label="Aircraft alerts" />
+      <section className="fleet-inspector__px4" aria-label="PX4 arming report">
+        <Px4ArmingDetails hwId={item.id} verdict={item.preflight} refresh={refreshTelemetry} />
+      </section>
       <dl className="fleet-inspector__facts">
         <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
-        <dt>PX4 arming report</dt><dd><Px4ArmingDetails hwId={item.id} verdict={item.preflight} refresh={refreshTelemetry} /></dd>
         <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>
         <dt>Altitude</dt><dd>{altitudeText(item.altitude)}{item.altitude.stale ? ' · last known' : ''}</dd>
         <dt>GPS</dt><dd>{item.gps.label}{item.gps.stale ? ' · last known' : ''}</dd>

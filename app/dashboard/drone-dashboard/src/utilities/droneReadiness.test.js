@@ -92,3 +92,18 @@ describe('getDroneReadinessModel', () => {
     expect(result.blockers[0].source).toBe('link');
   });
 });
+
+test('interprets a legacy unknown vehicle state as an MDS observation', () => {
+  const now = Date.now();
+  const result = getDroneReadinessModel({
+    telemetry_available: true,
+    readiness_status: 'warning',
+    readiness_summary: 'MAVLink system state UNINIT',
+    preflight_last_update: now,
+    preflight_warnings: [{ source: 'mds_observation', message: 'MAVLink system state UNINIT', timestamp: now }],
+    readiness_checks: [{ id: 'system', detail: 'MAVLink system state UNINIT', ready: false }],
+  }, { level: 'online' });
+  expect(result.summary).toBe('Flight controller status unknown');
+  expect(result.warnings[0].message).toBe('Flight controller status unknown');
+  expect(result.checks[0].detail).toBe('Flight controller status unknown');
+});

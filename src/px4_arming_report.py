@@ -12,9 +12,9 @@ from pymavlink import mavutil
 
 from src.px4_event_metadata import EventMetadata
 from src.px4_flight_modes import PX4_TAKEOFF_CUSTOM_MODE, describe_px4_custom_mode
+from src.px4_preflight_telemetry import PX4_REPORT_VALIDITY_MS
 
 LOG = logging.getLogger(__name__)
-VALID_MS = 5000
 REFRESH_SECONDS = 3
 SEVERITIES = ('EMERGENCY', 'ALERT', 'CRITICAL', 'ERROR', 'WARNING', 'NOTICE', 'INFO', 'DEBUG')
 
@@ -194,7 +194,7 @@ class Px4ArmingObserver:
         report = self.report
         if report is None or report.mode != current_mode or not self._grounded(now):
             return epoch, []
-        remaining = report.observed_ms + VALID_MS - int(now * 1000)
+        remaining = report.observed_ms + PX4_REPORT_VALIDITY_MS - int(now * 1000)
         if remaining <= 0:
             return epoch, []
         reports = []
