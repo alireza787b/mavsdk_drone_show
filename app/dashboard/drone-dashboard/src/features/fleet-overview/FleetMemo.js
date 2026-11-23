@@ -111,6 +111,7 @@ function MemoDialog({ alerts, commands, history, reviewCount, clearResolved, dia
   const returnFocus = useRef(true);
   const titleId = useId();
   const [page, setPage] = useState('live');
+  const [showLastReported, setShowLastReported] = useState(false);
   useEffect(() => {
     const dialog = ref.current;
     if (dialog.showModal) dialog.showModal();
@@ -130,7 +131,7 @@ function MemoDialog({ alerts, commands, history, reviewCount, clearResolved, dia
         <button type="button" data-close-alerts className="fleet-alert-icon-button" aria-label="Close Memo"
           onClick={onClose}><FaTimes aria-hidden="true" /></button></header>
       <div className="fleet-alerts__filters" role="group" aria-label="Memo views">
-        <button type="button" aria-pressed={page === 'live'} onClick={() => setPage('live')}>
+        <button type="button" aria-pressed={page === 'live'} onClick={() => { setShowLastReported(false); setPage('live'); }}>
           Live
         </button>
         <button type="button" aria-pressed={page === 'history'} onClick={() => setPage('history')}>
@@ -141,13 +142,18 @@ function MemoDialog({ alerts, commands, history, reviewCount, clearResolved, dia
         {page === 'live' ? <>
           {alerts.current.length > 0 && <FleetAlertList entries={alerts.current} label="Current alerts" onInspect={inspect} onSeen={alerts.markSeen} />}
           <MemoCommands commands={commands} label="Active commands" onInspect={inspect} />
-          {!alerts.current.length && !commands.length && <p className="fleet-alerts__empty">Nothing needs attention</p>}
+          {!alerts.current.length && !commands.length && <p className="fleet-alerts__empty">
+            {alerts.lastReported.length ? <>
+              Status unconfirmed{' '}
+              <button type="button" className="fleet-memo__clear" onClick={() => { setShowLastReported(true); setPage('history'); }}>View last reported</button>
+            </> : 'Nothing needs attention'}
+          </p>}
           {alerts.omitted && <p className="fleet-alerts__empty">More conditions in Aircraft Details</p>}
         </> : <>
           <button type="button" className="fleet-memo__clear" aria-disabled={!reviewCount || undefined}
             onClick={() => { if (reviewCount) clearResolved(); }}><FaCheck aria-hidden="true" /> Clear resolved</button>
           <AlertHistory title="Resolved" entries={alerts.cleared} open onInspect={inspect} />
-          <AlertHistory title="Last reported" entries={alerts.lastReported} onInspect={inspect} />
+          <AlertHistory title="Last reported" entries={alerts.lastReported} open={showLastReported} onInspect={inspect} />
           <MemoCommands commands={history} label="Command history" onInspect={inspect} />
           {!alerts.cleared.length && !alerts.lastReported.length && !history.length
             && <p className="fleet-alerts__empty">No recent history</p>}
@@ -207,7 +213,8 @@ export default function FleetMemo({ scope }) {
   const counts = { danger: 0, warning: 0 };
   alerts.current.forEach(entry => { counts[entry.tone]++; });
   const leading = alerts.current.length ? alertTitle(alerts.current[0]) : commands.length
-    ? `${commands[0].commandLabel} · ${commandStage(commands[0])}` : 'Nothing needs attention';
+    ? `${commands[0].commandLabel} · ${commandStage(commands[0])}`
+    : alerts.lastReported.length ? 'Status unconfirmed' : 'Nothing needs attention';
   return <div className="fleet-memo">
     <button ref={trigger} type="button" className="fleet-memo__trigger" aria-label="Memo" aria-describedby={summaryId}
       aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? dialogId : undefined} onClick={() => setOpen(true)}>

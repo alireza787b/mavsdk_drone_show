@@ -139,6 +139,20 @@ test('an unavailable native report moves a denial out of Live without resolving 
   expect(within(memo.getByRole('list', { name: 'Resolved alerts' })).getByText('PX4 cannot arm · Hold')).toBeVisible();
 });
 
+test('an expired unresolved report is not an all-clear when nothing else is live', () => {
+  useCommandActivity.mockReturnValue({ commandMonitors: [], commandHistory: [] });
+  const view = render(tree([{ ...alerts[0], issues: [] }]));
+  const memo = openMemo();
+  view.rerender(tree([{ ...alerts[0], preflight: null, issues: [] }]));
+  expect(memo.getByText('Status unconfirmed')).toBeVisible();
+  expect(memo.queryByText('Nothing needs attention')).not.toBeInTheDocument();
+  expect(memo.queryByRole('list', { name: 'Current alerts' })).not.toBeInTheDocument();
+  expect(within(screen.getByRole('button', { name: 'Memo' })).getByText('Status unconfirmed')).toBeVisible();
+  fireEvent.click(memo.getByRole('button', { name: 'View last reported' }));
+  expect(memo.getByText('Last reported').closest('details')).toHaveAttribute('open');
+  expect(memo.getByText('PX4 cannot arm · Hold')).toBeVisible();
+});
+
 test('authoritatively active commands stay in Live through a tracking interruption', () => {
   const observation = { snapshots: [active], receivedAtMs: NOW + 1 };
   const unconfirmed = { ...active, trackingIssue: 'timeout' };

@@ -209,6 +209,9 @@ command receipts. **Clear resolved** clears the review count for resolved
 entries in this browser. Active alerts and commands stay in Live. The entries
 remain available in History, and the GCS retains its command and log records.
 A GCS outage appears as one fleet alert.
+If nothing is currently reported but an earlier condition is still unconfirmed,
+Memo shows **Status unconfirmed**. **View last reported** opens its history
+without counting it as a current warning or marking it resolved.
 
 [Memo Live](../assets/operator-overview/memo-dark.png) ·
 [Memo History](../assets/operator-overview/memo-history-dark.png).
