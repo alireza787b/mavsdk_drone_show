@@ -87,7 +87,9 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
   const networkDetails = item.network.current ? ` · ${item.network.label}${item.network.percent !== null ? ` ${Math.round(item.network.percent)}%` : item.network.type === 'wifi' ? ' · signal unavailable' : ''}` : '';
   const linkText = `${heartbeatText(item.availability)}${networkDetails}`;
   const networkHelp = `${item.availability.label} heartbeat${networkDetails}${item.network.ssid ? ` · SSID ${item.network.ssid}${item.network.stale ? ' (last known)' : ''}` : ''}${item.network.interface ? ` · ${item.network.interface}` : ''}`;
-  const batteryHelp = `${item.battery.text}${item.battery.stale ? ' · Last known' : ''} · ${item.battery.label || ''}`;
+  const batteryHelp = item.battery.available
+    ? `${item.battery.text}${item.battery.stale ? ' · Last known' : ''} · ${item.battery.label}`
+    : 'Battery unavailable';
   return <article className={`fleet-aircraft ${list ? 'fleet-aircraft--row' : ''} ${selected ? 'is-selected' : ''} ${inspected ? 'is-inspected' : ''} ${item.availability.stale || item.availability.label === 'Offline' ? 'is-stale' : ''}`}
     data-aircraft-id={item.id} data-current={item.current} data-flight-state={item.flightState.toLowerCase()} data-readiness={item.readiness.status} data-availability={item.availability.label.toLowerCase()} data-link-attention={item.linkAttention}
     data-px4-arming={verdict?.can_arm ? 'allowed' : 'unconfirmed'}>
@@ -125,7 +127,7 @@ export const AircraftTile = memo(function AircraftTile({ item, selected, inspect
       <span id={hintId} className="fleet-aircraft__focus-help fleet-visually-hidden">
         {item.flightState}. Flight mode: {item.flightMode.label}{item.flightMode.stale ? ', last known' : ''}.
         {` ${armingLabel}.`}
-        {issue ? ` ${issue.label}.` : ''} Battery: {batteryHelp}. Link: {networkHelp}.
+        {issue ? ` ${issue.label}.` : ''} {item.battery.available ? `Battery: ${batteryHelp}` : batteryHelp}. Link: {networkHelp}.
       </span>
     </button>
     {!!item.issues.length && <div className="fleet-aircraft__alerts">
@@ -165,7 +167,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore, ref
       <dl className="fleet-inspector__facts">
         <dt>Configured IP</dt><dd><code>{normalizeRuntimeIp(item.raw.ip) || 'Unknown'}</code></dd>
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
-        <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>
+        <dt>Battery</dt><dd>{item.battery.available ? item.battery.text : 'Battery unavailable'}{item.battery.stale ? ' · last known' : ''}</dd>
         <dt>Altitude</dt><dd>{altitudeText(item.altitude)}{item.altitude.stale ? ' · last known' : ''}</dd>
         <dt>GPS</dt><dd>{item.gps.label}{item.gps.stale ? ' · last known' : ''}</dd>
         <dt>Satellites</dt><dd>{item.gps.satellites ?? 'Unknown'}{item.gps.stale ? ' · last known' : ''}</dd>
@@ -193,6 +195,8 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore, ref
         <dt>Link evidence</dt><dd>{item.runtime.tooltip}</dd>
         <dt>Battery source</dt><dd>{item.battery.help}</dd>
         <dt>Flight mode code</dt><dd>{item.raw.flight_mode == null ? 'Unknown' : String(item.raw.flight_mode)}</dd>
+        <dt>Flight controller status code</dt><dd>{item.systemStatusCode === 0
+          ? '0 · Flight controller status unknown' : item.systemStatusCode ?? 'Unavailable'}</dd>
         <dt>Observation detail</dt><dd>{item.readiness.summary || 'Unknown'}</dd>
         <dt>Companion</dt><dd><Link to="/fleet-ops" onClick={onClose}>Fleet operations →</Link></dd>
       </dl></details>

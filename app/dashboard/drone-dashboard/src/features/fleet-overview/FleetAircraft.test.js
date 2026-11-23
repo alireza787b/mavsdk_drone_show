@@ -10,7 +10,7 @@ const aircraft = (extra = {}, now = NOW) => buildAircraftViewModel({
   hw_id: '7', pos_id: '3', callsign: 'Scout', update_time: NOW / 1000, telemetry_available: true,
   heartbeat_last_seen: NOW / 1000, heartbeat_network_info: { wifi: { signal_strength_percent: 72 } },
   is_armed: false, landed_state: 1, flight_mode: 0x03040000, mission: DRONE_MISSION_TYPES.SMART_SWARM,
-  battery_remaining_percent: 80, battery_voltage: 16.1, position_alt: 1200,
+  battery_remaining_percent: 80, battery_voltage: 16.1, battery_timestamp_ms: NOW, position_alt: 1200,
   gps_fix_type: 6, satellites_visible: 18, ...extra,
 }, now);
 
@@ -238,4 +238,17 @@ test('the Overview border is red when there is no PX4 report', () => {
   const { container } = tile(aircraft({ readiness_status: 'ready' }));
   expect(container.querySelector('article')).toHaveAttribute('data-px4-arming', 'unconfirmed');
   expect(screen.getByRole('button', { name: 'Inspect Scout · H7' })).toHaveAttribute('title', 'PX4 report unavailable');
+});
+
+test('missing battery and an observed state 0 remain distinct from a PX4 denial in Details', () => {
+  const item = aircraft({ battery_voltage: 0, battery_remaining_percent: null, battery_timestamp_ms: 0,
+    system_status: 0, heartbeat_timestamp_ms: NOW });
+  render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <AircraftTile item={item} onInspect={jest.fn()} onToggle={jest.fn()} />
+    <AircraftInspector item={item} onClose={jest.fn()} />
+  </MemoryRouter>);
+  expect(screen.getByTitle('Battery unavailable')).toHaveTextContent('—');
+  expect(screen.queryByText('0%')).not.toBeInTheDocument();
+  expect(screen.getByText('0 · Flight controller status unknown').closest('details')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'PX4 arming report' })).getByText('PX4 report unavailable')).toBeInTheDocument();
 });

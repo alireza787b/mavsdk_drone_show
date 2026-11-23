@@ -8,7 +8,7 @@ const live = (id = '1', extra = {}) => ({
   is_armed: false, landed_state: 1,
   position_lat: 35.7, position_long: 51.4, global_position_valid: true,
   position_alt: 1200, gps_fix_type: 3, satellites_visible: 12,
-  hdop: 0.8, vdop: 1.1, battery_remaining_percent: 80, battery_voltage: 16.1,
+  hdop: 0.8, vdop: 1.1, battery_remaining_percent: 80, battery_voltage: 16.1, battery_timestamp_ms: NOW,
   ...extra,
 });
 const build = (drone, nowMs = NOW) => buildAircraftViewModel(drone, nowMs);
@@ -41,7 +41,7 @@ describe('fleet presentation truth', () => {
   test('missing telemetry and active system status never manufacture GPS, battery, altitude or phase', () => {
     const aircraft = build({ hw_id: '1', system_status: 4 });
     expect(aircraft.gps).toMatchObject({ fixType: null, label: 'Unknown', satellites: null, hdop: null, vdop: null, current: false });
-    expect(aircraft.battery).toMatchObject({ remaining: null, available: false, text: 'Unknown' });
+    expect(aircraft.battery).toMatchObject({ remaining: null, available: false, text: 'Unavailable' });
     expect(aircraft.altitude.value).toBeNull();
     expect(aircraft.armed).toBeNull();
     expect(aircraft.flightState).toBe('Unknown');
@@ -50,6 +50,29 @@ describe('fleet presentation truth', () => {
     expect(build({ hw_id: '1', flight_mode: 65536, mission: 0 })).toMatchObject({
       flightMode: { label: 'Unknown', known: false }, mission: { label: 'Unknown', known: false },
     });
+  });
+
+  test('keeps state 0 in diagnostics and omits its MDS alert while keeping PX4 warnings', () => {
+    const drone = live('3', { system_status: 0, heartbeat_timestamp_ms: NOW, readiness_status: 'blocked',
+      readiness_summary: 'MAVLink system state UNINIT',
+      preflight_blockers: [{ source: 'telemetry', message: 'MAVLink system state UNINIT' }],
+      preflight_warnings: [{ source: 'mds_observation', message: 'Flight controller status unknown' },
+        { source: 'px4', message: 'Position estimate invalid' }] });
+    const aircraft = build(drone);
+    expect(aircraft.systemStatusCode).toBe(0);
+    expect(aircraft.issues.map(issue => issue.label)).toEqual(['Position estimate invalid']);
+    expect(aircraft.preflight).toBeNull();
+    expect(build({ ...drone, heartbeat_timestamp_ms: 0 }).systemStatusCode).toBeNull();
+    expect(build({ ...drone, preflight_blockers: [], preflight_warnings: [] }).issues).toEqual([]);
+  });
+
+  test('distinguishes unavailable, voltage-only and zero-percent battery samples', () => {
+    const missing = { ...live('3'), battery_voltage: 0, battery_remaining_percent: null, battery_timestamp_ms: 0 };
+    expect(build(missing).battery).toMatchObject({ available: false, current: false, text: 'Unavailable' });
+    expect(build({ ...missing, battery_voltage: 16.4, battery_timestamp_ms: NOW }).battery)
+      .toMatchObject({ available: true, remaining: null, current: true, text: '16.4V' });
+    expect(build({ ...missing, battery_remaining_percent: 0, battery_timestamp_ms: NOW }).battery)
+      .toMatchObject({ available: true, current: true, text: '0%' });
   });
 
   test('fresh but incomplete telemetry is not filled with invented fixes or DOP', () => {

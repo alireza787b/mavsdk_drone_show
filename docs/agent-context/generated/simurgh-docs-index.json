@@ -1,5 +1,5 @@
 {
-  "chunk_count": 891,
+  "chunk_count": 892,
   "chunks": [
     {
       "audience": "developer",
@@ -6635,7 +6635,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "21b6277fffc15d023ded0f2889744c3d8a8aae35757411f59602fa67040a8ea6",
+      "content_hash": "4a0de0277feedf27c3ee4c1a8dd8ab27e7df98ae51df39b35825ad1379f8652e",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6649,13 +6649,13 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card pairs an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Phase and named flight\nmode sit beside it. MDS observations in the inspector are not a PX4 arming\nverdict. One fixed strip below shows\nGNSS fix, altitude/datum, transport and battery in that order, in Board and List.\nBattery percentage remains readable inside the smaller gauge. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/\nUSB transport symbol. No percentage is permanently repeated beside Wi-Fi.\nThe battery outline fills to PX4's reported percentage, shown inside; a bolt\nmeans current, fault-free charging evidence. Unknown charge is a dash, not an\nempty battery or a voltage-based estimate. Hover the instruments for voltage,\nSSID and reported signal. Keyboard focus announces phase, the first\nissue, battery and link; Enter opens full details. Focus never puts a tooltip\nover aircraft warnings. Tap the card for details on touch devices. Cached\nmeasurements have a dotted underline and the shared stale/link marker; their\nhints and inspection retain explicit last-known provenance.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card pairs an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Phase and named flight\nmode sit beside it. MDS observations in the inspector are not a PX4 arming\nverdict. One fixed strip below shows\nGNSS fix, altitude/datum, transport and battery in that order, in Board and List.\nBattery percentage remains readable inside the smaller gauge. A dash means\npercentage unavailable. Details shows any valid measured voltage and says\n**Battery unavailable** when there is no sample. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/\nUSB transport symbol. No percentage is permanently repeated beside Wi-Fi.\nThe battery outline fills to PX4's reported percentage, shown inside; a bolt\nmeans current, fault-free charging evidence. Unknown charge is a dash, not an\nempty battery or a voltage-based estimate. Hover the instruments for voltage,\nSSID and reported signal. Keyboard focus announces phase, the first\nissue, battery and link; Enter opens full details. Focus never puts a tooltip\nover aircraft warnings. Tap the card for details on touch devices. Diagnostics shows the numeric MAVLink\nsystem status from the flight-controller heartbeat. Code 0 means the system\nstatus is unknown and does not add a Memo warning. Cached\nmeasurements have a dotted underline and the shared stale/link marker; their\nhints and inspection retain explicit last-known provenance.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "c39cc73df68287452d8e5ea3fda771fbe80be08b23c988e9c415164afbe9d3d0",
+      "content_hash": "ce8dd951fe6091174fdae7e6b42cf0c0af8c1c0f20860274f8755ee1ae006e50",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6669,13 +6669,13 @@
         "operations",
         "selection"
       ],
-      "text": "a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization and stale/missing\nlink evidence. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
+      "text": "ission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization and stale/missing\nlink evidence. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "57e4d8ae7db9b8583dde65c8a73b9e335a557530a6047db9376eb98109bdd958",
+      "content_hash": "3d3f7050a53837e5589ac2621d8c9316869eaed067f79b49370090e1956df918",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-04-check-the-aircraft",
       "links": [],
@@ -6689,7 +6689,27 @@
         "operations",
         "selection"
       ],
-      "text": "The compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).\n\nFleet Map's 2D and 3D aircraft popups use the same transport labels and console\ntheme. **Details** reveals the configured IP, reported network/interface and last\ntelemetry time. Selecting another aircraft closes its previous action/jog review;\nit cannot inherit a reviewed target. Source coordinates and map positioning are\nnot changed by this presentation update. A single bounded inspector serves the\n2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.\nExpanded details scroll inside it instead of clipping behind the map boundary.\n\n![Bounded aircraft inspector, using synthetic aircraft and an offline grid rather than a surveyed basemap](../assets/operator-overview/map-inspector-desktop-dark.png)",
+      "text": "A brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.\n\nThe compact **Software differs** notice compares source revisions with the GCS;\nit is not a flight-health warning. **Version unavailable** is unconfirmed evidence,\nnot proof that an update is required. **Review** opens Fleet operations without\npreparing or sending an update. Source updates belong to grounded maintenance.\nBrief refresh failures keep the existing surface and measurements; older software\nevidence becomes explicitly unavailable. No reconnect changes command targets.\nKnown source attention remains during the Available window instead of disappearing\nand reappearing on a brief aircraft link loss. This is display continuity only;\nFleet operations still requires fresh evidence before an update.\n\n![Compact source-review notice and symbolic link state, using synthetic SITL aircraft](../assets/operator-overview/software-review-desktop-dark.png)\n\n[Phone view of the same workflow](../assets/operator-overview/software-review-phone-dark.png).",
+      "title": "Overview operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
+      "content_hash": "ab6c726b18e2d325d398ed7d37c8b7cc758b80d484049abd71ef2ad3b63f77e8",
+      "heading": "Check the aircraft",
+      "id": "mds.dashboard_operator:002-05-check-the-aircraft",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/dashboard-operator.md",
+      "resource_id": "mds.dashboard_operator",
+      "route_hint": "/",
+      "summary": "Fleet inspection, explicit targets, general commands, alerts and mission navigation.",
+      "tags": [
+        "dashboard",
+        "operations",
+        "selection"
+      ],
+      "text": "Fleet Map's 2D and 3D aircraft popups use the same transport labels and console\ntheme. **Details** reveals the configured IP, reported network/interface and last\ntelemetry time. Selecting another aircraft closes its previous action/jog review;\nit cannot inherit a reviewed target. Source coordinates and map positioning are\nnot changed by this presentation update. A single bounded inspector serves the\n2D map providers and 3D scene: right-side on desktop, bottom sheet on phones.\nExpanded details scroll inside it instead of clipping behind the map boundary.\n\n![Bounded aircraft inspector, using synthetic aircraft and an offline grid rather than a surveyed basemap](../assets/operator-overview/map-inspector-desktop-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -6795,7 +6815,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "794555f61f4c1e67cd8ef6805221deeee53e5c3b61c5e0c4287b1d19904a1f20",
+      "content_hash": "5309c0ab1c64482f9df0e24efc27d89fab363a822ce9dbc738e689f41e05263f",
       "heading": "Memo and History",
       "id": "mds.dashboard_operator:006-01-memo-and-history",
       "links": [],
@@ -6809,7 +6829,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Memo and History\n\nOpen **Memo** from the toolbar. Live shows warnings first, then cautions and\nactive commands. Repeated conditions share a row. Expand it to see the\naircraft. The check acknowledges an alert. The alert stays in Live while\nthe condition persists. A later recurrence is a new alert.\n\nHistory contains recently resolved alerts, last-reported conditions and\ncommand receipts. **Clear resolved** clears the review count for resolved\nentries in this browser. Active alerts and commands stay in Live. The entries\nremain available in History, and the GCS retains its command and log records.\nA GCS outage appears as one fleet alert.\n\n[Memo Live](../assets/operator-overview/memo-dark.png) ·\n[Memo History](../assets/operator-overview/memo-history-dark.png).\n\nThe card border is green when a current PX4 report permits arming in the\ndisplayed mode. Red means permission is unconfirmed. The card hint and\nAircraft Details show either the PX4 denial with its mode or\n**PX4 report unavailable**. Only an explicit native denial is a PX4 Memo\nwarning. Green applies to arming in the displayed mode. Mission clearance\nrequires its own review.",
+      "text": "## Memo and History\n\nOpen **Memo** from the toolbar. Live shows warnings first, then cautions and\nactive commands. Repeated conditions share a row. Expand it to see the\naircraft. The check acknowledges an alert. The alert stays in Live while\nthe condition persists. A later recurrence is a new alert.\n\nHistory contains recently resolved alerts, last-reported conditions and\ncommand receipts. **Clear resolved** clears the review count for resolved\nentries in this browser. Active alerts and commands stay in Live. The entries\nremain available in History, and the GCS retains its command and log records.\nA GCS outage appears as one fleet alert.\nIf nothing is currently reported but an earlier condition is still unconfirmed,\nMemo shows **Status unconfirmed**. **View last reported** opens its history\nwithout counting it as a current warning or marking it resolved.\n\n[Memo Live](../assets/operator-overview/memo-dark.png) ·\n[Memo History](../assets/operator-overview/memo-history-dark.png).\n\nThe card border is green when a current PX4 report permits arming in the\ndisplayed mode. Red means permission is unconfirmed. The card hint and\nAircraft Details show either the PX4 denial with its mode or\n**PX4 report unavailable**. Only an explicit native denial is a PX4 Memo\nwarning. Green applies to arming in the displayed mode. Mission clearance\nrequires its own review.",
       "title": "Overview operator guide"
     },
     {
@@ -17720,8 +17740,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "chunk_count": 15,
-      "content_hash": "4bd282ae76b32b8c83890ce6ce949dd739b9779f7c27075172cf4b3fbdc95bae",
+      "chunk_count": 16,
+      "content_hash": "2d25facaa74800c0cfda31b03d6b64fbbabe018ca5ccc108e0db069d2ab63489",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

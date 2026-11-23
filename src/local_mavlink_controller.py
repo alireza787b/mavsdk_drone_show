@@ -1057,20 +1057,17 @@ class LocalMavlinkController:
         """
         voltages = getattr(msg, 'voltages', None)
         first_voltage_mv = voltages[0] if voltages else None
-        if first_voltage_mv not in (None, 0, 65535):
-            self.drone_config.battery = first_voltage_mv / 1E3  # Convert from mV to V
-            self.log_debug(f"Updated battery voltage to: {self.drone_config.battery}V")
-        else:
-            logging.warning('BATTERY_STATUS voltage is unavailable; preserving the previous voltage evidence')
-
+        voltage = first_voltage_mv / 1E3 if isinstance(first_voltage_mv, int) and 0 < first_voltage_mv < 65535 else None
         remaining = getattr(msg, 'battery_remaining', None)
-        try:
-            remaining = int(remaining)
-        except (TypeError, ValueError):
-            remaining = -1
-        self.drone_config.battery_remaining_percent = (
-            float(remaining) if 0 <= remaining <= 100 else None
-        )
+        remaining = float(remaining) if isinstance(remaining, int) and 0 <= remaining <= 100 else None
+        if voltage is None and remaining is None:
+            self.log_debug("BATTERY_STATUS has no voltage or charge sample")
+            return
+
+        # The legacy voltage field uses zero for absent evidence. Keep the
+        # measurement fields and their shared timestamp from the same packet.
+        self.drone_config.battery = voltage if voltage is not None else 0.0
+        self.drone_config.battery_remaining_percent = remaining
 
         charge_state = getattr(msg, 'charge_state', None)
         try:

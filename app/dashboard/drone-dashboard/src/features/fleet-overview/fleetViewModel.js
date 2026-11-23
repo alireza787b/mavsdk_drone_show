@@ -10,7 +10,7 @@ import { getCommandMetadata } from '../../constants/missionCatalog';
 import { getFriendlyMissionName } from '../../utilities/missionUtils';
 import { getAircraftAvailability } from './fleetAvailability';
 import { uniqueTargetIds } from './targetSelection';
-import { describeMdsObservation } from '../../utilities/droneReadiness';
+import { describeMdsObservation, isUnknownFlightControllerObservation } from '../../utilities/droneReadiness';
 import { px4ArmingVerdict } from '../../utilities/px4Arming';
 import { getFleetNetworkStatus } from './fleetNetworkStatus';
 
@@ -73,7 +73,8 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     : ['ready', 'warning', 'blocked'].includes(drone.readiness_status) ? drone.readiness_status : 'unknown';
   const battery = getBatteryPresentation(drone);
   const batteryAvailable = battery.remaining !== null || (battery.voltage !== null && battery.voltage > 0);
-  const batteryCurrent = current && sampleIsCurrent(drone, 'battery', nowMs);
+  const batterySampleObserved = numberOrNull(drone.battery_timestamp_ms) > 0 || battery.ageMs !== null;
+  const batteryCurrent = current && batterySampleObserved && sampleIsCurrent(drone, 'battery', nowMs);
   const altitude = altitudeEvidence(drone);
   const altitudeCurrent = current && !altitude.stale && (
     altitude.source !== 'absolute_msl' || sampleIsCurrent(drone, altitude.trustedForMap ? 'global_position' : 'gps_raw', nowMs)
@@ -106,14 +107,16 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
   if (current) {
     [['preflight_blockers', 'danger'], ['preflight_warnings', 'warning']].forEach(([field, tone]) => {
       (Array.isArray(drone[field]) ? drone[field] : []).forEach((issue) => {
-        if (typeof issue?.message === 'string' && issue.message.trim()) {
-          const isPx4 = issue.source === 'px4';
+        const isPx4 = issue?.source === 'px4';
+        if (typeof issue?.message === 'string' && issue.message.trim()
+          && (isPx4 || !isUnknownFlightControllerObservation(issue.message))) {
           issues.push({ key: `${field}:${issue.message}`, tone: isPx4 ? tone : 'warning',
             source: isPx4 ? 'PX4' : 'MDS', label: isPx4 ? issue.message : describeMdsObservation(issue.message) });
         }
       });
     });
-    if (drone.readiness_status === 'blocked' && !issues.some((issue) => issue.key.startsWith('preflight_blockers:'))) {
+    if (drone.readiness_status === 'blocked' && !reportedBlockers
+      && !isUnknownFlightControllerObservation(drone.readiness_summary)) {
       issues.push({ key: 'readiness', tone: 'warning', label: describeMdsObservation(drone.readiness_summary) || 'MDS observation' });
     }
   }
@@ -125,6 +128,7 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     label: identity.alias?.value || `Aircraft ${id}`,
     runtime, availability, boot, current, armed, flightState,
     preflight: px4ArmingVerdict(drone, nowMs),
+    systemStatusCode: numberOrNull(drone.heartbeat_timestamp_ms) > 0 ? numberOrNull(drone.system_status) : null,
     flightMode: { label: modeKnown ? decodedMode : 'Unknown', known: modeKnown,
       current: current && modeKnown, stale: !current && hasTelemetry && modeKnown },
     mission: { label: missionMetadata ? getFriendlyMissionName(drone.mission) : 'Unknown', known: Boolean(missionMetadata),
@@ -132,11 +136,11 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
       stale: !current && hasTelemetry && Boolean(missionMetadata) },
     network: getFleetNetworkStatus(drone.heartbeat_network_info, availability.available && !availability.stale),
     readiness: { status: readinessStatus, label: { ready: 'Ready', warning: 'Warning', blocked: 'Blocked', unknown: 'Unknown' }[readinessStatus],
-      summary: current && readinessStatus !== 'unknown' ? drone.readiness_summary || '' : '' },
+      summary: current && readinessStatus !== 'unknown' ? describeMdsObservation(drone.readiness_summary) || '' : '' },
     battery: {
       ...battery, current: batteryCurrent && batteryAvailable,
       stale: batteryAvailable && !batteryCurrent, available: batteryAvailable,
-      text: batteryAvailable ? battery.text : 'Unknown',
+      text: batteryAvailable ? battery.text : 'Unavailable',
     },
     altitude: {
       ...altitude, current: altitudeCurrent && altitude.value !== null,

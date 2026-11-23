@@ -109,6 +109,7 @@ def test_core_router_uses_live_dependency_attributes_after_router_creation():
 
 def test_core_router_typed_telemetry_sets_server_time_header():
     deps = _make_deps()
+    deps.telemetry_data_all_drones["1"].update(system_status=0, heartbeat_timestamp_ms=1700000001234)
     app = FastAPI()
     app.include_router(create_core_router(deps))
 
@@ -118,6 +119,9 @@ def test_core_router_typed_telemetry_sets_server_time_header():
     assert response.status_code == 200
     assert response.headers["X-MDS-Server-Time"].isdigit()
     assert response.json()["total_drones"] == 1
+    row = response.json()["telemetry"]["1"]
+    assert row["system_status"] == 0
+    assert row["heartbeat_timestamp_ms"] == 1700000001234
 
 
 def test_rest_and_websocket_join_current_heartbeat_without_refreshing_fc_evidence(monkeypatch):

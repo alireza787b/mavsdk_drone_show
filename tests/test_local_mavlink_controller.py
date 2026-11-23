@@ -694,6 +694,21 @@ def test_process_battery_status_marks_unknown_optional_values_unavailable(mock_d
     assert mock_drone_config.battery_timestamp_ms > 0
 
 
+def test_missing_battery_packet_does_not_refresh_a_sample(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    controller.process_battery_status(SimpleNamespace(voltages=[16600], battery_remaining=100))
+    mock_drone_config.battery_timestamp_ms = 123
+    controller.process_battery_status(SimpleNamespace(voltages=[65535], battery_remaining=-1))
+    assert mock_drone_config.battery_timestamp_ms == 123
+    assert mock_drone_config.battery == 16.6
+    assert mock_drone_config.battery_remaining_percent == 100
+
+    controller.process_battery_status(SimpleNamespace(voltages=[65535], battery_remaining=0))
+    assert mock_drone_config.battery == 0.0
+    assert mock_drone_config.battery_remaining_percent == 0
+    assert mock_drone_config.battery_timestamp_ms > 123
+
+
 def test_process_attitude_tracks_yaw_rate(mock_drone_config):
     controller = build_controller(mock_drone_config)
     msg = SimpleNamespace(yaw=1.0, roll=0.0, pitch=0.0, pitchspeed=0.0, yawspeed=0.5)

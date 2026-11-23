@@ -9,9 +9,15 @@ const STATUS_LABELS = {
 };
 const READINESS_SNAPSHOT_GRACE_THRESHOLD_MS = 90_000;
 
+const UNKNOWN_FC_STATUS = 'Flight controller status unknown';
+
 export function describeMdsObservation(message) {
-  const legacyUnknownState = /^(?:MAVLink system state|PX4 system state:|Vehicle system state (?:is|reports)) UNINIT\b/;
-  return typeof message === 'string' && legacyUnknownState.test(message) ? 'Flight controller status unknown' : message;
+  const legacyUnknownState = /^(?:MAVLink system state|PX4 system state:|Flight controller state:|Vehicle system state (?:is|reports)) UNINIT\b/;
+  return typeof message === 'string' && legacyUnknownState.test(message) ? UNKNOWN_FC_STATUS : message;
+}
+
+export function isUnknownFlightControllerObservation(message) {
+  return describeMdsObservation(message) === UNKNOWN_FC_STATUS;
 }
 
 function normalizeMessages(messages) {

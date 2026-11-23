@@ -543,6 +543,7 @@ class DroneTelemetry(BaseModel):
     flight_mode: Any = Field(..., description="PX4 custom_mode / derived flight mode value")
     base_mode: Any = Field(..., description="MAVLink base_mode flags")
     system_status: Any = Field(..., description="PX4 / MAVLink system status")
+    heartbeat_timestamp_ms: int = Field(0, ge=0, description="Last flight-controller HEARTBEAT receipt at the companion")
     is_armed: bool = Field(..., description="Whether the drone is currently armed")
     landed_state: Optional[int] = Field(None, description="Native MAV_LANDED_STATE; absent is not ON_GROUND")
     landed_state_timestamp_ms: int = Field(0, ge=0, description="Native landed-state receipt timestamp at the node")

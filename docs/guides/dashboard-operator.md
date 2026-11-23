@@ -34,7 +34,9 @@ airframe footprint, heading or proof that motors stopped. Phase and named flight
 mode sit beside it. MDS observations in the inspector are not a PX4 arming
 verdict. One fixed strip below shows
 GNSS fix, altitude/datum, transport and battery in that order, in Board and List.
-Battery percentage remains readable inside the smaller gauge. Exact
+Battery percentage remains readable inside the smaller gauge. A dash means
+percentage unavailable. Details shows any valid measured voltage and says
+**Battery unavailable** when there is no sample. Exact
 heartbeat age and Fresh/Stale labels remain in the link hint and inspector
 diagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/
 USB transport symbol. No percentage is permanently repeated beside Wi-Fi.
@@ -43,7 +45,9 @@ means current, fault-free charging evidence. Unknown charge is a dash, not an
 empty battery or a voltage-based estimate. Hover the instruments for voltage,
 SSID and reported signal. Keyboard focus announces phase, the first
 issue, battery and link; Enter opens full details. Focus never puts a tooltip
-over aircraft warnings. Tap the card for details on touch devices. Cached
+over aircraft warnings. Tap the card for details on touch devices. Diagnostics shows the numeric MAVLink
+system status from the flight-controller heartbeat. Code 0 means the system
+status is unknown and does not add a Memo warning. Cached
 measurements have a dotted underline and the shared stale/link marker; their
 hints and inspection retain explicit last-known provenance.
 The inspector also shows the **Configured IP**; this is an address
