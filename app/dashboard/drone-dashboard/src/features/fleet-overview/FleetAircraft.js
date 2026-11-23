@@ -6,7 +6,7 @@ import { normalizeRuntimeIp } from '../../utilities/missionIdentityUtils';
 import { BatteryGauge, WifiStrength } from './FleetStatusInstruments';
 import { alertCondition, InlineAlerts } from './AlertAnnunciators';
 import { Px4ArmingDetails, useCurrentPx4Verdict } from '../../components/ui/Px4ArmingStatus';
-import { useScopedFleetAlerts } from './FleetAlertsPanel';
+import { useScopedFleetAlerts } from './FleetMemo';
 
 const aircraftAlertEntries = (item) => item.issues.map((issue) => alertCondition(item.id, item.label, issue.label,
   { tone: issue.tone, source: issue.source }));

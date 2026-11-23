@@ -1,7 +1,7 @@
 import React, { useId, useRef, useState } from 'react';
 import { FaExclamationCircle, FaExclamationTriangle, FaRegBell } from 'react-icons/fa';
 import { ALERT_LEVELS, alertScope, distinctAlertConditions } from './fleetAlertPresentation';
-import './FleetAlertsPanel.css';
+import './FleetMemo.css';
 import './AlertAnnunciators.css';
 
 export function alertCondition(aircraftId, aircraftLabel, reason, { tone = 'warning', source = 'MDS', detail } = {}) {

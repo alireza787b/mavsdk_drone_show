@@ -114,11 +114,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Persistent outcomes and condition history share one restrained shell row. */
 .shell-operations-strip { display:flex; gap:.5rem; align-items:start; min-width:0; margin-bottom:.65rem; }
-.shell-operations-strip > .command-activity { flex:1; }
-.shell-operations-strip > .fleet-alerts { flex:0 0 auto; margin:0; }
+.shell-operations-strip > .fleet-memo { min-width:0; flex:1; }
 @media(max-width:620px) {
   .shell-operations-strip { align-items:stretch; gap:.3rem; }
-  .shell-operations-strip .command-activity__latest { display:none; }
+  .shell-operations-strip .fleet-memo__leading { display:none; }
 }
 
 .page-loading {

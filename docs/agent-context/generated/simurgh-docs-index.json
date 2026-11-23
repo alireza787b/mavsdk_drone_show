@@ -6595,7 +6595,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "ea7f9feccd41f41ecde39ade2db323f3417604041c781ab9b978a5f8b3b3b884",
+      "content_hash": "64d5dacb55fca9161f629a6a32f838b9e405ec75b6555296994905d74a7e6556",
       "heading": "Overview operator guide",
       "id": "mds.dashboard_operator:001-01-overview-operator-guide",
       "links": [],
@@ -6609,13 +6609,13 @@
         "operations",
         "selection"
       ],
-      "text": "# Overview operator guide\n\nUse **Overview** to check the fleet and send general aircraft commands. Set up,\nstart and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,\n**Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.\n\n[Open the five-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).\nThe screenshots use a synthetic fleet, not aircraft clearance.",
+      "text": "# Overview operator guide\n\nUse **Overview** to check the fleet and send general aircraft commands. Set up,\nstart and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,\n**Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.\n\nThe screenshots use a synthetic fleet.",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "b872a6f75dd1821f54fe14c7006beeb98263e374804461cad8f61a803b7afb4b",
+      "content_hash": "0fa4ec910ac99149b02eb235f48f400a4f5f13f3fe3772f4810428c7ac890bf7",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-01-check-the-aircraft",
       "links": [],
@@ -6629,7 +6629,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft and attention counts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card dims and shows a clock; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Command aircraft** finds recipients even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
+      "text": "## Check the aircraft\n\n1. Confirm **REAL** or **SITL** at the top of the page.\n2. Check the available-aircraft count and open **Memo** for current alerts.\n3. Open an aircraft card to inspect current measurements\n and any issue. Inspection does not select it for commands.\n\n**Available** is the initial filter: an accepted heartbeat in the last minute.\nAfter ten seconds without a heartbeat the card dims and shows a clock; after\none minute it leaves Available. **All aircraft** still includes it, and\n**Command aircraft** finds recipients even when no longer available.\nThese display windows are configurable; they are not flight-readiness checks.\n\n**Board** is the initial view. **List** compares aircraft in compact rows;\n**Map** shows current trusted positions. Switching views keeps the same targets.\nAircraft without current positions remain in the list; the map provides a link\nto find them. A map marker opens inspection, not command selection.\n\n![Overview with explicit aircraft targets and general controls](../assets/operator-overview/overview-3-1440-dark.png)",
       "title": "Overview operator guide"
     },
     {
@@ -6655,7 +6655,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "83554349e3de823dc90e885239a892ddaae79a2bae020cd26bf252fac4c63fcf",
+      "content_hash": "c39cc73df68287452d8e5ea3fda771fbe80be08b23c988e9c415164afbe9d3d0",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6669,7 +6669,7 @@
         "operations",
         "selection"
       ],
-      "text": "a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
+      "text": "a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization and stale/missing\nlink evidence. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
       "title": "Overview operator guide"
     },
     {
@@ -6695,7 +6695,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "da3536eac3ed47c9948399ed8ad75174e0f81d0d3a43a811590c97b457b8b404",
+      "content_hash": "a23af62d1258803b7b4039c54ba4dbb259a19d6dd5abe5c9029032d231eeb87d",
       "heading": "Select command targets",
       "id": "mds.dashboard_operator:003-01-select-command-targets",
       "links": [],
@@ -6709,7 +6709,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.\n If they are correct, go straight to the command—no extra selection step.\n- To change them, open **To**, check aircraft, then **Use N aircraft**.\n Search never excludes hidden rows. Cancel/Escape discards the draft.\n- For a quick change, use the blue checkbox on a card. It updates the same\n **To** list immediately; no command is sent. It locks while an action review\n owns the recipient snapshot. The separate green readiness tick is status only.\n- **Available** snapshots aircraft available now. Cluster shortcuts appear only\n for multiple clusters; **All configured** is under the ellipsis menu. The\n clear icon makes an empty draft; applying it disables commands.\n- The eye-marked **Show**, search and Board/List/Map change only what you see.\n The card body opens details; only its blue checkbox changes recipients.\n A selected checkbox is not evidence that the aircraft is ready to fly.\n- The eye-slash count beside **To** identifies recipients outside the current\n view (including aircraft without a current map position). Click it to reveal\n the recipient list; command recipients do not change.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, the cluster icon groups the display\nwithout changing targets. It is hidden for a single formation; the cluster\nshortcut inside **To** separately changes the recipient draft.",
+      "text": "## Select command targets\n\nA fresh browser session starts with the **available configured aircraft** selected\nonce the first configuration and heartbeat snapshot have loaded. Where a\nsaved selection is available for the same operator, GCS and runtime, it is\nrestored—including a deliberately empty selection.\n\n- The **To** control beside Takeoff/Hold/Land/Return shows command recipients.\n If they are correct, go straight to the command—no extra selection step.\n- To change them, open **To**, check aircraft, then **Use N aircraft**.\n Search never excludes hidden rows. Cancel/Escape discards the draft.\n- For a quick change, use the blue checkbox on a card. It updates the same\n **To** list immediately; no command is sent. It locks while an action review\n owns the recipient snapshot. The PX4 status on the card border is informational.\n- **Available** snapshots aircraft available now. Cluster shortcuts appear only\n for multiple clusters; **All configured** is under the ellipsis menu. The\n clear icon makes an empty draft; applying it disables commands.\n- The eye-marked **Show**, search and Board/List/Map change only what you see.\n The card body opens details; only its blue checkbox changes recipients.\n A selected checkbox is not evidence that the aircraft is ready to fly.\n- The eye-slash count beside **To** identifies recipients outside the current\n view (including aircraft without a current map position). Click it to reveal\n the recipient list; command recipients do not change.\n- Link loss, reconnects and newly discovered aircraft never change your targets.\n- If a remembered aircraft no longer exists in the configuration, resolve the\n named missing target before dispatch. It is never silently replaced.\n\nUnselected aircraft stay readable so their hazards are not hidden. Before\nconfirming an action, check its aircraft names and count again.\n\nFor multiple multi-aircraft formations, the cluster icon groups the display\nwithout changing targets. It is hidden for a single formation; the cluster\nshortcut inside **To** separately changes the recipient draft.",
       "title": "Overview operator guide"
     },
     {
@@ -6775,7 +6775,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "9fa4eb48a50cce1ed57cdb994cf62931bc985696d1d53c2727d4f915a4bc61bc",
+      "content_hash": "342baed3112f5849dcc7870edeebda471decda9851082a2df7be3fdf2b60f472",
       "heading": "Read command progress",
       "id": "mds.dashboard_operator:005-01-read-command-progress",
       "links": [],
@@ -6789,15 +6789,15 @@
         "operations",
         "selection"
       ],
-      "text": "## Read command progress\n\nOpen **Activity** to see recent commands, affected aircraft, execution progress\nand rejection reasons. Activity remains available when you change pages and\nrehydrates from GCS command history after a refresh.\n\nRequest acceptance is not completion. Check partial, rejected or unconfirmed\noutcomes before retrying. An unconfirmed submission retains its request identity;\nits **Check** control looks up the receipt without sending it again. An\nunconfirmed request does not disable unrelated Hold, Land or Return actions;\ntheir own target-bound reviews remain separate. Nothing automatically replays\nwhen the connection returns.\n\nClosing a review or monitor is not a command to stop an aircraft. Use the named\nflight/recovery controls on Overview or the owning mission page.",
+      "text": "## Read command progress\n\nOpen **Memo** for warnings, cautions and commands that need attention now.\nExpand a command for affected aircraft, progress and receipt details. Use\n**History** for completed commands and outcomes that could not be confirmed.\n\nRequest acceptance is not completion. Check partial, rejected or unconfirmed\noutcomes before retrying. An unconfirmed submission retains its request identity;\nits **Check** control looks up the receipt without sending it again. An\nunconfirmed request does not disable unrelated Hold, Land or Return actions;\ntheir own target-bound reviews remain separate. Nothing automatically replays\nwhen the connection returns.\n\nClosing a review or monitor is not a command to stop an aircraft. Use the named\nflight/recovery controls on Overview or the owning mission page.",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "95d344db6aad1825c2e215ef23573ac440e72b02f243bf448d04787554064994",
-      "heading": "Alert indicators",
-      "id": "mds.dashboard_operator:006-01-alert-indicators",
+      "content_hash": "794555f61f4c1e67cd8ef6805221deeee53e5c3b61c5e0c4287b1d19904a1f20",
+      "heading": "Memo and History",
+      "id": "mds.dashboard_operator:006-01-memo-and-history",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -6809,7 +6809,7 @@
         "operations",
         "selection"
       ],
-      "text": "## Alert indicators\n\nOpen the red **Warning** or amber **Caution** icon to review current fleet\nconditions. Switch severity inside the same sheet. When several aircraft\nreport the same condition, expand the row to see the aircraft. The arrow\nopens Aircraft Details. The check marks the alert as seen and keeps it in the\ncurrent list while the condition persists.\n\n**Last reported** shows observations the dashboard can no longer confirm.\n**Recently cleared** records conditions that later observations resolved. Both\nfollow the selected severity. A GCS outage appears as one fleet alert.\nOpening or closing the sheet leaves the command recipients as selected.\n\n[Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·\n[Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·\n[Phone Takeoff review](../assets/operator-alerts/dark-390-takeoff.png).\nThese views use simulated observations.",
+      "text": "## Memo and History\n\nOpen **Memo** from the toolbar. Live shows warnings first, then cautions and\nactive commands. Repeated conditions share a row. Expand it to see the\naircraft. The check acknowledges an alert. The alert stays in Live while\nthe condition persists. A later recurrence is a new alert.\n\nHistory contains recently resolved alerts, last-reported conditions and\ncommand receipts. **Clear resolved** clears the review count for resolved\nentries in this browser. Active alerts and commands stay in Live. The entries\nremain available in History, and the GCS retains its command and log records.\nA GCS outage appears as one fleet alert.\n\n[Memo Live](../assets/operator-overview/memo-dark.png) ·\n[Memo History](../assets/operator-overview/memo-history-dark.png).\n\nThe card border is green when a current PX4 report permits arming in the\ndisplayed mode. Red means permission is unconfirmed. The card hint and\nAircraft Details show either the PX4 denial with its mode or\n**PX4 report unavailable**. Only an explicit native denial is a PX4 Memo\nwarning. Green applies to arming in the displayed mode. Mission clearance\nrequires its own review.",
       "title": "Overview operator guide"
     },
     {
@@ -17721,7 +17721,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 15,
-      "content_hash": "329b17dc643f9efa7fef87116c3536d11e58d6ff45e52a0cdd2a797951489570",
+      "content_hash": "4bd282ae76b32b8c83890ce6ce949dd739b9779f7c27075172cf4b3fbdc95bae",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 import aiohttp
@@ -447,14 +448,17 @@ async def test_five_dashboards_share_one_observer_per_aircraft_and_compact_verdi
     stream_opens = Counter()
     views = {}
     http_reads = Counter()
+    uplink = asyncio.Lock()
+    bytes_per_second = 128 * 1024
 
     async def connect(url, **_):
         ident = urlsplit(url).hostname.removeprefix('node-')
         stream_opens[ident] += 1
         sock = streams[ident] = StateSocket()
+        await asyncio.sleep(.025 + .01 * (int(ident) % 5))
         now = monotonic_ms()
-        sock.messages.put_nowait({'type': 'px4_clock', 'monotonic_ms': now})
-        sock.messages.put_nowait({
+        clock = {'type': 'px4_clock', 'monotonic_ms': now}
+        sample = {
             'hw_id': ident, 'update_time': 123, 'telemetry_available': True,
             'flight_mode': 50593792, 'is_armed': False, 'landed_state': 1,
             'px4_report_epoch': f'{ident}:1', 'px4_node_monotonic_ms': now,
@@ -462,13 +466,19 @@ async def test_five_dashboards_share_one_observer_per_aircraft_and_compact_verdi
                 'custom_mode': 50593792, 'can_arm': True, 'revision': 'b' * 24,
                 'remaining_valid_ms': 4000, 'sample': 1,
                 'mode_problems': [{'message': 'Example native advice', 'severity': 'INFO'}]},
-        })
-        await asyncio.sleep(.025)
+        }
+        # Share a bounded uplink across the aircraft and vary connection delay.
+        async with uplink:
+            await asyncio.sleep(len(json.dumps((clock, sample))) / bytes_per_second)
+            sock.messages.put_nowait(clock)
+            sock.messages.put_nowait(sample)
         return sock
 
     async def request(req):
         http_reads[req.url.host] += 1
         await asyncio.sleep(.015)
+        async with uplink:
+            await asyncio.sleep(256 / bytes_per_second)
         return httpx.Response(200, json={'update_time': 123})
 
     def publish(drone, data, _):

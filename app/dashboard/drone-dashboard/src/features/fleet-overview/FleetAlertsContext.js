@@ -1,8 +1,9 @@
-import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 
 export const FLEET_ALERT_LIMITS = Object.freeze({ aircraft: 100, perAircraft: 5, recent: 50 });
 const MAX_ACTIVE = FLEET_ALERT_LIMITS.aircraft * FLEET_ALERT_LIMITS.perAircraft + 1;
 const GCS_CONDITION = 'gcs:outage';
+const PX4_ARMING = 'px4-arming:';
 const LINK_CONDITIONS = new Set(['telemetry', 'boot']);
 const FleetAlertsContext = createContext(null);
 
@@ -51,6 +52,11 @@ export function fleetAlertsReducer(state, action) {
   let omittedConditions = 0;
   roster.forEach((item, id) => {
     const issues = new Map();
+    if (item.preflight?.can_arm === false) {
+      const { custom_mode: mode, label, mode: modeName } = item.preflight;
+      const key = `${PX4_ARMING}${mode}`;
+      issues.set(key, { key, label: `${label} · ${modeName}`, tone: 'danger', source: 'PX4' });
+    }
     (Array.isArray(item.issues) ? item.issues : []).forEach((issue) => {
       if (typeof issue?.key !== 'string' || !issue.key || typeof issue.label !== 'string' || !issue.label.trim()) return;
       if (!item.current && !LINK_CONDITIONS.has(issue.key)) return;
@@ -71,8 +77,11 @@ export function fleetAlertsReducer(state, action) {
   state.active.forEach((episode) => {
     if (incoming.has(episode.condition)) return;
     const item = roster.get(episode.aircraftId);
-    const hasClearingEvidence = episode.condition === GCS_CONDITION
-      || (item && !truncated.has(item.id) && (item.current || LINK_CONDITIONS.has(episode.issueKey)));
+    // Only a matching native permit resolves a native denial.
+    const hasClearingEvidence = episode.issueKey.startsWith(PX4_ARMING)
+      ? item?.preflight?.can_arm === true && episode.issueKey === `${PX4_ARMING}${item.preflight.custom_mode}`
+      : episode.condition === GCS_CONDITION
+        || (item && !truncated.has(item.id) && (item.current || LINK_CONDITIONS.has(episode.issueKey)));
     if (hasClearingEvidence) cleared.push({ ...episode, observed: false, clearedAtMs: observedAtMs });
     else retained.push({ ...episode, observed: false });
   });
@@ -97,8 +106,36 @@ export function fleetAlertsReducer(state, action) {
 }
 
 /** Remount with a runtime/operator key at the shell boundary to isolate sessions. */
-export function FleetAlertsProvider({ children }) {
-  const [state, dispatch] = useReducer(fleetAlertsReducer, undefined, createFleetAlertsState);
+function restoreFleetAlerts(historyKey) {
+  const state = createFleetAlertsState();
+  if (!historyKey) return state;
+  try {
+    const saved = JSON.parse(localStorage.getItem(historyKey));
+    const valid = (entry) => typeof entry?.id === 'string' && typeof entry.condition === 'string'
+      && typeof entry.issueKey === 'string' && typeof entry.reason === 'string'
+      && (entry.tone === 'danger' || entry.tone === 'warning');
+    if (Array.isArray(saved?.active) && Array.isArray(saved.recent) && Number.isSafeInteger(saved.nextEpisode)) {
+      state.active = saved.active.filter(valid).slice(0, MAX_ACTIVE).map(entry => ({ ...entry, observed: false }));
+      state.recent = saved.recent.filter(valid).slice(0, FLEET_ALERT_LIMITS.recent);
+      state.nextEpisode = Math.max(1, saved.nextEpisode);
+    }
+  } catch (_) { /* History is optional when browser storage is unavailable. */ }
+  return state;
+}
+
+export function FleetAlertsProvider({ children, historyKey }) {
+  const [state, dispatch] = useReducer(fleetAlertsReducer, historyKey, restoreFleetAlerts);
+  const savedVersion = useRef('');
+  useEffect(() => {
+    if (!historyKey) return;
+    const version = JSON.stringify([state.nextEpisode, state.recent.map(entry => entry.id),
+      state.active.map(({ id, seen, reason, tone }) => [id, seen, reason, tone])]);
+    if (version === savedVersion.current) return;
+    savedVersion.current = version;
+    try {
+      localStorage.setItem(historyKey, JSON.stringify({ active: state.active, recent: state.recent, nextEpisode: state.nextEpisode }));
+    } catch (_) { /* Keep this session's history in memory. */ }
+  }, [historyKey, state.active, state.recent, state.nextEpisode]);
   const publishSnapshot = useCallback((snapshot) => dispatch({ type: 'snapshot', snapshot }), []);
   const sourceUnavailable = useCallback(() => dispatch({ type: 'source-unavailable' }), []);
   const markSeen = useCallback((id) => dispatch({ type: 'seen', id }), []);

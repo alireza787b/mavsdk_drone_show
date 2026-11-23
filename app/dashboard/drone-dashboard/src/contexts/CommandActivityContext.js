@@ -14,6 +14,7 @@ import { buildLifecycleSnapshotFromStatus } from '../utilities/commandLifecycleF
 
 const CommandActivityContext = createContext(null);
 const MAX_COMMAND_MONITORS = 8;
+const MAX_COMMAND_HISTORY = 50;
 const MAX_DISMISSED_COMMAND_IDS = 64;
 const ACTIVE_COMMAND_REFRESH_MS = 2000;
 const RECENT_COMMAND_REFRESH_MS = 15000;
@@ -31,7 +32,7 @@ function sortCommandMonitors(monitors = []) {
   });
 }
 
-function mergeSnapshots(previousMonitors, incomingSnapshots) {
+function mergeSnapshots(previousMonitors, incomingSnapshots, limit = MAX_COMMAND_MONITORS) {
   const normalizedSnapshots = (Array.isArray(incomingSnapshots) ? incomingSnapshots : [incomingSnapshots])
     .filter((snapshot) => snapshot?.commandId);
 
@@ -43,7 +44,8 @@ function mergeSnapshots(previousMonitors, incomingSnapshots) {
 
   normalizedSnapshots.forEach((snapshot) => {
     const existing = next.find((item) => item.commandId === snapshot.commandId);
-    if (existing && Number(existing.updatedAtMs || 0) > Number(snapshot.updatedAtMs || 0)) {
+    if (existing && ((existing.isTerminal && !snapshot.isTerminal)
+      || Number(existing.updatedAtMs || 0) > Number(snapshot.updatedAtMs || 0))) {
       return;
     }
 
@@ -54,7 +56,7 @@ function mergeSnapshots(previousMonitors, incomingSnapshots) {
     ];
   });
 
-  return sortCommandMonitors(next).slice(0, MAX_COMMAND_MONITORS);
+  return sortCommandMonitors(next).slice(0, limit);
 }
 
 export const useCommandActivity = () => {
@@ -67,11 +69,16 @@ export const useCommandActivity = () => {
 
 export const CommandActivityProvider = ({ children }) => {
   const [commandMonitors, setCommandMonitors] = useState([]);
+  const [commandHistory, setCommandHistory] = useState([]);
+  const [activeObservation, setActiveObservation] = useState(null);
   const commandMonitorsRef = useRef(commandMonitors);
   const dismissedCommandIdsRef = useRef(new Set());
 
   const mergeCommandMonitors = useCallback((snapshots) => {
-    const incoming = (Array.isArray(snapshots) ? snapshots : [snapshots])
+    const reported = Array.isArray(snapshots) ? snapshots : [snapshots];
+    const terminal = reported.filter((snapshot) => snapshot?.commandId && snapshot.isTerminal);
+    if (terminal.length) setCommandHistory((previous) => mergeSnapshots(previous, terminal, MAX_COMMAND_HISTORY));
+    const incoming = reported
       .filter((snapshot) => (
         snapshot?.commandId
         && !dismissedCommandIdsRef.current.has(snapshot.commandId)
@@ -122,13 +129,18 @@ export const CommandActivityProvider = ({ children }) => {
 
     const fetchActiveSnapshots = () => {
       if (!activePending) activePending = getActiveCommands({ signal: controller.signal, timeout: 10000 })
-        .then(response => statusListToSnapshots(response?.commands || []))
+        .then(response => {
+          if (!Array.isArray(response?.commands)) throw new Error('Invalid active command response');
+          const snapshots = statusListToSnapshots(response.commands);
+          if (!cancelled) setActiveObservation({ snapshots, receivedAtMs: Date.now() });
+          return snapshots;
+        })
         .finally(() => { activePending = null; });
       return activePending;
     };
 
     const fetchRecentSnapshots = () => {
-      if (!recentPending) recentPending = getRecentCommands({ limit: MAX_COMMAND_MONITORS }, { signal: controller.signal, timeout: 10000 })
+      if (!recentPending) recentPending = getRecentCommands({ limit: MAX_COMMAND_HISTORY }, { signal: controller.signal, timeout: 10000 })
         .then(response => statusListToSnapshots(response?.commands || []))
         .finally(() => { recentPending = null; });
       return recentPending;
@@ -221,12 +233,16 @@ export const CommandActivityProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     commandMonitors: sortedCommandMonitors,
+    commandHistory,
+    activeObservation,
     primaryMonitor,
     recentCommandMonitors,
     mergeCommandMonitors,
     dismissCommandMonitor,
     commandLifecycleCallbacks,
   }), [
+    commandHistory,
+    activeObservation,
     commandLifecycleCallbacks,
     dismissCommandMonitor,
     mergeCommandMonitors,

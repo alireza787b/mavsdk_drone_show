@@ -5,7 +5,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ConfirmDialog } from './ui';
 import AircraftChoiceRow from './ui/AircraftChoiceRow';
 import { InlineAlerts } from '../features/fleet-overview/AlertAnnunciators';
-import { useScopedFleetAlerts } from '../features/fleet-overview/FleetAlertsPanel';
+import { useScopedFleetAlerts } from '../features/fleet-overview/FleetMemo';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { getBackendURL } from '../config/apiConfig';
 import { fetchGcsResource, postGcsResource } from '../services/gcsApiService';

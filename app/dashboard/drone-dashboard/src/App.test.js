@@ -15,7 +15,7 @@ jest.mock('./components/SidebarMenu', () => ({ collapsed, mobile, mobileOpen }) 
   />
 ));
 jest.mock('./components/SyncWarningBanner', () => () => null);
-jest.mock('./components/CommandActivityPanel', () => () => <section data-testid="command-activity" />);
+jest.mock('./features/fleet-overview/FleetMemo', () => () => <section data-testid="fleet-memo" />);
 jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>);
 jest.mock('./contexts/CommandActivityContext', () => ({
   CommandActivityProvider: ({ children }) => <>{children}</>,
@@ -80,7 +80,7 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByTestId('sidebar')).toBeInTheDocument();
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
-    expect(screen.getByTestId('command-activity')).toBeInTheDocument();
+    expect(screen.getByTestId('fleet-memo')).toBeInTheDocument();
   });
 
   test('renders sidebar navigation', async () => {
@@ -97,7 +97,7 @@ describe('App', () => {
       expect.stringContaining('/docs/guides/dashboard-operator.md')
     );
     expect(screen.getByRole('link', { name: /dashboard guide/i }).closest('.shell-operations-strip')).toContainElement(
-      screen.getByTestId('command-activity')
+      screen.getByTestId('fleet-memo')
     );
   });
 

@@ -4,13 +4,12 @@ Use **Overview** to check the fleet and send general aircraft commands. Set up,
 start and monitor missions on their own pages: **Smart Swarm**, **Drone Show**,
 **Custom CSV Show**, **Swarm Trajectory** or **QuickScout**.
 
-[Open the five-step illustrated guide](../assets/operator-overview/overview-operator-guide.png).
-The screenshots use a synthetic fleet, not aircraft clearance.
+The screenshots use a synthetic fleet.
 
 ## Check the aircraft
 
 1. Confirm **REAL** or **SITL** at the top of the page.
-2. Check the available-aircraft and attention counts.
+2. Check the available-aircraft count and open **Memo** for current alerts.
 3. Open an aircraft card to inspect current measurements
    and any issue. Inspection does not select it for commands.
 
@@ -59,8 +58,8 @@ which is in use. Missing evidence stays **Unknown**; stale transport is marked
 **last known**. This is not proof of Internet latency or the VPN's route.
 Unavailable card measurements use a dash, never an invented zero. Altitude
 precision adapts to scale; its datum and full reading remain in the hint.
-Small badges on the schematic distinguish initialization, stale/missing link
-evidence and ground readiness. A severity-prioritized alert marker shows the
+Small badges on the schematic distinguish initialization and stale/missing
+link evidence. A severity-prioritized alert marker shows the
 condition count; clicking it opens the same aircraft inspector with the full
 reasons near the top. Viewing a condition does not acknowledge or clear it.
 
@@ -119,7 +118,7 @@ restored—including a deliberately empty selection.
   Search never excludes hidden rows. Cancel/Escape discards the draft.
 - For a quick change, use the blue checkbox on a card. It updates the same
   **To** list immediately; no command is sent. It locks while an action review
-  owns the recipient snapshot. The separate green readiness tick is status only.
+  owns the recipient snapshot. The PX4 status on the card border is informational.
 - **Available** snapshots aircraft available now. Cluster shortcuts appear only
   for multiple clusters; **All configured** is under the ellipsis menu. The
   clear icon makes an empty draft; applying it disables commands.
@@ -184,9 +183,9 @@ paths. PX4 still controls each return and its configured return height.
 
 ## Read command progress
 
-Open **Activity** to see recent commands, affected aircraft, execution progress
-and rejection reasons. Activity remains available when you change pages and
-rehydrates from GCS command history after a refresh.
+Open **Memo** for warnings, cautions and commands that need attention now.
+Expand a command for affected aircraft, progress and receipt details. Use
+**History** for completed commands and outcomes that could not be confirmed.
 
 Request acceptance is not completion. Check partial, rejected or unconfirmed
 outcomes before retrying. An unconfirmed submission retains its request identity;
@@ -198,23 +197,28 @@ when the connection returns.
 Closing a review or monitor is not a command to stop an aircraft. Use the named
 flight/recovery controls on Overview or the owning mission page.
 
-## Alert indicators
+## Memo and History
 
-Open the red **Warning** or amber **Caution** icon to review current fleet
-conditions. Switch severity inside the same sheet. When several aircraft
-report the same condition, expand the row to see the aircraft. The arrow
-opens Aircraft Details. The check marks the alert as seen and keeps it in the
-current list while the condition persists.
+Open **Memo** from the toolbar. Live shows warnings first, then cautions and
+active commands. Repeated conditions share a row. Expand it to see the
+aircraft. The check acknowledges an alert. The alert stays in Live while
+the condition persists. A later recurrence is a new alert.
 
-**Last reported** shows observations the dashboard can no longer confirm.
-**Recently cleared** records conditions that later observations resolved. Both
-follow the selected severity. A GCS outage appears as one fleet alert.
-Opening or closing the sheet leaves the command recipients as selected.
+History contains recently resolved alerts, last-reported conditions and
+command receipts. **Clear resolved** clears the review count for resolved
+entries in this browser. Active alerts and commands stay in Live. The entries
+remain available in History, and the GCS retains its command and log records.
+A GCS outage appears as one fleet alert.
 
-[Overview alert drawer](../assets/operator-alerts/dark-1440-overview.png) ·
-[Smart Swarm alert details](../assets/operator-alerts/light-820-swarm.png) ·
-[Phone Takeoff review](../assets/operator-alerts/dark-390-takeoff.png).
-These views use simulated observations.
+[Memo Live](../assets/operator-overview/memo-dark.png) ·
+[Memo History](../assets/operator-overview/memo-history-dark.png).
+
+The card border is green when a current PX4 report permits arming in the
+displayed mode. Red means permission is unconfirmed. The card hint and
+Aircraft Details show either the PX4 denial with its mode or
+**PX4 report unavailable**. Only an explicit native denial is a PX4 Memo
+warning. Green applies to arming in the displayed mode. Mission clearance
+requires its own review.
 
 ## Understand unavailable data
 

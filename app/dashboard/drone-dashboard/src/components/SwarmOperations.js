@@ -17,7 +17,7 @@ import { px4ArmingVerdict } from '../utilities/px4Arming';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
 import CommandAircraftPicker from '../features/fleet-overview/CommandAircraftPicker';
 import { alertCondition, InlineAlerts } from '../features/fleet-overview/AlertAnnunciators';
-import { useScopedFleetAlerts } from '../features/fleet-overview/FleetAlertsPanel';
+import { useScopedFleetAlerts } from '../features/fleet-overview/FleetMemo';
 import useSwarmCommandScope from '../features/fleet-overview/useSwarmCommandScope';
 import { swarmReferenceIds, swarmStartQuery, swarmReviewEvidence, swarmNamesSummary } from '../utilities/swarmCommandScope';
 import { swarmNodeStatus } from '../utilities/swarmDiagramModel';

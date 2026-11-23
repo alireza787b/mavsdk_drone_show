@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FaBorderAll, FaList, FaMapMarkedAlt, FaPlaneDeparture, FaHandPaper, FaPlaneArrival, FaHome, FaEllipsisH, FaExclamationTriangle, FaLayerGroup, FaEye, FaBroadcastTower, FaPlane } from 'react-icons/fa';
+import { FaBorderAll, FaList, FaMapMarkedAlt, FaPlaneDeparture, FaHandPaper, FaPlaneArrival, FaHome, FaEllipsisH, FaLayerGroup, FaEye, FaBroadcastTower, FaPlane } from 'react-icons/fa';
 import { getBackendURL } from '../config/apiConfig';
 import { DRONE_ACTION_TYPES, getCommandName } from '../constants/droneConstants';
 import { getFleetReferenceClock } from '../utilities/commandScheduling';
@@ -136,9 +136,7 @@ function FleetOverview({ runtimeMode, operatorId }) {
       <div className="fleet-status-strip" aria-label="Fleet status"><strong className={`fleet-runtime is-${runtimeMode}`}>{runtimeMode.toUpperCase()}</strong>
         <span title={`${model.summary.available} available of ${model.summary.total} configured aircraft`} aria-label={`${model.summary.available} available of ${model.summary.total}`}><FaBroadcastTower aria-hidden="true" /> {model.summary.available}<small> / {model.summary.total}</small></span>
         <span title={`${model.summary.airborne} airborne`} aria-label={`${model.summary.airborne} airborne`}><FaPlane aria-hidden="true" /> {model.summary.airborne}</span>
-        {model.summary.attention > 0 && <button type="button" className="tone-warning" title="Show aircraft needing attention" aria-label={`Show ${model.summary.attention} aircraft needing attention`}
-          onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')} aria-pressed={filter === 'attention'}>
-          <FaExclamationTriangle aria-hidden="true" /> {model.summary.attention}</button>}</div>
+</div>
     </header>
     {attention.telemetry.active && <div role="alert" className="fleet-inline-warning">{attention.telemetry.phase === 'recovering'
       ? 'GCS link recovering' : 'GCS telemetry unavailable · displayed measurements are aging. Reconnecting.'}</div>}

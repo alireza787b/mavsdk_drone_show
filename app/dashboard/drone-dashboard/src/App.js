@@ -35,9 +35,9 @@ import './styles/TakeoffDialog.css';
 import SidebarMenu from './components/SidebarMenu';
 import RouteDocsShortcut from './components/RouteDocsShortcut';
 import SyncWarningBanner from './components/SyncWarningBanner';
-import CommandActivityPanel from './components/CommandActivityPanel';
 import { FleetAlertsProvider } from './features/fleet-overview/FleetAlertsContext';
-import FleetAlertsPanel from './features/fleet-overview/FleetAlertsPanel';
+import FleetMemo from './features/fleet-overview/FleetMemo';
+import { getBackendURL } from './config/apiConfig';
 import ErrorBoundary from './components/ErrorBoundary';
 import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
 
@@ -173,6 +173,7 @@ const AppShell = () => {
     }
   };
 
+  const memoScope = `mds:v1:${getBackendURL()}:${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`;
   const sidebarCollapsed = isMobile ? false : desktopSidebarCollapsed;
   const contentClassName = `content ${
     isMobile
@@ -191,7 +192,7 @@ const AppShell = () => {
         v7_relativeSplatPath: true,
       }}
     >
-      <FleetAlertsProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}`}>
+      <FleetAlertsProvider key={memoScope} historyKey={`${memoScope}:alert-history`}>
               <FleetObservationMonitor />
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
@@ -229,7 +230,7 @@ const AppShell = () => {
                 />
                 <div className={contentClassName}>
                   <SyncWarningBanner />
-                  <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /><RouteDocsShortcut /></div>
+                  <div className="shell-operations-strip"><FleetMemo scope={memoScope} /><RouteDocsShortcut /></div>
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
                       {/* Main drone management routes */}
