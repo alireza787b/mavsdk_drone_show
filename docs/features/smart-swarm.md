@@ -274,6 +274,12 @@ it never automatically sends Start when readiness changes. Optional LED
 indication does not delay Take Off completion. Manual/QGC takeoff remains
 supported without requiring an earlier MDS Take Off command.
 
+Operate also shows a yellow master-caution style advisory when fresh fused
+aircraft heights differ by more than 1 m. This is an operator warning only.
+PX4 and the aircraft-side admission remain authoritative for launch decisions.
+Restarting the aircraft before a new run gives the estimators a clean start,
+but the advisory remains visible when the measured spread persists.
+
 Confirmation repeats the node review before dispatch; node acceptance and the
 existing required-role barrier still handle a state change after that review.
 This is not a distributed reservation or atomic flight guarantee. A delayed

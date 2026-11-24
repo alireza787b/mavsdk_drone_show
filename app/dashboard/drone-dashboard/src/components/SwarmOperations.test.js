@@ -13,7 +13,9 @@ const takeoffReadiness = { valid_for_ms: 10000, targets: ['1', '2'].map((hw_id) 
 const preview = { runtime_mode: 'SITL', revision: 'revision', start_admissions: decisions, clusters: [{ cluster_id: '1', members: [
   { hw_id: '1', follow: '0', available: true, armed: false, frame: 'ned' },
   { hw_id: '2', follow: '1', available: true, armed: false, frame: 'ned', offset_x: 6 },
-], partial_exclusion_hw_ids: [] }] };
+], partial_exclusion_hw_ids: [], altitude_warning: {
+  active: true, spread_m: 1.2, threshold_m: 1, reference: 'fused_global_msl', members: [],
+} }] };
 beforeEach(() => {
   jest.clearAllMocks(); sessionStorage.clear();
   mockMonitors.length = 0;
@@ -36,6 +38,11 @@ test('default actions use the whole cluster and Start sends only after confirmat
   fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm Start Swarm' }));
   await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
     expect.objectContaining({ target_drone_ids: ['1', '2'], smart_swarm_start: expect.objectContaining({ cluster_id: '1', revision: 'revision' }) }), expect.anything()));
+});
+
+test('altitude spread is shown as a non-blocking master caution', async () => {
+  await mounted();
+  expect(await screen.findByText(/Master caution: fused aircraft heights differ by 1.2 m/)).toBeInTheDocument();
 });
 test('takeoff is separate, default 10 m and cancelled confirmation sends nothing', async () => {
   await mounted(); fireEvent.click(screen.getByRole('button', { name: 'Takeoff' }));

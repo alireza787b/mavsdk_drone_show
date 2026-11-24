@@ -5,6 +5,7 @@ not own flight control, leader election, or an independent safety policy.
 """
 from __future__ import annotations
 
+import math
 import time
 from fastapi import HTTPException
 from src.smart_swarm_contract import (
@@ -23,6 +24,7 @@ def build_preview(deps):
     clusters = resolve_clusters(assignments)
     for cluster in clusters:
         unavailable = []
+        altitude_samples = {}
         for member in cluster["members"]:
             state = telemetry.get(member["hw_id"], {})
             member['callsign'] = fleet.get(member['hw_id'], {}).get('callsign')
@@ -50,6 +52,12 @@ def build_preview(deps):
             member['position_long'] = state.get('position_long')
             member['position_alt'] = state.get('position_alt')
             member['global_position_valid'] = state.get('global_position_valid')
+            try:
+                altitude = float(state.get('position_alt'))
+            except (TypeError, ValueError):
+                altitude = None
+            if available and state.get('global_position_valid') is True and altitude is not None and math.isfinite(altitude):
+                altitude_samples[member["hw_id"]] = altitude
             if not available:
                 unavailable.append(member["hw_id"])
         cluster["unavailable_hw_ids"] = unavailable
@@ -58,6 +66,28 @@ def build_preview(deps):
             set(m["hw_id"] for m in cluster["members"]) - set(cluster["available_hw_ids"]),
             key=int,
         )
+        if len(altitude_samples) >= 2:
+            low = min(altitude_samples.values())
+            high = max(altitude_samples.values())
+            spread = high - low
+            cluster["altitude_warning"] = {
+                "active": spread > 1.0,
+                "threshold_m": 1.0,
+                "spread_m": round(spread, 2),
+                "reference": "fused_global_msl",
+                "members": [
+                    {"hw_id": hw_id, "altitude_m": round(altitude, 2)}
+                    for hw_id, altitude in sorted(altitude_samples.items(), key=lambda item: int(item[0]))
+                ],
+            }
+        else:
+            cluster["altitude_warning"] = {
+                "active": False,
+                "threshold_m": 1.0,
+                "spread_m": None,
+                "reference": "fused_global_msl",
+                "members": [],
+            }
     return {"revision": topology_revision(assignments), "clusters": clusters,
             "runtime_mode": 'SITL' if getattr(getattr(deps, 'Params', None), 'sim_mode', False) else 'REAL'}
 

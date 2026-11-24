@@ -13,6 +13,13 @@ export default function SwarmCapturePreview({ request, snapshot, candidate, sett
   const entries = candidate?.assignments?.filter(entry => request.hwIds.includes(String(entry.hw_id)));
   const selected = entries?.find(entry => String(entry.hw_id) === selectedId);
   const root = entries?.find(entry => String(entry.follow) === '0');
+  const selectedObservation = snapshot?.observations?.[selectedId];
+  const rootObservation = snapshot?.observations?.[String(root?.hw_id)];
+  const heightField = settings.heightMode === 'current' ? 'current_up_m' : 'planned_up_m';
+  const heightDifference = selectedObservation && rootObservation
+    && Number.isFinite(Number(selectedObservation[heightField]))
+    && Number.isFinite(Number(rootObservation[heightField]))
+    ? Number(selectedObservation[heightField]) - Number(rootObservation[heightField]) : null;
   return <section className="swarm-capture-preview" aria-label="Capture visual preview">
     <div className="swarm-capture-preview__legend">
       <span><i className="is-captured" aria-hidden="true" /> Capture</span>
@@ -22,6 +29,7 @@ export default function SwarmCapturePreview({ request, snapshot, candidate, sett
     <SwarmCaptureScene entries={entries || []} headings={candidate?.headings || {}} overlays={overlays}
       labels={labels} selectedId={selectedId} onSelect={setSelectedId}
       frame={candidate ? settings.frame : 'ned'} heading={candidate?.headings?.[settings.leaderId] || 0}
+      heightReference={settings.heightMode === 'current' ? 'captured PX4 estimate' : 'planned reference'}
       captureId={`${snapshot?.capture_id || ''}:${root?.hw_id || ''}:${settings.frame}:${settings.heightMode || ''}`} />
     {selected && <div className="swarm-capture-preview__selection" aria-live="polite">
       <strong>{labels[selectedId] || `H${selectedId}`}</strong>
@@ -31,6 +39,8 @@ export default function SwarmCapturePreview({ request, snapshot, candidate, sett
         {' '}{settings.frame === 'body' ? 'Right' : 'East'} {formatFormationDistance(selected.offset_y)} ·
         {' '}Above {formatFormationDistance(selected.offset_z)} m
       </span>}
+      {selected && <span>Height difference {heightDifference == null ? 'unknown' : `${heightDifference.toFixed(2)} m`}
+        {' '}({settings.heightMode === 'current' ? 'captured estimate' : 'planned reference'})</span>}
     </div>}
   </section>;
 }

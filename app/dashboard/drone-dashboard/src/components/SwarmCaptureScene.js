@@ -8,7 +8,7 @@ const VIEWS = { '3d': '3D', top: 'Top', front: 'Front', side: 'Side' };
 
 /** Read-only, GPU-independent 3D overview. One coordinate model for every view. */
 export default function SwarmCaptureScene({ entries, headings, overlays, labels, selectedId, onSelect,
-  frame, heading, captureId }) {
+  frame, heading, captureId, heightReference }) {
   const [view, setView] = useState('3d');
   const [camera, setCamera] = useState(INITIAL_PREVIEW_CAMERA);
   const [size, setSize] = useState({ width: 800, height: 400 });
@@ -78,7 +78,7 @@ export default function SwarmCaptureScene({ entries, headings, overlays, labels,
     const from = screen(project(a)), to = screen(project(b));
     return <line key={key} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={className} />;
   };
-  const extent = Math.max(5, ...Object.values(positions).flatMap(p => [Math.abs(p.north), Math.abs(p.east)]));
+  const extent = Math.max(5, ...Object.values(positions).flatMap(p => [Math.abs(p.north), Math.abs(p.east), Math.abs(p.up)]));
   const step = 10 ** Math.floor(Math.log10(extent));
   const grid = Array.from({ length: 21 }, (_, i) => (i - 10) * step);
   const reference = formationViewLabels(frame);
@@ -113,7 +113,8 @@ export default function SwarmCaptureScene({ entries, headings, overlays, labels,
         if (event.key === '-') { event.preventDefault(); zoom(.8); }
         if (event.key.toLowerCase() === 'f') { event.preventDefault(); fit(); }
       }}>
-      <title>Estimated formation. Drag to orbit; right-drag or Shift-drag to pan. Two fingers pan and pinch to zoom. Symbols are not to scale; grid is a reference plane, not terrain.</title>
+      <title>Captured formation in metres. Vertical axis is Up relative to the captured reference. Drag to orbit; right-drag or Shift-drag to pan. Two fingers pan and pinch to zoom. Symbols are not to scale; grid is a reference plane, not terrain.</title>
+      <text className="capture-scene__height-reference" x="12" y="20">Up · metres · {heightReference || 'captured reference'}</text>
       <g className="capture-scene__grid">{grid.flatMap(value => [
         line({north:value,east:-step*10,up:0},{north:value,east:step*10,up:0},`n${value}`),
         line({north:-step*10,east:value,up:0},{north:step*10,east:value,up:0},`e${value}`)])}</g>

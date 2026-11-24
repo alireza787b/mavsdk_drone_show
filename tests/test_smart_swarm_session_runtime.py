@@ -1,5 +1,6 @@
 """Session coordination must not create flight authority or fake engagement."""
 import logging
+import time
 from threading import Lock
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -220,6 +221,25 @@ async def test_stale_dashboard_preview_is_advisory_and_does_not_silently_exclude
     with pytest.raises(HTTPException) as caught:
         await start_cluster(deps, request.model_copy(update={'excluded_hw_ids': ['2']}))
     assert caught.value.status_code == 409
+
+
+def test_preview_reports_altitude_spread_as_advisory_only():
+    session = snapshot()
+    deps = SimpleNamespace(
+        load_swarm=lambda: [m.model_dump() for m in session.assignments],
+        load_config=lambda: [],
+        telemetry_lock=Lock(),
+        telemetry_data_all_drones={
+            '1': {'telemetry_available': True, 'telemetry_timestamp_ms': int(time.time() * 1000), 'global_position_valid': True, 'position_alt': 100.0},
+            '2': {'telemetry_available': True, 'telemetry_timestamp_ms': int(time.time() * 1000), 'global_position_valid': True, 'position_alt': 101.2},
+        },
+    )
+    preview = build_preview(deps)
+    warning = preview['clusters'][0]['altitude_warning']
+    assert warning['active'] is True
+    assert warning['spread_m'] == 1.2
+    assert warning['reference'] == 'fused_global_msl'
+    assert preview['clusters'][0]['available_hw_ids'] == ['1', '2']
 
 
 @pytest.mark.asyncio

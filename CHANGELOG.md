@@ -9,6 +9,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Smart Swarm altitude review and Capture clarity
+
+- Added an advisory master-caution when fresh, valid PX4 global altitude
+  estimates differ by more than 1 m across a formation. It does not alter PX4
+  admission, arming, parameters, gains, or flight-control behavior.
+- Capture now labels the Up axis and height reference, reports the selected
+  aircraft's numeric height difference, and keeps the captured estimate and
+  live advisory markers distinct.
+
 ### Logs operator workspace and evidence integrity
 
 - Replaced Ops/Dev logging modes with Live / Sessions / Flight logs, one explicit

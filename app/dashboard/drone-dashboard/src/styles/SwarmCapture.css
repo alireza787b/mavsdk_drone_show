@@ -31,6 +31,7 @@
 .capture-scene__grid { stroke:var(--color-border-primary); stroke-width:1; opacity:.45; }
 .capture-scene__axes { stroke:var(--color-text-tertiary); stroke-width:1; }
 .capture-scene__axes text { stroke:none; fill:var(--color-text-secondary); font-size:11px; }
+.capture-scene__height-reference { fill:var(--color-text-secondary); font-size:11px; }
 .capture-scene__links { stroke:var(--color-info); stroke-width:1.5; stroke-dasharray:4 4; fill:none; opacity:.6; }
 .capture-scene__aircraft { color:var(--color-info); cursor:pointer; }
 .capture-scene__aircraft.is-selected { color:var(--color-success); }

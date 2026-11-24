@@ -312,6 +312,7 @@ export default function SwarmOperations() {
   const canStop = Boolean(monitor && !monitor.isTerminal);
   const contextKey = `${selection.id}:${preview?.revision}`;
   const startReadiness = swarmStartReadiness(confirmation?.targets || [], startCheck?.decisions, startCheck?.until || 0);
+  const altitudeWarning = cluster?.altitude_warning;
 
   return (
     <section className="swarm-ops operator-console" aria-label="Swarm operations">
@@ -332,6 +333,10 @@ export default function SwarmOperations() {
         planHref={`/swarm-design?tab=formation${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         captureHref={`/swarm-design?tab=formation&capture=1${cluster ? `&drone=${encodeURIComponent(cluster.cluster_id)}` : ''}`}
         disabled={busy} captureDisabled={!cluster || members.length < 2} />
+      {altitudeWarning?.active && <p className="swarm-ops__attention" role="status">
+        Master caution: fused aircraft heights differ by {altitudeWarning.spread_m} m, above the 1 m review threshold.
+        PX4 remains the launch authority. Review the launch setup and estimator state before starting.
+      </p>}
       <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
         statuses={Object.fromEntries(members.map((m) => {
           const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
