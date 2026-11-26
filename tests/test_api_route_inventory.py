@@ -164,6 +164,7 @@ GCS_EXPECTED_HTTP = {
         "/api/logs/drone/{drone_id}/ulog/downloads/{job_id}",
         "/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}",
         "/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content",
+        "/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/summary",
         "/api/sar/missions",
         "/api/sar/mission/plan/jobs/{job_id}",
         "/api/sar/mission/{mission_id}/workspace",

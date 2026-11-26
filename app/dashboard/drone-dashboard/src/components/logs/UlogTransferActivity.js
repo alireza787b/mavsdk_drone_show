@@ -1,31 +1,75 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ConfirmDialog } from '../ui';
+import React from 'react';
 import { buildDroneUlogDownloadURL } from '../../services/logService';
-import { ULOG_TERMINAL } from '../../features/log-workspace/useUlogTransfers';
+import { transferPending, transferStatus } from '../../features/log-workspace/useUlogTransfers';
+import { formatBytes } from '../../utilities/logViewerUtils';
+
+export function transferLabel(record, now) {
+  if (record.creationStatus === 'rejected') return 'Could not start';
+  const status = transferStatus(record, now);
+  if (record.error && (!record.job || transferPending(record))) return 'Reconnecting';
+  if (status === 'ready') return record.browserRequestedAt ? 'Sent to browser' : 'Ready to save';
+  if (status === 'failed') return 'Transfer failed';
+  if (status === 'expired') return 'Transfer expired';
+  if (status === 'deleted') return 'Copy removed';
+  return {
+    waiting: 'Waiting to transfer',
+    aircraft: 'Reading from aircraft',
+    copy: 'Copying to GCS',
+    verify: 'Checking file',
+  }[record.job?.phase] || (record.job ? 'Reading from aircraft' : 'Starting transfer');
+}
 
 export default function UlogTransferActivity({ transfers, userRole, now }) {
-  const [remove, setRemove] = useState(null);
-  const panel = useRef(null), latestRequest = transfers.records[0]?.requestId;
   const allowed = ['operator', 'admin'].includes(userRole);
-  const uncertain = transfers.records.some(item => item.error);
-  useEffect(() => { if (panel.current && (latestRequest || transfers.error || uncertain)) panel.current.open = true; }, [latestRequest, transfers.error, uncertain]);
-  return <details ref={panel} className="logs-transfer-activity"><summary>Transfers · {transfers.records.length}{transfers.pending ? ' · active or unconfirmed' : ''}</summary>
-    {transfers.error && <p className="logs-inline-warning" role="alert">{transfers.error}</p>}
-    {transfers.records.map(record => {
-      const expired = record.job?.expires_at && now >= record.job.expires_at;
-      const status = expired ? 'expired' : record.job?.status;
-      const label = record.creationStatus === 'rejected' ? 'Not started' : record.error ? 'Outcome unconfirmed' : ({ ready: 'Ready to save', queued: 'Preparing', downloading: 'Preparing', failed: 'Failed', expired: 'Expired', deleted: 'Staged copy removed' }[status] || 'Creation unconfirmed');
-      return <section key={record.requestId} className="logs-transfer-row"><div><strong>{label}</strong><span>{record.aircraftLabel} · log {record.logId}</span></div>
-        {record.job?.progress != null && !ULOG_TERMINAL.has(status) && <progress value={record.job.progress} max="1" aria-label="Observed transfer progress" />}
-        {record.error && <p className="logs-inline-warning">{record.error}</p>}{record.job?.error && <p>{record.job.error}</p>}
-        <div className="logs-inline-actions"><button type="button" className="operator-button operator-button--ghost" onClick={() => transfers.check(record)}>Check receipt</button>
-          {status === 'ready' && allowed && <a className="operator-button operator-button--primary" href={buildDroneUlogDownloadURL(record.droneId, record.job.job_id)} download={record.job.download_filename || `mds-ulog-H${record.droneId}-${record.logId}.ulg`}
-            onClick={() => transfers.browserRequested(record)}>Save file</a>}
-          {record.job?.job_id && ULOG_TERMINAL.has(status) && status !== 'deleted' && allowed && <button type="button" className="operator-button operator-button--ghost" disabled={transfers.busy} onClick={() => setRemove(record)}>Remove staged copy</button>}
-        </div>{record.browserRequestedAt && <p className="logs-context">Browser download requested · local save is not verified.</p>}
-      </section>;
-    })}
-    {remove && <ConfirmDialog appearance="console" open title="Remove staged copy?" confirmLabel="Remove copy" busy={transfers.busy} onCancel={() => setRemove(null)} onConfirm={async () => { await transfers.remove(remove); setRemove(null); }}
-      message={`${remove.aircraftLabel} · log ${remove.logId}. This removes the prepared transfer copy, not the onboard original.`} />}
-  </details>;
+  const { records, selected } = transfers;
+  const ordered = [...records].sort((a, b) => Number(b.requestId === selected) - Number(a.requestId === selected));
+  return (
+    <div className="ulog-center__activity">
+      {transfers.error && <p role="alert">{transfers.error}</p>}
+      {ordered.map(record => {
+        const status = transferStatus(record, now);
+        const active = transferPending(record);
+        const bytes = record.job?.bytes_received;
+        const total = record.job?.size_bytes || record.expectedSize;
+        const progress = record.job?.progress > 0 ? record.job.progress : undefined;
+        const label = transferLabel(record, now);
+        return (
+          <section key={record.requestId} className="ulog-center__row">
+            <div className="ulog-center__heading">
+              <strong>{record.aircraftLabel} · Log {record.logId}</strong>
+              <span>{label}</span>
+            </div>
+            {active && <>
+              <progress value={progress} max="1" aria-label={`${record.aircraftLabel} log ${record.logId} transfer progress`} />
+              <p className="ulog-center__muted">{bytes != null ? `${formatBytes(bytes)} of ${formatBytes(total)}` : total ? formatBytes(total) : ''}
+                {record.job?.updated_at && ` · Updated ${new Date(record.job.updated_at).toLocaleTimeString()}`}
+              </p>
+            </>}
+            {(record.error || record.job?.error) && <p className="ulog-center__muted">{record.error || record.job.error}</p>}
+            {active && record.wantsSummary && <p>Summary will open when the GCS copy is ready.</p>}
+            {status === 'ready' && allowed && <div className="ulog-center__actions">
+              <a className="operator-button operator-button--primary" href={buildDroneUlogDownloadURL(record.droneId, record.job.job_id, record.verified)}
+                download={record.job.download_filename || `mds-ulog-H${record.droneId}-${record.logId}.ulg`}
+                onClick={() => transfers.browserRequested(record)}>{record.browserRequestedAt ? 'Save again' : 'Save file'}</a>
+              {record.verified && <button type="button" className="operator-button operator-button--ghost"
+                onClick={() => transfers.analyzeTransfer(record)}>View summary</button>}
+              <button type="button" className="operator-button operator-button--ghost" disabled={transfers.busy}
+                onClick={() => transfers.remove(record)}>Remove copy</button>
+            </div>}
+            {allowed && (record.creationStatus === 'rejected' || ['failed', 'expired'].includes(status)) &&
+              <button type="button" className="operator-button operator-button--ghost" disabled={transfers.busy}
+                onClick={() => transfers.start({ droneId: record.droneId, logId: record.logId, aircraftLabel: record.aircraftLabel,
+                  logDate: record.logDate, expectedSize: record.expectedSize, wantsSummary: record.wantsSummary })}>
+                Retry aircraft read
+              </button>}
+            {active && record.error && <button type="button" className="operator-button operator-button--ghost"
+              onClick={() => transfers.check(record)}>Check now</button>}
+            {status === 'ready' && record.browserRequestedAt && <p className="ulog-center__muted">
+              Check your browser downloads for save progress and Resume.
+            </p>}
+          </section>
+        );
+      })}
+    </div>
+  );
 }

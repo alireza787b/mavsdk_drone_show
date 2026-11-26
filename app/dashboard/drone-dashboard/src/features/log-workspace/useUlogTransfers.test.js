@@ -102,3 +102,20 @@ test('proven rejection survives a later timeout from the original pending create
   expect(result.current.pending).toBe(false);
   expect(service.createDroneUlogDownloadJob).toHaveBeenCalledTimes(1);
 });
+
+test('recovery polls the same managed receipt after a transient status failure', async () => {
+  jest.useFakeTimers();
+  localStorage.setItem(KEY, JSON.stringify([
+    { requestId: 'reconnect', droneId: '1', logId: 7, verified: true, job: job('queued') },
+  ]));
+  service.getDroneUlogDownloadRequest.mockRejectedValueOnce(new Error('Offline'))
+    .mockResolvedValueOnce({ request_id: 'reconnect', status: 'accepted', job: job('ready') });
+  const { result } = renderHook(() => useUlogTransfers(KEY));
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(result.current.records[0].error).toContain('Offline');
+  await act(async () => { jest.advanceTimersByTime(3000); });
+  expect(result.current.records[0].job.status).toBe('ready');
+  expect(result.current.records[0].error).toBe('');
+  expect(service.getDroneUlogDownloadRequest.mock.calls).toEqual([['1', 'reconnect'], ['1', 'reconnect']]);
+  expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
+});

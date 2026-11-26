@@ -7,10 +7,9 @@ import { useFleetResource, mergeFleetResources } from '../features/fleet-overvie
 import { buildFleetViewModel } from '../features/fleet-overview/fleetViewModel';
 import { normalizeTelemetryResponse } from '../constants/fieldMappings';
 import { matchesDroneSearchQuery } from '../utilities/dronePresentation';
-import useUlogTransfers from '../features/log-workspace/useUlogTransfers';
+import { useUlogTransferContext } from '../features/log-workspace/UlogTransferContext';
 import RuntimeLogsWorkspace from '../components/logs/RuntimeLogsWorkspace';
 import FlightLogsWorkspace from '../components/logs/FlightLogsWorkspace';
-import UlogTransferActivity from '../components/logs/UlogTransferActivity';
 import '../styles/LogViewer.css';
 
 const loadSources = async options => ({ data: await getSources(options) });
@@ -48,7 +47,7 @@ function LogsWorkspace({ context, runtimeMode, userRole }) {
   const model = useMemo(() => buildFleetViewModel(drones, { nowMs: now, displayPolicy: telemetry.response?.data?.display_policy }), [drones, now, telemetry.response]);
   const aircraft = model.byId.get(source), droneId = source === 'gcs' ? null : source;
   const label = source === 'gcs' ? 'GCS' : `${aircraft?.label || 'Unknown aircraft'} · H${source}`;
-  const transfers = useUlogTransfers(`mds:ulog-transfers:v1:${context}`);
+  const transfers = useUlogTransferContext();
   return <PageShell className="logs-workspace operator-console" title="Logs" docsRoute="/logs" status={<span className="logs-runtime-label">{runtimeMode.toUpperCase()}</span>}>
     <div className="logs-tabs" role="tablist" aria-label="Logs workspace">{[['live', 'Live'], ['sessions', 'Sessions'], ['flight', 'Flight logs']].map(([key, title]) => <button type="button" key={key} id={`logs-tab-${key}`} role="tab" aria-selected={tab === key} aria-controls={`logs-panel-${key}`} onClick={() => setTab(key)}>{title}</button>)}</div>
     <section className="logs-source-strip" aria-label="Selected log source"><span>Source</span><button type="button" className="operator-button operator-button--ghost" aria-label="Choose log source" onClick={() => setChooser(true)}>{label} ▾</button>
@@ -57,7 +56,6 @@ function LogsWorkspace({ context, runtimeMode, userRole }) {
       {tab === 'flight' ? <FlightLogsWorkspace key={`${context}:${source}`} droneId={droneId} sourceLabel={label} userRole={userRole} transfers={transfers} />
         : <RuntimeLogsWorkspace key={`${context}:${source}`} tab={tab} droneId={droneId} sourceLabel={label} context={context} registry={sources.response?.data?.components || {}} now={now} />}
     </div>
-    <UlogTransferActivity transfers={transfers} userRole={userRole} now={now} />
     {chooser && <SourceChooser aircraft={model.aircraft} source={source} flightOnly={tab === 'flight'} loading={config.loading && telemetry.loading} rosterError={Boolean(config.error)} onChoose={setSource} onClose={() => setChooser(false)} />}
   </PageShell>;
 }

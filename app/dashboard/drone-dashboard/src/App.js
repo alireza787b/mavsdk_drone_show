@@ -19,6 +19,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { CommandActivityProvider } from './contexts/CommandActivityContext';
 import { MapProvider } from './contexts/MapContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UlogTransferCenter, UlogTransferProvider } from './components/logs/UlogTransferCenter';
 import { ObservationProvider } from './contexts/ObservationContext';
 import FleetObservationMonitor from './features/fleet-overview/FleetObservationMonitor';
 
@@ -185,6 +186,7 @@ const AppShell = () => {
   return (
     <ObservationProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`}>
     <CommandActivityProvider>
+    <UlogTransferProvider runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username}>
     <Router
       future={{
         v7_startTransition: true,
@@ -229,6 +231,7 @@ const AppShell = () => {
                 />
                 <div className={contentClassName}>
                   <SyncWarningBanner />
+                  <UlogTransferCenter userRole={auth.role || 'viewer'} />
                   <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /><RouteDocsShortcut /></div>
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
@@ -289,6 +292,7 @@ const AppShell = () => {
               />
       </FleetAlertsProvider>
     </Router>
+    </UlogTransferProvider>
     </CommandActivityProvider>
     </ObservationProvider>
   );

@@ -589,6 +589,20 @@ async def erase_all_drone_ulogs(drone_ip: str) -> dict:
     )
 
 
+async def _bounded_stream_error_detail(response: httpx.Response) -> str:
+    fallback = f"Aircraft log request failed with HTTP {response.status_code}"
+    try:
+        body = bytearray()
+        async for chunk in response.aiter_bytes(chunk_size=4096):
+            body.extend(chunk)
+            if len(body) > 8192:
+                return fallback
+        detail = json.loads(body).get("detail")
+        return detail[:2048] if isinstance(detail, str) else fallback
+    except (ValueError, AttributeError, httpx.HTTPError):
+        return fallback
+
+
 async def open_drone_ulog_download_stream(
     drone_ip: str,
     job_id: str,
@@ -609,14 +623,23 @@ async def open_drone_ulog_download_stream(
     )
     try:
         response = await client.send(request, stream=True)
+    except asyncio.CancelledError:
+        await client.aclose()
+        raise
     except Exception as exc:
         await client.aclose()
         raise DroneProxyUnavailableError(str(exc)) from exc
 
     if response.status_code >= 400:
-        detail = _extract_error_detail(response)
-        await response.aclose()
-        await client.aclose()
+        try:
+            # Error streams have not been read yet. Preserve the status even if
+            # the node disconnects while sending its error body.
+            detail = await _bounded_stream_error_detail(response)
+        finally:
+            try:
+                await response.aclose()
+            finally:
+                await client.aclose()
         raise DroneProxyResponseError(response.status_code, detail)
 
     return client, response

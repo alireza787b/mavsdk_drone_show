@@ -115,6 +115,8 @@ jobs:
             tests/test_mds_logging/test_log_proxy.py \
             tests/test_mds_logging/test_schema.py \
             tests/test_mds_logging/test_ulog_analysis.py \
+            tests/test_mds_logging/test_ulog_copies.py \
+            tests/test_mds_logging/test_ulog_download_request_routes.py \
             tests/test_node_boot_status_routes.py \
             tests/test_local_mavlink_controller.py \
             tests/test_command_processing.py \
@@ -133,7 +135,7 @@ jobs:
             tests/test_smart_swarm_failover.py \
             tests/test_smart_swarm_follower_controller.py \
             tests/test_smart_swarm_formation_guard.py \
-            tests/test_smart_swarm_kalman.py \
+            tests/test_smart_swarm_motion_limits.py \
             tests/test_smart_swarm_motion_state_validity.py \
             tests/test_smart_swarm_runtime_boundaries.py \
             tests/test_smart_swarm_runtime_math.py \
@@ -169,12 +171,13 @@ jobs:
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
             src/pages/SimurghOperatorPage.test.js \
-            src/components/logs/OnboardUlogDialog.test.js \
+            src/components/logs/FlightLogsWorkspace.test.js \
+            src/features/log-workspace/useUlogTransfers.test.js \
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
-            src/components/DroneWidget.test.js \
-            src/components/ExpandedDronePortal.test.js \
+            src/features/fleet-overview/FleetAircraft.test.js \
+            src/features/fleet-overview/FleetStatusInstruments.test.js \
             src/components/SwarmRuntimeControls.test.js \
             src/components/TacticalDroneCard.test.js \
             src/utilities/flightModeUtils.test.js \
@@ -451,12 +454,13 @@ jobs:
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
             src/pages/SimurghOperatorPage.test.js \
-            src/components/logs/OnboardUlogDialog.test.js \
+            src/components/logs/FlightLogsWorkspace.test.js \
+            src/features/log-workspace/useUlogTransfers.test.js \
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
-            src/components/DroneWidget.test.js \
-            src/components/ExpandedDronePortal.test.js \
+            src/features/fleet-overview/FleetAircraft.test.js \
+            src/features/fleet-overview/FleetStatusInstruments.test.js \
             src/components/TacticalDroneCard.test.js \
             src/utilities/flightModeUtils.test.js \
             src/App.test.js
