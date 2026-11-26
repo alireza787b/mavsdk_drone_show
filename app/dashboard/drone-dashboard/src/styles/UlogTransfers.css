@@ -89,3 +89,33 @@
     max-height: 55dvh;
   }
 }
+
+.ulog-center__status,
+.ulog-center__meta,
+.ulog-center__meta > span {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.ulog-center__meta {
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: .825rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ulog-center__panel .operator-action-icon-button,
+.logs-file-actions .operator-action-icon-button {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+.ulog-center__status svg {
+  color: var(--color-success, #17874e);
+}
+
+.ulog-center__details {
+  color: var(--color-text-secondary);
+  font-size: .875rem;
+}

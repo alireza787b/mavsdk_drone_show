@@ -30,6 +30,7 @@ from ulog_job_handles import resolve_ulog_job_handle
 logger = logging.getLogger(__name__)
 MAGIC = b"ULog\x01\x12\x35"
 MAX_ACTIVE = 4
+MAX_QUEUED = 16
 
 
 def _now() -> int:
@@ -48,6 +49,7 @@ class GcsUlogCopies:
         self.leases: Counter[str] = Counter()
         self.reserved: dict[str, int] = {}
         self.next_sweep = 0.0
+        self.slots = asyncio.Semaphore(MAX_ACTIVE)
 
     @staticmethod
     def key(owner: str, drone_id: int, node_job_id: str) -> str:
@@ -143,15 +145,30 @@ class GcsUlogCopies:
         if expected_date and job.date_utc != expected_date:
             return job.model_copy(update={"status": "failed", "phase": None, "error": "The aircraft now lists a different log under this ID. Refresh its inventory."})
         if key not in self.jobs:
-            if len(self.tasks) >= MAX_ACTIVE:
-                return job.model_copy(update={"status": "queued", "phase": "waiting", "progress": 0.0})
-            self.jobs[key] = job.model_copy(update={"status": "queued", "phase": "aircraft", "progress": 0.0})
-            task = asyncio.create_task(self._prepare(key, ip, resolved, job, expected_size))
+            if len(self.tasks) >= MAX_ACTIVE + MAX_QUEUED:
+                return job.model_copy(update={
+                    "status": "queued", "phase": "waiting", "progress": 0.0,
+                    "error": "The GCS queue is full. Keep this tab open until the transfer is queued.",
+                })
+            phase = "waiting" if len(self.tasks) >= MAX_ACTIVE else "aircraft"
+            self.jobs[key] = job.model_copy(update={"status": "queued", "phase": phase, "progress": 0.0})
+            task = asyncio.create_task(self._run_queued(key, ip, resolved, job, expected_size))
             self.tasks[key] = task
         return self.jobs[key]
 
     def _state(self, key: str, **updates) -> None:
         self.jobs[key] = self.jobs[key].model_copy(update={"updated_at": _now(), **updates})
+
+    async def _run_queued(self, key, ip, resolved, job, expected_size) -> None:
+        try:
+            async with self.slots:
+                if job.expires_at and job.expires_at <= _now():
+                    self._state(key, status="expired", phase=None)
+                    return
+                self._state(key, phase="aircraft")
+                await self._prepare(key, ip, resolved, job, expected_size)
+        finally:
+            self.tasks.pop(key, None)
 
     async def _prepare(self, key, ip, resolved, original, expected_size) -> None:
         from log_proxy import (
@@ -222,7 +239,6 @@ class GcsUlogCopies:
             self._state(key, status="failed", phase=None, error="The GCS could not prepare this log. Check storage and retry.")
         finally:
             self.reserved.pop(key, None)
-            self.tasks.pop(key, None)
             (self.root / f"{key}.part").unlink(missing_ok=True)
             (self.root / f"{key}.tmp").unlink(missing_ok=True)
 

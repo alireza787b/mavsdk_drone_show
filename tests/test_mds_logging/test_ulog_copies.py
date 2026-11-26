@@ -161,3 +161,22 @@ async def test_low_disk_space_refuses_copy_before_opening_aircraft_stream(gcs, m
         assert job["status"] == "failed"
         assert "insufficient free space" in job["error"]
         assert calls == ["create"]
+
+
+@pytest.mark.asyncio
+async def test_queued_copy_finishes_with_no_browser_polling(gcs, monkeypatch):
+    app, copies = gcs
+    install_node(monkeypatch, VALID)
+    copies.slots = asyncio.Semaphore(0)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        accepted = await client.post(BASE + "/files/9/download",
+                                     params={"gcs_copy": "true"},
+                                     json={"request_id": "test-copy"})
+        assert accepted.status_code == 200
+        handle = accepted.json()["job"]["job_id"]
+    # The page can close before the GCS slot becomes available.
+    copies.slots.release()
+    await asyncio.wait_for(asyncio.gather(*copies.tasks.values()), 5)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as reopened:
+        result = await reopened.get(BASE + "/downloads/" + handle + "/content?gcs_copy=true")
+    assert result.content == VALID

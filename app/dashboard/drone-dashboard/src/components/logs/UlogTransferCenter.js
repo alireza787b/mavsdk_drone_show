@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FiHardDrive, FiX } from 'react-icons/fi';
+import { ActionIconButton } from '../ui';
 import { getBackendURL } from '../../config/apiConfig';
 import { getDroneUlogSummary, getVerifiedUlogSummary, summarizeUploadedUlog } from '../../services/logService';
 import { UlogTransferContext } from '../../features/log-workspace/UlogTransferContext';
@@ -93,22 +95,23 @@ export function UlogTransferProvider({ runtimeMode, operatorId, children }) {
 export function UlogTransferCenter({ userRole }) {
   const transfers = React.useContext(UlogTransferContext);
   const { records, selected, now, summary, open, error, setOpen } = transfers;
-  const focused = records.find(record => record.requestId === selected);
-  const current = focused || records.find(record => !['expired', 'deleted'].includes(transferStatus(record, now)));
-  if (!records.length && !summary && !error && !open) return null;
+  const visible = records.filter(record => transferStatus(record, now) !== 'deleted');
+  const focused = visible.find(record => record.requestId === selected);
+  const current = focused || visible.find(record => !['expired', 'deleted'].includes(transferStatus(record, now)));
+  if (!visible.length && !summary && !error && !open) return null;
   const state = summary?.busy ? 'Reading summary' : current ? transferLabel(current, now) : null;
   return (
     <div className="ulog-center">
       <button type="button" className="operator-button operator-button--ghost ulog-center__toggle"
-        aria-expanded={open} aria-controls="ulog-transfer-panel" onClick={() => setOpen(!open)}>
-        ULog transfers {state && <span aria-hidden="true">· {state}{current?.job?.status === 'downloading' && current.job.progress > 0
+        aria-label="ULog transfers" aria-expanded={open} aria-controls="ulog-transfer-panel" onClick={() => setOpen(!open)}>
+        <FiHardDrive aria-hidden="true" /> Log transfers {state && <span aria-hidden="true">· {state}{current?.job?.status === 'downloading' && current.job.progress > 0
           ? ` ${Math.floor(current.job.progress * 100)}%` : ''}</span>}
       </button>
       {open && <section id="ulog-transfer-panel" className="ulog-center__panel operator-console" aria-label="ULog transfers">
         {summary && <section className="ulog-center__summary">
           <div className="ulog-center__heading">
             <strong>{summary.label}</strong>
-            {!summary.busy && <button type="button" className="operator-button operator-button--ghost" onClick={transfers.closeSummary}>Close summary</button>}
+            {!summary.busy && <ActionIconButton icon={<FiX />} label="Close summary" title="Close summary" onClick={transfers.closeSummary} />}
           </div>
           {summary.busy && <p role="status">Reading summary…</p>}
           {summary.error && <div role="alert"><p>{summary.error}</p>
