@@ -74,14 +74,18 @@ export const getDroneUlogFiles = async (droneId) => {
 export const getDroneUlogSummary = async (droneId, logId) => {
   const resp = await fetchGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/summary`),
+    { timeout: 120000 },
   );
   return resp.data;
 };
 
 /** POST /api/logs/drone/:id/ulog/files/:logId/download — create staged download job */
-export const createDroneUlogDownloadJob = async (droneId, logId, { requestId } = {}) => {
+export const createDroneUlogDownloadJob = async (droneId, logId, { requestId, verified, expectedSize, logDate } = {}) => {
+  const query = verified ? new URLSearchParams({ gcs_copy: 'true' }) : null;
+  if (query && Number.isSafeInteger(expectedSize) && expectedSize > 0) query.set('expected_size', String(expectedSize));
+  if (query && logDate) query.set('expected_date', logDate);
   const resp = await postGcsResource(
-    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/download`),
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/download${query ? `?${query}` : ''}`),
     ...(requestId ? [{ request_id: requestId }, { timeout: 30000 }] : []),
   );
   return resp.data;
@@ -98,6 +102,14 @@ export const summarizeUploadedUlog = async file => {
   return resp.data;
 };
 
+export const getVerifiedUlogSummary = async (droneId, jobId) => {
+  const response = await fetchGcsResource(
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}/summary`),
+    { timeout: 120000 },
+  );
+  return response.data;
+};
+
 /** GET /api/logs/drone/:id/ulog/downloads/:jobId — get staged job state */
 export const getDroneUlogDownloadJob = async (droneId, jobId) => {
   const resp = await fetchGcsResource(
@@ -107,9 +119,9 @@ export const getDroneUlogDownloadJob = async (droneId, jobId) => {
 };
 
 /** DELETE /api/logs/drone/:id/ulog/downloads/:jobId — delete staged job */
-export const deleteDroneUlogDownloadJob = async (droneId, jobId) => {
+export const deleteDroneUlogDownloadJob = async (droneId, jobId, verified = false) => {
   const resp = await deleteGcsResource(
-    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}`),
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}${verified ? '?gcs_copy=true' : ''}`),
   );
   return resp.data;
 };
@@ -121,8 +133,8 @@ export const eraseAllDroneUlogs = async (droneId) => {
 };
 
 /** Build browser download URL for staged onboard ULog content */
-export const buildDroneUlogDownloadURL = (droneId, jobId) => (
-  buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}/content`)
+export const buildDroneUlogDownloadURL = (droneId, jobId, verified = false) => (
+  buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}/content${verified ? '?gcs_copy=true' : ''}`)
 );
 
 /** POST /api/logs/export — export sessions as JSONL or ZIP */

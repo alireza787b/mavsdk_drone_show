@@ -1,24 +1,33 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import FlightLogsWorkspace from './FlightLogsWorkspace';
 import UlogTransferActivity from './UlogTransferActivity';
+import { UlogTransferCenter, UlogTransferProvider } from './UlogTransferCenter';
+import { useUlogTransferContext } from '../../features/log-workspace/UlogTransferContext';
 import * as service from '../../services/logService';
 jest.mock('../../services/logService', () => ({ getDroneUlogFiles: jest.fn(), getDroneUlogPolicy: jest.fn(), getDroneUlogSummary: jest.fn(), summarizeUploadedUlog: jest.fn(), eraseAllDroneUlogs: jest.fn(), buildDroneUlogDownloadURL: (id, job) => `/fixture/${id}/${job}` }));
-const transfers = () => ({ records: [], pending: false, busy: false, prepare: jest.fn(async () => true), check: jest.fn(), remove: jest.fn(), browserRequested: jest.fn() });
+const transfers = () => ({ records: [], pending: false, busy: false, start: jest.fn(async () => true), check: jest.fn(), remove: jest.fn(), browserRequested: jest.fn() });
 beforeEach(() => {
   jest.clearAllMocks();
+  localStorage.clear();
   service.getDroneUlogFiles.mockResolvedValue({ files: [{ id: 7, size_bytes: 1024, date_utc: '2026-11-12T10:00:00Z' }], ulog_capability: { available: true } });
   service.getDroneUlogPolicy.mockResolvedValue({ policy: { download_supported: true, erase_all_supported: true, download_requires_disarmed: true } });
 });
+function FlightLogs(props) {
+  const ledger = useUlogTransferContext();
+  return <><UlogTransferCenter userRole={props.userRole} /><FlightLogsWorkspace {...props} transfers={ledger} /></>;
+}
+
+const renderWithTransfers = props => render(<UlogTransferProvider runtimeMode="test"><FlightLogs {...props} /></UlogTransferProvider>);
+
 test('viewer can inspect/derive a summary but cannot prepare or erase; absent metrics remain unknown', async () => {
   service.getDroneUlogSummary.mockResolvedValue({ parsed: true, parser: { status: 'ok' }, duration_sec: 42,
     duration_evidence: { source: 'requested_topic_timestamps', lower_bound: true, timestamp_scan_complete: false }, commands: { vehicle_command: { samples: 3 } } });
-  render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="viewer" transfers={transfers()} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Inspect flight log 7' }));
-  const inspector = screen.getByRole('dialog', { name: 'Flight log 7' });
-  expect(within(inspector).getByRole('button', { name: 'Prepare download' })).toBeDisabled();
+  renderWithTransfers({ droneId: '1', sourceLabel: 'ALPHA · H1', userRole: 'viewer' });
+  const summary = await screen.findByRole('button', { name: 'View summary for log 7' });
+  expect(screen.queryByRole('button', { name: 'Download log 7' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Erase onboard logs' })).not.toBeInTheDocument();
-  fireEvent.click(within(inspector).getByRole('button', { name: 'Summary', exact: true }));
+  fireEvent.click(summary);
   expect(await screen.findByText('42 s · partial / lower bound')).toBeInTheDocument();
   expect(screen.getByText('Acknowledgment samples').nextElementSibling).toHaveTextContent('Unknown');
   expect(screen.getByText('Command samples').nextElementSibling).toHaveTextContent('3');
@@ -26,9 +35,9 @@ test('viewer can inspect/derive a summary but cannot prepare or erase; absent me
 test('explicit preparation binds the selected file and aircraft, not an inventory index', async () => {
   const ledger = transfers();
   render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="operator" transfers={ledger} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Inspect flight log 7' }));
-  fireEvent.click(screen.getByRole('dialog').querySelector('.operator-confirm-dialog__actions button:last-child'));
-  await waitFor(() => expect(ledger.prepare).toHaveBeenCalledWith({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Download log 7' }));
+  expect(ledger.start).toHaveBeenCalledWith({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1',
+    expectedSize: 1024, logDate: '2026-11-12T10:00:00Z', wantsSummary: false });
   expect(service.eraseAllDroneUlogs).not.toHaveBeenCalled();
 });
 test('immediately ready job offers an explicit Save link without claiming local persistence', () => {
@@ -42,7 +51,7 @@ test('admin erase is separately confirmed, pending-locked, frozen, and acceptanc
   let resolve;
   service.eraseAllDroneUlogs.mockImplementation(() => new Promise(done => { resolve = done; }));
   render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="admin" transfers={transfers()} />);
-  await screen.findByRole('button', { name: 'Inspect flight log 7' });
+  await screen.findByRole('button', { name: 'Download log 7' });
   fireEvent.click(screen.getByText('Maintenance'));
   fireEvent.click(screen.getByRole('button', { name: 'Erase onboard logs', exact: true }));
   const review = screen.getByRole('dialog', { name: 'Erase onboard logs?' });
@@ -58,7 +67,7 @@ test('admin erase is separately confirmed, pending-locked, frozen, and acceptanc
 test('local file uses only the bounded upload summary endpoint', async () => {
   const file = new File(['ULog'], 'example.ulg');
   service.summarizeUploadedUlog.mockResolvedValue({ parsed: false, parser: { status: 'unavailable', error: 'Parser unavailable' } });
-  render(<FlightLogsWorkspace droneId={null} sourceLabel="GCS" userRole="operator" transfers={transfers()} />);
+  renderWithTransfers({ droneId: null, sourceLabel: "GCS", userRole: "operator" });
   fireEvent.change(screen.getByLabelText('Open local ULog file'), { target: { files: [file] } });
   expect(await screen.findByText('Parser unavailable')).toBeInTheDocument();
   expect(service.summarizeUploadedUlog).toHaveBeenCalledWith(file);

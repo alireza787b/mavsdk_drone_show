@@ -342,6 +342,8 @@ class OnboardUlogDownloadJob(BaseModel):
     size_bytes: int
     status: Literal["queued", "downloading", "ready", "failed", "expired"]
     progress: float = 0.0
+    phase: Literal["waiting", "aircraft", "copy", "verify", "verified"] | None = None
+    bytes_received: int | None = None
     staged_filename: str | None = None
     download_filename: str | None = None
     created_at: int

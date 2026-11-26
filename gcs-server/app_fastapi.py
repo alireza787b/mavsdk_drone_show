@@ -901,7 +901,14 @@ async def lifespan(app: FastAPI):
     # Start background log puller (no-op loop if disabled via env)
     await background_puller.start()
 
-    yield
+    from ulog_copies import get_ulog_copies
+
+    copy_maintenance = asyncio.create_task(get_ulog_copies().maintain())
+    try:
+        yield
+    finally:
+        copy_maintenance.cancel()
+        await asyncio.gather(copy_maintenance, return_exceptions=True)
 
     # Shutdown - only runs in worker process
     log_system_event("GCS FastAPI server shutting down...", "INFO", "shutdown")

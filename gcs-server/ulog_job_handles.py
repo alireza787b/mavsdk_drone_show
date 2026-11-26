@@ -30,6 +30,7 @@ class UlogJobCapability:
 class ResolvedUlogJobHandle:
     node_job_id: str
     access_token: str
+    expires_at_ms: int | None = None
 
 
 def _derive_access_token(*, nonce: str, drone_id: int, owner_fingerprint: str) -> str:
@@ -146,6 +147,7 @@ def resolve_ulog_job_handle(
         raise HTTPException(status_code=404, detail="ULog download job not found.")
     return ResolvedUlogJobHandle(
         node_job_id=node_job_id,
+        expires_at_ms=int(expires_at_ms) if expires_at_ms is not None else None,
         access_token=_derive_access_token(
             nonce=capability_nonce,
             drone_id=drone_id,

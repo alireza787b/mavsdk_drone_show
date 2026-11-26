@@ -56,6 +56,16 @@ logger = get_logger("log_api")
 DEFAULT_ULOG_UPLOAD_SUMMARY_MAX_BYTES = 64 * 1024 * 1024
 
 
+def _actor_ulog_copy(request: Request, drone_id: int, job_id: str):
+    from ulog_copies import get_ulog_copies
+    from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
+
+    owner = require_raw_ulog_actor(request)
+    resolved = resolve_ulog_job_handle(job_id, drone_id=drone_id, owner_fingerprint=owner)
+    copies = get_ulog_copies()
+    return copies, copies.key(owner, drone_id, resolved.node_job_id)
+
+
 def create_log_router(
     log_dir: str | None = None,
     watcher: LogWatcher | None = None,
@@ -366,6 +376,8 @@ def create_log_router(
     async def create_drone_ulog_download_job_route(
         request: Request, drone_id: int = ApiPath(..., ge=0), log_id: int = ApiPath(..., ge=0),
         download_request: OnboardUlogDownloadRequest | None = None,
+        gcs_copy: bool = False, expected_size: int | None = Query(None, ge=1),
+        expected_date: str | None = Query(None, max_length=128),
     ):
         """Accept one actor-bound create attempt before any native staging."""
         from log_proxy import resolve_drone_ip
@@ -378,7 +390,10 @@ def create_log_router(
         ip = resolve_drone_ip(drone_id)
         try:
             service = await asyncio.to_thread(get_ulog_download_requests)
-            return await service.create(owner, drone_id, log_id, ip, body)
+            return await service.create(
+                owner, drone_id, log_id, ip, body, gcs_copy=gcs_copy,
+                expected_size=expected_size, expected_date=expected_date,
+            )
         except UlogRequestConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except UlogRequestStorageError as exc:
@@ -451,7 +466,7 @@ def create_log_router(
         "/drone/{drone_id}/ulog/downloads/{job_id}",
         response_model=OnboardUlogJobDeleteResponse,
     )
-    async def delete_drone_ulog_download_job_route(request: Request, drone_id: int, job_id: str):
+    async def delete_drone_ulog_download_job_route(request: Request, drone_id: int, job_id: str, gcs_copy: bool = False):
         """Delete a staged onboard ULog download job and staged file."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -467,6 +482,13 @@ def create_log_router(
             drone_id=drone_id,
             owner_fingerprint=owner,
         )
+        if gcs_copy:
+            from ulog_copies import get_ulog_copies
+
+            copies = get_ulog_copies()
+            key = copies.key(owner, drone_id, resolved.node_job_id)
+            copies.delete(key, resolved.expires_at_ms)
+            return {"status": "deleted", "job_id": job_id, "timestamp": int(time.time() * 1000)}
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
@@ -482,8 +504,9 @@ def create_log_router(
         except DroneProxyResponseError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
+    @router.api_route("/drone/{drone_id}/ulog/downloads/{job_id}/content", methods=["HEAD"], include_in_schema=False)
     @router.get("/drone/{drone_id}/ulog/downloads/{job_id}/content")
-    async def download_drone_ulog_content(request: Request, drone_id: int, job_id: str):
+    async def download_drone_ulog_content(request: Request, drone_id: int, job_id: str, gcs_copy: bool = False):
         """Proxy staged onboard ULog file bytes from drone to browser."""
         from log_proxy import (
             DroneProxyResponseError,
@@ -497,6 +520,11 @@ def create_log_router(
         )
         from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
 
+        if gcs_copy:
+            from ulog_copies import VerifiedUlogResponse
+
+            copies, key = _actor_ulog_copy(request, drone_id, job_id)
+            return VerifiedUlogResponse(copies.lease(key))
         owner = require_raw_ulog_actor(request)
         resolved = resolve_ulog_job_handle(
             job_id,
@@ -562,6 +590,32 @@ def create_log_router(
             media_type=upstream.headers.get("content-type", "application/octet-stream"),
             headers=response_headers,
         )
+
+    @router.get(
+        "/drone/{drone_id}/ulog/downloads/{job_id}/summary",
+        response_model=OnboardUlogSummaryResponse,
+    )
+    async def summarize_verified_ulog(request: Request, drone_id: int, job_id: str):
+        from log_proxy import _ulog_summary_max_bytes
+        from mds_logging.ulog_analysis import UlogSummaryError, UlogSummaryTimeoutError, summarize_ulog_file_async
+        from src.ulog_proxy_policy import drone_ulog_summary_timeout_seconds
+
+        copies, key = _actor_ulog_copy(request, drone_id, job_id)
+        try:
+            with copies.lease(key) as (path, meta):
+                summary = await summarize_ulog_file_async(
+                    path, max_bytes=_ulog_summary_max_bytes(),
+                    timeout_seconds=drone_ulog_summary_timeout_seconds(),
+                    source_metadata={"log_id": meta["log_id"], "date_utc": meta["date_utc"], "size_bytes": meta["size"]},
+                )
+        except UlogSummaryError as exc:
+            raise HTTPException(exc.http_status, str(exc)) from exc
+        except UlogSummaryTimeoutError as exc:
+            raise HTTPException(504, str(exc)) from exc
+        return {
+            **summary, "hw_id": str(drone_id), "pos_id": meta["pos_id"],
+            "log_id": meta["log_id"], "timestamp": int(time.time() * 1000),
+        }
 
     @router.post("/drone/{drone_id}/ulog/erase-all", response_model=OnboardUlogEraseAllResponse)
     async def erase_all_drone_ulogs_route(request: Request, drone_id: int):

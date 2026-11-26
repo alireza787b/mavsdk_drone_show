@@ -52,18 +52,22 @@ does not need an aircraft or send the file to an external provider.
 
 ![Ready transfer and explicit Save file control](../assets/log-workspace/guide-06-ready-save-1440-dark.png)
 
-Select **Prepare download** with the aircraft grounded/disarmed under its native
-recorder policy. Transfers appears below the workspace. Once **Ready to save**,
-select **Save file**. If a creation response is lost, **Check receipt** recovers
-the existing request; it never silently starts another download. Returning to
-Logs restores context-bound transfer metadata. Closing a dialog is not cancel.
-**Not started** means a verified rejection before staging: resolve the displayed
-reason, then explicitly prepare again. A timeout or generic error stays
-unconfirmed; it is not permission to repeat creation automatically.
+Select **Download** with the aircraft grounded and disarmed under its recorder
+policy. Continue working anywhere in the dashboard and open **ULog transfers**
+to see the aircraft read, GCS copy, verification, and any reconnection. Reloading
+the dashboard recovers the same request. If the first response is lost, MDS
+looks up that request and does not repeat aircraft staging.
 
-Check that the file actually finished saving before asking someone to switch off
-the aircraft. Ready and Browser download requested do **not** verify the saved
-bytes. Evidence tooling additionally checks expected size, ULog header and hash.
+When you see **Ready to save**, choose **Save file**. The verified copy stays on
+the GCS until its transfer expires or you remove it. It can be saved with the
+aircraft offline. Use your browser’s Downloads view to check final save progress
+or resume an interrupted save. If the aircraft read fails or the transfer
+expires, use **Retry aircraft read** after checking the connection.
+
+**View summary** opens the bounded PX4 metrics for the verified copy when it is
+ready. Review the reported coverage and recording gaps. The raw file stays
+available if the parser fails. **Open file** reads a local `.ulg` through the
+bounded upload parser. Viewer accounts can request a derived onboard summary.
 
 ## Unavailable aircraft and maintenance
 
@@ -71,7 +75,7 @@ bytes. Evidence tooling additionally checks expected size, ULog header and hash.
   An unavailable inventory means unknown, not zero files.
 - Stale data remains last observed; it never grants write/erase authority.
   Retry the selected source rather than changing identity implicitly.
-- **Remove staged copy** affects only the prepared transfer, not recorder originals.
+- **Remove copy** deletes the verified GCS copy. Recorder originals stay on the aircraft.
   **Maintenance → Erase onboard logs** is a separate admin-only action with an
   exact-aircraft confirmation. It cannot be undone here; verify empty inventory.
 - Raw downloads/erase are operator maintenance, not optional assistant/MCP tools.

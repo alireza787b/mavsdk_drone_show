@@ -78,8 +78,21 @@ class UlogDownloadRequests:
             "rejected_status_code": status_code, "rejection_stage": stage, "rejection_evidence": evidence,
         })
 
+    @staticmethod
+    def _with_gcs_copy(stored: dict, owner: str, drone_id: int) -> dict:
+        if stored.get("gcs_copy") and stored["status"] == "accepted":
+            from ulog_copies import get_ulog_copies
+
+            job = get_ulog_copies().watch(
+                owner, drone_id, OnboardUlogDownloadJob.model_validate(stored["job"]),
+                stored["ip"], stored.get("expected_size"), stored.get("expected_date"),
+            )
+            return {**stored, "job": job}
+        return stored
+
     async def create(self, owner: str, drone_id: int, log_id: int, ip: str | None,
-                     request: OnboardUlogDownloadRequest) -> UlogDownloadCreateResponse:
+                     request: OnboardUlogDownloadRequest, *, gcs_copy: bool = False,
+                     expected_size: int | None = None, expected_date: str | None = None) -> UlogDownloadCreateResponse:
         from log_proxy import (
             DroneProxyNotSubmittedError, DroneProxyResponseError, DroneProxyUnavailableError, create_drone_ulog_download_job,
         )
@@ -87,16 +100,21 @@ class UlogDownloadRequests:
         request_id = request.request_id
         initial = {
             "request_id": request_id, "status": "unknown", "job": None,
+            "gcs_copy": gcs_copy, "expected_size": expected_size, "expected_date": expected_date,
             "error": "Download creation is in progress; acceptance has not been confirmed",
             "drone_id": drone_id, "log_id": log_id, "ip": ip, "capability_nonce": capability.nonce,
             "node_job_id": native_download_job_id(str(drone_id), request_id, capability.access_token),
         }
-        fingerprint = request_fingerprint({"drone_id": drone_id, "log_id": log_id, "pos_id": request.pos_id})
+        identity = {"drone_id": drone_id, "log_id": log_id, "pos_id": request.pos_id}
+        if gcs_copy:
+            identity.update(gcs_copy=True, expected_size=expected_size, expected_date=expected_date)
+        fingerprint = request_fingerprint(identity)
         stored, created = await asyncio.to_thread(
             self.store.claim, self._scope(owner, drone_id), request_id, fingerprint, initial,
         )
         if not created:
             if stored["status"] == "accepted":
+                stored = self._with_gcs_copy(stored, owner, drone_id)
                 return UlogDownloadCreateResponse(job=stored["job"], request_id=request_id,
                                                   timestamp=int(time.time() * 1000))
             if stored["status"] == "rejected":
@@ -123,6 +141,7 @@ class UlogDownloadRequests:
             if stored["status"] != "accepted":
                 raise self._creation_unknown(request_id, stored["error"], status, detail,
                                              creation_status=stored["status"]) from exc
+        stored = self._with_gcs_copy(stored, owner, drone_id)
         return UlogDownloadCreateResponse(job=stored["job"], request_id=request_id,
                                           timestamp=int(time.time() * 1000))
 
@@ -133,10 +152,10 @@ class UlogDownloadRequests:
         if stored is None or stored["drone_id"] != drone_id:
             return None
         if stored["status"] in {"accepted", "rejected"}:
-            return self._public(stored)
+            return self._public(self._with_gcs_copy(stored, owner, drone_id))
         if not stored["ip"]:
             stored = await self._reject(stored, owner, drone_id, "Aircraft has no configured endpoint; no native request was submitted", 404, "gcs_pre_handoff")
-            return self._public(stored)
+            return self._public(self._with_gcs_copy(stored, owner, drone_id))
         if ip is None or stored["ip"] != ip:
             return self._public({**stored, "error": "Aircraft endpoint is unavailable or changed; creation has not been replayed"})
         capability = restore_ulog_job_capability(
@@ -152,7 +171,7 @@ class UlogDownloadRequests:
             stored["error"] = (
                 "Native job is unavailable or creation remains unconfirmed; no new download was submitted: " + str(getattr(exc, "detail", exc))
             )[:2048]
-        return self._public(stored)
+        return self._public(self._with_gcs_copy(stored, owner, drone_id))
 
 
 def get_ulog_download_requests() -> UlogDownloadRequests:
