@@ -115,6 +115,8 @@ jobs:
             tests/test_mds_logging/test_log_proxy.py \
             tests/test_mds_logging/test_schema.py \
             tests/test_mds_logging/test_ulog_analysis.py \
+            tests/test_mds_logging/test_ulog_copies.py \
+            tests/test_mds_logging/test_ulog_download_request_routes.py \
             tests/test_node_boot_status_routes.py \
             tests/test_local_mavlink_controller.py \
             tests/test_command_processing.py \
@@ -169,7 +171,8 @@ jobs:
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
             src/pages/SimurghOperatorPage.test.js \
-            src/components/logs/OnboardUlogDialog.test.js \
+            src/components/logs/FlightLogsWorkspace.test.js \
+            src/features/log-workspace/useUlogTransfers.test.js \
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \
@@ -451,7 +454,8 @@ jobs:
           npm ci
           CI=true npm test -- --runInBand --watchAll=false --runTestsByPath \
             src/pages/SimurghOperatorPage.test.js \
-            src/components/logs/OnboardUlogDialog.test.js \
+            src/components/logs/FlightLogsWorkspace.test.js \
+            src/features/log-workspace/useUlogTransfers.test.js \
             src/services/gcsApiService.test.js \
             src/config/routeDocs.test.js \
             src/components/SidebarMenu.test.js \

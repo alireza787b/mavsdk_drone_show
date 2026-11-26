@@ -95,6 +95,12 @@
       "reason": "Theme matrix for isolated Overview browser acceptance."
     },
     {
+      "name": "MDS_OVERVIEW_NAME_SUFFIX",
+      "domain": "frontend",
+      "scope": "test",
+      "reason": "Synthetic callsign suffix for isolated Overview layout acceptance."
+    },
+    {
       "name": "MDS_TAKEOFF_CONTEXT_FD",
       "domain": "runtime",
       "scope": "process",
