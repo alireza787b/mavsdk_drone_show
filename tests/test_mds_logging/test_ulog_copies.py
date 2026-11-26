@@ -45,6 +45,7 @@ def gcs(tmp_path, monkeypatch):
             "kind": "session", "role": request.headers.get("test-role", "operator"),
             "username": request.headers.get("test-actor", "alice"),
             "sid": request.headers.get("test-session", "fixture-session"),
+            "user": {"created_at": request.headers.get("test-account-created", "original")},
         }
         return await call_next(request)
 
@@ -199,6 +200,7 @@ async def test_verified_copy_is_recoverable_after_sign_in_and_30_minute_node_exp
         assert result.json()[0]["job"] == job
         assert (await client.get(path + "/content?gcs_copy=true", headers=session)).content == VALID
         assert (await client.get(list_path, headers={"test-actor": "other"})).json() == []
+        assert (await client.get(list_path, headers={"test-account-created": "replacement"})).json() == []
         assert (await client.get(list_path, headers={"test-role": "viewer"})).status_code == 403
         assert (await client.get(path + "/content?gcs_copy=true", headers={"test-actor": "other"})).status_code == 404
         now = job["expires_at"] + 1
