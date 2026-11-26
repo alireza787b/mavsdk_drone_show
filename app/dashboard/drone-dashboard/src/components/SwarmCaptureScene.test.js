@@ -1,6 +1,8 @@
 import React from 'react';
 import { fireEvent,render,screen } from '@testing-library/react';
-import SwarmCaptureScene from './SwarmCaptureScene';
+import CaptureScene from './SwarmCaptureScene';
+import { resolveFormationPositions } from '../utilities/swarmFormationGeometry';
+const SwarmCaptureScene = props => <CaptureScene {...props} positions={resolveFormationPositions(props.entries, props.headings)} />;
 const entries=[{hw_id:'1',follow:'0',offset_x:0,offset_y:0,offset_z:0,frame:'ned'},
   {hw_id:'2',follow:'1',offset_x:6,offset_y:2,offset_z:1,frame:'ned'}];
 test('3D is default, view/camera interactions never edit input; all axes and aircraft inspection are accessible',()=>{

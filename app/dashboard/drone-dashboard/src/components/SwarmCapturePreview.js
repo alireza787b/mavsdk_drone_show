@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import SwarmCaptureScene from './SwarmCaptureScene';
 import useSwarmCaptureLiveView from '../hooks/useSwarmCaptureLiveView';
 import { formatFormationDistance } from '../utilities/swarmDesignPresentation';
+import { resolveFormationPositions } from '../utilities/swarmFormationGeometry';
+
+const EMPTY_HEADINGS = {};
+const EMPTY_ENTRIES = [];
+
+const HEIGHT_REFERENCES = {
+  current: 'captured PX4 estimate',
+  keep: 'planned reference',
+  level: 'same height',
+};
 
 /** One shared drawing model; captured targets never move with live telemetry. */
 export default function SwarmCapturePreview({ request, snapshot, candidate, settings, labels }) {
@@ -10,26 +20,23 @@ export default function SwarmCapturePreview({ request, snapshot, candidate, sett
   const base = snapshot?.observations?.[settings.leaderId];
   const overlays = live.positions.map(point => ({ ...point, north: point.north - (base?.north_m || 0),
     east: point.east - (base?.east_m || 0), up: point.up - (base?.current_up_m || 0) }));
-  const entries = candidate?.assignments?.filter(entry => request.hwIds.includes(String(entry.hw_id)));
-  const selected = entries?.find(entry => String(entry.hw_id) === selectedId);
-  const root = entries?.find(entry => String(entry.follow) === '0');
-  const selectedObservation = snapshot?.observations?.[selectedId];
-  const rootObservation = snapshot?.observations?.[String(root?.hw_id)];
-  const heightField = settings.heightMode === 'current' ? 'current_up_m' : 'planned_up_m';
-  const heightDifference = selectedObservation && rootObservation
-    && Number.isFinite(Number(selectedObservation[heightField]))
-    && Number.isFinite(Number(rootObservation[heightField]))
-    ? Number(selectedObservation[heightField]) - Number(rootObservation[heightField]) : null;
+  const headings = candidate?.headings || EMPTY_HEADINGS;
+  const entries = useMemo(() => candidate?.assignments?.filter(entry => request.hwIds.includes(String(entry.hw_id)))
+    || EMPTY_ENTRIES, [candidate, request.hwIds]);
+  const selected = entries.find(entry => String(entry.hw_id) === selectedId);
+  const root = entries.find(entry => String(entry.follow) === '0');
+  const positions = useMemo(() => resolveFormationPositions(entries, headings), [entries, headings]);
+  const heightReference = candidate ? HEIGHT_REFERENCES[settings.heightMode] : undefined;
   return <section className="swarm-capture-preview" aria-label="Capture visual preview">
     <div className="swarm-capture-preview__legend">
       <span><i className="is-captured" aria-hidden="true" /> Capture</span>
       <span><i className={live.freshCount === request.hwIds.length ? 'is-live' : 'is-delayed'} aria-hidden="true" />
         {live.loading ? 'Connecting…' : live.freshCount === request.hwIds.length ? 'Live' : 'Delayed'} · {live.freshCount}/{request.hwIds.length}</span>
     </div>
-    <SwarmCaptureScene entries={entries || []} headings={candidate?.headings || {}} overlays={overlays}
+    <SwarmCaptureScene entries={entries} headings={headings} positions={positions} overlays={overlays}
       labels={labels} selectedId={selectedId} onSelect={setSelectedId}
       frame={candidate ? settings.frame : 'ned'} heading={candidate?.headings?.[settings.leaderId] || 0}
-      heightReference={settings.heightMode === 'current' ? 'captured PX4 estimate' : 'planned reference'}
+      heightReference={heightReference}
       captureId={`${snapshot?.capture_id || ''}:${root?.hw_id || ''}:${settings.frame}:${settings.heightMode || ''}`} />
     {selected && <div className="swarm-capture-preview__selection" aria-live="polite">
       <strong>{labels[selectedId] || `H${selectedId}`}</strong>
@@ -39,8 +46,7 @@ export default function SwarmCapturePreview({ request, snapshot, candidate, sett
         {' '}{settings.frame === 'body' ? 'Right' : 'East'} {formatFormationDistance(selected.offset_y)} ·
         {' '}Above {formatFormationDistance(selected.offset_z)} m
       </span>}
-      {selected && <span>Height difference {heightDifference == null ? 'unknown' : `${heightDifference.toFixed(2)} m`}
-        {' '}({settings.heightMode === 'current' ? 'captured estimate' : 'planned reference'})</span>}
+      <span>Height from leader {formatFormationDistance(positions[selectedId].up)} m</span>
     </div>}
   </section>;
 }

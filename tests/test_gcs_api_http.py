@@ -383,11 +383,14 @@ class TestBackgroundTelemetryHelpers:
                 'gps_fix_type': 4,
                 'gps_raw_valid': True,
                 'timestamp': int(time.time() * 1000),
+                'telemetry_timestamp_ms': int(time.time() * 1000),
                 'update_time': int(time.time()),
             },
         )
 
         assert payload['gps_fix_type'] == 4
+        assert payload['global_position_timestamp_ms'] == 0
+        assert payload['global_position_age_ms'] is None
         assert payload['altitude_report']['available'] is True
         assert payload['altitude_report']['source'] == 'absolute_msl'
         assert payload['altitude_display_m'] == pytest.approx(153.388)

@@ -1,20 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FaCompressArrowsAlt, FaMinus, FaPlus } from 'react-icons/fa';
-import { resolveFormationPositions, formationViewLabels } from '../utilities/swarmFormationGeometry';
+import { formationViewLabels } from '../utilities/swarmFormationGeometry';
 import { fitPreviewCamera, INITIAL_PREVIEW_CAMERA, previewZoom, projectPreviewPoint } from '../utilities/formationPreviewCamera';
 import { AircraftSilhouette } from './SwarmAircraftSymbol';
 
 const VIEWS = { '3d': '3D', top: 'Top', front: 'Front', side: 'Side' };
 
 /** Read-only, GPU-independent 3D overview. One coordinate model for every view. */
-export default function SwarmCaptureScene({ entries, headings, overlays, labels, selectedId, onSelect,
+export default function SwarmCaptureScene({ entries, headings, positions, overlays, labels, selectedId, onSelect,
   frame, heading, captureId, heightReference }) {
   const [view, setView] = useState('3d');
   const [camera, setCamera] = useState(INITIAL_PREVIEW_CAMERA);
   const [size, setSize] = useState({ width: 800, height: 400 });
   const svg = useRef(null), pointers = useRef(new Map()), gesture = useRef(null);
   const moved = useRef(false);
-  const positions = useMemo(() => resolveFormationPositions(entries || [], headings), [entries, headings]);
   const project = p => projectPreviewPoint(p, view, camera, frame, heading);
   const points = Object.entries(positions).map(([id, p]) => ({ id, ...project(p) }));
   const livePoints = overlays.map(p => ({ ...p, ...project(p) }));

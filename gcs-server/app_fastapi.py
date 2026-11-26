@@ -632,7 +632,8 @@ def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict
         valid_global = _has_valid_global_position(record)
 
     record["global_position_valid"] = valid_global
-    record.setdefault("global_position_timestamp_ms", record.get("telemetry_timestamp_ms") or 0)
+    # A fresh telemetry packet does not establish when its cached position was sampled.
+    record.setdefault("global_position_timestamp_ms", 0)
     global_ts = _normalize_update_time_ms(record.get("global_position_timestamp_ms"))
     record["global_position_age_ms"] = max(0, now_ms - global_ts) if global_ts is not None else None
 

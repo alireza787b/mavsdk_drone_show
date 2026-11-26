@@ -223,23 +223,40 @@ async def test_stale_dashboard_preview_is_advisory_and_does_not_silently_exclude
     assert caught.value.status_code == 409
 
 
-def test_preview_reports_altitude_spread_as_advisory_only():
+def _build_altitude_preview(now_ms, **follower_overrides):
     session = snapshot()
+    row = {'telemetry_available': True, 'telemetry_timestamp_ms': now_ms,
+           'global_position_valid': True, 'global_position_timestamp_ms': now_ms - 100,
+           'position_alt': 100.0}
     deps = SimpleNamespace(
         load_swarm=lambda: [m.model_dump() for m in session.assignments],
         load_config=lambda: [],
         telemetry_lock=Lock(),
         telemetry_data_all_drones={
-            '1': {'telemetry_available': True, 'telemetry_timestamp_ms': int(time.time() * 1000), 'global_position_valid': True, 'position_alt': 100.0},
-            '2': {'telemetry_available': True, 'telemetry_timestamp_ms': int(time.time() * 1000), 'global_position_valid': True, 'position_alt': 101.2},
+            '1': row,
+            '2': {**row, 'position_alt': 101.2, **follower_overrides},
         },
     )
-    preview = build_preview(deps)
-    warning = preview['clusters'][0]['altitude_warning']
+    return build_preview(deps)['clusters'][0]
+
+
+def test_preview_reports_altitude_spread_as_advisory_only():
+    cluster = _build_altitude_preview(int(time.time() * 1000))
+    warning = cluster['altitude_warning']
     assert warning['active'] is True
     assert warning['spread_m'] == 1.2
     assert warning['reference'] == 'fused_global_msl'
-    assert preview['clusters'][0]['available_hw_ids'] == ['1', '2']
+    assert cluster['available_hw_ids'] == ['1', '2']
+
+
+@pytest.mark.parametrize('position_delta', [-120_000, 120_000, None])
+def test_preview_needs_current_position_samples_even_with_fresh_telemetry(position_delta):
+    now_ms = int(time.time() * 1000)
+    cluster = _build_altitude_preview(now_ms, global_position_timestamp_ms=(
+        now_ms + position_delta if position_delta is not None else None))
+    assert cluster['altitude_warning']['spread_m'] is None
+    assert cluster['altitude_warning']['active'] is False
+    assert cluster['available_hw_ids'] == ['1', '2']
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,20 @@ from src.smart_swarm_contract import (
     SmartSwarmSession, dependency_closed_targets, normalize_topology,
     resolve_clusters, topology_revision,
 )
+from src.telemetry_display import ALTITUDE_STALE_AFTER_MS
+
+
+def _fresh_global_altitude(state, now_ms):
+    if state.get("global_position_valid") is not True:
+        return None
+    try:
+        timestamp_ms = float(state.get("global_position_timestamp_ms"))
+        altitude_m = float(state.get("position_alt"))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if timestamp_ms > 0 and 0 <= now_ms - timestamp_ms <= ALTITUDE_STALE_AFTER_MS and math.isfinite(altitude_m):
+        return altitude_m
+    return None
 
 
 def build_preview(deps):
@@ -52,12 +66,10 @@ def build_preview(deps):
             member['position_long'] = state.get('position_long')
             member['position_alt'] = state.get('position_alt')
             member['global_position_valid'] = state.get('global_position_valid')
-            try:
-                altitude = float(state.get('position_alt'))
-            except (TypeError, ValueError):
-                altitude = None
-            if available and state.get('global_position_valid') is True and altitude is not None and math.isfinite(altitude):
-                altitude_samples[member["hw_id"]] = altitude
+            if available:
+                altitude = _fresh_global_altitude(state, now_ms)
+                if altitude is not None:
+                    altitude_samples[member["hw_id"]] = altitude
             if not available:
                 unavailable.append(member["hw_id"])
         cluster["unavailable_hw_ids"] = unavailable

@@ -106,7 +106,8 @@ control explaining what to resolve. Mixed/uncertain states or unstable airborne
 height have no automatic choice: select the intended available Height explicitly.
 Once you deliberately select Height, Refresh preserves that choice. Before a
 deliberate selection, a new successful capture can update the automatic default.
-The scene shows the chosen heights before Use capture; nothing moves until a
+The scene and selected aircraft's **Height from leader** readout show the same
+draft (0 m for **Same height**) before Use capture; nothing moves until a
 separate explicit mission action. Symbols are not physical footprints and the
 grid is a reference plane, not terrain. The read-only 3D scene also works without WebGL.
 

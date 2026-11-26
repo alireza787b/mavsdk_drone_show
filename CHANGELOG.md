@@ -17,6 +17,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Capture now labels the Up axis and height reference, reports the selected
   aircraft's numeric height difference, and keeps the captured estimate and
   live advisory markers distinct.
+- Capture's height readout now uses the plotted draft (including Same height),
+  and the altitude advisory ignores missing or expired position samples even
+  when other aircraft telemetry is still arriving.
 
 ### Logs operator workspace and evidence integrity
 
