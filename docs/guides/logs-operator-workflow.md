@@ -69,12 +69,17 @@ resume an interrupted save. **Save started** means the browser received the
 request. Save important recordings before removing the GCS copy or before its
 countdown ends.
 
-The GCS holds a temporary copy, typically until 30 minutes after retrieval
-started. MDS shows the time left and frees the space automatically. Its default
-limits are 512 MiB per file and 1 GiB total. An expired or removed copy must be
-retrieved again. Changing browser, switching accounts, or signing out requires
-a new transfer. If the GCS restarts during a transfer, return to **Log transfers**
-to recover the same request. Completed GCS copies survive a normal service restart.
+Verified copies stay on the GCS for **seven days after they're ready**. Open
+**Log transfers** from the same operator account after signing back in, even
+in a different browser. MDS shows the time left and frees the space on expiry.
+The default limits are 512 MiB per file and 1 GiB total. If storage is full,
+save and remove copies you no longer need before getting more. Existing copies
+keep their retention period. An expired or removed copy can be retrieved again
+while the aircraft still has the original.
+
+If the GCS restarts during an aircraft transfer, return to **Log transfers**
+in the original browser session to recover the request. Verified copies
+survive a normal GCS restart.
 
 Summary shows measured values and flags incomplete coverage. A summary error
 leaves the verified file available. **Open file** sends a local `.ulg` to your

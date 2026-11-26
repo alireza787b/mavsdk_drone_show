@@ -70,8 +70,8 @@ def restore_ulog_job_capability(
     )
 
 
-def require_raw_ulog_actor(request: Request) -> str:
-    """Require an operator identity and return its non-reversible fingerprint."""
+def require_raw_ulog_actor(request: Request, *, account_scope: bool = False) -> str:
+    """Return an operator fingerprint, with session binding for aircraft jobs."""
 
     context = getattr(request.state, "mds_auth_context", None)
     if not isinstance(context, Mapping):
@@ -87,7 +87,7 @@ def require_raw_ulog_actor(request: Request) -> str:
     identity = {
         "kind": str(context.get("kind") or "unknown"),
         "username": str(context.get("username") or ""),
-        "session_id": str(context.get("sid") or ""),
+        "session_id": "" if account_scope else str(context.get("sid") or ""),
         "token_id": str(token_id or ""),
     }
     return hashlib.sha256(

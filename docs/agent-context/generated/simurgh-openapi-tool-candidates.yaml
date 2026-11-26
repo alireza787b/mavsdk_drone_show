@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 233
+candidate_count: 234
 candidates:
 - callable: false
   classification:
@@ -1074,6 +1074,42 @@ candidates:
     operation_id: stream_logs_api_logs_stream_get
     path: /api/logs/stream
     summary: Stream Logs
+    tags:
+    - Logs
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - logs
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - operator account's retained raw ULog copies are dashboard-only
+  has_request_body: false
+  id: candidate.gcs.get.api.logs.ulog.copies
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    items:
+      $ref: '#/components/schemas/UlogDownloadCreateResponse'
+    title: Response List Verified Ulog Copies Api Logs Ulog Copies Get
+    type: array
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: list_verified_ulog_copies_api_logs_ulog_copies_get
+    path: /api/logs/ulog/copies
+    summary: List Verified Ulog Copies
     tags:
     - Logs
 - callable: false
@@ -9260,7 +9296,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: cf1675a8f0efc05a5ea85b83638ec64c712aaabee85a554a3f52fbdce4671c19
+  openapi_sha256: 7fdb240ed06702d665095a94d9639171241ed442b1237ed7f33e2cdbfcc415a8
   title: GCS Server API
   version: '5.5'
 summary:

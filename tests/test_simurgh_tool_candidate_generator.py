@@ -288,6 +288,7 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     assert by_path["/api/logs/sessions/{session_id}"]["classification"]["eligible_read_only_mcp_candidate"] is True
     assert by_path["/api/logs/stream"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}"]["classification"]["eligible_read_only_mcp_candidate"] is False
+    assert by_path["/api/logs/ulog/copies"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/swarm-trajectories/download-kml/{drone_id}"]["classification"]["eligible_read_only_mcp_candidate"] is False
     assert by_path["/api/v1/shows/skybrush/metrics/snapshot"]["classification"]["eligible_read_only_mcp_candidate"] is True
     assert by_path["/api/v1/shows/skybrush/safety-report"]["classification"]["eligible_read_only_mcp_candidate"] is True

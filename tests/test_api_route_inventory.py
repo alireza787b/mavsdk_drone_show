@@ -152,6 +152,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/swarm/runtime/sequential-return",
         "/api/v1/swarm/runtime/sequential-return/{return_id}",
         "/api/logs/sources",
+        "/api/logs/ulog/copies",
         "/api/logs/sessions",
         "/api/logs/sessions/{session_id}",
         "/api/logs/stream",

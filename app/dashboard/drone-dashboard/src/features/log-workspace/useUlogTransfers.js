@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createDroneUlogDownloadJob, getDroneUlogDownloadJob, getDroneUlogDownloadRequest, deleteDroneUlogDownloadJob } from '../../services/logService';
+import { createDroneUlogDownloadJob, getDroneUlogDownloadJob, getDroneUlogDownloadRequest, deleteDroneUlogDownloadJob, listVerifiedUlogCopies } from '../../services/logService';
 import { logError } from './logWorkspace';
 
 export const ULOG_TERMINAL = new Set(['ready', 'failed', 'expired', 'deleted']);
@@ -14,8 +14,9 @@ const read = key => {
     || typeof item.droneId !== 'string' || item.logId == null)) throw new Error('Transfer recovery records are unreadable.');
   return records;
 };
+const retained = job => job?.job_id?.startsWith('copy-');
 const compact = record => ({ ...record, job: record.job ? Object.fromEntries(['job_id', 'status', 'log_id', 'hw_id', 'size_bytes', 'progress', 'bytes_received', 'phase',
-  'download_filename', 'created_at', 'updated_at', 'expires_at', 'error'].filter(key => record.job[key] !== undefined).map(key => [key, record.job[key]])) : null });
+  'download_filename', 'date_utc', 'created_at', 'updated_at', 'expires_at', 'error'].filter(key => record.job[key] !== undefined).map(key => [key, record.job[key]])) : null });
 
 function requestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -25,16 +26,37 @@ function requestId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export default function useUlogTransfers(storageKey) {
+export default function useUlogTransfers(storageKey, restoreSaved = false) {
   const [records, setRecords] = useState([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const latest = useRef(records), lock = useRef(false), activeKey = useRef(storageKey), mounted = useRef(true);
   const checking = useRef(new Map());
+  const [saved, setSaved] = useState(null);
+  const savedRevision = useRef(0);
   latest.current = records; activeKey.current = storageKey;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     try { const saved = read(storageKey); latest.current = saved; setRecords(saved); setError(''); }
     catch (failure) { setRecords([]); setError(logError(failure)); }
   }, [storageKey]);
+  const refreshSaved = useCallback(async () => {
+    if (!restoreSaved) return;
+    const revision = ++savedRevision.current;
+    try {
+      const list = await listVerifiedUlogCopies();
+      if (mounted.current && activeKey.current === storageKey && savedRevision.current === revision) {
+        setSaved(new Map(list.map(({ request_id: id, job }) => [id, job])));
+      }
+    } catch {
+      // Keep the last observed list during a connectivity interruption.
+    }
+  }, [restoreSaved, storageKey]);
+  useEffect(() => {
+    setSaved(null);
+    refreshSaved();
+    window.addEventListener('focus', refreshSaved);
+    return () => window.removeEventListener('focus', refreshSaved);
+  }, [refreshSaved]);
+
   const persist = useCallback((record, key = storageKey, required = false) => {
     let next;
     try {
@@ -59,9 +81,22 @@ export default function useUlogTransfers(storageKey) {
       next = [compact(record), ...latest.current.filter(item => item.requestId !== record.requestId)];
       if (mounted.current && activeKey.current === key) setError(`Recovery storage: ${logError(failure)}`);
     }
-    if (mounted.current && activeKey.current === key) { latest.current = next; setRecords(next); }
+    if (mounted.current && activeKey.current === key) {
+      latest.current = next;
+      setRecords(next);
+      if (restoreSaved && retained(record.job)) {
+        if (record.job.status === 'ready') {
+          setSaved(previous => previous && new Map(previous).set(record.requestId, record.job));
+        } else {
+          setSaved(previous => previous && new Map([...previous].filter(([id]) => id !== record.requestId)));
+        }
+        // A response already in flight may predate this mutation.
+        savedRevision.current += 1;
+        refreshSaved();
+      }
+    }
     return next;
-  }, [storageKey]);
+  }, [storageKey, restoreSaved, refreshSaved]);
   const inspectJob = (job, record) => {
     if (!job?.job_id || (job.hw_id != null && String(job.hw_id) !== record.droneId)
       || (job.log_id != null && String(job.log_id) !== String(record.logId))) throw new Error('Transfer identity does not match the selected aircraft and file.');
@@ -144,11 +179,20 @@ export default function useUlogTransfers(storageKey) {
     if (lock.current || !record.job?.job_id || !ULOG_TERMINAL.has(record.job.status)) return;
     lock.current = true; setBusy(true);
     try { await deleteDroneUlogDownloadJob(record.droneId, record.job.job_id, record.verified); persist({ ...record, job: { ...record.job, status: 'deleted' }, error: '' }); }
-    catch (failure) { setError(logError(failure)); }
+    catch (failure) { setError(logError(failure)); if (retained(record.job)) refreshSaved(); }
     finally { lock.current = false; setBusy(false); }
   };
-  return { records, error, busy, prepare, check, remove,
+  const visibleRecords = saved === null ? records : [
+    ...records.filter(record => !saved.has(record.requestId) && !retained(record.job)),
+    ...Array.from(saved, ([id, job]) => ({
+      requestId: id, droneId: String(job.hw_id), logId: job.log_id,
+      logDate: job.date_utc, aircraftLabel: `H${job.hw_id}`, expectedSize: job.size_bytes,
+      ...records.find(record => record.requestId === id),
+      job, creationStatus: 'accepted', verified: true, error: '',
+    })),
+  ];
+  return { records: visibleRecords, error, busy, prepare, check, remove, refreshSaved,
     wantSummary: record => persist({ ...record, wantsSummary: true }),
     browserRequested: record => persist({ ...record, browserRequestedAt: Date.now() }),
-    pending: records.some(transferPending) };
+    pending: visibleRecords.some(transferPending) };
 }

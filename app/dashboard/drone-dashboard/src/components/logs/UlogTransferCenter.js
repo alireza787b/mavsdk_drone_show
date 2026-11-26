@@ -10,8 +10,11 @@ import UlogTransferActivity, { transferLabel } from './UlogTransferActivity';
 import UlogSummary from './UlogSummary';
 import '../../styles/UlogTransfers.css';
 
-export function UlogTransferProvider({ runtimeMode, operatorId, children }) {
-  const transfers = useUlogTransfers(`mds:ulog-transfers:v1:${getBackendURL()}:${runtimeMode}:${operatorId || 'browser-session'}`);
+export function UlogTransferProvider({ runtimeMode, operatorId, userRole, children }) {
+  const transfers = useUlogTransfers(
+    `mds:ulog-transfers:v1:${getBackendURL()}:${runtimeMode}:${operatorId || 'browser-session'}`,
+    ['operator', 'admin'].includes(userRole),
+  );
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -103,7 +106,7 @@ export function UlogTransferCenter({ userRole }) {
   return (
     <div className="ulog-center">
       <button type="button" className="operator-button operator-button--ghost ulog-center__toggle"
-        aria-label="ULog transfers" aria-expanded={open} aria-controls="ulog-transfer-panel" onClick={() => setOpen(!open)}>
+        aria-label="ULog transfers" aria-expanded={open} aria-controls="ulog-transfer-panel" onClick={() => { if (!open) transfers.refreshSaved(); setOpen(!open); }}>
         <FiHardDrive aria-hidden="true" /> Log transfers {state && <span aria-hidden="true">· {state}{current?.job?.status === 'downloading' && current.job.progress > 0
           ? ` ${Math.floor(current.job.progress * 100)}%` : ''}</span>}
       </button>

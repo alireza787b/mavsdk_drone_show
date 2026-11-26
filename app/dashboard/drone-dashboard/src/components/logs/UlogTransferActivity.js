@@ -21,6 +21,16 @@ export function transferLabel(record, now) {
   }[record.job?.phase] || (record.job ? 'Reading from aircraft' : 'Starting transfer');
 }
 
+function timeLeft(expiresAt, now) {
+  const minutes = Math.ceil((expiresAt - now) / 60000);
+  if (minutes >= 1440) {
+    const days = Math.ceil(minutes / 1440);
+    return `${days} ${days === 1 ? 'day' : 'days'} left`;
+  }
+  if (minutes >= 60) return `${Math.ceil(minutes / 60)} hr left`;
+  return `${Math.max(1, minutes)} min left`;
+}
+
 export function UlogSaveLink({ record, onSave }) {
   return (
     <a className="operator-button operator-button--primary" href={buildDroneUlogDownloadURL(record.droneId, record.job.job_id, record.verified)}
@@ -47,7 +57,7 @@ export default function UlogTransferActivity({ transfers, userRole, now }) {
         const bytes = record.job?.bytes_received;
         const total = record.job?.size_bytes || record.expectedSize;
         const progress = record.job?.progress > 0 ? record.job.progress : undefined;
-        const expiresIn = record.job?.expires_at ? Math.ceil((record.job.expires_at - now) / 60000) : null;
+        const expiresAt = record.job?.expires_at;
         return (
           <section key={record.requestId} className="ulog-center__row">
             <div className="ulog-center__heading">
@@ -69,8 +79,8 @@ export default function UlogTransferActivity({ transfers, userRole, now }) {
             {status === 'ready' && <>
               <div className="ulog-center__meta">
                 <span>{formatBytes(total)}</span>
-                {expiresIn > 0 && <span title={`GCS copy expires at ${new Date(record.job.expires_at).toLocaleTimeString()}`}>
-                  <FiClock aria-hidden="true" /> {expiresIn} min left
+                {expiresAt > now && <span title={`GCS copy expires ${new Date(expiresAt).toLocaleString()}`}>
+                  <FiClock aria-hidden="true" /> {timeLeft(expiresAt, now)}
                 </span>}
               </div>
               {allowed && <div className="ulog-center__actions">

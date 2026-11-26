@@ -86,13 +86,16 @@ class UlogDownloadRequests:
             job = get_ulog_copies().watch(
                 owner, drone_id, OnboardUlogDownloadJob.model_validate(stored["job"]),
                 stored["ip"], stored.get("expected_size"), stored.get("expected_date"),
+                node_job_id=stored["node_job_id"], request_id=stored["request_id"],
+                copy_owner=stored.get("copy_owner"),
             )
             return {**stored, "job": job}
         return stored
 
     async def create(self, owner: str, drone_id: int, log_id: int, ip: str | None,
                      request: OnboardUlogDownloadRequest, *, gcs_copy: bool = False,
-                     expected_size: int | None = None, expected_date: str | None = None) -> UlogDownloadCreateResponse:
+                     expected_size: int | None = None, expected_date: str | None = None,
+                     copy_owner: str | None = None) -> UlogDownloadCreateResponse:
         from log_proxy import (
             DroneProxyNotSubmittedError, DroneProxyResponseError, DroneProxyUnavailableError, create_drone_ulog_download_job,
         )
@@ -101,6 +104,7 @@ class UlogDownloadRequests:
         initial = {
             "request_id": request_id, "status": "unknown", "job": None,
             "gcs_copy": gcs_copy, "expected_size": expected_size, "expected_date": expected_date,
+            "copy_owner": copy_owner,
             "error": "Download creation is in progress; acceptance has not been confirmed",
             "drone_id": drone_id, "log_id": log_id, "ip": ip, "capability_nonce": capability.nonce,
             "node_job_id": native_download_job_id(str(drone_id), request_id, capability.access_token),

@@ -188,7 +188,7 @@ const AppShell = () => {
   return (
     <ObservationProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`}>
     <CommandActivityProvider>
-    <UlogTransferProvider runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username}>
+    <UlogTransferProvider userRole={logRole} runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username}>
     <Router
       future={{
         v7_startTransition: true,
