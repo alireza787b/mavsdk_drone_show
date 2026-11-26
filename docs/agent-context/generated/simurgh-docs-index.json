@@ -6635,7 +6635,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "c04a6cdbeecf5527182ec232319ee62c4ec16959630cd3742576bce6414257f7",
+      "content_hash": "96bb8ff082878db8978773f79914d53cce4b24124e37101ec7da96ba8f6466c5",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-02-check-the-aircraft",
       "links": [],
@@ -6649,13 +6649,13 @@
         "operations",
         "selection"
       ],
-      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card centers an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Battery percentage and\naltitude/datum sit on the left; GNSS fix and stable link state on the right. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/\nUSB transport symbol. No percentage is permanently repeated beside Wi-Fi.\nThe battery outline fills to PX4's reported percentage, shown inside; a bolt\nmeans current, fault-free charging evidence. Unknown charge is a dash, not an\nempty battery or a voltage-based estimate. Hover the instruments for voltage,\nSSID and reported signal; keyboard focus on the card reveals the same concise\ndetails (Escape dismisses). Tap the card for details on touch devices.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it",
+      "text": "Callsigns are shown when configured; **H1**, **H2**, etc. identify the physical\naircraft even when names are duplicated. **P1**, **P2**, etc. identify position\nslots. Each card pairs an aircraft schematic with a small phase marker for\ngrounded, airborne, taking off, landing or unknown. The illustration is not an\nairframe footprint, heading or proof that motors stopped. Phase, named flight\nmode and ground readiness sit together beside it. One fixed strip below shows\nGNSS fix, altitude/datum, transport and battery in that order, in Board and List.\nBattery percentage remains readable inside the smaller gauge. Exact\nheartbeat age and Fresh/Stale labels remain in the link hint and inspector\ndiagnostics. The card uses measured Wi-Fi strength arcs, or the actual Ethernet/\nUSB transport symbol. No percentage is permanently repeated beside Wi-Fi.\nThe battery outline fills to PX4's reported percentage, shown inside; a bolt\nmeans current, fault-free charging evidence. Unknown charge is a dash, not an\nempty battery or a voltage-based estimate. Hover the instruments for voltage,\nSSID and reported signal. Keyboard focus announces phase, readiness, the first\nissue, battery and link; Enter opens full details. Focus never puts a tooltip\nover aircraft warnings. Tap the card for details on touch devices. Cached\nmeasurements have a dotted underline and the shared stale/link marker; their\nhints and inspection retain explicit last-known provenance.\nThe inspector also shows the **Configured IP**; this is an address\nfrom the shared fleet model, not proof that the aircraft is reachable. The\ncurrent state/mode and any active mission appear below. Only actual issues add\nwarning text. Tap/click the card for satellites, voltage and full measurements.\nThe **Network** detail names the companion-reported primary transport: Wi-Fi,\nEthernet, cellular or USB network. Its icon matches the transport; only current\nWi-Fi evidence shows a signal percentage. Older companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet",
       "title": "Overview operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
-      "content_hash": "f25cef82b23390ab6e563442d3e2bfc749af2fe21944ddb5178615290ac1aa1c",
+      "content_hash": "7259f0cf2bef416cc791edd62399997724f2efbf9e372c2cff3d20c28611fb35",
       "heading": "Check the aircraft",
       "id": "mds.dashboard_operator:002-03-check-the-aircraft",
       "links": [],
@@ -6669,7 +6669,7 @@
         "operations",
         "selection"
       ],
-      "text": "to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
+      "text": "lder companions without a primary\nlink show their single known transport or **Multiple links** rather than guessing\nwhich is in use. Missing evidence stays **Unknown**; stale transport is marked\n**last known**. This is not proof of Internet latency or the VPN's route.\nUnavailable card measurements use a dash, never an invented zero. Altitude\nprecision adapts to scale; its datum and full reading remain in the hint.\nSmall badges on the schematic distinguish initialization, stale/missing link\nevidence and ground readiness. A severity-prioritized alert marker shows the\ncondition count; clicking it opens the same aircraft inspector with the full\nreasons near the top. Viewing a condition does not acknowledge or clear it.\n\n![Aircraft state and alert badges, shown using synthetic examples](../assets/operator-overview/state-gallery-dark.png)\n\n![Aircraft alert reasons remain in the identity-scoped inspector](../assets/operator-overview/aircraft-alerts-dark.png)\nFlight modes use names; raw codes remain in inspection diagnostics. Wi-Fi signal\nis drawn only when a fresh heartbeat actually reports it, not as inferred radio\nrange, packet-delivery rate or end-to-end latency. A clock replaces stale signal;\nunknown strength is marked with a question mark rather than zero bars.\n\nA brief refresh/link failure immediately ages the underlying evidence and may\nshow a neutral clock or unknown flight state; it does not immediately create a\nlarge warning. Routine link attention requires three seconds of persistence,\nthen two seconds of stable recovery to clear. Already-offline evidence, native\nPX4 conditions and urgent battery alerts are not delayed. Raw facts remain in\naircraft details throughout. These presentation delays do not extend the\n10-second stale/60-second Available windows or relax any command/flight checks.\nFailed configuration refresh is not labelled a telemetry outage. With a cached\nroster, a lone failed configuration refresh stays quiet; repeated failures warn.",
       "title": "Overview operator guide"
     },
     {
@@ -16676,7 +16676,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
-      "content_hash": "8124dab9b5aef97dd9e6dd274266ab2382b40c186efec1143582cabd13ae83aa",
+      "content_hash": "6105abf84b59d245315513050fd8cf602890d6da91fc091dc2744130774b2d32",
       "heading": "5. Prepare, save, verify",
       "id": "mds.logs_operator_workflow:006-01-5-prepare-save-verify",
       "links": [],
@@ -16689,13 +16689,13 @@
         "logs",
         "diagnostics"
       ],
-      "text": "## 5. Prepare, save, verify\n\n![Ready transfer and explicit Save file control](../assets/log-workspace/guide-06-ready-save-1440-dark.png)\n\nSelect **Prepare download** with the aircraft grounded/disarmed under its native\nrecorder policy. Transfers appears below the workspace. Once **Ready to save**,\nselect **Save file**. If a creation response is lost, **Check receipt** recovers\nthe existing request; it never silently starts another download. Returning to\nLogs restores context-bound transfer metadata. Closing a dialog is not cancel.\n**Not started** means a verified rejection before staging: resolve the displayed\nreason, then explicitly prepare again. A timeout or generic error stays\nunconfirmed; it is not permission to repeat creation automatically.\n\nCheck that the file actually finished saving before asking someone to switch off\nthe aircraft. Ready and Browser download requested do **not** verify the saved\nbytes. Evidence tooling additionally checks expected size, ULog header and hash.",
+      "text": "## 5. Prepare, save, verify\n\n![Ready transfer and explicit Save file control](../assets/log-workspace/guide-06-ready-save-1440-dark.png)\n\nSelect **Download** with the aircraft grounded and disarmed under its recorder\npolicy. Continue working anywhere in the dashboard and open **ULog transfers**\nto see the aircraft read, GCS copy, verification, and any reconnection. Reloading\nthe dashboard recovers the same request. If the first response is lost, MDS\nlooks up that request and does not repeat aircraft staging.\n\nWhen you see **Ready to save**, choose **Save file**. The verified copy stays on\nthe GCS until its transfer expires or you remove it. It can be saved with the\naircraft offline. Use your browser’s Downloads view to check final save progress\nor resume an interrupted save. If the aircraft read fails or the transfer\nexpires, use **Retry aircraft read** after checking the connection.\n\n**View summary** opens the bounded PX4 metrics for the verified copy when it is\nready. Review the reported coverage and recording gaps. The raw file stays\navailable if the parser fails. **Open file** reads a local `.ulg` through the\nbounded upload parser. Viewer accounts can request a derived onboard summary.",
       "title": "Logs operator workflow"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
-      "content_hash": "06ff76b1dd210a6d02a29b3ca2a1fd829b1948f24176886aeb0a8f560d805e52",
+      "content_hash": "c9219615adf3e2d7e50356f75628724938be2b008de8b3ad5c8d04743c8b3ffd",
       "heading": "Unavailable aircraft and maintenance",
       "id": "mds.logs_operator_workflow:007-01-unavailable-aircraft-and-maintenance",
       "links": [],
@@ -16708,7 +16708,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "## Unavailable aircraft and maintenance\n\n- With no aircraft selected/connected, GCS history and **Open file** remain useful.\n An unavailable inventory means unknown, not zero files.\n- Stale data remains last observed; it never grants write/erase authority.\n Retry the selected source rather than changing identity implicitly.\n- **Remove staged copy** affects only the prepared transfer, not recorder originals.\n **Maintenance → Erase onboard logs** is a separate admin-only action with an\n exact-aircraft confirmation. It cannot be undone here; verify empty inventory.\n- Raw downloads/erase are operator maintenance, not optional assistant/MCP tools.\n\nFor installation, API limits, security policy and diagnostics see the\n[logging system guide](logging-system.md). New history/recovery behavior requires\nupdated GCS and companion source; it does not itself refresh a pinned SITL image.",
+      "text": "## Unavailable aircraft and maintenance\n\n- With no aircraft selected/connected, GCS history and **Open file** remain useful.\n An unavailable inventory means unknown, not zero files.\n- Stale data remains last observed; it never grants write/erase authority.\n Retry the selected source rather than changing identity implicitly.\n- **Remove copy** deletes the verified GCS copy. Recorder originals stay on the aircraft.\n **Maintenance → Erase onboard logs** is a separate admin-only action with an\n exact-aircraft confirmation. It cannot be undone here; verify empty inventory.\n- Raw downloads/erase are operator maintenance, not optional assistant/MCP tools.\n\nFor installation, API limits, security policy and diagnostics see the\n[logging system guide](logging-system.md). New history/recovery behavior requires\nupdated GCS and companion source; it does not itself refresh a pinned SITL image.",
       "title": "Logs operator workflow"
     },
     {
@@ -17701,7 +17701,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.dashboard_operator/markdown",
       "chunk_count": 14,
-      "content_hash": "4c5b9285a4a8241ab267b997242c69a6d6cd988768073bf75f3096edea643273",
+      "content_hash": "b5cd69444a40505a12adb7e5ffaaacf98f5830ba7b195d02ff60f75b81e58b96",
       "id": "mds.dashboard_operator",
       "mime_type": "text/markdown",
       "path": "docs/guides/dashboard-operator.md",
@@ -17858,7 +17858,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
       "chunk_count": 7,
-      "content_hash": "650bba71aeb3fa951ecae38e72dafe51a59d89188e42944cc1349ccd45782a08",
+      "content_hash": "9e2147abbab017fd06615b61d6aa5f61ab732f515405dee045380f0265d7acdc",
       "id": "mds.logs_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",

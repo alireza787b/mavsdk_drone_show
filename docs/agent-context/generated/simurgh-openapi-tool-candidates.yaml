@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 232
+candidate_count: 233
 candidates:
 - callable: false
   classification:
@@ -32,6 +32,14 @@ candidates:
     schema:
       title: Job Id
       type: string
+  - description: ''
+    in: query
+    name: gcs_copy
+    required: false
+    schema:
+      default: false
+      title: Gcs Copy
+      type: boolean
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -613,6 +621,14 @@ candidates:
     schema:
       title: Job Id
       type: string
+  - description: ''
+    in: query
+    name: gcs_copy
+    required: false
+    schema:
+      default: false
+      title: Gcs Copy
+      type: boolean
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -630,6 +646,55 @@ candidates:
     operation_id: download_drone_ulog_content_api_logs_drone__drone_id__ulog_downloads__job_id__content_get
     path: /api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content
     summary: Download Drone Ulog Content
+    tags:
+    - Logs
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - logs
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - drone-local log route
+    - keyword:download
+    - stream/download/binary artifact route
+  has_request_body: false
+  id: candidate.gcs.get.api.logs.drone.by.drone.id.ulog.downloads.by.job.id.summary
+  parameters:
+  - description: ''
+    in: path
+    name: drone_id
+    required: true
+    schema:
+      title: Drone Id
+      type: integer
+  - description: ''
+    in: path
+    name: job_id
+    required: true
+    schema:
+      title: Job Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/OnboardUlogSummaryResponse'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: summarize_verified_ulog_api_logs_drone__drone_id__ulog_downloads__job_id__summary_get
+    path: /api/logs/drone/{drone_id}/ulog/downloads/{job_id}/summary
+    summary: Summarize Verified Ulog
     tags:
     - Logs
 - callable: false
@@ -5738,6 +5803,34 @@ candidates:
       minimum: 0
       title: Log Id
       type: integer
+  - description: ''
+    in: query
+    name: gcs_copy
+    required: false
+    schema:
+      default: false
+      title: Gcs Copy
+      type: boolean
+  - description: ''
+    in: query
+    name: expected_size
+    required: false
+    schema:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      title: Expected Size
+  - description: ''
+    in: query
+    name: expected_date
+    required: false
+    schema:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      title: Expected Date
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -9167,7 +9260,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: f355548e8b39a6e986b7ea47450e220cf2941df5e4d68e34e2e6b487065de0ba
+  openapi_sha256: cf1675a8f0efc05a5ea85b83638ec64c712aaabee85a554a3f52fbdce4671c19
   title: GCS Server API
   version: '5.5'
 summary:
