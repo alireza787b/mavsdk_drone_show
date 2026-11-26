@@ -102,6 +102,11 @@ export const summarizeUploadedUlog = async file => {
   return resp.data;
 };
 
+export const listVerifiedUlogCopies = async () => {
+  const response = await fetchGcsResource(buildLogsUrl('/ulog/copies'), { timeout: 15000 });
+  return response.data;
+};
+
 export const getVerifiedUlogSummary = async (droneId, jobId) => {
   const response = await fetchGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}/summary`),

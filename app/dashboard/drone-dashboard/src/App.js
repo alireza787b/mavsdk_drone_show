@@ -145,6 +145,8 @@ const AppShell = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const runtimeStatus = useGcsRuntimeStatus();
   const auth = useAuth();
+  const trustedDemo = auth.status?.dashboard_auth_enabled === false && auth.status?.api_auth_enabled === false;
+  const logRole = auth.role || (trustedDemo ? 'operator' : 'viewer');
 
   useEffect(() => {
     const handleResize = () => {
@@ -186,7 +188,7 @@ const AppShell = () => {
   return (
     <ObservationProvider key={`${runtimeStatus.mode}:${auth.user?.id || auth.user?.username || 'session'}:${auth.role || ''}`}>
     <CommandActivityProvider>
-    <UlogTransferProvider runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username}>
+    <UlogTransferProvider userRole={logRole} runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username}>
     <Router
       future={{
         v7_startTransition: true,
@@ -231,7 +233,7 @@ const AppShell = () => {
                 />
                 <div className={contentClassName}>
                   <SyncWarningBanner />
-                  <UlogTransferCenter userRole={auth.role || 'viewer'} />
+                  <UlogTransferCenter userRole={logRole} />
                   <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /><RouteDocsShortcut /></div>
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
@@ -261,7 +263,7 @@ const AppShell = () => {
                       <Route path="/runtime-admin" element={<RuntimeAdminPage />} />
                       <Route path="/environments" element={<EnvironmentsPage />} />
                       <Route path="/simurgh" element={<SimurghOperatorPage />} />
-                      <Route path="/logs" element={<LogViewer runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} userRole={auth.role || 'viewer'} />} />
+                      <Route path="/logs" element={<LogViewer runtimeMode={runtimeStatus.mode} operatorId={auth.user?.id || auth.user?.username || ''} userRole={logRole} />} />
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 
                       {/* Backward-compatible alias used by workflow guidance */}

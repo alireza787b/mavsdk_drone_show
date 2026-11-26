@@ -44,7 +44,8 @@ def gcs(tmp_path, monkeypatch):
         request.state.mds_auth_context = {
             "kind": "session", "role": request.headers.get("test-role", "operator"),
             "username": request.headers.get("test-actor", "alice"),
-            "sid": "fixture-session",
+            "sid": request.headers.get("test-session", "fixture-session"),
+            "user": {"created_at": request.headers.get("test-account-created", "original")},
         }
         return await call_next(request)
 
@@ -129,7 +130,7 @@ async def test_copy_resumes_browser_at_exact_offset_after_aircraft_and_gcs_resta
         assert (await client.get(path + "/summary", headers={"test-role": "viewer"})).status_code == 403
         assert (await client.delete(path + "?gcs_copy=true")).status_code == 200
         assert (await client.get(RECEIPT)).json()["job"]["status"] == "expired"
-        assert (await client.get(content)).status_code == 409
+        assert (await client.get(content)).status_code == 404
         assert calls == ["create", "content", "content"]
 
 
@@ -161,3 +162,47 @@ async def test_low_disk_space_refuses_copy_before_opening_aircraft_stream(gcs, m
         assert job["status"] == "failed"
         assert "insufficient free space" in job["error"]
         assert calls == ["create"]
+
+
+@pytest.mark.asyncio
+async def test_queued_copy_finishes_with_no_browser_polling(gcs, monkeypatch):
+    app, copies = gcs
+    install_node(monkeypatch, VALID)
+    copies.slots = asyncio.Semaphore(0)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        accepted = await client.post(BASE + "/files/9/download",
+                                     params={"gcs_copy": "true"},
+                                     json={"request_id": "test-copy"})
+        assert accepted.status_code == 200
+        handle = accepted.json()["job"]["job_id"]
+    # The page can close before the GCS slot becomes available.
+    copies.slots.release()
+    await asyncio.wait_for(asyncio.gather(*copies.tasks.values()), 5)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as reopened:
+        result = await reopened.get(BASE + "/downloads/" + handle + "/content?gcs_copy=true")
+    assert result.content == VALID
+
+
+@pytest.mark.asyncio
+async def test_verified_copy_is_recoverable_after_sign_in_and_30_minute_node_expiry(gcs, monkeypatch):
+    app, copies = gcs
+    install_node(monkeypatch, VALID)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        job, path = await prepare(client, copies, len(VALID))
+        assert job["expires_at"] - job["updated_at"] == 7 * 24 * 60 * 60 * 1000
+        assert job["job_id"].startswith("copy-")
+        now = job["updated_at"] + 24 * 60 * 60 * 1000
+        monkeypatch.setattr(ulog_copies, "_now", lambda: now)
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda _: None)
+        list_path = "/api/logs/ulog/copies"
+        session = {"test-session": "new-session"}
+        result = await client.get(list_path, headers=session)
+        assert result.json()[0]["job"] == job
+        assert (await client.get(path + "/content?gcs_copy=true", headers=session)).content == VALID
+        assert (await client.get(list_path, headers={"test-actor": "other"})).json() == []
+        assert (await client.get(list_path, headers={"test-account-created": "replacement"})).json() == []
+        assert (await client.get(list_path, headers={"test-role": "viewer"})).status_code == 403
+        assert (await client.get(path + "/content?gcs_copy=true", headers={"test-actor": "other"})).status_code == 404
+        now = job["expires_at"] + 1
+        assert (await client.get(list_path, headers=session)).json() == []
+        assert (await client.get(path + "/content?gcs_copy=true", headers=session)).status_code == 404

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import useUlogTransfers from './useUlogTransfers';
 import * as service from '../../services/logService';
-jest.mock('../../services/logService', () => ({ createDroneUlogDownloadJob: jest.fn(), getDroneUlogDownloadJob: jest.fn(), getDroneUlogDownloadRequest: jest.fn(), deleteDroneUlogDownloadJob: jest.fn() }));
+jest.mock('../../services/logService', () => ({ createDroneUlogDownloadJob: jest.fn(), getDroneUlogDownloadJob: jest.fn(), getDroneUlogDownloadRequest: jest.fn(), deleteDroneUlogDownloadJob: jest.fn(), listVerifiedUlogCopies: jest.fn() }));
 const KEY = 'ulog-test';
 const job = status => ({ job_id: 'signed-handle', hw_id: '1', log_id: 7, status, size_bytes: 1024, updated_at: 1, expires_at: Date.now() + 60000 });
 beforeEach(() => {
@@ -118,4 +118,13 @@ test('recovery polls the same managed receipt after a transient status failure',
   expect(result.current.records[0].error).toBe('');
   expect(service.getDroneUlogDownloadRequest.mock.calls).toEqual([['1', 'reconnect'], ['1', 'reconnect']]);
   expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
+});
+
+test('a fresh browser restores retained copies from the account without another aircraft read', async () => {
+  const retainedJob = { ...job('ready'), job_id: 'copy-fixture', date_utc: '2026-11-12T10:00:00Z' };
+  service.listVerifiedUlogCopies.mockResolvedValue([{ request_id: 'retained', job: retainedJob }]);
+  const { result } = renderHook(() => useUlogTransfers(KEY, true));
+  await waitFor(() => expect(result.current.records[0]?.job).toEqual(retainedJob));
+  expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
+  expect(result.current.records[0]).toMatchObject({ verified: true, aircraftLabel: 'H1', logDate: retainedJob.date_utc });
 });

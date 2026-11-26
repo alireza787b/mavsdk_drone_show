@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ConfirmDialog, OperatorNotice, PageActionBar } from '../ui';
+import { FiDownloadCloud, FiFileText, FiFolder, FiRefreshCw } from 'react-icons/fi';
+import { ActionIconButton, ConfirmDialog, OperatorNotice, PageActionBar } from '../ui';
 import { getDroneUlogFiles, getDroneUlogPolicy, eraseAllDroneUlogs } from '../../services/logService';
 import { formatBytes } from '../../utilities/logViewerUtils';
 import { logError, recordTime } from '../../features/log-workspace/logWorkspace';
-import { transferPending } from '../../features/log-workspace/useUlogTransfers';
+import { transferPending, transferStatus } from '../../features/log-workspace/useUlogTransfers';
+import { UlogSaveLink } from './UlogTransferActivity';
 
 export default function FlightLogsWorkspace({ droneId, sourceLabel, userRole, transfers }) {
   const [files, setFiles] = useState([]), [policy, setPolicy] = useState(null), [capability, setCapability] = useState(null);
@@ -52,9 +54,12 @@ export default function FlightLogsWorkspace({ droneId, sourceLabel, userRole, tr
     finally { eraseLock.current = false; if (mounted.current) setEraseBusy(false); }
   };
   return <section className="logs-flight" aria-label="Flight logs">
-    <div className="logs-flight-toolbar"><span>{droneId == null ? 'Choose an aircraft' : !inventoryObserved ? status === 'loading' ? 'Loading inventory' : 'Inventory unavailable' : `${files.length} files · ${status === 'loading' ? 'last observed · refreshing inventory' : status === 'stale' ? 'last observed · inventory unavailable' : 'inventory observed'}`}</span>
-      <PageActionBar primary={<button type="button" className="operator-button operator-button--ghost" disabled={droneId == null || status === 'loading'} onClick={refresh}>Refresh</button>}
-        secondary={<button type="button" className="operator-button operator-button--ghost" disabled={summaryBusy} onClick={() => fileInput.current?.click()}>{summaryBusy ? 'Reading summary…' : 'Open file'}</button>} />
+    <div className="logs-flight-toolbar"><span>{droneId == null ? 'Choose an aircraft' : status === 'loading' ? 'Loading logs…'
+      : status === 'stale' ? 'Aircraft logs unavailable' : inventoryObserved ? `${files.length} logs` : ''}</span>
+      <PageActionBar primary={<ActionIconButton icon={<FiRefreshCw />} label="Refresh logs" title="Refresh logs"
+        disabled={droneId == null || status === 'loading'} onClick={refresh} />}
+        secondary={<ActionIconButton icon={<FiFolder />} label="Open file" disabled={summaryBusy}
+          onClick={() => fileInput.current?.click()}>Open file</ActionIconButton>} />
       <input ref={fileInput} type="file" accept=".ulg" aria-label="Open local ULog file" className="logs-visually-hidden" onChange={openFile} />
     </div>
     {error && <OperatorNotice tone="warning" title="Flight-log request unavailable">{error}</OperatorNotice>}
@@ -63,29 +68,32 @@ export default function FlightLogsWorkspace({ droneId, sourceLabel, userRole, tr
     <div className="logs-file-list">
       {files.map(file => {
         const otherTransferActive = activeTransfer && activeTransfer.logId !== file.id;
-        return <article className="logs-file-row" key={file.id}>
-        <div className="logs-file-meta">
-          <strong>Log {file.id}</strong>
-          <time>{recordTime(file.date_utc)}</time>
-          <span>{Number.isFinite(file.size_bytes) ? formatBytes(file.size_bytes) : 'Size unknown'}</span>
-        </div>
-        <div className="logs-file-actions">
-          {canTransfer && <button type="button" className="operator-button operator-button--primary"
-            disabled={!canPrepare || transfers.busy || otherTransferActive}
-            aria-label={`Download log ${file.id}`} onClick={() => prepare(file, false)}>Download</button>}
-          <button type="button" className="operator-button operator-button--ghost"
-            disabled={canTransfer ? !canPrepare || transfers.busy || otherTransferActive : summaryBusy || status !== 'loaded'}
-            aria-label={`View summary for log ${file.id}`}
-            onClick={() => canTransfer ? prepare(file, true) : transfers.analyzeOnboard(droneId, file.id, `${sourceLabel} · Log ${file.id}`)}>
-            View summary
-          </button>
-        </div>
-      </article>;
+        const ready = transfers.records.find(record => record.verified && record.droneId === String(droneId)
+          && record.logId === file.id && record.logDate === file.date_utc && transferStatus(record) === 'ready');
+        return (
+          <article className="logs-file-row" key={file.id}>
+            <div className="logs-file-meta">
+              <strong>Log {file.id}</strong>
+              <time>{recordTime(file.date_utc)}</time>
+              <span>{Number.isFinite(file.size_bytes) ? formatBytes(file.size_bytes) : 'Size unknown'}</span>
+            </div>
+            <div className="logs-file-actions">
+              {canTransfer && (ready ? <UlogSaveLink record={ready} onSave={transfers.browserRequested} />
+                : <ActionIconButton icon={<FiDownloadCloud />} tone="info" label={`Get log ${file.id}`}
+                  title="Copy to GCS" disabled={!canPrepare || transfers.busy || otherTransferActive}
+                  onClick={() => prepare(file, false)}>Get log</ActionIconButton>)}
+              <ActionIconButton icon={<FiFileText />} label={`View summary for log ${file.id}`}
+                disabled={ready ? summaryBusy : canTransfer ? !canPrepare || transfers.busy || otherTransferActive : summaryBusy || status !== 'loaded'}
+                onClick={() => canTransfer ? ready ? transfers.analyzeTransfer(ready) : prepare(file, true)
+                  : transfers.analyzeOnboard(droneId, file.id, `${sourceLabel} · Log ${file.id}`)}>
+                Summary
+              </ActionIconButton>
+            </div>
+          </article>
+        );
       })}
-      {!files.length && <p className="logs-empty">{status === 'loading' ? 'Loading flight records…' : droneId == null ? 'Select one aircraft for onboard flight records, or open a local file.' : status === 'stale' ? 'Inventory unavailable.' : 'No files reported in this inventory.'}</p>}
+      {!files.length && status !== 'loading' && status !== 'stale' && droneId != null && <p className="logs-empty">No logs reported.</p>}
     </div>
-    <details className="logs-details"><summary>Recorder capability & policy</summary><dl className="logs-facts"><dt>Storage</dt><dd>{policy?.storage_mode || 'Unknown'}</dd><dt>Download admission</dt><dd>{policy ? policy.download_requires_disarmed ? 'Native disarm required' : 'Native policy' : 'Unknown'}</dd><dt>Single-file erase</dt><dd>{policy?.single_delete_supported === true ? 'Supported by node' : 'Not offered'}</dd></dl>
-      {policy?.notes?.map(note => <p key={note}>{note}</p>)}</details>
     {userRole === 'admin' && <details className="logs-details"><summary>Maintenance</summary><button type="button" className="operator-button operator-button--danger" disabled={!files.length || status !== 'loaded' || !policy?.erase_all_supported || transfers.pending || transfers.busy || eraseBusy}
       onClick={() => { setErase({ droneId, label: sourceLabel, count: files.length }); setEraseText(''); }}>Erase onboard logs</button></details>}
     {erase && <ConfirmDialog appearance="console" open tone="danger" title="Erase onboard logs?" cancelLabel="Cancel" confirmLabel="Erase onboard logs" busy={eraseBusy} onCancel={() => setErase(null)} onConfirm={eraseAll}

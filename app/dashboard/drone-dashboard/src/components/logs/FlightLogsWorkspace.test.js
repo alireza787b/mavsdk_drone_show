@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FlightLogsWorkspace from './FlightLogsWorkspace';
 import UlogTransferActivity from './UlogTransferActivity';
 import { UlogTransferCenter, UlogTransferProvider } from './UlogTransferCenter';
@@ -25,7 +25,7 @@ test('viewer can inspect/derive a summary but cannot prepare or erase; absent me
     duration_evidence: { source: 'requested_topic_timestamps', lower_bound: true, timestamp_scan_complete: false }, commands: { vehicle_command: { samples: 3 } } });
   renderWithTransfers({ droneId: '1', sourceLabel: 'ALPHA · H1', userRole: 'viewer' });
   const summary = await screen.findByRole('button', { name: 'View summary for log 7' });
-  expect(screen.queryByRole('button', { name: 'Download log 7' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Get log 7' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Erase onboard logs' })).not.toBeInTheDocument();
   fireEvent.click(summary);
   expect(await screen.findByText('42 s · partial / lower bound')).toBeInTheDocument();
@@ -35,7 +35,7 @@ test('viewer can inspect/derive a summary but cannot prepare or erase; absent me
 test('explicit preparation binds the selected file and aircraft, not an inventory index', async () => {
   const ledger = transfers();
   render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="operator" transfers={ledger} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Download log 7' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Get log 7' }));
   expect(ledger.start).toHaveBeenCalledWith({ droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1',
     expectedSize: 1024, logDate: '2026-11-12T10:00:00Z', wantsSummary: false });
   expect(service.eraseAllDroneUlogs).not.toHaveBeenCalled();
@@ -51,7 +51,7 @@ test('admin erase is separately confirmed, pending-locked, frozen, and acceptanc
   let resolve;
   service.eraseAllDroneUlogs.mockImplementation(() => new Promise(done => { resolve = done; }));
   render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="admin" transfers={transfers()} />);
-  await screen.findByRole('button', { name: 'Download log 7' });
+  await screen.findByRole('button', { name: 'Get log 7' });
   fireEvent.click(screen.getByText('Maintenance'));
   fireEvent.click(screen.getByRole('button', { name: 'Erase onboard logs', exact: true }));
   const review = screen.getByRole('dialog', { name: 'Erase onboard logs?' });
@@ -77,9 +77,34 @@ test('an unobserved or failed catalog is never reported as zero onboard files', 
   let reject;
   service.getDroneUlogFiles.mockImplementation(() => new Promise((resolve, fail) => { reject = fail; }));
   render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="operator" transfers={transfers()} />);
-  expect(screen.getByText('Loading inventory')).toBeInTheDocument();
+  expect(screen.getByText('Loading logs…')).toBeInTheDocument();
   expect(screen.queryByText(/^0 files/)).not.toBeInTheDocument();
   reject(new Error('Inventory transport unavailable'));
-  expect(await screen.findAllByText('Inventory unavailable')).not.toHaveLength(0);
+  expect(await screen.findAllByText('Aircraft logs unavailable')).not.toHaveLength(0);
   expect(screen.queryByText(/^0 files/)).not.toBeInTheDocument();
+});
+
+test('a verified copy replaces Get log with one-click Save file', async () => {
+  const ledger = { ...transfers(), records: [{
+    requestId: 'request', droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1',
+    logDate: '2026-11-12T10:00:00Z', verified: true,
+    job: { job_id: 'signed', status: 'ready', expires_at: Date.now() + 60000 },
+  }] };
+  render(<FlightLogsWorkspace droneId="1" sourceLabel="ALPHA · H1" userRole="operator" transfers={ledger} />);
+  expect(await screen.findByRole('link', { name: 'Save file' })).toHaveAttribute('href', '/fixture/1/signed');
+  expect(screen.queryByRole('button', { name: 'Get log 7' })).not.toBeInTheDocument();
+});
+
+test('Remove GCS copy waits for confirmation before deleting', async () => {
+  const record = {
+    requestId: 'request', droneId: '1', logId: 7, aircraftLabel: 'ALPHA · H1', verified: true,
+    job: { job_id: 'signed', status: 'ready', expires_at: Date.now() + 60000 },
+  };
+  const ledger = { ...transfers(), records: [record] };
+  render(<UlogTransferActivity transfers={ledger} userRole="operator" now={Date.now()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove GCS copy' }));
+  expect(ledger.remove).not.toHaveBeenCalled();
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove GCS copy?' })).getByRole('button', { name: 'Remove' }));
+  expect(ledger.remove).toHaveBeenCalledWith(record);
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });

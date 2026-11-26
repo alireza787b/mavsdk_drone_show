@@ -21,7 +21,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Path as ApiPath, Query, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Path as ApiPath, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from mds_logging.api_schemas import (
@@ -60,10 +60,14 @@ def _actor_ulog_copy(request: Request, drone_id: int, job_id: str):
     from ulog_copies import get_ulog_copies
     from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
 
+    copies = get_ulog_copies()
+    if job_id.startswith("copy-"):
+        owner = require_raw_ulog_actor(request, account_scope=True)
+        key, metadata = copies.owned_copy(job_id, owner, drone_id)
+        return copies, key, metadata["expires_at"]
     owner = require_raw_ulog_actor(request)
     resolved = resolve_ulog_job_handle(job_id, drone_id=drone_id, owner_fingerprint=owner)
-    copies = get_ulog_copies()
-    return copies, copies.key(owner, drone_id, resolved.node_job_id)
+    return copies, copies.key(owner, drone_id, resolved.node_job_id), resolved.expires_at_ms
 
 
 def create_log_router(
@@ -393,6 +397,7 @@ def create_log_router(
             return await service.create(
                 owner, drone_id, log_id, ip, body, gcs_copy=gcs_copy,
                 expected_size=expected_size, expected_date=expected_date,
+                copy_owner=require_raw_ulog_actor(request, account_scope=True) if gcs_copy else None,
             )
         except UlogRequestConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -400,6 +405,15 @@ def create_log_router(
             raise HTTPException(status_code=503, detail={
                 "request_id": body.request_id, "creation_status": "unknown", "message": str(exc),
             }) from exc
+
+    @router.get("/ulog/copies", response_model=list[UlogDownloadCreateResponse])
+    async def list_verified_ulog_copies(request: Request, response: Response):
+        """List retained GCS copies owned by the signed-in operator."""
+        from ulog_copies import get_ulog_copies
+        from ulog_job_handles import require_raw_ulog_actor
+
+        response.headers["Cache-Control"] = "private, no-store"
+        return get_ulog_copies().list_owner(require_raw_ulog_actor(request, account_scope=True))
 
     @router.get(
         "/drone/{drone_id}/ulog/download-requests/{request_id}",
@@ -476,19 +490,16 @@ def create_log_router(
         )
         from ulog_job_handles import require_raw_ulog_actor, resolve_ulog_job_handle
 
+        if gcs_copy:
+            copies, key, expires_at = _actor_ulog_copy(request, drone_id, job_id)
+            copies.delete(key, expires_at)
+            return {"status": "deleted", "job_id": job_id, "timestamp": int(time.time() * 1000)}
         owner = require_raw_ulog_actor(request)
         resolved = resolve_ulog_job_handle(
             job_id,
             drone_id=drone_id,
             owner_fingerprint=owner,
         )
-        if gcs_copy:
-            from ulog_copies import get_ulog_copies
-
-            copies = get_ulog_copies()
-            key = copies.key(owner, drone_id, resolved.node_job_id)
-            copies.delete(key, resolved.expires_at_ms)
-            return {"status": "deleted", "job_id": job_id, "timestamp": int(time.time() * 1000)}
         ip = resolve_drone_ip(drone_id)
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
@@ -523,7 +534,7 @@ def create_log_router(
         if gcs_copy:
             from ulog_copies import VerifiedUlogResponse
 
-            copies, key = _actor_ulog_copy(request, drone_id, job_id)
+            copies, key, _ = _actor_ulog_copy(request, drone_id, job_id)
             return VerifiedUlogResponse(copies.lease(key))
         owner = require_raw_ulog_actor(request)
         resolved = resolve_ulog_job_handle(
@@ -600,7 +611,7 @@ def create_log_router(
         from mds_logging.ulog_analysis import UlogSummaryError, UlogSummaryTimeoutError, summarize_ulog_file_async
         from src.ulog_proxy_policy import drone_ulog_summary_timeout_seconds
 
-        copies, key = _actor_ulog_copy(request, drone_id, job_id)
+        copies, key, _ = _actor_ulog_copy(request, drone_id, job_id)
         try:
             with copies.lease(key) as (path, meta):
                 summary = await summarize_ulog_file_async(

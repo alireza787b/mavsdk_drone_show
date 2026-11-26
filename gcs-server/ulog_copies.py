@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import time
 from collections import Counter
@@ -30,6 +31,10 @@ from ulog_job_handles import resolve_ulog_job_handle
 logger = logging.getLogger(__name__)
 MAGIC = b"ULog\x01\x12\x35"
 MAX_ACTIVE = 4
+MAX_QUEUED = 16
+MAX_RETAINED = 128
+RETAIN_MS = 7 * 24 * 60 * 60 * 1000
+_COPY_ID_PATTERN = re.compile(r"copy-([0-9a-f]{64})")
 
 
 def _now() -> int:
@@ -48,6 +53,7 @@ class GcsUlogCopies:
         self.leases: Counter[str] = Counter()
         self.reserved: dict[str, int] = {}
         self.next_sweep = 0.0
+        self.slots = asyncio.Semaphore(MAX_ACTIVE)
 
     @staticmethod
     def key(owner: str, drone_id: int, node_job_id: str) -> str:
@@ -87,6 +93,35 @@ class GcsUlogCopies:
             pass
         return None
 
+    def owned_copy(self, copy_id: str, owner: str, drone_id: int) -> tuple[str, dict]:
+        match = _COPY_ID_PATTERN.fullmatch(copy_id)
+        if match:
+            key = match.group(1)
+            meta = self.metadata(key)
+            if meta and not meta.get("deleted") and meta.get("owner") == owner and meta.get("hw_id") == str(drone_id):
+                return key, meta
+        raise HTTPException(404, "This GCS copy has expired or was removed.")
+
+    def list_owner(self, owner: str) -> list[dict]:
+        self.sweep()
+        results = []
+        for file in self.root.glob("*.json"):
+            meta = self.metadata(file.stem)
+            if meta and not meta.get("deleted") and meta.get("owner") == owner:
+                results.append({"request_id": meta["request_id"], "job": self._ready_job(file.stem, meta),
+                                "timestamp": meta["verified_at"]})
+        return sorted(results, key=lambda record: record["timestamp"], reverse=True)
+
+    @staticmethod
+    def _ready_job(key: str, meta: dict) -> OnboardUlogDownloadJob:
+        return OnboardUlogDownloadJob(
+            job_id=f"copy-{key}", hw_id=meta["hw_id"], log_id=meta["log_id"],
+            pos_id=meta["pos_id"], date_utc=meta["date_utc"], download_filename=meta["filename"],
+            size_bytes=meta["size"], bytes_received=meta["size"], status="ready",
+            phase="verified", progress=1.0, created_at=meta["created_at"],
+            updated_at=meta["verified_at"], expires_at=meta["expires_at"],
+        )
+
     @contextmanager
     def lease(self, key: str):
         self.sweep()
@@ -125,35 +160,54 @@ class GcsUlogCopies:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def watch(self, owner: str, drone_id: int, job: OnboardUlogDownloadJob,
-              ip: str, expected_size: int | None, expected_date: str | None) -> OnboardUlogDownloadJob:
+              ip: str, expected_size: int | None, expected_date: str | None, *,
+              node_job_id: str, request_id: str, copy_owner: str | None) -> OnboardUlogDownloadJob:
         self.sweep()
-        if job.expires_at and job.expires_at <= _now():
-            return job.model_copy(update={"status": "expired"})
-        resolved = resolve_ulog_job_handle(job.job_id, drone_id=drone_id, owner_fingerprint=owner)
-        key = self.key(owner, drone_id, resolved.node_job_id)
+        key = self.key(owner, drone_id, node_job_id)
         metadata = self.metadata(key)
         if metadata and metadata.get("deleted"):
             return job.model_copy(update={"status": "expired", "phase": None, "error": "The GCS copy was removed."})
         if metadata:
+            if copy_owner and metadata.get("owner") == copy_owner:
+                return self._ready_job(key, metadata)
             return job.model_copy(update={
                 "status": "ready", "phase": "verified", "progress": 1.0,
                 "size_bytes": metadata["size"], "bytes_received": metadata["size"],
                 "updated_at": metadata["verified_at"], "error": None,
             })
+        if job.expires_at and job.expires_at <= _now():
+            return job.model_copy(update={"status": "expired"})
         if expected_date and job.date_utc != expected_date:
             return job.model_copy(update={"status": "failed", "phase": None, "error": "The aircraft now lists a different log under this ID. Refresh its inventory."})
         if key not in self.jobs:
-            if len(self.tasks) >= MAX_ACTIVE:
-                return job.model_copy(update={"status": "queued", "phase": "waiting", "progress": 0.0})
-            self.jobs[key] = job.model_copy(update={"status": "queued", "phase": "aircraft", "progress": 0.0})
-            task = asyncio.create_task(self._prepare(key, ip, resolved, job, expected_size))
+            if len(self.tasks) >= MAX_ACTIVE + MAX_QUEUED:
+                return job.model_copy(update={
+                    "status": "queued", "phase": "waiting", "progress": 0.0,
+                    "error": "The GCS queue is full. Keep this tab open until the transfer is queued.",
+                })
+            resolved = resolve_ulog_job_handle(job.job_id, drone_id=drone_id, owner_fingerprint=owner)
+            phase = "waiting" if len(self.tasks) >= MAX_ACTIVE else "aircraft"
+            self.jobs[key] = job.model_copy(update={"status": "queued", "phase": phase, "progress": 0.0})
+            identity = {"owner": copy_owner, "request_id": request_id} if copy_owner else {}
+            task = asyncio.create_task(self._run_queued(key, ip, resolved, job, expected_size, identity))
             self.tasks[key] = task
         return self.jobs[key]
 
     def _state(self, key: str, **updates) -> None:
         self.jobs[key] = self.jobs[key].model_copy(update={"updated_at": _now(), **updates})
 
-    async def _prepare(self, key, ip, resolved, original, expected_size) -> None:
+    async def _run_queued(self, key, ip, resolved, job, expected_size, identity) -> None:
+        try:
+            async with self.slots:
+                if job.expires_at and job.expires_at <= _now():
+                    self._state(key, status="expired", phase=None)
+                    return
+                self._state(key, phase="aircraft")
+                await self._prepare(key, ip, resolved, job, expected_size, identity)
+        finally:
+            self.tasks.pop(key, None)
+
+    async def _prepare(self, key, ip, resolved, original, expected_size, identity) -> None:
         from log_proxy import (
             DroneProxyResponseError, DroneProxyUnavailableError, fetch_drone_ulog_download_job,
         )
@@ -200,13 +254,15 @@ class GcsUlogCopies:
                 if expected_size and expected_size != total:
                     raise InvalidCopy(f"Incomplete log. Inventory listed {expected_size:,} bytes and the aircraft staged {total:,}.")
                 self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
-                used = sum(path.stat().st_size for path in self.root.glob("*.ulg"))
-                if used + sum(self.reserved.values()) + total > ulog_download_aggregate_max_bytes():
+                staged = list(self.root.glob("*.ulg"))
+                used = sum(path.stat().st_size for path in staged)
+                if (len(staged) + len(self.reserved) >= MAX_RETAINED
+                        or used + sum(self.reserved.values()) + total > ulog_download_aggregate_max_bytes()):
                     raise InvalidCopy("GCS log storage is full. Remove a prepared copy or wait for it to expire.")
                 self.reserved[key] = total
                 for retry in range(3):
                     try:
-                        await self._copy(key, ip, resolved, original, total, deadline)
+                        await self._copy(key, ip, resolved, original, total, deadline, identity)
                         return
                     except (DroneProxyUnavailableError, DroneProxyResponseError, httpx.TransportError) as exc:
                         if retry == 2 or getattr(exc, "status_code", None) in {404, 410}:
@@ -222,11 +278,10 @@ class GcsUlogCopies:
             self._state(key, status="failed", phase=None, error="The GCS could not prepare this log. Check storage and retry.")
         finally:
             self.reserved.pop(key, None)
-            self.tasks.pop(key, None)
             (self.root / f"{key}.part").unlink(missing_ok=True)
             (self.root / f"{key}.tmp").unlink(missing_ok=True)
 
-    async def _copy(self, key, ip, resolved, original, total, deadline):
+    async def _copy(self, key, ip, resolved, original, total, deadline, identity):
         from log_proxy import open_drone_ulog_download_stream
 
         if shutil.disk_usage(self.root).free < total + ulog_download_min_free_bytes():
@@ -262,9 +317,11 @@ class GcsUlogCopies:
                 await upstream.aclose()
             finally:
                 await client.aclose()
+        verified_at = _now()
         metadata = {
-            "size": count, "sha256": digest.hexdigest(), "verified_at": _now(),
-            "expires_at": original.expires_at or deadline,
+            **identity, "hw_id": original.hw_id, "created_at": original.created_at,
+            "size": count, "sha256": digest.hexdigest(), "verified_at": verified_at,
+            "expires_at": verified_at + RETAIN_MS if identity else original.expires_at or deadline,
             "filename": Path(original.download_filename or f"PX4-H{original.hw_id}-{original.log_id}.ulg").name,
             "log_id": original.log_id, "date_utc": original.date_utc, "pos_id": original.pos_id,
         }

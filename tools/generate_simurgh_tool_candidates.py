@@ -55,6 +55,9 @@ def canonicalize_openapi_schema(value: Any) -> Any:
         return int(value)
     return value
 MANUAL_UNSAFE_ROUTE_REASONS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("GET", "/api/logs/ulog/copies"): (
+        "operator account's retained raw ULog copies are dashboard-only",
+    ),
     ("GET", "/api/logs/drone/{drone_id}/ulog/download-requests/{request_id}"): (
         "actor-bound raw-download recovery may return a signed content handle; dashboard-only, not model evidence",
     ),

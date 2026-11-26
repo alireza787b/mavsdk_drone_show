@@ -1,15 +1,13 @@
 # Logs: operator workflow
 
 Open **Logs** in the sidebar. Start with the tab matching your task; GCS is the
-initial source. These screenshots use synthetic aircraft, not a live fleet.
-
-[Full-resolution six-step walkthrough](../assets/log-workspace/operator-guide.png)
+initial source. The screenshots use synthetic aircraft.
 
 | Task | Tab | Next action |
 |---|---|---|
 | Understand a current message | Live | Select a record |
 | Review/export recorded MDS events | Sessions | Choose session → Export |
-| Retrieve a PX4 recorder file | Flight logs | Choose aircraft → Inspect file |
+| Retrieve a PX4 recorder file | Flight logs | Choose aircraft → Get log |
 
 ## 1. Watch current events
 
@@ -38,36 +36,55 @@ ignores current filters; **Current filters** exports all matching records, not
 just the current page. Select JSONL or ZIP; multiple sessions use ZIP. A skipped
 record count means coverage is incomplete. Narrow an oversized export.
 
-## 4. Choose a flight record
+## 4. Get a flight log
 
-![Flight recorder inventory](../assets/log-workspace/guide-04-inventory-1440-dark.png)
+![Flight logs with Get log and Summary actions beside each recording](../assets/log-workspace/guide-04-inventory-1440-dark.png)
 
-In **Flight logs**, choose one aircraft by callsign/hardware ID, then **Refresh**.
-Inspect the intended record; file metadata time is not guaranteed takeoff time.
-**Summary** reads bounded local metrics, with missing/partial evidence labelled.
-**Open file** instead reads a local `.ulg` through the same temporary parser; it
-does not need an aircraft or send the file to an external provider.
+Open **Flight logs**, choose a connected, disarmed aircraft, and select **Get
+log** beside the recording. The file time is the recorder's metadata time.
+MDS starts an aircraft-to-GCS transfer and opens **Log transfers**.
 
-## 5. Prepare, save, verify
+![A phone showing bytes and percentage while a flight log is copied](../assets/log-workspace/guide-05-transfer-390-light.png)
 
-![Ready transfer and explicit Save file control](../assets/log-workspace/guide-06-ready-save-1440-dark.png)
+Once MDS shows **Reading from aircraft**, **Queued**, or **Copying to GCS**,
+you can switch pages or close the tab. Reopen MDS in the same browser and
+login session, then open **Log transfers**. Keep the aircraft connected until
+you see **Ready to save**. If the queue is full, keep the tab open until
+the transfer is queued. If MDS shows **Reconnecting**, it checks the
+existing request. If the aircraft read fails or the transfer expires, check
+the connection and select **Retry**.
 
-Select **Download** with the aircraft grounded and disarmed under its recorder
-policy. Continue working anywhere in the dashboard and open **ULog transfers**
-to see the aircraft read, GCS copy, verification, and any reconnection. Reloading
-the dashboard recovers the same request. If the first response is lost, MDS
-looks up that request and does not repeat aircraft staging.
+## 5. Save, summarize, or remove a GCS copy
 
-When you see **Ready to save**, choose **Save file**. The verified copy stays on
-the GCS until its transfer expires or you remove it. It can be saved with the
-aircraft offline. Use your browser’s Downloads view to check final save progress
-or resume an interrupted save. If the aircraft read fails or the transfer
-expires, use **Retry aircraft read** after checking the connection.
+![A ready transfer with Save file, Summary, Remove GCS copy, and the time left](../assets/log-workspace/guide-06-ready-save-390-light.png)
 
-**View summary** opens the bounded PX4 metrics for the verified copy when it is
-ready. Review the reported coverage and recording gaps. The raw file stays
-available if the parser fails. **Open file** reads a local `.ulg` through the
-bounded upload parser. Viewer accounts can request a derived onboard summary.
+| Control | What it does |
+|---|---|
+| **Save file** | Downloads the verified GCS copy to this device. The aircraft can be offline. The same action appears beside the log if its flight inventory is open. |
+| **Summary** | Reads the GCS copy and displays derived PX4 measurements. If you choose Summary first, MDS gets the log and opens the summary when ready. |
+| Trash icon | Confirm **Remove GCS copy** to free GCS space immediately. Your device's saved files and the aircraft's original remain available. |
+
+Check your browser's **Downloads** list to see when the save finishes or to
+resume an interrupted save. **Save started** means the browser received the
+request. Save important recordings before removing the GCS copy or before its
+countdown ends.
+
+Verified copies stay on the GCS for **seven days after they're ready**. Open
+**Log transfers** from the same operator account after signing back in, even
+in a different browser. MDS shows the time left and frees the space on expiry.
+The default limits are 512 MiB per file and 1 GiB total. If storage is full,
+save and remove copies you no longer need before getting more. Existing copies
+keep their retention period. An expired or removed copy can be retrieved again
+while the aircraft still has the original.
+
+If the GCS restarts during an aircraft transfer, return to **Log transfers**
+in the original browser session to recover the request. Verified copies
+survive a normal GCS restart.
+
+Summary shows measured values and flags incomplete coverage. A summary error
+leaves the verified file available. **Open file** sends a local `.ulg` to your
+GCS's temporary parser. Viewer accounts can request an onboard summary, and
+operator or admin accounts can retrieve and save raw files.
 
 ## Unavailable aircraft and maintenance
 
@@ -81,5 +98,4 @@ bounded upload parser. Viewer accounts can request a derived onboard summary.
 - Raw downloads/erase are operator maintenance, not optional assistant/MCP tools.
 
 For installation, API limits, security policy and diagnostics see the
-[logging system guide](logging-system.md). New history/recovery behavior requires
-updated GCS and companion source; it does not itself refresh a pinned SITL image.
+[logging system guide](logging-system.md).
