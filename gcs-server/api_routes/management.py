@@ -1,5 +1,6 @@
 """GCS management and network helper routes."""
 
+import asyncio
 import os
 import shlex
 import subprocess
@@ -540,10 +541,9 @@ def _list_sitl_instance_count(deps: Any) -> int | None:
         service = SitlControlService(deps.Params)
 
     try:
-        summary = service.list_instances()
+        return service.count_instances()
     except Exception:
         return None
-    return int(getattr(summary, "total_instances", 0) or 0)
 
 
 def _schedule_gcs_restart(*, target_mode: str) -> bool:
@@ -920,7 +920,7 @@ def create_management_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/v1/system/gcs-config", response_model=GCSConfigResponse, tags=["GCS Management"])
-    async def get_gcs_config():
+    def get_gcs_config():
         """Get the current GCS runtime configuration surface exposed to the UI."""
         try:
             return _build_gcs_config_response(deps)
@@ -928,7 +928,7 @@ def create_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/system/runtime-status", response_model=RuntimeStatusResponse, tags=["GCS Management"])
-    async def get_runtime_status():
+    def get_runtime_status():
         """Get the canonical runtime/admin status surface exposed to operators and agents."""
         try:
             return _build_runtime_status_response(deps)
@@ -1175,7 +1175,7 @@ def create_management_router(deps: Any) -> APIRouter:
                 )
 
             if runtime_mode.mode == "sitl" and configured_mode == "real":
-                sitl_instance_count = _list_sitl_instance_count(deps)
+                sitl_instance_count = await asyncio.to_thread(_list_sitl_instance_count, deps)
                 if sitl_instance_count:
                     warnings.append(
                         f"{sitl_instance_count} SITL instance(s) are still running. Their mode-tagged heartbeats will be ignored after restart, but the containers themselves are not stopped automatically."
@@ -1218,7 +1218,7 @@ def create_management_router(deps: Any) -> APIRouter:
     async def apply_runtime_update():
         """Schedule a constrained GCS fast-forward update when the checkout is safe to mutate in place."""
         try:
-            runtime_status = _build_runtime_status_response(deps)
+            runtime_status = await asyncio.to_thread(_build_runtime_status_response, deps)
             current_commit = runtime_status.repo_sync_status.commit
             tracking_branch = runtime_status.repo_sync_status.tracking_branch
             warnings: list[str] = []

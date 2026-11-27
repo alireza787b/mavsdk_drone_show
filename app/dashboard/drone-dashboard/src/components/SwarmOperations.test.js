@@ -325,3 +325,15 @@ test('failed preview keeps formation but does not present cached flight or prefl
     expect(screen.getAllByText(/Heading estimate unstable/).length).toBeGreaterThan(0);
   } finally { jest.useRealTimers(); }
 });
+
+
+test('immediate RTL retains reviewed targets when the formation preview is unavailable', async () => {
+  await mounted();
+  fireEvent.click(screen.getByRole('button', { name: 'Other actions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Immediate RTL' }));
+  const dialog = screen.getByRole('dialog');
+  fetchGcsResource.mockRejectedValue(new Error('preview unavailable'));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm Immediate RTL' }));
+  await waitFor(() => expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+    expect.objectContaining({ mission_type: 104, target_drone_ids: ['1', '2'] }), expect.anything()));
+});

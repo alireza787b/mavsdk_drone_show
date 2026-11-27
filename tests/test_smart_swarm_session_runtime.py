@@ -132,6 +132,7 @@ def test_follower_pilot_takeover_latches_and_cannot_reengage(mode):
     authority = ControlAuthority()
     authority.update_armed(True)
     authority.expect('OFFBOARD', now=10)
+    authority.accept_offboard_request(now=10)
     authority.update_mode('OFFBOARD', leader=False, now=10)
     authority.update_mode(mode, leader=False, now=11)
     assert authority.takeover_reason
@@ -147,6 +148,7 @@ def test_leader_manual_modes_and_internal_failover_hold_are_not_takeover():
         assert authority.takeover_reason is None
     assert authority.never_requested_follower_control()
     authority.expect('OFFBOARD')
+    authority.accept_offboard_request()
     authority.update_mode('OFFBOARD', leader=False)
     authority.expect('HOLD')
     authority.update_mode('HOLD', leader=False)
@@ -164,6 +166,7 @@ def test_role_change_does_not_claim_an_action_offboard_session():
     authority.update_mode('HOLD', leader=False)
     assert authority.takeover_reason is None
     authority.expect('OFFBOARD')
+    authority.accept_offboard_request()
     authority.update_mode('OFFBOARD', leader=False)
     assert authority.owns_fresh_offboard()
 
@@ -187,6 +190,7 @@ def test_stale_mode_cannot_authorize_follower_control():
     authority = ControlAuthority()
     authority.update_armed(True)
     authority.expect('OFFBOARD', now=10)
+    authority.accept_offboard_request(now=10)
     authority.update_mode('OFFBOARD', leader=False, now=10)
     assert authority.owns_fresh_offboard(now=12)
     assert not authority.owns_fresh_offboard(now=13)

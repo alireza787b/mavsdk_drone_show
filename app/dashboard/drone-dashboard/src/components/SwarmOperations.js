@@ -1,3 +1,4 @@
+import SwarmHeightAdvisory from './SwarmHeightAdvisory';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaArrowUp, FaPlay, FaPause, FaEllipsisH, FaLayerGroup, FaLink } from 'react-icons/fa';
 import { fetchGcsResource } from '../services/gcsApiService';
@@ -10,6 +11,8 @@ import { holdNodeStatus, memberFlightState, memberLabel, movementSummary } from 
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
+import { LeaderLinkDetails, readLeaderLink } from './SwarmLinkObservation';
+import useObservationClock from '../hooks/useObservationClock';
 import SwarmFormationSource from './SwarmFormationSource';
 import TakeoffDialog from './TakeoffDialog';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
@@ -59,9 +62,10 @@ export default function SwarmOperations() {
     let live = true;
     let timer;
     const poll = async () => {
+      const requestedAtMs = Date.now();
       try {
         const response = await fetchGcsResource(PREVIEW);
-        if (live) { setPreview({ ...response.data, receivedAtMs: Date.now() }); setPreviewError(false); }
+        if (live) { setPreview({ ...response.data, receivedAtMs: Date.now(), requestedAtMs }); setPreviewError(false); }
       } catch (_) { if (live) setPreviewError(true); }
       finally { if (live) timer = setTimeout(poll, 2000); }
     };
@@ -160,6 +164,12 @@ export default function SwarmOperations() {
     ? `Partial · ${runtime.active_hw_ids?.length || 0}/${ids.length} engaged`
     : RUNTIME_LABELS[runtime.state]) : null;
   const evidenceNow = (preview?.observed_at_ms || Date.now()) + Math.max(0, Date.now() - (preview?.receivedAtMs || Date.now()));
+  const now = useObservationClock();
+  const linkNow = Number.isFinite(preview?.observed_at_ms)
+    ? preview.observed_at_ms + Math.max(0, now - preview.requestedAtMs) : null;
+  const links = Object.fromEntries(members.map(member => [member.hw_id, readLeaderLink(
+    member, preview?.runtime_nodes?.[member.hw_id]?.command_id, linkNow,
+  )]));
   const nodeStatuses = Object.fromEntries(members.map((member) => {
     const evidence = preview?.runtime_nodes?.[member.hw_id];
     return [member.hw_id, evidence ? swarmNodeStatus(member, evidence.report, {
@@ -220,7 +230,7 @@ export default function SwarmOperations() {
       const check = swarmStartReadiness([...reviewed.targets, ...(reviewed.references || [])], evidence?.decisions, evidence?.until || 0);
       if (!check.ready) throw new Error(check.label);
     }
-    setPreview({ ...current, receivedAtMs: Date.now() });
+    setPreview({ ...current, receivedAtMs: Date.now(), requestedAtMs: requestedAt });
     return true;
   };
   const send = async () => {
@@ -249,7 +259,8 @@ export default function SwarmOperations() {
         if (busyOwner.current === operation) setConfirmation(null);
         return;
       }
-      await freshReview(reviewed);
+      // Immediate native RTL keeps its reviewed recipients even if formation preview is unavailable.
+      if (reviewed.action !== 'rtl') await freshReview(reviewed);
       if (scope.current !== sendScope || intentEpoch.current !== sendEpoch) return;
       let command = { mission_type: TYPES[reviewed.action], trigger_time: 0,
         target_drone_ids: reviewed.targets, idempotency_key: reviewed.key,
@@ -356,6 +367,7 @@ export default function SwarmOperations() {
           disabled={!commandScope.initialized || Boolean(confirmation) || busy}
           onOpen={() => setChoosingRecipients(true)} />
       </div>
+      <SwarmHeightAdvisory warning={cluster?.altitude_warning} targetIds={commandScope.ids} aircraft={members} receivedAtMs={preview?.receivedAtMs} />
       <div className="swarm-ops__actions">
         <button type="button" className="operator-button operator-button--ghost"
           disabled={busy || !canCommand} onClick={() => review('takeoff')}><FaArrowUp aria-hidden="true" /> Takeoff</button>
@@ -365,6 +377,7 @@ export default function SwarmOperations() {
           title="Hold the entire displayed cluster, regardless of To" onClick={holdSwarm}><FaPause aria-hidden="true" /> {holdBusy ? 'Sending Hold…' : 'Hold all'}</button>
         <SequentialReturnControl targetIds={commandScope.ids} targetNames={commandScope.ids.map(id => memberLabel(members.find(m => m.hw_id === id) || { hw_id: id }))}
           compact contextKey={contextKey} buttonLabel="Managed Return" disabled={!canCommand}
+          onReviewImmediateReturn={() => review('rtl')}
           aircraftStates={states} validateReview={async () => {
             const epoch = intentEpoch.current;
             await freshReview({ clusterId: selection.id, revision: preview.revision, targets: commandScope.ids });
@@ -372,14 +385,16 @@ export default function SwarmOperations() {
             setHoldReceipt(null);
           }} />
       </div>
-      <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
+      <SwarmClusterDiagram members={members} links={links} selectedId={inspectedId} onSelect={setInspectedId}
+        heightWarning={cluster?.altitude_warning} heightIds={commandScope.ids} heightReceivedAtMs={preview?.receivedAtMs}
         statuses={Object.fromEntries(members.map((m) => {
           const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
           return [m.hw_id, { ...node,
-            label: `${heldScope ? '' : `${states[m.hw_id]} · `}${node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
+            label: `${heldScope ? '' : `${states[m.hw_id]}${node.tone === 'neutral' ? '' : ' · '}`}${node.tone === 'neutral' ? '' : node.label}${m.available && Number.isFinite(m.battery_remaining) ? ` · ${Math.round(m.battery_remaining)}%` : ''}` }];
         }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
+        <LeaderLinkDetails follow={inspected.follow} observation={links[inspectedId]} />
         {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
         <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
       </div>}
@@ -401,7 +416,7 @@ export default function SwarmOperations() {
         command={confirmation ? { mission_type: 10, trigger_time: 0, target_drone_ids: confirmation.targets,
           idempotency_key: confirmation.key, takeoff_altitude: height,
           uiMeta: { operatorLabel: 'Takeoff', targetLabel: `Cluster ${confirmation.clusterId}` } } : null}
-        aircraft={members} beforeSubmit={payload => freshReview({ ...confirmation, targets: payload.target_drone_ids })}
+        heightAdvisory={cluster?.altitude_warning} advisoryReceivedAtMs={preview?.receivedAtMs} aircraft={members} beforeSubmit={payload => freshReview({ ...confirmation, targets: payload.target_drone_ids })}
         onAccepted={payload => commandScope.choose(payload.target_drone_ids)} onClose={() => setConfirmation(null)} />
       <ConfirmDialog appearance="console" open={Boolean(confirmation) && confirmation.action !== 'takeoff'} title={confirmation ? LABELS[confirmation.action] : 'Confirm'}
         confirmDisabled={confirmation?.action === 'start' && (!pendingStart || pendingStart.needsReview) && !startReadiness.ready}
@@ -417,6 +432,7 @@ export default function SwarmOperations() {
           <strong title={`${confirmation.targets.length} aircraft`}>{swarmNamesSummary(confirmation.targets.map((id) => memberLabel(members.find((m) => m.hw_id === id) || { hw_id: id })))}</strong>
           <small title={`Not commanded: ${swarmNamesSummary(members.filter(m => !confirmation.targets.includes(m.hw_id)).map(memberLabel)) || 'None'}`}>
             {confirmation.targets.length}/{members.length} aircraft</small>
+          {confirmation.action === 'start' && <SwarmHeightAdvisory warning={cluster?.altitude_warning} targetIds={confirmation.targets} referenceIds={confirmation.references || []} aircraft={members} receivedAtMs={preview?.receivedAtMs} />}
           {confirmation.action === 'start' && <><StatusBadge tone={startReadiness.ready && (!pendingStart || pendingStart.needsReview) ? 'success' : 'warning'}>
             {pendingStart && !pendingStart.needsReview ? 'Checking command' : startReadiness.label}</StatusBadge>
             {(confirmation.references || []).length > 0 && <small className="swarm-ops__references" title="Read-only leader references. No command is sent to these aircraft."><FaLink aria-hidden="true" /> Leader reference: {swarmNamesSummary(confirmation.references.map(id => members.find(m => m.hw_id === id)?.callsign || `H${id}`))}</small>}

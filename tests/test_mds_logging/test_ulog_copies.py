@@ -206,3 +206,123 @@ async def test_verified_copy_is_recoverable_after_sign_in_and_30_minute_node_exp
         now = job["expires_at"] + 1
         assert (await client.get(list_path, headers=session)).json() == []
         assert (await client.get(path + "/content?gcs_copy=true", headers=session)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_retained_companion_records_after_disconnect_and_restart(gcs, monkeypatch):
+    from datetime import datetime, timezone
+
+    app, copies = gcs
+    install_node(monkeypatch, VALID)
+    start = int(datetime(2026, 3, 19, 10, 0, 3, tzinfo=timezone.utc).timestamp() * 1000)
+    session = "s_20260319_100000"
+    offline = False
+
+    async def summary(path, **kwargs):
+        # The fleet operator reassigns this hardware a new address after the raw copy.
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda _: "192.0.2.55")
+        assert kwargs["include_timeline"]
+        return {"parsed": True, "timeline": {"start_utc_ms": start, "end_utc_ms": start + 3000}}
+
+    async def sessions(_ip):
+        assert _ip == "192.0.2.55"
+        assert not offline
+        return {"sessions": [{"session_id": session, "modified": (start + 3000) / 1000}]}
+
+    async def page(_ip, file_session, **query):
+        assert _ip == "192.0.2.55"
+        assert not offline and query["component"] == "smart_swarm.link"
+        assert file_session == session and query["since"] and query["until"]
+        def row(event, offset=100, hw_id="5"):
+            return {"component": "smart_swarm.link", "session_id": session, "drone_id": hw_id,
+                    "msg": "ignored", "extra": {"event": event, "observed_at_ms": start + offset,
+                    "session_id": "command-uuid", "hw_id": hw_id, "schema_version": 1,
+                    "position_age_ms": 17, "unrelated_private_data": "secret"}}
+        return {"schema_version": "1.1", "has_more": False, "session_id": session,
+                "lines": [row("session_start", 0), row("link_summary", 500), row("link_summary", 4500),
+                          row("mode_requested", 600, "7"), row("session_end", 800)]}
+
+    monkeypatch.setattr(ulog_analysis, "summarize_ulog_file_async", summary)
+    monkeypatch.setattr(log_proxy, "fetch_drone_sessions", sessions)
+    monkeypatch.setattr(log_proxy, "fetch_drone_session_content", page)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        job, path = await prepare(client, copies, len(VALID))
+        offline = True
+        assert job["status"] == "ready"
+        reopened = ulog_copies.GcsUlogCopies(copies.root)
+        monkeypatch.setattr(ulog_copies, "get_ulog_copies", lambda: reopened)
+        assert (await client.get(path + "/summary", headers={"test-actor": "bob"})).status_code == 404
+        result = await client.get(path + "/summary")
+        assert result.status_code == 200
+        assert result.headers["cache-control"] == "private, no-store"
+        evidence = result.json()["companion_evidence"]
+        assert evidence["status"] == "available"
+        assert [r["label"] for r in evidence["events"]] == ["Session started", "Link sample", "Session ended"]
+        assert all(r["session_id"] == session and r["command_id"] == "command-uuid" for r in evidence["events"])
+        assert all(r["metrics"] == {"position_age_ms": 17} for r in evidence["events"])
+        assert "secret" not in result.text
+        assert (await client.delete(path + "?gcs_copy=true")).status_code == 200
+        assert not list(copies.root.glob("*.evidence"))
+
+
+@pytest.mark.asyncio
+async def test_interrupted_capture_retains_raw_and_can_expire_after_restart(gcs, monkeypatch):
+    import ulog_companion_evidence
+
+    app, copies = gcs
+    install_node(monkeypatch, VALID)
+    started = asyncio.Event()
+
+    async def summary(*args, **kwargs):
+        return {"parsed": True, "timeline": {}}
+
+    async def capture(*args):
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(ulog_analysis, "summarize_ulog_file_async", summary)
+    monkeypatch.setattr(ulog_companion_evidence, "collect_companion_evidence", capture)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        result = await client.post(BASE + "/files/9/download", params={"gcs_copy": "true"},
+                                   json={"request_id": "test-copy"})
+        assert result.status_code == 200
+        await asyncio.wait_for(started.wait(), 2)
+        handle = result.json()["job"]["job_id"]
+        assert (await client.get(RECEIPT)).json()["job"]["phase"] == "verify"
+        assert (await client.delete(BASE + "/downloads/" + handle + "?gcs_copy=true")).status_code == 409
+        task, = copies.tasks.values()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        reopened = ulog_copies.GcsUlogCopies(copies.root)
+        monkeypatch.setattr(ulog_copies, "get_ulog_copies", lambda: reopened)
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda _: None)
+        items = (await client.get("/api/logs/ulog/copies")).json()
+        assert len(items) == 1
+        job = items[0]["job"]
+        path = BASE + "/downloads/" + job["job_id"]
+        assert (await client.get(path + "/content?gcs_copy=true")).content == VALID
+        assert (await client.get(path + "/summary")).json()["companion_evidence"]["status"] == "unavailable"
+        monkeypatch.setattr(ulog_copies, "_now", lambda: job["expires_at"] + 1)
+        reopened.next_sweep = 0
+        assert (await client.get("/api/logs/ulog/copies")).json() == []
+        assert not list(copies.root.iterdir())
+
+
+@pytest.mark.asyncio
+async def test_interrupted_queue_reuses_native_job_without_duplicate_create(gcs, monkeypatch):
+    app, copies = gcs
+    calls = install_node(monkeypatch, VALID)
+    copies.slots = asyncio.Semaphore(0)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        accepted = await client.post(BASE + "/files/9/download", params={"gcs_copy": "true"},
+                                     json={"request_id": "test-copy"})
+        assert accepted.status_code == 200
+        await asyncio.sleep(0)
+        task, = copies.tasks.values()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        assert (await client.get(RECEIPT)).json()["job"]["status"] == "queued"
+        copies.slots.release()
+        await asyncio.wait_for(asyncio.gather(*copies.tasks.values()), 5)
+        assert (await client.get(RECEIPT)).json()["job"]["status"] == "ready"
+        assert calls == ["create", "content"]

@@ -63,6 +63,38 @@ def _make_deps():
     )
 
 
+def test_network_status_uses_accepted_heartbeat_receipts(monkeypatch):
+    import heartbeat
+    import api_routes.core as core
+
+    now = 1_800_000_000
+    monkeypatch.setattr(core.time, "time", lambda: now)
+    monkeypatch.setattr(heartbeat, "last_heartbeats", {})
+    monkeypatch.setattr(heartbeat, "network_info_from_heartbeats", {})
+    monkeypatch.setattr(heartbeat, "_resolve_current_runtime_mode", lambda: "sitl")
+    deps = _make_deps()
+    deps.get_all_heartbeats = heartbeat.get_all_heartbeats
+    deps.get_network_info_from_heartbeats = heartbeat.get_network_info_from_heartbeats
+    app = FastAPI()
+    app.include_router(create_core_router(deps))
+    with TestClient(app) as client:
+        route = "/api/v1/fleet/network-status"
+        assert client.get(route).json()["total_drones"] == 0
+        heartbeat.handle_heartbeat_post(3, "8", ip="192.0.2.8", timestamp=99,
+            runtime_mode="sitl", network_info={"internet": {"reachable": False}})
+        heartbeat.handle_heartbeat_post(4, "9", ip="192.0.2.9", timestamp=now * 1000,
+            runtime_mode="sitl")
+        heartbeat.last_heartbeats["9"]["received_at_gcs_ms"] -= 120_000
+        payload = client.get(route).json()
+    assert (payload["total_drones"], payload["reachable_count"]) == (2, 1)
+    assert payload["network_status"]["3"] == {
+        "pos_id": 3, "hw_id": "8", "ip": "192.0.2.8", "reachable": True,
+        "last_check": now * 1000, "packet_loss": None,
+    }
+    assert payload["network_status"]["4"]["reachable"] is False
+    assert payload["network_status"]["4"]["last_check"] == now * 1000 - 120_000
+
+
 def test_core_router_registers_expected_routes():
     deps = _make_deps()
     app = FastAPI()

@@ -82,36 +82,30 @@ class TestFetchDroneSessions:
     @pytest.mark.asyncio
     async def test_fetch_sessions_success(self):
         from log_proxy import fetch_drone_sessions
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.raise_for_status = MagicMock()
-        mock_response.json.return_value = {
-            "sessions": [{"session_id": "s_20260319_100000", "size_bytes": 1024}]
-        }
-
-        with patch("log_proxy.httpx.AsyncClient") as MockClient:
-            client_instance = AsyncMock()
-            client_instance.get = AsyncMock(return_value=mock_response)
-            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-            client_instance.__aexit__ = AsyncMock(return_value=None)
-            MockClient.return_value = client_instance
-
-            result = await fetch_drone_sessions("192.168.1.105")
-            assert result["sessions"][0]["session_id"] == "s_20260319_100000"
+        payload = {"sessions": [{"session_id": "s_20260319_100000", "size_bytes": 1024}]}
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload)))
+        with patch("log_proxy.httpx.AsyncClient", return_value=client):
+            assert await fetch_drone_sessions("192.168.1.105") == payload
 
     @pytest.mark.asyncio
     async def test_fetch_sessions_unreachable(self):
         from log_proxy import fetch_drone_sessions
 
-        with patch("log_proxy.httpx.AsyncClient") as MockClient:
-            client_instance = AsyncMock()
-            client_instance.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
-            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-            client_instance.__aexit__ = AsyncMock(return_value=None)
-            MockClient.return_value = client_instance
+        def offline(request):
+            raise httpx.ConnectError("refused", request=request)
 
-            result = await fetch_drone_sessions("192.168.1.105")
-            assert result is None
+        client = httpx.AsyncClient(transport=httpx.MockTransport(offline))
+        with patch("log_proxy.httpx.AsyncClient", return_value=client):
+            assert await fetch_drone_sessions("192.168.1.105") is None
+
+    @pytest.mark.asyncio
+    async def test_oversized_inventory_is_unavailable(self):
+        from log_proxy import fetch_drone_sessions
+
+        data = b" " * (1024 * 1024) + b'{"sessions":[]}'
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, content=data)))
+        with patch("log_proxy.httpx.AsyncClient", return_value=client):
+            assert await fetch_drone_sessions("192.168.1.105") is None
 
 
 class TestFetchDroneSessionContent:

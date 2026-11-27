@@ -83,6 +83,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
     gcs_branch = (gcs_status or {}).get("branch")
     gcs_commit = (gcs_status or {}).get("commit")
     transformed_git_status = {}
+    branch_only_count = 0
     reviewable_hw_ids = _resolve_reviewable_hw_ids(deps)
 
     with deps.data_lock_git_status:
@@ -123,6 +124,14 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 and raw_status != "dirty"
                 and not raw_data.get("uncommitted_changes")
             )
+
+            if (
+                (reviewable_hw_ids is None or str(hw_id) in reviewable_hw_ids)
+                and gcs_branch and raw_data.get("branch") not in (None, "", "unknown", gcs_branch)
+                and gcs_commit and same_commit_as_gcs and raw_status == "clean"
+                and not raw_data.get("uncommitted_changes")
+            ):
+                branch_only_count += 1
 
             drone_ip = drone_info.get("ip", "unknown")
             raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
@@ -288,6 +297,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
         synced_count=synced_count,
         needs_sync_count=len(reviewable_statuses) - synced_count - unknown_count,
         unknown_count=unknown_count,
+        branch_only_count=branch_only_count,
         gcs_status=gcs_status,
         sync_in_progress=deps._sync_state["active"],
         timestamp=int(time.time() * 1000),

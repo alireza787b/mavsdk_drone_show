@@ -39,6 +39,7 @@ from mds_logging.api_schemas import (
     OnboardUlogListResponse,
     OnboardUlogPolicyResponse,
     OnboardUlogSummaryResponse,
+    RetainedUlogSummaryResponse,
 )
 from mds_logging.registry import get_registry
 from mds_logging.session import list_sessions
@@ -604,21 +605,23 @@ def create_log_router(
 
     @router.get(
         "/drone/{drone_id}/ulog/downloads/{job_id}/summary",
-        response_model=OnboardUlogSummaryResponse,
+        response_model=RetainedUlogSummaryResponse,
     )
-    async def summarize_verified_ulog(request: Request, drone_id: int, job_id: str):
+    async def summarize_verified_ulog(request: Request, response: Response, drone_id: int, job_id: str):
         from log_proxy import _ulog_summary_max_bytes
         from mds_logging.ulog_analysis import UlogSummaryError, UlogSummaryTimeoutError, summarize_ulog_file_async
         from src.ulog_proxy_policy import drone_ulog_summary_timeout_seconds
 
         copies, key, _ = _actor_ulog_copy(request, drone_id, job_id)
+        response.headers["Cache-Control"] = "private, no-store"
         try:
             with copies.lease(key) as (path, meta):
                 summary = await summarize_ulog_file_async(
-                    path, max_bytes=_ulog_summary_max_bytes(),
+                    path, max_bytes=_ulog_summary_max_bytes(), include_timeline=True,
                     timeout_seconds=drone_ulog_summary_timeout_seconds(),
                     source_metadata={"log_id": meta["log_id"], "date_utc": meta["date_utc"], "size_bytes": meta["size"]},
                 )
+                summary["companion_evidence"] = copies.evidence(key)
         except UlogSummaryError as exc:
             raise HTTPException(exc.http_status, str(exc)) from exc
         except UlogSummaryTimeoutError as exc:

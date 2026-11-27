@@ -157,6 +157,29 @@ def reset_swarm_runtime_state(swarm_runtime, monkeypatch):
     swarm_runtime.FOLLOWER_TASKS.clear()
 
 
+@pytest.fixture
+async def reporting_aircraft(swarm_runtime, monkeypatch):
+    mode = ["OFFBOARD"]
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.expect("OFFBOARD")
+    authority.accept_offboard_request()
+    authority.update_mode(mode[0], leader=False)
+    monkeypatch.setattr(swarm_runtime, "CONTROL_AUTHORITY", authority)
+
+    async def heartbeat():
+        while True:
+            authority.update_mode(mode[0], leader=False)
+            await asyncio.sleep(0.001)
+
+    task = asyncio.create_task(heartbeat())
+    try:
+        yield authority, mode
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('mode', ['HOLD', 'RETURN_TO_LAUNCH', 'LAND'])
 async def test_shutdown_without_follower_authority_preserves_pilot_mode(swarm_runtime, monkeypatch, mode):
@@ -186,13 +209,19 @@ async def test_pilot_takeover_during_zero_seed_prevents_offboard_start(swarm_run
 
 
 @pytest.mark.asyncio
-async def test_follower_handover_waits_for_action_motion_lease(swarm_runtime, monkeypatch, tmp_path):
+async def test_follower_handover_waits_for_action_motion_lease(swarm_runtime, monkeypatch, tmp_path, reporting_aircraft):
     from src.mavsdk_server_ownership import MotionControlLease
     monkeypatch.setattr("src.mavsdk_server_ownership.tempfile.gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(swarm_runtime, 'FOLLOWER_MOTION_LEASE', None)
     borrowed = MotionControlLease.acquire(swarm_runtime.Params.DEFAULT_GRPC_PORT)
+    authority, mode = reporting_aircraft
+    authority.follower_owned = False
+    mode[0] = "HOLD"
+    authority.update_mode(mode[0], leader=False)
+    async def start():
+        mode[0] = "OFFBOARD"
     drone = types.SimpleNamespace(offboard=types.SimpleNamespace(
-        set_velocity_body=AsyncMock(), start=AsyncMock()))
+        set_velocity_body=AsyncMock(), start=AsyncMock(side_effect=start)))
     try:
         assert not await swarm_runtime.ensure_offboard_active_for_follower(
             drone, logging.getLogger(__name__), 'role change')
@@ -539,71 +568,102 @@ def test_fresh_position_with_old_heading_does_not_replace_leader(swarm_runtime, 
 
 
 @pytest.mark.asyncio
-async def test_execute_failsafe_stops_offboard_then_holds_without_raw_setpoint(
-    swarm_runtime,
-    monkeypatch,
-):
-    events = []
-
-    class _Offboard:
-        async def stop(self):
-            events.append("offboard.stop")
-
-        async def set_velocity_ned(self, *_args, **_kwargs):
-            events.append("offboard.set_velocity_ned")
-
-    class _Action:
-        async def hold(self):
-            events.append("action.hold")
-
+async def test_handoff_brakes_then_requests_native_hold_once(swarm_runtime, monkeypatch, reporting_aircraft):
     led = Mock()
-    monkeypatch.setattr(
-        swarm_runtime.LEDController,
-        "get_instance",
-        staticmethod(lambda: led),
-    )
-    drone = types.SimpleNamespace(offboard=_Offboard(), action=_Action())
-
+    monkeypatch.setattr(swarm_runtime.LEDController, "get_instance", staticmethod(lambda: led))
+    zeros = Mock()
+    monkeypatch.setattr(swarm_runtime, "VelocityBodyYawspeed", zeros)
+    offboard = types.SimpleNamespace(set_velocity_body=AsyncMock(), stop=AsyncMock())
+    drone = types.SimpleNamespace(offboard=offboard, action=types.SimpleNamespace(hold=AsyncMock()))
     result = await swarm_runtime.execute_failsafe(drone, reason="test leader loss")
-
-    assert events == ["offboard.stop", "action.hold"]
-    assert result.completed is True
+    zeros.assert_called_once_with(0.0, 0.0, 0.0, 0.0)
+    offboard.set_velocity_body.assert_awaited_once_with(zeros.return_value)
+    offboard.stop.assert_awaited_once()
+    drone.action.hold.assert_not_awaited()
+    assert result.completed and result.hold_requested
     led.set_color.assert_called_once_with(255, 0, 0)
 
 
 @pytest.mark.asyncio
-async def test_shutdown_handoff_attempts_hold_after_offboard_stop_timeout(
-    swarm_runtime,
-    monkeypatch,
-):
-    events = []
+async def test_ambiguous_stop_never_retries_hold_or_reenters(swarm_runtime, monkeypatch, reporting_aircraft):
+    authority, mode = reporting_aircraft
+    monkeypatch.setattr(swarm_runtime.LEDController, "get_instance", staticmethod(Mock))
+    stop_sender = Mock()
+    authority._stop_setpoint_sender = stop_sender
+    async def hang():
+        await asyncio.Event().wait()
+    offboard = types.SimpleNamespace(set_velocity_body=AsyncMock(), stop=AsyncMock(side_effect=hang),
+                                     start=AsyncMock())
+    drone = types.SimpleNamespace(offboard=offboard, action=types.SimpleNamespace(hold=AsyncMock()))
+    result = await swarm_runtime.execute_failsafe(drone, operation_timeout_sec=0.02)
+    assert authority.handoff_unconfirmed and not result.completed
+    stop_sender.assert_called_once()
+    mode[0] = "HOLD"
+    assert not await swarm_runtime.ensure_offboard_active_for_follower(drone, logging.getLogger(), "retry")
+    offboard.start.assert_not_awaited()
+    drone.action.hold.assert_not_awaited()
 
-    class _Offboard:
-        async def stop(self):
-            events.append("offboard.stop.started")
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal", ["RETURN_TO_LAUNCH", "LAND"])
+async def test_pilot_takes_over_between_heartbeats_at_hard_stale_boundary(swarm_runtime, monkeypatch, terminal):
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.expect("OFFBOARD")
+    authority.accept_offboard_request()
+    authority.update_mode("OFFBOARD", leader=False)
+    monkeypatch.setattr(swarm_runtime, "CONTROL_AUTHORITY", authority)
+    offboard = types.SimpleNamespace(stop=AsyncMock(), start=AsyncMock(), set_velocity_body=AsyncMock())
+    drone = types.SimpleNamespace(offboard=offboard, action=types.SimpleNamespace(hold=AsyncMock()))
+    task = asyncio.create_task(swarm_runtime.execute_failsafe(drone, reason="control-loop stale leader motion"))
+    await asyncio.sleep(0.005)
+    assert not task.done()
+    authority.update_mode(terminal, leader=False)
+    authority.update_mode("HOLD", leader=False)  # brief report before this coroutine resumes
+    result = await task
+    assert result.control_preserved and not authority.handoff_unconfirmed
+    offboard.stop.assert_not_awaited()
+    drone.action.hold.assert_not_awaited()
+    assert not await swarm_runtime.ensure_offboard_active_for_follower(drone, logging.getLogger(), "recovery")
+    offboard.start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_authority_watchdog_stops_repeating_sender_even_while_control_rpc_is_busy():
+    stop_sender = Mock()
+    authority = ControlAuthority(stop_setpoint_sender=stop_sender)
+    authority.update_armed(True)
+    authority.expect("OFFBOARD")
+    authority.accept_offboard_request()
+    authority.update_mode("OFFBOARD", leader=False, now=time.monotonic() - 3)
+    async with authority.setpoint_lock:
+        await asyncio.wait_for(authority.watch_owned_mode(), 0.1)
+    assert authority.handoff_unconfirmed and not authority.expect("OFFBOARD")
+    stop_sender.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("neutral_delivered", [True, False])
+async def test_silent_mode_during_own_state_loss_ends_cached_sender(swarm_runtime, monkeypatch, neutral_delivered):
+    stop_sender = Mock()
+    authority = ControlAuthority(stop_setpoint_sender=stop_sender)
+    authority.update_armed(True)
+    authority.expect("OFFBOARD")
+    authority.accept_offboard_request()
+    authority.update_mode("OFFBOARD", leader=False)
+    monkeypatch.setattr(swarm_runtime, "CONTROL_AUTHORITY", authority)
+    async def neutral(_):
+        if not neutral_delivered:
             await asyncio.Event().wait()
-
-    class _Action:
-        async def hold(self):
-            events.append("action.hold")
-
-    monkeypatch.setattr(
-        swarm_runtime.LEDController,
-        "get_instance",
-        staticmethod(lambda: Mock()),
-    )
-    drone = types.SimpleNamespace(offboard=_Offboard(), action=_Action())
-
-    result = await swarm_runtime.execute_failsafe(
-        drone,
-        reason="test process shutdown",
-        operation_timeout_sec=0.01,
-    )
-
-    assert events == ["offboard.stop.started", "action.hold"]
-    assert result.offboard_stop_completed is False
-    assert result.hold_requested is True
-    assert result.completed is True
+    offboard = types.SimpleNamespace(set_velocity_body=AsyncMock(side_effect=neutral), stop=AsyncMock())
+    drone = types.SimpleNamespace(offboard=offboard, action=types.SimpleNamespace(hold=AsyncMock()))
+    result = await asyncio.wait_for(swarm_runtime.execute_failsafe(
+        drone, reason="own motion state remained stale", operation_timeout_sec=0.02), 0.2)
+    offboard.set_velocity_body.assert_awaited_once()
+    stop_sender.assert_called_once()
+    assert authority.handoff_unconfirmed and not result.completed and result.observed_mode is None
+    offboard.stop.assert_not_awaited()
+    drone.action.hold.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -833,7 +893,7 @@ async def test_cancel_follower_tasks_does_not_cancel_or_await_calling_task(
 @pytest.mark.asyncio
 async def test_runtime_shutdown_is_ordered_bounded_and_idempotent(
     swarm_runtime,
-    monkeypatch,
+    monkeypatch, reporting_aircraft,
 ):
     events = []
 
@@ -853,6 +913,9 @@ async def test_runtime_shutdown_is_ordered_bounded_and_idempotent(
     )
 
     class _Offboard:
+        async def set_velocity_body(self, _):
+            events.append("brake")
+
         async def stop(self):
             events.append("offboard.stop")
 
@@ -888,12 +951,11 @@ async def test_runtime_shutdown_is_ordered_bounded_and_idempotent(
     assert first_result is True
     assert second_result is True
     assert events.count("offboard.stop") == 1
-    assert events.count("action.hold") == 1
+    assert events.count("action.hold") == 0
     assert events.count("mavsdk.stop") == 1
     assert events.index("leader.cancelled") < events.index("offboard.stop")
     assert events.index("control.cancelled") < events.index("offboard.stop")
-    assert events.index("offboard.stop") < events.index("action.hold")
-    assert events.index("action.hold") < events.index("mavsdk.stop")
+    assert events.index("brake") < events.index("offboard.stop") < events.index("mavsdk.stop")
     assert swarm_runtime.FOLLOWER_TASKS == {}
 
 
@@ -984,6 +1046,142 @@ def test_real_sigterm_stops_setpoints_then_hands_vehicle_to_hold(tmp_path):
     result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
     assert result["events"] == [
         "control.cancelled",
+        "brake",
         "offboard.stop",
-        "action.hold",
     ]
+
+
+@pytest.mark.asyncio
+async def test_link_observer_attributes_sample_and_mode_without_changing_results(swarm_runtime, monkeypatch):
+    sink = Mock()
+    observer = swarm_runtime.LinkEvidence("test-command", logger=sink)
+    monkeypatch.setattr(swarm_runtime, "LINK_EVIDENCE", observer)
+    monkeypatch.setattr(swarm_runtime, "HW_ID", 2)
+    now_ms = int(time.time() * 1000)
+    try:
+        sample = _valid_global_sample(now_ms)
+        assert swarm_runtime.apply_leader_state_sample(sample, "ws")
+        assert not swarm_runtime.apply_leader_state_sample(sample, "http-fallback")
+        assert not swarm_runtime.apply_leader_state_sample({**sample, "hw_id": 99}, "ws")
+        assert (observer.accepted, observer.duplicate, observer.rejected) == (1, 1, 1)
+        assert observer.last_rejection.endswith("leader_mismatch")
+        assert await swarm_runtime._observe_mode_request("hold", "test", asyncio.sleep(0, result=42)) == 42
+        with pytest.raises(asyncio.TimeoutError):
+            await swarm_runtime._observe_mode_request("hold", "test", AsyncMock(side_effect=asyncio.TimeoutError)())
+        with pytest.raises(asyncio.CancelledError):
+            await swarm_runtime._observe_mode_request("hold", "test", AsyncMock(side_effect=asyncio.CancelledError)())
+    finally:
+        observer.close()
+    rows = [call.kwargs["extra"]["mds_extra"] for call in sink.info.call_args_list]
+    assert [row["outcome"] for row in rows if row["event"] == "mode_result"] == ["accepted", "timeout", "cancelled"]
+    assert all(row["event"] != "mode_observed" for row in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("age", "expected"), [(0.3, "HOLD"), (20, None)])
+async def test_terminal_evidence_survives_loss_of_gcs_and_omits_old_mode(swarm_runtime, monkeypatch, age, expected):
+    sink = Mock()
+    observer = swarm_runtime.LinkEvidence("command", logger=sink)
+    monkeypatch.setattr(swarm_runtime, "LinkEvidence", lambda _: observer)
+    monkeypatch.setattr(swarm_runtime, "HW_ID", 2)
+    monkeypatch.setattr(swarm_runtime, "SWARM_CONFIG", {"2": {"hw_id": 2, "follow": 0}})
+    monkeypatch.setattr(swarm_runtime, "clear_runtime_swarm_assignment", Mock())
+
+    async def simulate_px4(lifecycle):
+        authority = ControlAuthority()
+        authority.update_mode("HOLD", leader=True, now=time.monotonic() - age)
+        swarm_runtime.CONTROL_AUTHORITY = authority
+        lifecycle.drone = object()
+
+    monkeypatch.setattr(swarm_runtime, "run_smart_swarm", simulate_px4)
+    monkeypatch.setattr(swarm_runtime.SwarmSessionRuntime, "report", AsyncMock(side_effect=ConnectionError("offline")))
+    with pytest.raises(ConnectionError):
+        await swarm_runtime.run_smart_swarm_process(logging.getLogger(__name__))
+    terminal = sink.info.call_args.kwargs["extra"]["mds_extra"]
+    assert terminal["event"] == "session_end" and terminal.get("mode") == expected
+    assert (terminal.get("mode_age_ms") is None) == (expected is None)
+
+
+@pytest.mark.parametrize("ack_first", [True, False])
+def test_follower_ownership_needs_timely_local_ack_and_offboard_readback(ack_first):
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.update_mode("HOLD", leader=False, now=9)
+    authority.expect("OFFBOARD", now=10)
+    if ack_first:
+        assert authority.accept_offboard_request(now=11)
+    else:
+        authority.update_mode("OFFBOARD", leader=False, now=11)
+    assert not authority.owns_fresh_offboard(now=11)
+    if ack_first:
+        authority.update_mode("OFFBOARD", leader=False, now=12)
+    else:
+        assert authority.accept_offboard_request(now=12)
+    assert authority.owns_fresh_offboard(now=12)
+
+
+@pytest.mark.parametrize("late", ["ack", "mode"])
+def test_late_offboard_cannot_grant_ownership(late):
+    authority = ControlAuthority()
+    authority.update_armed(True)
+    authority.update_mode("HOLD", leader=False, now=9)
+    authority.expect("OFFBOARD", now=10)
+    if late == "mode":
+        assert authority.accept_offboard_request(now=10.5)
+        authority.update_mode("OFFBOARD", leader=False, now=40)
+    else:
+        authority.update_mode("OFFBOARD", leader=False, now=11)
+        assert not authority.accept_offboard_request(now=40)
+    assert not authority.owns_fresh_offboard(now=40)
+    assert authority.handoff_unconfirmed and authority.pending_mode is None
+
+
+def test_external_mode_wins_during_pending_start_even_if_rpc_later_succeeds():
+    stop_sender = Mock()
+    authority = ControlAuthority(stop_setpoint_sender=stop_sender)
+    authority.update_armed(True)
+    authority.update_mode("HOLD", leader=False)
+    authority.expect("OFFBOARD")
+    authority.update_mode("OFFBOARD", leader=False)
+    authority.update_mode("MANUAL", leader=False)
+    authority.update_mode("OFFBOARD", leader=False)
+    assert not authority.accept_offboard_request()
+    assert not authority.owns_fresh_offboard() and authority.pending_mode is None
+    assert authority.takeover_reason and not authority.handoff_unconfirmed
+    stop_sender.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["already", "timeout", "changed_while_priming"])
+async def test_inflight_or_ambiguous_offboard_cannot_take_over(swarm_runtime, monkeypatch, outcome):
+    import smart_swarm_src.control_authority as authority_module
+
+    monkeypatch.setattr(authority_module, "ENTRY_TIMEOUT_SEC", 0.02)
+    monkeypatch.setattr(swarm_runtime, "FOLLOWER_MOTION_LEASE", Mock())
+    stop_sender = Mock()
+    authority = ControlAuthority(stop_setpoint_sender=stop_sender)
+    authority.update_armed(True)
+    authority.update_mode("HOLD", leader=False)
+    monkeypatch.setattr(swarm_runtime, "CONTROL_AUTHORITY", authority)
+    def publish(mode):
+        authority.update_mode(mode, leader=False)
+    async def seed(_):
+        if outcome == "changed_while_priming":
+            publish("MANUAL")
+            publish("HOLD")
+        asyncio.get_running_loop().call_later(0.005, publish, "HOLD")
+    async def start():
+        publish("OFFBOARD")
+        assert not authority.owns_fresh_offboard()
+        if outcome == "already":
+            raise RuntimeError("already in Offboard")
+        await asyncio.Event().wait()
+    offboard = types.SimpleNamespace(set_velocity_body=AsyncMock(side_effect=seed), start=AsyncMock(side_effect=start))
+    result = await asyncio.wait_for(swarm_runtime.ensure_offboard_active_for_follower(
+        types.SimpleNamespace(offboard=offboard), logging.getLogger(), "start or recovery"), 0.3)
+    assert not result
+    assert authority.takeover_reason and authority.pending_mode is None and not authority.owns_fresh_offboard()
+    if outcome == "changed_while_priming":
+        offboard.start.assert_not_awaited()
+    else:
+        stop_sender.assert_called_once()

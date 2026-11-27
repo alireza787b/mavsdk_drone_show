@@ -257,6 +257,16 @@ class SitlControlService:
         finally:
             self._close_client(client)
 
+    def count_instances(self) -> int:
+        """Read inventory identities without fetching per-instance status, logs or image details."""
+        client, _ = self._get_client()
+        if client is None:
+            return 0
+        try:
+            return sum(self._is_relevant_container(c) for c in client.containers.list(all=True, sparse=True))
+        finally:
+            self._close_client(client)
+
     def list_instances(self) -> SitlControlInstanceListResponse:
         client, docker_state = self._get_client()
         if client is None:
@@ -653,19 +663,25 @@ class SitlControlService:
         return False
 
     def _is_relevant_container(self, container: Any) -> bool:
-        name = str(getattr(container, "name", "") or "")
-        attrs = getattr(container, "attrs", {}) or {}
-        env = _env_map(((attrs.get("Config") or {}).get("Env") or []))
-        image_tags = [str(tag) for tag in ((getattr(container, "image", None) and container.image.tags) or [])]
-
-        if _CONTAINER_NAME_PATTERN.match(name):
-            if "MDS_BASE_DIR" in env or "MDS_BRANCH" in env or "MDS_REPO_URL" in env:
+        attrs = container.attrs or {}
+        if "Names" in attrs and "Config" not in attrs:
+            if "mds.sitl.image.repo" in (attrs.get("Labels") or {}):
                 return True
-            if image_tags and any("sitl" in tag.lower() for tag in image_tags):
-                return True
-
-        image_labels = (((attrs.get("Config") or {}).get("Labels") or {}))
-        return "mds.sitl.image.repo" in image_labels
+            if not any(_CONTAINER_NAME_PATTERN.fullmatch(name.lstrip("/")) for name in attrs["Names"]):
+                return False
+            # Old unlabelled drone-N containers require their environment or image tags.
+            container.reload()
+            attrs = container.attrs
+        config = attrs.get("Config") or {}
+        if "mds.sitl.image.repo" in (config.get("Labels") or {}):
+            return True
+        if not _CONTAINER_NAME_PATTERN.fullmatch(str(container.name or "")):
+            return False
+        env = _env_map(config.get("Env") or [])
+        if any(key in env for key in ("MDS_BASE_DIR", "MDS_BRANCH", "MDS_REPO_URL")):
+            return True
+        image = getattr(container, "image", None)
+        return any("sitl" in str(tag).lower() for tag in (image.tags if image else []) or [])
 
     def _summarize_container(self, container: Any) -> SitlControlInstanceSummary:
         attrs = getattr(container, "attrs", {}) or {}

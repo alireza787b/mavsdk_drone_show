@@ -2326,6 +2326,37 @@ class CommandTracker(CoordinatedTakeoffTrackerMixin):
             command = self._commands[command_id]
             return self._command_to_dict(command)
 
+    async def get_recovery_progress(self, command_id, *, idempotency_key=None, dispatch_ids=()):
+        """Read queue evidence without serializing the full command lifecycle payload."""
+        async with self._lock:
+            command = self._commands.get(command_id or self._idempotency_index.get(idempotency_key))
+            submitted = {
+                key: self._commands[key].submitted_at for key in dispatch_ids if key in self._commands
+            }
+            if command is None:
+                return None, submitted
+            return {
+                'command_id': command.command_id,
+                'status': command.status.value,
+                'phase': command.phase.value,
+                'error_summary': command.error_summary,
+                'timeout_at': command.timeout_at,
+                'submitted_at': command.submitted_at,
+                'completed_at': command.completed_at,
+                'execution_started_at': command.execution_started_at,
+                'acks': {
+                    'details': {key: {'category': ack.category, 'message': ack.message}
+                                for key, ack in command.acks.items()},
+                    'rejected': command.acks_rejected,
+                    'offline': command.acks_offline,
+                    'errors': command.acks_errors,
+                },
+                'executions': {'details': {key: {'success': report.success}
+                                           for key, report in command.executions.items()}},
+                'late_reports': {'executions': {'details': {key: {'success': report.success}
+                                                           for key, report in command.late_executions.items()}}},
+            }, submitted
+
     async def get_recent(
         self,
         limit: int = 50,

@@ -3,9 +3,69 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, WrapValidator, model_validator, model_serializer
+
+
+LINK_SUMMARY_INTERVAL_SEC = 5
+
+
+class SwarmLinkObservation(BaseModel):
+    """Advisory producer snapshot. Counts apply to this session and leader only."""
+    model_config = ConfigDict(extra="ignore", strict=True, allow_inf_nan=False)
+    schema_version: Literal[1]
+    session_id: str = Field(min_length=1, max_length=256)
+    hw_id: str
+    leader_hw_id: str
+    observed_at_ms: int = Field(gt=0)
+    valid_until_ms: int = Field(gt=0)
+    state: Literal["fresh", "delayed", "missing"]
+    mode: str | None = None
+    mode_age_ms: int | None = Field(default=None, ge=0)
+    transport: Literal["ws", "http-fallback"] | None = None
+    last_accepted_at_ms: int | None = None
+    position_age_ms: int | None = Field(default=None, ge=0)
+    heading_age_ms: int | None = Field(default=None, ge=0)
+    own_position_age_ms: int | None = Field(default=None, ge=0)
+    own_heading_age_ms: int | None = Field(default=None, ge=0)
+    accepted: int = Field(ge=0)
+    rejected: int = Field(ge=0)
+    duplicate: int = Field(ge=0)
+    fallback_attempts: int = Field(ge=0)
+    max_gap_ms: int | None = Field(default=None, ge=0)
+    last_rejection: str | None = Field(default=None, max_length=100)
+    last_transport_error: str | None = Field(default=None, max_length=100)
+    max_setpoint_gap_ms: int | None = Field(default=None, ge=0)
+    setpoint_count: int | None = Field(default=None, ge=0)
+    max_setpoint_send_ms: int | None = Field(default=None, ge=0)
+    hard_stale_ms: int = Field(gt=0)
+
+    @classmethod
+    def current(cls, value, *, hw_id, follow, now_ms, session_id=None):
+        if not value:
+            return None
+        try:
+            item = cls.model_validate(value)
+        except ValueError:
+            return None
+        if (item.hw_id != str(hw_id) or item.leader_hw_id != str(follow)
+                or (session_id is not None and item.session_id != session_id)
+                or not item.observed_at_ms <= now_ms < item.valid_until_ms
+                or item.valid_until_ms - item.observed_at_ms > 2000 * LINK_SUMMARY_INTERVAL_SEC):
+            return None
+        return item.model_dump(exclude_unset=True)
+
+
+def _optional_observation(value, validate):
+    try:
+        return validate(value)
+    except ValidationError:
+        return None
+
+
+# Mixed-version producers may send unsupported diagnostic fields. Their other telemetry survives.
+OptionalSwarmLinkObservation = Annotated[SwarmLinkObservation | None, WrapValidator(_optional_observation)]
 
 
 class SwarmMember(BaseModel):

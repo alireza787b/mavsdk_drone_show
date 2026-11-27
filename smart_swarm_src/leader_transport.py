@@ -38,22 +38,31 @@ class LeaderStateSupervisor:
     """
 
     def __init__(self, current_target: Callable, target_changed: asyncio.Event,
-                 apply_sample: Callable, policy: LeaderTransportPolicy, *, client=None):
+                 apply_sample: Callable, policy: LeaderTransportPolicy, *, client=None, observe=None):
         self.current_target = current_target
         self.target_changed = target_changed
         self.apply_sample = apply_sample
         self.policy = policy
         self.client = client
+        self.observe = observe
         self.logger = logging.getLogger(__name__)
+
+    def _record(self, target, reason):
+        if self.observe is not None and target == self.current_target():
+            self.observe(reason)
 
     def _offer(self, target, data, source):
         # A response can outlive a role/IP change. Fence immediately before the
         # synchronous admission callback, including changes to the same hw_id/IP.
-        if target != self.current_target() or not isinstance(data, dict) or data.get("error"):
+        if target != self.current_target():
+            return False
+        if not isinstance(data, dict) or data.get("error"):
+            self._record(target, "malformed_sample")
             return False
         try:
             return bool(self.apply_sample(data, source))
         except (ValueError, TypeError, KeyError, OverflowError):
+            self._record(target, "malformed_sample")
             self.logger.debug("Malformed leader motion sample via %s", source, exc_info=True)
             return False
 
@@ -67,13 +76,15 @@ class LeaderStateSupervisor:
         timeout = aiohttp.ClientTimeout(total=self.policy.request_timeout)
         while True:
             await fallback_needed.wait()
+            self._record(target, "fallback_attempt")
             started = asyncio.get_running_loop().time()
             try:
                 async with self.client.get(url, timeout=timeout) as response:
                     response.raise_for_status()
                     data = await response.json()
                 self._offer(target, data, "http-fallback")
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError) as exc:
+                self._record(target, "http_" + type(exc).__name__)
                 self.logger.debug("Leader HTTP fallback unavailable", exc_info=True)
             # Probe duration/backoff never inserts a hole into HTTP acquisition.
             elapsed = asyncio.get_running_loop().time() - started
@@ -108,7 +119,8 @@ class LeaderStateSupervisor:
                     elif message.type in (aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED,
                                           aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSE):
                         raise RuntimeError("Leader motion stream closed")
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, RuntimeError):
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, RuntimeError) as exc:
+                self._record(target, "ws_" + type(exc).__name__)
                 if not unavailable:
                     self.logger.warning("Leader motion stream unavailable; using HTTP fallback when enabled")
                 unavailable = True

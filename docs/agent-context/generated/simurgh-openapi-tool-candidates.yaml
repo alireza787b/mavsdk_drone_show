@@ -688,7 +688,7 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/OnboardUlogSummaryResponse'
+    $ref: '#/components/schemas/RetainedUlogSummaryResponse'
   review_status: needs_review
   source:
     method: GET
@@ -9296,7 +9296,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 7fdb240ed06702d665095a94d9639171241ed442b1237ed7f33e2cdbfcc415a8
+  openapi_sha256: 6e7a8bbaeebe47ab98a19fdd2b3a7b21a5e6213eb641fc99d3d22df598ac2f3e
   title: GCS Server API
   version: '5.5'
 summary:

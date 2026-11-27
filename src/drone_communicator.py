@@ -28,6 +28,7 @@ from src.enums import Mission, State
 from src.telemetry_display import build_altitude_report, build_gps_report
 from src.drone_config import DroneConfig
 from src.params import Params
+from src.smart_swarm_contract import SwarmLinkObservation
 from src.swarm_runtime_state import read_runtime_swarm_assignment
 from src.swarm_state_cache import SwarmAssignmentCache
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
@@ -930,6 +931,11 @@ class DroneCommunicator:
             ),
             "follow_mode": safe_int(safe_get(live_swarm, 'follow')),  # Follow mode in swarm operation
             "smart_swarm_active": live_swarm.get('active') is True,
+            "link_observation": SwarmLinkObservation.current(
+                live_swarm.get("link_observation"), hw_id=self.drone_config.hw_id,
+                follow=live_swarm.get("follow"), now_ms=now_ms,
+                session_id=live_swarm.get("session_id"),
+            ) if live_swarm.get("active") is True and live_swarm.get("session_id") else None,
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
             "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags

@@ -328,6 +328,47 @@ class OnboardUlogSummaryResponse(UlogDerivedSummary):
     timestamp: int = Field(ge=0)
 
 
+class FlightEvidenceEvent(_StrictUlogSummaryModel):
+    kind: Literal["event", "sample"] = "event"
+    utc_ms: NonNegativeUlogInt | None = None
+    source: BoundedUlogName
+    label: BoundedUlogName
+    metrics: dict[BoundedUlogName, bool | int | float | BoundedUlogName] = Field(default_factory=dict, max_length=40)
+
+
+class UlogTimelineEvent(FlightEvidenceEvent):
+    elapsed_ms: NonNegativeUlogInt
+    instance: NonNegativeUlogInt
+
+
+class UlogTimeline(_StrictUlogSummaryModel):
+    start_utc_ms: NonNegativeUlogInt | None = None
+    end_utc_ms: NonNegativeUlogInt | None = None
+    events: list[UlogTimelineEvent] = Field(default_factory=list, max_length=256)
+    truncated: bool = False
+
+
+class CompanionEvidenceEvent(FlightEvidenceEvent):
+    utc_ms: NonNegativeUlogInt
+    session_id: BoundedUlogName
+    command_id: BoundedUlogName | None = None
+
+
+class CompanionEvidence(_StrictUlogSummaryModel):
+    status: Literal["available", "partial", "unavailable"]
+    reason: str | None = Field(default=None, max_length=160)
+    events: list[CompanionEvidenceEvent] = Field(default_factory=list, max_length=128)
+
+
+class RetainedUlogDerivedSummary(UlogDerivedSummary):
+    timeline: UlogTimeline | None = None
+
+
+class RetainedUlogSummaryResponse(OnboardUlogSummaryResponse):
+    timeline: UlogTimeline | None = None
+    companion_evidence: CompanionEvidence | None = None
+
+
 class OnboardUlogDownloadRequest(BaseModel):
     pos_id: int | None = None
     request_id: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$", strict=True)

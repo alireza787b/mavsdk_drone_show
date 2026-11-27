@@ -22,6 +22,11 @@ Do not assume the environment. Detect it first.
 
 ## Non-Negotiables
 
+- Height, GNSS, link and power advisories only present observations. Never wire
+  an advisory to command availability, target selection, acknowledgment,
+  automatic retries or reboot. PX4 owns native admission. Preserve the reviewed
+  direct Return path independently of the optional Managed Return sequence.
+
 - Prefer the existing repo workflows and docs over inventing new ones mid-task.
 - Treat git as the source of truth. Do not normalize `docker commit` as a release workflow.
 - Keep a single source of truth for configuration and operator behavior.

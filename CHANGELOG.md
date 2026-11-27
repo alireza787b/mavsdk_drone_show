@@ -9,6 +9,28 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm records each follower's reason for requesting Hold, the age of its
+  motion observations, and its transport and recovery history. The relationship
+  diagram shows the latest link observation in the existing aircraft details.
+  With zero motion confidence the follower keeps its last commanded heading.
+- Followers verify current PX4 authority before requesting Hold or re-entering
+  Offboard. An observed pilot Return or Land ends following. A silent mode
+  stream ends the owned setpoint sender and records an unconfirmed handoff.
+- GCS runtime inspection runs outside the telemetry event loop. The SITL
+  inventory skips unrelated containers.
+- A saved flight log includes an offline UTC timeline of PX4 events and
+  available companion evidence. The GCS applies the copy's existing owner,
+  deletion and retention policy to both.
+- Fleet network status uses accepted heartbeat receipts. The software notice
+  identifies clean matching commits on different update branches.
+
+- Smart Swarm shows an advisory when fresh, comparable aircraft heights differ
+  from the formation's planned vertical spacing. Immediate Return remains a
+  separate reviewed action.
+- Managed Return uses the tracked Hold deadline and fresh flight-controller
+  heartbeats. Queue status distinguishes tracked RTL submissions, dispatches
+  started, and Hold receipts that arrive after the queue stops.
+
 - Overview aircraft cards use one aligned GNSS/altitude/link/battery strip,
   a compact percentage gauge and a single aircraft/state anchor. Cached values
   retain provenance without repeated labels; keyboard descriptions no longer

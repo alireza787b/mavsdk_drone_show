@@ -85,7 +85,7 @@ class UlogDownloadRequests:
 
             job = get_ulog_copies().watch(
                 owner, drone_id, OnboardUlogDownloadJob.model_validate(stored["job"]),
-                stored["ip"], stored.get("expected_size"), stored.get("expected_date"),
+                stored.get("expected_size"), stored.get("expected_date"),
                 node_job_id=stored["node_job_id"], request_id=stored["request_id"],
                 copy_owner=stored.get("copy_owner"),
             )

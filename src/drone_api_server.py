@@ -114,6 +114,7 @@ from src.command_admission import (
     evaluate_cached_airborne_admission,
     evaluate_cached_hold_admission,
 )
+from src.smart_swarm_contract import OptionalSwarmLinkObservation
 from src.smart_swarm_admission import SmartSwarmStartAdmission, evaluate_smart_swarm_start_admission
 from src.trajectory_runtime_state import TrajectoryRuntimeState, read_trajectory_runtime
 from src.swarm_trajectory_contract import verify_local_package
@@ -260,6 +261,7 @@ class DroneStateResponse(BaseModel):
     smart_swarm_start_admission: Optional[SmartSwarmStartAdmission] = None
     smart_swarm_reference_admission: Optional[SmartSwarmStartAdmission] = None
     smart_swarm_active: Optional[bool] = None
+    link_observation: OptionalSwarmLinkObservation = None
     trajectory_execution: Optional[TrajectoryRuntimeState] = None
     detected_pos_id: Any
     state: int

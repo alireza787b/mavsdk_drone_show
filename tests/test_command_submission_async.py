@@ -295,6 +295,37 @@ async def test_explicit_flight_command_supersedes_return_queue_but_owned_dispatc
 
 
 @pytest.mark.asyncio
+async def test_cancelled_submission_releases_its_reserved_slot_without_dispatch():
+    dispatch = AsyncMock()
+    deps, tracker, coordinator = _submission_deps(dispatch=dispatch)
+    blocked_before_launch = asyncio.Event()
+
+    async def block_before_launch(_targets):
+        blocked_before_launch.set()
+        await asyncio.Future()
+
+    deps.sequential_return_service = SimpleNamespace(owns_current_task=lambda: False, supersede=block_before_launch)
+    await coordinator.start()
+    try:
+        task = asyncio.create_task(submit_tracked_command(deps, SubmitCommandRequest(
+            mission_type=Mission.HOLD.value, target_drone_ids=['1'], idempotency_key='cancel-before-launch',
+        )))
+        await asyncio.wait_for(blocked_before_launch.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        reservations = [await coordinator.reserve(recovery=True) for _ in range(2)]
+        for reservation in reservations:
+            await coordinator.release(reservation)
+        tracked = await tracker.lookup_command_by_idempotency_key('cancel-before-launch')
+        assert tracked['phase'] == 'terminal'
+        assert tracked['submitted_at'] is None
+        dispatch.assert_not_awaited()
+    finally:
+        await coordinator.stop()
+
+
+@pytest.mark.asyncio
 async def test_fleet_ops_update_code_alone_enables_legacy_bridge_and_postcondition_owner():
     deps, tracker, coordinator = _submission_deps()
     await coordinator.start()

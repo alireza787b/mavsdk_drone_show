@@ -1,5 +1,5 @@
 {
-  "chunk_count": 890,
+  "chunk_count": 895,
   "chunks": [
     {
       "audience": "developer",
@@ -2220,10 +2220,13 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "ee83665369713af213a8c22dc49d8d4db0d21b4ad31e067111c84d4321047e47",
+      "content_hash": "c02b0f22a5ece29762d74b27b15425920a8124f70ca15968aef786cc0f3dd22d",
       "heading": "Command a subset or retry one follower",
       "id": "mds.smart_swarm_operator_workflow:007-02-command-a-subset-or-retry-one-follower",
-      "links": [],
+      "links": [
+        "https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters",
+        "https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html"
+      ],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
@@ -2235,7 +2238,7 @@
         "formation",
         "capture"
       ],
-      "text": "Takeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for\nlarge clusters. A single cluster has no formation selector; multiple clusters\nshow one selector. Large recipient summaries collapse to a count, while To and\nthe aircraft details retain exact identities. Scrolling the roster selects no\naircraft and dispatches nothing.",
+      "text": "**Pilot takeover.** A follower that observes Return, Land or another external mode change\nreleases control for that session. If peer or own-motion data goes stale while the\nfollower owns Offboard, it first replaces its repeating velocity with zero body\nvelocity and zero yaw rate. It waits for a new PX4 mode report before relinquishing\nOffboard to native Hold. If the neutral update takes longer than 250 ms, or mode\nreports stop for 2.5 s, the companion stops its setpoint sender. PX4 then handles\nOffboard loss according to the aircraft configuration. Check native mode on the\nflight controller if the ground station reports an unconfirmed handoff.\n[MAVSDK Offboard behavior](https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html)\nand [PX4 Offboard-loss behavior](https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters).\n\nTakeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for\nlarge clusters. A single cluster has no formation selector; multiple clusters\nshow one selector. Large recipient summaries collapse to a count, while To and\nthe aircraft details retain exact identities. Scrolling the roster selects no\naircraft and dispatches nothing.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -2283,9 +2286,32 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "64695c9b74558a1bb8251c5b37bf8a5038d293b7c6e90ca03c367b16db30eb92",
-      "heading": "Return and land",
-      "id": "mds.smart_swarm_operator_workflow:010-01-return-and-land",
+      "content_hash": "c54297d04c90b3d2b0dd64c6c94cdf31e6e513dcb6ed1a2283e7f9cc17c6bb7c",
+      "heading": "Review height observations",
+      "id": "mds.smart_swarm_operator_workflow:010-01-review-height-observations",
+      "links": [
+        "https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "## Review height observations\n\nOn **Operate**, the height line covers aircraft in **To**. Start review also\nincludes any named, read-only leader references. Open the line for fused MSL\nheight and GPS fix reports and their ages. An unavailable or stale reading is\nunknown; it does not establish agreement. In flight, when all relevant aircraft\nhave current airborne evidence, the difference accounts for planned vertical\nspacing. Otherwise it compares the readings directly. This is an advisory; it\nadds no confirmation or flight gate. PX4 and the existing aircraft-side checks\nremain authoritative. See [PX4 estimator documentation](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf) for background.\n\n![Synthetic example of height observations and a stopped return](../assets/smart-swarm/height-advisory-1440.png)",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "76ea6d2b1d2062fe18cc30f7e41e98a10514971831b1af86a10a0c06490e892a",
+      "heading": "Inspect a follower’s link",
+      "id": "mds.smart_swarm_operator_workflow:011-01-inspect-a-follower-s-link",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -2298,7 +2324,30 @@
         "formation",
         "capture"
       ],
-      "text": "## Return and land\n\nFor independent aircraft, check **To** on **Smart Swarm -> Operate**, then open\n**Managed Return** for those aircraft.\nReview aircraft order and the interval, then confirm. It requests Hold and submits\nnative RTL commands one by one. The default interval is **10 seconds between\nsubmissions**, not between landings. Watch each aircraft's result.\n\nIf returning a leader would leave a tracked active or pending follower behind,\ninclude the named follower in To or use **Hold all** first. Targets are never\nexpanded automatically. If initial Hold fails, the queue names the unavailable\naircraft and confirms that no RTL commands were sent; inspect the result before\nretrying. A request receipt alone is not a completed Hold or Return.\n\nOverview **Return** submits an immediate native return request to its reviewed\ntargets; it does not run the mission workspace's Managed Return sequence.\n\n![Managed Return review shows aircraft order and command interval](../assets/smart-swarm/capture-05-return.png)\n\nImmediate RTL uses each aircraft's own PX4 return behavior. Neither immediate\nRTL nor Managed Return guarantees nonintersecting paths; PX4 home and return\naltitude still determine the flight. A physically attached net needs a separate\nloaded-flight and recovery procedure before use.\n\nFor **Immediate RTL** or **Land here**, first check **To**, then open\n**Other actions**. These commands address To, not unselected aircraft.\nLand here descends at the current location; RTL follows PX4's return procedure.",
+      "text": "## Inspect a follower’s link\n\nIn **Operate**, the mark beside the leader ID shows the follower’s last reported\nupdate state. A clock means delayed, a broken link means missing, and a question\nmark means the observation is unavailable or expired. Select the follower to\nsee the sampled position and heading ages, longest update gap, and transport.\nUse **Session counts** for accepted, rejected, duplicate and fallback totals.\nSelecting a row only opens its details. The target selection stays in **To**.\n\n![Example follower reporting delayed updates in the aircraft inspector](../assets/smart-swarm/follower-link-details.png)",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "e461726314abb135bc63cadd5e7845804c432f9431ea9fdb84a34cc02fcc6a01",
+      "heading": "Return and land",
+      "id": "mds.smart_swarm_operator_workflow:012-01-return-and-land",
+      "links": [
+        "https://docs.px4.io/main/en/flight_modes/return"
+      ],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "## Return and land\n\nFor independent aircraft, check **To** on **Smart Swarm -> Operate**, then open\n**Managed Return** for those aircraft.\nReview aircraft order and the interval, then confirm. It requests Hold and submits\nnative RTL commands one by one. The default interval is **10 seconds between\nsubmissions**, not between landings. Watch each aircraft's result.\n\nIf returning a leader would leave a tracked active or pending follower behind,\ninclude the named follower in To or use **Hold all** first. Targets are never\nexpanded automatically. If initial Hold fails, the queue names the unavailable\naircraft and confirms that no RTL commands were sent; inspect the result before\nretrying. The result shows **RTL dispatches started** when the dispatch count\nis available; legacy results show **RTL commands tracked** instead. It also\nshows the Hold receipts known at the stop. Later Hold receipts update the evidence but do not\nrestart the stopped queue. An unconfirmed RTL submission must be checked in the\ncommand result. A request receipt alone is not a completed Hold or Return.\n\nWhen a return is active or stopped, **Review Immediate RTL for current To** opens\nthe normal Immediate RTL review for the currently selected aircraft. Opening the\nreview sends nothing; verify the listed targets before confirming.\n\nOverview **Return** submits an immediate native return request to its reviewed\ntargets; it does not run the mission workspace's Managed Return sequence.\n\n![Managed Return review shows aircraft order and command interval](../assets/smart-swarm/capture-05-return.png)\n\nImmediate RTL uses each aircraft's own PX4 return behavior. Neither immediate\nRTL nor Managed Return guarantees nonintersecting paths; PX4 home and return\naltitude still determine the flight. See [PX4 Return mode](https://docs.px4.io/main/en/flight_modes/return) for native behavior. A physically attached net needs a separate\nloaded-flight and recovery procedure before use.\n\nFor **Immediate RTL** or **Land here**, first check **To**, then open\n**Other actions**. These commands address To, not unselected aircraft.\nLand here descends at the current location; RTL follows PX4's return procedure.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -2306,7 +2355,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "804d28b5a05e2a858ac88f3f5394afbc8d113f56e03dc8c82b93748d70179adb",
       "heading": "Resolve a blocked step",
-      "id": "mds.smart_swarm_operator_workflow:011-01-resolve-a-blocked-step",
+      "id": "mds.smart_swarm_operator_workflow:013-01-resolve-a-blocked-step",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -7863,7 +7912,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "c421f267975c94fae8f85d811eb1c8b348fcfc16182540249726cbebe077ba94",
+      "content_hash": "b8863e4657e401df37a1347abf0036a5bad3077fe8c0f26dbf6e3a842821fe8b",
       "heading": "`GET /api/v1/fleet/network-status`",
       "id": "mds.gcs_api:048-01-get-api-v1-fleet-network-status",
       "links": [],
@@ -7876,7 +7925,7 @@
         "api",
         "gcs"
       ],
-      "text": "#### `GET /api/v1/fleet/network-status`\nGet network connectivity status for all drones.\n\n**Response:**\n```json\n{\n \"network_status\": {\n \"1\": {\n \"pos_id\": 0,\n \"ip\": \"192.168.1.101\",\n \"reachable\": true,\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"reachable_count\": 8,\n \"timestamp\": 1700000000000\n}\n```",
+      "text": "#### `GET /api/v1/fleet/network-status`\nShow the latest accepted companion heartbeat per positive reported slot. **Reachable** means the GCS received a heartbeat within the configured live window. The last check uses GCS receipt time. Unseen slots are absent, and packet loss is unknown without an independent measurement. The network-details route retains per-aircraft interface observations.\n\n**Response:**\n```json\n{\n \"network_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"8\",\n \"ip\": \"192.168.1.101\",\n \"reachable\": true,\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"reachable_count\": 8,\n \"timestamp\": 1700000000000\n}\n```",
       "title": "GCS API server guide"
     },
     {
@@ -9079,7 +9128,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "a52ce9f34729fb4a416d1152f744a2183aaa78f2bb7bb78b33f9fae61d20d875",
+      "content_hash": "a163daef681a84749a853118d4648b3f78b67722efc17dda946522f20f4fd5ff",
       "heading": "`GET /api/v1/git/status`",
       "id": "mds.gcs_api:105-01-get-api-v1-git-status",
       "links": [],
@@ -9092,7 +9141,7 @@
         "api",
         "gcs"
       ],
-      "text": "#### `GET /api/v1/git/status`\n\nSource-review counts retain heartbeat-observed aircraft for the configured\nOverview Available window, including a brief loss; expired/offline records stay\nin diagnostic rows but do not contribute to the notice. Counts are not update\neligibility or flight readiness. Unknown worktree evidence is never counted as\nsynced. An unavailable/invalid presence snapshot returns `503` rather than a\nfalse empty-fleet/all-clear response. Update routes retain fresh-evidence checks.\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
+      "text": "#### `GET /api/v1/git/status`\n\n`branch_only_count` counts reviewable aircraft reporting a clean matching commit\non another update branch. It is a subset of `needs_sync_count`.\n\nSource-review counts retain heartbeat-observed aircraft for the configured\nOverview Available window, including a brief loss; expired/offline records stay\nin diagnostic rows but do not contribute to the notice. Counts are not update\neligibility or flight readiness. Unknown worktree evidence is never counted as\nsynced. An unavailable/invalid presence snapshot returns `503` rather than a\nfalse empty-fleet/all-clear response. Update routes retain fresh-evidence checks.\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
       "title": "GCS API server guide"
     },
     {
@@ -10028,6 +10077,44 @@
         "gcs"
       ],
       "text": "## Support\n\n- **Documentation:** `/docs` (Swagger UI)\n- **Issues:** [GitHub Issues](https://github.com/alireza787b/mavsdk_drone_show/issues)\n- **Migration Plan:** See `GCS_SERVER_MIGRATION_PLAN.md`\n\n---\n\n**Last Updated:** 2026-05-27\n**Version:** 5.5 (FastAPI)\n**Maintainer:** MAVSDK Drone Show Team",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "ae7beb4ba6fa4c0b2f0e00ba2552dc5d0d3ba11ad191b37a53168ad5c41c7d37",
+      "heading": "Flight height advisories and Hold receipts",
+      "id": "mds.gcs_api:151-01-flight-height-advisories-and-hold-receipts",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "### Flight height advisories and Hold receipts\n\nThe existing Smart Swarm runtime preview returns an optional `altitude_warning`\nfor each saved cluster. `samples` carries each member’s explicit source times,\nfused MSL reading, observed GPS fix and accumulated planned vertical offset.\n`spread_m` compares raw readings. `comparison_spread_m` accounts for the saved\nvertical spacing when every compared aircraft has current in-air evidence.\n`valid_count` and `expected_count` describe coverage. A single usable reading\nyields a null spread. These are read-only observations. The fleet display policy\npublishes the same review threshold and sample age. A reported\n`rtk_fixed_observed_since_ms` describes the beginning of the GCS’s current\nseries of fresh fixed samples. The first sample, a source gap or a fix change\nleaves duration unknown until a second advancing sample.\n\nManaged Return’s latest and per-job GETs expose `hold_confirmation` with\n`deadline_at_ms`, `stopped_at_ms`, `confirmed_at_stop`, `pending_at_stop`,\n`confirmed_now` and `pending_now` when known. Use the saved stop evidence for\nthe queue outcome and current receipts for subsequent arrivals. An uncertain\nin-flight submission can identify its target in `uncertain_dispatch_hw_id`.\n`rtl_dispatched_count` counts commands whose GCS dispatch boundary was\ncommitted. Aircraft acceptance and PX4 mode confirmation are recorded separately\nin the command lifecycle. A null count means dispatch coverage is unknown.\nThe `commands` array carries tracked submissions, including those still\npreparing for dispatch. Managed Return uses the native flight controller's\n`heartbeat_timestamp_ms` for armed and mode checks, with a five-second freshness\nwindow. Hold requires a heartbeat at or after its submission. Companion\npresence and other telemetry samples have separate clocks.\nNeither lookup replays commands. Direct Return retains its ordinary reviewed\nrecipients and native PX4 behavior.",
+      "title": "GCS API server guide"
+    },
+    {
+      "audience": "developer",
+      "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
+      "content_hash": "90dd20f56b859148c1ed9c726df853fb57ab07d71befb965d0105c6096b42201",
+      "heading": "Flight height advisories and Hold receipts",
+      "id": "mds.gcs_api:151-02-flight-height-advisories-and-hold-receipts",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/apis/gcs-api-server.md",
+      "resource_id": "mds.gcs_api",
+      "route_hint": null,
+      "summary": "GCS API surface and integration guide.",
+      "tags": [
+        "api",
+        "gcs"
+      ],
+      "text": "For receipt timing, correlate logs by command and aircraft ID. Companion logs\nrecord when the local result becomes ready, waits for the start callback, and\neach callback attempt's elapsed time and response status. GCS logs record when\nan authenticated callback entered its handler and the elapsed time through\ntracker recording. A repeated callback can be accepted without changing the\nrecorded outcome. Compare elapsed times within each host to avoid clock skew.",
       "title": "GCS API server guide"
     },
     {
@@ -16410,7 +16497,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "0e065712ca417178ee71f6c7118ea3696a306e4cdab04aa6e8c2aaca554858e9",
+      "content_hash": "7556c8b60ec36c3285139ec10fca123feca9521ade2fc8e2ad746a2f7f94c7d8",
       "heading": "Workspaces",
       "id": "mds.logging_system:033-01-workspaces",
       "links": [],
@@ -16423,7 +16510,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Workspaces\n\nOne `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is\nno Operations/Developer mode: severity, search and export are ordinary operator\ntools. GCS is the initial runtime source. **Source** chooses one aircraft by\ncallsign and hardware ID; filters, reconnects and inspection never change it.\n\n- **Live** starts at Warnings+. Search and severity are visible; component and\n time-window filters expand on request. Select a record for its complete message\n and raw fields. Stream connection/coverage is not aircraft flight readiness.\n- **Sessions** selects one recorded session and reads bounded pages. Search,\n component, severity and explicit **After (UTC)** / **Through (UTC)** filters\n apply before pagination. After is exclusive; Through is inclusive.\n- **Flight logs** needs an explicit aircraft for onboard inventory, summary and\n staged download. **Open file** also summarizes a local `.ulg` without an\n aircraft, through the existing temporary local parser. Nothing is uploaded to\n an external provider or retained as a new GCS archive.\n\nSee the illustrated [operator workflow](logs-operator-workflow.md).",
+      "text": "### Workspaces\n\nOne `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is\nno Operations/Developer mode: severity, search and export are ordinary operator\ntools. GCS is the initial runtime source. **Source** chooses one aircraft by\ncallsign and hardware ID; filters, reconnects and inspection never change it.\n\n- **Live** starts at Warnings+. Search and severity are visible; component and\n time-window filters expand on request. Select a record for its complete message\n and raw fields. Stream connection/coverage is not aircraft flight readiness.\n- **Sessions** selects one recorded session and reads bounded pages. Search,\n component, severity and explicit **After (UTC)** / **Through (UTC)** filters\n apply before pagination. After is exclusive; Through is inclusive.\n- **Flight logs** needs an explicit aircraft for onboard inventory, summary and\n staged download. **Open file** also summarizes a local `.ulg` without an\n aircraft, through the existing temporary local parser. Nothing is uploaded to\n an external provider or retained as a new GCS archive.\n\nFor a verified GCS copy, the download-job summary can include a bounded PX4\n`timeline` and `companion_evidence` with coverage status and events. A missing\nor partial companion record leaves the verified ULog available. The combined\nsummary uses the copy owner's access, removal and seven-day retention controls.\n\nSee the illustrated [operator workflow](logs-operator-workflow.md).",
       "title": "MDS logging system guide"
     },
     {
@@ -16695,9 +16782,28 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "e9b2e9cac485c620223e95f863b2755c9912a2ecefaeb260c266a594a62eeb31",
+      "heading": "Read a flight timeline",
+      "id": "mds.logs_operator_workflow:007-01-read-a-flight-timeline",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## Read a flight timeline\n\nOpen **Summary** on a saved GCS copy. **Flight timeline** places PX4 mode and\ncommand events alongside recorded Smart Swarm decisions using their UTC times.\nEnable **Link samples** to include periodic measurements. Select a row with a\nchevron to inspect its source and values. MAVLink rates and counters describe\nthat PX4 link instance. An aircraft Wi-Fi percentage describes the local\nwireless connection at its sample time. Either can be missing.\n\nOpen **Partial link record** for the coverage explanation. PX4 events without\na usable UTC clock appear in a separate elapsed-time list. Evidence can be\nincomplete even when the raw flight log downloaded successfully.\n\n![Illustrative retained log with an expanded link sample](../assets/log-workspace/flight-timeline-detail.png)",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
       "content_hash": "72c9b8ae1c14b82b49a6fa941d735b0b90825098eaa12910fb9d4d168e4b03b4",
       "heading": "Unavailable aircraft and maintenance",
-      "id": "mds.logs_operator_workflow:007-01-unavailable-aircraft-and-maintenance",
+      "id": "mds.logs_operator_workflow:008-01-unavailable-aircraft-and-maintenance",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",
@@ -17600,8 +17706,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "chunk_count": 14,
-      "content_hash": "6af591a001bd9da802eecea0a34f9af3ab9b427a764746b3e34404183a67946d",
+      "chunk_count": 16,
+      "content_hash": "a3e63bf7524540e18f76ce5eba388a0e038b99312d0ac528bab519bae6466660",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -17717,8 +17823,8 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "chunk_count": 166,
-      "content_hash": "135b9fdd638123324575f3c210b9f713ad0512e9b642acca8b5387c28cf6b133",
+      "chunk_count": 168,
+      "content_hash": "d7619e1d9e9ae0cb0e2b673d8e886781547896cbf6d9caa4de1087b05352c748",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -17842,7 +17948,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "chunk_count": 42,
-      "content_hash": "a630dd672dac2784c93941cadf4524f239fa52101383ce2f19574b5611177d95",
+      "content_hash": "ca8c1ac975c42909009cf4127fb6af668e09c645b10edf34c34809ae98b106da",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -17857,8 +17963,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
-      "chunk_count": 7,
-      "content_hash": "2e6a08bf9f3223d3adb35286e9b3156801cf76406388eef66a64a672bf086082",
+      "chunk_count": 8,
+      "content_hash": "e5714e8857334a858c0dfd07b89bc90765c1c45e1465e7dccdc2ed3a61bc940f",
       "id": "mds.logs_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",

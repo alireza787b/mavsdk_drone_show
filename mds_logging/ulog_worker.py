@@ -137,6 +137,7 @@ def main() -> int:
             path,
             source_metadata=source_metadata,
             max_bytes=max_bytes,
+            include_timeline=request.get("include_timeline") is True,
         )
     except MemoryError:
         _emit(

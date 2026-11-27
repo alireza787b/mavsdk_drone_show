@@ -188,7 +188,7 @@ def _terminate_worker(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=0.5)
 
 
-def _worker_result(stdout: str, stderr: str, returncode: int) -> dict[str, Any]:
+def _worker_result(stdout: str, stderr: str, returncode: int, *, include_timeline: bool = False) -> dict[str, Any]:
     result_line = next(
         (
             line[len(ULOG_SUMMARY_WORKER_RESULT_PREFIX):]
@@ -232,9 +232,10 @@ def _worker_result(stdout: str, stderr: str, returncode: int) -> dict[str, Any]:
             http_status=500,
         )
     try:
-        from mds_logging.api_schemas import UlogDerivedSummary
+        from mds_logging.api_schemas import RetainedUlogDerivedSummary, UlogDerivedSummary
 
-        return UlogDerivedSummary.model_validate(summary).model_dump(mode="json")
+        model = RetainedUlogDerivedSummary if include_timeline else UlogDerivedSummary
+        return model.model_validate(summary).model_dump(mode="json")
     except Exception as exc:
         raise UlogSummaryError(
             "ULog parser worker returned an out-of-contract summary",
@@ -267,6 +268,7 @@ def _run_summary_subprocess(
     source_metadata: Mapping[str, Any] | None,
     max_bytes: int | None,
     timeout_seconds: float,
+    include_timeline: bool = False,
 ) -> dict[str, Any]:
     timeout = _validated_timeout_seconds(timeout_seconds)
     repo_root = str(Path(__file__).resolve().parents[1])
@@ -276,6 +278,7 @@ def _run_summary_subprocess(
             "path": str(Path(path)),
             "source_metadata": dict(source_metadata or {}),
             "max_bytes": max_bytes,
+            "include_timeline": include_timeline,
         },
         default=str,
     )
@@ -298,7 +301,7 @@ def _run_summary_subprocess(
         ) from exc
     if process.returncode != 0:
         return _worker_result(stdout, stderr, process.returncode)
-    summary = _worker_result(stdout, stderr, process.returncode)
+    summary = _worker_result(stdout, stderr, process.returncode, include_timeline=include_timeline)
     _raise_for_unparsed_summary(summary)
     return summary
 
@@ -337,6 +340,7 @@ async def summarize_ulog_file_async(
     source_metadata: Mapping[str, Any] | None = None,
     max_bytes: int | None = None,
     timeout_seconds: float,
+    include_timeline: bool = False,
 ) -> dict[str, Any]:
     """Parse one ULog outside the event loop in a killable worker process."""
 
@@ -347,6 +351,7 @@ async def summarize_ulog_file_async(
         source_metadata=source_metadata,
         max_bytes=max_bytes,
         timeout_seconds=timeout,
+        include_timeline=include_timeline,
     )
     concurrent_future = _submit_summary_operation(operation)
     future = asyncio.wrap_future(concurrent_future)
@@ -367,6 +372,7 @@ def summarize_ulog_file(
     *,
     source_metadata: Mapping[str, Any] | None = None,
     max_bytes: int | None = None,
+    include_timeline: bool = False,
 ) -> dict[str, Any]:
     """Return a safe, bounded ULog summary for operator evidence.
 
@@ -428,7 +434,10 @@ def summarize_ulog_file(
         return base
 
     try:
-        ulog = ULog(str(log_path), list(ULOG_SUMMARY_TOPIC_FILTER))
+        from mds_logging.ulog_timeline import TOPICS
+
+        requested_topics = (*ULOG_SUMMARY_TOPIC_FILTER, *TOPICS) if include_timeline else ULOG_SUMMARY_TOPIC_FILTER
+        ulog = ULog(str(log_path), list(requested_topics))
     except Exception as exc:
         base["parser"].update({"available": True, "status": "failed", "error": _safe_error(exc)})
         return base
@@ -495,6 +504,11 @@ def summarize_ulog_file(
     commands = _summarize_commands(datasets.get("vehicle_command"), datasets.get("vehicle_command_ack"))
     if commands:
         summary["commands"] = commands
+
+    if include_timeline:
+        from mds_logging.ulog_timeline import build_ulog_timeline
+
+        summary["timeline"] = build_ulog_timeline(ulog, timestamp_envelope)
 
     return summary
 

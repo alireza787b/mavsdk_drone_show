@@ -25,6 +25,7 @@ import asyncio
 import math
 import traceback
 import threading
+from swarm_height_advisory import update_observed_rtk_fix
 from fleet_telemetry import FleetTelemetryPoller
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -376,13 +377,15 @@ class BackgroundServices:
         def publish(drone, data, error):
             hw_id, ip = str(drone['hw_id']), drone['ip']
             with telemetry_lock:
+                existing = telemetry_data_all_drones.get(hw_id) or {}
                 telemetry_data_all_drones[hw_id] = (
                     _build_background_telemetry_record(hw_id, ip, data) if data is not None
                     else _build_background_unavailable_record(
                         hw_id=hw_id, pos_id=drone.get('pos_id', 0), ip=ip,
-                        error_message=error, existing=telemetry_data_all_drones.get(hw_id),
+                        error_message=error, existing=existing,
                     )
                 )
+                update_observed_rtk_fix(telemetry_data_all_drones[hw_id], existing, time.time_ns() // 1_000_000)
         while self.running:
             poller = FleetTelemetryPoller(Params, lambda: list(self.drones), publish)
             try:
@@ -632,7 +635,7 @@ def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict
         valid_global = _has_valid_global_position(record)
 
     record["global_position_valid"] = valid_global
-    record.setdefault("global_position_timestamp_ms", record.get("telemetry_timestamp_ms") or 0)
+    record.setdefault("global_position_timestamp_ms", 0)
     global_ts = _normalize_update_time_ms(record.get("global_position_timestamp_ms"))
     record["global_position_age_ms"] = max(0, now_ms - global_ts) if global_ts is not None else None
 
@@ -641,7 +644,7 @@ def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict
     except (TypeError, ValueError):
         gps_fix_type = 0
     record.setdefault("gps_raw_valid", gps_fix_type >= 3)
-    record.setdefault("gps_raw_timestamp_ms", record.get("telemetry_timestamp_ms") or 0)
+    record.setdefault("gps_raw_timestamp_ms", 0)
     gps_ts = _normalize_update_time_ms(record.get("gps_raw_timestamp_ms"))
     record["gps_raw_age_ms"] = max(0, now_ms - gps_ts) if gps_ts is not None else None
     record.setdefault("position_source", "global_position_int" if valid_global else "unavailable")

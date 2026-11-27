@@ -7,7 +7,7 @@ const LINK_CONDITIONS = new Set(['telemetry', 'boot']);
 const FleetAlertsContext = createContext(null);
 
 export function createFleetAlertsState() {
-  return { active: [], recent: [], monitoring: false, sourceError: false, sourceRecovering: false,
+  return { active: [], heightReviews: [], recent: [], monitoring: false, sourceError: false, sourceRecovering: false,
     observedAtMs: null, nextEpisode: 1, omittedAircraft: 0, omittedConditions: 0 };
 }
 
@@ -33,7 +33,7 @@ export function fleetAlertsReducer(state, action) {
   if (sourceError && !sourceRecovering) {
     const outage = observe(GCS_CONDITION, { aircraftId: null, aircraftLabel: 'GCS',
       issueKey: 'outage', tone: 'danger', reason: 'Telemetry source unavailable' });
-    return { ...state, monitoring: true, sourceError: true, sourceRecovering: false, observedAtMs, nextEpisode,
+    return { ...state, heightReviews: [], monitoring: true, sourceError: true, sourceRecovering: false, observedAtMs, nextEpisode,
       active: [outage, ...state.active.filter((entry) => entry.condition !== GCS_CONDITION)
         .map((entry) => ({ ...entry, observed: false }))].slice(0, MAX_ACTIVE) };
   }
@@ -42,7 +42,7 @@ export function fleetAlertsReducer(state, action) {
   (Array.isArray(aircraft) ? aircraft : []).forEach((item) => {
     if (typeof item?.id === 'string' && item.id && !uniqueAircraft.has(item.id)) uniqueAircraft.set(item.id, item);
   });
-  const roster = new Map(Array.from(uniqueAircraft).slice(0, FLEET_ALERT_LIMITS.aircraft));
+  const roster = uniqueAircraft;
   const incoming = new Map();
   if (sourceError && sourceRecovering) incoming.set(GCS_CONDITION, observe(GCS_CONDITION, {
     aircraftId: null, aircraftLabel: 'GCS', issueKey: 'outage', tone: 'warning', reason: 'Telemetry source recovering',
@@ -76,23 +76,28 @@ export function fleetAlertsReducer(state, action) {
     else retained.push({ ...episode, observed: false });
   });
   const active = [...incoming.values()];
-  const activeIds = new Set(active.map((episode) => episode.aircraftId));
+  // Count all live aircraft. Only the retained, unconfirmed history is capped.
+  const byAircraft = new Map();
+  for (const entry of active) byAircraft.set(entry.aircraftId, (byAircraft.get(entry.aircraftId) || 0) + 1);
   const omittedIds = new Set();
-  retained.forEach((episode) => {
-    if ((!activeIds.has(episode.aircraftId) && activeIds.size >= FLEET_ALERT_LIMITS.aircraft)
-      || active.filter((item) => item.aircraftId === episode.aircraftId).length >= FLEET_ALERT_LIMITS.perAircraft) {
+  for (const episode of retained) {
+    const count = byAircraft.get(episode.aircraftId) || 0;
+    if ((!count && byAircraft.size >= FLEET_ALERT_LIMITS.aircraft) || count >= FLEET_ALERT_LIMITS.perAircraft) {
       omittedConditions += 1;
-      if (!activeIds.has(episode.aircraftId)) omittedIds.add(episode.aircraftId);
-      return;
+      if (!count) omittedIds.add(episode.aircraftId);
+      continue;
     }
-    activeIds.add(episode.aircraftId);
+    byAircraft.set(episode.aircraftId, count + 1);
     active.push(episode);
-  });
-  return { active: active.slice(0, MAX_ACTIVE),
+  }
+  const previousHeights = new Set((state.heightReviews || []).map(review => review.id));
+  const heightReviews = (action.snapshot.heightReviews || []).filter(review => review.active
+    || (!review.complete && previousHeights.has(review.id)));
+  return { active, heightReviews,
     recent: [...cleared.reverse(), ...state.recent].slice(0, FLEET_ALERT_LIMITS.recent),
     monitoring: true, sourceError: Boolean(sourceError), sourceRecovering: Boolean(sourceError && sourceRecovering), observedAtMs, nextEpisode,
-    omittedAircraft: Math.max(0, uniqueAircraft.size - FLEET_ALERT_LIMITS.aircraft) + omittedIds.size,
-    omittedConditions: omittedConditions + Math.max(0, active.length - MAX_ACTIVE) };
+    omittedAircraft: omittedIds.size,
+    omittedConditions };
 }
 
 /** Remount with a runtime/operator key at the shell boundary to isolate sessions. */

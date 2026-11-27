@@ -186,6 +186,17 @@ the full cluster; polls, reconnects and new members never silently add targets.
 
 ![One recipient choice across launch, following and return](../assets/smart-swarm/command-scope.svg)
 
+**Pilot takeover.** A follower that observes Return, Land or another external mode change
+releases control for that session. If peer or own-motion data goes stale while the
+follower owns Offboard, it first replaces its repeating velocity with zero body
+velocity and zero yaw rate. It waits for a new PX4 mode report before relinquishing
+Offboard to native Hold. If the neutral update takes longer than 250 ms, or mode
+reports stop for 2.5 s, the companion stops its setpoint sender. PX4 then handles
+Offboard loss according to the aircraft configuration. Check native mode on the
+flight controller if the ground station reports an unconfirmed handoff.
+[MAVSDK Offboard behavior](https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html)
+and [PX4 Offboard-loss behavior](https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters).
+
 Takeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for
 large clusters. A single cluster has no formation selector; multiple clusters
 show one selector. Large recipient summaries collapse to a count, while To and
@@ -221,6 +232,30 @@ The capture workflow is more specific: its Apply requires stopped following.
 **Applied** means configuration installed, not position reached. Missing aircraft
 may not adopt an ordinary update at the same time; do not assume simultaneous motion.
 
+## Review height observations
+
+On **Operate**, the height line covers aircraft in **To**. Start review also
+includes any named, read-only leader references. Open the line for fused MSL
+height and GPS fix reports and their ages. An unavailable or stale reading is
+unknown; it does not establish agreement. In flight, when all relevant aircraft
+have current airborne evidence, the difference accounts for planned vertical
+spacing. Otherwise it compares the readings directly. This is an advisory; it
+adds no confirmation or flight gate. PX4 and the existing aircraft-side checks
+remain authoritative. See [PX4 estimator documentation](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf) for background.
+
+![Synthetic example of height observations and a stopped return](../assets/smart-swarm/height-advisory-1440.png)
+
+## Inspect a follower’s link
+
+In **Operate**, the mark beside the leader ID shows the follower’s last reported
+update state. A clock means delayed, a broken link means missing, and a question
+mark means the observation is unavailable or expired. Select the follower to
+see the sampled position and heading ages, longest update gap, and transport.
+Use **Session counts** for accepted, rejected, duplicate and fallback totals.
+Selecting a row only opens its details. The target selection stays in **To**.
+
+![Example follower reporting delayed updates in the aircraft inspector](../assets/smart-swarm/follower-link-details.png)
+
 ## Return and land
 
 For independent aircraft, check **To** on **Smart Swarm -> Operate**, then open
@@ -233,7 +268,15 @@ If returning a leader would leave a tracked active or pending follower behind,
 include the named follower in To or use **Hold all** first. Targets are never
 expanded automatically. If initial Hold fails, the queue names the unavailable
 aircraft and confirms that no RTL commands were sent; inspect the result before
-retrying. A request receipt alone is not a completed Hold or Return.
+retrying. The result shows **RTL dispatches started** when the dispatch count
+is available; legacy results show **RTL commands tracked** instead. It also
+shows the Hold receipts known at the stop. Later Hold receipts update the evidence but do not
+restart the stopped queue. An unconfirmed RTL submission must be checked in the
+command result. A request receipt alone is not a completed Hold or Return.
+
+When a return is active or stopped, **Review Immediate RTL for current To** opens
+the normal Immediate RTL review for the currently selected aircraft. Opening the
+review sends nothing; verify the listed targets before confirming.
 
 Overview **Return** submits an immediate native return request to its reviewed
 targets; it does not run the mission workspace's Managed Return sequence.
@@ -242,7 +285,7 @@ targets; it does not run the mission workspace's Managed Return sequence.
 
 Immediate RTL uses each aircraft's own PX4 return behavior. Neither immediate
 RTL nor Managed Return guarantees nonintersecting paths; PX4 home and return
-altitude still determine the flight. A physically attached net needs a separate
+altitude still determine the flight. See [PX4 Return mode](https://docs.px4.io/main/en/flight_modes/return) for native behavior. A physically attached net needs a separate
 loaded-flight and recovery procedure before use.
 
 For **Immediate RTL** or **Land here**, first check **To**, then open

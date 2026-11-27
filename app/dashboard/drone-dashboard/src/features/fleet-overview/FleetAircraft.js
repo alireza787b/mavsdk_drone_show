@@ -167,7 +167,7 @@ export function AircraftInspector({ item, onClose, onMove, onAction, onMore }) {
         <dt>Arming</dt><dd>{item.armed === null ? 'Unknown' : item.armed ? 'Armed' : 'Disarmed'}</dd>
         <dt>Battery</dt><dd>{item.battery.text}{item.battery.stale ? ' · last known' : ''}</dd>
         <dt>Altitude</dt><dd>{altitudeText(item.altitude)}{item.altitude.stale ? ' · last known' : ''}</dd>
-        <dt>GPS</dt><dd>{item.gps.label}{item.gps.stale ? ' · last known' : ''}</dd>
+        <dt>GPS</dt><dd>{item.gps.label}{item.gps.fixedSeconds != null && ` · observed for ${item.gps.fixedSeconds} s`}{item.gps.stale ? ' · last known' : ''}</dd>
         <dt>Satellites</dt><dd>{item.gps.satellites ?? 'Unknown'}{item.gps.stale ? ' · last known' : ''}</dd>
         <dt>Position</dt><dd>{item.position.latitude == null ? 'Unavailable' : `${item.position.latitude.toFixed(6)}, ${item.position.longitude.toFixed(6)}${item.position.stale ? ' · last known' : ''}`}</dd>
         <dt>Flight mode</dt><dd>{item.flightMode.label}{item.flightMode.stale ? ' · last known' : ''}</dd>

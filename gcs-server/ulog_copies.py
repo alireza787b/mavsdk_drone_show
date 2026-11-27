@@ -19,7 +19,7 @@ import httpx
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
-from mds_logging.api_schemas import OnboardUlogDownloadJob
+from mds_logging.api_schemas import CompanionEvidence, OnboardUlogDownloadJob
 from src.ulog_transfer_policy import (
     ulog_download_aggregate_max_bytes,
     ulog_download_max_bytes,
@@ -74,13 +74,13 @@ class GcsUlogCopies:
                 self.purge(key)
         for path in self.root.iterdir() if self.root.exists() else ():
             key = path.stem
-            if (path.suffix in {".part", ".tmp", ".ulg"} and key not in self.tasks
+            if (path.suffix in {".part", ".tmp", ".ulg", ".evidence"} and key not in self.tasks
                     and not self.leases[key] and not (self.root / f"{key}.json").exists()):
                 path.unlink(missing_ok=True)
         self.next_sweep = now + 30
 
     def purge(self, key: str) -> None:
-        for suffix in ("json", "ulg", "part", "tmp"):
+        for suffix in ("json", "ulg", "part", "tmp", "evidence"):
             (self.root / f"{key}.{suffix}").unlink(missing_ok=True)
 
     def metadata(self, key: str) -> dict | None:
@@ -106,6 +106,8 @@ class GcsUlogCopies:
         self.sweep()
         results = []
         for file in self.root.glob("*.json"):
+            if file.stem in self.tasks:
+                continue
             meta = self.metadata(file.stem)
             if meta and not meta.get("deleted") and meta.get("owner") == owner:
                 results.append({"request_id": meta["request_id"], "job": self._ready_job(file.stem, meta),
@@ -160,10 +162,12 @@ class GcsUlogCopies:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def watch(self, owner: str, drone_id: int, job: OnboardUlogDownloadJob,
-              ip: str, expected_size: int | None, expected_date: str | None, *,
+              expected_size: int | None, expected_date: str | None, *,
               node_job_id: str, request_id: str, copy_owner: str | None) -> OnboardUlogDownloadJob:
         self.sweep()
         key = self.key(owner, drone_id, node_job_id)
+        if key in self.tasks:
+            return self.jobs[key]
         metadata = self.metadata(key)
         if metadata and metadata.get("deleted"):
             return job.model_copy(update={"status": "expired", "phase": None, "error": "The GCS copy was removed."})
@@ -189,28 +193,45 @@ class GcsUlogCopies:
             phase = "waiting" if len(self.tasks) >= MAX_ACTIVE else "aircraft"
             self.jobs[key] = job.model_copy(update={"status": "queued", "phase": phase, "progress": 0.0})
             identity = {"owner": copy_owner, "request_id": request_id} if copy_owner else {}
-            task = asyncio.create_task(self._run_queued(key, ip, resolved, job, expected_size, identity))
+            task = asyncio.create_task(self._run_queued(key, resolved, job, expected_size, identity))
             self.tasks[key] = task
         return self.jobs[key]
 
     def _state(self, key: str, **updates) -> None:
         self.jobs[key] = self.jobs[key].model_copy(update={"updated_at": _now(), **updates})
 
-    async def _run_queued(self, key, ip, resolved, job, expected_size, identity) -> None:
+    async def _run_queued(self, key, resolved, job, expected_size, identity) -> None:
         try:
             async with self.slots:
                 if job.expires_at and job.expires_at <= _now():
                     self._state(key, status="expired", phase=None)
                     return
                 self._state(key, phase="aircraft")
-                await self._prepare(key, ip, resolved, job, expected_size, identity)
+                await self._prepare(key, resolved, job, expected_size, identity)
+                if identity and self.metadata(key):
+                    try:
+                        await self._capture_evidence(key, job.hw_id)
+                    except Exception:
+                        # The verified raw log is already durable, even across a restart.
+                        logger.exception("Optional ULog evidence capture failed for aircraft %s", job.hw_id)
+                    self._state(key, status="ready", phase="verified", progress=1.0)
+        except asyncio.CancelledError:
+            # Recovery reads committed metadata or requeues the exact same native job.
+            self.jobs.pop(key, None)
+            raise
         finally:
             self.tasks.pop(key, None)
 
-    async def _prepare(self, key, ip, resolved, original, expected_size, identity) -> None:
+    async def _prepare(self, key, resolved, original, expected_size, identity) -> None:
         from log_proxy import (
-            DroneProxyResponseError, DroneProxyUnavailableError, fetch_drone_ulog_download_job,
+            DroneProxyResponseError, DroneProxyUnavailableError, fetch_drone_ulog_download_job, resolve_drone_ip,
         )
+
+        def current_address():
+            ip = resolve_drone_ip(int(original.hw_id))
+            if not ip:
+                raise DroneProxyUnavailableError("The configured aircraft address is unavailable.")
+            return ip
 
         deadline = min(original.expires_at or (_now() + 900_000),
                        _now() + int(1000 * ulog_download_timeout_seconds()))
@@ -226,7 +247,7 @@ class GcsUlogCopies:
                         self._state(key, status=job.status, error=job.error, phase=None)
                         return
                     try:
-                        data = await fetch_drone_ulog_download_job(ip, resolved.node_job_id,
+                        data = await fetch_drone_ulog_download_job(current_address(), resolved.node_job_id,
                                                                   access_token=resolved.access_token)
                         job = OnboardUlogDownloadJob.model_validate(data["job"])
                     except (DroneProxyUnavailableError, DroneProxyResponseError) as exc:
@@ -262,7 +283,7 @@ class GcsUlogCopies:
                 self.reserved[key] = total
                 for retry in range(3):
                     try:
-                        await self._copy(key, ip, resolved, original, total, deadline, identity)
+                        await self._copy(key, current_address(), resolved, original, total, deadline, identity)
                         return
                     except (DroneProxyUnavailableError, DroneProxyResponseError, httpx.TransportError) as exc:
                         if retry == 2 or getattr(exc, "status_code", None) in {404, 410}:
@@ -329,7 +350,37 @@ class GcsUlogCopies:
         # leave an orphan, but it cannot publish an incomplete download.
         partial.replace(self.root / f"{key}.ulg")
         self._publish(key, metadata)
-        self._state(key, status="ready", phase="verified", progress=1.0)
+        if not identity:
+            self._state(key, status="ready", phase="verified", progress=1.0)
+
+    async def _capture_evidence(self, key, hw_id):
+        from log_proxy import _ulog_summary_max_bytes
+        from mds_logging.ulog_analysis import UlogSummaryError, UlogSummaryTimeoutError, summarize_ulog_file_async
+        from ulog_companion_evidence import collect_companion_evidence, unavailable
+
+        try:
+            parsed = await summarize_ulog_file_async(self.root / f"{key}.ulg", max_bytes=_ulog_summary_max_bytes(),
+                                                    include_timeline=True, timeout_seconds=12)
+            evidence = await collect_companion_evidence(str(hw_id), parsed.get("timeline"))
+        except (UlogSummaryError, UlogSummaryTimeoutError):
+            evidence = unavailable("The flight interval could not be read during retrieval.")
+        temporary = self.root / f"{key}.tmp"
+        try:
+            with temporary.open("wb") as output:
+                os.fchmod(output.fileno(), 0o600)
+                output.write(evidence.model_dump_json().encode())
+                self._sync(output)
+            temporary.replace(self.root / f"{key}.evidence")
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def evidence(self, key):
+        from ulog_companion_evidence import unavailable
+
+        try:
+            return CompanionEvidence.model_validate_json((self.root / f"{key}.evidence").read_bytes())
+        except (OSError, ValueError):
+            return unavailable("No companion evidence was saved with this copy.")
 
     def _publish(self, key: str, metadata: dict) -> None:
         temporary = self.root / f"{key}.tmp"

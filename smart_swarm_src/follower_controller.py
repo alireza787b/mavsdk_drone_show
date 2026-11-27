@@ -204,7 +204,7 @@ class FollowerMotionController:
                 + self.velocity_gain * velocity_error
             )
             requested = motion_confidence * raw_request
-            yaw_request = target_yaw
+            yaw_request = target_yaw if motion_confidence > 0.0 else self._yaw_deg
         else:
             requested = np.zeros(3, dtype=float)
             yaw_request = self._yaw_deg

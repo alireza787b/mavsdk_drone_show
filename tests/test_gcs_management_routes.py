@@ -644,7 +644,14 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     monkeypatch.setenv("MDS_INSTALL_DIR", "/opt/demo-gcs")
     monkeypatch.setenv("MDS_GIT_AUTH_TOKEN_FILE", str(token_file))
     monkeypatch.delenv("MDS_GIT_SSH_KEY_FILE", raising=False)
-    monkeypatch.setattr(management_module, "_list_sitl_instance_count", lambda deps: 3)
+    request_loop_thread = threading.get_ident()
+
+    def instance_count(_deps):
+        # The ASGI test client runs the request loop on this test's thread.
+        assert threading.get_ident() != request_loop_thread
+        return 3
+
+    monkeypatch.setattr(management_module, "_list_sitl_instance_count", instance_count)
     deps.get_gcs_git_report = lambda: {
         "branch": "customer-demo",
         "commit": "abcdef12",

@@ -17,12 +17,16 @@ function deferred() {
 }
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
 const advance = async (milliseconds) => { await act(async () => { jest.advanceTimersByTime(milliseconds); }); };
-let hidden;
+let hidden, webSocket;
 
 beforeEach(() => {
   jest.clearAllMocks();
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
+  // These cases exercise HTTP resource ownership. WebSocket reconnects have
+  // their own deterministic coverage in observationResource.test.js.
+  webSocket = global.WebSocket;
+  global.WebSocket = undefined;
   hidden = jest.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   getFleetConfigResponse.mockReset().mockResolvedValue({ data: [{ hw_id: '1' }] });
   getFleetTelemetryResponse.mockReset().mockResolvedValue({ data: { telemetry: { 1: { hw_id: '1', update_time: NOW / 1000, telemetry_available: true } } }, headers: { 'x-mds-server-time': NOW } });
@@ -32,6 +36,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   hidden.mockRestore();
+  global.WebSocket = webSocket;
   jest.useRealTimers();
 });
 

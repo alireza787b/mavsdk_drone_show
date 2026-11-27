@@ -20,7 +20,21 @@
 .swarm-diagram__state.is-warning { color: var(--color-warning); }
 .swarm-diagram__state.is-danger { color: var(--color-danger); }
 .swarm-diagram__state.is-info { color: var(--color-info); }
+.swarm-diagram__height { display: inline-flex; align-items: center; gap: .2rem; color: var(--color-success, var(--color-text-secondary)); font-size: .78rem; }
+.swarm-diagram__height.is-warning { color: var(--color-warning-text, var(--color-warning)); }
+.swarm-diagram__height.is-danger { color: var(--color-danger-text, var(--color-danger)); }
+.swarm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 600px) {
   .swarm-diagram li { margin-left: calc(min(var(--swarm-depth), 3) * var(--spacing-base)); }
   .swarm-diagram__node { gap: var(--spacing-xs) var(--spacing-sm); }
 }
+
+.swarm-diagram__link { display: inline-flex; align-items: center; gap: var(--spacing-xs); }
+.swarm-diagram__link.is-delayed, .swarm-diagram__link.is-missing { color: var(--color-warning-text, var(--color-warning)); }
+.swarm-diagram__link-detail { flex: 1 0 100%; }
+.swarm-diagram__link-detail h4 { margin: 0; font-size: var(--font-size-sm); }
+.swarm-diagram__link-detail h4 small { margin-inline-start: var(--spacing-sm); color: var(--color-text-secondary); }
+.swarm-diagram__link-detail dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: var(--spacing-lg); row-gap: var(--spacing-xs); margin-bottom: 0; font-size: var(--font-size-sm); }
+.swarm-diagram__link-detail dt { color: var(--color-text-secondary); }
+.swarm-diagram__link-detail dd { margin: 0; font-variant-numeric: tabular-nums; }
+.swarm-diagram__link-detail time { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-variant-numeric: tabular-nums; }

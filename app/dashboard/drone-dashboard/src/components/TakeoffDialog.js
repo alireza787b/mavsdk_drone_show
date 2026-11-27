@@ -1,3 +1,4 @@
+import SwarmHeightAdvisory from './SwarmHeightAdvisory';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ConfirmDialog } from './ui';
 import AircraftChoiceRow from './ui/AircraftChoiceRow';
@@ -15,13 +16,13 @@ const REVIEW_STATUS_MAX_AGE_MS = 5000;
 
 // One review and one owned command, shared by every standalone Takeoff entry.
 // Native readiness is advisory here; node admission is repeated at execution.
-export default function TakeoffDialog({ open, command, aircraft = [], beforeSubmit, onAccepted, onClose }) {
+export default function TakeoffDialog({ open, command, aircraft = [], heightAdvisory, advisoryReceivedAtMs, beforeSubmit, onAccepted, onClose }) {
   if (!open || !command) return null;
   return <TakeoffReview key={command.idempotency_key || command.uiMeta?.reviewKey || 'takeoff-review'}
-    command={command} aircraft={aircraft} beforeSubmit={beforeSubmit} onAccepted={onAccepted} onClose={onClose} />;
+    command={command} aircraft={aircraft} heightAdvisory={heightAdvisory} advisoryReceivedAtMs={advisoryReceivedAtMs} beforeSubmit={beforeSubmit} onAccepted={onAccepted} onClose={onClose} />;
 }
 
-function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose }) {
+function TakeoffReview({ command, aircraft, heightAdvisory, advisoryReceivedAtMs, beforeSubmit, onAccepted, onClose }) {
   // The initiating page defines the review boundary, not the entire fleet.
   const [roster] = useState(() => [...command.target_drone_ids].map(String));
   const [pendingKey] = useState(() => `mds-takeoff:${getBackendURL()}:${[...command.target_drone_ids].map(String).sort().join(',')}`);
@@ -211,6 +212,7 @@ function TakeoffReview({ command, aircraft, beforeSubmit, onAccepted, onClose })
         {!validHeight && <p role="alert">Enter a positive height.</p>}
       </> : <><div className="takeoff-review__progress" role="status">{progress}{progressCount}</div>
         <div className="takeoff-review__summary">{height} m · {multiple ? (waitForAll ? 'All armed first' : 'Independent') : 'Single aircraft'}</div></>}
+      {!inProgress && <SwarmHeightAdvisory warning={heightAdvisory} targetIds={targets} aircraft={aircraft} receivedAtMs={advisoryReceivedAtMs} />}
       <div className="takeoff-review__selection">
         <span aria-live="polite">Aircraft · {targets.length} of {roster.length}</span>
         {!inProgress && roster.length > 1 && <div className="takeoff-review__bulk">

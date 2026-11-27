@@ -2,6 +2,8 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { FaExclamationTriangle } from 'react-icons/fa';
+import AircraftConditionList from './AircraftConditionList';
+import FleetHeightReviews from './FleetHeightReviews';
 import { useFleetAlerts } from './FleetAlertsContext';
 import './FleetAlertsPanel.css';
 
@@ -9,6 +11,19 @@ const RECENT_OBSERVATION_MS = 5000;
 function ageLabel(timestamp, now) {
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
   return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+}
+
+function GroupedConditions({ entries, label, renderEntry }) {
+  const groups = new Map();
+  for (const item of entries) {
+    const key = JSON.stringify([item.reason, item.tone]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return <ul aria-label={label}>{Array.from(groups, ([key, group]) => group.length === 1
+    ? renderEntry(group[0]) : <li key={key}><details><summary>{group[0].reason} · {group.length} aircraft</summary>
+      <AircraftConditionList label={group[0].reason} entries={group} renderEntry={renderEntry} />
+    </details></li>)}</ul>;
 }
 
 function AlertsDialog({ state, markSeen, onClose }) {
@@ -47,9 +62,10 @@ function AlertsDialog({ state, markSeen, onClose }) {
       ? 'Telemetry source unavailable · aircraft updates paused.'
       : 'Last observed: telemetry source unavailable.'}</p>}
     {!!(state.omittedAircraft || state.omittedConditions) && <p>{state.omittedAircraft} additional aircraft and {state.omittedConditions} conditions omitted from this bounded view.</p>}
-    {current.length > 0 && <section><h3>Observed conditions</h3><ul aria-label="Observed conditions">{current.map((episode) => entry(episode))}</ul></section>}
-    {lastObserved.length > 0 && <section><h3>Last observed · not current</h3><ul aria-label="Last-observed conditions">{lastObserved.map((episode) => entry(episode))}</ul></section>}
-    {!state.active.length && <p>{recentObservation && !state.sourceError ? 'No conditions reported in the latest Overview observation.' : 'No conditions recorded in this session.'}</p>}
+    {recentObservation && <FleetHeightReviews reviews={state.heightReviews} />}
+    {current.length > 0 && <section><h3>Observed conditions</h3><GroupedConditions entries={current} label="Observed conditions" renderEntry={episode => entry(episode)} /></section>}
+    {lastObserved.length > 0 && <section><h3>Last observed · not current</h3><GroupedConditions entries={lastObserved} label="Last-observed conditions" renderEntry={episode => entry(episode)} /></section>}
+    {!state.active.length && !state.heightReviews?.length && <p>{recentObservation && !state.sourceError ? 'No conditions reported in the latest Overview observation.' : 'No conditions recorded in this session.'}</p>}
     {state.recent.length > 0 && <details><summary>Recently cleared · {state.recent.length}</summary><ul aria-label="Recently cleared conditions">{state.recent.map((episode) => entry(episode, true))}</ul></details>}
   </dialog>;
 }
@@ -58,7 +74,7 @@ export default function FleetAlertsPanel({ className = '' }) {
   const { state, markSeen } = useFleetAlerts();
   const [open, setOpen] = useState(false);
   // A GCS outage is one alert, never 100 derived aircraft-loss notifications.
-  const count = state.sourceError && !state.sourceRecovering ? state.active.filter((episode) => episode.aircraftId === null).length : state.active.length;
+  const count = state.sourceError && !state.sourceRecovering ? state.active.filter((episode) => episode.aircraftId === null).length : state.active.length + (state.heightReviews?.length || 0);
   return <div className={`fleet-alerts ${className}`}>
     <button type="button" className={`fleet-alerts__trigger ${count ? 'has-alerts' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
       {count > 0 && <FaExclamationTriangle aria-hidden="true" />}<span>Alerts</span>{count > 0 && <span>{count}</span>}

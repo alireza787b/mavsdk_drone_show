@@ -271,8 +271,11 @@ _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] =
     (("chunk_id", "chunk id", "docs chunk"), ("mds.docs.chunk.read",), "one public docs chunk"),
 )
 
+_TRAJECTORY_WORKSPACE_SIGNALS = ("trajectory mission workspace", "trajectory workspace")
+
 _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("simurgh status", "assistant status", "agent status"), ("mds.simurgh.status.read",), "Simurgh status"),
+    (_TRAJECTORY_WORKSPACE_SIGNALS, ("mds.swarm_trajectories.workspace.read",), "Swarm Trajectory workspace"),
     (("quickscout", "quick scout", "sar", "search and rescue", "scout mission"), ("mds.sar.missions.read",), "QuickScout/SAR mission catalog"),
     (("sitl", "simulator", "simulation instance", "sim instance", "sitl instance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
     (("node boot", "boot status", "boot init", "initializing", "initialisation", "initialization", "git sync phase"), ("mds.fleet.node_boot_status.read",), "fleet node boot/init status"),
@@ -596,6 +599,8 @@ def plan_registry_read_tool_calls(
             domain=plan.domain,
             context_tool_ids=selected_ids,
         )
+        if "mds.swarm_trajectories.workspace.read" in selected_ids and _has_any(normalized, _TRAJECTORY_WORKSPACE_SIGNALS):
+            metadata_ids = tuple(tool_id for tool_id in metadata_ids if tool_id == "mds.swarm_trajectories.workspace.read")
         merged_ids = _merge_specific_tool_ids(metadata_ids, selected_ids)
         if tuple(selected_ids) != merged_ids:
             selected_ids = list(merged_ids)
@@ -1875,6 +1880,8 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
     for signals, tool_ids, candidate_label in _ARGUMENT_TOOL_HINTS:
         if _has_any(text, signals):
             if "mds.config.position.read" in tool_ids and _has_any(text, ("launch positions", "positions", "deviations")):
+                continue
+            if "mds.sar.mission.workspace.read" in tool_ids and _has_any(text, _TRAJECTORY_WORKSPACE_SIGNALS):
                 continue
             selected.extend(tool_ids)
             label = candidate_label

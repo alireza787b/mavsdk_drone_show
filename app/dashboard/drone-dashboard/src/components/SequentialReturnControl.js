@@ -13,7 +13,7 @@ const LABELS = {
 };
 
 export default function SequentialReturnControl({ targetIds, targetNames, compact = false,
-  contextKey = '', validateReview = null, buttonLabel = 'Managed Return', disabled = false }) {
+  contextKey = '', validateReview = null, buttonLabel = 'Managed Return', disabled = false, onReviewImmediateReturn = null }) {
   const [delay, setDelay] = useState(10);
   const [confirmation, setConfirmation] = useState(null);
   const [job, setJob] = useState(null);
@@ -30,7 +30,8 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
     if ((next && (!next.return_id || !Array.isArray(next.commands) || !Array.isArray(next.target_drone_ids)))
         || (!next && ACTIVE.has(previous?.state))) throw new Error('Return status unavailable');
     const changed = next && (previous?.return_id !== next.return_id || previous?.state !== next.state);
-    if (next && !ACTIVE.has(next.state) && (submitted || (pollInitialized.current && changed))) {
+    if (next && !ACTIVE.has(next.state) && (submitted || (pollInitialized.current && changed)
+        || (!pollInitialized.current && ['failed', 'interrupted'].includes(next.state)))) {
       setNotice({ id: next.return_id, state: next.state });
     }
     observedJob.current = next;
@@ -72,6 +73,7 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
   const inScope = job?.target_drone_ids?.every((id) => targetIds.includes(String(id)));
   const validJob = Boolean(job?.return_id && Array.isArray(job?.commands) && Array.isArray(job?.target_drone_ids));
   const visible = validJob && (active || Boolean(notice && notice.id === job.return_id));
+  const hold = job?.hold_confirmation;
   const validDelay = Number.isFinite(Number(delay)) && Number(delay) >= 1 && Number(delay) <= 300;
 
   const start = async () => {
@@ -137,19 +139,39 @@ export default function SequentialReturnControl({ targetIds, targetNames, compac
             <small>RTL in the displayed order, {delay || '—'} s apart</small></span>}
         </button>
       </div>
-      {active && !inScope && !showOtherQueue && <button type="button" className="operator-button operator-button--ghost"
-        onClick={() => setShowOtherQueue(true)}>Return active for other aircraft · Details</button>}
+      {visible && !inScope && !showOtherQueue && <button type="button" className="operator-button operator-button--ghost"
+        onClick={() => setShowOtherQueue(true)}>Return {active ? 'active' : 'stopped'} for other aircraft · Details</button>}
       {job && visible && (inScope || showOtherQueue) && (
-        <div className="swarm-sequential-return__status" role="status">
-          <StatusBadge tone={job.state === 'failed' || job.state === 'interrupted' ? 'warning' : 'info'}>
+        <div className="swarm-sequential-return__status">
+          <span role="status"><StatusBadge tone={job.state === 'failed' || job.state === 'interrupted' ? 'warning' : 'info'}>
             {LABELS[job.state] || job.state}
-          </StatusBadge>
-          <span>{job.commands.length}/{job.target_drone_ids.length} RTL commands issued</span>
+          </StatusBadge></span>
+          <span className="swarm-sequential-return__dispatch-count" title={Number.isInteger(job.rtl_dispatched_count)
+            ? `${job.rtl_dispatched_count}/${job.target_drone_ids.length} RTL dispatches started`
+            : `${job.commands.length}/${job.target_drone_ids.length} RTL commands tracked`}>
+            <FaHome aria-hidden="true" />
+            <strong>{Number.isInteger(job.rtl_dispatched_count) ? `${job.rtl_dispatched_count}/${job.target_drone_ids.length}` : `${job.commands.length}/${job.target_drone_ids.length}`}</strong>
+            <span className="swarm-visually-hidden">{Number.isInteger(job.rtl_dispatched_count)
+              ? `${job.rtl_dispatched_count}/${job.target_drone_ids.length} RTL dispatches started`
+              : `${job.commands.length}/${job.target_drone_ids.length} RTL commands tracked`}</span>
+          </span>
+          {job.uncertain_dispatch_hw_id && <span>RTL submission for H{job.uncertain_dispatch_hw_id} is unconfirmed; check its command result.</span>}
+          {hold && Array.isArray(hold.pending_at_stop) && <details>
+            <summary aria-label={`Hold at queue stop: ${hold.confirmed_at_stop?.length ?? 'Unknown'} confirmed, ${hold.pending_at_stop.length} unconfirmed`}>
+              <FaPause aria-hidden="true" /><strong>{hold.confirmed_at_stop?.length ?? '—'}/{(hold.confirmed_at_stop?.length ?? 0) + hold.pending_at_stop.length}</strong>
+              <span className="swarm-visually-hidden">Hold at queue stop: {hold.confirmed_at_stop?.length ?? 'Unknown'} confirmed · {hold.pending_at_stop.length} unconfirmed</span>
+            </summary>
+            {hold.stopped_at_ms && <small>Queue stopped {new Date(hold.stopped_at_ms).toLocaleString()}.</small>}
+            {hold.pending_at_stop.length > 0 && <details><summary>Aircraft unconfirmed at stop · {hold.pending_at_stop.length}</summary><ul className="swarm-return-evidence">{hold.pending_at_stop.map(id => <li key={id}>H{id}</li>)}</ul></details>}
+            {Array.isArray(hold.pending_now) && <p>Latest Hold receipts: {hold.confirmed_now?.length ?? 'Unknown'} confirmed · {hold.pending_now.length} unconfirmed. Later confirmation does not restart the queue.</p>}
+          </details>}
           {job.next_hw_id && <span>Next: {job.next_hw_id}</span>}
-          {active && <button type="button" disabled={busy} onClick={cancel}>Cancel remaining</button>}
+          {onReviewImmediateReturn && inScope && (active || ['failed', 'interrupted'].includes(job.state) || job.uncertain_dispatch_hw_id) &&
+            <button type="button" className="operator-button operator-button--ghost swarm-sequential-return__review" aria-label={`Review Immediate RTL for current To (${targetIds.length})`} title="Review Immediate RTL for current To" disabled={disabled} onClick={onReviewImmediateReturn}><FaHome aria-hidden="true" /><span aria-hidden="true">Review RTL</span></button>}
+          {active && <button type="button" className="operator-button operator-button--ghost" disabled={busy} onClick={cancel}>Cancel remaining</button>}
           {active && <small>Issued RTL continues.</small>}
           {['failed', 'cancelled', 'interrupted'].includes(job.state) && <span>{job.message}</span>}
-          {!active && ['failed', 'interrupted'].includes(job.state) && <button type="button"
+          {!active && ['failed', 'interrupted'].includes(job.state) && <button type="button" className="operator-button operator-button--ghost"
             onClick={() => setNotice(null)}>Dismiss notice</button>}
         </div>
       )}
@@ -190,4 +212,5 @@ SequentialReturnControl.propTypes = {
   contextKey: PropTypes.string,
   aircraftStates: PropTypes.object,
   validateReview: PropTypes.func,
+  onReviewImmediateReturn: PropTypes.func,
 };

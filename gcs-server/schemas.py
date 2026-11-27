@@ -13,6 +13,7 @@ import os
 import sys
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from src.smart_swarm_contract import OptionalSwarmLinkObservation
 from typing import Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 
@@ -24,6 +25,8 @@ from src.control_release_protocol import ControlReleaseResult
 from src.enums import CommandOutcome, CommandPhase, CommandStatus
 from src.swarm_trajectory_contract import SwarmTrajectoryPackage
 from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
+from swarm_height_advisory import HEIGHT_REVIEW_THRESHOLD_M
+from src.telemetry_display import ALTITUDE_STALE_AFTER_MS
 
 
 # ============================================================================
@@ -532,6 +535,7 @@ class DroneTelemetry(BaseModel):
     battery_timestamp_ms: int = Field(0, ge=0, description="Battery sample timestamp (Unix ms)")
     battery_age_ms: Optional[int] = Field(None, ge=0, description="Battery sample age at the drone API")
     follow_mode: Any = Field(..., description="Current follow mode value")
+    link_observation: OptionalSwarmLinkObservation = None
 
     update_time: Any = Field(..., description="Legacy update time field from the drone API")
     timestamp: int = Field(..., description="Telemetry timestamp (Unix ms)")
@@ -554,6 +558,7 @@ class DroneTelemetry(BaseModel):
     global_position_timestamp_ms: int = Field(0, description="Last valid global position sample timestamp (Unix ms)")
     global_position_age_ms: Optional[int] = Field(None, description="Age of the last valid global position sample")
     gps_raw_valid: bool = Field(False, description="Whether GPS_RAW_INT reports at least a 3D fix")
+    rtk_fixed_observed_since_ms: Optional[int] = Field(None, description="First source timestamp in a continuous series of observed RTK fixed samples")
     gps_raw_timestamp_ms: int = Field(0, description="Last raw GPS quality sample timestamp (Unix ms)")
     gps_raw_age_ms: Optional[int] = Field(None, description="Age of the last raw GPS quality sample")
     local_position_ok: bool = Field(False, description="Whether LOCAL_POSITION_NED has been observed")
@@ -597,6 +602,9 @@ class OverviewDisplayPolicy(BaseModel):
 
     stale_sec: float = Field(..., gt=0, description="Heartbeat age after which Overview shows a stale cue")
     available_sec: float = Field(..., gt=0, description="Maximum heartbeat age retained by Overview Available")
+
+    height_review_threshold_m: float = Field(HEIGHT_REVIEW_THRESHOLD_M, gt=0, description="Advisory height difference to review, metres")
+    height_sample_max_age_ms: int = Field(ALTITUDE_STALE_AFTER_MS, gt=0, description="Maximum native sample age for the height comparison")
 
     @model_validator(mode='after')
     def validate_window_order(self):
@@ -1001,6 +1009,7 @@ class GitStatusResponse(BaseModel):
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
     needs_sync_count: int = Field(..., ge=0, description="Drones needing sync")
     unknown_count: int = Field(0, ge=0, description="Online drones whose software revision is unconfirmed")
+    branch_only_count: int = Field(0, ge=0, description="Reviewable aircraft with a clean matching commit on a different branch")
     gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
     sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
@@ -2150,7 +2159,8 @@ class RuntimeStatusResponse(BaseModel):
 # ============================================================================
 
 class NetworkStatus(BaseModel):
-    """Network connectivity status"""
+    """Last accepted companion heartbeat for a reported slot."""
+    hw_id: Optional[str] = Field(None, description="Hardware ID that reported this slot")
     pos_id: int = Field(..., ge=1, description="Position ID")
     ip: str = Field(..., description="IP address")
     reachable: bool = Field(..., description="Network reachable")

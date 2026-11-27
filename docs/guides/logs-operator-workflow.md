@@ -86,6 +86,21 @@ leaves the verified file available. **Open file** sends a local `.ulg` to your
 GCS's temporary parser. Viewer accounts can request an onboard summary, and
 operator or admin accounts can retrieve and save raw files.
 
+## Read a flight timeline
+
+Open **Summary** on a saved GCS copy. **Flight timeline** places PX4 mode and
+command events alongside recorded Smart Swarm decisions using their UTC times.
+Enable **Link samples** to include periodic measurements. Select a row with a
+chevron to inspect its source and values. MAVLink rates and counters describe
+that PX4 link instance. An aircraft Wi-Fi percentage describes the local
+wireless connection at its sample time. Either can be missing.
+
+Open **Partial link record** for the coverage explanation. PX4 events without
+a usable UTC clock appear in a separate elapsed-time list. Evidence can be
+incomplete even when the raw flight log downloaded successfully.
+
+![Illustrative retained log with an expanded link sample](../assets/log-workspace/flight-timeline-detail.png)
+
 ## Unavailable aircraft and maintenance
 
 - With no aircraft selected/connected, GCS history and **Open file** remain useful.

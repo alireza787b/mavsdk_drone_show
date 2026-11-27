@@ -45,8 +45,9 @@ export default function useFleetResources(contextKey) {
     const normalized = normalizeTelemetryResponse(unwrapFleetTelemetryPayload(telemetry.response?.data || {}), clock);
     return mergeFleetResources(config.response?.data, normalized, boot.response?.data, clock);
   }, [config.response, telemetry.response, telemetry.receivedAtMs, boot.response]);
+  const assignments = useMemo(() => unwrapSwarmConfigPayload(swarm.response?.data), [swarm.response]);
   return { drones, nowMs, config, telemetry, boot,
     displayPolicy: telemetry.response?.data?.display_policy || DEFAULT_FLEET_AVAILABILITY_POLICY,
     configuredIds: (Array.isArray(config.response?.data) ? config.response.data : []).map((row) => normalizeComparableId(row.hw_id)).filter(Boolean),
-    swarm: unwrapSwarmConfigPayload(swarm.response?.data), loading: config.loading && telemetry.loading };
+    swarm: assignments, loading: config.loading && telemetry.loading };
 }

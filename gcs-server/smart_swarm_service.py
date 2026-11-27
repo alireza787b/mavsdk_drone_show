@@ -8,9 +8,12 @@ from __future__ import annotations
 import time
 from fastapi import HTTPException
 from src.smart_swarm_contract import (
-    SmartSwarmSession, dependency_closed_targets, normalize_topology,
+    SmartSwarmSession, SwarmLinkObservation, dependency_closed_targets, normalize_topology,
     resolve_clusters, topology_revision, required_reference_ids,
 )
+
+
+from swarm_height_advisory import build_height_advisory
 
 
 def resolve_start_scope(cluster, request):
@@ -52,6 +55,10 @@ def build_preview(deps):
                 timestamp = 0
             available = state.get("telemetry_available") is not False and 0 <= now_ms - timestamp <= 5000
             member["available"] = available
+            member["link_observation"] = SwarmLinkObservation.current(
+                state.get("link_observation"), hw_id=member["hw_id"], follow=member["follow"],
+                now_ms=now_ms, session_id=state.get("current_command_id"),
+            ) if available else None
             member["armed"] = state.get("is_armed")
             # Advisory presentation only: node-side live admission remains authoritative.
             member['relative_altitude_m'] = state.get('relative_altitude_m')
@@ -75,6 +82,7 @@ def build_preview(deps):
             set(m["hw_id"] for m in cluster["members"]) - set(cluster["available_hw_ids"]),
             key=int,
         )
+        cluster["altitude_warning"] = build_height_advisory(cluster["members"], telemetry, now_ms)
     return {"revision": topology_revision(assignments), "clusters": clusters,
             "runtime_mode": 'SITL' if getattr(getattr(deps, 'Params', None), 'sim_mode', False) else 'REAL'}
 

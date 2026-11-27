@@ -21,7 +21,8 @@ const SyncWarningBanner = () => {
   }, []);
   const drift = Math.max(0, Number(syncData?.needs_sync_count) || 0);
   const unknown = Math.max(0, Number(syncData?.unknown_count) || 0);
-  const signature = JSON.stringify([syncData?.gcs_status?.commit, drift, unknown,
+  const branchOnly = drift > 0 && drift === syncData?.branch_only_count && !unknown;
+  const signature = JSON.stringify([syncData?.gcs_status?.commit, drift, unknown, branchOnly,
     Object.entries(syncData?.git_status || {}).filter(([, row]) => row && row.in_sync_with_gcs !== true).map(([id, row]) =>
       [id, row.commit, row.status, row.in_sync_with_gcs]).sort((a, b) => a[0].localeCompare(b[0]))]);
   if (!syncData || !(drift || unknown) || dismissedSignature === signature) return null;
@@ -29,10 +30,11 @@ const SyncWarningBanner = () => {
   const unavailable = stale || !drift;
   const Icon = unavailable ? FaQuestionCircle : FaCodeBranch;
   const count = drift + unknown;
-  const label = stale ? 'Software status unavailable' : drift ? 'Software differs' : 'Version unavailable';
+  const label = stale ? 'Software status unavailable' : branchOnly ? 'Update branch differs' : drift ? 'Review software' : 'Version unavailable';
   const detail = stale
     ? 'Last observed software status. Open Fleet operations to check connectivity and source revisions.'
-    : `${drift} different, ${unknown} unconfirmed. Source revisions compared with GCS; not a flight-health check. Review before a grounded update.`;
+    : branchOnly ? 'Aircraft report the same commit as the GCS on a different update branch.'
+    : `${drift} to review, ${unknown} unconfirmed. Open Fleet operations to inspect the revisions.`;
 
   return (
     <div className={`sync-warning-banner${unavailable ? ' is-unconfirmed' : ''}`} role="status" aria-live="polite">

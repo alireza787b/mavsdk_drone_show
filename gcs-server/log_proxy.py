@@ -396,9 +396,14 @@ async def fetch_drone_sessions(drone_ip: str) -> Optional[dict]:
     """Fetch session list from a drone. Returns None if unreachable."""
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(_build_drone_url(drone_ip, "/api/logs/sessions"))
-            resp.raise_for_status()
-            return resp.json()
+            async with client.stream("GET", _build_drone_url(drone_ip, "/api/logs/sessions")) as resp:
+                resp.raise_for_status()
+                body = bytearray()
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    if len(body) + len(chunk) > 1024 * 1024:
+                        raise ValueError("Companion session inventory exceeds 1 MiB")
+                    body.extend(chunk)
+                return json.loads(body)
     except Exception as e:
         logger.warning(f"Drone at {drone_ip} unreachable: {e}")
         return None

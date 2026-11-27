@@ -31,7 +31,7 @@ class _FakeContainerCollection:
     def __init__(self, containers):
         self._containers = list(containers)
 
-    def list(self, all=False):  # noqa: A002 - docker SDK signature
+    def list(self, all=False, sparse=False):  # noqa: A002 - docker SDK signature
         return list(self._containers)
 
     def get(self, name: str):
@@ -246,6 +246,29 @@ def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
     assert instances.instances[0].requirements_sync_enabled is False
     assert instances.instances[0].startup_script_source == "host_override"
     assert instances.instances[0].ip_addresses["drone-network"] == "172.18.0.2"
+
+
+def test_sparse_count_avoids_enriching_labelled_and_unrelated_containers(tmp_path):
+    class Sparse:
+        def __init__(self, name, labels):
+            self.name = name
+            self.attrs = {"Names": ["/" + name], "Labels": labels}
+            self.reloads = 0
+
+        def reload(self):
+            self.reloads += 1
+            self.attrs = {"Config": {"Env": ["MDS_BRANCH=main"]}}
+
+        @property
+        def image(self):
+            raise AssertionError("A known identity does not require a Docker image inspection")
+
+    labelled = Sparse("custom-name", {"mds.sitl.image.repo": "old"})
+    other = Sparse("database", {})
+    legacy = Sparse("drone-3", {})
+    service = _make_service(tmp_path, containers=[labelled, other, legacy])
+    assert service.count_instances() == 2
+    assert [node.reloads for node in (labelled, other, legacy)] == [0, 0, 1]
 
 
 def test_build_policy_uses_baked_startup_script_when_git_sync_is_disabled(tmp_path, monkeypatch):

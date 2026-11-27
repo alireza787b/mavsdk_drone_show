@@ -1841,7 +1841,7 @@ class TestMissionProcessMonitoring:
     """Test mission subprocess monitoring and diagnostics"""
 
     @pytest.mark.asyncio
-    async def test_terminal_callback_waits_for_start_callback_attempt(self):
+    async def test_terminal_callback_waits_for_start_callback_attempt(self, monkeypatch):
         """Very short actions still report start before their terminal result."""
         from src.drone_setup import DroneSetup, RunningMissionProcess
 
@@ -1865,6 +1865,8 @@ class TestMissionProcessMonitoring:
         setup._reset_mission_state = Mock()
         setup._report_execution_to_gcs = AsyncMock()
         allow_start_completion = asyncio.Event()
+        log = Mock()
+        monkeypatch.setattr("src.drone_setup.logger", log)
 
         async def pending_start_report():
             await allow_start_completion.wait()
@@ -1878,6 +1880,9 @@ class TestMissionProcessMonitoring:
         )
         await asyncio.sleep(0.02)
         setup._report_execution_to_gcs.assert_not_awaited()
+        assert any("Local command result ready" in call.args[0] and call.args[1] == "ordered"
+                   for call in log.info.call_args_list)
+        assert any("waiting for execution-start attempt" in call.args[0] for call in log.info.call_args_list)
         # Local ownership is already retired while network reporting waits.
         assert setup._active_mission_owner_token is None
         assert record.process_key not in setup.running_processes
@@ -2278,6 +2283,8 @@ class TestCommandReportRetry:
             "src.drone_setup.aiohttp.ClientSession",
             lambda: FakeSession(),
         )
+        log = Mock()
+        monkeypatch.setattr("src.drone_setup.logger", log)
         setup = DroneSetup(self._build_params(), create_mock_drone_config())
 
         delivered = await setup._post_command_report(
@@ -2296,6 +2303,11 @@ class TestCommandReportRetry:
         assert posted_payloads[0]["outcome"] == "superseded"
         assert "outcome" not in posted_payloads[1]
         assert posted_payloads[1]["command_id"] == "cmd-compat"
+        attempts = [call.args for call in log.info.call_args_list if "Command callback attempt" in call.args[0]]
+        assert [args[-2:] for args in attempts] == [(422, False), (200, True)]
+        assert all(args[1:4] == ("cmd-compat", "1", "execution-result") and args[5] >= 0 for args in attempts)
+        assert "c" * 43 not in repr(attempts)
+        assert "Superseded by a newer command" not in repr(attempts)
 
     def test_long_running_command_keeps_capability_for_terminal_report(self):
         from src.drone_setup import DroneSetup
@@ -2433,20 +2445,26 @@ class TestCommandReportRetry:
 
 
     @pytest.mark.asyncio
-    async def test_terminal_callback_retries_after_queued_start(self):
+    async def test_terminal_callback_retries_after_queued_start(self, monkeypatch):
         from src.drone_setup import DroneSetup
         from src.gcs_api_routes import (GCS_COMMAND_REPORT_EXECUTION_START_ROUTE,
                                         GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE)
         setup = DroneSetup(self._build_params(), create_mock_drone_config())
         setup._ensure_command_report_retry_worker = AsyncMock()
         setup._post_command_report = AsyncMock(return_value=False)
+        log = Mock()
+        monkeypatch.setattr("src.drone_setup.logger", log)
         await setup._report_execution_start_to_gcs("ordered", "actions.py")
         await setup._report_execution_to_gcs("ordered", True)
         assert setup._post_command_report.await_count == 1
         assert len(setup.pending_command_reports) == 2
+        queued = [call.args for call in log.warning.call_args_list if "Command callback queued" in call.args[0]]
+        assert [args[4] for args in queued] == ["callback_not_delivered", "waiting_for_execution_start"]
         now = time.monotonic() + 100
         setup._post_command_report.reset_mock()
         assert await setup._retry_pending_command_reports_once(now) == 0
+        assert any("retry deferred" in call.args[0] and "retryable_http_response" in call.args
+                   for call in log.info.call_args_list)
         assert setup._post_command_report.await_count == 1
         assert setup._post_command_report.await_args.args[0] == GCS_COMMAND_REPORT_EXECUTION_START_ROUTE
         setup._post_command_report.reset_mock()
