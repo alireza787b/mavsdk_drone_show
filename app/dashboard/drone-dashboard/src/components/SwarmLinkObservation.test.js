@@ -6,7 +6,7 @@ import SwarmClusterDiagram from './SwarmClusterDiagram';
 const leader = { hw_id: '1', follow: '0' };
 const follower = { hw_id: '2', follow: '1', available: true, link_observation: {
   state: 'delayed', session_id: 'run', hw_id: '2', leader_hw_id: '1', valid_until_ms: 11000,
-  position_age_ms: 712, heading_age_ms: null, transport: 'http-fallback',
+  position_age_ms: 912, heading_age_ms: 910, max_gap_ms: null, transport: 'http-fallback',
 } };
 test.each([
   [{}, 'other run', 6000],
@@ -28,8 +28,8 @@ test('the existing aircraft inspector carries the link and accepts an explicit r
   expect(row).toHaveAccessibleDescription('Leader H1 · Updates delayed');
   fireEvent.click(row);
   expect(select).toHaveBeenCalledWith('2');
-  expect(screen.getByText('712 ms')).toBeVisible();
-  expect(screen.getByText('Heading age').nextSibling).toHaveTextContent('Unknown');
+  expect(screen.getByText('912 ms')).toBeVisible();
+  expect(screen.getByText('Longest update gap').nextSibling).toHaveTextContent('Unknown');
   expect(screen.getByText('HTTP fallback')).toBeVisible();
   expect(readLeaderLink(leader, 'run', 1)).toBeNull();
 });
