@@ -1,8 +1,9 @@
 import json
 import os
+import struct
 import time
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryFile
 from typing import Any, Dict, Optional
 
 from mds_logging import get_logger
@@ -114,3 +115,41 @@ def read_runtime_swarm_assignment(*, active_only: bool = False) -> Optional[Dict
         except (KeyError, TypeError, ValueError, OSError):
             return None
     return assignment
+
+# One anonymous native command context per Smart Swarm child. Using pread/pwrite
+# avoids sharing a seek position between coordinator and subprocess.
+_REENTRY_DEADLINE = struct.Struct("!q")
+_NO_SUPERSESSION = 2**63 - 1
+
+
+def create_swarm_reentry_context():
+    file = TemporaryFile(mode="w+b", buffering=0)
+    try:
+        if file.write(_REENTRY_DEADLINE.pack(_NO_SUPERSESSION)) != _REENTRY_DEADLINE.size:
+            raise OSError("Short local re-entry context write")
+    except BaseException:
+        file.close()
+        raise
+    return file
+
+
+def swarm_reentry_allowed(fd, *, now=None):
+    try:
+        (deadline,) = _REENTRY_DEADLINE.unpack(os.pread(fd, _REENTRY_DEADLINE.size, 0))
+        return (time.time() if now is None else now) < deadline
+    except (OSError, ValueError, struct.error):
+        return False
+
+
+def supersede_swarm_reentry(file, effective_at):
+    # Once due, a later replacement cannot revive this old child's permission.
+    if swarm_reentry_allowed(file.fileno()):
+        deadline = _NO_SUPERSESSION if effective_at is None else max(0, min(_NO_SUPERSESSION, effective_at))
+        data = _REENTRY_DEADLINE.pack(deadline)
+        try:
+            if os.pwrite(file.fileno(), data, 0) != len(data):
+                raise OSError("Short local re-entry context write")
+        except OSError:
+            # Short/empty contexts are conservative at the reader. The new
+            # command still follows its normal scheduling and custody transfer.
+            os.ftruncate(file.fileno(), 0)

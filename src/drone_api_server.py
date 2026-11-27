@@ -214,7 +214,7 @@ from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, load_json, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
 from src.params import Params
-from src.enums import Mission, State, CommandErrorCode
+from src.enums import MISSION_OVERRIDE_VALUES, Mission, State, CommandErrorCode
 
 # Base directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2858,6 +2858,10 @@ class DroneAPIServer:
                         command_id=command_id,
                         capability=command_report_capability,
                     )
+                    setup = getattr(self.drone_config, "drone_setup", None)
+                    publish_supersession = getattr(setup, "supersede_swarm_recovery", None)
+                    if callable(publish_supersession):
+                        publish_supersession(mission_type, command_id, 0)
                     (
                         new_state,
                         cancel_message,
@@ -4776,17 +4780,7 @@ class DroneAPIServer:
     @staticmethod
     def _allowed_override_missions() -> Set[int]:
         """Commands that are allowed to replace a queued or executing mission."""
-        return {
-            Mission.NONE.value,
-            Mission.DRONE_SHOW_FROM_CSV.value,
-            Mission.CUSTOM_CSV_DRONE_SHOW.value,
-            Mission.KILL_TERMINATE.value,
-            Mission.LAND.value,
-            Mission.HOLD.value,
-            Mission.RETURN_RTL.value,
-            Mission.PRECISION_MOVE.value,
-            Mission.SWARM_TRAJECTORY.value,
-        }
+        return set(MISSION_OVERRIDE_VALUES)
 
     def _find_active_command_by_id(self, command_id: Optional[str]) -> Optional[Dict[str, Any]]:
         """Return known active command metadata for duplicate-delivery idempotency."""

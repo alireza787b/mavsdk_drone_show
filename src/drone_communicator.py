@@ -769,6 +769,11 @@ class DroneCommunicator:
                 cause=exc,
             ) from exc
 
+        setup = getattr(self.drone_config, "drone_setup", None)
+        publish_supersession = getattr(setup, "supersede_swarm_recovery", None)
+        if callable(publish_supersession):
+            publish_supersession(prepared.mission, prepared.command_id, prepared.trigger_time)
+
         for artifact in prepared.artifacts:
             try:
                 artifact.finalize()
