@@ -841,14 +841,15 @@ recent boot status but no accepted heartbeat, the UI may show it as
 ```
 
 #### `GET /api/v1/fleet/network-status`
-Get network connectivity status for all drones.
+Show the latest accepted companion heartbeat per positive reported slot. **Reachable** means the GCS received a heartbeat within the configured live window. The last check uses GCS receipt time. Unseen slots are absent, and packet loss is unknown without an independent measurement. The network-details route retains per-aircraft interface observations.
 
 **Response:**
 ```json
 {
   "network_status": {
     "1": {
-      "pos_id": 0,
+      "pos_id": 1,
+      "hw_id": "8",
       "ip": "192.168.1.101",
       "reachable": true,
       "last_check": 1700000000000
@@ -2085,6 +2086,9 @@ Use this contract for:
 Canonical git routes are exposed under `/api/v1/...`. The old versionless HTTP aliases are retired.
 
 #### `GET /api/v1/git/status`
+
+`branch_only_count` counts reviewable aircraft reporting a clean matching commit
+on another update branch. It is a subset of `needs_sync_count`.
 
 Source-review counts retain heartbeat-observed aircraft for the configured
 Overview Available window, including a brief loss; expired/offline records stay

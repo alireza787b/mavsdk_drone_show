@@ -31,16 +31,22 @@ describe('SyncWarningBanner', () => {
     const link = await screen.findByRole('link', { name: /review aircraft software/i });
     expect(link).toHaveAttribute('href', '/fleet-ops?tab=sync&filter=drift');
     expect(screen.getAllByRole('link')).toHaveLength(1);
-    expect(screen.getByText('Software differs')).toBeInTheDocument();
+    expect(screen.getByText('Review software')).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('clean matching revisions on another update branch have a specific notice', async () => {
+    getUnifiedGitStatusResponse.mockResolvedValue({ data: { needs_sync_count: 2, branch_only_count: 2 } });
+    render(<MemoryRouter><SyncWarningBanner /></MemoryRouter>);
+    expect(await screen.findByText('Update branch differs')).toBeInTheDocument();
   });
 
   test('unconfirmed revision is not reported as a proven software difference', async () => {
     getUnifiedGitStatusResponse.mockResolvedValue({ data: { needs_sync_count: 0, unknown_count: 2 } });
     render(<MemoryRouter><SyncWarningBanner /></MemoryRouter>);
     expect(await screen.findByText('Version unavailable')).toBeInTheDocument();
-    expect(screen.queryByText('Software differs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review software')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveClass('is-unconfirmed');
   });
 
@@ -52,7 +58,7 @@ describe('SyncWarningBanner', () => {
     const notice = screen.getByRole('status');
     await act(async () => { jest.advanceTimersByTime(10000); });
     expect(screen.getByRole('status')).toBe(notice);
-    expect(screen.getByText('Software differs')).toBeInTheDocument();
+    expect(screen.getByText('Review software')).toBeInTheDocument();
     await act(async () => { jest.advanceTimersByTime(20000); });
     expect(screen.getByRole('status')).toBe(notice);
     expect(screen.getByText('Software status unavailable')).toBeInTheDocument();

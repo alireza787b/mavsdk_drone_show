@@ -1,5 +1,5 @@
 {
-  "chunk_count": 893,
+  "chunk_count": 895,
   "chunks": [
     {
       "audience": "developer",
@@ -2306,9 +2306,30 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
+      "content_hash": "76ea6d2b1d2062fe18cc30f7e41e98a10514971831b1af86a10a0c06490e892a",
+      "heading": "Inspect a follower’s link",
+      "id": "mds.smart_swarm_operator_workflow:011-01-inspect-a-follower-s-link",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/smart-swarm-field-workflow.md",
+      "resource_id": "mds.smart_swarm_operator_workflow",
+      "route_hint": null,
+      "summary": "Planned or visually captured formation, Geographic (NED) and Leader-relative (Body), following, Hold, explicit role changes and independent-aircraft return.",
+      "tags": [
+        "swarm",
+        "operator",
+        "formation",
+        "capture"
+      ],
+      "text": "## Inspect a follower’s link\n\nIn **Operate**, the mark beside the leader ID shows the follower’s last reported\nupdate state. A clock means delayed, a broken link means missing, and a question\nmark means the observation is unavailable or expired. Select the follower to\nsee the sampled position and heading ages, longest update gap, and transport.\nUse **Session counts** for accepted, rejected, duplicate and fallback totals.\nSelecting a row only opens its details. The target selection stays in **To**.\n\n![Example follower reporting delayed updates in the aircraft inspector](../assets/smart-swarm/follower-link-details.png)",
+      "title": "Smart Swarm operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "e461726314abb135bc63cadd5e7845804c432f9431ea9fdb84a34cc02fcc6a01",
       "heading": "Return and land",
-      "id": "mds.smart_swarm_operator_workflow:011-01-return-and-land",
+      "id": "mds.smart_swarm_operator_workflow:012-01-return-and-land",
       "links": [
         "https://docs.px4.io/main/en/flight_modes/return"
       ],
@@ -2331,7 +2352,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "content_hash": "804d28b5a05e2a858ac88f3f5394afbc8d113f56e03dc8c82b93748d70179adb",
       "heading": "Resolve a blocked step",
-      "id": "mds.smart_swarm_operator_workflow:012-01-resolve-a-blocked-step",
+      "id": "mds.smart_swarm_operator_workflow:013-01-resolve-a-blocked-step",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -7888,7 +7909,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "c421f267975c94fae8f85d811eb1c8b348fcfc16182540249726cbebe077ba94",
+      "content_hash": "b8863e4657e401df37a1347abf0036a5bad3077fe8c0f26dbf6e3a842821fe8b",
       "heading": "`GET /api/v1/fleet/network-status`",
       "id": "mds.gcs_api:048-01-get-api-v1-fleet-network-status",
       "links": [],
@@ -7901,7 +7922,7 @@
         "api",
         "gcs"
       ],
-      "text": "#### `GET /api/v1/fleet/network-status`\nGet network connectivity status for all drones.\n\n**Response:**\n```json\n{\n \"network_status\": {\n \"1\": {\n \"pos_id\": 0,\n \"ip\": \"192.168.1.101\",\n \"reachable\": true,\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"reachable_count\": 8,\n \"timestamp\": 1700000000000\n}\n```",
+      "text": "#### `GET /api/v1/fleet/network-status`\nShow the latest accepted companion heartbeat per positive reported slot. **Reachable** means the GCS received a heartbeat within the configured live window. The last check uses GCS receipt time. Unseen slots are absent, and packet loss is unknown without an independent measurement. The network-details route retains per-aircraft interface observations.\n\n**Response:**\n```json\n{\n \"network_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"8\",\n \"ip\": \"192.168.1.101\",\n \"reachable\": true,\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"reachable_count\": 8,\n \"timestamp\": 1700000000000\n}\n```",
       "title": "GCS API server guide"
     },
     {
@@ -9104,7 +9125,7 @@
     {
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
-      "content_hash": "a52ce9f34729fb4a416d1152f744a2183aaa78f2bb7bb78b33f9fae61d20d875",
+      "content_hash": "a163daef681a84749a853118d4648b3f78b67722efc17dda946522f20f4fd5ff",
       "heading": "`GET /api/v1/git/status`",
       "id": "mds.gcs_api:105-01-get-api-v1-git-status",
       "links": [],
@@ -9117,7 +9138,7 @@
         "api",
         "gcs"
       ],
-      "text": "#### `GET /api/v1/git/status`\n\nSource-review counts retain heartbeat-observed aircraft for the configured\nOverview Available window, including a brief loss; expired/offline records stay\nin diagnostic rows but do not contribute to the notice. Counts are not update\neligibility or flight readiness. Unknown worktree evidence is never counted as\nsynced. An unavailable/invalid presence snapshot returns `503` rather than a\nfalse empty-fleet/all-clear response. Update routes retain fresh-evidence checks.\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
+      "text": "#### `GET /api/v1/git/status`\n\n`branch_only_count` counts reviewable aircraft reporting a clean matching commit\non another update branch. It is a subset of `needs_sync_count`.\n\nSource-review counts retain heartbeat-observed aircraft for the configured\nOverview Available window, including a brief loss; expired/offline records stay\nin diagnostic rows but do not contribute to the notice. Counts are not update\neligibility or flight readiness. Unknown worktree evidence is never counted as\nsynced. An unavailable/invalid presence snapshot returns `503` rather than a\nfalse empty-fleet/all-clear response. Update routes retain fresh-evidence checks.\nGet git status from all drones.\n\n**Response:**\n```json\n{\n \"git_status\": {\n \"1\": {\n \"pos_id\": 1,\n \"hw_id\": \"1\",\n \"ip\": \"10.0.0.1\",\n \"status\": \"synced\",\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"commit_message\": \"Phase 4 git cleanup\",\n \"in_sync_with_gcs\": true,\n \"commits_ahead\": 0,\n \"commits_behind\": 0,\n \"mavlink_runtime\": {\n \"management_mode\": \"local\",\n \"ref\": \"v3.0.8\",\n \"router_service_status\": \"active\",\n \"dashboard_access_mode\": \"local_only\",\n \"desired_config_hash\": \"9c4d...\",\n \"applied_config_hash\": \"9c4d...\",\n \"config_hash_match\": true\n },\n \"connectivity_runtime\": {\n \"backend\": \"none\",\n \"ref\": \"v2.1.9\",\n \"profile_hash\": null,\n \"config_hash_match\": null\n },\n \"last_check\": 1700000000000\n }\n },\n \"total_drones\": 10,\n \"synced_count\": 8,\n \"needs_sync_count\": 2,\n \"gcs_status\": {\n \"branch\": \"main-candidate\",\n \"commit\": \"abc12345\",\n \"status\": \"clean\"\n },\n \"sync_in_progress\": false,\n \"timestamp\": 1700000000000\n}\n```",
       "title": "GCS API server guide"
     },
     {
@@ -16473,7 +16494,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "content_hash": "0e065712ca417178ee71f6c7118ea3696a306e4cdab04aa6e8c2aaca554858e9",
+      "content_hash": "7556c8b60ec36c3285139ec10fca123feca9521ade2fc8e2ad746a2f7f94c7d8",
       "heading": "Workspaces",
       "id": "mds.logging_system:033-01-workspaces",
       "links": [],
@@ -16486,7 +16507,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "### Workspaces\n\nOne `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is\nno Operations/Developer mode: severity, search and export are ordinary operator\ntools. GCS is the initial runtime source. **Source** chooses one aircraft by\ncallsign and hardware ID; filters, reconnects and inspection never change it.\n\n- **Live** starts at Warnings+. Search and severity are visible; component and\n time-window filters expand on request. Select a record for its complete message\n and raw fields. Stream connection/coverage is not aircraft flight readiness.\n- **Sessions** selects one recorded session and reads bounded pages. Search,\n component, severity and explicit **After (UTC)** / **Through (UTC)** filters\n apply before pagination. After is exclusive; Through is inclusive.\n- **Flight logs** needs an explicit aircraft for onboard inventory, summary and\n staged download. **Open file** also summarizes a local `.ulg` without an\n aircraft, through the existing temporary local parser. Nothing is uploaded to\n an external provider or retained as a new GCS archive.\n\nSee the illustrated [operator workflow](logs-operator-workflow.md).",
+      "text": "### Workspaces\n\nOne `/logs` page provides **Live**, **Sessions** and **Flight logs**. There is\nno Operations/Developer mode: severity, search and export are ordinary operator\ntools. GCS is the initial runtime source. **Source** chooses one aircraft by\ncallsign and hardware ID; filters, reconnects and inspection never change it.\n\n- **Live** starts at Warnings+. Search and severity are visible; component and\n time-window filters expand on request. Select a record for its complete message\n and raw fields. Stream connection/coverage is not aircraft flight readiness.\n- **Sessions** selects one recorded session and reads bounded pages. Search,\n component, severity and explicit **After (UTC)** / **Through (UTC)** filters\n apply before pagination. After is exclusive; Through is inclusive.\n- **Flight logs** needs an explicit aircraft for onboard inventory, summary and\n staged download. **Open file** also summarizes a local `.ulg` without an\n aircraft, through the existing temporary local parser. Nothing is uploaded to\n an external provider or retained as a new GCS archive.\n\nFor a verified GCS copy, the download-job summary can include a bounded PX4\n`timeline` and `companion_evidence` with coverage status and events. A missing\nor partial companion record leaves the verified ULog available. The combined\nsummary uses the copy owner's access, removal and seven-day retention controls.\n\nSee the illustrated [operator workflow](logs-operator-workflow.md).",
       "title": "MDS logging system guide"
     },
     {
@@ -16758,9 +16779,28 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
+      "content_hash": "e9b2e9cac485c620223e95f863b2755c9912a2ecefaeb260c266a594a62eeb31",
+      "heading": "Read a flight timeline",
+      "id": "mds.logs_operator_workflow:007-01-read-a-flight-timeline",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logs-operator-workflow.md",
+      "resource_id": "mds.logs_operator_workflow",
+      "route_hint": null,
+      "summary": "Illustrated live review, recorded-session export and onboard flight-log retrieval.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "## Read a flight timeline\n\nOpen **Summary** on a saved GCS copy. **Flight timeline** places PX4 mode and\ncommand events alongside recorded Smart Swarm decisions using their UTC times.\nEnable **Link samples** to include periodic measurements. Select a row with a\nchevron to inspect its source and values. MAVLink rates and counters describe\nthat PX4 link instance. An aircraft Wi-Fi percentage describes the local\nwireless connection at its sample time. Either can be missing.\n\nOpen **Partial link record** for the coverage explanation. PX4 events without\na usable UTC clock appear in a separate elapsed-time list. Evidence can be\nincomplete even when the raw flight log downloaded successfully.\n\n![Illustrative retained log with an expanded link sample](../assets/log-workspace/flight-timeline-detail.png)",
+      "title": "Logs operator workflow"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
       "content_hash": "72c9b8ae1c14b82b49a6fa941d735b0b90825098eaa12910fb9d4d168e4b03b4",
       "heading": "Unavailable aircraft and maintenance",
-      "id": "mds.logs_operator_workflow:007-01-unavailable-aircraft-and-maintenance",
+      "id": "mds.logs_operator_workflow:008-01-unavailable-aircraft-and-maintenance",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",
@@ -17663,8 +17703,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "chunk_count": 15,
-      "content_hash": "859590041db292aa5a1f94482c8d5159bec0eafa342d4b542c89a903c92c3e25",
+      "chunk_count": 16,
+      "content_hash": "c26925875e2d0a3d7b9e346b8c5a5b7449e95f68b1cf9c1b5f1a676d9f4a0db1",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
@@ -17781,7 +17821,7 @@
       "audience": "developer",
       "canonical_url": "/api/v1/simurgh/context/mds.gcs_api/markdown",
       "chunk_count": 168,
-      "content_hash": "6405e7baa106201c1763009519827ca463dd859b37a427d4376bc31b987bbc45",
+      "content_hash": "d7619e1d9e9ae0cb0e2b673d8e886781547896cbf6d9caa4de1087b05352c748",
       "id": "mds.gcs_api",
       "mime_type": "text/markdown",
       "path": "docs/apis/gcs-api-server.md",
@@ -17905,7 +17945,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "chunk_count": 42,
-      "content_hash": "a630dd672dac2784c93941cadf4524f239fa52101383ce2f19574b5611177d95",
+      "content_hash": "ca8c1ac975c42909009cf4127fb6af668e09c645b10edf34c34809ae98b106da",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -17920,8 +17960,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
-      "chunk_count": 7,
-      "content_hash": "2e6a08bf9f3223d3adb35286e9b3156801cf76406388eef66a64a672bf086082",
+      "chunk_count": 8,
+      "content_hash": "e5714e8857334a858c0dfd07b89bc90765c1c45e1465e7dccdc2ed3a61bc940f",
       "id": "mds.logs_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",

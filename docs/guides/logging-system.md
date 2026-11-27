@@ -443,6 +443,11 @@ callsign and hardware ID; filters, reconnects and inspection never change it.
   aircraft, through the existing temporary local parser. Nothing is uploaded to
   an external provider or retained as a new GCS archive.
 
+For a verified GCS copy, the download-job summary can include a bounded PX4
+`timeline` and `companion_evidence` with coverage status and events. A missing
+or partial companion record leaves the verified ULog available. The combined
+summary uses the copy owner's access, removal and seven-day retention controls.
+
 See the illustrated [operator workflow](logs-operator-workflow.md).
 
 ### Empty States

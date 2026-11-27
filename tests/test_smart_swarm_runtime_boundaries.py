@@ -987,3 +987,54 @@ def test_real_sigterm_stops_setpoints_then_hands_vehicle_to_hold(tmp_path):
         "offboard.stop",
         "action.hold",
     ]
+
+
+@pytest.mark.asyncio
+async def test_link_observer_attributes_sample_and_mode_without_changing_results(swarm_runtime, monkeypatch):
+    sink = Mock()
+    observer = swarm_runtime.LinkEvidence("test-command", logger=sink)
+    monkeypatch.setattr(swarm_runtime, "LINK_EVIDENCE", observer)
+    monkeypatch.setattr(swarm_runtime, "HW_ID", 2)
+    now_ms = int(time.time() * 1000)
+    try:
+        sample = _valid_global_sample(now_ms)
+        assert swarm_runtime.apply_leader_state_sample(sample, "ws")
+        assert not swarm_runtime.apply_leader_state_sample(sample, "http-fallback")
+        assert not swarm_runtime.apply_leader_state_sample({**sample, "hw_id": 99}, "ws")
+        assert (observer.accepted, observer.duplicate, observer.rejected) == (1, 1, 1)
+        assert observer.last_rejection.endswith("leader_mismatch")
+        assert await swarm_runtime._observe_mode_request("hold", "test", asyncio.sleep(0, result=42)) == 42
+        with pytest.raises(asyncio.TimeoutError):
+            await swarm_runtime._observe_mode_request("hold", "test", AsyncMock(side_effect=asyncio.TimeoutError)())
+        with pytest.raises(asyncio.CancelledError):
+            await swarm_runtime._observe_mode_request("hold", "test", AsyncMock(side_effect=asyncio.CancelledError)())
+    finally:
+        observer.close()
+    rows = [call.kwargs["extra"]["mds_extra"] for call in sink.info.call_args_list]
+    assert [row["outcome"] for row in rows if row["event"] == "mode_result"] == ["accepted", "timeout", "cancelled"]
+    assert all(row["event"] != "mode_observed" for row in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("age", "expected"), [(0.3, "HOLD"), (20, None)])
+async def test_terminal_evidence_survives_loss_of_gcs_and_omits_old_mode(swarm_runtime, monkeypatch, age, expected):
+    sink = Mock()
+    observer = swarm_runtime.LinkEvidence("command", logger=sink)
+    monkeypatch.setattr(swarm_runtime, "LinkEvidence", lambda _: observer)
+    monkeypatch.setattr(swarm_runtime, "HW_ID", 2)
+    monkeypatch.setattr(swarm_runtime, "SWARM_CONFIG", {"2": {"hw_id": 2, "follow": 0}})
+    monkeypatch.setattr(swarm_runtime, "clear_runtime_swarm_assignment", Mock())
+
+    async def simulate_px4(lifecycle):
+        authority = ControlAuthority()
+        authority.update_mode("HOLD", leader=True, now=time.monotonic() - age)
+        swarm_runtime.CONTROL_AUTHORITY = authority
+        lifecycle.drone = object()
+
+    monkeypatch.setattr(swarm_runtime, "run_smart_swarm", simulate_px4)
+    monkeypatch.setattr(swarm_runtime.SwarmSessionRuntime, "report", AsyncMock(side_effect=ConnectionError("offline")))
+    with pytest.raises(ConnectionError):
+        await swarm_runtime.run_smart_swarm_process(logging.getLogger(__name__))
+    terminal = sink.info.call_args.kwargs["extra"]["mds_extra"]
+    assert terminal["event"] == "session_end" and terminal.get("mode") == expected
+    assert (terminal.get("mode_age_ms") is None) == (expected is None)

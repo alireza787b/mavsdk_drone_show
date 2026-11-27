@@ -116,6 +116,18 @@ def _step(controller, *, desired=(6, 0, -10), own=(6, 0, -10), leader_velocity=(
     )
 
 
+def test_exhausted_confidence_keeps_last_yaw_and_requests_zero_velocity():
+    controller = _controller()
+    _capture(controller)
+    previous = _step(controller, yaw=80.0, now=11.1)
+    stopped = _step(controller, yaw=160.0, leader_velocity=(1, 0, 0),
+                    confidence=0.0, now=11.2)
+    assert stopped.yaw_deg == previous.yaw_deg
+    np.testing.assert_array_equal(stopped.requested_velocity_ned, np.zeros(3))
+    resumed = _step(controller, yaw=160.0, confidence=1.0, now=11.3)
+    assert resumed.yaw_deg > stopped.yaw_deg
+
+
 def _capture(controller) -> None:
     _step(controller, now=10.0)
     decision = _step(controller, now=11.0)

@@ -13,6 +13,7 @@ import os
 import sys
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from src.smart_swarm_contract import OptionalSwarmLinkObservation
 from typing import Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 
@@ -534,6 +535,7 @@ class DroneTelemetry(BaseModel):
     battery_timestamp_ms: int = Field(0, ge=0, description="Battery sample timestamp (Unix ms)")
     battery_age_ms: Optional[int] = Field(None, ge=0, description="Battery sample age at the drone API")
     follow_mode: Any = Field(..., description="Current follow mode value")
+    link_observation: OptionalSwarmLinkObservation = None
 
     update_time: Any = Field(..., description="Legacy update time field from the drone API")
     timestamp: int = Field(..., description="Telemetry timestamp (Unix ms)")
@@ -1007,6 +1009,7 @@ class GitStatusResponse(BaseModel):
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
     needs_sync_count: int = Field(..., ge=0, description="Drones needing sync")
     unknown_count: int = Field(0, ge=0, description="Online drones whose software revision is unconfirmed")
+    branch_only_count: int = Field(0, ge=0, description="Reviewable aircraft with a clean matching commit on a different branch")
     gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
     sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
@@ -2156,7 +2159,8 @@ class RuntimeStatusResponse(BaseModel):
 # ============================================================================
 
 class NetworkStatus(BaseModel):
-    """Network connectivity status"""
+    """Last accepted companion heartbeat for a reported slot."""
+    hw_id: Optional[str] = Field(None, description="Hardware ID that reported this slot")
     pos_id: int = Field(..., ge=1, description="Position ID")
     ip: str = Field(..., description="IP address")
     reachable: bool = Field(..., description="Network reachable")

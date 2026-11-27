@@ -20,6 +20,7 @@ from schemas import (
     HeartbeatRequest,
     HeartbeatResponse,
     HeartbeatSnapshotResponse,
+    NetworkStatus,
     NetworkStatusResponse,
     NodeBootStatusPostResponse,
     NodeBootStatusReport,
@@ -227,19 +228,26 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
 
 
 def _build_network_status_response(deps: Any) -> NetworkStatusResponse:
-    network_info = deps.get_network_info_from_heartbeats()
-    if not isinstance(network_info, dict):
-        network_info = {}
-    reachable_count = len([
-        network for network in network_info.values()
-        if network.get("reachable", False)
-    ])
-
+    # The accepted heartbeat snapshot contains slot, identity and GCS receipt
+    # time together. The interface-details feed has a different owner/shape.
+    now_ms = int(time.time() * 1000)
+    live_ms = resolve_presence_thresholds(deps.Params).live_sec * 1000
+    slots = {}
+    for hw_id, heartbeat in deps.get_all_heartbeats().items():
+        slot = heartbeat.get("pos_id")
+        received = heartbeat.get("received_at_gcs_ms")
+        if type(slot) is not int or slot < 1 or type(received) is not int or not 0 < received <= now_ms:
+            continue
+        key = str(slot)
+        if key in slots and received <= slots[key].last_check:
+            continue
+        slots[key] = NetworkStatus(
+            hw_id=str(hw_id), pos_id=slot, ip=heartbeat.get("ip") or "unknown",
+            reachable=now_ms - received <= live_ms, last_check=received,
+        )
     return NetworkStatusResponse(
-        network_status=network_info,
-        total_drones=len(network_info),
-        reachable_count=reachable_count,
-        timestamp=int(time.time() * 1000),
+        network_status=slots, total_drones=len(slots),
+        reachable_count=sum(row.reachable for row in slots.values()), timestamp=now_ms,
     )
 
 

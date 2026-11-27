@@ -11,8 +11,10 @@ from src.params import Params
 from src.drone_config import DroneConfig
 from src.gcs_auth_client import gcs_auth_headers
 from src.network_status import build_network_info
+from src.swarm_runtime_state import read_runtime_swarm_assignment
 
 logger = get_logger("heartbeat")
+swarm_link_logger = get_logger("smart_swarm.link")
 
 class HeartbeatSender:
     """
@@ -93,7 +95,13 @@ class HeartbeatSender:
             netbird_ip = self.drone_config.config.get('ip', 'unknown')
 
         # Get comprehensive network info for heartbeat
+        assignment = read_runtime_swarm_assignment(active_only=True)
         network_info = self._get_network_info()
+        if assignment and str(assignment.get("hw_id")) == hw_id and assignment.get("session_id"):
+            try:
+                self._log_swarm_network(hw_id, assignment, network_info)
+            except Exception:
+                logger.debug("Flight network observation could not be recorded", exc_info=True)
 
         data = {
             "hw_id": hw_id,
@@ -178,6 +186,28 @@ class HeartbeatSender:
                 else:
                     logger.warning(f"Failed to retrieve Netbird IP: {e}")
             return None
+
+    @staticmethod
+    def _log_swarm_network(hw_id, assignment, network_info):
+        """Retain the local measurement even when delivery of this heartbeat fails."""
+        observed = network_info.get("timestamp")
+        if type(observed) is not int or observed <= 0:
+            return
+        fields = {"schema_version": 1, "event": "network_observation", "hw_id": hw_id,
+                  "session_id": assignment["session_id"], "observed_at_ms": observed,
+                  "wifi_observed_at_ms": observed, "wifi_status": "unavailable"}
+        wifi = network_info.get("wifi") or {}
+        signal = wifi.get("signal_strength_percent")
+        wifi_links = [link for link in (network_info.get("active_links") or [])
+                      if link.get("type") == "wifi"]
+        if len(wifi_links) > 1 and not wifi.get("interface"):
+            fields["wifi_status"] = "ambiguous"
+        elif type(signal) is int and 0 <= signal <= 100:
+            fields.update(wifi_status="reported", wifi_signal_percent=signal)
+            if wifi.get("interface"):
+                fields["wifi_interface"] = wifi["interface"]
+        swarm_link_logger.info("Smart Swarm network observation",
+                               extra={"mds_drone_id": hw_id, "mds_extra": fields})
 
     def _get_network_info(self):
         """

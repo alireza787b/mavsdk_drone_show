@@ -234,6 +234,17 @@ remain authoritative. See [PX4 estimator documentation](https://docs.px4.io/main
 
 ![Synthetic example of height observations and a stopped return](../assets/smart-swarm/height-advisory-1440.png)
 
+## Inspect a follower’s link
+
+In **Operate**, the mark beside the leader ID shows the follower’s last reported
+update state. A clock means delayed, a broken link means missing, and a question
+mark means the observation is unavailable or expired. Select the follower to
+see the sampled position and heading ages, longest update gap, and transport.
+Use **Session counts** for accepted, rejected, duplicate and fallback totals.
+Selecting a row only opens its details. The target selection stays in **To**.
+
+![Example follower reporting delayed updates in the aircraft inspector](../assets/smart-swarm/follower-link-details.png)
+
 ## Return and land
 
 For independent aircraft, check **To** on **Smart Swarm -> Operate**, then open

@@ -11,6 +11,8 @@ import { holdNodeStatus, memberFlightState, memberLabel, movementSummary } from 
 import { ConfirmDialog, StatusBadge } from './ui/OperatorPrimitives';
 import SequentialReturnControl from './SequentialReturnControl';
 import SwarmClusterDiagram from './SwarmClusterDiagram';
+import { LeaderLinkDetails, readLeaderLink } from './SwarmLinkObservation';
+import useObservationClock from '../hooks/useObservationClock';
 import SwarmFormationSource from './SwarmFormationSource';
 import TakeoffDialog from './TakeoffDialog';
 import CommandAircraftControl from '../features/fleet-overview/CommandAircraftControl';
@@ -60,9 +62,10 @@ export default function SwarmOperations() {
     let live = true;
     let timer;
     const poll = async () => {
+      const requestedAtMs = Date.now();
       try {
         const response = await fetchGcsResource(PREVIEW);
-        if (live) { setPreview({ ...response.data, receivedAtMs: Date.now() }); setPreviewError(false); }
+        if (live) { setPreview({ ...response.data, receivedAtMs: Date.now(), requestedAtMs }); setPreviewError(false); }
       } catch (_) { if (live) setPreviewError(true); }
       finally { if (live) timer = setTimeout(poll, 2000); }
     };
@@ -161,6 +164,12 @@ export default function SwarmOperations() {
     ? `Partial · ${runtime.active_hw_ids?.length || 0}/${ids.length} engaged`
     : RUNTIME_LABELS[runtime.state]) : null;
   const evidenceNow = (preview?.observed_at_ms || Date.now()) + Math.max(0, Date.now() - (preview?.receivedAtMs || Date.now()));
+  const now = useObservationClock();
+  const linkNow = Number.isFinite(preview?.observed_at_ms)
+    ? preview.observed_at_ms + Math.max(0, now - preview.requestedAtMs) : null;
+  const links = Object.fromEntries(members.map(member => [member.hw_id, readLeaderLink(
+    member, preview?.runtime_nodes?.[member.hw_id]?.command_id, linkNow,
+  )]));
   const nodeStatuses = Object.fromEntries(members.map((member) => {
     const evidence = preview?.runtime_nodes?.[member.hw_id];
     return [member.hw_id, evidence ? swarmNodeStatus(member, evidence.report, {
@@ -221,7 +230,7 @@ export default function SwarmOperations() {
       const check = swarmStartReadiness([...reviewed.targets, ...(reviewed.references || [])], evidence?.decisions, evidence?.until || 0);
       if (!check.ready) throw new Error(check.label);
     }
-    setPreview({ ...current, receivedAtMs: Date.now() });
+    setPreview({ ...current, receivedAtMs: Date.now(), requestedAtMs: requestedAt });
     return true;
   };
   const send = async () => {
@@ -376,7 +385,7 @@ export default function SwarmOperations() {
             setHoldReceipt(null);
           }} />
       </div>
-      <SwarmClusterDiagram members={members} selectedId={inspectedId} onSelect={setInspectedId}
+      <SwarmClusterDiagram members={members} links={links} selectedId={inspectedId} onSelect={setInspectedId}
         heightWarning={cluster?.altitude_warning} heightIds={commandScope.ids} heightReceivedAtMs={preview?.receivedAtMs}
         statuses={Object.fromEntries(members.map((m) => {
           const node = heldScope ? holdStatuses[m.hw_id] : nodeStatuses[m.hw_id];
@@ -385,6 +394,7 @@ export default function SwarmOperations() {
         }))} />
       {inspected && <div className="swarm-ops__inspection" aria-label="Aircraft details">
         <strong>{memberLabel(inspected)}</strong><span>{movementSummary(inspected)}</span>
+        <LeaderLinkDetails follow={inspected.follow} observation={links[inspectedId]} />
         {inspected.available && inspected.readiness_summary && <span>{inspected.readiness_summary}</span>}
         <button type="button" className="operator-button operator-button--ghost" onClick={() => setInspectedId(null)}>Close details</button>
       </div>}

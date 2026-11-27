@@ -54,6 +54,7 @@ from src.action_safety import (
 from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment, clear_runtime_swarm_assignment
 from src.smart_swarm_contract import normalize_topology, topology_revision
 from smart_swarm_src.control_authority import ControlAuthority
+from smart_swarm_src.link_evidence import LinkEvidence
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 from smart_swarm_src.formation_acknowledgement import effective_revision
 from smart_swarm_src.config_transport import FormationSubscription
@@ -185,6 +186,8 @@ def reset_leader_tracking():
     global LEADER_STATE, leader_unreachable_count, LEADER_FAILOVER_IN_PROGRESS
     global LAST_LEADER_SAMPLE_REJECTION_CODE
     LEADER_STATE.clear()
+    if LINK_EVIDENCE is not None:
+        LINK_EVIDENCE.reset_target()
     leader_unreachable_count = 0
     LEADER_FAILOVER_IN_PROGRESS = False
     LAST_LEADER_SAMPLE_REJECTION_CODE = None
@@ -220,6 +223,38 @@ CONTROL_AUTHORITY = None
 RUNTIME_PHASE = "ready"
 RUNTIME_DETAIL = ""
 CONFIG_REFRESH_ERROR = None
+LINK_EVIDENCE = None
+
+
+def _link_fields():
+    fields = LINK_EVIDENCE.fields(
+        hw_id=HW_ID, leader_hw_id=LEADER_HW_ID, leader=LEADER_STATE, own=OWN_STATE,
+        source_limit=Params.SMART_SWARM_SOURCE_MAX_AGE_SEC,
+        hard_limit=Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+    )
+    if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.has_fresh_mode():
+        fields["mode"] = CONTROL_AUTHORITY.mode
+        fields["mode_age_ms"] = round((time.monotonic() - CONTROL_AUTHORITY.mode_at) * 1000)
+    return fields
+
+
+def _record_link_event(event, **details):
+    if LINK_EVIDENCE is not None and HW_ID is not None:
+        LINK_EVIDENCE.emit(event, _link_fields(), **details)
+
+
+async def _observe_mode_request(action, reason, operation):
+    _record_link_event("mode_requested", action=action, reason=reason)
+    try:
+        value = await operation
+    except (asyncio.CancelledError, Exception) as exc:
+        outcome = ("cancelled" if isinstance(exc, asyncio.CancelledError) else
+                   "timeout" if isinstance(exc, asyncio.TimeoutError) else "error")
+        _record_link_event("mode_result", action=action, reason=reason,
+                           outcome=outcome, error=type(exc).__name__)
+        raise
+    _record_link_event("mode_result", action=action, reason=reason, outcome="accepted")
+    return value
 
 
 def publish_runtime_assignment(entry=None, *, force_follow=None, active=True):
@@ -242,6 +277,8 @@ def publish_runtime_assignment(entry=None, *, force_follow=None, active=True):
             active=active,
         )
         payload.update(phase=RUNTIME_PHASE, detail=RUNTIME_DETAIL)
+        if LINK_EVIDENCE is not None and active and LEADER_HW_ID and not IS_LEADER:
+            payload["link_observation"] = LINK_EVIDENCE.summary(_link_fields)
         write_runtime_swarm_assignment(payload)
         logger.debug("Published runtime swarm assignment: %s", payload)
     except Exception as exc:
@@ -316,6 +353,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         max_source_age_sec=float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC),
     )
     if not validity.valid:
+        if LINK_EVIDENCE is not None:
+            LINK_EVIDENCE.sample_rejected(f"{validity.source}:{validity.code}")
         log = logger.warning if validity.code != LAST_LEADER_SAMPLE_REJECTION_CODE else logger.debug
         log(
             "Rejected leader motion sample via %s (%s): %s",
@@ -341,6 +380,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
         previous_motion_source_timestamp_ms
         and motion_source_timestamp_ms <= previous_motion_source_timestamp_ms
     ):
+        if LINK_EVIDENCE is not None:
+            LINK_EVIDENCE.duplicate += 1
         logger.debug(
             "Ignoring duplicate/out-of-order leader motion sample via %s (%s=%s <= %s).",
             source,
@@ -361,6 +402,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
     previous_seq = int(LEADER_STATE.get('stream_seq', 0) or 0)
     previous_ts_ms = int(LEADER_STATE.get('telemetry_timestamp_ms', 0) or 0)
     if stream_seq and previous_seq and stream_seq <= previous_seq and telemetry_timestamp_ms <= previous_ts_ms:
+        if LINK_EVIDENCE is not None:
+            LINK_EVIDENCE.duplicate += 1
         logger.debug(
             "Ignoring duplicate/out-of-order leader sample via %s (seq=%s ts_ms=%s <= seq=%s ts_ms=%s).",
             source,
@@ -415,6 +458,8 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
     })
 
     leader_unreachable_count = 0
+    if LINK_EVIDENCE is not None:
+        LINK_EVIDENCE.sample_accepted(received_monotonic)
     logger.debug(
         "Leader sample via %s applied: seq=%s age_ms=%s frame=%s pos=(%.2f, %.2f, %.2f) vel=(%.2f, %.2f, %.2f)",
         source,
@@ -521,7 +566,7 @@ async def ensure_offboard_active_for_follower(drone: System, logger, reason: str
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
             return False
-        await drone.offboard.start()
+        await _observe_mode_request("offboard_start", reason, drone.offboard.start())
         if CONTROL_AUTHORITY is not None:
             deadline = time.monotonic() + 3.0
             while not CONTROL_AUTHORITY.owns_fresh_offboard():
@@ -608,6 +653,8 @@ async def handle_leader_unavailability(drone: System, logger, reason: str):
                     or FORMATION_CONFIG_VERSION != target_version
                 ),
             )
+            if outcome != "waiting":
+                _record_link_event("recovery", reason=reason, outcome=outcome)
             if outcome == "recovered":
                 RUNTIME_PHASE, RUNTIME_DETAIL = "acquiring", "Leader data recovered — rejoining smoothly"
                 logger.info("Leader data stable again; retaining assigned leader %s.", LEADER_HW_ID)
@@ -1154,6 +1201,7 @@ async def update_leader_state():
             stream_enabled=bool(Params.SMART_SWARM_USE_REALTIME_STREAM),
             http_enabled=bool(Params.SMART_SWARM_ENABLE_HTTP_FALLBACK),
         ),
+        observe=LINK_EVIDENCE.transport_event if LINK_EVIDENCE is not None else None,
     )
     await supervisor.run()
 
@@ -1476,12 +1524,15 @@ async def control_loop(drone: System):
     async def send_decision(decision):
         if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.owns_fresh_offboard():
             return
+        started = time.monotonic()
         await drone.offboard.set_velocity_ned(VelocityNedYaw(
             float(decision.velocity_ned[0]),
             float(decision.velocity_ned[1]),
             float(decision.velocity_ned[2]),
             float(decision.yaw_deg),
         ))
+        if LINK_EVIDENCE is not None:
+            LINK_EVIDENCE.setpoint_sent(time.monotonic() - started)
 
     try:
         while True:
@@ -1520,6 +1571,12 @@ async def control_loop(drone: System):
                     and own_invalid_since is not None
                     and current_time - own_invalid_since > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
                 ):
+                    _record_link_event(
+                        "hold_decision", reason="own motion state remained stale",
+                        validation=own_validity.code if not own_validity.valid else "own_yaw_unavailable",
+                        trigger_age_ms=round((current_time - own_invalid_since) * 1000),
+                        threshold_ms=round(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC * 1000),
+                    )
                     await execute_failsafe(drone, reason="own motion state remained stale")
                     offboard_active = False
                 await asyncio.sleep(loop_interval)
@@ -1548,6 +1605,11 @@ async def control_loop(drone: System):
                         "No valid leader motion lock for %.3fs; leaving Offboard and starting failover.",
                         current_time - leader_missing_since,
                     )
+                    _record_link_event(
+                        "hold_decision", reason="initial leader motion unavailable",
+                        trigger_age_ms=round((current_time - leader_missing_since) * 1000),
+                        threshold_ms=round(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC * 1000),
+                    )
                     recovered = await handle_leader_unavailability(
                         drone,
                         logger,
@@ -1569,6 +1631,11 @@ async def control_loop(drone: System):
                 logger.warning(
                     "Leader motion stale for %.3fs; leaving Offboard and starting failover.",
                     leader_age,
+                )
+                _record_link_event(
+                    "hold_decision", reason="control-loop stale leader motion",
+                    trigger_age_ms=round(leader_age * 1000) if math.isfinite(leader_age) else None,
+                    threshold_ms=round(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC * 1000),
                 )
                 recovered = await handle_leader_unavailability(drone, logger, "control-loop stale leader motion")
                 if IS_LEADER:
@@ -1764,7 +1831,7 @@ async def execute_failsafe(
         )
 
     try:
-        await await_operation(drone.offboard.stop())
+        await _observe_mode_request("offboard_stop", reason, await_operation(drone.offboard.stop()))
         offboard_stop_completed = True
         logger.info("Failsafe: Offboard stopped%s.", f" ({reason})" if reason else "")
     except asyncio.TimeoutError:
@@ -1781,7 +1848,7 @@ async def execute_failsafe(
         if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
             return VehicleHandoffResult(offboard_stop_completed, False, control_preserved=True,
                                         observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
-        await await_operation(drone.action.hold())
+        await _observe_mode_request("hold", reason, await_operation(drone.action.hold()))
         hold_requested = True
         logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
     except asyncio.TimeoutError:
@@ -1891,7 +1958,7 @@ async def initialize_drone(start_offboard: bool = False):
         if start_offboard:
             logger.info("Starting offboard mode during initialization.")
             await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-            await drone.offboard.start()
+            await _observe_mode_request("offboard_start", "initialization", drone.offboard.start())
         led_controller.set_color(0, 255, 0)  # Green to indicate ready
 
         return drone
@@ -1918,6 +1985,7 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
 
     # Read hardware ID from the canonical runtime identity model
     HW_ID = ConfigLoader.get_hw_id()
+    _record_link_event("session_start")
     if HW_ID is None:
         logger.error("Hardware ID not found.")
         sys.exit(1)
@@ -2105,8 +2173,14 @@ async def watch_control_authority(drone):
             except Exception:
                 logging.getLogger(__name__).debug("PX4 authority stream unavailable", exc_info=True)
             await asyncio.sleep(0.25)
-    tasks = [asyncio.create_task(consume(drone.telemetry.flight_mode,
-                lambda value: CONTROL_AUTHORITY.update_mode(value, leader=IS_LEADER))),
+    def observe_mode(value):
+        expired = not CONTROL_AUTHORITY.has_fresh_mode()
+        previous_mode = CONTROL_AUTHORITY.mode
+        CONTROL_AUTHORITY.update_mode(value, leader=IS_LEADER)
+        if expired or CONTROL_AUTHORITY.mode != previous_mode:
+            _record_link_event("mode_observed", mode=CONTROL_AUTHORITY.mode, armed=CONTROL_AUTHORITY.armed)
+
+    tasks = [asyncio.create_task(consume(drone.telemetry.flight_mode, observe_mode)),
              asyncio.create_task(consume(drone.telemetry.armed, CONTROL_AUTHORITY.update_armed)),
              asyncio.create_task(consume(drone.telemetry.landed_state, CONTROL_AUTHORITY.update_landed))]
     try:
@@ -2125,7 +2199,13 @@ async def watch_control_authority(drone):
 async def run_smart_swarm_process(logger) -> bool:
     """Run Smart Swarm and return whether its final vehicle handoff completed."""
     global RUNTIME_SESSION, CONTROL_AUTHORITY, RUNTIME_PHASE, RUNTIME_DETAIL
+    global LINK_EVIDENCE
     RUNTIME_SESSION = SwarmSessionRuntime(Params, logger)
+    try:
+        LINK_EVIDENCE = LinkEvidence(RUNTIME_SESSION.command_id)
+    except RuntimeError:
+        logger.warning("Smart Swarm link diagnostics worker unavailable", exc_info=True)
+        LINK_EVIDENCE = None
     CONTROL_AUTHORITY = None
     RUNTIME_PHASE = "ready"
     lifecycle = SmartSwarmRuntimeLifecycle(
@@ -2169,6 +2249,10 @@ async def run_smart_swarm_process(logger) -> bool:
             RUNTIME_PHASE = "takeover"
         elif RUNTIME_PHASE != "failed":
             RUNTIME_PHASE = "stopped"
+        if LINK_EVIDENCE is not None:
+            _record_link_event("session_end", reason=reason, outcome=RUNTIME_PHASE)
+            LINK_EVIDENCE.close()
+            LINK_EVIDENCE = None
         clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id, phase=RUNTIME_PHASE)
         RUNTIME_SESSION.phase = RUNTIME_PHASE
         RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or (RUNTIME_DETAIL if RUNTIME_PHASE == "failed" else reason)
@@ -2197,6 +2281,7 @@ def main():
     # Initialize unified logging
     apply_log_args(args)
     register_component("smart_swarm", "drone", "Smart swarm following mode")
+    register_component("smart_swarm.link", "drone", "Smart Swarm link and mode observations")
     init_drone_logging()
     _logger = get_logger("smart_swarm")
 

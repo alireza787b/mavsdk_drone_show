@@ -119,3 +119,29 @@
   color: var(--color-text-secondary);
   font-size: .875rem;
 }
+
+.ulog-timeline { min-width: 0; margin-block: .75rem; }
+.ulog-timeline h4 { font-size: 1rem; margin: 0 0 .5rem; }
+.ulog-timeline__events { list-style: none; padding: 0; margin: 0; }
+.ulog-timeline__date, .ulog-timeline__coverage { font-size: .8rem; color: var(--color-text-secondary); margin-block: .4rem; }
+.ulog-timeline__row { display: grid; grid-template-columns: 8.25ch minmax(0, 1fr); gap: 1.4rem;
+  align-items: baseline; padding: .45rem 0; border-bottom: 1px solid var(--color-border-primary); }
+.ulog-timeline__row time, .ulog-timeline__time { font-size: .75rem; font-variant-numeric: tabular-nums; }
+.ulog-timeline__row strong { font-size: .875rem; overflow-wrap: anywhere; }
+.ulog-timeline__row small { display: block; color: var(--color-text-secondary); font-size: .75rem; }
+.ulog-timeline__row dl { display: grid; grid-template-columns: 1fr auto; gap: .3rem .6rem;
+  margin: .5rem 0; color: var(--color-text-secondary); font-size: .8rem; }
+.ulog-timeline__row dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ulog-timeline summary, .ulog-timeline__more { cursor: pointer; }
+.ulog-timeline__more { margin-top: .45rem; min-height: 2.75rem; }
+
+.ulog-timeline header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.ulog-timeline header label { display: inline-flex; align-items: center; gap: .4rem; min-height: 2.75rem;
+  font-size: .8rem; cursor: pointer; }
+.ulog-timeline header h4 { margin: 0; }
+.ulog-timeline__row summary, .ulog-timeline__coverage summary { justify-content: space-between; }
+.ulog-timeline summary > svg { flex-shrink: 0; color: var(--color-text-secondary); }
+.ulog-timeline details[open] > summary > svg { transform: rotate(180deg); }
+.ulog-timeline__title { display: grid; gap: .15rem; }
+.logs-ulog-summary > details > summary svg { margin-left: auto; }
+.logs-ulog-summary > details[open] > summary svg { transform: rotate(180deg); }

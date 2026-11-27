@@ -97,6 +97,18 @@ def test_software_attention_survives_brief_loss_without_allowing_stale_sync():
             assert table['needs_sync_count'] == 0
 
 
+def test_git_review_distinguishes_matching_revision_on_another_branch():
+    deps = _make_deps()
+    row = deps.git_status_data_all_drones["1"]
+    row["branch"] = "alternate"
+    result = git_routes._build_git_status_response(deps)
+    assert (result.needs_sync_count, result.branch_only_count) == (1, 1)
+    row["uncommitted_changes"] = [" M local.py"]
+    assert git_routes._build_git_status_response(deps).branch_only_count == 0
+    row.update(commit="01234567", uncommitted_changes=[])
+    assert git_routes._build_git_status_response(deps).branch_only_count == 0
+
+
 def test_software_attention_reuses_configured_available_window():
     deps = _make_deps()
     deps.Params.PRESENCE_STALE_SEC = 120
