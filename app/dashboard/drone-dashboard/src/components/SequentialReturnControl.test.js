@@ -32,7 +32,7 @@ test('defaults to 10 seconds, opening sends nothing, confirmation names order', 
     '/api/v1/swarm/runtime/sequential-return',
     expect.objectContaining({ target_drone_ids: ['1', '2'], delay_sec: 10 }),
   ));
-  expect(await screen.findByText('1/2 RTL commands issued')).toBeInTheDocument();
+  expect(await screen.findByText('1/2 RTL commands tracked')).toBeInTheDocument();
 });
 
 test('editable interval and changed targets require a fresh review', async () => {
@@ -55,6 +55,21 @@ test('refresh recovers the running queue and cancellation targets its identity',
   await waitFor(() => expect(postGcsResource).toHaveBeenCalledWith(
     '/api/v1/swarm/runtime/sequential-return/return-1/cancel',
   ));
+});
+
+test('tracked RTL is displayed as zero dispatches until the existing poll confirms dispatch', async () => {
+  jest.useFakeTimers();
+  try {
+    fetchGcsResource.mockResolvedValueOnce({ data: { ...waiting, rtl_dispatched_count: 0 } })
+      .mockResolvedValueOnce({ data: { ...waiting, rtl_dispatched_count: 1 } });
+    render(<SequentialReturnControl {...props} />);
+    await act(async () => {});
+    expect(screen.getByText('0/2 RTL dispatches started')).toBeInTheDocument();
+    await act(async () => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByText('1/2 RTL dispatches started')).toBeInTheDocument();
+    expect(fetchGcsResource).toHaveBeenCalledTimes(2);
+    expect(postGcsResource).not.toHaveBeenCalled();
+  } finally { jest.useRealTimers(); }
 });
 
 test('a lost response reuses the same request identity on retry', async () => {
@@ -142,4 +157,18 @@ test('new dispatched notice expires after 10 seconds, failures need acknowledgem
     expect(screen.queryByText('Drone 2 rejected RTL')).not.toBeInTheDocument();
     expect(postGcsResource).not.toHaveBeenCalled();
   } finally { jest.useRealTimers(); }
+});
+
+
+test('stopped return recovers stop and later Hold evidence and offers review without sending', async () => {
+  const review = jest.fn();
+  fetchGcsResource.mockResolvedValue({ data: { ...waiting, state: 'failed', commands: [], message: 'Hold not confirmed',
+    hold_confirmation: { stopped_at_ms: 1700000000000, confirmed_at_stop: ['2'], pending_at_stop: ['1'], confirmed_now: ['1', '2'], pending_now: [] } } });
+  render(<SequentialReturnControl {...props} compact onReviewImmediateReturn={review} />);
+  expect(await screen.findByText('0/2 RTL commands tracked')).toBeInTheDocument();
+  expect(screen.getByText(/Hold at queue stop: 1 confirmed/)).toBeInTheDocument();
+  expect(screen.getByText(/Latest Hold receipts: 2 confirmed/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Review Immediate RTL for current To/ }));
+  expect(review).toHaveBeenCalledTimes(1);
+  expect(postGcsResource).not.toHaveBeenCalled();
 });

@@ -9,6 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Smart Swarm shows an advisory when fresh, comparable aircraft heights differ
+  from the formation's planned vertical spacing. Immediate Return remains a
+  separate reviewed action.
+- Managed Return uses the tracked Hold deadline and fresh flight-controller
+  heartbeats. Queue status distinguishes tracked RTL submissions, dispatches
+  started, and Hold receipts that arrive after the queue stops.
+
 - Overview aircraft cards use one aligned GNSS/altitude/link/battery strip,
   a compact percentage gauge and a single aircraft/state anchor. Cached values
   retain provenance without repeated labels; keyboard descriptions no longer

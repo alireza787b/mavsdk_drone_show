@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -567,7 +568,7 @@ def test_command_router_submit_rejects_conflicting_idempotency_key_reuse():
     assert "idempotency_key" in response.json()["detail"]
 
 
-def test_execution_callback_routes_require_exact_command_target_capability():
+def test_execution_callback_routes_require_exact_command_target_capability(monkeypatch):
     import asyncio
 
     from command_tracker import CommandTracker
@@ -580,6 +581,8 @@ def test_execution_callback_routes_require_exact_command_target_capability():
     capability = asyncio.run(tracker.get_callback_capabilities(command_id))["1"]
     deps = _make_deps()
     deps.current_tracker = tracker
+    log = Mock()
+    monkeypatch.setattr("api_routes.commands.logger", log)
     app = FastAPI()
     app.include_router(create_command_router(deps))
     start_payload = {"command_id": command_id, "hw_id": "1"}
@@ -610,6 +613,7 @@ def test_execution_callback_routes_require_exact_command_target_capability():
             "success": True,
             "outcome": "completed",
             "duration_ms": 25,
+            "script_output": "private diagnostic body",
         }
         accepted_result = client.post(
             "/api/v1/command-reports/execution-result",
@@ -631,6 +635,11 @@ def test_execution_callback_routes_require_exact_command_target_capability():
     assert accepted_start.status_code == 200
     assert accepted_result.status_code == 200
     assert replayed_result.status_code == 200
+    receipts = [call.args for call in log.info.call_args_list if "Command callback accepted" in call.args[0]]
+    assert [args[3] for args in receipts] == ["execution-start", "execution-result", "execution-result"]
+    assert all(args[1:3] == (command_id, "1") and args[4] > 0 and args[5] >= 0 for args in receipts)
+    assert capability not in repr(receipts)
+    assert "private diagnostic body" not in repr(receipts)
     status = asyncio.run(tracker.get_status(command_id))
     assert status["outcome"] == "completed"
     assert status["executions"]["received"] == 1

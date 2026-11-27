@@ -47,7 +47,8 @@ def create_swarm_runtime_router(deps):
 
     @router.get("/api/v1/swarm/runtime/sequential-return")
     async def latest_return():
-        return deps.sequential_return_service.latest()
+        service = deps.sequential_return_service
+        return await service.observe(service.latest())
 
     @router.post("/api/v1/swarm/runtime/sequential-return", status_code=202)
     async def sequential_return(request: SequentialReturnRequest):
@@ -55,7 +56,8 @@ def create_swarm_runtime_router(deps):
 
     @router.get("/api/v1/swarm/runtime/sequential-return/{return_id}")
     async def return_status(return_id: str):
-        return deps.sequential_return_service.get(return_id)
+        service = deps.sequential_return_service
+        return await service.observe(service.get(return_id))
 
     @router.post("/api/v1/swarm/runtime/sequential-return/{return_id}/cancel")
     async def cancel_return(return_id: str):

@@ -3009,3 +3009,41 @@ isolation. HTTP, stream and command acceptance tests establish different scopes.
 **Last Updated:** 2026-05-27
 **Version:** 5.5 (FastAPI)
 **Maintainer:** MAVSDK Drone Show Team
+
+
+### Flight height advisories and Hold receipts
+
+The existing Smart Swarm runtime preview returns an optional `altitude_warning`
+for each saved cluster. `samples` carries each member’s explicit source times,
+fused MSL reading, observed GPS fix and accumulated planned vertical offset.
+`spread_m` compares raw readings. `comparison_spread_m` accounts for the saved
+vertical spacing when every compared aircraft has current in-air evidence.
+`valid_count` and `expected_count` describe coverage. A single usable reading
+yields a null spread. These are read-only observations. The fleet display policy
+publishes the same review threshold and sample age. A reported
+`rtk_fixed_observed_since_ms` describes the beginning of the GCS’s current
+series of fresh fixed samples. The first sample, a source gap or a fix change
+leaves duration unknown until a second advancing sample.
+
+Managed Return’s latest and per-job GETs expose `hold_confirmation` with
+`deadline_at_ms`, `stopped_at_ms`, `confirmed_at_stop`, `pending_at_stop`,
+`confirmed_now` and `pending_now` when known. Use the saved stop evidence for
+the queue outcome and current receipts for subsequent arrivals. An uncertain
+in-flight submission can identify its target in `uncertain_dispatch_hw_id`.
+`rtl_dispatched_count` counts commands whose GCS dispatch boundary was
+committed. Aircraft acceptance and PX4 mode confirmation are recorded separately
+in the command lifecycle. A null count means dispatch coverage is unknown.
+The `commands` array carries tracked submissions, including those still
+preparing for dispatch. Managed Return uses the native flight controller's
+`heartbeat_timestamp_ms` for armed and mode checks, with a five-second freshness
+window. Hold requires a heartbeat at or after its submission. Companion
+presence and other telemetry samples have separate clocks.
+Neither lookup replays commands. Direct Return retains its ordinary reviewed
+recipients and native PX4 behavior.
+
+For receipt timing, correlate logs by command and aircraft ID. Companion logs
+record when the local result becomes ready, waits for the start callback, and
+each callback attempt's elapsed time and response status. GCS logs record when
+an authenticated callback entered its handler and the elapsed time through
+tracker recording. A repeated callback can be accepted without changing the
+recorded outcome. Compare elapsed times within each host to avoid clock skew.

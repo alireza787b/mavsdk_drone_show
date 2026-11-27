@@ -20,6 +20,11 @@ expandable detail block, or guide, not as permanent page chrome.
 Action consequences and safety-critical uncertainty are exceptions: keep them
 visible at the decision point. Never require hover or color alone to recognize them.
 
+Group current conditions across the full observed fleet. Bound the number of
+rendered details and retain aircraft search. A source outage has one notice.
+Advisory details use their own source timestamps. A missing measurement stays
+unknown. Acknowledgment is optional and has no effect on commands or recipients.
+
 ## Required Page Structure
 
 Top-level pages should use the shared operator primitives:

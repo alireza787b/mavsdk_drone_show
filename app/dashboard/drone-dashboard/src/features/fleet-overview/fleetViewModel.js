@@ -141,6 +141,9 @@ export function buildAircraftViewModel(drone, nowMs, displayPolicy) {
     },
     gps: {
       fixType,
+      fixedSeconds: gpsCurrent && fixType === 6 && Number(drone.rtk_fixed_observed_since_ms) > 0
+        && drone.gps_raw_timestamp_ms >= drone.rtk_fixed_observed_since_ms
+        ? Math.floor((drone.gps_raw_timestamp_ms - drone.rtk_fixed_observed_since_ms) / 1000) : null,
       label: GPS_LABELS[fixType] || 'Unknown',
       satellites: Number.isInteger(satellites) && satellites >= 0 && satellites < 255 ? satellites : null,
       hdop: numberOrNull(drone.hdop), vdop: numberOrNull(drone.vdop),

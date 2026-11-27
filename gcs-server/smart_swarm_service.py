@@ -13,6 +13,9 @@ from src.smart_swarm_contract import (
 )
 
 
+from swarm_height_advisory import build_height_advisory
+
+
 def resolve_start_scope(cluster, request):
     """One cluster, exact command targets, inferred read-only upstream sources."""
     all_ids = [m['hw_id'] for m in cluster['members']]
@@ -75,6 +78,7 @@ def build_preview(deps):
             set(m["hw_id"] for m in cluster["members"]) - set(cluster["available_hw_ids"]),
             key=int,
         )
+        cluster["altitude_warning"] = build_height_advisory(cluster["members"], telemetry, now_ms)
     return {"revision": topology_revision(assignments), "clusters": clusters,
             "runtime_mode": 'SITL' if getattr(getattr(deps, 'Params', None), 'sim_mode', False) else 'REAL'}
 

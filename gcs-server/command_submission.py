@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import time
@@ -608,7 +609,7 @@ async def submit_tracked_command(
         )
         launched = True
         return submission_receipt
-    except Exception:
+    except (Exception, asyncio.CancelledError):
         if not launched:
             await coordinator.release(reservation)
             if command_id is not None:

@@ -65,9 +65,9 @@ test('one aggregate GCS outage replaces per-aircraft loss generation, without cl
 test('aircraft, per-aircraft conditions and recent cleared episodes are bounded with explicit omission counts', () => {
   const fleet = Array.from({ length: 101 }, (_, index) => item(String(index + 1), Array.from({ length: 6 }, (_, issue) => ({ key: `issue-${issue}`, label: `Issue ${issue}` }))));
   const state = publish(createFleetAlertsState(), fleet);
-  expect(new Set(state.active.map((episode) => episode.aircraftId)).size).toBe(100);
-  expect(state.active).toHaveLength(500);
-  expect(state).toMatchObject({ omittedAircraft: 1, omittedConditions: 100 });
+  expect(new Set(state.active.map((episode) => episode.aircraftId)).size).toBe(101);
+  expect(state.active).toHaveLength(505);
+  expect(state).toMatchObject({ omittedAircraft: 0, omittedConditions: 101 });
   expect(state.active[0]).not.toHaveProperty('raw');
   let history = createFleetAlertsState();
   for (let index = 0; index < 60; index += 1) {

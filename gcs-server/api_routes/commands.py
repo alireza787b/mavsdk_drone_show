@@ -14,6 +14,7 @@ from command_tracker import (
     CommandCallbackAuthenticationError,
     CommandTrackerCapacityError,
 )
+from mds_logging import get_logger
 from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
 from schemas import (
     CommandSubmissionReceipt,
@@ -29,6 +30,16 @@ from schemas import (
     ExecutionStartResponse,
     SubmitCommandRequest,
 )
+
+logger = get_logger("command_reports")
+
+
+def _log_accepted_report(kind, report, arrived_at_ms, started):
+    logger.info(
+        "Command callback accepted: command_id=%r hw_id=%r kind=%s handler_arrived_at_ms=%d recording_elapsed_ms=%.1f",
+        report.command_id[:64], report.hw_id[:32], kind, arrived_at_ms, (time.monotonic() - started) * 1000,
+    )
+
 
 def _build_precision_move_policy_payload(params: Any) -> dict[str, Any]:
     return {
@@ -193,6 +204,8 @@ def create_command_router(deps: Any) -> APIRouter:
         ),
     ):
         """Endpoint for drones to report command execution results."""
+        arrived_at_ms = int(time.time() * 1000)
+        started = time.monotonic()
         tracker = deps.get_command_tracker()
 
         try:
@@ -229,6 +242,7 @@ def create_command_router(deps: Any) -> APIRouter:
                 detail="Execution report conflicts with the recorded command lifecycle",
             )
 
+        _log_accepted_report("execution-result", report, arrived_at_ms, started)
         if not report.success:
             from api_routes.takeoff import fail_coordinated_takeoff
             await fail_coordinated_takeoff(deps, report.command_id, report.error_message or 'A required aircraft failed takeoff', report.hw_id)
@@ -252,6 +266,8 @@ def create_command_router(deps: Any) -> APIRouter:
         ),
     ):
         """Endpoint for drones to report that command execution has actually started."""
+        arrived_at_ms = int(time.time() * 1000)
+        started = time.monotonic()
         tracker = deps.get_command_tracker()
 
         try:
@@ -277,6 +293,7 @@ def create_command_router(deps: Any) -> APIRouter:
                 detail="Execution-start report conflicts with the recorded command lifecycle",
             )
 
+        _log_accepted_report("execution-start", report, arrived_at_ms, started)
         status = await tracker.get_status(report.command_id)
         command_status = CommandStatus(status["status"]) if status else CommandStatus.FAILED
         command_phase = CommandPhase(status["phase"]) if status else CommandPhase.TERMINAL

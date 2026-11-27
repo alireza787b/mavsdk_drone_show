@@ -52,6 +52,10 @@
 .swarm-ops__actions .operator-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--spacing-sm); border-radius: 2px; }
 .swarm-ops .swarm-sequential-return__toolbar { flex: 1; min-width: 0; }
 .swarm-ops .swarm-sequential-return__status { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); flex-basis: 100%; grid-column: 1 / -1; font-size: var(--font-size-sm); }
+.swarm-sequential-return__dispatch-count { display: inline-flex; align-items: center; min-height: 32px; font-variant-numeric: tabular-nums; }
+.swarm-sequential-return__status details > summary { display: inline-flex; align-items: center; gap: .35rem; min-height: 32px; cursor: pointer; list-style: none; }
+.swarm-sequential-return__status details > summary::-webkit-details-marker { display: none; }
+.swarm-sequential-return__review { display: inline-flex; align-items: center; gap: .4rem; }
 .swarm-ops .swarm-sequential-return > p { flex-basis: 100%; grid-column: 1 / -1; }
 .swarm-confirm-summary { display: grid; gap: var(--spacing-sm); }
 .swarm-confirm-summary input { max-width: 6rem; padding: var(--spacing-xs); color: var(--color-text-primary); background: var(--color-surface-inset); border: 1px solid var(--color-border-primary); }
@@ -78,4 +82,39 @@
   .swarm-ops__roster li > :nth-child(3) { grid-column: 2; grid-row: 1; justify-self: end; }
   .swarm-ops__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .swarm-ops__actions button { padding: var(--spacing-xs); font-size: var(--font-size-sm); }
+}
+
+.swarm-height-advisory { min-width: 0; border: 1px solid var(--color-border-primary); border-inline-start: 3px solid var(--color-border-primary); background: var(--color-bg-primary); font-size: var(--font-size-sm); }
+.swarm-height-advisory--warning { border-inline-start-color: var(--color-warning); }
+.swarm-height-advisory--unknown { border-inline-start-color: var(--color-info, var(--color-border-primary)); }
+.swarm-height-advisory summary { display: flex; align-items: center; gap: .55rem; min-height: 42px; padding: .25rem .65rem; cursor: pointer; list-style: none; user-select: none; }
+.swarm-height-advisory summary::-webkit-details-marker { display: none; }
+.swarm-height-advisory summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.swarm-height-advisory__icon { display: inline-flex; flex: 0 0 auto; color: var(--color-success, var(--color-text-secondary)); }
+.swarm-height-advisory--warning .swarm-height-advisory__icon,
+.swarm-height-advisory--warning .swarm-height-advisory__state { color: var(--color-warning-text, var(--color-warning)); }
+.swarm-height-advisory--unknown .swarm-height-advisory__icon,
+.swarm-height-advisory--unknown .swarm-height-advisory__state { color: var(--color-info, var(--color-text-secondary)); }
+.swarm-height-advisory__state { font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
+.swarm-height-advisory__value { font-variant-numeric: tabular-nums; font-weight: 700; }
+.swarm-height-advisory__count { margin-inline-start: auto; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.swarm-height-advisory__chevron { color: var(--color-text-secondary); font-size: .7rem; transition: transform .15s ease; }
+.swarm-height-advisory details[open] .swarm-height-advisory__chevron { transform: rotate(180deg); }
+.swarm-height-advisory__details { padding: .1rem .65rem .65rem; border-block-start: 1px solid var(--color-border-secondary); }
+.swarm-height-advisory__facts { display: flex; flex-wrap: wrap; gap: .35rem .85rem; padding-block: .5rem .15rem; color: var(--color-text-secondary); font-size: .72rem; font-weight: 700; letter-spacing: .04em; }
+.swarm-height-advisory__facts span { display: inline-flex; align-items: center; gap: .25rem; }
+.swarm-height-advisory__note { margin: .2rem 0 .45rem; color: var(--color-text-secondary); font-size: .75rem; }
+.swarm-height-advisory__search { display: flex; align-items: center; gap: .35rem; margin-block: .35rem; color: var(--color-text-secondary); }
+.swarm-height-advisory__search input { min-height: 34px; padding: .25rem .45rem; }
+.swarm-height-advisory ul { display: grid; gap: .15rem; max-height: 12rem; overflow: auto; margin: .25rem 0; padding: 0; list-style: none; }
+.swarm-height-advisory li { display: grid; grid-template-columns: minmax(5rem, 1fr) auto auto auto; align-items: baseline; gap: .45rem; min-height: 30px; padding: .2rem 0; border-block-start: 1px solid var(--color-border-secondary); }
+.swarm-height-advisory__reading { font-variant-numeric: tabular-nums; font-weight: 700; }
+.swarm-height-advisory__age, .swarm-height-advisory__fix, .swarm-height-advisory__reference { color: var(--color-text-secondary); font-size: .72rem; }
+.swarm-height-advisory__reference { padding: .05rem .25rem; border: 1px solid var(--color-border-secondary); border-radius: .2rem; font-weight: 700; }
+.swarm-height-advisory__more { min-height: 34px; padding: .25rem .5rem; border: 0; background: transparent; color: var(--color-primary); font: inherit; font-size: .75rem; cursor: pointer; }
+.swarm-height-advisory__announcement, .swarm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.swarm-return-evidence { max-height: 12rem; overflow: auto; }
+@media (max-width: 600px) {
+  .swarm-height-advisory li { grid-template-columns: minmax(4.5rem, 1fr) auto auto; }
+  .swarm-height-advisory__fix { grid-column: 2 / -1; }
 }

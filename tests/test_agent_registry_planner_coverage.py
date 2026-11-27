@@ -240,6 +240,19 @@ def test_registry_planner_still_accepts_explicit_sar_mission_id():
     assert plan.tool_calls[0].arguments["mission_id"] == "sar-1"
 
 
+@pytest.mark.parametrize(("prompt", "tool_id", "arguments"), [
+    ("show trajectory mission workspace status now", "mds.swarm_trajectories.workspace.read", {}),
+    ("show Swarm Trajectory workspace status now", "mds.swarm_trajectories.workspace.read", {}),
+    ("show the SAR mission workspace for mission_id=sar-1 now", "mds.sar.mission.workspace.read", {"mission_id": "sar-1"}),
+    ("show the QuickScout mission workspace status now", "mds.sar.missions.read", {}),
+])
+def test_registry_planner_distinguishes_trajectory_and_sar_workspace_queries(prompt, tool_id, arguments):
+    plan = plan_registry_read_tool_calls(prompt, allowed_tools=list_policy_allowed_read_only_tools(channel="assistant"))
+
+    assert _plan_tool_ids(plan) == (tool_id,)
+    assert plan.tool_calls[0].arguments == arguments
+
+
 def test_registry_planner_routes_out_of_sync_prompts_to_fleet_git_sync_posture():
     tools = list_policy_allowed_read_only_tools(channel="assistant")
 

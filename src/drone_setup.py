@@ -1412,6 +1412,12 @@ class DroneSetup:
                         f"Mission script exited with code {return_code}."
                     )
             duration_ms = int((time.time() - start_time) * 1000)
+            if process_record.command_id:
+                logger.info(
+                    "Local command result ready: command_id=%r hw_id=%r success=%s exit_code=%s duration_ms=%d",
+                    process_record.command_id[:64], str(self.drone_config.hw_id)[:32],
+                    result_success, return_code, duration_ms,
+                )
 
             state_reset, ownership_reason = await self._retire_process_and_update_state(
                 process_record,
@@ -1422,6 +1428,9 @@ class DroneSetup:
                 error_message = "Old controller helpers could not be stopped; replacement control remains blocked."
             # Flight ownership is local truth. A delayed start callback must
             # not keep a finished action busy or block its replacement.
+            if process_record.command_id and execution_start_task is not None and not execution_start_task.done():
+                logger.info("Command result waiting for execution-start attempt: command_id=%r hw_id=%r",
+                            process_record.command_id[:64], str(self.drone_config.hw_id)[:32])
             await self._await_execution_start_report_task(execution_start_task, script_name)
             report_details = {
                 "action_result": action_result,
@@ -1638,20 +1647,44 @@ class DroneSetup:
         if capability:
             headers[GCS_COMMAND_REPORT_CAPABILITY_HEADER] = capability
         async with aiohttp.ClientSession() as session:
-            async def post_once(report_payload: dict) -> tuple[int, object]:
-                async with session.post(
-                    url,
-                    json=report_payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=timeout_sec),
-                ) as response:
-                    response_payload = None
-                    if response.status == 422:
-                        try:
-                            response_payload = await response.json(content_type=None)
-                        except (aiohttp.ClientError, ValueError, TypeError):
-                            pass
-                    return response.status, response_payload
+            async def post_once(report_payload: dict, *, legacy_fallback=False) -> tuple[int, object]:
+                started_at_ms = int(time.time() * 1000)
+                started = time.monotonic()
+                outcome = "interrupted"
+                status_code = None
+                try:
+                    async with session.post(
+                        url,
+                        json=report_payload,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=timeout_sec),
+                    ) as response:
+                        status_code = response.status
+                        outcome = "response"
+                        response_payload = None
+                        if status_code == 422:
+                            try:
+                                response_payload = await response.json(content_type=None)
+                            except (aiohttp.ClientError, ValueError, TypeError):
+                                pass
+                        return status_code, response_payload
+                except asyncio.TimeoutError:
+                    outcome = "timeout"
+                    raise
+                except aiohttp.ClientError:
+                    outcome = "client_error"
+                    raise
+                except Exception:
+                    outcome = "unexpected_error"
+                    raise
+                finally:
+                    logger.info(
+                        "Command callback attempt: command_id=%r hw_id=%r kind=%s started_at_ms=%d "
+                        "elapsed_ms=%.1f outcome=%s http_status=%s legacy_fallback=%s",
+                        str(report_payload.get("command_id") or "")[:64],
+                        str(report_payload.get("hw_id") or "")[:32], endpoint.rsplit("/", 1)[-1],
+                        started_at_ms, (time.monotonic() - started) * 1000, outcome, status_code, legacy_fallback,
+                    )
 
             status, response_payload = await post_once(payload)
             if (
@@ -1668,7 +1701,7 @@ class DroneSetup:
                     "GCS rejected the typed execution outcome; retrying once with the "
                     "legacy result envelope for rolling-upgrade compatibility."
                 )
-                status, _ = await post_once(legacy_payload)
+                status, _ = await post_once(legacy_payload, legacy_fallback=True)
 
             if 200 <= status < 300:
                 return True
@@ -1696,6 +1729,8 @@ class DroneSetup:
         payload: dict,
         description: str,
         capability: Optional[str] = None,
+        *,
+        reason: str = "callback_not_delivered",
     ):
         now_monotonic = time.monotonic()
         base_delay = max(1.0, float(getattr(self.params, "COMMAND_REPORT_RETRY_BASE_DELAY_SEC", 2)))
@@ -1724,9 +1759,9 @@ class DroneSetup:
                 queued_count = len(self.pending_command_reports)
 
         logger.warning(
-            "Queued %s for retry because GCS was unavailable. Pending callbacks: %d",
-            description,
-            queued_count,
+            "Command callback queued: command_id=%r hw_id=%r kind=%s reason=%s initial_wait_sec=%.1f pending=%d",
+            str(payload.get("command_id") or "")[:64], str(payload.get("hw_id") or "")[:32],
+            endpoint.rsplit("/", 1)[-1], reason, base_delay, queued_count,
         )
         await self._ensure_command_report_retry_worker()
 
@@ -1757,6 +1792,7 @@ class DroneSetup:
                 still_pending.append(report)
                 continue
 
+            reason = "retryable_http_response"
             try:
                 delivered_now = await self._post_command_report(
                     report.endpoint,
@@ -1773,11 +1809,14 @@ class DroneSetup:
                 continue
             except asyncio.TimeoutError:
                 delivered_now = False
+                reason = "timeout"
             except aiohttp.ClientError:
                 delivered_now = False
+                reason = "client_error"
             except Exception as exc:
                 logger.error("Unexpected error retrying %s: %s", report.description, exc, exc_info=True)
                 delivered_now = False
+                reason = "unexpected_error"
 
             if delivered_now:
                 delivered += 1
@@ -1796,6 +1835,8 @@ class DroneSetup:
             report.attempt_count += 1
             retry_delay = min(max_delay, base_delay * (2 ** max(0, report.attempt_count - 1)))
             report.next_attempt_monotonic = now_monotonic + retry_delay
+            logger.info("Command callback retry deferred: %s reason=%s retries=%d queue_age_sec=%.1f backoff_sec=%.1f",
+                        report.description, reason, report.attempt_count, age_sec, retry_delay)
             still_pending.append(report)
 
         async with self.command_report_lock:
@@ -1945,7 +1986,8 @@ class DroneSetup:
             )
         if start_pending:
             await self._queue_command_report_retry(
-                GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data, description, capability)
+                GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data, description, capability,
+                reason="waiting_for_execution_start")
             return
 
         try:

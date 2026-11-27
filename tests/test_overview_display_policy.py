@@ -70,7 +70,10 @@ def test_typed_telemetry_policy_is_additive_for_legacy_construction():
 
     payload = TelemetryResponse(telemetry={}, total_drones=0, online_drones=0, timestamp=1).model_dump()
     assert payload["telemetry"] == {}
-    assert payload["display_policy"] == {"stale_sec": 10.0, "available_sec": 60.0}
+    assert payload["display_policy"] == {
+        "stale_sec": 10.0, "available_sec": 60.0,
+        "height_review_threshold_m": 1.0, "height_sample_max_age_ms": 3000,
+    }
 
 
 @pytest.mark.parametrize(
@@ -111,6 +114,9 @@ def test_typed_telemetry_route_publishes_effective_policy(monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["X-MDS-Server-Time"].isdigit()
-    assert response.json()["display_policy"] == {"stale_sec": 18.0, "available_sec": 95.0}
+    assert response.json()["display_policy"] == {
+        "stale_sec": 18.0, "available_sec": 95.0,
+        "height_review_threshold_m": 1.0, "height_sample_max_age_ms": 3000,
+    }
     assert response.json()["telemetry"] == {}
     assert response.json()["online_drones"] == 0
