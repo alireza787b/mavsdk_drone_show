@@ -13,6 +13,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   motion observations, and its transport and recovery history. The relationship
   diagram shows the latest link observation in the existing aircraft details.
   With zero motion confidence the follower keeps its last commanded heading.
+- Followers verify current PX4 authority before requesting Hold or re-entering
+  Offboard. An observed pilot Return or Land ends following. A silent mode
+  stream ends the owned setpoint sender and records an unconfirmed handoff.
+- GCS runtime inspection runs outside the telemetry event loop. The SITL
+  inventory skips unrelated containers.
 - A saved flight log includes an offline UTC timeline of PX4 events and
   available companion evidence. The GCS applies the copy's existing owner,
   deletion and retention policy to both.

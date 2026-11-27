@@ -35,7 +35,6 @@ from collections import namedtuple
 from src.mavsdk_runtime import udp_listen_url
 from mavsdk_grpc import System
 from mavsdk_grpc.offboard import VelocityBodyYawspeed, VelocityNedYaw, OffboardError
-from mavsdk_grpc.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 import numpy as np  # Added for numerical computations
 
@@ -53,7 +52,7 @@ from src.action_safety import (
 )
 from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment, clear_runtime_swarm_assignment
 from src.smart_swarm_contract import normalize_topology, topology_revision
-from smart_swarm_src.control_authority import ControlAuthority
+from smart_swarm_src.control_authority import MODE_OBSERVATION_TIMEOUT_SEC, ControlAuthority
 from smart_swarm_src.link_evidence import LinkEvidence
 from smart_swarm_src.session_runtime import SwarmSessionRuntime
 from smart_swarm_src.formation_acknowledgement import effective_revision
@@ -553,36 +552,57 @@ def _follower_task_missing(task_name: str) -> bool:
 
 
 async def ensure_offboard_active_for_follower(drone: System, logger, reason: str) -> bool:
-    """Start follower offboard mode if it is not already active."""
+    """Start only from a newly reported eligible native mode."""
     global FOLLOWER_MOTION_LEASE
     from src.mavsdk_server_ownership import MotionControlLease
+
+    authority = CONTROL_AUTHORITY
+    if authority is None or authority.releasing or authority.takeover_reason:
+        return False
     if FOLLOWER_MOTION_LEASE is None:
         FOLLOWER_MOTION_LEASE = MotionControlLease.acquire(Params.DEFAULT_GRPC_PORT)
         if FOLLOWER_MOTION_LEASE is None:
             return False
+    if authority.owns_fresh_offboard():
+        return True
     try:
-        if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.expect("OFFBOARD"):
+        # Prime only while the observed mode is eligible. Then require another
+        # native report before the RPC; telemetry can change during the setter.
+        if not authority.can_request_offboard():
+            if not await authority.next_mode() or not authority.can_request_offboard():
+                return False
+        origin = authority.mode_changes
+        await asyncio.wait_for(drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0)),
+                               timeout=MODE_OBSERVATION_TIMEOUT_SEC)
+        if not await authority.next_mode() or authority.releasing:
             return False
-        await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
+        if authority.mode_changes != origin:
+            authority.preserve_external("PX4 mode changed while preparing follower entry")
             return False
-        await _observe_mode_request("offboard_start", reason, drone.offboard.start())
-        if CONTROL_AUTHORITY is not None:
-            deadline = time.monotonic() + 3.0
-            while not CONTROL_AUTHORITY.owns_fresh_offboard():
-                if CONTROL_AUTHORITY.takeover_reason or time.monotonic() > deadline:
-                    return False
-                await asyncio.sleep(0.05)
+        if not authority.can_request_offboard() or not authority.expect("OFFBOARD"):
+            return False
+        deadline = authority.pending_until
+        start = asyncio.wait_for(drone.offboard.start(), timeout=max(0, deadline - time.monotonic()))
+        await _observe_mode_request("offboard_start", reason, start)
+        if not authority.accept_offboard_request():
+            return False
+        while not authority.owns_fresh_offboard():
+            if authority.takeover_reason or time.monotonic() >= deadline:
+                authority.relinquish_unconfirmed("PX4 Offboard entry was not confirmed")
+                return False
+            await asyncio.sleep(0.05)
         logger.info("Follower offboard control active (%s).", reason)
         return True
+    except asyncio.CancelledError:
+        if authority.pending_mode == "OFFBOARD":
+            authority.relinquish_unconfirmed("PX4 Offboard entry was interrupted")
+        raise
     except OffboardError as exc:
-        message = str(exc).lower()
-        if "already" in message and "offboard" in message:
-            logger.debug("Follower offboard control already active (%s).", reason)
-            return CONTROL_AUTHORITY is None or CONTROL_AUTHORITY.owns_fresh_offboard()
+        authority.relinquish_unconfirmed("PX4 Offboard entry failed")
         logger.error("Failed to start follower offboard control (%s): %s", reason, exc)
         return False
     except Exception as exc:
+        authority.relinquish_unconfirmed("PX4 Offboard entry failed")
         logger.error("Unexpected error while starting follower offboard control (%s): %s", reason, exc)
         return False
 
@@ -1522,15 +1542,19 @@ async def control_loop(drone: System):
     offboard_active = True
 
     async def send_decision(decision):
-        if CONTROL_AUTHORITY is not None and not CONTROL_AUTHORITY.owns_fresh_offboard():
+        authority = CONTROL_AUTHORITY
+        if authority is None:
             return
-        started = time.monotonic()
-        await drone.offboard.set_velocity_ned(VelocityNedYaw(
-            float(decision.velocity_ned[0]),
-            float(decision.velocity_ned[1]),
-            float(decision.velocity_ned[2]),
-            float(decision.yaw_deg),
-        ))
+        async with authority.setpoint_lock:
+            if authority.releasing or not authority.owns_fresh_offboard():
+                return
+            started = time.monotonic()
+            await drone.offboard.set_velocity_ned(VelocityNedYaw(
+                float(decision.velocity_ned[0]),
+                float(decision.velocity_ned[1]),
+                float(decision.velocity_ned[2]),
+                float(decision.yaw_deg),
+            ))
         if LINK_EVIDENCE is not None:
             LINK_EVIDENCE.setpoint_sent(time.monotonic() - started)
 
@@ -1791,83 +1815,77 @@ async def execute_failsafe(
     *,
     operation_timeout_sec: Optional[float] = None,
 ) -> VehicleHandoffResult:
-    """
-    Leave Offboard and command PX4 HOLD without a discontinuous zero setpoint.
-
-    Args:
-        drone (System): MAVSDK drone system instance.
-        operation_timeout_sec: Optional bound applied independently to the
-            Offboard-stop and HOLD RPCs during process shutdown. Runtime
-            failsafe callers retain the normal MAVSDK behavior by omitting it.
-    """
+    """Release owned Offboard with one native Hold request, preserving pilot takeover."""
     logger = logging.getLogger(__name__)
-    if CONTROL_AUTHORITY is not None:
-        if CONTROL_AUTHORITY.takeover_reason or CONTROL_AUTHORITY.never_requested_follower_control():
-            # Startup may fail before we own any control. In particular, a
-            # leader waiting for a missing follower must not interrupt its RC
-            # or QGC mission just because the startup barrier failed.
-            logger.info("Preserving PX4 control during %s (%s).", reason, CONTROL_AUTHORITY.mode)
-            return VehicleHandoffResult(False, False, control_preserved=True,
-                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
-        if not CONTROL_AUTHORITY.owns_fresh_offboard():
-            # Do not infer authority from an old mode sample. Stopping the
-            # producer/server leaves PX4's configured Offboard-loss action in
-            # charge; if the mode is unknown, report an unconfirmed handoff.
-            preserved = CONTROL_AUTHORITY.has_fresh_mode() and CONTROL_AUTHORITY.mode != "OFFBOARD"
-            return VehicleHandoffResult(False, False, control_preserved=preserved,
-                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
-        CONTROL_AUTHORITY.expect("HOLD")
-    led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 0, 0)  # Red to indicate failsafe
-    offboard_stop_completed = False
-    hold_requested = False
+    authority = CONTROL_AUTHORITY
+    if authority is None:
+        return VehicleHandoffResult(False, False)
 
-    async def await_operation(awaitable):
-        if operation_timeout_sec is None:
-            return await awaitable
-        return await asyncio.wait_for(
-            awaitable,
-            timeout=max(0.01, float(operation_timeout_sec)),
-        )
+    def preserved():
+        mode = authority.mode if authority.has_fresh_mode() and not authority.handoff_unconfirmed else None
+        return VehicleHandoffResult(False, False, observed_mode=mode, control_preserved=(
+            not authority.handoff_unconfirmed and bool(authority.takeover_reason
+            or authority.never_requested_follower_control() or (mode and mode != "OFFBOARD"))))
 
+    if authority.takeover_reason or authority.never_requested_follower_control():
+        return preserved()
+    if authority.releasing:
+        return VehicleHandoffResult(False, False)
+    authority.releasing = True
+    # The SDK repeats its last velocity independently of Python. Replace an
+    # owned setpoint before waiting for telemetry, without requesting a mode.
+    if authority.follower_owned and authority.mode == "OFFBOARD" and not authority.internal_hold:
+        async def replace_repeating_setpoint():
+            async with authority.setpoint_lock:
+                if not authority.takeover_reason:
+                    await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+
+        try:
+            await asyncio.wait_for(replace_repeating_setpoint(),
+                                   timeout=min(0.25, operation_timeout_sec or 0.25))
+        except asyncio.CancelledError:
+            authority.relinquish_unconfirmed("PX4 neutral setpoint was interrupted")
+            raise
+        except Exception:
+            authority.relinquish_unconfirmed("PX4 neutral setpoint was not confirmed")
+            return preserved()
+    # A still-recent heartbeat may predate a pilot's Return/Land. The existing
+    # watcher must observe native mode again, after this handoff decision.
+    timeout = min(MODE_OBSERVATION_TIMEOUT_SEC, operation_timeout_sec or MODE_OBSERVATION_TIMEOUT_SEC)
     try:
-        await _observe_mode_request("offboard_stop", reason, await_operation(drone.offboard.stop()))
-        offboard_stop_completed = True
-        logger.info("Failsafe: Offboard stopped%s.", f" ({reason})" if reason else "")
-    except asyncio.TimeoutError:
-        logger.error(
-            "Failsafe timed out while stopping Offboard%s.",
-            f" ({reason})" if reason else "",
-        )
-    except OffboardError as exc:
-        logger.warning("Failsafe could not stop Offboard cleanly: %s", exc)
-    except Exception:
-        logger.exception("Unexpected error while stopping Offboard during failsafe.")
+        confirmed = await authority.next_mode(timeout)
+    except asyncio.CancelledError:
+        authority.relinquish_unconfirmed("PX4 authority check was interrupted")
+        raise
+    if not confirmed or not authority.owns_fresh_offboard():
+        authority.releasing = False
+        return preserved()
 
+    authority.expect("HOLD")
     try:
-        if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-            return VehicleHandoffResult(offboard_stop_completed, False, control_preserved=True,
-                                        observed_mode=CONTROL_AUTHORITY.mode if CONTROL_AUTHORITY.has_fresh_mode() else None)
-        await _observe_mode_request("hold", reason, await_operation(drone.action.hold()))
-        hold_requested = True
-        logger.info("Failsafe: PX4 HOLD requested%s.", f" ({reason})" if reason else "")
-    except asyncio.TimeoutError:
-        logger.error(
-            "Failsafe timed out while commanding HOLD%s.",
-            f" ({reason})" if reason else "",
-        )
-    except ActionError as exc:
-        logger.error("Failsafe HOLD command failed: %s", exc)
+        LEDController.get_instance().set_color(255, 0, 0)
     except Exception:
-        logger.exception("Unexpected error while commanding HOLD during failsafe.")
+        logger.warning("Could not set the failsafe indicator", exc_info=True)
+    try:
+        # MAVSDK Offboard.stop clears the repeating setpoint and requests Hold.
+        # A second Action.hold could undo a pilot input that followed that RPC.
+        operation = drone.offboard.stop()
+        if operation_timeout_sec is not None:
+            operation = asyncio.wait_for(operation, timeout=max(0.01, operation_timeout_sec))
+        await _observe_mode_request("offboard_stop", reason, operation)
+    except asyncio.CancelledError:
+        authority.relinquish_unconfirmed("PX4 Offboard release was interrupted")
+        raise
+    except Exception as exc:
+        authority.relinquish_unconfirmed("PX4 Offboard release was not confirmed")
+        logger.warning("Offboard release unconfirmed (%s): %s", reason, type(exc).__name__)
+        return preserved()
+    mode = authority.mode if authority.has_fresh_mode() else None
+    authority.releasing = False
+    logger.info("PX4 accepted Offboard release to Hold (%s).", reason)
+    return VehicleHandoffResult(True, True, observed_mode=mode,
+                                control_preserved=bool(authority.takeover_reason and not authority.handoff_unconfirmed))
 
-    return VehicleHandoffResult(
-        offboard_stop_completed=offboard_stop_completed,
-        hold_requested=hold_requested,
-        observed_mode=(CONTROL_AUTHORITY.mode
-                       if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.has_fresh_mode()
-                       else None),
-    )
 
 # ----------------------------- #
 #       Drone Initialization    #
@@ -2056,7 +2074,8 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
         lifecycle.drone = drone
         global DRONE_INSTANCE
         DRONE_INSTANCE = drone
-        CONTROL_AUTHORITY = ControlAuthority()
+        CONTROL_AUTHORITY = ControlAuthority(
+            stop_setpoint_sender=lambda: stop_mavsdk_server(mavsdk_server, timeout_sec=0.1))
         lifecycle.authority_task = asyncio.create_task(watch_control_authority(drone))
     except Exception:
         logger.error("Failed to initialize drone.")
@@ -2139,7 +2158,7 @@ async def run_smart_swarm(lifecycle: SmartSwarmRuntimeLifecycle):
 
     while True:
         if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-            RUNTIME_PHASE = "takeover"
+            RUNTIME_PHASE = "failed" if CONTROL_AUTHORITY.handoff_unconfirmed else "takeover"
             RUNTIME_DETAIL = CONTROL_AUTHORITY.takeover_reason
             break
         for task_name, task in list(FOLLOWER_TASKS.items()):
@@ -2180,7 +2199,8 @@ async def watch_control_authority(drone):
         if expired or CONTROL_AUTHORITY.mode != previous_mode:
             _record_link_event("mode_observed", mode=CONTROL_AUTHORITY.mode, armed=CONTROL_AUTHORITY.armed)
 
-    tasks = [asyncio.create_task(consume(drone.telemetry.flight_mode, observe_mode)),
+    tasks = [asyncio.create_task(CONTROL_AUTHORITY.watch_owned_mode()),
+             asyncio.create_task(consume(drone.telemetry.flight_mode, observe_mode)),
              asyncio.create_task(consume(drone.telemetry.armed, CONTROL_AUTHORITY.update_armed)),
              asyncio.create_task(consume(drone.telemetry.landed_state, CONTROL_AUTHORITY.update_landed))]
     try:
@@ -2246,7 +2266,7 @@ async def run_smart_swarm_process(logger) -> bool:
         reason = signal_state.received_signal or "runtime exit"
         shutdown_completed = await lifecycle.shutdown(reason)
         if CONTROL_AUTHORITY is not None and CONTROL_AUTHORITY.takeover_reason:
-            RUNTIME_PHASE = "takeover"
+            RUNTIME_PHASE = "failed" if CONTROL_AUTHORITY.handoff_unconfirmed else "takeover"
         elif RUNTIME_PHASE != "failed":
             RUNTIME_PHASE = "stopped"
         if LINK_EVIDENCE is not None:

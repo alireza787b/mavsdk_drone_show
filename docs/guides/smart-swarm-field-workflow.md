@@ -186,6 +186,17 @@ the full cluster; polls, reconnects and new members never silently add targets.
 
 ![One recipient choice across launch, following and return](../assets/smart-swarm/command-scope.svg)
 
+**Pilot takeover.** A follower that observes Return, Land or another external mode change
+releases control for that session. If peer or own-motion data goes stale while the
+follower owns Offboard, it first replaces its repeating velocity with zero body
+velocity and zero yaw rate. It waits for a new PX4 mode report before relinquishing
+Offboard to native Hold. If the neutral update takes longer than 250 ms, or mode
+reports stop for 2.5 s, the companion stops its setpoint sender. PX4 then handles
+Offboard loss according to the aircraft configuration. Check native mode on the
+flight controller if the ground station reports an unconfirmed handoff.
+[MAVSDK Offboard behavior](https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html)
+and [PX4 Offboard-loss behavior](https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters).
+
 Takeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for
 large clusters. A single cluster has no formation selector; multiple clusters
 show one selector. Large recipient summaries collapse to a count, while To and

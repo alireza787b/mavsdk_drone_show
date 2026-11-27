@@ -2220,10 +2220,13 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
-      "content_hash": "ee83665369713af213a8c22dc49d8d4db0d21b4ad31e067111c84d4321047e47",
+      "content_hash": "c02b0f22a5ece29762d74b27b15425920a8124f70ca15968aef786cc0f3dd22d",
       "heading": "Command a subset or retry one follower",
       "id": "mds.smart_swarm_operator_workflow:007-02-command-a-subset-or-retry-one-follower",
-      "links": [],
+      "links": [
+        "https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters",
+        "https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html"
+      ],
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",
       "resource_id": "mds.smart_swarm_operator_workflow",
@@ -2235,7 +2238,7 @@
         "formation",
         "capture"
       ],
-      "text": "Takeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for\nlarge clusters. A single cluster has no formation selector; multiple clusters\nshow one selector. Large recipient summaries collapse to a count, while To and\nthe aircraft details retain exact identities. Scrolling the roster selects no\naircraft and dispatches nothing.",
+      "text": "**Pilot takeover.** A follower that observes Return, Land or another external mode change\nreleases control for that session. If peer or own-motion data goes stale while the\nfollower owns Offboard, it first replaces its repeating velocity with zero body\nvelocity and zero yaw rate. It waits for a new PX4 mode report before relinquishing\nOffboard to native Hold. If the neutral update takes longer than 250 ms, or mode\nreports stop for 2.5 s, the companion stops its setpoint sender. PX4 then handles\nOffboard loss according to the aircraft configuration. Check native mode on the\nflight controller if the ground station reports an unconfirmed handoff.\n[MAVSDK Offboard behavior](https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html)\nand [PX4 Offboard-loss behavior](https://docs.px4.io/main/en/flight_modes/offboard.html#offboard-parameters).\n\nTakeoff/Start/Hold all/Managed Return stay above the bounded status roster, even for\nlarge clusters. A single cluster has no formation selector; multiple clusters\nshow one selector. Large recipient summaries collapse to a count, while To and\nthe aircraft details retain exact identities. Scrolling the roster selects no\naircraft and dispatches nothing.",
       "title": "Smart Swarm operator workflow"
     },
     {
@@ -17704,7 +17707,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.smart_swarm_operator_workflow/markdown",
       "chunk_count": 16,
-      "content_hash": "c26925875e2d0a3d7b9e346b8c5a5b7449e95f68b1cf9c1b5f1a676d9f4a0db1",
+      "content_hash": "a3e63bf7524540e18f76ce5eba388a0e038b99312d0ac528bab519bae6466660",
       "id": "mds.smart_swarm_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/smart-swarm-field-workflow.md",

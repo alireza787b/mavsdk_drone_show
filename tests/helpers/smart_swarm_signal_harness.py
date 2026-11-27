@@ -41,6 +41,9 @@ async def run(marker_dir: Path) -> None:
     control_started = asyncio.Event()
 
     class _Offboard:
+        async def set_velocity_body(self, _):
+            events.append("brake")
+
         async def stop(self):
             events.append("offboard.stop")
 
@@ -60,6 +63,17 @@ async def run(marker_dir: Path) -> None:
             events.append("control.cancelled")
 
     async def fake_runtime(lifecycle):
+        authority = smart_swarm.ControlAuthority()
+        authority.update_armed(True)
+        authority.expect("OFFBOARD")
+        authority.accept_offboard_request()
+        authority.update_mode("OFFBOARD", leader=False)
+        smart_swarm.CONTROL_AUTHORITY = authority
+        async def heartbeat():
+            while True:
+                authority.update_mode("OFFBOARD", leader=False)
+                await asyncio.sleep(0.01)
+        lifecycle.authority_task = asyncio.create_task(heartbeat())
         lifecycle.drone = SimpleNamespace(offboard=_Offboard(), action=_Action())
         task = asyncio.create_task(control_task())
         smart_swarm.FOLLOWER_TASKS["control_task"] = task
