@@ -1,133 +1,317 @@
 .fleet-console {
   min-width: 0;
   color: var(--color-text-primary);
+  container: fleet-console / inline-size;
 }
 .fleet-console h2, .fleet-console p { margin: 0; }
 .fleet-console h2 { font-size: var(--font-size-md); }
-.fleet-console button, .fleet-console select { cursor: pointer; }
+.fleet-console :is(button, select) { cursor: pointer; }
 .fleet-console button:disabled { cursor: default; }
 .fleet-console :focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
+.fleet-console .operator-button {
+  min-height: 42px;
+  border-radius: 2px;
+  font-size: var(--font-size-sm);
+}
 .fleet-console-link, .fleet-aircraft-detail > a {
-  color: var(--color-text-secondary);
   display: inline-flex;
   align-items: center;
-  gap: .45rem;
+  gap: var(--spacing-sm);
   min-height: 40px;
+  color: var(--color-text-secondary);
   text-decoration: none;
 }
 .fleet-console-link:hover, .fleet-aircraft-detail > a:hover { color: var(--color-primary); }
+
 .fleet-instruments {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-block: 1px solid var(--color-border-primary);
-  padding-block: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem clamp(1rem, 4vw, 3rem);
+  margin-block-end: var(--spacing-lg);
 }
 .fleet-instruments > div {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: .2rem .6rem;
-  padding-inline: clamp(.5rem, 2vw, 1.5rem);
-  align-items: center;
+  gap: var(--spacing-xs);
+}
+.fleet-instruments span, .fleet-roster-columns {
   color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
 }
-.fleet-instruments > div + div { border-inline-start: 1px solid var(--color-border-primary); }
-.fleet-instruments span { font-size: var(--font-size-xs); }
-.fleet-instruments strong { grid-column: 2; color: var(--color-text-primary); font-size: 1.75rem; line-height: 1; font-variant-numeric: tabular-nums; }
-.fleet-instruments small { font-size: .85rem; font-weight: normal; color: var(--color-text-tertiary); }
-.fleet-instruments .has-caution > svg, .fleet-caution, .fleet-aircraft-software.is-drift { color: var(--color-warning); }
-.fleet-control-strip, .fleet-sync {
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-md);
-  background: var(--color-bg-secondary);
-  padding: clamp(.75rem, 2vw, 1.25rem);
+.fleet-instruments strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
-.fleet-control-strip, .fleet-operation-label, .fleet-operation-buttons, .fleet-roster > header, .fleet-roster-tools, .fleet-roster-tools label, .fleet-sync header, .fleet-sync footer, .fleet-aircraft-detail header {
+.fleet-instruments small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: normal;
+}
+.fleet-instruments .has-caution strong, .fleet-caution, .fleet-tone--warning,
+.fleet-aircraft-detail [data-tone="warning"] { color: var(--color-warning-text); }
+.fleet-tone--danger, .fleet-aircraft-detail [data-tone="danger"] { color: var(--color-danger-text); }
+.fleet-tone--good, .fleet-aircraft-detail [data-tone="good"] { color: var(--color-success-text); }
+
+.fleet-control-strip, .fleet-operation-buttons, .fleet-roster > header,
+.fleet-roster-tools, .fleet-roster-tools label, .fleet-sync header,
+.fleet-sync footer, .fleet-aircraft-detail header, .fleet-heading-with-hint {
   display: flex;
   align-items: center;
-  gap: .6rem;
+  gap: var(--spacing-sm);
 }
-.fleet-control-strip, .fleet-roster > header { flex-wrap: wrap; justify-content: space-between; }
-.fleet-operation-label > svg { color: var(--color-primary); margin-right: .3rem; }
-.fleet-operation-label span, .fleet-roster h2 small { color: var(--color-text-tertiary); font-size: var(--font-size-sm); font-weight: normal; }
-.fleet-operation-buttons { flex-wrap: wrap; }
-.fleet-operation-buttons button, .fleet-sync button { min-height: 42px; }
-.fleet-operation-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
-.fleet-roster { min-width: 0; }
-.fleet-roster > header { margin-block: .5rem .85rem; }
-.fleet-roster-tools { flex-wrap: wrap; }
-.fleet-roster-tools label {
-  min-height: 40px;
-  padding-inline: .65rem;
-  border-radius: var(--border-radius-base);
-  border: 1px solid var(--color-border-primary);
+.fleet-control-strip, .fleet-roster > header {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+.fleet-control-strip {
   background: var(--color-bg-secondary);
-  color: var(--color-text-tertiary);
+  padding: var(--spacing-md) var(--spacing-base);
+}
+.fleet-operation-scope, .fleet-sync-status {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.fleet-operation-buttons { flex-wrap: wrap; }
+.fleet-heading-with-hint { gap: var(--spacing-xs); }
+.fleet-console .info-hint__button,
+.fleet-console .info-hint__bubble {
+  border-radius: 2px;
+}
+.fleet-console .info-hint__button { width: 2.5rem; height: 2.5rem; }
+@media (min-width: 761px) {
+  .fleet-console .info-hint__bubble--bottom {
+    top: 100%;
+    left: 0;
+    transform: none;
+  }
+  .fleet-aircraft-detail .info-hint__bubble--bottom { left: auto; right: 0; }
+}
+
+.fleet-roster { margin-block-start: var(--spacing-lg); }
+.fleet-roster > header { margin-block-end: var(--spacing-sm); }
+.fleet-roster-tools { min-width: 0; }
+.fleet-roster-tools label, .fleet-roster-tools select {
+  min-height: 40px;
+  padding-inline: var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 2px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
 }
 .fleet-roster-tools input, .fleet-roster-tools select {
-  border: none; background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-sm); min-width: 0;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
 }
-.fleet-roster-tools input { width: 9rem; max-width: 100%; }
-.fleet-aircraft-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%, 255px),1fr)); gap: .55rem; }
-.fleet-aircraft-open {
+.fleet-roster-tools input {
+  width: 12rem;
+  padding-block: var(--spacing-sm);
+  border: 0;
+  background: transparent;
+}
+.fleet-roster-tools input::placeholder { color: var(--color-text-tertiary); }
+
+.fleet-workspace { display: grid; gap: var(--spacing-lg); align-items: start; }
+.fleet-workspace.with-detail { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); }
+.fleet-roster-list {
+  --fleet-columns: minmax(0, 1.25fr) minmax(0, .8fr) minmax(0, 1fr) .75rem;
+  --fleet-row-padding: .625rem;
+  --fleet-selection-width: 0rem;
+  min-width: 0;
+}
+.fleet-roster-list.is-selecting { --fleet-selection-width: 2.5rem; }
+.fleet-roster-list ul, .fleet-sync-targets ul { list-style: none; padding: 0; margin: 0; }
+.fleet-roster-columns, .fleet-aircraft-open {
+  display: grid;
+  grid-template-columns: var(--fleet-columns);
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-inline: var(--fleet-row-padding);
+}
+.fleet-roster-columns {
+  padding-inline-start: calc(var(--fleet-row-padding) + var(--fleet-selection-width));
+  padding-block: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+.fleet-console-aircraft {
   display: flex;
-  width: 100%; min-width: 0; gap: .55rem;
-  align-items: center; text-align: start;
-  padding: .65rem .7rem; min-height: 62px;
-  color: inherit; background: transparent;
-  border: 0; border-radius: var(--border-radius-base);
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-light);
 }
-.fleet-aircraft-open:hover, .fleet-aircraft-open[aria-expanded=true] { background: var(--color-primary-light); }
-.fleet-console-aircraft { border-radius: var(--border-radius-base); border: 1px solid var(--color-border-primary); background: var(--color-bg-secondary); display: flex; align-items: center; min-width: 0; }
-.fleet-console-aircraft:has(input:checked) { border-color: var(--color-primary); }
-.fleet-console-aircraft input { flex: none; margin: 0 0 0 .7rem; width: 20px; height: 20px; accent-color: var(--color-primary); }
-.fleet-aircraft-mark { width: 29px; flex: none; color: var(--color-text-muted); }
-.fleet-aircraft-mark.is-online { color: var(--color-info); }
-.fleet-aircraft-mark svg { display: block; fill: currentColor; }
+.fleet-console-aircraft:hover { background: var(--color-bg-secondary); }
+.fleet-console-aircraft:is(.is-selected, .is-inspected) {
+  background: var(--color-primary-light);
+  box-shadow: inset 2px 0 var(--color-primary);
+}
+.fleet-aircraft-check {
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+  flex: 0 0 var(--fleet-selection-width);
+}
+.fleet-aircraft-check input { margin: 0; width: 19px; height: 19px; accent-color: var(--color-primary); }
+.fleet-aircraft-open {
+  flex: 1;
+  min-width: 0;
+  min-height: 54px;
+  padding-block: var(--spacing-sm);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+.fleet-aircraft-name, .fleet-aircraft-connection, .fleet-aircraft-software {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fleet-aircraft-connection, .fleet-aircraft-software { font-size: var(--font-size-sm); }
+.fleet-tone--muted { color: var(--color-text-tertiary); }
+.fleet-connection-dot {
+  width: .4rem;
+  height: .4rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+.fleet-tone--good .fleet-connection-dot { background: var(--color-success); }
+.fleet-tone--warning .fleet-connection-dot { background: var(--color-warning); }
+.fleet-aircraft-mark { width: 1.5rem; flex: none; color: var(--color-text-tertiary); fill: currentColor; }
 .fleet-aircraft-mark .aircraft-silhouette__arms { fill: none; stroke: currentColor; stroke-width: 4; }
-.fleet-aircraft-identity { display: grid; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
-.fleet-aircraft-identity strong { font-size: var(--font-size-sm); }
-.fleet-aircraft-identity small, .fleet-aircraft-software { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
-.fleet-aircraft-software { margin-inline-start: auto; display: inline-flex; align-items: center; gap: .3rem; flex: none; }
-.fleet-aircraft-software.is-current { color: var(--color-success); }
-.fleet-caution, .fleet-open-chevron { flex: none; font-size: .75rem; }
-.fleet-open-chevron { color: var(--color-text-muted); }
-.fleet-workspace { display: grid; gap: .8rem; align-items: start; }
-.fleet-workspace.with-detail { grid-template-columns: minmax(0, 2fr) minmax(210px,1fr); }
-.fleet-aircraft-detail { min-width: 0; padding: 1rem; background: var(--color-bg-secondary); border: 1px solid var(--color-primary-border); border-radius: var(--border-radius-md); }
-.fleet-aircraft-detail header { justify-content: space-between; }
-.fleet-aircraft-detail dl { margin: .55rem 0; }
-.fleet-aircraft-detail dl > div, .fleet-sync-review li { display: flex; justify-content: space-between; align-items: baseline; gap: .85rem; padding-block: .4rem; border-bottom: 1px solid var(--color-border-light); font-size: var(--font-size-sm); }
-.fleet-aircraft-detail dd { margin: 0; overflow-wrap: anywhere; text-align: end; }
-.fleet-aircraft-detail small, .fleet-aircraft-detail dt, .fleet-sync-revision, .fleet-sync time { color: var(--color-text-tertiary); }
-.fleet-aircraft-detail small { display: block; }
-.fleet-tool-icon { background: transparent; color: var(--color-text-secondary); border: 0; width: 42px; height: 42px; border-radius: var(--border-radius-base); }
-.fleet-tool-icon:hover { background: var(--color-surface-muted); }
-.fleet-sync { border-inline-start: 3px solid var(--color-primary); }
-.fleet-sync header, .fleet-sync footer { flex-wrap: wrap; }
-.fleet-sync-title { display: grid; margin-inline-end: auto; gap: .2rem; }
-.fleet-sync-title span, .fleet-sync time, .fleet-sync-revision { font-size: var(--font-size-xs); }
-.fleet-sync-title span { color: var(--color-text-secondary); }
-.fleet-sync-steps { list-style: none; display: flex; padding: 0; margin: 1rem 0; }
-.fleet-sync-steps li { flex: 1; display: grid; align-items: center; gap: .3rem; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
-.fleet-sync-steps li > span { display: flex; height: 4px; background: var(--color-border-secondary); margin-inline-end: 3px; border-radius: 2px; }
-.fleet-sync-steps .is-done > span { background: var(--color-success); }
-.fleet-sync-steps .is-current > span { background: var(--color-info); }
-.fleet-sync-steps .is-current { color: var(--color-text-primary); font-weight: 700; }
-.fleet-sync-review summary { cursor: pointer; min-height: 36px; padding-block: .45rem; }
-.fleet-sync-review summary small { color: var(--color-text-tertiary); }
-.fleet-sync-review ul { max-height: 14rem; overflow: auto; margin: 0 0 .55rem; padding: 0; }
-.fleet-sync footer { margin-top: .85rem; justify-content: end; }
-.fleet-feed-error, .fleet-sync [role=alert] { color: var(--color-warning); }
-.fleet-more { margin-block-start: .75rem; }
-@media (max-width: 720px) {
-  .fleet-workspace.with-detail { grid-template-columns: minmax(0, 1fr); }
-  .fleet-aircraft-detail { grid-row: 1; }
-  .fleet-operation-buttons, .fleet-roster-tools { width: 100%; }
+.fleet-aircraft-identity {
+  display: grid;
+  gap: .125rem;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
-@media (max-width: 420px) {
-  .fleet-instruments > div { display: flex; flex-direction: column; align-items: start; gap: .35rem; }
-  .fleet-roster-tools label { flex: 1; }
+.fleet-aircraft-identity small { color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+.fleet-aircraft-software .fleet-caution, .fleet-open-chevron { flex: none; font-size: var(--font-size-xs); }
+.fleet-open-chevron { color: var(--color-text-tertiary); }
+.fleet-more { margin-block-start: var(--spacing-md); }
+
+.fleet-aircraft-detail {
+  min-width: 0;
+  padding: var(--spacing-sm) var(--spacing-base) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-inline-start: 2px solid var(--color-primary);
+}
+.fleet-aircraft-detail header { justify-content: space-between; }
+.fleet-aircraft-detail dl { margin-block: var(--spacing-sm); }
+.fleet-aircraft-detail dl > div, .fleet-sync-targets li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding-block: .375rem;
+  font-size: var(--font-size-sm);
+}
+.fleet-aircraft-detail dt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-tertiary);
+}
+.fleet-aircraft-detail dl > div { align-items: center; padding-block: var(--spacing-xs); min-height: 2rem; }
+.fleet-aircraft-detail dd { margin: 0; text-align: end; overflow-wrap: anywhere; }
+.fleet-tool-icon {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.fleet-tool-icon:hover { background: var(--color-surface-muted); }
+
+.fleet-sync {
+  margin-block-start: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-base) var(--spacing-base);
+  border-inline-start: 2px solid var(--color-primary);
+  background: var(--color-bg-secondary);
+}
+.fleet-sync-title { margin-inline-end: auto; }
+.fleet-sync-status:empty { display: none; }
+.fleet-sync time, .fleet-sync-revision { color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+.fleet-sync p { margin-block-start: var(--spacing-sm); }
+.fleet-sync-steps {
+  display: flex;
+  gap: var(--spacing-xs);
+  list-style: none;
+  padding: 0;
+  margin: var(--spacing-md) 0 var(--spacing-sm);
+}
+.fleet-sync-steps li {
+  flex: 1;
+  padding-block-start: var(--spacing-xs);
+  border-block-start: 3px solid var(--color-border-secondary);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+.fleet-sync-steps .is-done { border-color: var(--color-success); }
+.fleet-sync-steps .is-current {
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+.fleet-sync-review summary {
+  width: fit-content;
+  min-height: 36px;
+  padding-block: var(--spacing-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.fleet-sync-targets { margin-block-start: var(--spacing-xs); }
+.fleet-sync-targets ul { max-height: 14rem; overflow: auto; }
+.fleet-sync-targets li { border-bottom: 1px solid var(--color-border-light); }
+.fleet-sync-targets li > span:last-child { text-align: end; }
+.fleet-sync-targets li > span:first-child small { color: var(--color-text-tertiary); }
+.fleet-sync-targets button { margin-block-start: var(--spacing-sm); }
+.fleet-sync footer { flex-wrap: wrap; justify-content: end; margin-block-start: var(--spacing-md); }
+.fleet-feed-error, .fleet-sync [role="alert"] { color: var(--color-warning-text); }
+.fleet-console > .fleet-feed-error { margin-block-end: var(--spacing-md); }
+
+@media (max-width: 760px) {
+  .fleet-console > .operator-page-shell__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+}
+@container fleet-console (max-width: 43rem) {
+  .fleet-workspace.with-detail { grid-template-columns: minmax(0, 1fr); gap: var(--spacing-sm); }
+  .fleet-aircraft-detail { grid-row: 1; }
+}
+@container fleet-console (max-width: 34rem) {
+  .fleet-roster-tools { width: 100%; }
+  .fleet-roster-tools label, .fleet-roster-tools select { flex: 1; }
+  .fleet-roster-tools input { width: 100%; }
+}
+@container fleet-console (max-width: 26rem) {
+  .fleet-roster-list { --fleet-row-padding: .375rem; }
+  .fleet-roster-list.is-selecting { --fleet-selection-width: 2.125rem; }
+  .fleet-aircraft-name { gap: var(--spacing-xs); }
+  .fleet-aircraft-mark { width: 1.125rem; }
+  .fleet-aircraft-connection, .fleet-aircraft-software { gap: var(--spacing-xs); font-size: var(--font-size-xs); }
+  .fleet-operation-buttons { width: 100%; }
+  .fleet-operation-buttons button { flex: 1; padding-inline: var(--spacing-sm); }
+  .fleet-sync time { display: none; }
+}
+@container fleet-console (max-width: 20rem) {
+  .fleet-roster-list.is-selecting .fleet-aircraft-mark { display: none; }
+  .fleet-sync-targets li { align-items: start; }
 }

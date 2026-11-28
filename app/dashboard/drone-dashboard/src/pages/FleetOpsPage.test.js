@@ -51,7 +51,7 @@ beforeEach(() => {
   }}));
 });
 
-test('inspects one aircraft from the roster, shows branch difference inside details and restores keyboard focus', () => {
+test('inspects one aircraft, explains the branch difference on request and restores focus', () => {
   view();
   expect(screen.getByRole('link', {name:'Maintenance'})).toHaveAttribute('href', '/maintenance');
   expect(screen.getByRole('link', {name:/fleet ops guide/i})).toHaveAttribute('href', 'https://github.com/demo/demo/blob/main/docs/guides/fleet-ops.md');
@@ -60,11 +60,42 @@ test('inspects one aircraft from the roster, shows branch difference inside deta
   opener.focus();
   fireEvent.click(opener);
   const details = screen.getByRole('complementary', {name:'Details for aircraft 1'});
-  expect(within(details).getByText('Same revision as GCS')).toBeVisible();
+  expect(within(details).getByText('field')).toBeVisible();
+  expect(within(details).queryByText(/Same revision as GCS/)).not.toBeInTheDocument();
   expect(btn('Close aircraft details')).toHaveFocus();
-  fireEvent.keyDown(btn('Close aircraft details'), { key: 'Escape' });
+  const hint = btn('About update branch');
+  act(() => hint.focus());
+  expect(within(details).getByRole('tooltip')).toHaveTextContent('Same revision as GCS');
+  fireEvent.keyDown(hint, { key: 'Escape' });
+  expect(within(details).queryByRole('tooltip')).not.toBeInTheDocument();
+  expect(details).toBeVisible();
+  fireEvent.keyDown(hint, { key: 'Escape' });
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   expect(opener).toHaveFocus();
+});
+
+test('reports roster connection and software states alongside each aircraft identity', () => {
+  view();
+  const roster = screen.getByRole('region', {name:'Aircraft roster'});
+  expect(within(roster).getByRole('list', {name:'Aircraft'})).toBeVisible();
+  expect(btn('Inspect aircraft 1')).toHaveAccessibleDescription(/^H21\. Connection: Live\. Software: Synced\./);
+  expect(btn('Inspect aircraft 3')).toHaveAccessibleDescription('H23. Connection: Live. Software: Unknown.');
+  expect(btn('Inspect aircraft 4')).toHaveAccessibleDescription('H24. Connection: Recent loss. Software: Last synced.');
+});
+
+test('software review follows ground-station reviewability and all aircraft retains stale reports', () => {
+  const override = props();
+  override.gitStatusOverride.git_status['22'].reviewable = true;
+  Object.assign(override.gitStatusOverride.git_status['24'], {
+    commit: '222222222', in_sync_with_gcs: false, reviewable: false,
+  });
+  override.heartbeatOverride.heartbeats[3].last_heartbeat -= 90_000;
+  view('/fleet-ops?filter=drift', override);
+  expect(btn('Inspect aircraft 2')).toBeVisible();
+  expect(btn('Inspect aircraft 3')).toBeVisible();
+  expect(screen.queryByRole('button', {name:'Inspect aircraft 4'})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('combobox'), {target:{value:'all'}});
+  expect(btn('Inspect aircraft 4')).toBeVisible();
 });
 
 test('Sync online previews all eligible hardware identities even with a search or filter active', async () => {
@@ -110,7 +141,7 @@ test('apply sends the reviewed proof once, shows real verification progress and 
   const updateReceipt = {};
   applyFleetGitSyncResponse.mockImplementation(() => new Promise(resolve => { updateReceipt.resolve = resolve; }));
   getFleetGitOperationResponse.mockResolvedValue({data:status('verifying',['21'],['22'])});
-  const first = view();
+  const { unmount } = view();
   click('Sync online');
   await screen.findByText('Review sync');
   expect(screen.getByText('1 ready · 1 excluded')).toBeVisible();
@@ -123,7 +154,7 @@ test('apply sends the reviewed proof once, shows real verification progress and 
   await act(async () => updateReceipt.resolve({data:status('applying',['21'],['22'])}));
   await screen.findByText('Verifying software');
   expect(checkedStorage()).toEqual(['git-sync-1']);
-  first.unmount();
+  unmount();
   getFleetGitOperationResponse.mockResolvedValue({data:status('completed',['21'],['22'])});
   view();
   await screen.findByText('Sync verified');
@@ -133,10 +164,10 @@ test('apply sends the reviewed proof once, shows real verification progress and 
 });
 
 test('reopening an unsubmitted preview requires a fresh review scoped to its original identities including exclusions', async () => {
-  const first = view();
+  const { unmount } = view();
   click('Sync online');
   await screen.findByText('Review sync');
-  first.unmount();
+  unmount();
   getFleetGitOperationResponse.mockResolvedValue({ data: status('review',['22'],['21']) });
   view();
   await screen.findByRole('button', {name:'Refresh preview'});
@@ -190,27 +221,35 @@ test('a server preview with a substituted hardware identity never offers Apply',
 });
 
 test('different operators on the same browser have independent operation pointers', async () => {
-  const first = view();
+  const { unmount } = view();
   click('Sync online');
   await screen.findByText('Review sync');
-  first.unmount();
+  unmount();
   view('/fleet-ops', {...props(), operatorId:'instructor'});
   expect(screen.queryByText('Retrieving sync status')).not.toBeInTheDocument();
   expect(getFleetGitOperationResponse).not.toHaveBeenCalled();
 });
 
-test('after partial verification retry prepares exactly the unconfirmed hardware identities', async () => {
+test('partial verification shows each unconfirmed aircraft and re-previews just those identities', async () => {
   const result = status('completed');
   result.phase = 'partial';
   result.target_counts.verified = 1;
   result.target_counts.unconfirmed = 1;
   result.per_aircraft_state['22'].state = 'unconfirmed';
+  result.per_aircraft_state['22'].error_code = 'verification_timeout';
+  result.message = 'Verified 1 of 2 aircraft';
   applyFleetGitSyncResponse.mockResolvedValue({data:result});
   view();
   click('Sync online');
   await screen.findByText('Review sync');
   click('Apply sync');
   await screen.findByText('Partially verified');
+  const progress = screen.getByRole('region', {name:'Software sync progress'});
+  expect(within(progress).getByText('1 of 2 verified')).toBeVisible();
+  expect(within(progress).queryByText(result.message)).not.toBeInTheDocument();
+  const issues = within(progress).getByRole('list', {name:'Aircraft needing review'});
+  expect(within(issues).getByText('Aircraft 2')).toBeVisible();
+  expect(within(issues).getByText(/Verification timed out/)).toBeVisible();
   click(/Review unconfirmed/);
   await screen.findByText('Review sync');
   expect(dryRunFleetGitSyncResponse).toHaveBeenLastCalledWith({hw_ids:['22']});

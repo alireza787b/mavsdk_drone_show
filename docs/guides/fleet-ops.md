@@ -1,6 +1,6 @@
 # Fleet Ops
 
-Open **Fleet Ops** to see which aircraft are connected and which report the same software as the ground station. Select an aircraft card to inspect its hardware ID, revision, update branch and last check. An offline card shows its last observation.
+Open **Fleet Ops** to see which aircraft are connected and which report the same software as the ground station. Select an aircraft row to inspect its hardware ID, revision, update branch and last check. An offline row shows its last observed software state when available, or **Unknown**. Hover, focus or tap the information icon beside **Software sync** for help with eligibility and selection.
 
 1. Choose **Sync online** to preview all eligible online aircraft. To update a subset, choose **Select aircraft**, tick the intended aircraft and choose **Sync selected**. Searching or filtering the roster preserves your selection.
 2. Check the aircraft identities and destination revision in **Review sync**. A recently lost heartbeat, unavailable revision or changed identity can exclude an aircraft. **Cancel** closes the preview. **Apply sync** starts the update for the reviewed recipients.
@@ -10,6 +10,8 @@ Open **Fleet Ops** to see which aircraft are connected and which report the same
 ![Fleet Ops showing the online count and reported software state of four example aircraft](../assets/fleet-ops/overview.png)
 
 ![Sync preview listing the two selected hardware IDs and the destination revision](../assets/fleet-ops/sync-preview.png)
+
+[View the help control on a phone](../assets/fleet-ops/mobile-help.png).
 
 A clean matching revision on another branch counts as synced when tracking is even. The branch name appears in aircraft details. To align it deliberately, go to **Maintenance → Repository access → Align branch** and review that aircraft.
 

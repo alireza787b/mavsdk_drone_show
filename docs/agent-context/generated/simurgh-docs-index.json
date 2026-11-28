@@ -3219,7 +3219,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.fleet_ops/markdown",
-      "content_hash": "dcbd17832f62c4f592268a10b6df9f0b6846aad86c04e5847b4bccf246dd0201",
+      "content_hash": "fd034fab6b889857383bb5540f6add9d52a5aef309967f0f7022e419272c9930",
       "heading": "Fleet Ops",
       "id": "mds.fleet_ops:001-01-fleet-ops",
       "links": [],
@@ -3232,13 +3232,13 @@
         "fleet",
         "operations"
       ],
-      "text": "# Fleet Ops\n\nOpen **Fleet Ops** to see which aircraft are connected and which report the same software as the ground station. Select an aircraft card to inspect its hardware ID, revision, update branch and last check. An offline card shows its last observation.\n\n1. Choose **Sync online** to preview all eligible online aircraft. To update a subset, choose **Select aircraft**, tick the intended aircraft and choose **Sync selected**. Searching or filtering the roster preserves your selection.\n2. Check the aircraft identities and destination revision in **Review sync**. A recently lost heartbeat, unavailable revision or changed identity can exclude an aircraft. **Cancel** closes the preview. **Apply sync** starts the update for the reviewed recipients.\n3. Leave the page if you need another dashboard. Returning to Fleet Ops in the same tab restores the operation. **Verified** means the GCS read the requested branch and exact target commit from that hardware ID, with a clean worktree and zero tracking drift. A partial result lists each unconfirmed aircraft.\n4. If the connection drops, use **Refresh sync status** to read the existing receipt. A preview expires after five minutes. After a GCS interruption, review aircraft software before starting a fresh update.\n\n![Fleet Ops showing the online count and reported software state of four example aircraft](../assets/fleet-ops/overview.png)\n\n![Sync preview listing the two selected hardware IDs and the destination revision](../assets/fleet-ops/sync-preview.png)\n\nA clean matching revision on another branch counts as synced when tracking is even. The branch name appears in aircraft details. To align it deliberately, go to **Maintenance → Repository access → Align branch** and review that aircraft.\n\nThe dashboard software notice opens a read-only review. A revision difference, local edits, tracking drift, an unavailable revision, or an explicit managed service/profile discrepancy can raise the notice. Each affected aircraft contributes once. The notice clears with the next shared status update.",
+      "text": "# Fleet Ops\n\nOpen **Fleet Ops** to see which aircraft are connected and which report the same software as the ground station. Select an aircraft row to inspect its hardware ID, revision, update branch and last check. An offline row shows its last observed software state when available, or **Unknown**. Hover, focus or tap the information icon beside **Software sync** for help with eligibility and selection.\n\n1. Choose **Sync online** to preview all eligible online aircraft. To update a subset, choose **Select aircraft**, tick the intended aircraft and choose **Sync selected**. Searching or filtering the roster preserves your selection.\n2. Check the aircraft identities and destination revision in **Review sync**. A recently lost heartbeat, unavailable revision or changed identity can exclude an aircraft. **Cancel** closes the preview. **Apply sync** starts the update for the reviewed recipients.\n3. Leave the page if you need another dashboard. Returning to Fleet Ops in the same tab restores the operation. **Verified** means the GCS read the requested branch and exact target commit from that hardware ID, with a clean worktree and zero tracking drift. A partial result lists each unconfirmed aircraft.\n4. If the connection drops, use **Refresh sync status** to read the existing receipt. A preview expires after five minutes. After a GCS interruption, review aircraft software before starting a fresh update.\n\n![Fleet Ops showing the online count and reported software state of four example aircraft](../assets/fleet-ops/overview.png)\n\n![Sync preview listing the two selected hardware IDs and the destination revision](../assets/fleet-ops/sync-preview.png)\n\n[View the help control on a phone](../assets/fleet-ops/mobile-help.png).\n\nA clean matching revision on another branch counts as synced when tracking is even. The branch name appears in aircraft details. To align it deliberately, go to **Maintenance → Repository access → Align branch** and review that aircraft.",
       "title": "Fleet Ops guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.fleet_ops/markdown",
-      "content_hash": "ac85d9a5801040ccf355c87d8e9dc86d4b73a7b75caf8a956f638b430bf2fd44",
+      "content_hash": "f2ccaa1ce33754dd1911058a03364dcd83adae0be2728bc247853068e7e25945",
       "heading": "Fleet Ops",
       "id": "mds.fleet_ops:001-02-fleet-ops",
       "links": [],
@@ -3251,7 +3251,7 @@
         "fleet",
         "operations"
       ],
-      "text": "**Maintenance** contains Wi-Fi profiles, MAVLink routing, per-aircraft repository access and service reports. The original Wi-Fi and MAVLink bookmarks still work. The GCS Runtime link opens host administration. Installations that use a separate Fleet Ops mutation token can set it under **Repository access → Maintenance token** for the current tab.",
+      "text": "The dashboard software notice opens a read-only review. A revision difference, local edits, tracking drift, an unavailable revision, or an explicit managed service/profile discrepancy can raise the notice. Each affected aircraft contributes once. The notice clears with the next shared status update.\n\n**Maintenance** contains Wi-Fi profiles, MAVLink routing, per-aircraft repository access and service reports. The original Wi-Fi and MAVLink bookmarks still work. The GCS Runtime link opens host administration. Installations that use a separate Fleet Ops mutation token can set it under **Repository access → Maintenance token** for the current tab.",
       "title": "Fleet Ops guide"
     },
     {
@@ -17742,7 +17742,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.fleet_ops/markdown",
       "chunk_count": 12,
-      "content_hash": "13ca1f5e681685e2cb5f8a491a700e729e6f640cc817848378c8b152f01ac99f",
+      "content_hash": "569a541d059144b56ccbf67df3fb4b0382b01ba606749c6d093650ccc9dd4394",
       "id": "mds.fleet_ops",
       "mime_type": "text/markdown",
       "path": "docs/guides/fleet-ops.md",

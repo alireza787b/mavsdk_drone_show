@@ -1,35 +1,35 @@
-.maintenance-tools {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-  gap: .75rem;
-}
+.maintenance-tools { max-width: 46rem; }
 .maintenance-tools a, .maintenance-back {
   display: flex;
   align-items: center;
-  gap: .75rem;
+  gap: var(--spacing-md);
   min-height: 2.75rem;
   color: var(--color-text-primary);
   text-decoration: none;
 }
 .maintenance-tools a {
-  min-height: 4.5rem;
-  padding: .8rem 1rem;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-lg);
+  min-height: 3.25rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
 }
+.maintenance-tools a:hover { background: var(--color-bg-secondary); }
 .maintenance-tools svg:first-child { color: var(--color-primary); }
-.maintenance-tools svg:last-child { margin-left: auto; color: var(--color-text-secondary); }
+.maintenance-tools svg:last-child { margin-inline-start: auto; color: var(--color-text-secondary); }
+.maintenance-page .operator-page-shell__icon {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .maintenance-page a:hover { color: var(--color-primary); }
 .maintenance-page :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.maintenance-diagnostics { overflow-x: auto; padding: .5rem; }
+.maintenance-diagnostics { overflow-x: auto; }
 .maintenance-diagnostics table { width: 100%; border-collapse: collapse; }
 .maintenance-diagnostics th, .maintenance-diagnostics td {
-  padding: .65rem .75rem;
+  padding: .65rem var(--spacing-md);
   text-align: left;
   border-bottom: 1px solid var(--color-border-secondary);
 }
-.maintenance-credential { margin: 1.5rem 0; }
+.maintenance-credential { margin: var(--spacing-lg) 0; }
 .maintenance-credential summary { width: fit-content; cursor: pointer; }
-.maintenance-credential form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .7rem 0; }
+.maintenance-credential form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); margin: .7rem 0; }
 .maintenance-credential input { max-width: 90%; }
