@@ -37,6 +37,21 @@ def test_timeline_preserves_sources_instances_counter_resets_and_unknown_utc():
     assert build_ulog_timeline(recording, envelope)["end_utc_ms"] is None
 
 
+@pytest.mark.parametrize('boot', [None, 1_780_000_000_000_000])
+def test_native_mode_activation_is_not_request_ack_or_status_publication_time(boot):
+    recording = SimpleNamespace(start_timestamp=1_000_000, msg_info_dict={'boot_time_utc_us': boot}, data_list=[
+        dataset('vehicle_command_ack', 0, [1_030_000], command=[176], result=[0]),
+        dataset('vehicle_status', 0, [1_020_000, 1_130_000, 1_140_000, 1_160_000],
+                nav_state=[14, 4, 4, 5], nav_state_timestamp=[0, 1_091_345, 1_091_345, 1_170_000]),
+    ])
+    rows = build_ulog_timeline(recording, SimpleNamespace(complete=True, last_data_timestamp_us=1_160_000))['events']
+    hold, = [e for e in rows if e['label'] == 'Hold']
+    assert hold['elapsed_ms'] == 130
+    assert hold['metrics']['mode_activated_boot_us'] == 1_091_345
+    assert hold['metrics'].get('mode_activated_utc_ms') == ((boot + 1_091_345) // 1000 if boot else None)
+    assert all('mode_activated_boot_us' not in r['metrics'] for r in rows if r is not hold)
+
+
 @pytest.mark.asyncio
 async def test_no_fabricated_companion_evidence_for_unaligned_or_old_logs(monkeypatch):
     import log_proxy
