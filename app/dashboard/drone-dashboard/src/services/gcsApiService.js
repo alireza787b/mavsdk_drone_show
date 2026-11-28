@@ -811,6 +811,10 @@ export async function applyFleetGitSyncResponse(payload = {}, config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.fleetGitSyncApply, payload, withFleetOpsMutationToken(config));
 }
 
+export async function getFleetGitOperationResponse(id, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetGitSync]}/operations/${encodeURIComponent(id)}`, withFleetOpsMutationToken(config));
+}
+
 export async function getFleetSidecarsResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.fleetSidecars, config);
 }

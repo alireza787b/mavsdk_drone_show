@@ -320,33 +320,37 @@ function worstTone(...tones) {
 }
 
 export function classifyGitSync(gitStatus, gcsStatus) {
-  if (!gitStatus) {
-    return {
-      state: 'unknown',
-      label: 'Unknown',
-      tone: 'muted',
-      detail: 'No node git status has been reported.',
-    };
+  const knownRevision = value => Boolean(value && value !== 'unknown');
+  const worktree = gitStatus?.status;
+  if (!knownRevision(gitStatus?.commit) || !knownRevision(gcsStatus?.commit) || worktree === 'unknown'
+      || (!worktree && typeof gitStatus.in_sync_with_gcs !== 'boolean')) {
+    return { state: 'unknown', label: 'Unknown', tone: 'muted', detail: 'Revision unconfirmed.' };
   }
-
-  const synced = typeof gitStatus.in_sync_with_gcs === 'boolean'
-    ? gitStatus.in_sync_with_gcs
-    : areGitRevisionsEquivalent(gitStatus.commit, gcsStatus?.commit);
+  const sameCommit = areGitRevisionsEquivalent(gitStatus.commit, gcsStatus.commit);
+  const synced = gitStatus.in_sync_with_gcs ?? (sameCommit && ['clean', 'synced'].includes(worktree)
+    && !gitStatus.uncommitted_changes?.length && !Number(gitStatus.commits_behind) && !Number(gitStatus.commits_ahead));
+  const branchOnly = synced && knownRevision(gitStatus.branch) && knownRevision(gcsStatus.branch)
+    && gitStatus.branch !== gcsStatus.branch;
 
   if (synced) {
     return {
       state: 'synced',
       label: 'Synced',
       tone: 'good',
-      detail: `Node ${compactCommit(gitStatus.commit)} matches GCS.`,
+      detail: branchOnly
+        ? `Same revision as GCS. Aircraft branch ${gitStatus.branch}, GCS branch ${gcsStatus.branch}.`
+        : `Node ${compactCommit(gitStatus.commit)} matches GCS.`,
+      branchOnly,
     };
   }
 
   return {
     state: 'drifted',
-    label: 'Drift',
+    label: 'Needs sync',
     tone: 'warning',
-    detail: `Node ${compactCommit(gitStatus.commit)} vs GCS ${compactCommit(gcsStatus?.commit)}.`,
+    detail: sameCommit
+      ? `Same revision. Working copy: ${gitStatus.uncommitted_changes?.length ? 'local edits' : worktree || 'needs review'}.`
+      : `Aircraft ${compactCommit(gitStatus.commit)}, GCS ${compactCommit(gcsStatus.commit)}.`,
   };
 }
 
@@ -501,6 +505,7 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
 
 function rowNeedsAttention(row) {
   return !row.online
+    || row.sync.state === 'unknown'
     || isAttentionTone(row.presence.tone)
     || isAttentionTone(row.boot.tone)
     || isAttentionTone(row.sync.tone)
@@ -511,35 +516,13 @@ function rowNeedsAttention(row) {
 }
 
 function rowHasComplianceDrift(row) {
+  if (typeof row.gitStatus?.maintenance_drift === 'boolean') {
+    return row.sync.state !== 'synced' || row.gitStatus.maintenance_drift;
+  }
   return row.sync.state !== 'synced'
     || row.nodeSyncRuntime.state === 'attention'
     || row.mavlink.state === 'drifted'
     || row.connectivity.state === 'drifted';
-}
-
-function normalizeHeartbeatMap(heartbeatPayload) {
-  const heartbeats = Array.isArray(heartbeatPayload?.heartbeats) ? heartbeatPayload.heartbeats : [];
-  const byKey = new Map();
-  heartbeats.forEach((heartbeat) => {
-    [heartbeat.hw_id, heartbeat.pos_id].filter((value) => value !== undefined && value !== null).forEach((value) => {
-      byKey.set(String(value), heartbeat);
-    });
-  });
-  return { heartbeats, byKey };
-}
-
-function normalizeBootStatusMap(nodeBootPayload) {
-  const nodes = nodeBootPayload?.nodes && typeof nodeBootPayload.nodes === 'object' ? nodeBootPayload.nodes : {};
-  const byKey = new Map();
-  Object.entries(nodes).forEach(([key, node]) => {
-    if (!node || typeof node !== 'object') {
-      return;
-    }
-    [node.hw_id, node.pos_id, key].filter((value) => value !== undefined && value !== null).forEach((value) => {
-      byKey.set(String(value), node);
-    });
-  });
-  return { nodes, byKey };
 }
 
 function makeRow(gitKey, gitStatus, heartbeat, bootStatus, gcsStatus, payloadTimestamp, bootPayloadTimestamp) {
@@ -565,6 +548,7 @@ function makeRow(gitKey, gitStatus, heartbeat, bootStatus, gcsStatus, payloadTim
     runtimeModeLabel: formatRuntimeMode(runtimeMode),
     presence,
     branch: gitStatus?.branch || 'unknown',
+    branchOnly: Boolean(sync.branchOnly),
     commit: gitStatus?.commit || '',
     shortCommit: compactCommit(gitStatus?.commit),
     accessMode: gitStatus?.repo_access_mode || 'unknown',
@@ -598,40 +582,17 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload, nodeBootPay
   const docs = {
     fleetOps: buildGitHubDocsUrl(gcsStatus.remote_url, gcsStatus.branch, 'docs/guides/fleet-ops.md'),
   };
-  const { heartbeats, byKey: heartbeatByKey } = normalizeHeartbeatMap(heartbeatPayload);
-  const { nodes: bootNodes, byKey: bootByKey } = normalizeBootStatusMap(nodeBootPayload);
-  const rows = [];
-  const seen = new Set();
-
-  Object.entries(gitStatusByNode).forEach(([key, gitStatus]) => {
-    const heartbeat = heartbeatByKey.get(String(gitStatus?.hw_id || ''))
-      || heartbeatByKey.get(String(gitStatus?.pos_id || ''))
-      || heartbeatByKey.get(String(key));
-    const bootStatus = bootByKey.get(String(gitStatus?.hw_id || ''))
-      || bootByKey.get(String(gitStatus?.pos_id || ''))
-      || bootByKey.get(String(key));
-    const row = makeRow(key, gitStatus, heartbeat, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp);
-    rows.push(row);
-    seen.add(row.key);
-  });
-
-  heartbeats.forEach((heartbeat) => {
-    const key = String(heartbeat.hw_id || heartbeat.pos_id || heartbeat.ip || '');
-    if (key && !seen.has(key)) {
-      const bootStatus = bootByKey.get(String(heartbeat.hw_id || ''))
-        || bootByKey.get(String(heartbeat.pos_id || ''));
-      rows.push(makeRow(key, null, heartbeat, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp));
-      seen.add(key);
-    }
-  });
-
-  Object.entries(bootNodes).forEach(([key, bootStatus]) => {
-    const rowKey = String(bootStatus?.hw_id || bootStatus?.pos_id || key || '');
-    if (rowKey && !seen.has(rowKey)) {
-      rows.push(makeRow(rowKey, null, null, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp));
-      seen.add(rowKey);
-    }
-  });
+  // Position slots can overlap another aircraft's hardware ID. Join each source
+  // by hardware identity only, including older reports keyed by hardware ID.
+  const gitByHw = new Map(Object.entries(gitStatusByNode)
+    .map(([id, row]) => [String(row?.hw_id ?? id), row]));
+  const heartbeatByHw = new Map((heartbeatPayload?.heartbeats || [])
+    .filter(row => row?.hw_id != null).map(row => [String(row.hw_id), row]));
+  const bootByHw = new Map(Object.entries(nodeBootPayload?.nodes || {})
+    .map(([id, row]) => [String(row?.hw_id ?? id), row]));
+  const hardware = new Set([...gitByHw.keys(), ...heartbeatByHw.keys(), ...bootByHw.keys()]);
+  const rows = Array.from(hardware, id => makeRow(id, gitByHw.get(id), heartbeatByHw.get(id),
+    bootByHw.get(id), gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp));
 
   rows.sort((left, right) => {
     const leftNumber = Number(left.posId);

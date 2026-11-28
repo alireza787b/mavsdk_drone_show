@@ -984,7 +984,9 @@ class DroneGitStatus(BaseModel):
     status: GitStatus = Field(..., description="Git sync status")
 
     # Synchronization
-    in_sync_with_gcs: bool = Field(False, description="Whether the drone matches the current GCS branch/commit")
+    in_sync_with_gcs: bool = Field(False, description="Whether the drone matches the current GCS revision and clean-worktree policy")
+    reviewable: bool = Field(False, description="Presence qualifies this report for the fleet notice")
+    maintenance_drift: bool = Field(False, description="A managed profile or runtime reports a confirmed discrepancy")
     commits_ahead: int = Field(0, ge=0, description="Commits ahead of origin")
     commits_behind: int = Field(0, ge=0, description="Commits behind origin")
     uncommitted_changes: List[str] = Field(default_factory=list, description="List of uncommitted file changes")
@@ -1009,6 +1011,8 @@ class GitStatusResponse(BaseModel):
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
     needs_sync_count: int = Field(..., ge=0, description="Drones needing sync")
     unknown_count: int = Field(0, ge=0, description="Online drones whose software revision is unconfirmed")
+    maintenance_count: int = Field(0, ge=0, description="Reviewable aircraft with runtime or profile drift")
+    attention_count: int = Field(0, ge=0, description="Distinct reviewable aircraft with revision or maintenance attention")
     branch_only_count: int = Field(0, ge=0, description="Reviewable aircraft with a clean matching commit on a different branch")
     gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
     sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")

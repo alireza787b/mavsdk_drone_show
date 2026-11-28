@@ -35,6 +35,12 @@ export const ROUTE_DOCS = Object.freeze([
     feature: 'fleet-ops',
   },
   {
+    path: '/maintenance',
+    label: 'Fleet maintenance guide',
+    docPath: 'docs/guides/fleet-ops.md',
+    feature: 'fleet-ops',
+  },
+  {
     path: '/fleet-ops/wifi',
     label: 'Sidecar profile guide',
     docPath: 'docs/features/fleet-sidecar-profiles.md',

@@ -25,7 +25,10 @@ import asyncio
 import math
 import traceback
 import threading
+
+import httpx
 from swarm_height_advisory import update_observed_rtk_fix
+from fleet_git_poll import poll_git_reports
 from fleet_telemetry import FleetTelemetryPoller
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -63,7 +66,6 @@ from command_execution_policy import (
 from command_timeout_policy import estimate_command_tracking_timeout_ms
 from fleet_rpc import FleetRPCService
 from config import (
-    get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
     load_swarm, save_swarm, validate_and_process_config, get_all_drone_positions
 )
@@ -74,7 +76,7 @@ from params import (
     Params,
     resolve_gcs_git_sync_verify_timeout_sec,
 )
-from drone_api_routes import DRONE_GIT_STATUS_ROUTE, DRONE_STATE_ROUTE
+from drone_api_routes import DRONE_STATE_ROUTE
 from src.enums import Mission
 from get_elevation import get_elevation
 from origin import (
@@ -93,7 +95,7 @@ from heartbeat import (
     last_heartbeats_lock,
 )
 from fleet_candidates import get_fleet_candidate_registry
-from git_status import git_status_data_all_drones, data_lock_git_status
+from git_status import git_status_data_all_drones, data_lock_git_status, tracking_count
 from command_tracker import get_command_tracker, init_command_tracker
 from command_submission_coordinator import CommandSubmissionCoordinator
 from src import __version__ as MDS_VERSION
@@ -397,49 +399,27 @@ class BackgroundServices:
                 await asyncio.sleep(5)
 
     async def _poll_git_status(self):
-        """Poll git status from all drones asynchronously"""
-        import requests
+        """Poll on a dedicated maintenance pool, separate from telemetry and command traffic."""
+        concurrency = min(8, max(1, Params.GCS_FLEET_RPC_CONCURRENCY))
+        async with httpx.AsyncClient(limits=httpx.Limits(max_connections=concurrency), trust_env=False) as client:
+            while self.running:
+                targets = self.drones
 
-        while self.running:
-            try:
-                loop = asyncio.get_event_loop()
+                def publish(hw_id, started, report):
+                    if targets is not self.drones:
+                        return
+                    with data_lock_git_status:
+                        previous = git_status_data_all_drones.get(hw_id, {})
+                        if (previous.get("last_check") or 0) <= started:
+                            git_status_data_all_drones[hw_id] = report
 
-                for drone in self.drones:
-                    if not self.running:
-                        break
-
-                    hw_id = drone['hw_id']
-                    ip = drone['ip']
-
-                    try:
-                        url = f"http://{ip}:{Params.drone_api_port}{DRONE_GIT_STATUS_ROUTE}"
-                        response = await loop.run_in_executor(
-                            None,
-                            lambda u=url: requests.get(u, timeout=Params.GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC)
-                        )
-
-                        if response.status_code == 200:
-                            data = response.json()
-                            data["last_check"] = int(time.time() * 1000)
-                            with data_lock_git_status:
-                                git_status_data_all_drones[hw_id] = data
-                        else:
-                            with data_lock_git_status:
-                                git_status_data_all_drones[hw_id] = {"status": "unknown"}
-
-                    except Exception as e:
-                        # A previous container's commit is not current evidence.
-                        with data_lock_git_status:
-                            git_status_data_all_drones[hw_id] = {"status": "unknown"}
-
-                # Git status polls less frequently
+                try:
+                    await poll_git_reports(client, targets, port=Params.drone_api_port,
+                                           timeout=Params.GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC,
+                                           concurrency=concurrency, publish=publish)
+                except Exception as exc:
+                    log_system_error(f"Git status polling error: {exc}", "git")
                 await asyncio.sleep(Params.git_poll_interval)
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                log_system_error(f"Git status polling error: {e}", "git")
-                await asyncio.sleep(10)
 
     async def _poll_command_timeouts(self):
         """Promote stale tracked commands to terminal timeout states."""
@@ -1092,7 +1072,7 @@ def _is_git_sync_verified(
     if git_status.get('uncommitted_changes'):
         return False
 
-    return int(git_status.get('commits_ahead', 0) or 0) == 0 and int(git_status.get('commits_behind', 0) or 0) == 0
+    return all(tracking_count(git_status, field) == 0 for field in ("commits_ahead", "commits_behind"))
 
 
 async def _verify_sync_targets(
@@ -1101,6 +1081,7 @@ async def _verify_sync_targets(
     expected_commit: str,
     timeout_sec: Optional[float] = None,
     poll_interval_sec: float = _SYNC_VERIFY_POLL_SEC,
+    *, on_verified=None,
 ) -> tuple[List[str], List[str]]:
     """Poll targeted drones until their repos actually match the expected revision."""
     if not target_drones:
@@ -1118,37 +1099,47 @@ async def _verify_sync_targets(
     verified_hw_ids: set[str] = set()
     deadline = time.monotonic() + timeout_sec
 
-    while pending and time.monotonic() < deadline:
-        tasks = [
-            asyncio.to_thread(
-                _config_get_drone_git_status,
-                f"http://{drone['ip']}:{Params.drone_api_port}",
-            )
-            for drone in pending.values()
-        ]
-        statuses = await asyncio.gather(*tasks, return_exceptions=True)
+    concurrency = min(8, max(1, Params.GCS_FLEET_RPC_CONCURRENCY))
+    newly_verified: list[str] = []
 
-        for drone, git_status in zip(list(pending.values()), statuses):
-            hw_id = str(drone['hw_id'])
+    def observe(hw_id, started, report):
+        if str(report.get("hw_id")) != hw_id or report.get("error"):
+            return
+        with data_lock_git_status:
+            previous = git_status_data_all_drones.get(hw_id, {})
+            if (previous.get("last_check") or 0) <= started:
+                git_status_data_all_drones[hw_id] = report
+        if _is_git_sync_verified(report, expected_branch, expected_commit, hw_id):
+            pending.pop(hw_id, None)
+            verified_hw_ids.add(hw_id)
+            newly_verified.append(hw_id)
 
-            if isinstance(git_status, Exception):
-                continue
+    async def publish_progress():
+        batch = newly_verified.copy()
+        newly_verified.clear()
+        if batch and on_verified is not None:
+            await on_verified(batch)
 
-            if isinstance(git_status, dict) and not git_status.get('error'):
-                with data_lock_git_status:
-                    git_status_data_all_drones[hw_id] = git_status
-
-            if _is_git_sync_verified(
-                git_status,
-                expected_branch,
-                expected_commit,
-                hw_id,
-            ):
-                verified_hw_ids.add(hw_id)
-                pending.pop(hw_id, None)
-
-        if pending:
-            await asyncio.sleep(poll_interval_sec)
+    async with httpx.AsyncClient(limits=httpx.Limits(max_connections=concurrency), trust_env=False) as client:
+        while pending and (remaining := deadline - time.monotonic()) > 0:
+            # Coalesce per-aircraft observations into a few receipt writes, even on a large fleet.
+            poll = asyncio.create_task(asyncio.wait_for(poll_git_reports(
+                client, list(pending.values()), port=Params.drone_api_port, timeout=Params.GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC,
+                concurrency=concurrency, publish=observe,
+            ), timeout=remaining))
+            try:
+                while not poll.done():
+                    await asyncio.wait({poll}, timeout=0.5)
+                    await publish_progress()
+                await poll
+            except asyncio.TimeoutError:
+                break
+            finally:
+                poll.cancel()
+                await asyncio.gather(poll, return_exceptions=True)
+            if pending:
+                await asyncio.sleep(min(poll_interval_sec, remaining))
+        await publish_progress()
 
     verified = sorted(verified_hw_ids)
     failed = sorted(str(d['hw_id']) for d in target_drones if str(d['hw_id']) not in verified_hw_ids)

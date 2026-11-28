@@ -391,19 +391,9 @@ When `MDS_GIT_AUTO_PUSH=false`, the dedicated Swarm Trajectory commit endpoint s
 
 ## Sync Warning Banner
 
-An amber warning banner appears on all dashboard pages when any drones are out of sync with GCS:
+A single **Review** notice opens Fleet Ops when the latest fleet observations show a software difference, an unknown revision or a managed profile/runtime discrepancy. The operator can inspect or dismiss the notice. Clean same-revision aircraft with a different branch name show a note in aircraft details.
 
-```
-[warning] X of Y drones out of sync with GCS  [Sync Now]  [x]
-```
-
-- Auto-dismisses when all drones sync
-- Re-appears if new drones go out of sync
-- Operator can manually dismiss (non-blocking)
-- "Sync Now" opens Fleet Ops; Fleet Ops uses `/api/v1/fleet/git-sync/dry-run`
-  followed by `/api/v1/fleet/git-sync/apply`
-- the backend now waits for real repo convergence before reporting success, so a green toast means the drone repos actually matched the GCS revision instead of only accepting the command
-- when no explicit target list is provided, the sync path prefers drones with recent heartbeats so an active SITL session does not get polluted by offline config entries from other slots
+**Sync online** and **Sync selected** open a preview. **Apply sync** starts an operation tied to the reviewed hardware identities, endpoints and GCS revision. The dashboard restores that operation when the operator returns to the page in the same tab. The GCS checks the exact target branch and commit, worktree and tracking state for each aircraft before recording verification. An interrupted verification stays visible for inspection.
 
 ## Structured Sync Results
 
@@ -438,6 +428,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | `/api/v1/fleet/git-sync` | GET | Fleet Ops sync posture |
 | `/api/v1/fleet/git-sync/dry-run` | POST | Preview selected sync targets without mutation |
 | `/api/v1/fleet/git-sync/apply` | POST | Confirm a dry-run and dispatch UPDATE_CODE to eligible drones |
+| `/api/v1/fleet/git-sync/operations/{operation_id}` | GET | Read a reviewed operation and per-aircraft verification |
 | `/api/v1/fleet/node-boot-status` | POST | Machine endpoint for boot/update phase reports; observability only |
 | `/api/v1/fleet/node-boot-status` | GET | Latest boot/update reports for Fleet Ops/Overview; does not affect commandability |
 | `/ws/git-status` | WebSocket | Real-time git status stream |

@@ -20,14 +20,20 @@ function Reader({ name }) {
   return <span data-testid={name}>{JSON.stringify(resource.response?.data)}</span>;
 }
 test('shell and page readers share one owner; route removal leaves monitoring alive', async () => {
-  const View = ({ page }) => <ObservationProvider><Reader name="telemetry" />{page && <Reader name="telemetry" />}</ObservationProvider>;
-  const view = render(<View page />); await flush();
-  expect(getFleetTelemetryResponse).toHaveBeenCalledTimes(1);
-  view.rerender(<View page={false} />);
-  await act(async () => { jest.advanceTimersByTime(1000); });
-  expect(getFleetTelemetryResponse).toHaveBeenCalledTimes(2);
-  view.unmount();
-  expect(jest.getTimerCount()).toBe(0);
+  const realWebSocket = window.WebSocket;
+  window.WebSocket = undefined;
+  try {
+    const View = ({ page }) => <ObservationProvider><Reader name="telemetry" />{page && <Reader name="telemetry" />}</ObservationProvider>;
+    const view = render(<View page />); await flush();
+    expect(getFleetTelemetryResponse).toHaveBeenCalledTimes(1);
+    view.rerender(<View page={false} />);
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(getFleetTelemetryResponse).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    window.WebSocket = realWebSocket;
+  }
 });
 test('legacy hook is an adapter to same resource, not another polling engine', async () => {
   function Adapter() { const { data } = useFetch(GCS_ROUTE_KEYS.fleetConfig, 100); return <b>{data?.length ?? 0}</b>; }
@@ -52,4 +58,16 @@ test('StrictMode retains one owner and nested mode scope reuses runtime acquisit
   // share a single request within each mounted generation.
   expect(fetchGcsResource.mock.calls.length).toBeLessThanOrEqual(2);
   expect(fetchGcsResource.mock.calls.every(([route]) => route === GCS_ROUTE_KEYS.systemRuntimeStatus)).toBe(true);
+});
+
+test('Fleet Ops boot reads share the shell startup monitor', async () => {
+  function BootReader() {
+    const { data } = useFetch(GCS_ROUTE_KEYS.fleetNodeBootStatus);
+    return <b>{data ? 'Boot received' : 'Loading'}</b>;
+  }
+  render(<ObservationProvider><Reader name="boot" /><BootReader /></ObservationProvider>);
+  await flush();
+  expect(fetchGcsResource).toHaveBeenCalledTimes(1);
+  expect(fetchGcsResource.mock.calls[0][0]).toBe(GCS_ROUTE_KEYS.fleetNodeBootStatus);
+  expect(screen.getByText('Boot received')).toBeInTheDocument();
 });

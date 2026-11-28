@@ -1,533 +1,257 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import FleetOpsPage from './FleetOpsPage';
 import useFetch from '../hooks/useFetch';
-import { GCS_ROUTE_KEYS, applyFleetGitSyncResponse, dryRunFleetGitSyncResponse } from '../services/gcsApiService';
+import { applyFleetGitSyncResponse, dryRunFleetGitSyncResponse, getFleetGitOperationResponse } from '../services/gcsApiService';
 
 jest.mock('../hooks/useFetch');
-jest.mock('../services/gcsApiService', () => {
-  const actual = jest.requireActual('../services/gcsApiService');
-  return {
-    ...actual,
-    applyFleetGitSyncResponse: jest.fn(),
-    dryRunFleetGitSyncResponse: jest.fn(),
-  };
+jest.mock('../services/gcsApiService', () => ({
+  ...jest.requireActual('../services/gcsApiService'),
+  applyFleetGitSyncResponse: jest.fn(), dryRunFleetGitSyncResponse: jest.fn(), getFleetGitOperationResponse: jest.fn(),
+}));
+
+const gcs = { branch: 'main', commit: 'abcde123456', remote_url: 'https://github.com/demo/demo' };
+function props() {
+  const nodes = [
+    { pos_id: 1, hw_id: '21', branch: 'field', commit: gcs.commit, status: 'synced', in_sync_with_gcs: true },
+    { pos_id: 2, hw_id: '22', branch: 'main', commit: '111111111', status: 'synced', in_sync_with_gcs: false },
+    { pos_id: 3, hw_id: '23', status: 'unknown', commit: 'unknown', in_sync_with_gcs: false },
+    { pos_id: 4, hw_id: '24', status: 'synced', commit: gcs.commit, in_sync_with_gcs: true },
+  ];
+  return { gitStatusOverride: { gcs_status: gcs, git_status: Object.fromEntries(nodes.map(n => [n.hw_id, n])) },
+    heartbeatOverride: { timestamp: Date.now(), heartbeats: nodes.map(n => ({ ...n, last_heartbeat: Date.now(), online: n.pos_id < 4, runtime_mode: 'real' })) },
+    nodeBootStatusOverride: { nodes: {} }, operatorId: 'pilot' };
+}
+function status(phase = 'review', eligible = ['21','22'], blocked = []) {
+  const byState = { review: 'ready', applying: 'applying', verifying: 'verifying', completed: 'verified', failed: 'unconfirmed' };
+  return { operation_id: 'git-sync-1', preview_id: 'git-sync-1', target_branch: 'main', target_commit: gcs.commit, phase,
+    started_at: 1000, updated_at: 2000, completed_at: phase === 'completed' ? 2000 : null,
+    target_counts: { total: eligible.length + blocked.length, ready: eligible.length, blocked: blocked.length,
+      verified: phase === 'completed' ? eligible.length : 0, unconfirmed: phase === 'failed' ? eligible.length : 0 },
+    per_aircraft_state: Object.fromEntries([...eligible, ...blocked].map(id => [id, { hw_id: id, pos_id: Number(id) - 20,
+      state: blocked.includes(id) ? 'blocked' : byState[phase], error_code: blocked.includes(id) ? 'offline' : null }])) };
+}
+function view(route = '/fleet-ops', override = props()) {
+  return render(<MemoryRouter initialEntries={[route]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <FleetOpsPage {...override} /></MemoryRouter>);
+}
+function eligiblePreview(eligible = ['21','22'], blocked = []) {
+  dryRunFleetGitSyncResponse.mockResolvedValue({ data: { ...status('review',eligible,blocked), job_id: 'git-sync-1', confirmation_token: 'one-use-proof' } });
+}
+const btn = name => screen.getByRole('button', {name});
+const click = name => fireEvent.click(btn(name));
+const checkedStorage = () => Object.values(window.sessionStorage);
+beforeEach(() => {
+  jest.resetAllMocks();
+  window.sessionStorage.clear();
+  useFetch.mockReturnValue({ loading:false, data:null, error:null });
+  dryRunFleetGitSyncResponse.mockImplementation(async ({hw_ids}) => ({data: {
+    ...status('review', hw_ids), confirmation_token:'one-use-proof', job_id:'git-sync-1',
+  }}));
 });
 
-const gitPayload = {
-  gcs_status: {
-    branch: 'main',
-    commit: 'abcdef1234567890',
-    remote_url: 'git@github.com:demo/customer-mds.git',
-  },
-  git_status: {
-    1: {
-      pos_id: 1,
-      hw_id: '1',
-      ip: '198.51.100.11',
-      branch: 'main',
-      commit: 'abcdef1234567890',
-      in_sync_with_gcs: true,
-      repo_access_mode: 'https_token_file',
-      git_auth_health_status: 'healthy',
-      git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
-      mavlink_runtime: {
-        management_mode: 'fleet-merge',
-        ref: 'v3.0.10',
-        repo_web_url: 'https://github.com/alireza787b/mavlink-anywhere/tree/v3.0.10',
-        router_service_status: 'active',
-        dashboard_enabled: true,
-        dashboard_service_status: 'active',
-        dashboard_access_mode: 'local_only',
-        dashboard_listen: '127.0.0.1:9070',
-        dashboard_url: null,
-        desired_config_hash: 'abcdef1234567890',
-        applied_config_hash: 'abcdef1234567890',
-        config_hash_match: true,
-      },
-      connectivity_runtime: {
-        backend: 'none',
-        mode: 'observe',
-        service_status: 'unknown',
-        profile_present: false,
-        dashboard_access_mode: 'local_only',
-        desired_config_hash: '1111111111111111',
-        applied_config_hash: '1111111111111111',
-        config_hash_match: true,
-      },
-      git_sync_runtime: {
-        status: 'unknown',
-        summary: 'No node-local git sync runtime state has been recorded yet.',
-        mavsdk_runtime_status: 'unknown',
-        mavlink_runtime_reconcile_status: 'unknown',
-        connectivity_reconcile_status: 'unknown',
-      },
-    },
-    2: {
-      pos_id: 2,
-      hw_id: '2',
-      ip: '198.51.100.12',
-      branch: 'main',
-      commit: '1111111111111111',
-      in_sync_with_gcs: false,
-      repo_access_mode: 'ssh_key',
-      git_auth_health_status: 'warning',
-      git_auth_health_summary: 'SSH key is missing.',
-      mavlink_runtime: {
-        management_mode: 'fleet-merge',
-        ref: 'v3.0.10',
-        router_service_status: 'failed',
-        dashboard_enabled: true,
-        dashboard_service_status: 'inactive',
-        dashboard_access_mode: 'disabled',
-        desired_config_hash: '2222222222222222',
-        applied_config_hash: '3333333333333333',
-        config_hash_match: false,
-      },
-      connectivity_runtime: {
-        backend: 'smart-wifi-manager',
-        mode: 'fleet-merge',
-        service_status: 'inactive',
-        profile_present: false,
-        dashboard_access_mode: 'disabled',
-        profile_hash: '4444444444444444',
-        desired_config_hash: '5555555555555555',
-        applied_config_hash: '6666666666666666',
-        config_hash_match: false,
-      },
-    },
-  },
-};
+test('inspects one aircraft, explains the branch difference on request and restores focus', () => {
+  view();
+  expect(screen.getByRole('link', {name:'Maintenance'})).toHaveAttribute('href', '/maintenance');
+  expect(screen.getByRole('link', {name:/fleet ops guide/i})).toHaveAttribute('href', 'https://github.com/demo/demo/blob/main/docs/guides/fleet-ops.md');
+  expect(screen.queryByText('field')).not.toBeInTheDocument();
+  const opener = btn('Inspect aircraft 1');
+  opener.focus();
+  fireEvent.click(opener);
+  const details = screen.getByRole('complementary', {name:'Details for aircraft 1'});
+  expect(within(details).getByText('field')).toBeVisible();
+  expect(within(details).queryByText(/Same revision as GCS/)).not.toBeInTheDocument();
+  expect(btn('Close aircraft details')).toHaveFocus();
+  const hint = btn('About update branch');
+  act(() => hint.focus());
+  expect(within(details).getByRole('tooltip')).toHaveTextContent('Same revision as GCS');
+  fireEvent.keyDown(hint, { key: 'Escape' });
+  expect(within(details).queryByRole('tooltip')).not.toBeInTheDocument();
+  expect(details).toBeVisible();
+  fireEvent.keyDown(hint, { key: 'Escape' });
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  expect(opener).toHaveFocus();
+});
 
-const heartbeatPayload = {
-  timestamp: 1777049000000,
-  heartbeats: [
-    { pos_id: 1, hw_id: '1', ip: '198.51.100.11', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 },
-    { pos_id: 2, hw_id: '2', ip: '198.51.100.12', online: false, runtime_mode: 'real', last_heartbeat: 1777048800000 },
-  ],
-};
+test('reports roster connection and software states alongside each aircraft identity', () => {
+  view();
+  const roster = screen.getByRole('region', {name:'Aircraft roster'});
+  expect(within(roster).getByRole('list', {name:'Aircraft'})).toBeVisible();
+  expect(btn('Inspect aircraft 1')).toHaveAccessibleDescription(/^H21\. Connection: Live\. Software: Synced\./);
+  expect(btn('Inspect aircraft 3')).toHaveAccessibleDescription('H23. Connection: Live. Software: Unknown.');
+  expect(btn('Inspect aircraft 4')).toHaveAccessibleDescription('H24. Connection: Recent loss. Software: Last synced.');
+});
 
-const nodeBootPayload = {
-  timestamp: 1777049000000,
-  nodes: {},
-};
-
-function mockFleetFeeds() {
-  useFetch.mockImplementation((endpoint) => {
-    if (endpoint === GCS_ROUTE_KEYS.gitStatus) {
-      return { data: gitPayload, loading: false, error: null };
-    }
-    if (endpoint === GCS_ROUTE_KEYS.fleetHeartbeats) {
-      return { data: heartbeatPayload, loading: false, error: null };
-    }
-    if (endpoint === GCS_ROUTE_KEYS.fleetNodeBootStatus) {
-      return { data: nodeBootPayload, loading: false, error: null };
-    }
-    return { data: null, loading: false, error: null };
+test('software review follows ground-station reviewability and all aircraft retains stale reports', () => {
+  const override = props();
+  override.gitStatusOverride.git_status['22'].reviewable = true;
+  Object.assign(override.gitStatusOverride.git_status['24'], {
+    commit: '222222222', in_sync_with_gcs: false, reviewable: false,
   });
-}
+  override.heartbeatOverride.heartbeats[3].last_heartbeat -= 90_000;
+  view('/fleet-ops?filter=drift', override);
+  expect(btn('Inspect aircraft 2')).toBeVisible();
+  expect(btn('Inspect aircraft 3')).toBeVisible();
+  expect(screen.queryByRole('button', {name:'Inspect aircraft 4'})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('combobox'), {target:{value:'all'}});
+  expect(btn('Inspect aircraft 4')).toBeVisible();
+});
 
-function clonePayload(payload) {
-  return JSON.parse(JSON.stringify(payload));
-}
+test('Sync online previews all eligible hardware identities even with a search or filter active', async () => {
+  view();
+  fireEvent.change(screen.getByRole('searchbox'), {target:{value:'H22'}});
+  expect(screen.queryByRole('button', {name:'Inspect aircraft 1'})).not.toBeInTheDocument();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({hw_ids:['21','22']});
+  expect(screen.getByText('2 ready · 0 excluded')).toBeVisible();
+  expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+  click('Cancel');
+  expect(checkedStorage()).toEqual([]);
+});
 
-function renderFleetOps(props = {}, route = '/fleet-ops') {
-  return render(
-    <MemoryRouter
-      initialEntries={[route]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
-      <FleetOpsPage {...props} />
-    </MemoryRouter>
-  );
-}
+test('explicit empty selection cannot broaden, and offline or unknown aircraft cannot be selected', async () => {
+  view();
+  click('Select aircraft');
+  expect(btn('Sync selected')).toBeDisabled();
+  expect(screen.getByRole('checkbox',{name:'Select aircraft 3'})).toBeDisabled();
+  expect(screen.getByRole('checkbox',{name:'Select aircraft 4'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox',{name:'Select aircraft 2'}));
+  fireEvent.change(screen.getByRole('combobox'),{target:{value:'offline'}});
+  click('Sync selected');
+  await screen.findByText('Review sync');
+  expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({hw_ids:['22']});
+});
 
-describe('FleetOpsPage', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    window.sessionStorage.clear();
-    window.localStorage.clear();
-    mockFleetFeeds();
-  });
+test('a missing explicitly named maintenance target stays scoped', () => {
+  view('/fleet-ops?hw_id=absent');
+  expect(btn('Sync selected')).toBeDisabled();
+  expect(dryRunFleetGitSyncResponse).not.toHaveBeenCalled();
+});
+test('legacy drift bookmark only previews the online drifted subset once', async () => {
+  view('/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1');
+  await screen.findByText('Review sync');
+  expect(dryRunFleetGitSyncResponse.mock.calls).toEqual([[{hw_ids:['22']}]]);
+  expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+});
 
-  test('renders fleet access and sidecar posture from existing status APIs', () => {
-    renderFleetOps();
+test('apply sends the reviewed proof once, shows real verification progress and restores by lookup after reload', async () => {
+  eligiblePreview(['21'], ['22']);
+  const updateReceipt = {};
+  applyFleetGitSyncResponse.mockImplementation(() => new Promise(resolve => { updateReceipt.resolve = resolve; }));
+  getFleetGitOperationResponse.mockResolvedValue({data:status('verifying',['21'],['22'])});
+  const { unmount } = view();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  expect(screen.getByText('1 ready · 1 excluded')).toBeVisible();
+  expect(screen.getByText(/Excluded/)).toBeVisible();
+  click('Apply sync');
+  expect(btn('Apply sync')).toBeDisabled();
+  expect(applyFleetGitSyncResponse.mock.calls).toEqual([[{
+    dry_run_id: 'git-sync-1', confirmation: { acknowledged_risks: true, confirmation_token:'one-use-proof' },
+  }, { params:{background:true} }]]);
+  await act(async () => updateReceipt.resolve({data:status('applying',['21'],['22'])}));
+  await screen.findByText('Verifying software');
+  expect(checkedStorage()).toEqual(['git-sync-1']);
+  unmount();
+  getFleetGitOperationResponse.mockResolvedValue({data:status('completed',['21'],['22'])});
+  view();
+  await screen.findByText('Sync verified');
+  expect(screen.getByText('1 of 1 verified')).toBeVisible();
+  expect(applyFleetGitSyncResponse).toHaveBeenCalledTimes(1);
+  expect(dryRunFleetGitSyncResponse).toHaveBeenCalledTimes(1);
+});
 
-    expect(screen.getByRole('heading', { name: /fleet ops/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
-      'href',
-      'https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md',
-    );
-    expect(screen.getAllByText('1/2').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('1 MAVLink')).toBeInTheDocument();
-    expect(screen.getByText(/0 connectivity/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hw 1/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByText(/drone-node readiness, repository sync, and sidecar access/i)).toBeInTheDocument();
-    expect(screen.getByText(/drone nodes/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open gcs runtime admin/i })).toHaveAttribute('href', '/runtime-admin');
-  });
+test('reopening an unsubmitted preview requires a fresh review scoped to its original identities including exclusions', async () => {
+  const { unmount } = view();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  unmount();
+  getFleetGitOperationResponse.mockResolvedValue({ data: status('review',['22'],['21']) });
+  view();
+  await screen.findByRole('button', {name:'Refresh preview'});
+  expect(screen.queryByRole('button', {name:'Apply sync'})).not.toBeInTheDocument();
+  click('Refresh preview');
+  await screen.findByRole('button', {name:'Apply sync'});
+  expect(dryRunFleetGitSyncResponse).toHaveBeenLastCalledWith({hw_ids:['21','22']});
+  expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+});
 
-  test('shows access details without exposing secret paths or values', () => {
-    renderFleetOps();
+test('an uncertain apply reconciles by GET without replay, including after a temporarily lost response', async () => {
+  applyFleetGitSyncResponse.mockRejectedValue(new Error('connection lost'));
+  getFleetGitOperationResponse.mockRejectedValueOnce(new Error('ground station offline'))
+    .mockResolvedValue({data:status('completed')});
+  view();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  click('Apply sync');
+  await screen.findByText(/Waiting for the ground station/i);
+  expect(btn('Apply sync')).toBeDisabled();
+  click('Refresh sync status');
+  await screen.findByText('Sync verified');
+  expect(applyFleetGitSyncResponse).toHaveBeenCalledTimes(1);
+});
 
-    fireEvent.click(screen.getByRole('button', { name: /access/i }));
+test('preview auth failure is visible and allows a new preview', async () => {
+  dryRunFleetGitSyncResponse.mockRejectedValueOnce({response:{data:{message:'Login required.'}}});
+  view();
+  click('Sync online');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Login required.');
+  expect(btn('Sync online')).toBeEnabled();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
+});
 
-    expect(screen.getByText('HTTPS token')).toBeInTheDocument();
-    expect(screen.getByText('SSH key')).toBeInTheDocument();
-    expect(screen.getByText(/https token-file access is configured and readable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/token_file/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/\/root\//i)).not.toBeInTheDocument();
-  });
+test('technical bookmarks open maintenance and preserve the aircraft identity', async () => {
+  function Destination() { return <p>{useLocation().search}</p>; }
+  render(<MemoryRouter initialEntries={['/fleet-ops?tab=access&hw_id=22']} future={{v7_startTransition:true,v7_relativeSplatPath:true}}>
+    <Routes><Route path="/fleet-ops" element={<FleetOpsPage />} /><Route path="/maintenance" element={<Destination />} /></Routes></MemoryRouter>);
+  await waitFor(() => expect(screen.getByText('?section=access&hw_id=22')).toBeVisible());
+});
 
-  test('filters to nodes requiring operator attention', () => {
-    renderFleetOps();
+test('a server preview with a substituted hardware identity never offers Apply', async () => {
+  eligiblePreview(['21','24']);
+  view();
+  click('Sync online');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Aircraft changed during preview');
+  expect(screen.queryByRole('button',{name:'Apply sync'})).not.toBeInTheDocument();
+  expect(checkedStorage()).toEqual([]);
+});
 
-    fireEvent.change(screen.getByLabelText(/filter/i), { target: { value: 'attention' } });
+test('different operators on the same browser have independent operation pointers', async () => {
+  const { unmount } = view();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  unmount();
+  view('/fleet-ops', {...props(), operatorId:'instructor'});
+  expect(screen.queryByText('Retrieving sync status')).not.toBeInTheDocument();
+  expect(getFleetGitOperationResponse).not.toHaveBeenCalled();
+});
 
-    expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
-    const attentionCard = screen.getByRole('heading', { name: /hw 2/i }).closest('article');
-    expect(within(attentionCard).getAllByText('Offline').length).toBeGreaterThan(0);
-    expect(within(attentionCard).getAllByText('Drift').length).toBeGreaterThan(0);
-  });
-
-  test('shows boot/init phase for a node that is on NetBird but not heartbeat-ready', () => {
-    const bootPayload = {
-      timestamp: 1777049000000,
-      nodes: {
-        3: {
-          hw_id: '3',
-          pos_id: 3,
-          ip: '198.51.100.13',
-          runtime_mode: 'real',
-          phase: 'fetch',
-          status: 'running',
-          message: 'Fetching repository updates',
-          timestamp: 1777048999000,
-        },
-      },
-    };
-
-    renderFleetOps({ gitStatusOverride: { ...gitPayload, git_status: {} }, heartbeatOverride: { timestamp: 1777049000000, heartbeats: [] }, nodeBootStatusOverride: bootPayload });
-
-    const card = screen.getByRole('heading', { name: /hw 3/i }).closest('article');
-    expect(within(card).getAllByText('Initializing').length).toBeGreaterThan(0);
-    expect(within(card).getAllByText(/fetching repository updates/i).length).toBeGreaterThan(0);
-    expect(within(card).getByText('REAL')).toBeInTheDocument();
-  });
-
-  test('drift filter includes sidecar and node-runtime drift, not only repo drift', () => {
-    const driftGitPayload = clonePayload(gitPayload);
-    driftGitPayload.git_status[3] = {
-      pos_id: 3,
-      hw_id: '3',
-      ip: '198.51.100.13',
-      branch: 'main',
-      commit: 'abcdef1234567890',
-      in_sync_with_gcs: true,
-      repo_access_mode: 'https_token_file',
-      git_auth_health_status: 'healthy',
-      git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
-      mavlink_runtime: {
-        management_mode: 'fleet-merge',
-        ref: 'v3.0.10',
-        router_service_status: 'active',
-        dashboard_enabled: false,
-        desired_config_hash: 'aaaaaaaaaaaaaaaa',
-        applied_config_hash: 'bbbbbbbbbbbbbbbb',
-        config_hash_match: false,
-      },
-      connectivity_runtime: { backend: 'none' },
-      git_sync_runtime: {
-        status: 'success',
-        summary: 'Git synchronization completed successfully; unit update requires installer refresh.',
-        service_reload_status: 'warning',
-        deferred_unit_actions: ['git_sync_mds.service:manual_unit_update_required'],
-        mavsdk_runtime_status: 'warning',
-        mavlink_runtime_reconcile_status: 'success',
-        connectivity_reconcile_status: 'not_required',
-      },
-    };
-    const driftHeartbeatPayload = clonePayload(heartbeatPayload);
-    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '198.51.100.13', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 });
-
-    renderFleetOps({ gitStatusOverride: driftGitPayload, heartbeatOverride: driftHeartbeatPayload });
-
-    fireEvent.change(screen.getByLabelText(/filter/i), { target: { value: 'drift' } });
-
-    expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hw 3/i })).toBeInTheDocument();
-  });
-
-  test('shows sidecar detail and only links direct dashboard listeners', () => {
-    const directGitPayload = clonePayload(gitPayload);
-    directGitPayload.git_status[1].mavlink_runtime.dashboard_access_mode = 'direct';
-    directGitPayload.git_status[1].mavlink_runtime.dashboard_listen = '0.0.0.0:9070';
-
-    renderFleetOps({ gitStatusOverride: directGitPayload, heartbeatOverride: heartbeatPayload });
-
-    expect(screen.getByRole('link', { name: /open mavlink dashboard/i })).toHaveAttribute(
-      'href',
-      'http://198.51.100.11:9070',
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
-
-    expect(screen.getByRole('region', { name: /sidecar fleet table/i })).toBeInTheDocument();
-    expect(screen.getByText(/wi-fi and mavlink posture/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/MAVLink/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Smart Wi-Fi/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/ref v3.0.10; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi preview\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
-    expect(screen.getByText('222222222222')).toBeInTheDocument();
-    expect(screen.getByText('333333333333')).toBeInTheDocument();
-  });
-
-  test('shows mavsdk runtime repair status in sync details', () => {
-    const runtimeGitPayload = clonePayload(gitPayload);
-    runtimeGitPayload.git_status[1].git_sync_runtime = {
-      status: 'success',
-      summary: 'Git synchronization completed successfully · MAVSDK runtime: provisioned',
-      service_reload_status: 'not_required',
-      mavsdk_runtime_status: 'provisioned',
-      mavlink_runtime_reconcile_status: 'success',
-      connectivity_reconcile_status: 'not_required',
-    };
-
-    renderFleetOps({ gitStatusOverride: runtimeGitPayload, heartbeatOverride: heartbeatPayload });
-
-    fireEvent.click(screen.getByRole('button', { name: /^sync$/i }));
-
-    expect(screen.getByText(/MAVSDK provisioned · MAVLink success · Connectivity not_required/i)).toBeInTheDocument();
-  });
-
-  test('keeps local-only sidecar dashboards visible but disabled', () => {
-    renderFleetOps();
-
-    expect(screen.queryByRole('link', { name: /open mavlink dashboard/i })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText(/open mavlink dashboard is local-only/i).length).toBeGreaterThan(0);
-  });
-
-  test('sync action previews selected nodes before explicit apply', async () => {
-    dryRunFleetGitSyncResponse.mockResolvedValue({
-      data: {
-        job_id: 'git-sync-1',
-        confirmation_token: 'confirm-1',
-        results: {
-          2: { ok: true, pos_id: 2 },
-        },
-      },
-    });
-    applyFleetGitSyncResponse.mockResolvedValue({
-      data: {
-        success: true,
-        message: 'Sync verified: 1 of 1 drones now match GCS',
-        synced_drones: [2],
-        failed_drones: [],
-      },
-    });
-
-    renderFleetOps();
-
-    fireEvent.change(screen.getByLabelText(/fleet ops mutation token/i), { target: { value: 'operator-token' } });
-    expect(window.sessionStorage.getItem('fleetOpsMutationToken')).toBe('operator-token');
-    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
-    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
-
-    await waitFor(() => {
-      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
-    });
-    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
-    expect(screen.getByText(/no commands have been sent yet/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/type git sync dry-run confirmation token/i)).not.toBeInTheDocument();
-    const confirmButton = screen.getByRole('button', { name: /apply updates/i });
-    expect(confirmButton).toBeDisabled();
-    fireEvent.click(screen.getByLabelText(/i reviewed this preview/i));
-    expect(confirmButton).not.toBeDisabled();
-    fireEvent.click(confirmButton);
-
-    await waitFor(() => {
-      expect(applyFleetGitSyncResponse).toHaveBeenCalledWith({
-        dry_run_id: 'git-sync-1',
-        confirmation: {
-          acknowledged_risks: true,
-          confirmation_token: 'confirm-1',
-        },
-      });
-    });
-    expect((await screen.findAllByText(/sync verified: 1 of 1 drones now match gcs/i)).length).toBeGreaterThan(0);
-  });
-
-  test('shows visible apply progress while update commands are being dispatched', async () => {
-    let resolveApply;
-    dryRunFleetGitSyncResponse.mockResolvedValue({
-      data: {
-        job_id: 'git-sync-1',
-        confirmation_token: 'confirm-1',
-        results: {
-          2: { ok: true, pos_id: 2 },
-        },
-      },
-    });
-    applyFleetGitSyncResponse.mockReturnValue(new Promise((resolve) => {
-      resolveApply = resolve;
-    }));
-
-    renderFleetOps();
-
-    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
-    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
-    await screen.findByText(/review sync preview/i);
-    fireEvent.click(screen.getByLabelText(/i reviewed this preview/i));
-    fireEvent.click(screen.getByRole('button', { name: /apply updates/i }));
-
-    expect(await screen.findByText(/sync in progress/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /applying/i })).toBeDisabled();
-
-    await act(async () => {
-      resolveApply({
-        data: {
-          success: true,
-          message: 'Sync verified: 1 of 1 drones now match GCS',
-          synced_drones: [2],
-          failed_drones: [],
-        },
-      });
-    });
-
-    expect((await screen.findAllByText(/sync verified: 1 of 1 drones now match gcs/i)).length).toBeGreaterThan(0);
-  });
-
-  test('sync warning route opens sync tab and preselects online drifted nodes', async () => {
-    const onlineHeartbeats = clonePayload(heartbeatPayload);
-    onlineHeartbeats.heartbeats[1].online = true;
-    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
-
-    renderFleetOps(
-      { heartbeatOverride: onlineHeartbeats },
-      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync',
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText(/1 selected/i)).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-  });
-
-  test('sync warning route with autoplan builds a preview review plan without applying', async () => {
-    const onlineHeartbeats = clonePayload(heartbeatPayload);
-    onlineHeartbeats.heartbeats[1].online = true;
-    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
-    dryRunFleetGitSyncResponse.mockResolvedValue({
-      data: {
-        job_id: 'git-sync-auto-1',
-        confirmation_token: 'confirm-auto-1',
-        target_branch: 'main',
-        target_commit: 'abcdef1234567890',
-        results: {
-          2: { ok: true, pos_id: 2 },
-        },
-      },
-    });
-
-    renderFleetOps(
-      { heartbeatOverride: onlineHeartbeats },
-      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1',
-    );
-
-    await waitFor(() => {
-      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
-    });
-    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
-    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
-  });
-
-  test('sync warning autoplan waits for heartbeat evidence before blocking', async () => {
-    const onlineHeartbeats = clonePayload(heartbeatPayload);
-    onlineHeartbeats.heartbeats[1].online = true;
-    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
-    let heartbeatState = { data: null, loading: true, error: null };
-    useFetch.mockImplementation((endpoint) => {
-      if (endpoint === GCS_ROUTE_KEYS.gitStatus) {
-        return { data: gitPayload, loading: false, error: null };
-      }
-      if (endpoint === GCS_ROUTE_KEYS.fleetHeartbeats) {
-        return heartbeatState;
-      }
-      if (endpoint === GCS_ROUTE_KEYS.fleetNodeBootStatus) {
-        return { data: nodeBootPayload, loading: false, error: null };
-      }
-      return { data: null, loading: false, error: null };
-    });
-    dryRunFleetGitSyncResponse.mockResolvedValue({
-      data: {
-        job_id: 'git-sync-auto-after-heartbeat',
-        confirmation_token: 'confirm-auto-after-heartbeat',
-        target_branch: 'main',
-        target_commit: 'abcdef1234567890',
-        results: {
-          2: { ok: true, pos_id: 2 },
-        },
-      },
-    });
-
-    const route = '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1';
-    const renderUi = () => (
-      <MemoryRouter
-        initialEntries={[route]}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
-        <FleetOpsPage />
-      </MemoryRouter>
-    );
-    const { rerender } = render(renderUi());
-
-    expect(screen.queryByText(/no online out-of-sync drone is eligible/i)).not.toBeInTheDocument();
-    expect(dryRunFleetGitSyncResponse).not.toHaveBeenCalled();
-
-    heartbeatState = { data: onlineHeartbeats, loading: false, error: null };
-    rerender(renderUi());
-
-    await waitFor(() => {
-      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
-    });
-    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
-    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
-  });
-
-  test('sync warning route shows a blocked state when no drifted node is online yet', async () => {
-    renderFleetOps(
-      {},
-      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1',
-    );
-
-    expect(await screen.findByText(/no online out-of-sync drone is eligible/i)).toBeInTheDocument();
-    expect(screen.getByText(/banner found drift/i)).toBeInTheDocument();
-    expect(dryRunFleetGitSyncResponse).not.toHaveBeenCalled();
-    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
-  });
-
-  test('sync preview surfaces server auth and mutation errors clearly', async () => {
-    dryRunFleetGitSyncResponse.mockRejectedValue({
-      response: {
-        data: {
-          error: 'authentication_required',
-          message: 'Login session or bearer token required.',
-        },
-      },
-    });
-
-    renderFleetOps();
-
-    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
-    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
-
-    expect((await screen.findAllByText(/login session or bearer token required/i)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/sync preview failed/i)).toBeInTheDocument();
-    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
-  });
+test('partial verification shows each unconfirmed aircraft and re-previews just those identities', async () => {
+  const result = status('completed');
+  result.phase = 'partial';
+  result.target_counts.verified = 1;
+  result.target_counts.unconfirmed = 1;
+  result.per_aircraft_state['22'].state = 'unconfirmed';
+  result.per_aircraft_state['22'].error_code = 'verification_timeout';
+  result.message = 'Verified 1 of 2 aircraft';
+  applyFleetGitSyncResponse.mockResolvedValue({data:result});
+  view();
+  click('Sync online');
+  await screen.findByText('Review sync');
+  click('Apply sync');
+  await screen.findByText('Partially verified');
+  const progress = screen.getByRole('region', {name:'Software sync progress'});
+  expect(within(progress).getByText('1 of 2 verified')).toBeVisible();
+  expect(within(progress).queryByText(result.message)).not.toBeInTheDocument();
+  const issues = within(progress).getByRole('list', {name:'Aircraft needing review'});
+  expect(within(issues).getByText('Aircraft 2')).toBeVisible();
+  expect(within(issues).getByText(/Verification timed out/)).toBeVisible();
+  click(/Review unconfirmed/);
+  await screen.findByText('Review sync');
+  expect(dryRunFleetGitSyncResponse).toHaveBeenLastCalledWith({hw_ids:['22']});
+  expect(applyFleetGitSyncResponse).toHaveBeenCalledTimes(1);
 });

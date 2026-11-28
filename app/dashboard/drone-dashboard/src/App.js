@@ -62,6 +62,7 @@ const FleetEnrollmentPage = lazy(() => import('./pages/FleetEnrollmentPage'));
 const FleetOpsPage = lazy(() => import('./pages/FleetOpsPage'));
 const FleetOpsWifiPage = lazy(() => import('./pages/FleetOpsWifiPage'));
 const FleetOpsMavlinkPage = lazy(() => import('./pages/FleetOpsMavlinkPage'));
+const MaintenancePage = lazy(() => import('./pages/MaintenancePage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
 const SitlControlPage = lazy(() => import('./pages/SitlControlPage'));
 const RuntimeAdminPage = lazy(() => import('./pages/RuntimeAdminPage'));
@@ -243,9 +244,10 @@ const AppShell = () => {
                       <Route path="/swarm-design" element={<SwarmDesign />} />
                       <Route path="/mission-config" element={<MissionConfig />} />
                       <Route path="/fleet-enrollment" element={<FleetEnrollmentPage />} />
-                      <Route path="/fleet-ops" element={<FleetOpsPage />} />
+                      <Route path="/fleet-ops" element={<FleetOpsPage operatorId={auth.user?.id || auth.user?.username || ''} runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/fleet-ops/wifi" element={<FleetOpsWifiPage />} />
                       <Route path="/fleet-ops/mavlink" element={<FleetOpsMavlinkPage />} />
+                      <Route path="/maintenance" element={<MaintenancePage />} />
                       <Route path="/drone-detail" element={<Navigate to="/" replace />} />
                       <Route path="/manage-drone-show" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
                       <Route path="/custom-show" element={<CustomShowWorkspace runtimeMode={runtimeStatus.mode} />} />

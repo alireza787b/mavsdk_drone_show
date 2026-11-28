@@ -1817,6 +1817,17 @@ class TestGitStatusEndpoints:
             "41",
         ) is False
 
+    @pytest.mark.parametrize("value", ["unknown", None, False, 0.5, -1, {}])
+    def test_malformed_tracking_count_is_unconfirmed(self, value):
+        import app_fastapi
+        from api_routes.git_status import _git_row_status
+        from schemas import GitStatus
+
+        report = {"hw_id": "42", "branch": "main", "commit": "abc12345",
+                  "status": "clean", "commits_behind": value}
+        assert _git_row_status(report, {"commit": "abc12345"}, app_fastapi.Params) == (GitStatus.UNKNOWN, False)
+        assert not app_fastapi._is_git_sync_verified(report, "main", "abc12345", "42")
+
     def test_sync_verifier_default_covers_delayed_node_convergence(self, monkeypatch):
         """A healthy rolling update may converge after the former 45-second window."""
         import app_fastapi
@@ -1839,10 +1850,10 @@ class TestGitStatusEndpoints:
         reports = [old_report] * 5 + [converged_report]
         observed_reports = []
 
-        def read_status(_uri):
+        async def poll_status(_client, targets, *, publish, **_options):
             report = reports.pop(0)
             observed_reports.append(report)
-            return report
+            publish(str(targets[0]["hw_id"]), 1, {**report, "last_check": 1})
 
         # The sixth observation is at virtual t=120s: later than the retired
         # 45s budget and the observed 110.8s full field restart cycle, but
@@ -1853,7 +1864,7 @@ class TestGitStatusEndpoints:
             "time",
             SimpleNamespace(monotonic=lambda: next(monotonic_values)),
         )
-        monkeypatch.setattr(app_fastapi, "_config_get_drone_git_status", read_status)
+        monkeypatch.setattr(app_fastapi, "poll_git_reports", poll_status)
 
         verified, failed = asyncio.run(
             app_fastapi._verify_sync_targets(
@@ -2029,14 +2040,14 @@ class TestGitStatusEndpoints:
     @patch('app_fastapi.get_all_heartbeats')
     @patch('app_fastapi.get_gcs_git_report')
     @patch('app_fastapi.load_config')
-    def test_get_git_status_counts_same_commit_ahead_drones_as_synced_with_gcs(
+    def test_get_git_status_counts_ahead_as_tracking_drift(
         self,
         mock_load_config,
         mock_gcs_git_report,
         mock_get_all_heartbeats,
         test_client,
     ):
-        """GET /api/v1/git/status should treat same-commit local-ahead repos as synced with GCS."""
+        """GET /api/v1/git/status should report local-ahead repos for review."""
         mock_load_config.return_value = [
             {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
@@ -2052,10 +2063,10 @@ class TestGitStatusEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data['synced_count'] == 2
-        assert data['needs_sync_count'] == 0
+        assert data['synced_count'] == 0
+        assert data['needs_sync_count'] == 2
         assert data['git_status']['1']['status'] == 'ahead'
-        assert data['git_status']['1']['in_sync_with_gcs'] is True
+        assert data['git_status']['1']['in_sync_with_gcs'] is False
 
     @patch('app_fastapi.git_status_data_all_drones', {
         '1': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []},
@@ -2085,6 +2096,34 @@ class TestGitStatusEndpoints:
         assert data['synced_count'] == 0
         assert data['needs_sync_count'] == 0
         assert data['git_status']['1']['in_sync_with_gcs'] is False
+
+    @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {'status': 'clean', 'branch': 'release/customer', 'commit': 'abc12345', 'uncommitted_changes': []},
+    })
+    @patch('app_fastapi.get_all_heartbeats')
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_get_git_status_treats_clean_matching_revision_on_different_branch_as_synced(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        mock_get_all_heartbeats,
+        test_client,
+    ):
+        mock_load_config.return_value = [{'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'}]
+        mock_gcs_git_report.return_value = {'branch': 'main', 'commit': 'abc12345'}
+        mock_get_all_heartbeats.return_value = {
+            '1': {'hw_id': '1', 'timestamp': time.time(), 'runtime_mode': 'real'},
+        }
+
+        response = test_client.get('/api/v1/git/status')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['git_status']['1']['in_sync_with_gcs'] is True
+        assert data['synced_count'] == 1
+        assert data['needs_sync_count'] == 0
+        assert data['branch_only_count'] == 1
 
 # ============================================================================
 # Swarm Management Tests

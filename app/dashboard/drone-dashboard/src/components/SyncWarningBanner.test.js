@@ -36,10 +36,24 @@ describe('SyncWarningBanner', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('clean matching revisions on another update branch have a specific notice', async () => {
+  test('clean matching revisions on another update branch stay quiet', async () => {
     getUnifiedGitStatusResponse.mockResolvedValue({ data: { needs_sync_count: 2, branch_only_count: 2 } });
     render(<MemoryRouter><SyncWarningBanner /></MemoryRouter>);
-    expect(await screen.findByText('Update branch differs')).toBeInTheDocument();
+    await act(async () => {});
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('mixed branch notes and a genuine mismatch keep the real warning', async () => {
+    getUnifiedGitStatusResponse.mockResolvedValue({ data: { needs_sync_count: 1, branch_only_count: 1, attention_count: 1 } });
+    render(<MemoryRouter><SyncWarningBanner /></MemoryRouter>);
+    expect(await screen.findByText('Review software')).toBeInTheDocument();
+    expect(screen.getByText('1 aircraft')).toBeInTheDocument();
+  });
+
+  test('a verified profile problem has its own label', async () => {
+    getUnifiedGitStatusResponse.mockResolvedValue({ data: { needs_sync_count: 0, maintenance_count: 1, attention_count: 1 } });
+    render(<MemoryRouter><SyncWarningBanner /></MemoryRouter>);
+    expect(await screen.findByText('Review maintenance')).toBeInTheDocument();
   });
 
   test('unconfirmed revision is not reported as a proven software difference', async () => {

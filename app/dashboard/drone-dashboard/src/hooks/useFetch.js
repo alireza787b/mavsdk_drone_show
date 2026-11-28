@@ -7,7 +7,7 @@ import usePollingResource from './usePollingResource';
 const sharedResources = {
   [GCS_ROUTE_KEYS.fleetConfig]: 'config', [GCS_ROUTE_KEYS.fleetTelemetry]: 'telemetry',
   [GCS_ROUTE_KEYS.swarmConfig]: 'swarm', [GCS_ROUTE_KEYS.fleetHeartbeats]: 'heartbeats',
-  [GCS_ROUTE_KEYS.systemRuntimeStatus]: 'runtime', [GCS_ROUTE_KEYS.gitStatus]: 'git',
+  [GCS_ROUTE_KEYS.fleetNodeBootStatus]: 'boot', [GCS_ROUTE_KEYS.systemRuntimeStatus]: 'runtime', [GCS_ROUTE_KEYS.gitStatus]: 'git',
 };
 
 /** Canonical fleet readers share ownership; domain reads stay sequential. */
