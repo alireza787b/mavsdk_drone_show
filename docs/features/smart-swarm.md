@@ -495,9 +495,10 @@ Automatic promotion is disabled by default. Advanced deployment settings in
 `MDS_SMART_SWARM_LEADER_RECOVERY_WAIT_SEC=10`, and
 `MDS_SMART_SWARM_LEADER_RECOVERY_STABLE_SEC=1`. These are not dashboard switches.
 
-`MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC=2.5` controls when stale leader data
+`MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC=5.0` controls when stale leader data
 initiates protective Hold. It is available in advanced node configuration and
-must exceed the accepted-source freshness threshold. All timing changes require
+must exceed both the accepted-source freshness threshold and the 2.5 s full-confidence
+window. All timing changes require
 a grounded node-service restart. Invalid/non-finite recovery timing or a stable
 interval not shorter than the wait window logs a warning and restores 10s/1s
 defaults at startup, rather than failing when protective recovery is needed.
@@ -838,9 +839,9 @@ times are measured from the last usable leader observation.
 
 | Time | What the follower does |
 |---|---|
-| Up to 0.75 s | Uses fresh leader observations. |
-| From 0.75 s | Reduces the requested motion as data ages. Position prediction is limited to 1 s from the sample, and the requested motion reaches zero by 1.75 s. The aircraft still needs time to brake. |
-| Beyond 2.5 s | Requests PX4 Hold and starts a 10 s recovery window. Time spent waiting for PX4 to confirm Hold counts toward those 10 s. |
+| Up to 2.5 s | Keeps full confidence in the last accepted observation. Position and heading prediction is capped at 2.5 s from that sample. An observation older than 0.75 s is not newly accepted, but the retained sample continues to drive motion without an age slowdown. |
+| 2.5 s to 5.0 s | Holds the same predicted target while scaling the complete requested motion linearly to zero. The aircraft still needs time to brake; this is not a guarantee of separation. |
+| At 5.0 s | Requests PX4 Hold and starts a 10 s recovery window. Time spent waiting for PX4 to confirm Hold counts toward those 10 s. |
 
 To resume automatically, PX4 must confirm the follower is airborne, armed
 and in the Hold that MDS requested. The same leader's position and heading

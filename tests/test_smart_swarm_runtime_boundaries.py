@@ -533,16 +533,17 @@ def test_apply_leader_state_sample_rejects_untrusted_motion_without_mutating_sta
     assert swarm_runtime.LAST_LEADER_SAMPLE_REJECTION_CODE == expected_code
 
 
-def test_leader_motion_confidence_has_full_ramp_and_zero_regions(
+def test_leader_motion_confidence_holds_full_until_2_5_then_ramp_to_hard_timeout(
     swarm_runtime,
     monkeypatch,
 ):
-    monkeypatch.setattr(swarm_runtime.Params, "SMART_SWARM_SOURCE_MAX_AGE_SEC", 0.75)
-    monkeypatch.setattr(swarm_runtime.Params, "SMART_SWARM_STREAM_PREDICT_GRACE_SEC", 1.0)
+    monkeypatch.setattr(swarm_runtime.Params, "SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC", 2.5)
+    monkeypatch.setattr(swarm_runtime.Params, "SMART_SWARM_HARD_STALE_TIMEOUT_SEC", 5.0)
 
     assert swarm_runtime._leader_motion_confidence(0.75) == pytest.approx(1.0)
-    assert swarm_runtime._leader_motion_confidence(1.25) == pytest.approx(0.5)
-    assert swarm_runtime._leader_motion_confidence(1.75) == pytest.approx(0.0)
+    assert swarm_runtime._leader_motion_confidence(2.5) == pytest.approx(1.0)
+    assert swarm_runtime._leader_motion_confidence(3.75) == pytest.approx(0.5)
+    assert swarm_runtime._leader_motion_confidence(5.0) == pytest.approx(0.0)
     assert swarm_runtime._leader_motion_confidence(10.0) == pytest.approx(0.0)
 
 

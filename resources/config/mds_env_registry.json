@@ -30,7 +30,7 @@
       "domain": "runtime",
       "source_of_truth": "/etc/mds/local.env",
       "value_type": "float",
-      "default": 2.5,
+      "default": 5,
       "secret": false,
       "editable": true,
       "ui_visibility": "advanced",
@@ -42,7 +42,7 @@
       "replacement": null,
       "docs": "docs/features/smart-swarm.md",
       "consumers": ["src/params.py"],
-      "notes": "Protective Hold starts after this accepted-data age. Must be finite, positive and greater than the source freshness threshold. Configure while grounded; default unchanged.",
+      "notes": "Protective Hold starts after this accepted-data age. Leader motion keeps full confidence through 2.5 seconds, then ramps linearly to zero by this timeout. Must be finite, positive, greater than the source freshness threshold and greater than the 2.5 second full-confidence window. Configure while grounded; default is 5 seconds.",
       "owner": "flight-runtime"
     },
     {
