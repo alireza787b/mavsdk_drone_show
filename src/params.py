@@ -234,11 +234,14 @@ class Params:
     SMART_SWARM_CONFIG_BACKOFF_MAX_SEC = 15.0
     SMART_SWARM_SOURCE_MAX_AGE_SEC = 0.75
     SMART_SWARM_OWN_STATE_MAX_AGE_SEC = 0.75
+    SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC = 2.5
+    SMART_SWARM_OWN_STATE_HARD_STALE_TIMEOUT_SEC = 2.5
     SMART_SWARM_HARD_STALE_TIMEOUT_SEC = _positive_env_float(
-        'MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', 2.5)
-    if SMART_SWARM_HARD_STALE_TIMEOUT_SEC <= SMART_SWARM_SOURCE_MAX_AGE_SEC:
-        logger.warning('Leader hard-stale timeout must exceed source freshness; using 2.5 seconds')
-        SMART_SWARM_HARD_STALE_TIMEOUT_SEC = 2.5
+        'MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', 5.0)
+    if (SMART_SWARM_HARD_STALE_TIMEOUT_SEC <= SMART_SWARM_SOURCE_MAX_AGE_SEC
+            or SMART_SWARM_HARD_STALE_TIMEOUT_SEC <= SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC):
+        logger.warning('Leader hard-stale timeout must exceed source freshness and full-confidence age; using 5 seconds')
+        SMART_SWARM_HARD_STALE_TIMEOUT_SEC = 5.0
     SMART_SWARM_LEADER_STATE_TIMEOUT_SEC = 1.0   # Per-request timeout for follower -> leader state fetches
     SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS swarm config refresh
     SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS leader-change notify
@@ -248,7 +251,7 @@ class Params:
     SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC = 3.0
     SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC = 0.25
     SMART_SWARM_STREAM_BACKOFF_MAX_SEC = 2.0
-    SMART_SWARM_STREAM_PREDICT_GRACE_SEC = 1.0
+    SMART_SWARM_STREAM_PREDICT_GRACE_SEC = 2.5
     SMART_SWARM_USE_LOCAL_NED_WHEN_VALID = False
     SMART_SWARM_POSITION_GAIN = 0.5
     SMART_SWARM_KV = 0.35

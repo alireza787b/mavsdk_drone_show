@@ -35,12 +35,15 @@ def test_recovery_timing_cannot_fail_before_protective_hold(monkeypatch, tmp_pat
     assert (params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC, params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC) == expected
 
 
-@pytest.mark.parametrize('value,expected', [('4', 4), ('0', 2.5), ('nan', 2.5), ('0.5', 2.5)])
+@pytest.mark.parametrize('value,expected', [('4', 4), ('0', 5), ('nan', 5), ('0.5', 5), ('2.5', 5)])
 def test_hard_stale_timing_is_configurable_and_consistent(monkeypatch, tmp_path, value, expected):
     monkeypatch.setenv('MDS_LOCAL_ENV_FILE', str(tmp_path / 'absent.env'))
     monkeypatch.setenv('MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', value)
     params = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/params.py'))['Params']
     assert params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC == expected
+    assert params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC == 2.5
+    assert params.SMART_SWARM_OWN_STATE_HARD_STALE_TIMEOUT_SEC == 2.5
+    assert params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC == 2.5
 
 
 def test_resolve_runtime_mode_prefers_mds_mode(monkeypatch, tmp_path):

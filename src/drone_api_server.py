@@ -3185,6 +3185,13 @@ class DroneAPIServer:
                     'recovery_wait_sec': Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
                     'recovery_stable_sec': Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
                     'hard_stale_sec': Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
+                    'motion_full_confidence_sec': Params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC,
+                    'motion_ramp_sec': max(
+                        0.0,
+                        float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
+                        - float(Params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC),
+                    ),
+                    'prediction_horizon_sec': Params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC,
                     'max_horizontal_speed_m_s': Params.SMART_SWARM_MAX_HORIZONTAL_SPEED_M_S,
                     'max_vertical_speed_m_s': Params.SMART_SWARM_MAX_VERTICAL_SPEED_M_S,
                     'max_acceleration_m_s2': Params.SMART_SWARM_MAX_ACCELERATION_M_S2,

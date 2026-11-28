@@ -1546,12 +1546,14 @@ def _build_follower_motion_controller(seed_yaw_deg: float) -> FollowerMotionCont
 
 
 def _leader_motion_confidence(leader_age_sec: float) -> float:
-    """Ramp the complete follower request to zero as leader motion ages."""
-    fresh_sec = float(Params.SMART_SWARM_SOURCE_MAX_AGE_SEC)
-    grace_sec = max(float(Params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC), 1e-3)
-    if leader_age_sec <= fresh_sec:
+    """Ramp the complete follower request to zero by the hard-stale deadline."""
+    full_sec = max(float(Params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC), 0.0)
+    hard_sec = max(float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC), full_sec + 1e-3)
+    if leader_age_sec <= full_sec:
         return 1.0
-    return max(0.0, 1.0 - ((leader_age_sec - fresh_sec) / grace_sec))
+    if leader_age_sec >= hard_sec:
+        return 0.0
+    return max(0.0, 1.0 - ((leader_age_sec - full_sec) / (hard_sec - full_sec)))
 
 
 def _fresh_own_yaw(snapshot: dict, current_time: float) -> float | None:
@@ -1647,13 +1649,14 @@ async def control_loop(drone: System):
                 if (
                     offboard_active
                     and own_invalid_since is not None
-                    and current_time - own_invalid_since > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
+                    and current_time - own_invalid_since > float(
+                        Params.SMART_SWARM_OWN_STATE_HARD_STALE_TIMEOUT_SEC)
                 ):
                     _record_link_event(
                         "hold_decision", reason="own motion state remained stale",
                         validation=own_validity.code if not own_validity.valid else "own_yaw_unavailable",
                         trigger_age_ms=round((current_time - own_invalid_since) * 1000),
-                        threshold_ms=round(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC * 1000),
+                        threshold_ms=round(Params.SMART_SWARM_OWN_STATE_HARD_STALE_TIMEOUT_SEC * 1000),
                     )
                     await execute_failsafe(drone, reason="own motion state remained stale")
                     offboard_active = False
@@ -1677,7 +1680,7 @@ async def control_loop(drone: System):
                     leader_missing_since = current_time
                 elif (
                     current_time - leader_missing_since
-                    > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
+                    >= float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC)
                 ):
                     logger.warning(
                         "No valid leader motion lock for %.3fs; leaving Offboard and starting failover.",
@@ -1705,7 +1708,7 @@ async def control_loop(drone: System):
             leader_age = current_time - min(
                 float(LEADER_STATE['update_time']),
                 float(LEADER_STATE.get('attitude_update_time', float('-inf'))))
-            if leader_age > float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC):
+            if leader_age >= float(Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC):
                 logger.warning(
                     "Leader motion stale for %.3fs; leaving Offboard and starting failover.",
                     leader_age,

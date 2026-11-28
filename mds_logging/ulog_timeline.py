@@ -136,6 +136,13 @@ def build_ulog_timeline(ulog, envelope):
             i = int(index)
             ts = int(dataset.data["timestamp"][i])
             source, label, metrics = _event(dataset.name, dataset.data, i, previous)
+            if dataset.name == "vehicle_status":
+                # Row time is the report time. Commander may have activated the mode earlier.
+                entered = _number(dataset.data, "nav_state_timestamp", i)
+                if isinstance(entered, int) and 0 < entered <= ts:
+                    metrics["mode_activated_boot_us"] = entered
+                    if anchored:
+                        metrics["mode_activated_utc_ms"] = (boot + entered) // 1000
             rows.append({"kind": "sample" if dataset.name == "telemetry_status" else "event",
                          "elapsed_ms": (ts - start) // 1000, "utc_ms": (boot + ts) // 1000 if anchored else None,
                          "instance": instance, "source": source, "label": label,
