@@ -9,6 +9,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Fleet Ops previews software updates by aircraft identity, restores verification progress after navigation, and reports partial results. Node access, Wi-Fi and MAVLink tools are grouped under Maintenance.
+
 - Smart Swarm records each follower's reason for requesting Hold, the age of its
   motion observations, and its transport and recovery history. The relationship
   diagram shows the latest link observation in the existing aircraft details.
@@ -24,7 +26,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   available companion evidence. The GCS applies the copy's existing owner,
   deletion and retention policy to both.
 - Fleet network status uses accepted heartbeat receipts. The software notice
-  identifies clean matching commits on different update branches.
+  clears for clean matching revisions on differently named branches.
 
 - Smart Swarm shows an advisory when fresh, comparable aircraft heights differ
   from the formation's planned vertical spacing. Immediate Return remains a

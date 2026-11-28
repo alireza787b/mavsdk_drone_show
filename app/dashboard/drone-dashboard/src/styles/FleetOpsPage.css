@@ -1,1023 +1,133 @@
-@import './DesignTokens.css';
-
-.fleet-ops-page {
-  min-height: 100vh;
-  padding: clamp(1rem, 2vw, 2rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  color: var(--color-text-primary);
-  background:
-    radial-gradient(circle at top right, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
-    linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg-canvas) 100%);
-}
-
-.fleet-ops-page__status-pills {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.fleet-ops-page__scope-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  min-height: var(--operator-badge-height);
-  padding: 0 var(--operator-badge-padding-x);
-  border: 1px solid var(--color-border-primary);
-  border-radius: 999px;
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  text-decoration: none;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.fleet-ops-page__scope-link:hover,
-.fleet-ops-page__scope-link:focus-visible {
-  border-color: var(--color-primary-border);
-  background: var(--operator-control-background-hover);
-  color: var(--color-primary);
-}
-
-.fleet-ops-node-card__eyebrow {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-node-card__pills,
-.fleet-ops-node-card__links,
-.fleet-ops-node-card__quick-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  align-items: flex-start;
-}
-
-.fleet-ops-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.fleet-ops-pill--good,
-.fleet-ops-metric--good svg {
-  border-color: var(--color-success-border);
-  color: var(--color-success);
-}
-
-.fleet-ops-pill--warning,
-.fleet-ops-metric--warning svg {
-  border-color: var(--color-warning-border);
-  color: var(--color-warning);
-}
-
-.fleet-ops-pill--danger,
-.fleet-ops-metric--danger svg {
-  border-color: var(--color-danger-border);
-  color: var(--color-danger);
-}
-
-.fleet-ops-pill--real {
-  background: var(--color-success-light);
-  border-color: var(--color-success-border);
-  color: var(--color-success);
-}
-
-.fleet-ops-pill--sitl {
-  background: rgba(var(--color-primary-rgb), 0.13);
-  border-color: rgba(var(--color-primary-rgb), 0.35);
-  color: var(--color-primary);
-}
-
-.fleet-ops-pill--muted {
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.85rem;
-}
-
-.fleet-ops-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
-  gap: 0.85rem;
-  align-items: end;
-  padding: 1rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-xl);
-  background: var(--color-surface-raised);
-}
-
-.fleet-ops-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.85rem;
-  align-items: center;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-xl);
-  background: var(--color-surface-raised);
-}
-
-.fleet-ops-actions__summary,
-.fleet-ops-actions__buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  align-items: center;
-}
-
-.fleet-ops-actions__summary {
-  color: var(--color-text-secondary);
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.fleet-ops-actions__profile {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 2rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--color-border-primary);
-  border-radius: 999px;
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-}
-
-.fleet-ops-actions__hint {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--color-info-border);
-  border-radius: 999px;
-  background: var(--color-info-light);
-  color: var(--color-info-text);
-}
-
-.fleet-ops-advanced-controls {
-  position: relative;
-}
-
-.fleet-ops-advanced-controls summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 2rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--color-border-primary);
-  border-radius: 999px;
-  background: var(--color-surface-inset);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  list-style: none;
-}
-
-.fleet-ops-advanced-controls summary::-webkit-details-marker {
-  display: none;
-}
-
-.fleet-ops-advanced-controls[open] summary {
-  border-color: var(--color-primary-border);
-  color: var(--color-primary);
-}
-
-.fleet-ops-advanced-controls[open] summary svg {
-  transform: rotate(180deg);
-}
-
-.fleet-ops-advanced-controls__panel {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 0.45rem);
-  z-index: var(--z-popover);
-  display: grid;
-  gap: 0.65rem;
-  min-width: min(320px, calc(100vw - 2rem));
-  padding: 0.75rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-lg);
-  background: var(--operator-floating-background);
-  box-shadow: var(--operator-floating-shadow);
-}
-
-.fleet-ops-advanced-controls__panel label {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--color-text-secondary);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.fleet-ops-actions__token-input {
-  min-height: 2.3rem;
-  min-width: 180px;
-  padding: 0.45rem 0.65rem;
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-}
-
-.fleet-ops-file-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  clip: rect(0 0 0 0);
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.fleet-ops-actions__buttons button,
-.fleet-ops-actions__link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  min-height: 2.4rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.fleet-ops-actions__link:hover,
-.fleet-ops-actions__link:focus-visible {
-  border-color: rgba(var(--color-primary-rgb), 0.35);
-  background: rgba(var(--color-primary-rgb), 0.12);
-  color: var(--color-primary);
-}
-
-.fleet-ops-actions__buttons button.is-primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  box-shadow: var(--shadow-sm);
-}
-
-.fleet-ops-actions__buttons button.is-primary:hover,
-.fleet-ops-actions__buttons button.is-primary:focus-visible {
-  border-color: var(--color-primary-hover);
-  background: var(--color-primary-hover);
-  color: var(--color-primary-text);
-}
-
-.fleet-ops-actions__buttons button:disabled {
-  opacity: var(--operator-control-disabled-opacity);
-  cursor: not-allowed;
-}
-
-.fleet-ops-actions__buttons button.is-busy svg,
-.fleet-ops-confirm button.is-busy svg {
-  animation: fleet-ops-spin 0.95s linear infinite;
-}
-
-@keyframes fleet-ops-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.fleet-ops-sync-progress,
-.fleet-ops-confirm {
-  border-radius: var(--border-radius-xl);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-sm);
-}
-
-.fleet-ops-sync-progress {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
-  gap: 1rem;
-  align-items: center;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--color-border-secondary);
-}
-
-.fleet-ops-sync-progress.is-success {
-  border-color: var(--color-success-border);
-}
-
-.fleet-ops-sync-progress.is-warning,
-.fleet-ops-sync-progress.is-neutral {
-  border-color: var(--color-warning-border);
-}
-
-.fleet-ops-sync-progress.is-danger {
-  border-color: var(--color-danger-border);
-}
-
-.fleet-ops-sync-progress__copy,
-.fleet-ops-confirm__copy {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.fleet-ops-sync-progress strong,
-.fleet-ops-confirm strong {
-  color: var(--color-text-primary);
-}
-
-.fleet-ops-sync-progress span,
-.fleet-ops-confirm span {
-  color: var(--color-text-secondary);
-  font-size: 0.86rem;
-}
-
-.fleet-ops-sync-progress__steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.fleet-ops-sync-progress__steps li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
-  align-items: center;
-  min-height: 2.4rem;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-surface-inset);
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.fleet-ops-sync-progress__steps li > span {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-}
-
-.fleet-ops-sync-progress__steps li p {
-  margin: 0;
-}
-
-.fleet-ops-sync-progress__steps li.is-active {
-  color: var(--color-primary);
-  border-color: var(--color-primary-border);
-}
-
-.fleet-ops-sync-progress__steps li.is-done {
-  color: var(--color-success);
-  border-color: var(--color-success-border);
-}
-
-.fleet-ops-sync-progress__steps li.is-blocked {
-  color: var(--color-danger);
-  border-color: var(--color-danger-border);
-}
-
-.fleet-ops-sync-progress__steps li.is-pending {
-  opacity: 0.72;
-}
-
-.fleet-ops-confirm {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(220px, 0.8fr) auto;
-  gap: 0.9rem;
-  align-items: center;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--color-warning-border);
-}
-
-.fleet-ops-confirm__facts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(72px, 1fr));
-  gap: 0.5rem;
-  margin: 0.45rem 0 0;
-}
-
-.fleet-ops-confirm__facts div {
+.fleet-console {
   min-width: 0;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-surface-inset);
-}
-
-.fleet-ops-confirm__facts dt {
-  color: var(--color-text-secondary);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.fleet-ops-confirm__facts dd {
-  margin: 0.15rem 0 0;
-  overflow: hidden;
-  color: var(--color-text-primary);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fleet-ops-confirm label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--color-text-primary);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.fleet-ops-confirm__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-.fleet-ops-confirm button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.25rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
-  color: var(--color-text-primary);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.fleet-ops-confirm button.is-primary {
-  border-color: var(--color-success);
-  background: var(--color-success);
-  color: var(--color-success-contrast);
-  box-shadow: var(--shadow-sm);
-}
-
-.fleet-ops-confirm button.is-primary:hover,
-.fleet-ops-confirm button.is-primary:focus-visible {
-  border-color: var(--color-success-hover);
-  background: var(--color-success-hover);
-  color: var(--color-success-contrast);
-}
-
-.fleet-ops-confirm button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.fleet-ops-toolbar label {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.fleet-ops-toolbar label span {
-  display: inline-flex;
-  gap: 0.35rem;
-  align-items: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-toolbar input,
-.fleet-ops-toolbar select {
-  min-height: 2.75rem;
-  padding: 0.65rem 0.8rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
   color: var(--color-text-primary);
 }
-
-.fleet-ops-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  justify-content: flex-end;
+.fleet-console h2, .fleet-console p { margin: 0; }
+.fleet-console h2 { font-size: var(--font-size-md); }
+.fleet-console button, .fleet-console select { cursor: pointer; }
+.fleet-console button:disabled { cursor: default; }
+.fleet-console :focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }
-
-.fleet-ops-tabs button {
-  min-height: 2.75rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
+.fleet-console-link, .fleet-aircraft-detail > a {
   color: var(--color-text-secondary);
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.fleet-ops-tabs button.is-active {
-  color: var(--color-primary);
-  border-color: var(--color-primary-border);
-  background: rgba(var(--color-primary-rgb), 0.12);
-}
-
-.fleet-ops-node-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 0.9rem;
-}
-
-.fleet-ops-node-card {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
-  border-radius: var(--border-radius-xl);
-  border: 1px solid var(--color-border-secondary);
-  background: linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg-primary));
-  box-shadow: var(--shadow-md);
-}
-
-.fleet-ops-node-card.is-attention {
-  border-color: var(--color-warning-border);
-}
-
-.fleet-ops-node-card.is-selected {
-  border-color: rgba(var(--color-primary-rgb), 0.5);
-  box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.18), var(--shadow-md);
-}
-
-.fleet-ops-node-card__header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 0.7rem;
-  align-items: start;
-}
-
-.fleet-ops-node-card__identity {
-  flex: 1;
-  min-width: 0;
-}
-
-.fleet-ops-node-card__pills {
-  justify-content: flex-end;
-  max-width: 12rem;
-}
-
-.fleet-ops-node-card__quick-links {
-  justify-content: flex-end;
-  gap: 0.4rem;
-}
-
-.fleet-ops-node-card__quick-links a,
-.fleet-ops-node-card__quick-links span {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 2.15rem;
-  height: 2.15rem;
-  border: 1px solid var(--color-border-primary);
-  border-radius: 999px;
-  background: var(--color-surface-inset);
-  color: var(--color-text-secondary);
+  gap: .45rem;
+  min-height: 40px;
   text-decoration: none;
 }
-
-.fleet-ops-node-card__quick-links a::after,
-.fleet-ops-node-card__quick-links span::after {
-  position: absolute;
-  right: 50%;
-  bottom: calc(100% + 0.45rem);
-  z-index: var(--z-tooltip);
-  width: max-content;
-  max-width: 14rem;
-  padding: 0.38rem 0.55rem;
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-sm);
-  background: var(--color-surface-raised);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-base);
-  content: attr(data-tooltip);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.25;
-  opacity: 0;
-  pointer-events: none;
-  text-align: left;
-  transform: translateX(50%) translateY(0.2rem);
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.fleet-ops-node-card__quick-links a:hover::after,
-.fleet-ops-node-card__quick-links a:focus-visible::after,
-.fleet-ops-node-card__quick-links span:hover::after,
-.fleet-ops-node-card__quick-links span:focus-visible::after {
-  opacity: 1;
-  transform: translateX(50%) translateY(0);
-}
-
-.fleet-ops-node-card__quick-links span.is-disabled {
-  cursor: help;
-  opacity: 0.52;
-}
-
-.fleet-ops-node-card__quick-links a:hover,
-.fleet-ops-node-card__quick-links a:focus-visible {
-  border-color: var(--color-primary-border);
-  background: var(--operator-control-background-hover);
-  color: var(--color-primary);
-}
-
-.fleet-ops-node-card__selector {
-  width: 2.2rem;
-  height: 2.2rem;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
-  color: var(--color-text-secondary);
-  font-weight: 900;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.fleet-ops-node-card__selector[aria-pressed="true"] {
-  border-color: rgba(var(--color-primary-rgb), 0.5);
-  background: rgba(var(--color-primary-rgb), 0.14);
-  color: var(--color-primary);
-}
-
-.fleet-ops-node-card h2 {
-  margin: 0.2rem 0 0;
-  font-size: 1.25rem;
-}
-
-.fleet-ops-node-card p {
-  margin: 0.25rem 0 0;
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.fleet-ops-status-grid {
+.fleet-console-link:hover, .fleet-aircraft-detail > a:hover { color: var(--color-primary); }
+.fleet-instruments {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block: 1px solid var(--color-border-primary);
+  padding-block: 1rem;
 }
-
-.fleet-ops-metric,
-.fleet-ops-facts div,
-.fleet-ops-sidecar-facts div,
-.fleet-ops-sidecar-grid section {
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-surface-inset);
-}
-
-.fleet-ops-metric {
+.fleet-instruments > div {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.65rem;
-  padding: 0.85rem;
-}
-
-.fleet-ops-metric svg {
-  margin-top: 0.2rem;
-  color: var(--color-primary);
-}
-
-.fleet-ops-metric span,
-.fleet-ops-facts dt,
-.fleet-ops-sidecar-facts dt {
-  display: block;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-metric strong {
-  display: block;
-  margin: 0.15rem 0;
-}
-
-.fleet-ops-metric small,
-.fleet-ops-sidecar-grid p {
-  color: var(--color-text-secondary);
-  line-height: 1.45;
-}
-
-.fleet-ops-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin: 0;
-}
-
-.fleet-ops-facts div {
-  padding: 0.85rem;
-}
-
-.fleet-ops-facts dd,
-.fleet-ops-sidecar-facts dd {
-  margin: 0.25rem 0 0;
-  overflow-wrap: anywhere;
-}
-
-.fleet-ops-sidecar-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-}
-
-.fleet-ops-sidecar-grid section {
-  padding: 0.9rem;
-}
-
-.fleet-ops-sidecar-grid h3 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.fleet-ops-sidecar-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
-  margin: 0.75rem 0 0;
-}
-
-.fleet-ops-sidecar-facts div {
-  padding: 0.65rem;
-}
-
-.fleet-ops-node-card__links {
-  margin-top: 0.75rem;
-}
-
-.fleet-ops-node-card__links a,
-.fleet-ops-node-card__links span {
-  display: inline-flex;
+  grid-template-columns: auto 1fr;
+  gap: .2rem .6rem;
+  padding-inline: clamp(.5rem, 2vw, 1.5rem);
   align-items: center;
-  gap: 0.35rem;
-  color: var(--color-text-secondary);
-  font-size: 0.82rem;
-  text-decoration: none;
+  color: var(--color-text-tertiary);
 }
-
-.fleet-ops-node-card__links a:hover {
-  color: var(--color-primary);
-}
-
-.fleet-ops-sidecar-table {
-  display: grid;
-  gap: 0.9rem;
-  margin: 0.85rem 0;
-  padding: 1rem;
+.fleet-instruments > div + div { border-inline-start: 1px solid var(--color-border-primary); }
+.fleet-instruments span { font-size: var(--font-size-xs); }
+.fleet-instruments strong { grid-column: 2; color: var(--color-text-primary); font-size: 1.75rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.fleet-instruments small { font-size: .85rem; font-weight: normal; color: var(--color-text-tertiary); }
+.fleet-instruments .has-caution > svg, .fleet-caution, .fleet-aircraft-software.is-drift { color: var(--color-warning); }
+.fleet-control-strip, .fleet-sync {
   border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-bg-secondary);
-}
-
-.fleet-ops-sidecar-table > header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem;
-}
-
-.fleet-ops-sidecar-table h2 {
-  margin: 0.15rem 0 0;
-  font-size: 1rem;
-}
-
-.fleet-ops-sidecar-table__eyebrow,
-.fleet-ops-sidecar-table__hint {
-  color: var(--color-text-secondary);
-  font-size: 0.78rem;
-}
-
-.fleet-ops-sidecar-table__rows {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.fleet-ops-sidecar-table__row {
-  display: grid;
-  grid-template-columns: minmax(8rem, 0.7fr) repeat(2, minmax(13rem, 1fr));
-  gap: 0.7rem;
-  align-items: stretch;
-  padding: 0.75rem;
-  border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-md);
-  background: var(--color-bg-primary);
+  background: var(--color-bg-secondary);
+  padding: clamp(.75rem, 2vw, 1.25rem);
 }
-
-.fleet-ops-sidecar-table__node,
-.fleet-ops-sidecar-table__sidecar {
-  min-width: 0;
-}
-
-.fleet-ops-sidecar-table__node {
-  display: grid;
-  gap: 0.15rem;
-  align-content: start;
-}
-
-.fleet-ops-sidecar-table__node span,
-.fleet-ops-sidecar-table__node small,
-.fleet-ops-sidecar-table__muted {
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-sidecar-table__sidecar {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.fleet-ops-sidecar-table__sidecar-head,
-.fleet-ops-sidecar-table__links a,
-.fleet-ops-sidecar-table__muted {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.fleet-ops-sidecar-table__sidecar-head {
-  justify-content: space-between;
-  font-weight: var(--font-weight-semibold);
-}
-
-.fleet-ops-sidecar-table__facts {
+.fleet-control-strip, .fleet-operation-label, .fleet-operation-buttons, .fleet-roster > header, .fleet-roster-tools, .fleet-roster-tools label, .fleet-sync header, .fleet-sync footer, .fleet-aircraft-detail header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  align-items: center;
+  gap: .6rem;
 }
-
-.fleet-ops-sidecar-table__facts span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0.26rem 0.45rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: 999px;
-  color: var(--color-text-secondary);
-  font-size: 0.74rem;
+.fleet-control-strip, .fleet-roster > header { flex-wrap: wrap; justify-content: space-between; }
+.fleet-operation-label > svg { color: var(--color-primary); margin-right: .3rem; }
+.fleet-operation-label span, .fleet-roster h2 small { color: var(--color-text-tertiary); font-size: var(--font-size-sm); font-weight: normal; }
+.fleet-operation-buttons { flex-wrap: wrap; }
+.fleet-operation-buttons button, .fleet-sync button { min-height: 42px; }
+.fleet-operation-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
+.fleet-roster { min-width: 0; }
+.fleet-roster > header { margin-block: .5rem .85rem; }
+.fleet-roster-tools { flex-wrap: wrap; }
+.fleet-roster-tools label {
+  min-height: 40px;
+  padding-inline: .65rem;
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-tertiary);
 }
-
-.fleet-ops-sidecar-table__links a {
-  color: var(--color-primary);
-  font-size: 0.82rem;
-  text-decoration: none;
+.fleet-roster-tools input, .fleet-roster-tools select {
+  border: none; background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-sm); min-width: 0;
 }
-
-@media (max-width: 1080px) {
-  .fleet-ops-node-card__header {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .fleet-ops-node-card__pills {
-    grid-column: 2 / -1;
-    justify-content: flex-start;
-    max-width: none;
-  }
-
-  .fleet-ops-node-card__quick-links {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .fleet-ops-toolbar,
-  .fleet-ops-actions,
-  .fleet-ops-sync-progress,
-  .fleet-ops-confirm {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .fleet-ops-tabs {
-    justify-content: flex-start;
-  }
-
-  .fleet-ops-actions {
-    flex-direction: column;
-  }
-
-  .fleet-ops-advanced-controls,
-  .fleet-ops-advanced-controls summary {
-    width: 100%;
-  }
-
-  .fleet-ops-advanced-controls summary {
-    justify-content: center;
-  }
-
-  .fleet-ops-advanced-controls__panel {
-    left: 0;
-    right: 0;
-    min-width: 0;
-  }
-
-  .fleet-ops-confirm__actions {
-    justify-content: flex-start;
-  }
-
-  .fleet-ops-actions__buttons button {
-    flex: 1;
-  }
-
-  .fleet-ops-sidecar-table__row {
-    grid-template-columns: 1fr;
-  }
-
-  .fleet-ops-sidecar-table > header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+.fleet-roster-tools input { width: 9rem; max-width: 100%; }
+.fleet-aircraft-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%, 255px),1fr)); gap: .55rem; }
+.fleet-aircraft-open {
+  display: flex;
+  width: 100%; min-width: 0; gap: .55rem;
+  align-items: center; text-align: start;
+  padding: .65rem .7rem; min-height: 62px;
+  color: inherit; background: transparent;
+  border: 0; border-radius: var(--border-radius-base);
 }
-
-@media (max-width: 640px) {
-  .fleet-ops-page {
-    padding: 0.75rem;
-  }
-
-  .fleet-ops-node-card {
-    padding: 0.85rem;
-  }
-
-  .fleet-ops-node-card__header {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .fleet-ops-node-card__quick-links,
-  .fleet-ops-node-card__pills {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    justify-content: flex-start;
-  }
-
-  .fleet-ops-actions__buttons {
-    width: 100%;
-  }
-
-  .fleet-ops-sync-progress__steps,
-  .fleet-ops-confirm__facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .fleet-ops-actions__buttons button {
-    justify-content: center;
-    min-width: min(100%, 10rem);
-  }
-
-  .fleet-ops-status-grid,
-  .fleet-ops-facts,
-  .fleet-ops-sidecar-facts,
-  .fleet-ops-sidecar-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .fleet-ops-node-grid {
-    grid-template-columns: 1fr;
-  }
+.fleet-aircraft-open:hover, .fleet-aircraft-open[aria-expanded=true] { background: var(--color-primary-light); }
+.fleet-console-aircraft { border-radius: var(--border-radius-base); border: 1px solid var(--color-border-primary); background: var(--color-bg-secondary); display: flex; align-items: center; min-width: 0; }
+.fleet-console-aircraft:has(input:checked) { border-color: var(--color-primary); }
+.fleet-console-aircraft input { flex: none; margin: 0 0 0 .7rem; width: 20px; height: 20px; accent-color: var(--color-primary); }
+.fleet-aircraft-mark { width: 29px; flex: none; color: var(--color-text-muted); }
+.fleet-aircraft-mark.is-online { color: var(--color-info); }
+.fleet-aircraft-mark svg { display: block; fill: currentColor; }
+.fleet-aircraft-mark .aircraft-silhouette__arms { fill: none; stroke: currentColor; stroke-width: 4; }
+.fleet-aircraft-identity { display: grid; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
+.fleet-aircraft-identity strong { font-size: var(--font-size-sm); }
+.fleet-aircraft-identity small, .fleet-aircraft-software { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.fleet-aircraft-software { margin-inline-start: auto; display: inline-flex; align-items: center; gap: .3rem; flex: none; }
+.fleet-aircraft-software.is-current { color: var(--color-success); }
+.fleet-caution, .fleet-open-chevron { flex: none; font-size: .75rem; }
+.fleet-open-chevron { color: var(--color-text-muted); }
+.fleet-workspace { display: grid; gap: .8rem; align-items: start; }
+.fleet-workspace.with-detail { grid-template-columns: minmax(0, 2fr) minmax(210px,1fr); }
+.fleet-aircraft-detail { min-width: 0; padding: 1rem; background: var(--color-bg-secondary); border: 1px solid var(--color-primary-border); border-radius: var(--border-radius-md); }
+.fleet-aircraft-detail header { justify-content: space-between; }
+.fleet-aircraft-detail dl { margin: .55rem 0; }
+.fleet-aircraft-detail dl > div, .fleet-sync-review li { display: flex; justify-content: space-between; align-items: baseline; gap: .85rem; padding-block: .4rem; border-bottom: 1px solid var(--color-border-light); font-size: var(--font-size-sm); }
+.fleet-aircraft-detail dd { margin: 0; overflow-wrap: anywhere; text-align: end; }
+.fleet-aircraft-detail small, .fleet-aircraft-detail dt, .fleet-sync-revision, .fleet-sync time { color: var(--color-text-tertiary); }
+.fleet-aircraft-detail small { display: block; }
+.fleet-tool-icon { background: transparent; color: var(--color-text-secondary); border: 0; width: 42px; height: 42px; border-radius: var(--border-radius-base); }
+.fleet-tool-icon:hover { background: var(--color-surface-muted); }
+.fleet-sync { border-inline-start: 3px solid var(--color-primary); }
+.fleet-sync header, .fleet-sync footer { flex-wrap: wrap; }
+.fleet-sync-title { display: grid; margin-inline-end: auto; gap: .2rem; }
+.fleet-sync-title span, .fleet-sync time, .fleet-sync-revision { font-size: var(--font-size-xs); }
+.fleet-sync-title span { color: var(--color-text-secondary); }
+.fleet-sync-steps { list-style: none; display: flex; padding: 0; margin: 1rem 0; }
+.fleet-sync-steps li { flex: 1; display: grid; align-items: center; gap: .3rem; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+.fleet-sync-steps li > span { display: flex; height: 4px; background: var(--color-border-secondary); margin-inline-end: 3px; border-radius: 2px; }
+.fleet-sync-steps .is-done > span { background: var(--color-success); }
+.fleet-sync-steps .is-current > span { background: var(--color-info); }
+.fleet-sync-steps .is-current { color: var(--color-text-primary); font-weight: 700; }
+.fleet-sync-review summary { cursor: pointer; min-height: 36px; padding-block: .45rem; }
+.fleet-sync-review summary small { color: var(--color-text-tertiary); }
+.fleet-sync-review ul { max-height: 14rem; overflow: auto; margin: 0 0 .55rem; padding: 0; }
+.fleet-sync footer { margin-top: .85rem; justify-content: end; }
+.fleet-feed-error, .fleet-sync [role=alert] { color: var(--color-warning); }
+.fleet-more { margin-block-start: .75rem; }
+@media (max-width: 720px) {
+  .fleet-workspace.with-detail { grid-template-columns: minmax(0, 1fr); }
+  .fleet-aircraft-detail { grid-row: 1; }
+  .fleet-operation-buttons, .fleet-roster-tools { width: 100%; }
+}
+@media (max-width: 420px) {
+  .fleet-instruments > div { display: flex; flex-direction: column; align-items: start; gap: .35rem; }
+  .fleet-roster-tools label { flex: 1; }
 }

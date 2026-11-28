@@ -241,3 +241,15 @@ describe('fleetOpsViewModel', () => {
     });
   });
 });
+
+test('hardware IDs stay separate from overlapping position IDs', () => {
+  const git = { gcs_status: { commit: 'abc1234' }, git_status: {
+    1: { hw_id: '1', pos_id: 2, commit: 'unknown', status: 'unknown' },
+    2: { hw_id: '2', pos_id: 1, commit: 'abc1234', status: 'clean' },
+  } };
+  const fleet = buildFleetOpsViewModel(git, { heartbeats: [
+    { hw_id: '1', pos_id: 2, online: true }, { hw_id: '2', pos_id: 1, online: false },
+  ] });
+  expect(fleet.rows.find(row => row.hwId === '1')).toMatchObject({ online: true, needsAttention: true, sync: { state: 'unknown' } });
+  expect(fleet.rows.find(row => row.hwId === '2')).toMatchObject({ online: false, sync: { state: 'synced' } });
+});

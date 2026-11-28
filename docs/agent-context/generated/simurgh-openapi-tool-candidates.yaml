@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 234
+candidate_count: 235
 candidates:
 - callable: false
   classification:
@@ -2127,6 +2127,47 @@ candidates:
     operation_id: get_fleet_git_sync_table_api_v1_fleet_git_sync_get
     path: /api/v1/fleet/git-sync
     summary: Get Fleet Git Sync Table
+    tags:
+    - Git
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: sensitive_observe
+    inferred_sensitivity:
+    - fleet_identity
+    - repository
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
+    - keyword:sync
+  has_request_body: false
+  id: candidate.gcs.get.api.v1.fleet.git.sync.operations.by.operation.id
+  parameters:
+  - description: ''
+    in: path
+    name: operation_id
+    required: true
+    schema:
+      title: Operation Id
+      type: string
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema:
+    $ref: '#/components/schemas/GitUpdateStatus'
+  review_status: needs_review
+  source:
+    method: GET
+    operation_id: git_update_status_api_v1_fleet_git_sync_operations__operation_id__get
+    path: /api/v1/fleet/git-sync/operations/{operation_id}
+    summary: Git Update Status
     tags:
     - Git
 - callable: false
@@ -7262,7 +7303,15 @@ candidates:
     - request_body_present
   has_request_body: true
   id: candidate.gcs.post.api.v1.fleet.git.sync.apply
-  parameters: []
+  parameters:
+  - description: ''
+    in: query
+    name: background
+    required: false
+    schema:
+      default: false
+      title: Background
+      type: boolean
   promotion_contract:
     loaded_by_default_registry: false
     requires_docs: true
@@ -7274,7 +7323,10 @@ candidates:
     default_exposure: exclude
     reviewed_registry_entry_required: true
   response_schema:
-    $ref: '#/components/schemas/FleetGitSyncApplyResponse'
+    anyOf:
+    - $ref: '#/components/schemas/FleetGitSyncApplyResponse'
+    - $ref: '#/components/schemas/GitUpdateStatus'
+    title: Response Apply Fleet Git Sync Api V1 Fleet Git Sync Apply Post
   review_status: needs_review
   source:
     method: POST
@@ -9296,7 +9348,7 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: 6e7a8bbaeebe47ab98a19fdd2b3a7b21a5e6213eb641fc99d3d22df598ac2f3e
+  openapi_sha256: c15387fffce2ce6a23fa536334470dc3cb3aa7f90f2f335e2d232891d987576d
   title: GCS Server API
   version: '5.5'
 summary:

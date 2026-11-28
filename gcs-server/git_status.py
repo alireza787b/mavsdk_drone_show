@@ -20,6 +20,19 @@ git_status_data_all_drones: Dict[str, Dict[str, Any]] = {}
 data_lock_git_status = threading.Lock()
 
 
+def tracking_count(report: dict, field: str) -> int:
+    """Read a Git ahead/behind count, using -1 for a malformed observation."""
+    value = report.get(field, 0)  # Older companions omit zero counters.
+    if type(value) is int and value >= 0:
+        return value
+    if isinstance(value, str) and value.isascii() and value.isdecimal():
+        try:
+            return int(value)
+        except ValueError:
+            pass
+    return -1
+
+
 def commits_match(left_commit: str, right_commit: str) -> bool:
     """Treat matching short/full SHAs as equivalent when one is a prefix."""
     left = str(left_commit or "").strip().lower()

@@ -1,47 +1,21 @@
 # Fleet Ops
 
-Fleet Ops is the operator surface for node-level maintenance and compliance.
-GCS Runtime is for the GCS host; Fleet Ops is for drones.
+Open **Fleet Ops** to see which aircraft are connected and which report the same software as the ground station. Select an aircraft card to inspect its hardware ID, revision, update branch and last check. An offline card shows its last observation.
 
-Use Fleet Ops to answer:
+1. Choose **Sync online** to preview all eligible online aircraft. To update a subset, choose **Select aircraft**, tick the intended aircraft and choose **Sync selected**. Searching or filtering the roster preserves your selection.
+2. Check the aircraft identities and destination revision in **Review sync**. A recently lost heartbeat, unavailable revision or changed identity can exclude an aircraft. **Cancel** closes the preview. **Apply sync** starts the update for the reviewed recipients.
+3. Leave the page if you need another dashboard. Returning to Fleet Ops in the same tab restores the operation. **Verified** means the GCS read the requested branch and exact target commit from that hardware ID, with a clean worktree and zero tracking drift. A partial result lists each unconfirmed aircraft.
+4. If the connection drops, use **Refresh sync status** to read the existing receipt. A preview expires after five minutes. After a GCS interruption, review aircraft software before starting a fresh update.
 
-- which drones are online?
-- which drones are synced to the GCS commit?
-- which drones have healthy read-only git access?
-- which drones have healthy MAVLink routing sidecars?
-- which drones need connectivity-sidecar attention?
-- which selected drones should preview, apply sync, reconcile, or change
-  sidecar policy now?
+![Fleet Ops showing the online count and reported software state of four example aircraft](../assets/fleet-ops/overview.png)
 
-Fleet Ops is actionable, but guarded:
+![Sync preview listing the two selected hardware IDs and the destination revision](../assets/fleet-ops/sync-preview.png)
 
-- selected-node sync is preview first, then confirmed apply;
-- Smart Wi-Fi and MAVLink profile reconcile are preview first, then confirmed
-  apply;
-- sidecar policy mode changes are preview first, then confirmed apply;
-- direct dashboard links are shown only when the node reports a reachable URL;
-- local-only sidecar dashboards remain visible as disabled diagnostic icons;
-- raw tokens, private keys, and secret file contents are never shown in browser UI.
+A clean matching revision on another branch counts as synced when tracking is even. The branch name appears in aircraft details. To align it deliberately, go to **Maintenance → Repository access → Align branch** and review that aircraft.
 
-A preview is the operator review step for any fleet mutation. It resolves the
-selected drones, verifies presence/eligibility, reads current node posture, and
-returns the exact sync/reconcile/policy plan without writing files, restarting
-services, changing Wi-Fi, changing MAVLink routes, or changing sidecar policy.
-Apply is a separate confirmed action against the reviewed preview. Some API
-routes still use `dry-run` in their path names; the dashboard shows this as
-**Preview** so operators see the workflow rather than an implementation detail.
+The dashboard software notice opens a read-only review. A revision difference, local edits, tracking drift, an unavailable revision, or an explicit managed service/profile discrepancy can raise the notice. Each affected aircraft contributes once. The notice clears with the next shared status update.
 
-When the global sync warning banner appears, **Start sync** opens Fleet Ops with
-the Sync tab, Drift filter, and eligible online drifted drones preselected. It
-also starts the git-sync preview automatically so the operator lands directly on
-the review panel. This still does not send `UPDATE_CODE`; the apply step remains
-separate and requires explicit acknowledgement.
-
-The git-sync UI reports progress in four visible stages: `Preview`, `Review`,
-`Apply`, and `Verify`. During apply, the primary button changes to `Applying...`,
-the progress panel becomes a live status region, and the final result remains
-visible as success, warning, or failure. If an apply request is slow over a field
-link, this status is the expected operator evidence that the click was accepted.
+**Maintenance** contains Wi-Fi profiles, MAVLink routing, per-aircraft repository access and service reports. The original Wi-Fi and MAVLink bookmarks still work. The GCS Runtime link opens host administration. Installations that use a separate Fleet Ops mutation token can set it under **Repository access → Maintenance token** for the current tab.
 
 ## Data Sources
 
@@ -52,6 +26,7 @@ Fleet Ops uses existing GCS APIs:
 - `GET /api/v1/fleet/git-sync`
 - `POST /api/v1/fleet/git-sync/dry-run`
 - `POST /api/v1/fleet/git-sync/apply`
+- `GET /api/v1/fleet/git-sync/operations/{operation_id}`
 - `GET /api/v1/fleet/sidecars`
 - `GET /api/v1/fleet/sidecars/{sidecar}`
 - `GET /api/v1/fleet/sidecars/{sidecar}/baseline`
@@ -96,8 +71,7 @@ The thresholds are registry-backed GCS env keys:
 
 ### Synced
 
-Means the node commit matches the GCS commit. A drifted node may still be
-running, but it should not be treated as handoff-ready until it has synced.
+The node reports the same revision as the GCS, a clean worktree and zero commits ahead or behind. Aircraft presence and flight readiness have their own indicators.
 
 After a confirmed apply, Fleet Ops waits for the exact target branch and
 commit, a clean worktree, and zero ahead/behind drift. The bounded verification
@@ -120,7 +94,7 @@ For SITL containers, `service_reload_status=skipped` is expected. SITL does not
 own real-node systemd units inside the git-sync path, so Fleet Ops treats that
 state as healthy/not applicable rather than drift.
 
-The **Drift** filter covers more than commit mismatch. It includes repository
+The **Review software** filter covers more than commit mismatch. It includes repository
 drift, node-local git-sync runtime warnings, and sidecar desired/applied hash
 drift so a synced commit cannot hide an unapplied service or profile update.
 
@@ -227,23 +201,6 @@ MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
 
 Do not expose sidecar dashboards on untrusted networks. Prefer NetBird, a local
 field LAN, or a future GCS proxy surface.
-
-## Current Boundaries
-
-Fleet Ops owns drone-side action surfaces:
-
-- selected-node git sync;
-- selected-node post-sync sidecar reconcile;
-- Smart Wi-Fi and MAVLink profile table/status;
-- Smart Wi-Fi and MAVLink profile reconcile preview/apply;
-- sidecar policy mode preview/apply;
-- dashboard open links when reachable;
-- git auth posture;
-- MAVLink and Smart Wi-Fi profile drift visibility.
-
-Fleet Ops does not currently own GCS host runtime changes. GCS Runtime remains
-the single source of truth for host mode switching, GCS restart, GCS update,
-GCS auth status, and local sidecar runtime diagnostics.
 
 ## Related Guides
 

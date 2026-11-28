@@ -21,20 +21,26 @@ const SyncWarningBanner = () => {
   }, []);
   const drift = Math.max(0, Number(syncData?.needs_sync_count) || 0);
   const unknown = Math.max(0, Number(syncData?.unknown_count) || 0);
-  const branchOnly = drift > 0 && drift === syncData?.branch_only_count && !unknown;
-  const signature = JSON.stringify([syncData?.gcs_status?.commit, drift, unknown, branchOnly,
-    Object.entries(syncData?.git_status || {}).filter(([, row]) => row && row.in_sync_with_gcs !== true).map(([id, row]) =>
-      [id, row.commit, row.status, row.in_sync_with_gcs]).sort((a, b) => a[0].localeCompare(b[0]))]);
-  if (!syncData || !(drift || unknown) || dismissedSignature === signature) return null;
+  const maintenance = syncData?.maintenance_count || 0;
+  // Older GCS builds included clean branch-only rows in the drift count.
+  const driftCount = syncData?.attention_count == null
+    ? Math.max(0, drift - (syncData?.branch_only_count || 0)) : drift;
+  const count = syncData?.attention_count ?? (driftCount + unknown);
+  const signature = JSON.stringify([syncData?.gcs_status?.commit, driftCount, unknown, maintenance,
+    Object.entries(syncData?.git_status || {})
+      .filter(([, row]) => row && row.reviewable !== false && (!row.in_sync_with_gcs || row.maintenance_drift))
+      .map(([id, row]) => [id, row.commit, row.status, row.maintenance_drift])
+      .sort((a, b) => a[0].localeCompare(b[0]))]);
+  if (!count || dismissedSignature === signature) return null;
   const stale = nowMs - snapshot.receivedAtMs >= 30000;
-  const unavailable = stale || !drift;
+  const unavailable = stale || (!driftCount && !maintenance);
   const Icon = unavailable ? FaQuestionCircle : FaCodeBranch;
-  const count = drift + unknown;
-  const label = stale ? 'Software status unavailable' : branchOnly ? 'Update branch differs' : drift ? 'Review software' : 'Version unavailable';
-  const detail = stale
-    ? 'Last observed software status. Open Fleet operations to check connectivity and source revisions.'
-    : branchOnly ? 'Aircraft report the same commit as the GCS on a different update branch.'
-    : `${drift} to review, ${unknown} unconfirmed. Open Fleet operations to inspect the revisions.`;
+  let label = 'Review software';
+  if (stale) label = 'Software status unavailable';
+  else if (unavailable) label = 'Version unavailable';
+  else if (!driftCount && maintenance) label = 'Review maintenance';
+  const detail = stale ? 'Showing the last received software report.'
+    : `${driftCount} software differences, ${unknown} unconfirmed revisions, ${maintenance} maintenance issues.`;
 
   return (
     <div className={`sync-warning-banner${unavailable ? ' is-unconfirmed' : ''}`} role="status" aria-live="polite">

@@ -30,6 +30,7 @@ import {
   getGcsEnvResponse,
   getConnectivityProfileResponse,
   getFleetGitSyncResponse,
+  getFleetGitOperationResponse,
   getFleetSidecarResponse,
   getFleetSidecarBaselineResponse,
   promoteFleetSidecarDraftResponse,
@@ -304,6 +305,15 @@ describe('gcsApiService', () => {
       { dry_run_id: 'git-sync-1' },
       authConfig({ timeout: 4000 })
     );
+  });
+
+  it('reads the server receipt and submits a background update against the reviewed preview', async () => {
+    await getFleetGitOperationResponse('git-sync-1');
+    await applyFleetGitSyncResponse({dry_run_id: 'git-sync-1'}, {params: {background: true}});
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/fleet/git-sync/operations/git-sync-1', authConfig());
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/fleet/git-sync/apply', {dry_run_id: 'git-sync-1'}, authConfig({params: {background: true}}));
   });
 
   it('uses canonical Fleet Ops sidecar routes and mutation token headers', async () => {

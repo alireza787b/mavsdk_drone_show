@@ -1,24 +1,18 @@
 """Git status and repo sync routes for the GCS FastAPI app."""
 
-import asyncio
-import hashlib
-import hmac
-import json
-import os
+import secrets
 import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, WebSocket
+from fastapi import APIRouter, HTTPException, Query, WebSocket
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from auth_runtime import authorize_websocket
 from observation_stream import LatestObservationPublisher, serve_observations
-from command_execution_policy import CommandSubmissionAuthority
-from command_submission import submit_tracked_command
-from command_tracker import CommandCompletionAuthority
-from git_status import commits_match
+from api_routes.fleet_git_sync import FleetGitSyncDryRunRequest, create_fleet_git_sync_router
+from fleet_git_operations import now_ms
+from git_status import commits_match, tracking_count
 from presence import build_presence_snapshot, resolve_presence_thresholds
 from overview_display_policy import resolve_overview_display_policy
 from schemas import (
@@ -30,32 +24,10 @@ from schemas import (
     GitStatus,
     GitStatusResponse,
     GitStatusSnapshotResponse,
-    FleetGitSyncApplyResponse,
-    SubmitCommandRequest,
 )
 from src.managed_runtime_status import resolve_dashboard_access
-from src.enums import Mission
 
-FLEET_OPS_MUTATION_TOKEN_ENV = "MDS_FLEET_OPS_MUTATION_TOKEN"
 GIT_SYNC_SCHEMA = "mds.fleet_git_sync.v1"
-GIT_SYNC_DRY_RUN_TTL_SECONDS = 300
-_git_sync_jobs: dict[str, dict[str, Any]] = {}
-
-
-class FleetGitSyncDryRunRequest(BaseModel):
-    pos_ids: list[int] | None = None
-    include_offline: bool = False
-
-
-class GitSyncActionConfirmation(BaseModel):
-    operator: str | None = None
-    acknowledged_risks: bool = False
-    confirmation_token: str | None = None
-
-
-class FleetGitSyncApplyRequest(BaseModel):
-    dry_run_id: str
-    confirmation: GitSyncActionConfirmation
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -81,207 +53,176 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
         gcs_status = None
 
     gcs_branch = (gcs_status or {}).get("branch")
-    gcs_commit = (gcs_status or {}).get("commit")
     transformed_git_status = {}
     branch_only_count = 0
     reviewable_hw_ids = _resolve_reviewable_hw_ids(deps)
 
     with deps.data_lock_git_status:
-        for hw_id, raw_data in deps.git_status_data_all_drones.items():
-            if not raw_data:
-                continue
+        reports = {str(key): value for key, value in deps.git_status_data_all_drones.items()}
+    for hw_id in (reviewable_hw_ids or set()) & drone_map.keys():
+        reports.setdefault(hw_id, {})
 
-            drone_info = drone_map.get(str(hw_id), {})
-            raw_status = raw_data.get("status", "unknown")
-            commits_behind = raw_data.get("commits_behind", 0)
-            commits_ahead = raw_data.get("commits_ahead", 0)
+    for hw_id, raw_data in reports.items():
+        drone_info = drone_map.get(hw_id, {})
+        raw_data = raw_data or {}
+        mapped_status, in_sync_with_gcs = _git_row_status(raw_data, gcs_status, deps.Params)
+        commit_hash = raw_data.get("commit") or "unknown"
+        reviewable = reviewable_hw_ids is None or hw_id in reviewable_hw_ids
+        if (reviewable and in_sync_with_gcs and gcs_branch
+                and raw_data.get("branch") not in (None, "", "unknown", gcs_branch)):
+            branch_only_count += 1
 
-            if raw_status == "clean" and commits_behind == 0 and commits_ahead == 0:
-                mapped_status = GitStatus.SYNCED
-            elif commits_behind > 0 and commits_ahead > 0:
-                mapped_status = GitStatus.DIVERGED
-            elif commits_behind > 0:
-                mapped_status = GitStatus.BEHIND
-            elif commits_ahead > 0:
-                mapped_status = GitStatus.AHEAD
-            elif raw_status == "dirty":
-                mapped_status = GitStatus.DIRTY
-            elif raw_status == "clean":
-                mapped_status = GitStatus.SYNCED
-            else:
-                try:
-                    mapped_status = GitStatus(raw_status)
-                except ValueError:
-                    mapped_status = GitStatus.UNKNOWN
+        drone_ip = drone_info.get("ip", "unknown")
+        raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
+        raw_connectivity_runtime = raw_data.get("connectivity_runtime") if isinstance(raw_data.get("connectivity_runtime"), dict) else None
+        raw_git_sync_runtime = raw_data.get("git_sync_runtime") if isinstance(raw_data.get("git_sync_runtime"), dict) else None
+        raw_env_runtime = raw_data.get("env_runtime") if isinstance(raw_data.get("env_runtime"), dict) else None
 
-            commit_hash = raw_data.get("commit", "unknown")
-            same_branch_as_gcs = raw_data.get("branch") == gcs_branch if gcs_branch else mapped_status == GitStatus.SYNCED
-            same_commit_as_gcs = commits_match(commit_hash, gcs_commit) if gcs_commit else mapped_status == GitStatus.SYNCED
-            in_sync_with_gcs = (
-                same_branch_as_gcs
-                and same_commit_as_gcs
-                and mapped_status != GitStatus.UNKNOWN
-                and raw_status != "dirty"
-                and not raw_data.get("uncommitted_changes")
+        mavlink_runtime = None
+        if raw_mavlink_runtime:
+            dashboard_enabled = bool(raw_mavlink_runtime.get("dashboard_enabled", False))
+            access = (
+                {"dashboard_access_mode": "disabled", "dashboard_url": None}
+                if not dashboard_enabled
+                else resolve_dashboard_access(drone_ip, raw_mavlink_runtime.get("dashboard_listen"))
+            )
+            mavlink_runtime = DroneMavlinkRuntimeStatus(
+                tool=raw_mavlink_runtime.get("tool", "mavlink-anywhere"),
+                status_source=raw_mavlink_runtime.get("status_source", "unknown"),
+                mode=raw_mavlink_runtime.get("mode"),
+                management_mode=raw_mavlink_runtime.get("management_mode", "unknown"),
+                service_state=raw_mavlink_runtime.get("service_state"),
+                ref=raw_mavlink_runtime.get("ref", "unknown"),
+                installed_ref=raw_mavlink_runtime.get("installed_ref"),
+                repo_web_url=raw_mavlink_runtime.get("repo_web_url"),
+                install_dir_present=bool(raw_mavlink_runtime.get("install_dir_present", False)),
+                runtime_present=bool(raw_mavlink_runtime.get("runtime_present", False)),
+                runtime_head=raw_mavlink_runtime.get("runtime_head"),
+                router_service_status=raw_mavlink_runtime.get("router_service_status", "unknown"),
+                dashboard_enabled=dashboard_enabled,
+                dashboard_listen=raw_mavlink_runtime.get("dashboard_listen", ""),
+                dashboard_service_status=raw_mavlink_runtime.get("dashboard_service_status", "unknown"),
+                dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
+                dashboard_url=access.get("dashboard_url"),
+                desired_config_hash=raw_mavlink_runtime.get("desired_config_hash"),
+                applied_config_hash=raw_mavlink_runtime.get("applied_config_hash"),
+                config_hash_match=raw_mavlink_runtime.get("config_hash_match"),
+                profile_source=raw_mavlink_runtime.get("profile_source"),
+                desired_hash=raw_mavlink_runtime.get("desired_hash"),
+                applied_hash=raw_mavlink_runtime.get("applied_hash"),
+                local_hash=raw_mavlink_runtime.get("local_hash"),
+                drift_state=raw_mavlink_runtime.get("drift_state"),
+                profile_summary=raw_mavlink_runtime.get("profile_summary") or {},
+                last_apply_result=raw_mavlink_runtime.get("last_apply_result"),
             )
 
-            if (
-                (reviewable_hw_ids is None or str(hw_id) in reviewable_hw_ids)
-                and gcs_branch and raw_data.get("branch") not in (None, "", "unknown", gcs_branch)
-                and gcs_commit and same_commit_as_gcs and raw_status == "clean"
-                and not raw_data.get("uncommitted_changes")
-            ):
-                branch_only_count += 1
-
-            drone_ip = drone_info.get("ip", "unknown")
-            raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
-            raw_connectivity_runtime = raw_data.get("connectivity_runtime") if isinstance(raw_data.get("connectivity_runtime"), dict) else None
-            raw_git_sync_runtime = raw_data.get("git_sync_runtime") if isinstance(raw_data.get("git_sync_runtime"), dict) else None
-            raw_env_runtime = raw_data.get("env_runtime") if isinstance(raw_data.get("env_runtime"), dict) else None
-
-            mavlink_runtime = None
-            if raw_mavlink_runtime:
-                dashboard_enabled = bool(raw_mavlink_runtime.get("dashboard_enabled", False))
-                access = (
-                    {"dashboard_access_mode": "disabled", "dashboard_url": None}
-                    if not dashboard_enabled
-                    else resolve_dashboard_access(drone_ip, raw_mavlink_runtime.get("dashboard_listen"))
-                )
-                mavlink_runtime = DroneMavlinkRuntimeStatus(
-                    tool=raw_mavlink_runtime.get("tool", "mavlink-anywhere"),
-                    status_source=raw_mavlink_runtime.get("status_source", "unknown"),
-                    mode=raw_mavlink_runtime.get("mode"),
-                    management_mode=raw_mavlink_runtime.get("management_mode", "unknown"),
-                    service_state=raw_mavlink_runtime.get("service_state"),
-                    ref=raw_mavlink_runtime.get("ref", "unknown"),
-                    installed_ref=raw_mavlink_runtime.get("installed_ref"),
-                    repo_web_url=raw_mavlink_runtime.get("repo_web_url"),
-                    install_dir_present=bool(raw_mavlink_runtime.get("install_dir_present", False)),
-                    runtime_present=bool(raw_mavlink_runtime.get("runtime_present", False)),
-                    runtime_head=raw_mavlink_runtime.get("runtime_head"),
-                    router_service_status=raw_mavlink_runtime.get("router_service_status", "unknown"),
-                    dashboard_enabled=dashboard_enabled,
-                    dashboard_listen=raw_mavlink_runtime.get("dashboard_listen", ""),
-                    dashboard_service_status=raw_mavlink_runtime.get("dashboard_service_status", "unknown"),
-                    dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
-                    dashboard_url=access.get("dashboard_url"),
-                    desired_config_hash=raw_mavlink_runtime.get("desired_config_hash"),
-                    applied_config_hash=raw_mavlink_runtime.get("applied_config_hash"),
-                    config_hash_match=raw_mavlink_runtime.get("config_hash_match"),
-                    profile_source=raw_mavlink_runtime.get("profile_source"),
-                    desired_hash=raw_mavlink_runtime.get("desired_hash"),
-                    applied_hash=raw_mavlink_runtime.get("applied_hash"),
-                    local_hash=raw_mavlink_runtime.get("local_hash"),
-                    drift_state=raw_mavlink_runtime.get("drift_state"),
-                    profile_summary=raw_mavlink_runtime.get("profile_summary") or {},
-                    last_apply_result=raw_mavlink_runtime.get("last_apply_result"),
-                )
-
-            connectivity_runtime = None
-            if raw_connectivity_runtime:
-                access = resolve_dashboard_access(drone_ip, raw_connectivity_runtime.get("dashboard_listen"))
-                connectivity_runtime = DroneConnectivityRuntimeStatus(
-                    tool=raw_connectivity_runtime.get("tool", "smart-wifi-manager"),
-                    status_source=raw_connectivity_runtime.get("status_source", "unknown"),
-                    backend=raw_connectivity_runtime.get("backend", "unknown"),
-                    service_state=raw_connectivity_runtime.get("service_state"),
-                    ref=raw_connectivity_runtime.get("ref", "unknown"),
-                    installed_ref=raw_connectivity_runtime.get("installed_ref"),
-                    repo_web_url=raw_connectivity_runtime.get("repo_web_url"),
-                    install_dir_present=bool(raw_connectivity_runtime.get("install_dir_present", False)),
-                    mode=raw_connectivity_runtime.get("mode", "unknown"),
-                    import_mode=raw_connectivity_runtime.get("import_mode", "unknown"),
-                    profile_present=bool(raw_connectivity_runtime.get("profile_present", False)),
-                    profile_hash=raw_connectivity_runtime.get("profile_hash"),
-                    dashboard_listen=raw_connectivity_runtime.get("dashboard_listen", ""),
-                    service_status=raw_connectivity_runtime.get("service_status", "unknown"),
-                    dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
-                    dashboard_url=access.get("dashboard_url"),
-                    desired_config_hash=raw_connectivity_runtime.get("desired_config_hash"),
-                    applied_config_hash=raw_connectivity_runtime.get("applied_config_hash"),
-                    config_hash_match=raw_connectivity_runtime.get("config_hash_match"),
-                    profile_source=raw_connectivity_runtime.get("profile_source"),
-                    desired_hash=raw_connectivity_runtime.get("desired_hash"),
-                    applied_hash=raw_connectivity_runtime.get("applied_hash"),
-                    local_hash=raw_connectivity_runtime.get("local_hash"),
-                    drift_state=raw_connectivity_runtime.get("drift_state"),
-                    profile_summary=raw_connectivity_runtime.get("profile_summary") or {},
-                    last_apply_result=raw_connectivity_runtime.get("last_apply_result"),
-                )
-
-            git_sync_runtime = None
-            if raw_git_sync_runtime:
-                git_sync_runtime = DroneGitSyncRuntimeStatus(
-                    status=raw_git_sync_runtime.get("status", "unknown"),
-                    summary=raw_git_sync_runtime.get("summary", ""),
-                    phase=raw_git_sync_runtime.get("phase", "unknown"),
-                    phase_message=raw_git_sync_runtime.get("phase_message", ""),
-                    last_run_at_ms=raw_git_sync_runtime.get("last_run_at_ms"),
-                    updated_units=raw_git_sync_runtime.get("updated_units", []),
-                    service_reload_status=raw_git_sync_runtime.get("service_reload_status", "unknown"),
-                    service_reload_message=raw_git_sync_runtime.get("service_reload_message", ""),
-                    deferred_unit_actions=raw_git_sync_runtime.get("deferred_unit_actions", []),
-                    coordinator_restart_scheduled=bool(raw_git_sync_runtime.get("coordinator_restart_scheduled", False)),
-                    connectivity_reconcile_status=raw_git_sync_runtime.get("connectivity_reconcile_status", "unknown"),
-                    mavlink_runtime_reconcile_status=raw_git_sync_runtime.get("mavlink_runtime_reconcile_status", "unknown"),
-                    mavsdk_runtime_status=raw_git_sync_runtime.get("mavsdk_runtime_status", "unknown"),
-                    requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
-                    recovery_action=raw_git_sync_runtime.get("recovery_action", "none"),
-                    recovery_backup_path=raw_git_sync_runtime.get("recovery_backup_path"),
-                    disk_available_status=raw_git_sync_runtime.get("disk_available_status", "unknown"),
-                    disk_free_kb=raw_git_sync_runtime.get("disk_free_kb"),
-                )
-
-            env_runtime = None
-            if raw_env_runtime:
-                raw_env_hw_id = raw_env_runtime.get("hw_id")
-                env_hw_id = _safe_int(raw_env_hw_id, 0) or None
-                env_runtime = DroneEnvRuntimeStatus(
-                    status_source=raw_env_runtime.get("status_source", "unknown"),
-                    registry_version=_safe_int(raw_env_runtime.get("registry_version"), 0),
-                    registry_hash=raw_env_runtime.get("registry_hash", ""),
-                    local_env_path=raw_env_runtime.get("local_env_path", ""),
-                    local_env_present=bool(raw_env_runtime.get("local_env_present", False)),
-                    node_identity_path=raw_env_runtime.get("node_identity_path", ""),
-                    node_identity_present=bool(raw_env_runtime.get("node_identity_present", False)),
-                    runtime_mode=raw_env_runtime.get("runtime_mode", "unknown"),
-                    runtime_mode_source=raw_env_runtime.get("runtime_mode_source", "unknown"),
-                    hw_id=env_hw_id,
-                    hw_id_source=raw_env_runtime.get("hw_id_source", "unknown"),
-                    configured_key_count=_safe_int(raw_env_runtime.get("configured_key_count"), 0),
-                    configured_node_key_count=_safe_int(raw_env_runtime.get("configured_node_key_count"), 0),
-                    registered_node_key_count=_safe_int(raw_env_runtime.get("registered_node_key_count"), 0),
-                    unknown_keys=_safe_string_list(raw_env_runtime.get("unknown_keys")),
-                    deprecated_keys=_safe_string_list(raw_env_runtime.get("deprecated_keys")),
-                    warnings=_safe_string_list(raw_env_runtime.get("warnings")),
-                )
-
-            transformed_git_status[str(hw_id)] = DroneGitStatus(
-                pos_id=int(drone_info.get("pos_id", hw_id)),
-                hw_id=str(hw_id),
-                ip=drone_ip,
-                branch=raw_data.get("branch", "unknown"),
-                commit=commit_hash,
-                commit_message=raw_data.get("commit_message"),
-                commit_date=raw_data.get("commit_date"),
-                author_name=raw_data.get("author_name"),
-                author_email=raw_data.get("author_email"),
-                status=mapped_status,
-                in_sync_with_gcs=in_sync_with_gcs,
-                commits_ahead=raw_data.get("commits_ahead", 0),
-                commits_behind=raw_data.get("commits_behind", 0),
-                uncommitted_changes=raw_data.get("uncommitted_changes", []),
-                repo_access_mode=raw_data.get("repo_access_mode", "custom_or_unknown"),
-                git_auth_health_status=raw_data.get("git_auth_health_status", "unknown"),
-                git_auth_health_summary=raw_data.get("git_auth_health_summary"),
-                git_auth_health_issues=raw_data.get("git_auth_health_issues", []),
-                mavlink_runtime=mavlink_runtime,
-                connectivity_runtime=connectivity_runtime,
-                git_sync_runtime=git_sync_runtime,
-                env_runtime=env_runtime,
-                last_check=raw_data.get("last_check", 0),
-                last_sync=None,
+        connectivity_runtime = None
+        if raw_connectivity_runtime:
+            access = resolve_dashboard_access(drone_ip, raw_connectivity_runtime.get("dashboard_listen"))
+            connectivity_runtime = DroneConnectivityRuntimeStatus(
+                tool=raw_connectivity_runtime.get("tool", "smart-wifi-manager"),
+                status_source=raw_connectivity_runtime.get("status_source", "unknown"),
+                backend=raw_connectivity_runtime.get("backend", "unknown"),
+                service_state=raw_connectivity_runtime.get("service_state"),
+                ref=raw_connectivity_runtime.get("ref", "unknown"),
+                installed_ref=raw_connectivity_runtime.get("installed_ref"),
+                repo_web_url=raw_connectivity_runtime.get("repo_web_url"),
+                install_dir_present=bool(raw_connectivity_runtime.get("install_dir_present", False)),
+                mode=raw_connectivity_runtime.get("mode", "unknown"),
+                import_mode=raw_connectivity_runtime.get("import_mode", "unknown"),
+                profile_present=bool(raw_connectivity_runtime.get("profile_present", False)),
+                profile_hash=raw_connectivity_runtime.get("profile_hash"),
+                dashboard_listen=raw_connectivity_runtime.get("dashboard_listen", ""),
+                service_status=raw_connectivity_runtime.get("service_status", "unknown"),
+                dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
+                dashboard_url=access.get("dashboard_url"),
+                desired_config_hash=raw_connectivity_runtime.get("desired_config_hash"),
+                applied_config_hash=raw_connectivity_runtime.get("applied_config_hash"),
+                config_hash_match=raw_connectivity_runtime.get("config_hash_match"),
+                profile_source=raw_connectivity_runtime.get("profile_source"),
+                desired_hash=raw_connectivity_runtime.get("desired_hash"),
+                applied_hash=raw_connectivity_runtime.get("applied_hash"),
+                local_hash=raw_connectivity_runtime.get("local_hash"),
+                drift_state=raw_connectivity_runtime.get("drift_state"),
+                profile_summary=raw_connectivity_runtime.get("profile_summary") or {},
+                last_apply_result=raw_connectivity_runtime.get("last_apply_result"),
             )
+
+        git_sync_runtime = None
+        if raw_git_sync_runtime:
+            git_sync_runtime = DroneGitSyncRuntimeStatus(
+                status=raw_git_sync_runtime.get("status", "unknown"),
+                summary=raw_git_sync_runtime.get("summary", ""),
+                phase=raw_git_sync_runtime.get("phase", "unknown"),
+                phase_message=raw_git_sync_runtime.get("phase_message", ""),
+                last_run_at_ms=raw_git_sync_runtime.get("last_run_at_ms"),
+                updated_units=raw_git_sync_runtime.get("updated_units", []),
+                service_reload_status=raw_git_sync_runtime.get("service_reload_status", "unknown"),
+                service_reload_message=raw_git_sync_runtime.get("service_reload_message", ""),
+                deferred_unit_actions=raw_git_sync_runtime.get("deferred_unit_actions", []),
+                coordinator_restart_scheduled=bool(raw_git_sync_runtime.get("coordinator_restart_scheduled", False)),
+                connectivity_reconcile_status=raw_git_sync_runtime.get("connectivity_reconcile_status", "unknown"),
+                mavlink_runtime_reconcile_status=raw_git_sync_runtime.get("mavlink_runtime_reconcile_status", "unknown"),
+                mavsdk_runtime_status=raw_git_sync_runtime.get("mavsdk_runtime_status", "unknown"),
+                requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
+                recovery_action=raw_git_sync_runtime.get("recovery_action", "none"),
+                recovery_backup_path=raw_git_sync_runtime.get("recovery_backup_path"),
+                disk_available_status=raw_git_sync_runtime.get("disk_available_status", "unknown"),
+                disk_free_kb=raw_git_sync_runtime.get("disk_free_kb"),
+            )
+
+        env_runtime = None
+        if raw_env_runtime:
+            raw_env_hw_id = raw_env_runtime.get("hw_id")
+            env_hw_id = _safe_int(raw_env_hw_id, 0) or None
+            env_runtime = DroneEnvRuntimeStatus(
+                status_source=raw_env_runtime.get("status_source", "unknown"),
+                registry_version=_safe_int(raw_env_runtime.get("registry_version"), 0),
+                registry_hash=raw_env_runtime.get("registry_hash", ""),
+                local_env_path=raw_env_runtime.get("local_env_path", ""),
+                local_env_present=bool(raw_env_runtime.get("local_env_present", False)),
+                node_identity_path=raw_env_runtime.get("node_identity_path", ""),
+                node_identity_present=bool(raw_env_runtime.get("node_identity_present", False)),
+                runtime_mode=raw_env_runtime.get("runtime_mode", "unknown"),
+                runtime_mode_source=raw_env_runtime.get("runtime_mode_source", "unknown"),
+                hw_id=env_hw_id,
+                hw_id_source=raw_env_runtime.get("hw_id_source", "unknown"),
+                configured_key_count=_safe_int(raw_env_runtime.get("configured_key_count"), 0),
+                configured_node_key_count=_safe_int(raw_env_runtime.get("configured_node_key_count"), 0),
+                registered_node_key_count=_safe_int(raw_env_runtime.get("registered_node_key_count"), 0),
+                unknown_keys=_safe_string_list(raw_env_runtime.get("unknown_keys")),
+                deprecated_keys=_safe_string_list(raw_env_runtime.get("deprecated_keys")),
+                warnings=_safe_string_list(raw_env_runtime.get("warnings")),
+            )
+
+        transformed_git_status[str(hw_id)] = DroneGitStatus(
+            pos_id=int(drone_info.get("pos_id", hw_id)),
+            hw_id=str(hw_id),
+            ip=drone_ip,
+            branch=raw_data.get("branch", "unknown"),
+            commit=commit_hash,
+            commit_message=raw_data.get("commit_message"),
+            commit_date=raw_data.get("commit_date"),
+            author_name=raw_data.get("author_name"),
+            author_email=raw_data.get("author_email"),
+            status=mapped_status,
+            in_sync_with_gcs=in_sync_with_gcs,
+            reviewable=reviewable,
+            maintenance_drift=_maintenance_drift(mavlink_runtime, connectivity_runtime, git_sync_runtime),
+            commits_ahead=max(0, _safe_int(raw_data.get("commits_ahead"))),
+            commits_behind=max(0, _safe_int(raw_data.get("commits_behind"))),
+            uncommitted_changes=raw_data.get("uncommitted_changes", []),
+            repo_access_mode=raw_data.get("repo_access_mode", "custom_or_unknown"),
+            git_auth_health_status=raw_data.get("git_auth_health_status", "unknown"),
+            git_auth_health_summary=raw_data.get("git_auth_health_summary"),
+            git_auth_health_issues=raw_data.get("git_auth_health_issues", []),
+            mavlink_runtime=mavlink_runtime,
+            connectivity_runtime=connectivity_runtime,
+            git_sync_runtime=git_sync_runtime,
+            env_runtime=env_runtime,
+            last_check=raw_data.get("last_check", 0),
+            last_sync=None,
+        )
 
     reviewable_statuses = [
         status
@@ -298,6 +239,8 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
         needs_sync_count=len(reviewable_statuses) - synced_count - unknown_count,
         unknown_count=unknown_count,
         branch_only_count=branch_only_count,
+        maintenance_count=sum(row.maintenance_drift for row in reviewable_statuses),
+        attention_count=sum(not row.in_sync_with_gcs or row.maintenance_drift for row in reviewable_statuses),
         gcs_status=gcs_status,
         sync_in_progress=deps._sync_state["active"],
         timestamp=int(time.time() * 1000),
@@ -344,91 +287,77 @@ def _resolve_reviewable_hw_ids(deps: Any) -> set[str] | None:
     return online_hw_ids
 
 
-def _require_mutation_authority(request: Request) -> None:
-    expected = os.environ.get(FLEET_OPS_MUTATION_TOKEN_ENV, "").strip()
-    if not expected:
-        return
-    supplied = request.headers.get("x-fleet-ops-token", "").strip()
-    auth_header = request.headers.get("authorization", "").strip()
-    if not supplied and auth_header.lower().startswith("bearer "):
-        supplied = auth_header[7:].strip()
-    if not supplied or not hmac.compare_digest(supplied, expected):
-        raise HTTPException(status_code=403, detail="invalid Fleet Ops mutation token")
-
-
-def _job_confirmation_token(job: dict[str, Any]) -> str:
-    seed = json.dumps(
-        {
-            "job_id": job.get("job_id"),
-            "kind": job.get("kind"),
-            "target_branch": job.get("target_branch"),
-            "target_commit": job.get("target_commit"),
-            "targets": job.get("targets", []),
-            "created_at": job.get("created_at"),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
-
-
-def _confirmation_token_matches(job: dict[str, Any], supplied: str | None) -> bool:
-    expected = str(job.get("confirmation_token") or "")
-    return bool(expected and supplied and hmac.compare_digest(str(supplied).strip(), expected))
-
-
 def _safe_heartbeats(deps: Any) -> dict[str, dict[str, Any]]:
     try:
-        heartbeats = deps.get_all_heartbeats() or {}
-    except Exception:
-        return {}
+        heartbeats = deps.get_all_heartbeats()
+    except Exception as exc:
+        raise HTTPException(503, "Aircraft presence unavailable") from exc
     if not isinstance(heartbeats, dict):
-        return {}
+        raise HTTPException(503, "Aircraft presence unavailable")
     return {str(key): value for key, value in heartbeats.items() if isinstance(value, dict)}
 
 
 def _presence_for_hw_id(deps: Any, hw_id: str, heartbeats: dict[str, dict[str, Any]]) -> dict[str, Any]:
     heartbeat = heartbeats.get(str(hw_id), {})
-    timestamp_ms = heartbeat.get("timestamp") or heartbeat.get("last_heartbeat")
-    if not timestamp_ms:
+    if str(heartbeat.get("hw_id", hw_id)) != hw_id:
         return {"state": "unknown", "fresh": False, "last_seen_ms": None}
-    try:
-        last_seen_ms = int(float(timestamp_ms))
-    except (TypeError, ValueError):
+    if not heartbeat.get("timestamp") and heartbeat.get("last_heartbeat"):
+        heartbeat = {**heartbeat, "timestamp": heartbeat["last_heartbeat"]}
+    # Timestamp-only records can be in seconds or milliseconds. Prefer the time the GCS received the heartbeat.
+    snapshot = build_presence_snapshot(hw_id=hw_id, heartbeat=heartbeat, thresholds=resolve_presence_thresholds(deps.Params))
+    received = snapshot.get("last_seen_ms")
+    if not received:
         return {"state": "unknown", "fresh": False, "last_seen_ms": None}
+    age = (now_ms() - received) / 1000.0
     timeout = float(getattr(deps.Params, "TELEMETRY_POLLING_TIMEOUT", 5) or 5)
-    age_seconds = max(0.0, time.time() - (last_seen_ms / 1000.0))
-    fresh = age_seconds < timeout
-    return {
-        "state": "online" if fresh else "offline",
-        "fresh": fresh,
-        "last_seen_ms": last_seen_ms,
-        "age_seconds": round(age_seconds, 1),
-    }
+    fresh = 0 <= age < timeout
+    return {"state": "online" if fresh else "offline", "fresh": fresh,
+            "last_seen_ms": received, "age_seconds": round(age, 1)}
 
 
-def _git_row_status(raw_data: dict[str, Any], gcs_status: dict[str, Any] | None) -> tuple[str, bool]:
-    raw_status = raw_data.get("status", "unknown")
-    commits_behind = _safe_int(raw_data.get("commits_behind"), 0)
-    commits_ahead = _safe_int(raw_data.get("commits_ahead"), 0)
+def _git_row_status(raw_data: dict[str, Any], gcs_status: dict[str, Any] | None, params: Any) -> tuple[GitStatus, bool]:
+    """Compare reported revisions independently of the two checkout branch names."""
+    # An online heartbeat cannot refresh an older repository observation.
+    last_check = _safe_int(raw_data.get("last_check"))
+    max_age = 2 * getattr(params, "git_poll_interval", 10) + getattr(params, "GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC", 5)
+    if last_check and time.time() - last_check / 1000 > max_age:
+        return GitStatus.UNKNOWN, False
+    raw_status = raw_data.get("status")
+    ahead = tracking_count(raw_data, "commits_ahead")
+    behind = tracking_count(raw_data, "commits_behind")
+    commit = raw_data.get("commit")
+    target = (gcs_status or {}).get("commit")
+    if (not commit or not target or "unknown" in (commit, target)
+            or min(ahead, behind) < 0 or raw_status in (None, "unknown")):
+        return GitStatus.UNKNOWN, False
     if raw_status == "dirty" or raw_data.get("uncommitted_changes"):
-        status = "dirty"
-    elif commits_behind > 0 and commits_ahead > 0:
-        status = "diverged"
-    elif commits_behind > 0:
-        status = "behind"
-    elif commits_ahead > 0:
-        status = "ahead"
-    elif raw_status == "clean":
-        status = "synced"
-    else:
-        status = str(raw_status or "unknown")
+        return GitStatus.DIRTY, False
+    if ahead and behind:
+        return GitStatus.DIVERGED, False
+    if ahead:
+        return GitStatus.AHEAD, False
+    if behind:
+        return GitStatus.BEHIND, False
+    if raw_status in ("clean", "synced"):
+        return GitStatus.SYNCED, commits_match(commit, target)
+    try:
+        return GitStatus(raw_status), False
+    except ValueError:
+        return GitStatus.UNKNOWN, False
 
-    gcs_branch = (gcs_status or {}).get("branch")
-    gcs_commit = (gcs_status or {}).get("commit")
-    same_branch = raw_data.get("branch") == gcs_branch if gcs_branch else status == "synced"
-    same_commit = commits_match(raw_data.get("commit", ""), gcs_commit) if gcs_commit else status == "synced"
-    return status, bool(same_branch and same_commit and status == "synced")
+
+def _maintenance_drift(mavlink, connectivity, sync) -> bool:
+    """Only raise a maintenance notice from an explicit mismatch or failure."""
+    if mavlink and mavlink.management_mode not in ("none", "disabled", "manual") and mavlink.config_hash_match is False:
+        return True
+    if connectivity and connectivity.backend != "none" and connectivity.config_hash_match is False:
+        return True
+    if not sync:
+        return False
+    outcomes = (sync.status, sync.service_reload_status, sync.mavsdk_runtime_status,
+                sync.mavlink_runtime_reconcile_status, sync.connectivity_reconcile_status)
+    return (any(value in {"warning", "failed", "error", "unhealthy", "degraded"} for value in outcomes)
+            or any("manual_unit_update_required" in action for action in sync.deferred_unit_actions))
 
 
 def _build_fleet_git_sync_table(deps: Any) -> dict[str, Any]:
@@ -440,11 +369,11 @@ def _build_fleet_git_sync_table(deps: Any) -> dict[str, Any]:
     heartbeats = _safe_heartbeats(deps)
     rows = []
     with deps.data_lock_git_status:
-        git_snapshot = dict(deps.git_status_data_all_drones)
+        git_snapshot = {str(key): value for key, value in deps.git_status_data_all_drones.items()}
     for drone in drones_config:
         hw_id = str(drone.get("hw_id"))
         raw_data = git_snapshot.get(hw_id, {}) or {}
-        status, in_sync = _git_row_status(raw_data, gcs_status)
+        status, in_sync = _git_row_status(raw_data, gcs_status, deps.Params)
         presence = _presence_for_hw_id(deps, hw_id, heartbeats)
         rows.append(
             {
@@ -465,114 +394,96 @@ def _build_fleet_git_sync_table(deps: Any) -> dict[str, Any]:
     return {
         "schema": GIT_SYNC_SCHEMA,
         "rows": rows,
-        "needs_sync_count": len([row for row in rows if row["presence"]["fresh"] and not row["in_sync_with_gcs"]]),
+        "needs_sync_count": sum(row["presence"]["fresh"] and row["status"] != GitStatus.UNKNOWN and not row["in_sync_with_gcs"] for row in rows),
+        "unknown_count": sum(row["presence"]["fresh"] and row["status"] == GitStatus.UNKNOWN for row in rows),
         "timestamp": int(time.time() * 1000),
         "gcs_status": gcs_status,
     }
 
 
-def _selected_git_sync_targets(deps: Any, pos_ids: list[int] | None) -> list[dict[str, Any]]:
-    drones_config = deps.load_config()
-    if pos_ids:
-        requested = {int(pos_id) for pos_id in pos_ids}
-        return [drone for drone in drones_config if int(drone.get("pos_id", 0) or 0) in requested]
-    target_drones, _skipped = deps._select_sync_target_drones(drones_config, None)
-    return target_drones
+def _configured_git_targets(deps: Any) -> dict[str, dict]:
+    rows = deps.load_config()
+    indexed = {str(row["hw_id"]): {"hw_id": str(row["hw_id"]), "pos_id": int(row["pos_id"]), "ip": row.get("ip")}
+               for row in rows}
+    if len(indexed) != len(rows):
+        raise HTTPException(409, "Duplicate hardware identity in fleet configuration")
+    return indexed
+
+
+def _target_revision(deps: Any) -> tuple[str, str]:
+    try:
+        gcs = deps.get_gcs_git_report() or {}
+    except Exception:
+        gcs = {}
+    return str(gcs.get("branch") or ""), str(gcs.get("commit") or "")
+
+
+def _target_evidence(deps: Any, targets, branch: str, commit: str) -> dict:
+    with deps.data_lock_git_status:
+        software = {str(hw): report for hw, report in deps.git_status_data_all_drones.items()}
+    heartbeats = _safe_heartbeats(deps)
+    results = {}
+    for target in targets:
+        hw = target["hw_id"]
+        presence = _presence_for_hw_id(deps, hw, heartbeats)
+        report = software.get(hw) or {}
+        error_code = None
+        if not presence["fresh"]:
+            error_code = "offline"
+        elif not branch or branch == "unknown" or not commits_match(commit, commit):
+            error_code = "gcs_revision_unknown"
+        elif (_git_row_status(report, {"commit": commit}, deps.Params)[0] == GitStatus.UNKNOWN
+                or report.get("error")
+                or str(report.get("hw_id", hw)) != hw):
+            error_code = "version_unknown"
+        results[hw] = {**target, "presence": presence, "ok": error_code is None, "error_code": error_code}
+        if error_code:
+            results[hw]["error"] = {"offline": "Aircraft offline", "version_unknown": "Version unavailable",
+                                    "gcs_revision_unknown": "GCS version unavailable"}[error_code]
+        else:
+            results[hw].update(planned_command="UPDATE_CODE", target_branch=branch, target_commit=commit, warnings=[])
+    return results
 
 
 def _build_git_sync_dry_run(deps: Any, request_payload: FleetGitSyncDryRunRequest) -> dict[str, Any]:
-    try:
-        gcs_status = deps.get_gcs_git_report()
-    except Exception:
-        gcs_status = {}
-    branch = (gcs_status or {}).get("branch") or getattr(deps.Params, "GIT_BRANCH", "main")
-    expected_commit = (gcs_status or {}).get("commit", "")
-    heartbeats = _safe_heartbeats(deps)
-    targets = _selected_git_sync_targets(deps, request_payload.pos_ids)
-    results: dict[str, Any] = {}
-    accepted_targets: list[dict[str, Any]] = []
-    for drone in targets:
-        hw_id = str(drone.get("hw_id"))
-        presence = _presence_for_hw_id(deps, hw_id, heartbeats)
-        warnings = []
-        if not presence["fresh"]:
-            if not request_payload.include_offline:
-                results[hw_id] = {"ok": False, "error": "node is not online; rerun with include_offline only for deliberate recovery", "presence": presence}
-                continue
-            warnings.append("node is offline or stale; apply will target last-known node metadata")
-        accepted_targets.append(drone)
-        results[hw_id] = {
-            "ok": True,
-            "pos_id": int(drone.get("pos_id", drone.get("hw_id", 0)) or 0),
-            "ip": drone.get("ip"),
-            "presence": presence,
-            "warnings": warnings,
-            "planned_command": "UPDATE_CODE",
-            "target_branch": branch,
-            "target_commit": expected_commit,
-        }
-    job = {
-        "schema": GIT_SYNC_SCHEMA,
-        "job_id": f"git-sync-{uuid.uuid4().hex[:12]}",
-        "kind": "git-sync-dry-run",
-        "target_branch": branch,
-        "target_commit": expected_commit,
-        "targets": [
-            {
-                "hw_id": str(drone.get("hw_id")),
-                "pos_id": int(drone.get("pos_id", drone.get("hw_id", 0)) or 0),
-                "ip": drone.get("ip"),
-            }
-            for drone in accepted_targets
-        ],
-        "results": results,
-        "created_at": int(time.time() * 1000),
-        "applied": False,
-    }
-    job["confirmation_token"] = _job_confirmation_token(job)
-    _git_sync_jobs[job["job_id"]] = job
-    return job
+    by_hw = _configured_git_targets(deps)
+    if request_payload.pos_ids is not None and request_payload.hw_ids is not None:
+        raise HTTPException(422, "Choose either hardware IDs or position IDs")
+    if request_payload.hw_ids is not None:
+        requested = set(request_payload.hw_ids)
+        if requested - by_hw.keys():
+            raise HTTPException(409, "Selected aircraft configuration has changed")
+        targets = [v for k, v in by_hw.items() if k in requested]
+    elif request_payload.pos_ids is not None:
+        positions = set(request_payload.pos_ids)
+        targets = [t for t in by_hw.values() if t["pos_id"] in positions]
+        if {t["pos_id"] for t in targets} != positions:
+            raise HTTPException(409, "Selected aircraft configuration has changed")
+    else:
+        targets = list(by_hw.values())
+
+    branch, commit = _target_revision(deps)
+    results = _target_evidence(deps, targets, branch, commit)
+    operation_id = f"git-sync-{uuid.uuid4().hex}"
+    return {"schema": GIT_SYNC_SCHEMA, "job_id": operation_id, "kind": "git-sync-dry-run",
+            "target_branch": branch, "target_commit": commit, "results": results,
+            "targets": [target for target in targets if results[target["hw_id"]]["ok"]],
+            "created_at": now_ms(), "applied": False, "confirmation_token": secrets.token_urlsafe(32)}
 
 
-def _validate_git_sync_job(job: dict[str, Any], confirmation: GitSyncActionConfirmation) -> None:
-    if job.get("applied"):
-        raise HTTPException(status_code=409, detail="dry-run job was already applied")
-    created_at = _safe_int(job.get("created_at"), 0)
-    if created_at <= 0 or time.time() - (created_at / 1000.0) > GIT_SYNC_DRY_RUN_TTL_SECONDS:
-        raise HTTPException(status_code=409, detail="dry-run job expired")
-    if not confirmation.acknowledged_risks:
-        raise HTTPException(status_code=400, detail="acknowledged_risks is required")
-    if not _confirmation_token_matches(job, confirmation.confirmation_token):
-        raise HTTPException(status_code=400, detail="dry-run confirmation token is required")
-
-
-async def _wait_for_tracked_dispatch(deps: Any, command_id: str) -> dict[str, Any] | None:
-    """Wait only for bounded dispatch classification, never mission completion."""
-
-    timeout_sec = max(
-        1.0,
-        min(
-            60.0,
-            float(getattr(deps.Params, "GCS_FLEET_DISPATCH_DEADLINE_SEC", 15.0))
-            + float(getattr(deps.Params, "GCS_COMMAND_HTTP_TIMEOUT_SEC", 5.0))
-            + 2.0,
-        ),
-    )
-    deadline = time.monotonic() + timeout_sec
-    tracker = deps.get_command_tracker()
-    last_status = None
-    while time.monotonic() < deadline:
-        last_status = await tracker.get_status(command_id)
-        if last_status is None:
-            return None
-        phase = str(last_status.get("phase") or "")
-        acks = last_status.get("acks") or {}
-        if phase == "terminal" or int(acks.get("received", 0)) >= int(
-            acks.get("expected", 0)
-        ):
-            return last_status
-        await asyncio.sleep(0.1)
-    return last_status
+def _check_review(deps, record):
+    """Dispatch only the exact identities, positions, endpoints and revision the operator reviewed."""
+    status, targets = record["status"], record["targets"]
+    if not targets:
+        raise HTTPException(409, "No eligible aircraft in this preview")
+    branch, commit = _target_revision(deps)
+    if (branch, commit) != (status["target_branch"], status["target_commit"]):
+        raise HTTPException(409, "GCS revision changed. Review aircraft again.")
+    current = _configured_git_targets(deps)
+    if any(current.get(t["hw_id"]) != t for t in targets):
+        raise HTTPException(409, "Aircraft identity or endpoint changed. Review aircraft again.")
+    if not all(row["ok"] for row in _target_evidence(deps, targets, branch, commit).values()):
+        raise HTTPException(409, "Aircraft presence or version changed. Review aircraft again.")
 
 
 def create_git_router(deps: Any) -> APIRouter:
@@ -598,155 +509,7 @@ def create_git_router(deps: Any) -> APIRouter:
         """Return Fleet Ops git-sync table state without mutating drones."""
         return _build_fleet_git_sync_table(deps)
 
-    @router.post("/api/v1/fleet/git-sync/dry-run", tags=["Git"])
-    async def dry_run_fleet_git_sync(sync_request: FleetGitSyncDryRunRequest, http_request: Request):
-        """Plan a node git sync. No drone command is dispatched."""
-        _require_mutation_authority(http_request)
-        return _build_git_sync_dry_run(deps, sync_request)
-
-    @router.post("/api/v1/fleet/git-sync/apply", response_model=FleetGitSyncApplyResponse, tags=["Git"])
-    async def apply_fleet_git_sync(sync_request: FleetGitSyncApplyRequest, http_request: Request):
-        """Apply a previously accepted Fleet Ops git-sync dry-run."""
-        _require_mutation_authority(http_request)
-        job = _git_sync_jobs.get(sync_request.dry_run_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="dry-run job not found")
-        _validate_git_sync_job(job, sync_request.confirmation)
-
-        async with deps._sync_lock:
-            if deps._sync_state["active"]:
-                return FleetGitSyncApplyResponse(
-                    success=False,
-                    message="A sync operation is already in progress",
-                    synced_drones=[],
-                    failed_drones=[],
-                    total_attempted=0,
-                    target_branch=None,
-                    target_commit=None,
-                )
-            deps._sync_state["active"] = True
-            deps._sync_state["started_at"] = time.time()
-            deps._sync_state["results"] = None
-
-        try:
-            heartbeats = _safe_heartbeats(deps)
-            all_targets = [dict(target) for target in job.get("targets", [])]
-            live_targets = []
-            stale_targets = []
-            for target in all_targets:
-                presence = _presence_for_hw_id(deps, str(target.get("hw_id")), heartbeats)
-                if presence["fresh"]:
-                    live_targets.append(target)
-                else:
-                    stale_targets.append(target)
-            if stale_targets:
-                raise HTTPException(status_code=409, detail="one or more dry-run targets are no longer online; rerun dry-run")
-            if not live_targets:
-                return FleetGitSyncApplyResponse(
-                    success=False,
-                    message="No eligible dry-run targets remain online",
-                    synced_drones=[],
-                    failed_drones=[],
-                    total_attempted=0,
-                    target_branch=job.get("target_branch"),
-                    target_commit=job.get("target_commit"),
-                )
-
-            target_hw_ids = [str(target["hw_id"]) for target in live_targets]
-            tracked_submission = await submit_tracked_command(
-                deps,
-                SubmitCommandRequest(
-                    mission_type=Mission.UPDATE_CODE.value,
-                    trigger_time=0,
-                    update_branch=job.get("target_branch"),
-                    target_drone_ids=target_hw_ids,
-                    idempotency_key=f"fleet-git-sync:{job['job_id']}",
-                ),
-                authority=CommandSubmissionAuthority.FLEET_OPS_GIT_SYNC,
-            )
-            tracker = deps.get_command_tracker()
-            verification_capabilities = await tracker.get_callback_capabilities(
-                tracked_submission.command_id
-            )
-            await _wait_for_tracked_dispatch(deps, tracked_submission.command_id)
-
-            # Git/runtime verification is the operation's source of truth. It
-            # checks every planned live target even when an UPDATE_CODE ACK is
-            # lost during the node service restart.
-            verified_hw_ids, failed_hw_ids = await deps._verify_sync_targets(
-                live_targets,
-                expected_branch=str(job.get("target_branch") or ""),
-                expected_commit=str(job.get("target_commit") or ""),
-            )
-            verified_hw_id_set = {str(hw_id) for hw_id in verified_hw_ids}
-            failed_hw_id_set = {str(hw_id) for hw_id in failed_hw_ids}
-            synced = sorted(
-                int(target["pos_id"])
-                for target in live_targets
-                if str(target["hw_id"]) in verified_hw_id_set
-            )
-            failed = sorted(
-                int(target["pos_id"])
-                for target in live_targets
-                if str(target["hw_id"]) in failed_hw_id_set
-            )
-            completion_results = {
-                str(target["hw_id"]): {
-                    "success": str(target["hw_id"]) in verified_hw_id_set,
-                    "error_message": (
-                        None
-                        if str(target["hw_id"]) in verified_hw_id_set
-                        else (
-                            "Fleet Ops did not observe the requested branch, exact "
-                            "commit, clean worktree, and zero ahead/behind drift before "
-                            "the verification deadline"
-                        )
-                    ),
-                }
-                for target in live_targets
-            }
-            await tracker.record_authoritative_completion(
-                tracked_submission.command_id,
-                completion_results,
-                completion_authority=(
-                    CommandCompletionAuthority.FLEET_GIT_POSTCONDITION
-                ),
-                callback_capabilities=verification_capabilities,
-            )
-            job["applied"] = True
-            job["applied_at"] = int(time.time() * 1000)
-            deps._sync_state["results"] = {"synced": synced, "failed": failed}
-            total_attempted = len(live_targets)
-            success = total_attempted > 0 and len(synced) == total_attempted
-            message = (
-                f"Sync verified: {len(synced)} of {total_attempted} drones now match GCS"
-                if success
-                else f"Sync partially verified: {len(synced)} of {total_attempted} drones updated; {len(failed)} failed or timed out"
-            )
-            return FleetGitSyncApplyResponse(
-                success=success,
-                message=message,
-                synced_drones=synced,
-                failed_drones=failed,
-                total_attempted=total_attempted,
-                target_branch=job.get("target_branch"),
-                target_commit=job.get("target_commit"),
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:
-            deps.log_system_error(f"Fleet git sync apply failed: {exc}", "git")
-            return FleetGitSyncApplyResponse(
-                success=False,
-                message=f"Sync operation failed: {exc}",
-                synced_drones=[],
-                failed_drones=[],
-                total_attempted=0,
-                target_branch=job.get("target_branch"),
-                target_commit=job.get("target_commit"),
-            )
-        finally:
-            deps._sync_state["active"] = False
+    router.include_router(create_fleet_git_sync_router(deps, _build_git_sync_dry_run, _check_review))
 
     @router.websocket("/ws/git-status")
     async def websocket_git_status(websocket: WebSocket):

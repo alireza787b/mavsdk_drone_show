@@ -2148,13 +2148,19 @@ Get git status from all drones.
 Return Fleet Ops git-sync posture for configured drones.
 
 #### `POST /api/v1/fleet/git-sync/dry-run`
-Preview selected sync targets without mutating drones. Mutation-token headers
+Pass `hw_ids` for explicit hardware identities, or `pos_ids` for older clients. An explicit empty list selects no recipients. Omit both to preview the configured fleet with per-aircraft eligibility. Mutation-token headers
 are required when `MDS_FLEET_OPS_MUTATION_TOKEN` is configured.
 
 #### `POST /api/v1/fleet/git-sync/apply`
 Apply a confirmed dry-run by sending `UPDATE_CODE` only to eligible targets.
 The request must include the dry-run id and confirmation token returned by the
 dry-run response.
+
+Pass `?background=true` to receive an operation receipt while execution continues. The synchronous API still returns its final summary. Repeating a confirmed apply for the same preview retrieves the existing operation.
+
+#### `GET /api/v1/fleet/git-sync/operations/{operation_id}`
+
+Read the operation by the ID returned in the preview. The receipt includes `preview_id`, `phase`, `target_counts`, `per_aircraft_state` keyed by hardware ID, and millisecond UTC timestamps for start, last update and completion. Confirmation tokens are issued only when creating a preview. A GCS restart can leave the operation interrupted. A fresh read is safe after an uncertain HTTP response. Previews expire after five minutes. The GCS keeps operation receipts for seven days. A verified result records the observed revision and worktree state, including an aircraft that already matched before the update.
 
 Sidecar hashes are compact compliance markers. They are intended for drift
 visibility and should not be treated as profile content or credentials.

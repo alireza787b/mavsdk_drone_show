@@ -52,6 +52,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/candidates",
         "/api/v1/fleet/candidates/{candidate_id}",
         "/api/v1/fleet/git-sync",
+        "/api/v1/fleet/git-sync/operations/{operation_id}",
         "/api/v1/fleet/network-status",
         "/api/v1/fleet/network-details",
         "/api/v1/fleet/node-boot-status",
