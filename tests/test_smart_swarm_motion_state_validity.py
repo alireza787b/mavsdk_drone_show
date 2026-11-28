@@ -79,7 +79,7 @@ def _validate_global(sample):
         expected_hw_id=1,
         use_local_ned=False,
         now_epoch_ms=NOW_MS,
-        max_source_age_sec=0.75,
+        max_source_age_sec=1.5,
     )
 
 
@@ -89,7 +89,7 @@ def _validate_local(sample):
         expected_hw_id="1",
         use_local_ned=True,
         now_epoch_ms=NOW_MS,
-        max_source_age_sec=0.75,
+        max_source_age_sec=1.5,
     )
 
 
@@ -142,7 +142,7 @@ def test_global_leader_sample_rejects_non_finite_motion(field_name):
     ("timestamp_ms", "expected_code"),
     [
         (0, "source_timestamp_invalid"),
-        (NOW_MS - 751, "source_timestamp_stale"),
+        (NOW_MS - 1501, "source_timestamp_stale"),
         (NOW_MS + 251, "source_timestamp_future"),
     ],
 )
@@ -195,7 +195,7 @@ def test_local_leader_sample_rejects_invalid_boot_time(source_time_boot_ms):
     ("timestamp_ms", "expected_code"),
     [
         (0, "source_timestamp_invalid"),
-        (NOW_MS - 751, "source_timestamp_stale"),
+        (NOW_MS - 1501, "source_timestamp_stale"),
         (NOW_MS + 251, "source_timestamp_future"),
     ],
 )

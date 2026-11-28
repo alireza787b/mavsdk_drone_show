@@ -839,7 +839,7 @@ times are measured from the last usable leader observation.
 
 | Time | What the follower does |
 |---|---|
-| Up to 2.5 s | Keeps full confidence in the last accepted observation. Position and heading prediction is capped at 2.5 s from that sample. An observation older than 0.75 s is not newly accepted, but the retained sample continues to drive motion without an age slowdown. |
+| Up to 2.5 s | Keeps full confidence in the last accepted observation. Position and heading prediction is capped at 2.5 s from that sample. An observation older than 1.5 s is not newly accepted, but the retained sample continues to drive motion without an age slowdown. |
 | 2.5 s to 5.0 s | Holds the same predicted target while scaling the complete requested motion linearly to zero. The aircraft still needs time to brake; this is not a guarantee of separation. |
 | At 5.0 s | Requests PX4 Hold and starts a 10 s recovery window. Time spent waiting for PX4 to confirm Hold counts toward those 10 s. |
 

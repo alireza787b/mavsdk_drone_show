@@ -41,6 +41,7 @@ def test_hard_stale_timing_is_configurable_and_consistent(monkeypatch, tmp_path,
     monkeypatch.setenv('MDS_SMART_SWARM_HARD_STALE_TIMEOUT_SEC', value)
     params = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/params.py'))['Params']
     assert params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC == expected
+    assert params.SMART_SWARM_SOURCE_MAX_AGE_SEC == 1.5
     assert params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC == 2.5
     assert params.SMART_SWARM_OWN_STATE_HARD_STALE_TIMEOUT_SEC == 2.5
     assert params.SMART_SWARM_STREAM_PREDICT_GRACE_SEC == 2.5
