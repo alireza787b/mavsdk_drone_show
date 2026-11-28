@@ -3,13 +3,22 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import FlightLogsWorkspace from './FlightLogsWorkspace';
 import UlogTransferActivity from './UlogTransferActivity';
 import { UlogTransferCenter, UlogTransferProvider } from './UlogTransferCenter';
+import { getBackendURL } from '../../config/apiConfig';
 import { useUlogTransferContext } from '../../features/log-workspace/UlogTransferContext';
 import * as service from '../../services/logService';
-jest.mock('../../services/logService', () => ({ getDroneUlogFiles: jest.fn(), getDroneUlogPolicy: jest.fn(), getDroneUlogSummary: jest.fn(), summarizeUploadedUlog: jest.fn(), eraseAllDroneUlogs: jest.fn(), buildDroneUlogDownloadURL: (id, job) => `/fixture/${id}/${job}` }));
+jest.mock('../../services/logService', () => ({
+  getDroneUlogFiles: jest.fn(), getDroneUlogPolicy: jest.fn(), getDroneUlogSummary: jest.fn(), getVerifiedUlogSummary: jest.fn(),
+  summarizeUploadedUlog: jest.fn(), eraseAllDroneUlogs: jest.fn(),
+  listVerifiedUlogCopies: jest.fn(), getDroneUlogDownloadRequest: jest.fn(),
+  createDroneUlogDownloadJob: jest.fn(), deleteDroneUlogDownloadJob: jest.fn(),
+  buildDroneUlogDownloadURL: (id, job) => `/fixture/${id}/${job}`,
+}));
+const STORAGE_KEY = `mds:ulog-transfers:v1:${getBackendURL()}:test:browser-session`;
 const transfers = () => ({ records: [], pending: false, busy: false, start: jest.fn(async () => true), check: jest.fn(), remove: jest.fn(), browserRequested: jest.fn() });
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
+  service.listVerifiedUlogCopies.mockResolvedValue([]);
   service.getDroneUlogFiles.mockResolvedValue({ files: [{ id: 7, size_bytes: 1024, date_utc: '2026-11-12T10:00:00Z' }], ulog_capability: { available: true } });
   service.getDroneUlogPolicy.mockResolvedValue({ policy: { download_supported: true, erase_all_supported: true, download_requires_disarmed: true } });
 });
@@ -18,7 +27,7 @@ function FlightLogs(props) {
   return <><UlogTransferCenter userRole={props.userRole} /><FlightLogsWorkspace {...props} transfers={ledger} /></>;
 }
 
-const renderWithTransfers = props => render(<UlogTransferProvider runtimeMode="test"><FlightLogs {...props} /></UlogTransferProvider>);
+const renderWithTransfers = props => render(<UlogTransferProvider runtimeMode="test" userRole={props.userRole}><FlightLogs {...props} /></UlogTransferProvider>);
 
 test('viewer can inspect/derive a summary but cannot prepare or erase; absent metrics remain unknown', async () => {
   service.getDroneUlogSummary.mockResolvedValue({ parsed: true, parser: { status: 'ok' }, duration_sec: 42,
@@ -29,8 +38,11 @@ test('viewer can inspect/derive a summary but cannot prepare or erase; absent me
   expect(screen.queryByRole('button', { name: 'Erase onboard logs' })).not.toBeInTheDocument();
   fireEvent.click(summary);
   expect(await screen.findByText('42 s · partial / lower bound')).toBeInTheDocument();
-  expect(screen.getByText('Acknowledgment samples').nextElementSibling).toHaveTextContent('Unknown');
-  expect(screen.getByText('Command samples').nextElementSibling).toHaveTextContent('3');
+  const metrics = within(screen.getByRole('region', { name: 'Flight log summary' }));
+  const terms = metrics.getAllByRole('term');
+  const values = metrics.getAllByRole('definition');
+  expect(values[terms.indexOf(metrics.getByText('Acknowledgment samples'))]).toHaveTextContent('Unknown');
+  expect(values[terms.indexOf(metrics.getByText('Command samples'))]).toHaveTextContent('3');
 });
 test('explicit preparation binds the selected file and aircraft, not an inventory index', async () => {
   const ledger = transfers();
@@ -72,6 +84,10 @@ test('local file uses only the bounded upload summary endpoint', async () => {
   expect(await screen.findByText('Parser unavailable')).toBeInTheDocument();
   expect(service.summarizeUploadedUlog).toHaveBeenCalledWith(file);
   expect(service.getDroneUlogFiles).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Log transfers' }));
+  expect(await screen.findByText('Parser unavailable')).toBeInTheDocument();
 });
 test('an unobserved or failed catalog is never reported as zero onboard files', async () => {
   let reject;
@@ -107,4 +123,118 @@ test('Remove GCS copy waits for confirmation before deleting', async () => {
   fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove GCS copy?' })).getByRole('button', { name: 'Remove' }));
   expect(ledger.remove).toHaveBeenCalledWith(record);
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('dismissed retained notices stay hidden after remount and copies remain available through Flight Logs', async () => {
+  const copy = id => ({
+    request_id: `receipt-${id}`,
+    job: { job_id: `copy-${id}`, hw_id: '1', log_id: id, status: 'ready', expires_at: Date.now() + 60000 },
+  });
+  const copies = [copy(7), copy(8)];
+  service.listVerifiedUlogCopies.mockResolvedValue(copies);
+  const props = { droneId: null, sourceLabel: 'GCS', userRole: 'operator' };
+  const { unmount } = renderWithTransfers(props);
+  fireEvent.click(await screen.findByRole('button', { name: 'ULog transfers' }));
+  const save = screen.getAllByRole('link', { name: 'Save file' })[0];
+  save.addEventListener('click', event => event.preventDefault(), { once: true });
+  fireEvent.click(save);
+  expect(screen.getByRole('button', { name: 'ULog transfers' })).toHaveTextContent('Save started');
+  const recovery = localStorage.getItem(STORAGE_KEY);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  expect(localStorage.getItem(STORAGE_KEY)).toBe(recovery);
+  expect(service.deleteDroneUlogDownloadJob).not.toHaveBeenCalled();
+  unmount();
+
+  renderWithTransfers(props);
+  const open = screen.getByRole('button', { name: 'Log transfers' });
+  fireEvent.click(open);
+  const panel = screen.getByRole('region', { name: 'ULog transfers' });
+  expect(within(panel).getByRole('link', { name: 'Save again' })).toHaveAttribute('href', '/fixture/1/copy-7');
+  expect(await within(panel).findByRole('link', { name: 'Save file' })).toHaveAttribute('href', '/fixture/1/copy-8');
+  fireEvent.click(open);
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+
+  service.listVerifiedUlogCopies.mockResolvedValue([copy(9), ...copies]);
+  fireEvent(window, new Event('focus'));
+  expect(await screen.findByRole('button', { name: 'ULog transfers' })).toHaveTextContent('Ready to save');
+  expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
+});
+
+test('dismiss hides settled notices while unconfirmed receipts and newly observed failures stay visible', async () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([
+    { requestId: 'unconfirmed', droneId: '1', logId: 7, aircraftLabel: 'H1', verified: true,
+      job: null, creationStatus: 'unknown', error: 'Waiting for receipt' },
+    { requestId: 'rejected', droneId: '1', logId: 8, aircraftLabel: 'H1', verified: true,
+      job: null, creationStatus: 'rejected', error: 'Could not read log' },
+  ]));
+  service.getDroneUlogDownloadRequest.mockResolvedValue({
+    request_id: 'unconfirmed',
+    status: 'accepted',
+    job: { job_id: 'failed-job', hw_id: '1', log_id: 7, status: 'failed', error: 'Aircraft disconnected' },
+  });
+  renderWithTransfers({ droneId: null, sourceLabel: 'GCS', userRole: 'operator' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  const widget = screen.getByRole('button', { name: 'ULog transfers' });
+  expect(widget).toHaveTextContent('Reconnecting');
+  expect(screen.queryByRole('button', { name: 'Dismiss transfer notice' })).not.toBeInTheDocument();
+  fireEvent.click(widget);
+  fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+  await waitFor(() => expect(widget).toHaveTextContent('Transfer failed'));
+  expect(service.getDroneUlogDownloadRequest).toHaveBeenCalledWith('1', 'unconfirmed');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Log transfers' }));
+  expect(await screen.findAllByRole('button', { name: 'Retry aircraft read' })).toHaveLength(2);
+  expect(service.createDroneUlogDownloadJob).not.toHaveBeenCalled();
+});
+
+test('dismissed summary-first transfers do not replay summaries after remount', async () => {
+  const report = id => ({
+    requestId: `receipt-${id}`, droneId: '1', logId: id, aircraftLabel: 'H1', verified: true, wantsSummary: true,
+    job: { job_id: `copy-${id}`, hw_id: '1', log_id: id, status: 'ready', expires_at: Date.now() + 60000 },
+  });
+  const setReports = reports => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+    service.listVerifiedUlogCopies.mockResolvedValue(reports.map(({ requestId, job }) => ({ request_id: requestId, job })));
+  };
+  const dismissed = report(7);
+  setReports([dismissed]);
+  service.getVerifiedUlogSummary.mockResolvedValue({ parsed: false, parser: { status: 'unavailable', error: 'Example summary' } });
+  const props = { droneId: null, sourceLabel: 'GCS', userRole: 'operator' };
+  const { unmount } = renderWithTransfers(props);
+  await waitFor(() => expect(service.getVerifiedUlogSummary).toHaveBeenCalledWith('1', 'copy-7'));
+  const widget = screen.getByRole('button', { name: 'ULog transfers' });
+  await waitFor(() => expect(widget).toHaveTextContent('Ready to save'));
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  unmount();
+
+  const { unmount: closeReopened } = renderWithTransfers(props);
+  await waitFor(() => expect(service.listVerifiedUlogCopies).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  expect(service.getVerifiedUlogSummary).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Log transfers' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'View summary' }));
+  expect(await screen.findByText('Example summary')).toBeInTheDocument();
+  expect(service.getVerifiedUlogSummary).toHaveBeenCalledTimes(2);
+  closeReopened();
+
+  setReports([dismissed, report(8)]);
+  renderWithTransfers(props);
+  await waitFor(() => expect(service.getVerifiedUlogSummary).toHaveBeenLastCalledWith('1', 'copy-8'));
+  expect(service.getVerifiedUlogSummary).toHaveBeenCalledTimes(3);
+});
+
+test('a standalone recovery error can be dismissed without changing the stored receipts', async () => {
+  const invalid = 'unreadable receipts';
+  localStorage.setItem(STORAGE_KEY, invalid);
+  renderWithTransfers({ droneId: null, sourceLabel: 'GCS', userRole: 'operator' });
+  expect(await screen.findByRole('button', { name: 'ULog transfers' })).toHaveTextContent('Transfer issue');
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss transfer notice' }));
+  expect(screen.queryByRole('button', { name: 'ULog transfers' })).not.toBeInTheDocument();
+  expect(localStorage.getItem(STORAGE_KEY)).toBe(invalid);
 });

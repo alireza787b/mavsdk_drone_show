@@ -56,12 +56,13 @@ the connection and select **Retry**.
 
 ## 5. Save, summarize, or remove a GCS copy
 
-![A ready transfer with Save file, Summary, Remove GCS copy, and the time left](../assets/log-workspace/guide-06-ready-save-390-light.png)
+![The transfer notice after Save file, with the dismiss button at the top right](../assets/log-workspace/guide-06-ready-save-390-light.png)
 
 | Control | What it does |
 |---|---|
 | **Save file** | Downloads the verified GCS copy to this device. The aircraft can be offline. The same action appears beside the log if its flight inventory is open. |
 | **Summary** | Reads the GCS copy and displays derived PX4 measurements. If you choose Summary first, MDS gets the log and opens the summary when ready. |
+| × on the dashboard notice | Hides finished transfer notices in this browser. Reopen **Log transfers** under **Logs → Flight logs** to save a copy again or read its summary. |
 | Trash icon | Confirm **Remove GCS copy** to free GCS space immediately. Your device's saved files and the aircraft's original remain available. |
 
 Check your browser's **Downloads** list to see when the save finishes or to
@@ -70,7 +71,7 @@ request. Save important recordings before removing the GCS copy or before its
 countdown ends.
 
 Verified copies stay on the GCS for **seven days after they're ready**. Open
-**Log transfers** from the same operator account after signing back in, even
+**Logs → Flight logs → Log transfers** from the same operator account after signing back in, even
 in a different browser. MDS shows the time left and frees the space on expiry.
 The default limits are 512 MiB per file and 1 GiB total. If storage is full,
 save and remove copies you no longer need before getting more. Existing copies

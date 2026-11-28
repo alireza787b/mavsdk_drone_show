@@ -68,19 +68,38 @@
         }
       })();
     </script>
+    <script>
+      // React's error boundary starts after the deferred entry script has loaded.
+      document.addEventListener('error', function (event) {
+        var script = event.target;
+        if (!(script instanceof HTMLScriptElement) || !script.defer || !script.src) return;
+        function showRetry() {
+          var boot = document.getElementById('mds-bootstrap');
+          if (!boot) return;
+          boot.querySelector('.app-loading__label').textContent = 'Dashboard couldn’t load';
+          boot.querySelector('.app-loading__indicator').hidden = true;
+          var retry = boot.querySelector('button');
+          retry.hidden = false;
+          retry.onclick = function () { window.location.reload(); };
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', showRetry, { once: true });
+        } else {
+          showRetry();
+        }
+      }, true);
+    </script>
+    <noscript><style>#mds-bootstrap { display: none; }</style></noscript>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
+    <noscript>Enable JavaScript to open MDS.</noscript>
+    <div id="root">
+      <div id="mds-bootstrap" class="app-loading app-loading--standalone" role="status">
+        <img class="app-loading__mark" src="%PUBLIC_URL%/favicon.svg" width="56" height="56" alt="" />
+        <span class="app-loading__label">Opening MDS…</span>
+        <span class="app-loading__indicator" aria-hidden="true"></span>
+        <button class="app-loading__retry" type="button" hidden>Retry</button>
+      </div>
+    </div>
   </body>
 </html>

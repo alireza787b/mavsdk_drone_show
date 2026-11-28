@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { act } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 import { getAuthStatusResponse } from './services/gcsApiService';
 
 // Mock primary routed pages
 jest.mock('./pages/Overview', () => ({ __esModule: true, default: () => <div data-testid="overview" /> }));
-jest.mock('./pages/MissionConfig', () => ({ __esModule: true, default: () => <div data-testid="mission-config" /> }));
+let mockMissionConfigLoad;
+jest.mock('./pages/MissionConfig', () => ({
+  __esModule: true,
+  default: () => {
+    if (mockMissionConfigLoad) throw mockMissionConfigLoad;
+    return <div data-testid="mission-config" />;
+  },
+}));
 jest.mock('./components/SidebarMenu', () => ({ collapsed, mobile, mobileOpen }) => (
   <nav
     data-testid="sidebar"
@@ -55,13 +62,7 @@ jest.mock('./services/gcsApiService', () => {
   const actual = jest.requireActual('./services/gcsApiService');
   return {
     ...actual,
-    getAuthStatusResponse: jest.fn().mockResolvedValue({
-      data: {
-        dashboard_auth_enabled: false,
-        api_auth_enabled: false,
-        authenticated: false,
-      },
-    }),
+    getAuthStatusResponse: jest.fn(),
     loginResponse: jest.fn(),
     logoutResponse: jest.fn().mockResolvedValue({ data: { authenticated: false } }),
     setGcsCsrfToken: jest.fn(),
@@ -70,6 +71,16 @@ jest.mock('./services/gcsApiService', () => {
 
 describe('App', () => {
   const originalInnerWidth = window.innerWidth;
+
+  beforeEach(() => {
+    getAuthStatusResponse.mockResolvedValue({
+      data: {
+        dashboard_auth_enabled: false,
+        api_auth_enabled: false,
+        authenticated: false,
+      },
+    });
+  });
 
   afterEach(() => {
     window.innerWidth = originalInnerWidth;
@@ -101,6 +112,43 @@ describe('App', () => {
     );
   });
 
+  test('retries a failed first access check before opening the dashboard', async () => {
+    let failAccessCheck;
+    getAuthStatusResponse.mockReturnValueOnce(new Promise((_, reject) => { failAccessCheck = reject; }));
+
+    render(<App />);
+    expect(screen.getByRole('status')).toHaveTextContent('Checking access…');
+    expect(getAuthStatusResponse).toHaveBeenLastCalledWith({ timeout: 10000 });
+    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument();
+
+    failAccessCheck(new Error('Internal server diagnostics'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t connect to the GCS');
+    expect(screen.queryByText('Internal server diagnostics')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(getAuthStatusResponse).toHaveBeenLastCalledWith({ timeout: 10000 });
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
+  });
+
+  test('keeps the shell available while a workspace is opening', async () => {
+    let finishLoading;
+    mockMissionConfigLoad = new Promise(resolve => { finishLoading = resolve; });
+    window.history.pushState({}, '', '/mission-config');
+    render(<App />);
+
+    expect(await screen.findByText('Opening workspace…')).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent('Opening workspace…');
+    expect(screen.getByTestId('sidebar')).toBeVisible();
+
+    await act(async () => {
+      mockMissionConfigLoad = undefined;
+      finishLoading();
+    });
+    expect(screen.getByTestId('mission-config')).toBeVisible();
+    expect(screen.queryByText('Opening workspace…')).not.toBeInTheDocument();
+  });
+
   test('requires login when API auth is enabled even if dashboard auth is open', async () => {
     getAuthStatusResponse.mockResolvedValueOnce({
       data: {
@@ -112,7 +160,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: /operator login/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
   });
 
