@@ -132,6 +132,10 @@ h1, h2, h3, h4, h5, h6 {
   text-align: center;
 }
 
+.app-loading [hidden] {
+  display: none;
+}
+
 .app-loading--standalone {
   min-height: 100vh;
   min-height: 100dvh;
