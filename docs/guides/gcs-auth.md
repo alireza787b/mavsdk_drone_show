@@ -87,7 +87,7 @@ token distribution path.
 
 ![MDS sign-in screen](../assets/operator-workspaces/sign-in.png)
 
-Enter your assigned **Username** and **Password**, then choose **Sign in**. Saved credentials can fill both fields. **Sign-in help** opens the account recovery guide.
+Enter your assigned **Username** and **Password**, then choose **Sign in**. Saved credentials can fill both fields. **Sign-in help** opens the account recovery guide. If the first connection fails, use **Retry** to check access again.
 
 When dashboard auth is enabled:
 

@@ -9,6 +9,7 @@ import {
 } from '../services/gcsApiService';
 
 const AuthContext = createContext(null);
+const AUTH_STATUS_TIMEOUT_MS = 10000;
 
 export function AuthProvider({ children }) {
   const [status, setStatus] = useState(null);
@@ -19,7 +20,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAuthStatusResponse();
+      const response = await getAuthStatusResponse({ timeout: AUTH_STATUS_TIMEOUT_MS });
       setStatus(response.data || {});
       if (response.data?.csrf_token) {
         setGcsCsrfToken(response.data.csrf_token);
@@ -34,9 +35,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refresh().catch(() => {
-      setLoading(false);
-    });
+    refresh().catch(() => undefined);
   }, [refresh]);
 
   useEffect(() => {
@@ -78,6 +77,7 @@ export function AuthProvider({ children }) {
     const authenticated = authRequired ? Boolean(status?.authenticated) : true;
     return {
       status: status || {},
+      hasStatus: status !== null,
       loading,
       error,
       dashboardAuthEnabled,

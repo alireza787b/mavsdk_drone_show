@@ -14,6 +14,8 @@ import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { FaBars, FaTimes } from 'react-icons/fa';
 
+import mdsMark from './assets/mds-mark.svg';
+
 // Import theme system
 import { ThemeProvider } from './contexts/ThemeContext';
 import { CommandActivityProvider } from './contexts/CommandActivityContext';
@@ -84,54 +86,37 @@ const getIsMobileViewport = () => {
   return window.innerWidth <= MOBILE_BREAKPOINT;
 };
 
-const AppLoadingFallback = () => (
-  <div className="page-loading" role="status" aria-live="polite" aria-label="Loading mission dashboard">
-    <div className="page-loading__card">
-      <div className="page-loading__radar" aria-hidden="true">
-        <span className="page-loading__sweep" />
-        <span className="page-loading__node page-loading__node--one" />
-        <span className="page-loading__node page-loading__node--two" />
-        <span className="page-loading__node page-loading__node--three" />
-      </div>
-      <div className="page-loading__copy">
-        <strong>Loading mission dashboard</strong>
-        <span>Preparing fleet view</span>
-      </div>
-      <div className="page-loading__dots" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
+function LoadingStatus({ label, standalone = false, onRetry }) {
+  return (
+    <div className={standalone ? 'app-loading app-loading--standalone' : 'app-loading'} role={onRetry ? undefined : 'status'}>
+      <img className="app-loading__mark" src={mdsMark} width="56" height="56" alt="" />
+      <span className="app-loading__label" role={onRetry ? 'alert' : undefined}>{label}</span>
+      {onRetry
+        ? <button className="app-loading__retry" type="button" onClick={onRetry}>Retry</button>
+        : <span className="app-loading__indicator" aria-hidden="true" />}
     </div>
-  </div>
-);
-
-const AuthLoadingFallback = () => (
-  <div className="page-loading" role="status" aria-live="polite" aria-label="Checking dashboard access">
-    <div className="page-loading__card">
-      <div className="page-loading__radar" aria-hidden="true">
-        <span className="page-loading__sweep" />
-        <span className="page-loading__node page-loading__node--one" />
-        <span className="page-loading__node page-loading__node--two" />
-      </div>
-      <div className="page-loading__copy">
-        <strong>Checking dashboard access</strong>
-        <span>Preparing secure session</span>
-      </div>
-    </div>
-  </div>
-);
+  );
+}
 
 const AuthGate = ({ children }) => {
   const auth = useAuth();
 
-  if (auth.loading && !auth.authRequired) {
-    return <AuthLoadingFallback />;
+  if (!auth.hasStatus) {
+    if (auth.error && !auth.loading) {
+      return (
+        <LoadingStatus
+          label="Couldn’t connect to the GCS"
+          standalone
+          onRetry={() => auth.refresh().catch(() => undefined)}
+        />
+      );
+    }
+    return <LoadingStatus label="Checking access…" standalone />;
   }
 
   if (auth.authRequired && !auth.authenticated) {
     return (
-      <Suspense fallback={<AuthLoadingFallback />}>
+      <Suspense fallback={<LoadingStatus label="Opening sign-in…" standalone />}>
         <LoginPage />
       </Suspense>
     );
@@ -236,7 +221,7 @@ const AppShell = () => {
                   <SyncWarningBanner />
                   <UlogTransferCenter userRole={logRole} />
                   <div className="shell-operations-strip"><CommandActivityPanel /><FleetAlertsPanel /><RouteDocsShortcut /></div>
-                  <Suspense fallback={<AppLoadingFallback />}>
+                  <Suspense fallback={<LoadingStatus label="Opening workspace…" />}>
                     <Routes>
                       {/* Main drone management routes */}
                       <Route path="/drone-show" element={<DroneShowWorkspace runtimeMode={runtimeStatus.mode} />} />
