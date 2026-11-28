@@ -3038,6 +3038,7 @@ class TestGitStatus:
             'leader_loss_strategy': drone_api_server.Params.SMART_SWARM_LEADER_LOSS_STRATEGY,
             'recovery_wait_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_WAIT_SEC,
             'recovery_stable_sec': drone_api_server.Params.SMART_SWARM_LEADER_RECOVERY_STABLE_SEC,
+            'source_max_age_sec': drone_api_server.Params.SMART_SWARM_SOURCE_MAX_AGE_SEC,
             'hard_stale_sec': drone_api_server.Params.SMART_SWARM_HARD_STALE_TIMEOUT_SEC,
             'motion_full_confidence_sec': drone_api_server.Params.SMART_SWARM_MOTION_CONFIDENCE_FULL_SEC,
             'motion_ramp_sec': max(
