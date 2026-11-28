@@ -481,16 +481,14 @@ configured role from active role and reports `Starting`, `Active`, `Partial`,
 rejects startup, another role's process launch is not shown as a fully active
 formation. A retry after a lost HTTP response recovers the same command ID.
 
-The follower watches PX4 mode, armed state, and landed state. RC/QGC RTL, Land,
-or manual takeover stops follower setpoints and preserves the selected recovery
-mode; MDS never countercommands it with HOLD. This watcher does not elect
-leaders. The default `hold_recover` policy retains the assigned leader: after
-the existing hard-stale limit it requests PX4 Hold, waits up to 10 seconds for
-one continuous second of fresh leader/own-state evidence and confirmed internal
-Hold, then smoothly reacquires. If the window expires, following remains paused
-even if data returns later. Use **Stop Swarm (Hold)**, then **Start Smart Swarm**
-for the complete formation to retry. This does not arm or take off. Pilot mode
-changes, RTL, landing and disarming cancel automatic recovery.
+The follower watches PX4 mode, armed state and landed state. A pilot switch
+to Return, Land or a manual mode ends the follower's control. Reselecting
+an already active Hold on a radio may produce no observable mode change.
+To keep an aircraft in Hold after its link returns, use the dashboard's
+explicit **Stop following** or Hold action and check that aircraft's receipt.
+A command can remain undelivered when the aircraft is offline.
+
+See [Leader-loss handling](#leader-loss-handling) for the recovery timeline.
 
 Automatic promotion is disabled by default. Advanced deployment settings in
 `/etc/mds/local.env` are `MDS_SMART_SWARM_LEADER_LOSS_STRATEGY=hold_recover`,
@@ -835,13 +833,25 @@ ULog topics as well before diagnosing real aircraft dynamics.
 
 ### Leader-loss handling
 
-Current default policy: `hold_recover`. Delayed motion data first reduces
-following speed. After 2.5 seconds without a fresh usable source, the follower
-enters Hold, keeps its assigned role, and waits up to 10 seconds for recovery.
-One second of stable fresh leader/own data and retained control authority is
-required to rejoin smoothly. If that window expires, it stays paused; use
-**Stop Swarm**, then **Start Smart Swarm** to retry. RTL, Land, disarm, or pilot
-takeover cancels automatic recovery. This never changes the saved formation.
+The default `hold_recover` policy keeps the assigned leader. The following
+times are measured from the last usable leader observation.
+
+| Time | What the follower does |
+|---|---|
+| Up to 0.75 s | Uses fresh leader observations. |
+| From 0.75 s | Reduces the requested motion as data ages. Position prediction is limited to 1 s from the sample, and the requested motion reaches zero by 1.75 s. The aircraft still needs time to brake. |
+| Beyond 2.5 s | Requests PX4 Hold and starts a 10 s recovery window. Time spent waiting for PX4 to confirm Hold counts toward those 10 s. |
+
+To resume automatically, PX4 must confirm the follower is airborne, armed
+and in the Hold that MDS requested. The same leader's position and heading
+and the follower's own motion data must be fresh for one continuous second
+before the window expires. A single packet cannot restart following.
+
+A due flight-control override accepted by the aircraft, including Hold,
+Return or Land, cancels recovery of that session. A dashboard submission
+alone cannot confirm delivery. If the window expires, later data leaves
+following paused and the saved formation intact. To follow again, use
+**Stop Swarm**, then **Start Smart Swarm**, and check the new session receipt.
 
 Leader-loss handling now treats both cases as degraded leader health:
 

@@ -16,6 +16,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Followers verify current PX4 authority before requesting Hold or re-entering
   Offboard. An observed pilot Return or Land ends following. A silent mode
   stream ends the owned setpoint sender and records an unconfirmed handoff.
+- A follower that accepts a new Hold, Return or Land during link recovery
+  gives that command priority, even when PX4 already reports Hold.
 - GCS runtime inspection runs outside the telemetry event loop. The SITL
   inventory skips unrelated containers.
 - A saved flight log includes an offline UTC timeline of PX4 events and

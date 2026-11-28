@@ -31,6 +31,17 @@ EXECUTABLE_MISSIONS = frozenset(
 EXECUTABLE_MISSION_VALUES = frozenset(
     mission.value for mission in EXECUTABLE_MISSIONS
 )
+MISSION_OVERRIDE_VALUES = frozenset(mission.value for mission in (
+    Mission.NONE,
+    Mission.DRONE_SHOW_FROM_CSV,
+    Mission.CUSTOM_CSV_DRONE_SHOW,
+    Mission.KILL_TERMINATE,
+    Mission.LAND,
+    Mission.HOLD,
+    Mission.RETURN_RTL,
+    Mission.PRECISION_MOVE,
+    Mission.SWARM_TRAJECTORY,
+))
 
 
 def resolve_executable_mission(value: Any) -> Mission | None:

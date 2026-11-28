@@ -551,6 +551,10 @@ def _follower_task_missing(task_name: str) -> bool:
     return task is None or task.done()
 
 
+def _swarm_reentry_allowed():
+    return RUNTIME_SESSION is None or RUNTIME_SESSION.allows_reentry()
+
+
 async def ensure_offboard_active_for_follower(drone: System, logger, reason: str) -> bool:
     """Start only from a newly reported eligible native mode."""
     global FOLLOWER_MOTION_LEASE
@@ -558,6 +562,8 @@ async def ensure_offboard_active_for_follower(drone: System, logger, reason: str
 
     authority = CONTROL_AUTHORITY
     if authority is None or authority.releasing or authority.takeover_reason:
+        return False
+    if not _swarm_reentry_allowed():
         return False
     if FOLLOWER_MOTION_LEASE is None:
         FOLLOWER_MOTION_LEASE = MotionControlLease.acquire(Params.DEFAULT_GRPC_PORT)
@@ -579,18 +585,63 @@ async def ensure_offboard_active_for_follower(drone: System, logger, reason: str
         if authority.mode_changes != origin:
             authority.preserve_external("PX4 mode changed while preparing follower entry")
             return False
+        if not _swarm_reentry_allowed():
+            return False
         if not authority.can_request_offboard() or not authority.expect("OFFBOARD"):
             return False
         deadline = authority.pending_until
-        start = asyncio.wait_for(drone.offboard.start(), timeout=max(0, deadline - time.monotonic()))
-        await _observe_mode_request("offboard_start", reason, start)
+        superseded = "Newer local flight command superseded follower entry"
+
+        dispatched = False
+
+        async def start_if_current():
+            nonlocal dispatched
+            # The task can first run after the caller yields to a due override.
+            if not _swarm_reentry_allowed() or authority.takeover_reason:
+                return False
+            if time.monotonic() >= deadline:
+                raise asyncio.TimeoutError
+            dispatched = True
+            await _observe_mode_request("offboard_start", reason, drone.offboard.start())
+            return True
+
+        start = asyncio.create_task(start_if_current())
+        try:
+            while not start.done() and _swarm_reentry_allowed() and not authority.takeover_reason:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise asyncio.TimeoutError
+                await asyncio.wait((start,), timeout=min(0.05, remaining))
+            if not _swarm_reentry_allowed():
+                if dispatched:
+                    authority.relinquish_unconfirmed(superseded)
+                else:
+                    authority.preserve_external(superseded)
+                return False
+            if authority.takeover_reason or not start.result():
+                return False
+        finally:
+            if not start.done():
+                start.cancel()
+                await asyncio.gather(start, return_exceptions=True)
+            elif not start.cancelled():
+                start.exception()
+        if not _swarm_reentry_allowed():
+            authority.relinquish_unconfirmed(superseded)
+            return False
         if not authority.accept_offboard_request():
             return False
         while not authority.owns_fresh_offboard():
+            if not _swarm_reentry_allowed():
+                authority.relinquish_unconfirmed(superseded)
+                return False
             if authority.takeover_reason or time.monotonic() >= deadline:
                 authority.relinquish_unconfirmed("PX4 Offboard entry was not confirmed")
                 return False
             await asyncio.sleep(0.05)
+        if not _swarm_reentry_allowed():
+            authority.relinquish_unconfirmed(superseded)
+            return False
         logger.info("Follower offboard control active (%s).", reason)
         return True
     except asyncio.CancelledError:
@@ -648,6 +699,9 @@ async def handle_leader_unavailability(drone: System, logger, reason: str):
         await execute_failsafe(drone, reason=reason, operation_timeout_sec=2.0)
         target_version = FORMATION_CONFIG_VERSION
         while True:
+            if not _swarm_reentry_allowed():
+                _record_link_event("recovery", reason="superseded by newer local flight command", outcome="cancelled")
+                return False
             now = time.monotonic()
             own = dict(OWN_STATE)
             own_valid = validate_own_motion_state(
@@ -2273,6 +2327,7 @@ async def run_smart_swarm_process(logger) -> bool:
             _record_link_event("session_end", reason=reason, outcome=RUNTIME_PHASE)
             LINK_EVIDENCE.close()
             LINK_EVIDENCE = None
+        RUNTIME_SESSION.close_reentry_context()
         clear_runtime_swarm_assignment(session_id=RUNTIME_SESSION.command_id, phase=RUNTIME_PHASE)
         RUNTIME_SESSION.phase = RUNTIME_PHASE
         RUNTIME_SESSION.detail = (CONTROL_AUTHORITY.takeover_reason if CONTROL_AUTHORITY else None) or (RUNTIME_DETAIL if RUNTIME_PHASE == "failed" else reason)

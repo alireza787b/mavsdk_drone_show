@@ -297,3 +297,156 @@ def test_successful_quickscout_install_returns_typed_proof_and_private_artifact(
     assert config.update_branch is None
     assert drones[config.hw_id] is config
     assert _transaction_debris(tmp_path) == []
+
+
+@pytest.fixture
+def installed_swarm_follower(tmp_path, monkeypatch):
+    from src.drone_setup import DroneSetup
+    from src.swarm_runtime_state import create_swarm_reentry_context
+
+    communicator, config, _ = _build_communicator(tmp_path, monkeypatch)
+    config.mission = Mission.SMART_SWARM.value
+    config.state = State.MISSION_EXECUTING.value
+    config.current_command_id = "older-swarm-follower"
+    setup = DroneSetup.__new__(DroneSetup)
+    setup.params = SimpleNamespace(trigger_sooner_seconds=3)
+    config.drone_setup = setup
+    with create_swarm_reentry_context() as context:
+        setup.running_processes = {
+            "smart-swarm": SimpleNamespace(
+                command_id=config.current_command_id, swarm_reentry_context=context,
+            )
+        }
+        yield communicator, config, context
+
+
+@pytest.mark.parametrize("mission", [Mission.HOLD, Mission.LAND, Mission.RETURN_RTL])
+def test_committed_native_recovery_fences_only_at_its_execution_boundary(
+    installed_swarm_follower, mission,
+):
+    import time
+
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    communicator, _, context = installed_swarm_follower
+    trigger = int(time.time()) + 60
+    result = communicator.process_command({
+        "mission_type": mission.value,
+        "trigger_time": trigger,
+        "command_id": "newer-local-recovery",
+    })
+
+    assert result.committed
+    assert swarm_reentry_allowed(context.fileno(), now=trigger - 3.001)
+    assert not swarm_reentry_allowed(context.fileno(), now=trigger - 3)
+
+
+def test_rejected_recovery_does_not_fence_older_follower(installed_swarm_follower):
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    communicator, config, context = installed_swarm_follower
+    config.arm_set_failure("mission")
+    with pytest.raises(CommandInstallationRejected) as failure:
+        communicator.process_command({
+            "mission_type": Mission.HOLD.value,
+            "trigger_time": 0,
+            "command_id": "rejected-local-recovery",
+        })
+
+    assert failure.value.phase == "config_commit"
+    assert config.current_command_id == "older-swarm-follower"
+    assert swarm_reentry_allowed(context.fileno())
+
+
+def test_installed_nonflight_command_leaves_reentry_permission_intact(installed_swarm_follower):
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    communicator, _, context = installed_swarm_follower
+    result = communicator.process_command({
+        "mission_type": Mission.TEST_LED.value,
+        "trigger_time": 0,
+        "command_id": "local-led-test",
+    })
+
+    assert result.committed
+    assert swarm_reentry_allowed(context.fileno())
+
+
+def test_committed_immediate_hold_disables_reentry_in_existing_hold(installed_swarm_follower):
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    communicator, _, context = installed_swarm_follower
+    result = communicator.process_command({
+        "mission_type": Mission.HOLD.value,
+        "trigger_time": 0,
+        "command_id": "deliberate-local-hold",
+    })
+
+    assert result.committed
+    # The previous follower can already be in Hold, so no fresh mode
+    # transition is required to observe the deliberate replacement.
+    assert not swarm_reentry_allowed(context.fileno())
+
+
+def test_read_only_state_preserves_reentry_and_cancel_fences_before_teardown(
+    installed_swarm_follower, test_client, mock_drone_config, mock_drone_communicator,
+):
+    from unittest.mock import AsyncMock
+
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    _, config, context = installed_swarm_follower
+    mock_drone_config.mission = config.mission
+    mock_drone_config.state = config.state
+    mock_drone_config.current_command_id = config.current_command_id
+
+    reentry_at_teardown = []
+
+    async def teardown(message):
+        reentry_at_teardown.append(swarm_reentry_allowed(context.fileno()))
+        return True, message
+
+    cancel_helper = AsyncMock(side_effect=teardown)
+    mock_drone_config.drone_setup = SimpleNamespace(
+        supersede_swarm_recovery=config.drone_setup.supersede_swarm_recovery,
+        cancel_active_command=cancel_helper,
+    )
+
+    status = test_client.get("/api/v1/drone/state")
+    assert status.status_code == 200
+    assert swarm_reentry_allowed(context.fileno())
+
+    cancel = test_client.post("/api/v1/drone/commands", json={
+        "mission_type": Mission.NONE.value,
+        "trigger_time": 0,
+        "command_id": "cancel-swarm",
+    })
+
+    assert cancel.status_code == 200
+    assert cancel.json()["status"] == "accepted"
+    cancel_helper.assert_awaited_once()
+    assert reentry_at_teardown == [False]
+    mock_drone_communicator.process_command.assert_not_called()
+
+
+def test_later_scheduled_recovery_cannot_revive_already_superseded_follower(
+    installed_swarm_follower,
+):
+    import time
+
+    from src.swarm_runtime_state import swarm_reentry_allowed
+
+    communicator, _, context = installed_swarm_follower
+    immediate = communicator.process_command({
+        "mission_type": Mission.HOLD.value,
+        "trigger_time": 0,
+        "command_id": "deliberate-local-hold",
+    })
+    scheduled = communicator.process_command({
+        "mission_type": Mission.LAND.value,
+        "trigger_time": int(time.time()) + 60,
+        "command_id": "scheduled-local-land",
+    })
+
+    assert immediate.committed and scheduled.committed
+    assert not swarm_reentry_allowed(context.fileno())

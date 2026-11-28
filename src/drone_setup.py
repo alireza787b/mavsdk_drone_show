@@ -18,6 +18,7 @@ from typing import Optional, Union
 import aiohttp
 
 from mds_logging import get_logger
+from src.swarm_runtime_state import create_swarm_reentry_context, supersede_swarm_reentry
 from src.action_safety import ACTION_PROCESS_CLEANUP_GRACE_SEC
 from src.action_result_protocol import (
     ACTION_RESULT_FD_ENV,
@@ -38,7 +39,7 @@ from src.command_execution_contract import (
     is_legacy_schema_outcome_rejection,
     validate_execution_outcome,
 )
-from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
+from src.enums import MISSION_OVERRIDE_VALUES, Mission, State
 from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_CAPABILITY_HEADER,
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
@@ -78,6 +79,7 @@ class RunningMissionProcess:
     # vehicle-control owner.  Leader-side jog/show processes may coexist with
     # it; follower-side missions still preempt their local swarm controller.
     role_session: bool = False
+    swarm_reentry_context: Optional[object] = None
     # A process key is intentionally human-readable and may be reused by a
     # duplicate command delivery.  State ownership therefore uses a separate
     # opaque token so a late monitor can never mistake a replacement record
@@ -695,6 +697,7 @@ class DroneSetup:
                 # process termination completed. Only detach this exact record.
                 if self.running_processes.get(process_key) is registry_value:
                     self.running_processes.pop(process_key, None)
+                    self._close_swarm_reentry_context(record)
 
         if should_reset_owned_state:
             self._reset_mission_state(success=False)
@@ -1029,6 +1032,7 @@ class DroneSetup:
             control_release_write_fd = None
             ownership_token = uuid.uuid4().hex
             swarm_context = None
+            reentry_context = None
             takeoff_context = None
             try:
                 process_kwargs = {
@@ -1053,15 +1057,16 @@ class DroneSetup:
                     child_env[CONTROL_RELEASE_FD_ENV] = str(control_release_write_fd)
                     child_env[CONTROL_RELEASE_OWNER_ENV] = ownership_token
                     child_env[CONTROL_RELEASE_COMMAND_ENV] = command_id or ""
+                    reentry_context = create_swarm_reentry_context()
                     swarm_context = tempfile.TemporaryFile(mode="w+")
-                    json.dump({"command_id": command_id,
+                    json.dump({"command_id": command_id, "reentry_fd": reentry_context.fileno(),
                                "capability": self._get_command_report_capability(command_id),
                                "session": getattr(self.drone_config, "smart_swarm_request", None)}, swarm_context)
                     swarm_context.flush()
                     swarm_context.seek(0)
                     child_env["MDS_SWARM_CONTEXT_FD"] = str(swarm_context.fileno())
                     process_kwargs["env"] = child_env
-                    process_kwargs["pass_fds"] = (swarm_context.fileno(), control_release_write_fd)
+                    process_kwargs["pass_fds"] = (swarm_context.fileno(), control_release_write_fd, reentry_context.fileno())
                 # actions.py owns a versioned terminal-result contract.  Keep
                 # it separate from human/logging stdout and stderr so native
                 # LED/SPI diagnostics cannot mask a PX4 command result.
@@ -1125,6 +1130,7 @@ class DroneSetup:
                     role_session=(mission_type == Mission.SMART_SWARM.value),
                     ownership_token=ownership_token,
                     control_release_read_fd=control_release_read_fd,
+                    swarm_reentry_context=reentry_context,
                 )
                 self.running_processes[process_key] = process_record
                 if control_release_read_fd is not None:
@@ -1140,6 +1146,8 @@ class DroneSetup:
                     state=State.MISSION_EXECUTING.value,
                 )
             except Exception as e:
+                if reentry_context is not None:
+                    reentry_context.close()
                 if swarm_context is not None:
                     swarm_context.close()
                 if takeoff_context is not None:
@@ -1251,6 +1259,7 @@ class DroneSetup:
                     return False, "owned helper process group could not be stopped"
                 if exact_record_registered:
                     self.running_processes.pop(process_record.process_key, None)
+                    self._close_swarm_reentry_context(process_record)
 
                 owns_execution_state = (
                     self._active_mission_owner_token == process_record.ownership_token
@@ -2296,8 +2305,7 @@ class DroneSetup:
 
     def check_running_processes(self):
         """
-        Debug helper to see if any processes ended unexpectedly.
-        If a process ended, remove it from the dictionary.
+        Log current process status. The monitor owns retirement.
         """
         for process_key, record in list(self.running_processes.items()):
             script_name = record.script_name
@@ -2307,7 +2315,6 @@ class DroneSetup:
                     f"Process '{script_name}' (key: {process_key}) ended unexpectedly "
                     f"with code {process.returncode}."
                 )
-                del self.running_processes[process_key]
             else:
                 logger.debug(f"Process '{script_name}' still running.")
 
@@ -2336,6 +2343,46 @@ class DroneSetup:
         except Exception as e:
             logger.error(f"Error during time synchronization: {e}")
 
+    @staticmethod
+    def _close_swarm_reentry_context(record):
+        context = getattr(record, "swarm_reentry_context", None)
+        if context is not None:
+            context.close()
+            record.swarm_reentry_context = None
+
+    def supersede_swarm_recovery(self, mission, command_id, trigger_time):
+        """Fence this aircraft's older follower at the normal execution boundary."""
+        preserves_leader = mission in (
+            Mission.DRONE_SHOW_FROM_CSV.value,
+            Mission.CUSTOM_CSV_DRONE_SHOW.value,
+            Mission.PRECISION_MOVE.value,
+        ) and self._active_leader_role_session()
+        if mission == Mission.NONE.value:
+            boundary = 0
+        elif mission in MISSION_OVERRIDE_VALUES and not preserves_leader:
+            boundary = self._execution_boundary(mission, trigger_time)
+        else:
+            boundary = None
+        for record in list(self.running_processes.values()):
+            context = getattr(record, "swarm_reentry_context", None)
+            if context is None or (command_id and record.command_id == command_id):
+                continue
+            # The coordinator and API hold the same command-state transaction
+            # lock for launches/retirement and committed replacements.
+            try:
+                supersede_swarm_reentry(context, boundary)
+            except (OSError, ValueError):
+                logger.critical("Could not update follower re-entry fence for %s",
+                                record.command_id, exc_info=True)
+                if boundary is not None:
+                    self._signal_process(record, force=False)
+
+    def _execution_boundary(self, mission, trigger_time):
+        lead = (mission_preparation_lead_seconds(mission, params=self.params)
+                if mission_uses_synchronized_show_executor(mission)
+                else int(self.params.trigger_sooner_seconds))
+        return int(trigger_time) - lead
+
     async def schedule_mission(self):
         """
         Periodically called (e.g., by the coordinator) to see if we should start or handle a mission.
@@ -2357,12 +2404,7 @@ class DroneSetup:
             current_time = int(time.time())
             try:
                 trigger_time = int(self.drone_config.trigger_time)
-                trigger_sooner = int(self.params.trigger_sooner_seconds)
-                if mission_uses_synchronized_show_executor(self.drone_config.mission):
-                    trigger_sooner = mission_preparation_lead_seconds(
-                        self.drone_config.mission, params=self.params,
-                    )
-                earlier_trigger_time = trigger_time - trigger_sooner
+                earlier_trigger_time = self._execution_boundary(self.drone_config.mission, trigger_time)
             except (AttributeError, ValueError, TypeError) as e:
                 logger.error(f"Error calculating trigger time: {e}")
                 return

@@ -11,6 +11,7 @@ import aiohttp
 
 from src.gcs_auth_client import gcs_auth_headers
 from src.gcs_api_routes import GCS_COMMAND_REPORT_CAPABILITY_HEADER
+from src.swarm_runtime_state import swarm_reentry_allowed
 from src.smart_swarm_contract import SmartSwarmSession
 
 
@@ -22,6 +23,9 @@ class SwarmSessionRuntime:
         if raw_fd is not None:
             with os.fdopen(int(raw_fd), "r") as stream:
                 context = json.load(stream)
+        fd = context.get("reentry_fd")
+        self._reentry_file = os.fdopen(fd, "rb", buffering=0) if fd is not None else None
+        self._reentry_superseded = False
         self.command_id = context.get("command_id") or str(uuid.uuid4())
         self.capability = context.get("capability")
         snapshot = context.get("session")
@@ -30,6 +34,17 @@ class SwarmSessionRuntime:
         self.phase = "ready"
         self.detail = ""
         self.last_report_error = None
+
+    def allows_reentry(self):
+        if self._reentry_file is not None and not self._reentry_superseded:
+            self._reentry_superseded = (
+                self._reentry_file.closed or not swarm_reentry_allowed(self._reentry_file.fileno())
+            )
+        return not self._reentry_superseded
+
+    def close_reentry_context(self):
+        if self._reentry_file is not None:
+            self._reentry_file.close()
 
     async def report(self, hw_id, follow, revision, *, applied_revision=None):
         if self.snapshot is None:

@@ -1185,3 +1185,95 @@ async def test_inflight_or_ambiguous_offboard_cannot_take_over(swarm_runtime, mo
         offboard.start.assert_not_awaited()
     else:
         stop_sender.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "supersession",
+    ["before_seed", "during_seed", "before_rpc", "during_rpc", "during_confirmation", "none"],
+)
+async def test_committed_local_supersession_at_offboard_reentry_boundaries(
+    swarm_runtime, monkeypatch, reporting_aircraft, supersession,
+):
+    from smart_swarm_src.session_runtime import SwarmSessionRuntime
+    from src.swarm_runtime_state import create_swarm_reentry_context, supersede_swarm_reentry
+
+    authority, mode = reporting_aircraft
+    authority.follower_owned = False
+    authority.internal_hold = True
+    mode[0] = "HOLD"
+    authority.update_mode(mode[0], leader=False)
+    monkeypatch.setattr(swarm_runtime, "FOLLOWER_MOTION_LEASE", Mock())
+
+    with create_swarm_reentry_context() as context:
+        context_fd, context_writer = os.pipe()
+        with os.fdopen(context_writer, "w") as stream:
+            json.dump({"reentry_fd": os.dup(context.fileno())}, stream)
+        monkeypatch.setenv("MDS_SWARM_CONTEXT_FD", str(context_fd))
+        runtime_session = SwarmSessionRuntime(swarm_runtime.Params, logging.getLogger(__name__))
+        monkeypatch.setattr(swarm_runtime, "RUNTIME_SESSION", runtime_session)
+
+        def supersede_at(boundary):
+            if supersession == boundary:
+                supersede_swarm_reentry(context, 0)
+
+        async def seed(_value):
+            supersede_at("during_seed")
+
+        expect_mode = authority.expect
+
+        def expect(mode_name):
+            accepted = expect_mode(mode_name)
+            if accepted and mode_name == "OFFBOARD":
+                asyncio.get_running_loop().call_soon(supersede_at, "before_rpc")
+            return accepted
+
+        start_cancelled = asyncio.Event()
+
+        async def start():
+            if supersession == "during_rpc":
+                supersede_at("during_rpc")
+                try:
+                    await asyncio.Future()
+                except asyncio.CancelledError:
+                    start_cancelled.set()
+                    raise
+            if supersession == "during_confirmation":
+                # Return native acceptance first and then deliver confirmation
+                # from a later heartbeat.
+                def confirm():
+                    supersede_at("during_confirmation")
+                    mode[0] = "OFFBOARD"
+
+                asyncio.get_running_loop().call_later(0.01, confirm)
+            else:
+                mode[0] = "OFFBOARD"
+
+        monkeypatch.setattr(authority, "expect", expect)
+        offboard = types.SimpleNamespace(
+            set_velocity_body=AsyncMock(side_effect=seed),
+            start=AsyncMock(side_effect=start),
+            stop=AsyncMock(),
+        )
+        drone = types.SimpleNamespace(offboard=offboard, action=types.SimpleNamespace(hold=AsyncMock()))
+        try:
+            supersede_at("before_seed")
+            result = await asyncio.wait_for(
+                swarm_runtime.ensure_offboard_active_for_follower(
+                    drone, logging.getLogger(__name__), "leader recovery",
+                ),
+                timeout=1,
+            )
+
+            assert result is (supersession == "none")
+            assert authority.owns_fresh_offboard() is result
+            assert authority.pending_mode is None
+            assert offboard.set_velocity_body.await_count == (supersession != "before_seed")
+            assert offboard.start.await_count == (
+                supersession not in {"before_seed", "during_seed", "before_rpc"}
+            )
+            assert start_cancelled.is_set() is (supersession == "during_rpc")
+            offboard.stop.assert_not_awaited()
+            drone.action.hold.assert_not_awaited()
+        finally:
+            runtime_session.close_reentry_context()
