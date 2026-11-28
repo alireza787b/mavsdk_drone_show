@@ -112,7 +112,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: /operator login/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.queryByTestId('overview')).not.toBeInTheDocument();
   });
 

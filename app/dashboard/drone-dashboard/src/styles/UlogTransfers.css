@@ -12,12 +12,30 @@
   pointer-events: auto;
 }
 
+.ulog-center__toolbar {
+  display: flex;
+  gap: .25rem;
+  max-width: 100%;
+}
+
 .ulog-center .ulog-center__toggle,
+.ulog-center .ulog-center__dismiss,
 .ulog-center__panel {
   background: var(--color-bg-primary, Canvas);
   color: var(--color-text-primary, CanvasText);
   border: 1px solid var(--color-border-primary, GrayText);
   border-radius: .65rem;
+}
+
+.ulog-center .ulog-center__dismiss {
+  flex: none;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+}
+
+.ulog-center .ulog-center__dismiss:hover {
+  background: var(--color-bg-hover, var(--color-bg-secondary));
 }
 
 .ulog-center__panel {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FiDownloadCloud, FiFileText, FiFolder, FiRefreshCw } from 'react-icons/fi';
+import { FiDownloadCloud, FiFileText, FiFolder, FiHardDrive, FiRefreshCw } from 'react-icons/fi';
 import { ActionIconButton, ConfirmDialog, OperatorNotice, PageActionBar } from '../ui';
 import { getDroneUlogFiles, getDroneUlogPolicy, eraseAllDroneUlogs } from '../../services/logService';
 import { formatBytes } from '../../utilities/logViewerUtils';
@@ -56,8 +56,13 @@ export default function FlightLogsWorkspace({ droneId, sourceLabel, userRole, tr
   return <section className="logs-flight" aria-label="Flight logs">
     <div className="logs-flight-toolbar"><span>{droneId == null ? 'Choose an aircraft' : status === 'loading' ? 'Loading logs…'
       : status === 'stale' ? 'Aircraft logs unavailable' : inventoryObserved ? `${files.length} logs` : ''}</span>
-      <PageActionBar primary={<ActionIconButton icon={<FiRefreshCw />} label="Refresh logs" title="Refresh logs"
-        disabled={droneId == null || status === 'loading'} onClick={refresh} />}
+      <PageActionBar primary={[
+        (canTransfer || transfers.summary) && <ActionIconButton key="transfers" icon={<FiHardDrive />} label="Log transfers"
+          aria-controls="ulog-transfer-panel" aria-expanded={Boolean(transfers.open)}
+          onClick={transfers.open ? () => transfers.setOpen(false) : transfers.openTransfers}>Log transfers</ActionIconButton>,
+        <ActionIconButton key="refresh" icon={<FiRefreshCw />} label="Refresh logs" title="Refresh logs"
+          disabled={droneId == null || status === 'loading'} onClick={refresh} />,
+      ]}
         secondary={<ActionIconButton icon={<FiFolder />} label="Open file" disabled={summaryBusy}
           onClick={() => fileInput.current?.click()}>Open file</ActionIconButton>} />
       <input ref={fileInput} type="file" accept=".ulg" aria-label="Open local ULog file" className="logs-visually-hidden" onChange={openFile} />

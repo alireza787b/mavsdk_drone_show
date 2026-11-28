@@ -85,9 +85,13 @@ token distribution path.
 
 ## Dashboard UI
 
+![MDS sign-in screen](../assets/operator-workspaces/sign-in.png)
+
+Enter your assigned **Username** and **Password**, then choose **Sign in**. Saved credentials can fill both fields. **Sign-in help** opens the account recovery guide.
+
 When dashboard auth is enabled:
 
-- unauthenticated users see the login page
+- unauthenticated users see the sign-in form
 - the sidebar shows the current signed-in user
 - Runtime Admin shows dashboard/API auth posture
 - admins can create/disable users and create/revoke API tokens

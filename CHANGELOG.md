@@ -9,6 +9,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+- Finished flight-log notices can be dismissed from the dashboard and reopened in Flight logs. Sign-in uses MDS aircraft artwork and supports saved credentials.
+
 - Fleet Ops previews software updates by aircraft identity, restores verification progress after navigation, and reports partial results. Node access, Wi-Fi and MAVLink tools are grouped under Maintenance.
 
 - Smart Swarm records each follower's reason for requesting Hold, the age of its

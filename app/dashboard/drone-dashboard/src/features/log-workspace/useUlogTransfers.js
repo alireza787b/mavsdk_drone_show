@@ -192,6 +192,7 @@ export default function useUlogTransfers(storageKey, restoreSaved = false) {
     })),
   ];
   return { records: visibleRecords, error, busy, prepare, check, remove, refreshSaved,
+    clearError: () => setError(''),
     wantSummary: record => persist({ ...record, wantsSummary: true }),
     browserRequested: record => persist({ ...record, browserRequestedAt: Date.now() }),
     pending: visibleRecords.some(transferPending) };

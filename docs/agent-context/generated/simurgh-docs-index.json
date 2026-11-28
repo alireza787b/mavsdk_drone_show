@@ -16763,7 +16763,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
-      "content_hash": "b3f6b60a5ed62dfb82c0fb5c6b4e4c210dcbf7886b5022d750d53098e00797ee",
+      "content_hash": "b465a97cddad4d80ca290d0b1067c7e10e0fe1063d061564b21201692f920ec8",
       "heading": "5. Save, summarize, or remove a GCS copy",
       "id": "mds.logs_operator_workflow:006-01-5-save-summarize-or-remove-a-gcs-copy",
       "links": [],
@@ -16776,7 +16776,7 @@
         "logs",
         "diagnostics"
       ],
-      "text": "## 5. Save, summarize, or remove a GCS copy\n\n![A ready transfer with Save file, Summary, Remove GCS copy, and the time left](../assets/log-workspace/guide-06-ready-save-390-light.png)\n\n| Control | What it does |\n|---|---|\n| **Save file** | Downloads the verified GCS copy to this device. The aircraft can be offline. The same action appears beside the log if its flight inventory is open. |\n| **Summary** | Reads the GCS copy and displays derived PX4 measurements. If you choose Summary first, MDS gets the log and opens the summary when ready. |\n| Trash icon | Confirm **Remove GCS copy** to free GCS space immediately. Your device's saved files and the aircraft's original remain available. |\n\nCheck your browser's **Downloads** list to see when the save finishes or to\nresume an interrupted save. **Save started** means the browser received the\nrequest. Save important recordings before removing the GCS copy or before its\ncountdown ends.\n\nVerified copies stay on the GCS for **seven days after they're ready**. Open\n**Log transfers** from the same operator account after signing back in, even\nin a different browser. MDS shows the time left and frees the space on expiry.\nThe default limits are 512 MiB per file and 1 GiB total. If storage is full,\nsave and remove copies you no longer need before getting more. Existing copies\nkeep their retention period. An expired or removed copy can be retrieved again\nwhile the aircraft still has the original.\n\nIf the GCS restarts during an aircraft transfer, return to **Log transfers**\nin the original browser session to recover the request. Verified copies\nsurvive a normal GCS restart.\n\nSummary shows measured values and flags incomplete coverage. A summary error\nleaves the verified file available. **Open file** sends a local `.ulg` to your\nGCS's temporary parser. Viewer accounts can request an onboard summary, and\noperator or admin accounts can retrieve and save raw files.",
+      "text": "## 5. Save, summarize, or remove a GCS copy\n\n![The transfer notice after Save file, with the dismiss button at the top right](../assets/log-workspace/guide-06-ready-save-390-light.png)\n\n| Control | What it does |\n|---|---|\n| **Save file** | Downloads the verified GCS copy to this device. The aircraft can be offline. The same action appears beside the log if its flight inventory is open. |\n| **Summary** | Reads the GCS copy and displays derived PX4 measurements. If you choose Summary first, MDS gets the log and opens the summary when ready. |\n| × on the dashboard notice | Hides finished transfer notices in this browser. Reopen **Log transfers** under **Logs → Flight logs** to save a copy again or read its summary. |\n| Trash icon | Confirm **Remove GCS copy** to free GCS space immediately. Your device's saved files and the aircraft's original remain available. |\n\nCheck your browser's **Downloads** list to see when the save finishes or to\nresume an interrupted save. **Save started** means the browser received the\nrequest. Save important recordings before removing the GCS copy or before its\ncountdown ends.\n\nVerified copies stay on the GCS for **seven days after they're ready**. Open\n**Logs → Flight logs → Log transfers** from the same operator account after signing back in, even\nin a different browser. MDS shows the time left and frees the space on expiry.\nThe default limits are 512 MiB per file and 1 GiB total. If storage is full,\nsave and remove copies you no longer need before getting more. Existing copies\nkeep their retention period. An expired or removed copy can be retrieved again\nwhile the aircraft still has the original.\n\nIf the GCS restarts during an aircraft transfer, return to **Log transfers**\nin the original browser session to recover the request. Verified copies\nsurvive a normal GCS restart.\n\nSummary shows measured values and flags incomplete coverage. A summary error\nleaves the verified file available. **Open file** sends a local `.ulg` to your\nGCS's temporary parser. Viewer accounts can request an onboard summary, and\noperator or admin accounts can retrieve and save raw files.",
       "title": "Logs operator workflow"
     },
     {
@@ -17964,7 +17964,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logs_operator_workflow/markdown",
       "chunk_count": 8,
-      "content_hash": "e5714e8857334a858c0dfd07b89bc90765c1c45e1465e7dccdc2ed3a61bc940f",
+      "content_hash": "24e61e0d10b998b21d86d6826e179a809466b59be102bfa4fbc7f4d684a74acb",
       "id": "mds.logs_operator_workflow",
       "mime_type": "text/markdown",
       "path": "docs/guides/logs-operator-workflow.md",
